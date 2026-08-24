@@ -15,7 +15,7 @@
 
 ## 2. Nguyên tắc kế thừa
 
-1. **Kiến trúc chuẩn usf ở mọi tầng** — cấu trúc thư mục, phân lớp backend (handler → service → storage), monorepo packages/apps, design tokens, i18n. Khi phân vân, mở `../usf` xem cách usf làm và làm giống.
+1. **Kiến trúc chuẩn usf ở mọi tầng** — cấu trúc thư mục, phân lớp backend (handler → service → pkg/db), monorepo packages/apps, design tokens, i18n. Khi phân vân, mở `../usf` xem cách usf làm và làm giống.
 2. **unidigiwork chỉ để đối chiếu**: màn hình Tasks/Meetings cần những trường gì, flow nào — đọc để hiểu yêu cầu, rồi **viết mới** theo convention usf.
 3. **YAGNI**: chỉ dựng những gì đợt 1 cần. Không dựng trước daemon/agent runtime/integrations của usf.
 
@@ -34,10 +34,10 @@ uniwork/
 │   │   ├── auth/                # register/login/refresh, JWT (golang-jwt/v5)
 │   │   ├── handler/             # HTTP handlers — chi router, 1 file/domain
 │   │   ├── service/             # business logic, không đụng HTTP/SQL trực tiếp
-│   │   ├── storage/             # pgx/v5 + sqlc generated queries
 │   │   ├── realtime/            # WebSocket hub (gorilla/websocket)
-│   │   └── meetings/            # LiveKit token minting (livekit server-sdk-go)
-│   ├── migrations/              # SQL migrations đánh số
+│   │   └── meetings/            # LiveKit token minting (livekit/protocol auth)
+│   ├── pkg/db/                  # sqlc: queries/*.sql + generated/ (chuẩn usf)
+│   ├── migrations/              # SQL migrations NNN_name.up.sql/.down.sql (chuẩn usf)
 │   ├── sqlc.yaml
 │   └── go.mod
 ├── packages/
@@ -122,13 +122,13 @@ REST dưới `/api/v1`, JSON, lỗi trả `{error: {code, message}}` thống nh�
 ## 7. Xử lý lỗi & bảo mật (đợt 1)
 
 - Mọi handler trả error contract thống nhất; service trả typed errors, handler map sang HTTP status.
-- Middleware auth verify JWT; mọi truy vấn nghiệp vụ đi qua service kiểm tra workspace membership trước khi chạm storage (không tin `workspace_id` từ client).
+- Middleware auth verify JWT; mọi truy vấn nghiệp vụ đi qua service kiểm tra workspace membership trước khi chạm pkg/db (không tin `workspace_id` từ client).
 - Password: bcrypt. Refresh token: lưu hash trong DB, revoke được.
 - Secrets (DB, JWT, LiveKit) qua env — file `.env.example` đầy đủ, không commit secret.
 
 ## 8. Testing & vận hành
 
-- **Go**: table-driven tests cho service layer (auth, membership check, tasks, meetings); storage test chạy với Postgres trong docker (testcontainers hoặc compose).
+- **Go**: table-driven tests cho service layer (auth, membership check, tasks, meetings); test tầng db chạy với Postgres trong docker (testcontainers hoặc compose).
 - **FE**: vitest cho packages/core (api client, zod schemas); component test tối thiểu cho views phức tạp (board).
 - **E2E**: 1 Playwright smoke: đăng ký → tạo workspace → tạo task → kéo task sang cột khác → tạo meeting → join phòng (mock/skip LiveKit connect trong CI).
 - **Dev loop**: `make dev` (compose up postgres+redis, chạy server Go + `pnpm dev`); `make migrate`, `make sqlc`, `make test`.
