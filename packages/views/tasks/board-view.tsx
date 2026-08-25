@@ -1,5 +1,12 @@
 "use client";
-import { DndContext, useDroppable, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { useTranslation } from "react-i18next";
 import { useTasks, useUpdateTask } from "@uniwork/core/tasks";
 import { computeDropPosition } from "@uniwork/core/tasks/position";
@@ -50,6 +57,8 @@ export function BoardView({
 }) {
   const { data: tasks } = useTasks(workspaceId);
   const update = useUpdateTask(workspaceId);
+  // distance > 0 để click thường vẫn mở detail, kéo mới kích hoạt drag
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const byStatus = (s: TaskStatus) =>
     (tasks ?? []).filter((t) => t.status === s).sort((a, b) => a.position - b.position);
@@ -66,7 +75,7 @@ export function BoardView({
   };
 
   return (
-    <DndContext onDragEnd={onDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div className="flex h-full gap-3 overflow-x-auto p-4">
         {COLUMNS.map((s) => (
           <Column key={s} status={s} tasks={byStatus(s)} onOpen={onOpenTask} />

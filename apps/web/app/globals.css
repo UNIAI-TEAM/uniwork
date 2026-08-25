@@ -2,6 +2,11 @@
 @import "@uniwork/ui/styles/tokens.css";
 @import "@uniwork/ui/styles/base.css";
 
+/* Tailwind v4 không tự scan workspace packages (symlink qua node_modules) —
+   khai báo source để sinh class dùng trong ui/views. */
+@source "../../../packages/ui";
+@source "../../../packages/views";
+
 @theme inline {
   --color-canvas: var(--uw-canvas);
   --color-surface: var(--uw-surface);
