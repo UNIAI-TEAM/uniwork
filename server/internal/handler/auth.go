@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -13,16 +14,25 @@ import (
 const refreshCookie = "uniwork_refresh"
 
 type userDTO struct {
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"display_name"`
-	AvatarURL   string `json:"avatar_url,omitempty"`
+	ID                      string          `json:"id"`
+	Email                   string          `json:"email"`
+	DisplayName             string          `json:"display_name"`
+	AvatarURL               string          `json:"avatar_url,omitempty"`
+	OnboardedAt             *string         `json:"onboarded_at"`
+	OnboardingQuestionnaire json.RawMessage `json:"onboarding_questionnaire"`
 }
 
 func toUserDTO(u db.User) userDTO {
-	dto := userDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName}
+	dto := userDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, OnboardingQuestionnaire: json.RawMessage("{}")}
 	if u.AvatarUrl.Valid {
 		dto.AvatarURL = u.AvatarUrl.String
+	}
+	if u.OnboardedAt.Valid {
+		s := u.OnboardedAt.Time.Format(time.RFC3339)
+		dto.OnboardedAt = &s
+	}
+	if len(u.OnboardingQuestionnaire) > 0 {
+		dto.OnboardingQuestionnaire = json.RawMessage(u.OnboardingQuestionnaire)
 	}
 	return dto
 }

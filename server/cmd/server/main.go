@@ -42,11 +42,13 @@ func main() {
 	}
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
-		Auth:       service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
-		Workspaces: wsSvc,
-		Tasks:      service.NewTaskService(q, wsSvc, pub),
-		Meetings:   service.NewMeetingService(q, wsSvc, pub),
-		Hub:        hub,
+		Auth:          service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
+		Organizations: orgSvc,
+		Workspaces:    wsSvc,
+		Onboarding:    service.NewOnboardingService(q, wsSvc, pub),
+		Tasks:         service.NewTaskService(q, wsSvc, pub),
+		Meetings:      service.NewMeetingService(q, wsSvc, pub),
+		Hub:           hub,
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {

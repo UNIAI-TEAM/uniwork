@@ -23,15 +23,19 @@ func newTestServer(t *testing.T) *httptest.Server {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
+	orgs := service.NewOrganizationService(q)
+	ws := service.NewWorkspaceService(pool, q, orgs)
 	d := Deps{
-		Cfg:        config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
-		Log:        slog.Default(),
-		Minter:     minter,
-		Auth:       service.NewAuthService(q, minter, time.Hour),
-		Workspaces: service.NewWorkspaceService(q),
-		Tasks:      service.NewTaskService(q, service.NewWorkspaceService(q), service.NopPublisher{}),
-		Meetings:   service.NewMeetingService(q, service.NewWorkspaceService(q), service.NopPublisher{}),
-		Hub:        realtime.NewHub(),
+		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
+		Log:           slog.Default(),
+		Minter:        minter,
+		Auth:          service.NewAuthService(q, minter, time.Hour),
+		Organizations: orgs,
+		Workspaces:    ws,
+		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}),
+		Tasks:         service.NewTaskService(q, ws, service.NopPublisher{}),
+		Meetings:      service.NewMeetingService(q, ws, service.NopPublisher{}),
+		Hub:           realtime.NewHub(),
 	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)

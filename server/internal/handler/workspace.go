@@ -6,17 +6,21 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/middleware"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 type workspaceDTO struct {
-	ID   string `json:"id"`
-	Slug string `json:"slug"`
-	Name string `json:"name"`
+	ID               string `json:"id"`
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	OrganizationID   string `json:"organization_id"`
+	OrganizationSlug string `json:"organization_slug"`
+	OrganizationName string `json:"organization_name"`
 }
 
-func toWorkspaceDTO(w db.Workspace) workspaceDTO {
-	return workspaceDTO{ID: w.ID, Slug: w.Slug, Name: w.Name}
+func toWorkspaceDTO(w service.WorkspaceView) workspaceDTO {
+	return workspaceDTO{ID: w.ID, Slug: w.Slug, Name: w.Name, OrganizationID: w.OrganizationID,
+		OrganizationSlug: w.OrganizationSlug, OrganizationName: w.OrganizationName}
 }
 
 func (h *handlers) listWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -32,25 +36,10 @@ func (h *handlers) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]any{"workspaces": out})
 }
 
-func (h *handlers) createWorkspace(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Name string `json:"name"`
-		Slug string `json:"slug"`
-	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
-		return
-	}
-	ws, err := h.Workspaces.Create(r.Context(), middleware.UserID(r.Context()), in.Name, in.Slug)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, 200, map[string]any{"workspace": toWorkspaceDTO(ws)})
-}
-
-func (h *handlers) getWorkspace(w http.ResponseWriter, r *http.Request) {
-	ws, err := h.Workspaces.GetBySlug(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "slug"))
+// GET /orgs/{org}/workspaces/{wsSlug} — {org} là slug.
+func (h *handlers) getWorkspaceBySlugs(w http.ResponseWriter, r *http.Request) {
+	ws, err := h.Workspaces.GetBySlugs(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "org"), chi.URLParam(r, "wsSlug"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -67,24 +56,35 @@ func (h *handlers) listMembers(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]any{"members": ms})
 }
 
+// POST /workspaces/{id}/invitations — nhận `emails: []` (mới) hoặc `email` đơn (tương thích).
 func (h *handlers) createInvitation(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Email string `json:"email"`
-		Role  string `json:"role"`
+		Email  string   `json:"email"`
+		Emails []string `json:"emails"`
+		Role   string   `json:"role"`
 	}
 	if err := decode(r, &in); err != nil {
 		respondError(w, 400, "invalid_request", "invalid json")
 		return
 	}
-	inv, err := h.Workspaces.Invite(r.Context(), middleware.UserID(r.Context()),
-		chi.URLParam(r, "workspaceID"), in.Email, in.Role)
+	emails := in.Emails
+	if in.Email != "" {
+		emails = append(emails, in.Email)
+	}
+	invs, skipped, err := h.Workspaces.InviteMany(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"), emails, in.Role)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"invitation": map[string]string{
-		"id": inv.ID, "email": inv.Email, "role": inv.Role, "token": inv.Token,
-	}})
+	out := make([]map[string]string, 0, len(invs))
+	for _, inv := range invs {
+		out = append(out, map[string]string{"id": inv.ID, "email": inv.Email, "role": inv.Role, "token": inv.Token})
+	}
+	if skipped == nil {
+		skipped = []string{}
+	}
+	respondJSON(w, 200, map[string]any{"invitations": out, "skipped": skipped})
 }
 
 func (h *handlers) acceptInvitation(w http.ResponseWriter, r *http.Request) {

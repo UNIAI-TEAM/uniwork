@@ -23,6 +23,7 @@ type taskDTO struct {
 	AssigneeID  *string `json:"assignee_id,omitempty"`
 	DueDate     *string `json:"due_date,omitempty"`
 	Position    float64 `json:"position"`
+	Kind        string  `json:"kind"`
 	CreatedBy   string  `json:"created_by"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
@@ -32,7 +33,7 @@ func toTaskDTO(t db.Task) taskDTO {
 	dto := taskDTO{
 		ID: t.ID, WorkspaceID: t.WorkspaceID, Title: t.Title, Description: t.Description,
 		Status: t.Status, Priority: t.Priority,
-		Position: t.Position, CreatedBy: t.CreatedBy,
+		Position: t.Position, Kind: t.Kind, CreatedBy: t.CreatedBy,
 		CreatedAt: t.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt: t.UpdatedAt.Time.Format(time.RFC3339),
 	}

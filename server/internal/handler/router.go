@@ -16,14 +16,16 @@ import (
 )
 
 type Deps struct {
-	Cfg        config.Config
-	Log        *slog.Logger
-	Minter     auth.TokenMinter
-	Auth       *service.AuthService
-	Workspaces *service.WorkspaceService
-	Tasks      *service.TaskService
-	Meetings   *service.MeetingService
-	Hub        *realtime.Hub
+	Cfg           config.Config
+	Log           *slog.Logger
+	Minter        auth.TokenMinter
+	Auth          *service.AuthService
+	Organizations *service.OrganizationService
+	Workspaces    *service.WorkspaceService
+	Onboarding    *service.OnboardingService
+	Tasks         *service.TaskService
+	Meetings      *service.MeetingService
+	Hub           *realtime.Hub
 }
 
 type handlers struct {
@@ -50,11 +52,19 @@ func New(d Deps) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireAuth(d.Minter))
 			r.Get("/me", h.me)
+			r.Patch("/me/onboarding", h.patchOnboarding)
+			r.Post("/me/onboarding/complete", h.completeOnboarding)
+			r.Get("/me/invitations", h.myInvitations)
+			r.Get("/orgs", h.listOrganizations)
+			r.Post("/orgs", h.createOrganization)
+			r.Get("/orgs/{org}", h.getOrganization)                         // {org} = slug
+			r.Get("/orgs/{org}/workspaces/{wsSlug}", h.getWorkspaceBySlugs) // {org} = slug
+			r.Get("/orgs/{org}/workspaces", h.listOrgWorkspaces)            // {org} = id
+			r.Post("/orgs/{org}/workspaces", h.createOrgWorkspace)          // {org} = id
 			r.Get("/workspaces", h.listWorkspaces)
-			r.Post("/workspaces", h.createWorkspace)
-			r.Get("/workspaces/{slug}", h.getWorkspace)
 			r.Get("/workspaces/{workspaceID}/members", h.listMembers)
 			r.Post("/workspaces/{workspaceID}/invitations", h.createInvitation)
+			r.Post("/workspaces/{workspaceID}/welcome-task", h.seedWelcomeTask)
 			r.Post("/invitations/{token}/accept", h.acceptInvitation)
 			r.Get("/workspaces/{workspaceID}/tasks", h.listTasks)
 			r.Post("/workspaces/{workspaceID}/tasks", h.createTask)
