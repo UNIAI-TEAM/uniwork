@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "exports": {
     "./auth/*": "./auth/*.tsx",
     "./layout/*": "./layout/*.tsx",
@@ -18,7 +21,8 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-i18next": "catalog:"
+    "react-i18next": "catalog:",
+    "@dnd-kit/core": "^6.3.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",
