@@ -8,12 +8,17 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	mw "github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 type Deps struct {
-	Cfg config.Config
-	Log *slog.Logger
+	Cfg    config.Config
+	Log    *slog.Logger
+	Minter auth.TokenMinter
+	Auth   *service.AuthService
 }
 
 type handlers struct {
@@ -32,7 +37,14 @@ func New(d Deps) http.Handler {
 	}))
 	r.Get("/healthz", h.health)
 	r.Route("/api/v1", func(r chi.Router) {
-		// domains mount thêm ở các task sau
+		r.Post("/auth/register", h.register)
+		r.Post("/auth/login", h.login)
+		r.Post("/auth/refresh", h.refresh)
+		r.Post("/auth/logout", h.logout)
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RequireAuth(d.Minter))
+			r.Get("/me", h.me)
+		})
 	})
 	return r
 }

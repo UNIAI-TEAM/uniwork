@@ -1,0 +1,88 @@
+package handler
+
+import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/testutil"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// newTestServer dựng handler đầy đủ trên DB test. Các task sau mở rộng
+// hàm này khi Deps thêm service mới.
+func newTestServer(t *testing.T) *httptest.Server {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
+	d := Deps{
+		Cfg:    config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
+		Log:    slog.Default(),
+		Minter: minter,
+		Auth:   service.NewAuthService(q, minter, time.Hour),
+	}
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func postJSON(t *testing.T, srv *httptest.Server, path string, body any) *http.Response {
+	t.Helper()
+	b, _ := json.Marshal(body)
+	res, err := srv.Client().Post(srv.URL+path, "application/json", bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func TestRegisterAndMe(t *testing.T) {
+	srv := newTestServer(t)
+
+	res := postJSON(t, srv, "/api/v1/auth/register", map[string]string{
+		"email": "h@example.com", "password": "password123", "display_name": "Hà",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("register status = %d", res.StatusCode)
+	}
+	var out struct {
+		User        struct{ ID, Email string } `json:"user"`
+		AccessToken string                     `json:"access_token"`
+	}
+	json.NewDecoder(res.Body).Decode(&out)
+	if out.AccessToken == "" {
+		t.Fatal("no access token")
+	}
+	// refresh cookie được set
+	found := false
+	for _, c := range res.Cookies() {
+		if c.Name == "uniwork_refresh" && c.HttpOnly {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("refresh cookie not set")
+	}
+
+	req, _ := http.NewRequest("GET", srv.URL+"/api/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer "+out.AccessToken)
+	res2, _ := srv.Client().Do(req)
+	if res2.StatusCode != 200 {
+		t.Fatalf("me status = %d", res2.StatusCode)
+	}
+}
+
+func TestMeWithoutTokenIs401(t *testing.T) {
+	srv := newTestServer(t)
+	res, _ := srv.Client().Get(srv.URL + "/api/v1/me")
+	if res.StatusCode != 401 {
+		t.Fatalf("status = %d, want 401", res.StatusCode)
+	}
+}
