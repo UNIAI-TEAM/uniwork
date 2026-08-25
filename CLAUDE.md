@@ -99,9 +99,9 @@ semantic slot layer over it, and the Tailwind `@theme inline` mapping.
 ## Database and Migration Rules
 
 Applied forward-only from migration `005`; migrations `001`–`004` predate these
-rules and are not rewritten. Reviewed by hand for now — the `migrations_lint`
-test that enforces both rules arrives with the server port, so nothing fails
-the build today if you break them.
+rules and are not rewritten. `server/migrations/lint_test.go` enforces both on
+every file past the legacy range, and the runner applies files outside a
+transaction so concurrent index builds are possible.
 
 - No `FOREIGN KEY` / `REFERENCES`, no cascading deletes or updates. Resolve
   relationships and dependent cleanup in application code, inside a transaction
