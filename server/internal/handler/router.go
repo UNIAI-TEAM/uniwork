@@ -67,6 +67,7 @@ func New(d Deps) http.Handler {
 			r.Delete("/meetings/{meetingID}", h.deleteMeeting)
 			r.Get("/meetings/{meetingID}/notes", h.listNotes)
 			r.Post("/meetings/{meetingID}/notes", h.createNote)
+			r.Post("/meetings/{meetingID}/token", h.meetingToken)
 		})
 	})
 	return r
