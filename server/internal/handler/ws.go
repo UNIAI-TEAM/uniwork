@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
@@ -34,11 +35,19 @@ func (m workspaceMembership) IsMember(ctx context.Context, userID, workspaceID s
 	return true
 }
 
-// GET /api/v1/ws?workspace_id=…
+// GET /api/v1/ws?workspace_slug={orgSlug}/{workspaceSlug}  (or ?workspace_id=…)
 //
-// Authentication is either the transitional ?token= query parameter (what the
-// current web client sends) or an `auth` frame as the first message (what the
-// ported ws-client.ts sends). Membership is checked on every connect.
+// The client authenticates with an `auth` frame as its first message — the
+// token never travels in the URL. Workspace slugs are unique only within an
+// organization, so the slug form is the pair. Membership is checked on every
+// connect, after the workspace is resolved.
 func (h *handlers) ws(w http.ResponseWriter, r *http.Request) {
-	realtime.HandleWebSocket(h.Hub, workspaceMembership{ws: h.Workspaces, cache: h.MembershipCache}, h.Minter.Parse, nil, w, r)
+	resolve := func(ctx context.Context, composite string) (string, error) {
+		org, ws, ok := strings.Cut(composite, "/")
+		if !ok || org == "" || ws == "" {
+			return "", service.ErrNotFound
+		}
+		return h.Workspaces.ResolveSlugs(ctx, org, ws)
+	}
+	realtime.HandleWebSocket(h.Hub, workspaceMembership{ws: h.Workspaces, cache: h.MembershipCache}, h.Minter.Parse, resolve, w, r)
 }

@@ -575,3 +575,50 @@ func TestReadPump_AcceptsFrameUnderReadLimit(t *testing.T) {
 		t.Fatalf("got %s, want a pong frame", raw)
 	}
 }
+
+func TestHandleWebSocketResolvesWorkspaceSlug(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+	var seen string
+	resolve := func(_ context.Context, slug string) (string, error) {
+		seen = slug
+		if slug != "acme/team" {
+			return "", errors.New("not found")
+		}
+		return testWorkspaceID, nil
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		HandleWebSocket(hub, &mockMembershipChecker{}, testTokenParser, resolve, w, r)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?workspace_slug=acme/team"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	authMsg, _ := json.Marshal(map[string]any{"type": "auth", "payload": map[string]string{"token": testBearerToken}})
+	if err := conn.WriteMessage(websocket.TextMessage, authMsg); err != nil {
+		t.Fatal(err)
+	}
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, ack, err := conn.ReadMessage()
+	if err != nil || !strings.Contains(string(ack), "auth_ack") {
+		t.Fatalf("expected auth_ack, got %s (%v)", ack, err)
+	}
+	if seen != "acme/team" {
+		t.Fatalf("resolver received %q", seen)
+	}
+	// A query-parameter token is no longer an authentication path.
+	res, err := http.Get(server.URL + "/ws?workspace_id=" + testWorkspaceID + "&token=" + testBearerToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusOK {
+		t.Fatal("query token must not authenticate the upgrade")
+	}
+}

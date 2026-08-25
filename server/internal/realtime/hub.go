@@ -745,11 +745,6 @@ func writeWSAuthErrorAndClose(conn *websocket.Conn, payload []byte, attrs ...any
 func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveSlug SlugResolver, w http.ResponseWriter, r *http.Request) {
 	workspaceID := r.URL.Query().Get("workspace_id")
 	if workspaceID == "" {
-		// Transitional alias for the current web client, which still connects
-		// with ?workspace=…; it goes when the frontend moves to ws-client.ts.
-		workspaceID = r.URL.Query().Get("workspace")
-	}
-	if workspaceID == "" {
 		if slug := r.URL.Query().Get("workspace_slug"); slug != "" && resolveSlug != nil {
 			resolved, err := resolveSlug(r.Context(), slug)
 			if err != nil {
@@ -765,22 +760,6 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveS
 	}
 
 	var userID string
-	// Transitional: the current web client passes the token as a query
-	// parameter because browsers cannot set headers on a WebSocket upgrade.
-	// The ported ws-client.ts sends it as the first frame instead (see
-	// firstMessageAuth below); once the frontend is on it, this branch goes.
-	if tokenStr := r.URL.Query().Get("token"); tokenStr != "" {
-		uid, errMsg := authenticateToken(tokenStr, parse)
-		if errMsg != "" {
-			http.Error(w, errMsg, http.StatusUnauthorized)
-			return
-		}
-		if !mc.IsMember(r.Context(), uid, workspaceID) {
-			http.Error(w, `{"error":"not a member of this workspace"}`, http.StatusForbidden)
-			return
-		}
-		userID = uid
-	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

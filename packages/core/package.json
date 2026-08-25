@@ -20,7 +20,7 @@
     "./tasks": "./tasks/hooks.ts",
     "./tasks/position": "./tasks/position.ts",
     "./meetings": "./meetings/hooks.ts",
-    "./realtime": "./realtime/use-workspace-events.ts",
+    "./realtime": "./realtime/index.ts",
     "./paths": "./paths/index.ts",
     "./organizations": "./organizations/hooks.ts",
     "./onboarding": "./onboarding/index.ts",

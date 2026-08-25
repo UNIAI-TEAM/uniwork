@@ -92,6 +92,21 @@ func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]Wo
 	return out, nil
 }
 
+// ResolveSlugs maps the URL pair to a workspace id WITHOUT a membership check.
+// It exists for the WebSocket upgrade, which resolves the workspace before it
+// has authenticated the caller and checks membership immediately after; every
+// HTTP path keeps using GetBySlugs, which does both.
+func (s *WorkspaceService) ResolveSlugs(ctx context.Context, orgSlug, wsSlug string) (string, error) {
+	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return r.ID, nil
+}
+
 func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSlug string) (WorkspaceView, error) {
 	r, err := s.q.GetWorkspaceBySlugs(ctx, db.GetWorkspaceBySlugsParams{Slug: orgSlug, Slug_2: wsSlug})
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -2,6 +2,7 @@
 import { createContext, useContext } from "react";
 import { useParams } from "next/navigation";
 import { paths } from "@uniwork/core/paths";
+import { WSProvider } from "@uniwork/core/realtime";
 import type { User, Workspace } from "@uniwork/core/types";
 import { AppShell } from "@uniwork/views/layout/app-shell";
 import { DashboardGuard } from "@uniwork/views/layout/dashboard-guard";
@@ -30,13 +31,15 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     <DashboardGuard orgSlug={orgSlug} wsSlug={workspaceSlug}>
       {({ user, workspace }) => (
         <WorkspaceContext.Provider value={{ workspace, user }}>
-          <AppShell workspace={workspace} user={user} active={active}>
-            {children}
-            <WelcomeAfterOnboarding
-              workspace={workspace}
-              onOpenTask={(id) => push(paths.workspace(orgSlug, workspaceSlug).task(id))}
-            />
-          </AppShell>
+          <WSProvider workspaceSlug={`${orgSlug}/${workspaceSlug}`}>
+            <AppShell workspace={workspace} user={user} active={active}>
+              {children}
+              <WelcomeAfterOnboarding
+                workspace={workspace}
+                onOpenTask={(id) => push(paths.workspace(orgSlug, workspaceSlug).task(id))}
+              />
+            </AppShell>
+          </WSProvider>
         </WorkspaceContext.Provider>
       )}
     </DashboardGuard>
