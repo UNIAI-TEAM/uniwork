@@ -1,0 +1,34 @@
+{
+  "name": "@uniwork/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types/index.ts",
+    "./api": "./api/client.ts",
+    "./session": "./api/session.ts",
+    "./query-client": "./query-client.ts",
+    "./i18n": "./i18n/index.ts",
+    "./auth": "./auth/hooks.ts",
+    "./workspaces": "./workspaces/hooks.ts",
+    "./tasks": "./tasks/hooks.ts",
+    "./tasks/position": "./tasks/position.ts",
+    "./meetings": "./meetings/hooks.ts",
+    "./realtime": "./realtime/use-workspace-events.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "catalog:",
+    "i18next": "catalog:",
+    "react": "catalog:",
+    "react-i18next": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@uniwork/tsconfig": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
