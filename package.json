@@ -1,7 +1,12 @@
 {
   "name": "uniwork",
   "private": true,
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.28.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
