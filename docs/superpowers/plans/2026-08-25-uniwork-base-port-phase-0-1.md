@@ -1495,3 +1495,76 @@ Tất cả phải xanh, **gồm cả 6 spec e2e**. Nếu spec contrast đỏ, á
 ## Sang plan tiếp theo
 
 Plan 2 (sweep Tầng 1 FE) chỉ bắt đầu khi Plan 1 xanh toàn bộ. Nó phụ thuộc trực tiếp vào: catalog ở Task 2, luật ranh giới ở Task 4, lớp slot token ở Task 7, và `components.json` ở Task 8.
+
+---
+
+## Ghi chép thực thi (2026-08-25)
+
+Hoàn tất trên nhánh `feat/base-port-phase-0-1`, 9 commit, toàn bộ cổng ra xanh
+(gồm 13/13 spec e2e). Ba chỗ plan đoán sai, đã sửa trong lúc làm — ghi lại vì
+Plan 2–6 dựa trên chính các giả định này.
+
+### 1. `import-x/no-extraneous-dependencies` không bắt cái tôi tưởng
+
+Plan viết fixture import `zustand` (không khai báo) và kỳ vọng rule bắn. Nó
+không bắn: rule chỉ báo lỗi khi module **resolve được** nhưng thiếu khai báo.
+Dưới layout strict của pnpm, `packages/ui/node_modules` chỉ chứa đúng dependency
+đã khai, nên `zustand` không resolve nổi — và ca đó **tsc đã bắt rồi**.
+
+Giá trị thật của rule là ca khác: **devDependency bị import từ code production**
+(ship được trong monorepo, vỡ với người cài không kèm dev deps). Fixture đã đổi
+sang ca đó và rule bắn đúng. Comment trong `base.js` đã viết lại cho khớp.
+
+### 2. Slot trỏ `var(--uw-*)` **không** tự theo palette dark
+
+Đây là lỗi nghiêm trọng nhất, và chỉ e2e bắt được.
+
+Plan viết: "mọi slot đều trỏ qua `var(--uw-*)` và khối `.dark` đã định nghĩa lại
+toàn bộ `--uw-*`, nên phần lớn slot **tự động** đúng ở dark". Sai. Custom
+property được **tính rồi kế thừa**: `--foreground: var(--uw-text-primary)` khai
+ở `:root` được resolve **tại `:root`** ra giá trị sáng, và giá trị đã tính đó kế
+thừa xuống mọi subtree `.dark`. Định nghĩa lại `--uw-text-primary` trong `.dark`
+không với tới nó.
+
+Hậu quả đo được: rail onboarding (panel tối lồng trong trang sáng) render tiêu
+đề ở **1.03:1** — chữ gần như tàng hình. Typecheck, lint, unit test, `next build`
+đều xanh; chỉ `onboarding-contrast.spec.ts` thấy.
+
+Sửa: khai lại trọn 42 slot có màu dưới `.dark`. Và sửa luôn test — bản plan viết
+đã **mã hoá chính giả định sai đó** (miễn trừ giá trị `var()`); nay test đòi mọi
+token phải có ở cả hai khối, chỉ miễn `--radius` và hai token cố ý một-theme.
+
+**Áp cho Plan 2:** mọi token thêm vào khi port 62 primitive phải có mặt ở cả
+`:root` và `.dark`. Không tin vào indirection.
+
+### 3. Xung đột alias hẹp hơn nhiều so với plan lo
+
+Plan cảnh báo `primary`/`secondary`/`tertiary`. Đối chiếu giá trị thực tế: chỉ
+**`secondary`** xung đột thật (`#52525b` màu chữ ↔ `#f4f4f5` nền mờ). `primary`,
+`surface`, `brand`, `success`, `warning` trùng tên nhưng trùng luôn giá trị;
+`tertiary` không có slot shadcn cùng tên. Đã đổi 56 chỗ dùng sang
+`-text-secondary`, và trỏ 5 alias trùng-giá-trị sang slot mới để chúng sống sót
+khi lớp `--uw-*` bị xoá.
+
+### Việc phát sinh ngoài plan
+
+- **Nợ `process.env` trong `packages/core`** — luật ranh giới ở Task 4 bắt được
+  ngay 3 chỗ (`api/client.ts`, `config.ts`, `realtime/use-workspace-events.ts`).
+  Sửa theo khuôn usf (core ở đó có **0** chỗ đọc env): thêm
+  `packages/core/runtime-config.ts` và `apps/web/platform/runtime-config.ts`.
+  Đây là hạt giống của lớp platform mà Plan 4 sẽ mở rộng.
+- **`paths` trong `packages/ui/tsconfig.json`** — thiếu nó thì shadcn CLI từ chối
+  chạy. usf có sẵn; uniwork thì không. Đã thêm.
+- **`@custom-variant dark`** — thêm vào `globals.css`. Repo hiện có 0 class
+  `dark:` nên nó bất biến hôm nay; 62 primitive của usf dùng 81 chỗ nên Plan 2
+  cần nó.
+- **Hai lỗi công cụ vặt** — `import.meta.url` không phải file: URL dưới jsdom
+  (đọc token qua `process.cwd()`); BSD sed trên macOS không hỗ trợ `\b` (dùng
+  perl cho các lần đổi tên hàng loạt).
+
+### Lưu ý môi trường
+
+`make dev` chạy đè cổng khi anh đã có stack sẵn (8090/3000), và Next 16 từ chối
+mở dev server thứ hai cùng thư mục. e2e trong đợt này chạy trên stack sẵn có,
+sau khi đã kiểm chứng CSS server phục vụ chứa slot mới (tức HMR đã bắt kịp) —
+nếu không thì kết quả contrast là pass giả.
