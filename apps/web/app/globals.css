@@ -22,4 +22,18 @@
   --color-danger: var(--uw-danger);
   --color-success: var(--uw-success);
   --color-warning: var(--uw-warning);
+  --color-brand-soft: var(--uw-brand-soft);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-micro: 11px;      --text-micro--line-height: 15px;
+  --text-caption: 12px;    --text-caption--line-height: 16px;
+  --text-label: 13px;      --text-label--line-height: 18px;
+  --text-body: 14px;       --text-body--line-height: 20px;
+  --text-body-lg: 15px;    --text-body-lg--line-height: 22px;
+  --text-title-sm: 16px;   --text-title-sm--line-height: 24px;
+  --text-title: 18px;      --text-title--line-height: 28px;
+  --text-title-lg: 20px;   --text-title-lg--line-height: 28px;
+  --text-display-sm: 24px; --text-display-sm--line-height: 32px;
+  --text-display: 36px;    --text-display--line-height: 40px;
 }

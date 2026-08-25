@@ -9,3 +9,10 @@ describe("Button", () => {
     expect(btn.className).toContain("bg-danger");
   });
 });
+
+it("supports outline variant and lg/icon-sm sizes", () => {
+  const { rerender } = render(<Button variant="outline" size="lg">Ok</Button>);
+  expect(screen.getByRole("button", { name: "Ok" })).toHaveClass("border-line", "h-10");
+  rerender(<Button size="icon-sm" aria-label="x">x</Button>);
+  expect(screen.getByRole("button", { name: "x" })).toHaveClass("size-7");
+});

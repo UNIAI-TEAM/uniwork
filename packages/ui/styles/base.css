@@ -3,10 +3,28 @@ html, body { margin: 0; padding: 0; height: 100%; }
 body {
   background: var(--uw-canvas);
   color: var(--uw-text-primary);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 :focus-visible { outline: 2px solid var(--uw-focus); outline-offset: 2px; }
+
+/* Onboarding: chỉ đổi opacity — transform trên root h-full bị tính vào
+   scrollable overflow của parent → nháy scrollbar mỗi bước (bài học usf). */
+@keyframes onboarding-enter { from { opacity: 0; } }
+.animate-onboarding-enter { animation: onboarding-enter 0.4s ease both; }
+
+@keyframes welcome-emoji-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  35% { transform: scale(1.25); opacity: 1; }
+  55% { transform: scale(0.92); }
+  75% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.animate-welcome-emoji-pop { animation: welcome-emoji-pop 0.7s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-onboarding-enter, .animate-welcome-emoji-pop { animation: none; }
+}

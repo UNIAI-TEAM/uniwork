@@ -15,6 +15,7 @@
   --uw-line-strong: #d4d4d8;
   /* brand + signal (màu là tín hiệu, không trang trí) */
   --uw-brand: #2f5aff;
+  --uw-brand-soft: #eef2ff;
   --uw-on-brand: #ffffff;
   --uw-danger: #dc2626;
   --uw-success: #16a34a;
@@ -35,6 +36,7 @@
   --uw-line: #2a2a2e;
   --uw-line-strong: #3b3b41;
   --uw-brand: #6584ff;
+  --uw-brand-soft: #1b2340;
   --uw-on-brand: #0d1220;
   --uw-danger: #f87171;
   --uw-success: #4ade80;
