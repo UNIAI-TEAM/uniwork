@@ -46,6 +46,22 @@ type MeetingNote struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Organization struct {
+	ID        string             `json:"id"`
+	Slug      string             `json:"slug"`
+	Name      string             `json:"name"`
+	CreatedBy string             `json:"created_by"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OrganizationMember struct {
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Role           string             `json:"role"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type RefreshToken struct {
 	ID        string             `json:"id"`
 	UserID    string             `json:"user_id"`
@@ -68,6 +84,7 @@ type Task struct {
 	CreatedBy   string             `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Kind        string             `json:"kind"`
 }
 
 type TaskComment struct {
@@ -79,22 +96,25 @@ type TaskComment struct {
 }
 
 type User struct {
-	ID           string             `json:"id"`
-	Email        string             `json:"email"`
-	PasswordHash string             `json:"password_hash"`
-	DisplayName  string             `json:"display_name"`
-	AvatarUrl    pgtype.Text        `json:"avatar_url"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	ID                      string             `json:"id"`
+	Email                   string             `json:"email"`
+	PasswordHash            string             `json:"password_hash"`
+	DisplayName             string             `json:"display_name"`
+	AvatarUrl               pgtype.Text        `json:"avatar_url"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	OnboardedAt             pgtype.Timestamptz `json:"onboarded_at"`
+	OnboardingQuestionnaire []byte             `json:"onboarding_questionnaire"`
 }
 
 type Workspace struct {
-	ID        string             `json:"id"`
-	Slug      string             `json:"slug"`
-	Name      string             `json:"name"`
-	CreatedBy string             `json:"created_by"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID             string             `json:"id"`
+	Slug           string             `json:"slug"`
+	Name           string             `json:"name"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID string             `json:"organization_id"`
 }
 
 type WorkspaceMember struct {

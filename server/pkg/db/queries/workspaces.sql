@@ -1,19 +1,38 @@
 -- name: CreateWorkspace :one
-INSERT INTO workspaces (id, slug, name, created_by)
-VALUES ($1, $2, $3, $4)
+INSERT INTO workspaces (id, organization_id, slug, name, created_by)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetWorkspaceByID :one
 SELECT * FROM workspaces WHERE id = $1;
 
--- name: GetWorkspaceBySlug :one
-SELECT * FROM workspaces WHERE slug = $1;
+-- name: GetWorkspaceBySlugs :one
+SELECT w.*, o.slug AS organization_slug, o.name AS organization_name
+FROM workspaces w JOIN organizations o ON o.id = w.organization_id
+WHERE o.slug = $1 AND w.slug = $2;
+
+-- name: GetWorkspaceWithOrg :one
+SELECT w.*, o.slug AS organization_slug, o.name AS organization_name
+FROM workspaces w JOIN organizations o ON o.id = w.organization_id
+WHERE w.id = $1;
 
 -- name: ListWorkspacesForUser :many
-SELECT w.* FROM workspaces w
-JOIN workspace_members m ON m.workspace_id = w.id
-WHERE m.user_id = $1
-ORDER BY w.created_at;
+-- Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
+SELECT DISTINCT ON (w.created_at, w.id) w.*, o.slug AS organization_slug, o.name AS organization_name
+FROM workspaces w
+JOIN organizations o ON o.id = w.organization_id
+LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
+LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $1
+WHERE m.user_id IS NOT NULL OR om.role IN ('owner','admin')
+ORDER BY w.created_at, w.id;
+
+-- name: GetWorkspaceAccess :one
+-- '' = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
+SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role
+FROM workspaces w
+LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $2
+LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $2
+WHERE w.id = $1;
 
 -- name: AddWorkspaceMember :exec
 INSERT INTO workspace_members (workspace_id, user_id, role)
@@ -42,3 +61,15 @@ WHERE token = $1 AND accepted_at IS NULL AND expires_at > now();
 
 -- name: MarkInvitationAccepted :exec
 UPDATE invitations SET accepted_at = now() WHERE id = $1;
+
+-- name: ListInvitationsForEmail :many
+SELECT i.id, i.role, i.token, i.expires_at,
+       w.id AS workspace_id, w.slug AS workspace_slug, w.name AS workspace_name,
+       o.id AS organization_id, o.slug AS organization_slug, o.name AS organization_name,
+       u.display_name AS invited_by_name
+FROM invitations i
+JOIN workspaces w ON w.id = i.workspace_id
+JOIN organizations o ON o.id = w.organization_id
+JOIN users u ON u.id = w.created_by
+WHERE i.email = $1 AND i.accepted_at IS NULL AND i.expires_at > now()
+ORDER BY i.created_at DESC;

@@ -41,3 +41,11 @@ RETURNING *;
 SELECT c.id, c.task_id, c.author_id, c.body, c.created_at, u.display_name, u.avatar_url
 FROM task_comments c JOIN users u ON u.id = c.author_id
 WHERE c.task_id = $1 ORDER BY c.created_at;
+
+-- name: CreateWelcomeTask :one
+INSERT INTO tasks (id, workspace_id, title, description, status, priority, assignee_id, position, created_by, kind)
+VALUES ($1, $2, $3, $4, 'in_progress', 'high', $5, $6, $5, 'welcome')
+RETURNING *;
+
+-- name: GetWelcomeTask :one
+SELECT * FROM tasks WHERE workspace_id = $1 AND created_by = $2 AND kind = 'welcome';

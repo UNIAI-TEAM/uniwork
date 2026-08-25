@@ -67,21 +67,23 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 }
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (id, slug, name, created_by)
-VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at
+INSERT INTO workspaces (id, organization_id, slug, name, created_by)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id
 `
 
 type CreateWorkspaceParams struct {
-	ID        string `json:"id"`
-	Slug      string `json:"slug"`
-	Name      string `json:"name"`
-	CreatedBy string `json:"created_by"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	Slug           string `json:"slug"`
+	Name           string `json:"name"`
+	CreatedBy      string `json:"created_by"`
 }
 
 func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) (Workspace, error) {
 	row := q.db.QueryRow(ctx, createWorkspace,
 		arg.ID,
+		arg.OrganizationID,
 		arg.Slug,
 		arg.Name,
 		arg.CreatedBy,
@@ -94,6 +96,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -119,8 +122,29 @@ func (q *Queries) GetInvitationByToken(ctx context.Context, token string) (Invit
 	return i, err
 }
 
+const getWorkspaceAccess = `-- name: GetWorkspaceAccess :one
+SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role
+FROM workspaces w
+LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $2
+LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $2
+WHERE w.id = $1
+`
+
+type GetWorkspaceAccessParams struct {
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+// ” = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
+func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccessParams) (string, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceAccess, arg.ID, arg.UserID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, slug, name, created_by, created_at, updated_at FROM workspaces WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id FROM workspaces WHERE id = $1
 `
 
 func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, error) {
@@ -133,17 +157,37 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, e
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
-const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at FROM workspaces WHERE slug = $1
+const getWorkspaceBySlugs = `-- name: GetWorkspaceBySlugs :one
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, o.slug AS organization_slug, o.name AS organization_name
+FROM workspaces w JOIN organizations o ON o.id = w.organization_id
+WHERE o.slug = $1 AND w.slug = $2
 `
 
-func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error) {
-	row := q.db.QueryRow(ctx, getWorkspaceBySlug, slug)
-	var i Workspace
+type GetWorkspaceBySlugsParams struct {
+	Slug   string `json:"slug"`
+	Slug_2 string `json:"slug_2"`
+}
+
+type GetWorkspaceBySlugsRow struct {
+	ID               string             `json:"id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	CreatedBy        string             `json:"created_by"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID   string             `json:"organization_id"`
+	OrganizationSlug string             `json:"organization_slug"`
+	OrganizationName string             `json:"organization_name"`
+}
+
+func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlugsParams) (GetWorkspaceBySlugsRow, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceBySlugs, arg.Slug, arg.Slug_2)
+	var i GetWorkspaceBySlugsRow
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
@@ -151,6 +195,9 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspac
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.OrganizationSlug,
+		&i.OrganizationName,
 	)
 	return i, err
 }
@@ -174,6 +221,100 @@ func (q *Queries) GetWorkspaceMember(ctx context.Context, arg GetWorkspaceMember
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getWorkspaceWithOrg = `-- name: GetWorkspaceWithOrg :one
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, o.slug AS organization_slug, o.name AS organization_name
+FROM workspaces w JOIN organizations o ON o.id = w.organization_id
+WHERE w.id = $1
+`
+
+type GetWorkspaceWithOrgRow struct {
+	ID               string             `json:"id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	CreatedBy        string             `json:"created_by"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID   string             `json:"organization_id"`
+	OrganizationSlug string             `json:"organization_slug"`
+	OrganizationName string             `json:"organization_name"`
+}
+
+func (q *Queries) GetWorkspaceWithOrg(ctx context.Context, id string) (GetWorkspaceWithOrgRow, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceWithOrg, id)
+	var i GetWorkspaceWithOrgRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.OrganizationSlug,
+		&i.OrganizationName,
+	)
+	return i, err
+}
+
+const listInvitationsForEmail = `-- name: ListInvitationsForEmail :many
+SELECT i.id, i.role, i.token, i.expires_at,
+       w.id AS workspace_id, w.slug AS workspace_slug, w.name AS workspace_name,
+       o.id AS organization_id, o.slug AS organization_slug, o.name AS organization_name,
+       u.display_name AS invited_by_name
+FROM invitations i
+JOIN workspaces w ON w.id = i.workspace_id
+JOIN organizations o ON o.id = w.organization_id
+JOIN users u ON u.id = w.created_by
+WHERE i.email = $1 AND i.accepted_at IS NULL AND i.expires_at > now()
+ORDER BY i.created_at DESC
+`
+
+type ListInvitationsForEmailRow struct {
+	ID               string             `json:"id"`
+	Role             string             `json:"role"`
+	Token            string             `json:"token"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	WorkspaceID      string             `json:"workspace_id"`
+	WorkspaceSlug    string             `json:"workspace_slug"`
+	WorkspaceName    string             `json:"workspace_name"`
+	OrganizationID   string             `json:"organization_id"`
+	OrganizationSlug string             `json:"organization_slug"`
+	OrganizationName string             `json:"organization_name"`
+	InvitedByName    string             `json:"invited_by_name"`
+}
+
+func (q *Queries) ListInvitationsForEmail(ctx context.Context, email string) ([]ListInvitationsForEmailRow, error) {
+	rows, err := q.db.Query(ctx, listInvitationsForEmail, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInvitationsForEmailRow{}
+	for rows.Next() {
+		var i ListInvitationsForEmailRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Role,
+			&i.Token,
+			&i.ExpiresAt,
+			&i.WorkspaceID,
+			&i.WorkspaceSlug,
+			&i.WorkspaceName,
+			&i.OrganizationID,
+			&i.OrganizationSlug,
+			&i.OrganizationName,
+			&i.InvitedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
@@ -224,21 +365,37 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) 
 }
 
 const listWorkspacesForUser = `-- name: ListWorkspacesForUser :many
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at FROM workspaces w
-JOIN workspace_members m ON m.workspace_id = w.id
-WHERE m.user_id = $1
-ORDER BY w.created_at
+SELECT DISTINCT ON (w.created_at, w.id) w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, o.slug AS organization_slug, o.name AS organization_name
+FROM workspaces w
+JOIN organizations o ON o.id = w.organization_id
+LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
+LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $1
+WHERE m.user_id IS NOT NULL OR om.role IN ('owner','admin')
+ORDER BY w.created_at, w.id
 `
 
-func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]Workspace, error) {
+type ListWorkspacesForUserRow struct {
+	ID               string             `json:"id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	CreatedBy        string             `json:"created_by"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID   string             `json:"organization_id"`
+	OrganizationSlug string             `json:"organization_slug"`
+	OrganizationName string             `json:"organization_name"`
+}
+
+// Workspace user là thành viên trực tiếp, HOẶC thuộc org mà user là owner/admin.
+func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]ListWorkspacesForUserRow, error) {
 	rows, err := q.db.Query(ctx, listWorkspacesForUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Workspace{}
+	items := []ListWorkspacesForUserRow{}
 	for rows.Next() {
-		var i Workspace
+		var i ListWorkspacesForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,
@@ -246,6 +403,9 @@ func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]W
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.OrganizationSlug,
+			&i.OrganizationName,
 		); err != nil {
 			return nil, err
 		}
