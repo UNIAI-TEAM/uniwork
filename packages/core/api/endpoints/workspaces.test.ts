@@ -1,0 +1,65 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { setAccessToken } from "../session";
+import { acceptInvite, getBySlugs, invite, list, listMembers, myInvitations } from "./workspaces";
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+const ws = {
+  id: "ws1", slug: "team", name: "Team", organization_id: "o1",
+  organization_slug: "acme", organization_name: "Acme",
+};
+
+describe("workspaces endpoints", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("list returns [] on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspaces: [ws] }));
+    expect(await list()).toHaveLength(1);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspaces: [{ id: "x" }] }));
+    await expect(list()).resolves.toEqual([]);
+  });
+
+  it("getBySlugs encodes both slugs and returns null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspace: ws }));
+    expect((await getBySlugs("acme", "team"))?.id).toBe("ws1");
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/orgs/acme/workspaces/team");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ workspace: null }));
+    await expect(getBySlugs("acme", "team")).resolves.toBeNull();
+  });
+
+  it("listMembers lets an unknown role through and drops on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ members: [{ workspace_id: "ws1", user_id: "u1", role: "guest", email: "a@b.c", display_name: "A" }] }),
+    );
+    const [m] = await listMembers("ws1");
+    expect(m?.role).toBe("guest");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ members: {} }));
+    await expect(listMembers("ws1")).resolves.toEqual([]);
+  });
+
+  it("invite returns an empty result on drift instead of throwing", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invitations: "nope" }));
+    await expect(invite("ws1", { emails: ["a@b.c"], role: "member" })).resolves.toEqual({
+      invitations: [],
+      skipped: [],
+    });
+  });
+
+  it("myInvitations and acceptInvite degrade to [] / null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invitations: [{ id: 1 }] }));
+    await expect(myInvitations()).resolves.toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({}));
+    await expect(acceptInvite("tok")).resolves.toBeNull();
+  });
+});
