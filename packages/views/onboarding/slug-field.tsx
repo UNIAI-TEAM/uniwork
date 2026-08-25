@@ -130,7 +130,9 @@ export function SlugFields({
             (form.slugError ? "border-danger" : "border-line")
           }
         >
-          <span className="select-none pl-3 font-mono text-body text-secondary">{hostPrefix}</span>
+          <span className="max-w-[60%] shrink-0 select-none truncate pl-3 font-mono text-body text-secondary" title={hostPrefix}>
+            {hostPrefix}
+          </span>
           <Input
             id={`${idPrefix}-slug`}
             value={form.slug}
