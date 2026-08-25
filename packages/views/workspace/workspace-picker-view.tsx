@@ -29,7 +29,7 @@ export function WorkspacePickerView({ onPick, onCreate }: { onPick: (w: Workspac
       <h1 className="text-title-lg font-semibold text-primary">{t("workspace.pickTitle")}</h1>
       {[...groups.entries()].map(([orgId, g]) => (
         <section key={orgId} className="flex flex-col gap-3">
-          <h2 className="flex items-baseline gap-2 text-label font-medium text-secondary">
+          <h2 className="flex items-baseline gap-2 text-label font-medium text-text-secondary">
             {g.name}
             <span className="font-mono text-caption text-tertiary">/{g.slug}</span>
           </h2>
@@ -46,7 +46,7 @@ export function WorkspacePickerView({ onPick, onCreate }: { onPick: (w: Workspac
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-body font-medium text-primary">{w.name}</span>
-                  <span className="block truncate font-mono text-caption text-secondary">
+                  <span className="block truncate font-mono text-caption text-text-secondary">
                     {host}/{g.slug}/{w.slug}
                   </span>
                 </span>

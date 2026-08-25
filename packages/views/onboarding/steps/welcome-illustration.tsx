@@ -103,7 +103,7 @@ function MockCard({
           )}
           <span className="truncate text-body font-medium text-primary">{actor.name}</span>
         </div>
-        <span className="shrink-0 font-mono text-micro text-secondary">{refLabel}</span>
+        <span className="shrink-0 font-mono text-micro text-text-secondary">{refLabel}</span>
       </div>
       <p className="mt-2.5 text-body leading-snug text-primary">{content}</p>
       {status && (
@@ -125,8 +125,8 @@ function MockCard({
           </span>
           {timestamp && (
             <>
-              <span className="text-secondary">·</span>
-              <span className="text-secondary">{timestamp}</span>
+              <span className="text-text-secondary">·</span>
+              <span className="text-text-secondary">{timestamp}</span>
             </>
           )}
         </div>

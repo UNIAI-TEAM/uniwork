@@ -45,7 +45,7 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
               <div className="text-sm text-primary">{m.display_name}</div>
               <div className="text-[12px] text-tertiary">{m.email}</div>
             </div>
-            <span className="text-[12px] text-secondary">{m.role}</span>
+            <span className="text-[12px] text-text-secondary">{m.role}</span>
           </li>
         ))}
       </ul>

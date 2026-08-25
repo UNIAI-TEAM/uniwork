@@ -25,9 +25,12 @@ function block(selector: string): string {
 
 /** Tên mọi custom property được ĐỊNH NGHĨA trong một khối. */
 function definedVars(source: string): Set<string> {
-  return new Set(
-    [...source.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
-  );
+  const names = new Set<string>();
+  for (const match of source.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)) {
+    const [, name] = match;
+    if (name) names.add(name);
+  }
+  return names;
 }
 
 describe("token contract", () => {
@@ -55,16 +58,71 @@ describe("token contract", () => {
     }
   });
 
+  it("defines every semantic slot the shadcn primitives consume", () => {
+    // Sourced from the 62 primitives in usf packages/ui/components/ui.
+    // A missing slot renders as an inherited colour rather than an error, so
+    // only an explicit list catches it.
+    const REQUIRED = [
+      "--background", "--foreground",
+      "--card", "--card-foreground",
+      "--popover", "--popover-foreground",
+      "--primary", "--primary-foreground",
+      "--secondary", "--secondary-foreground",
+      "--muted", "--muted-foreground", "--faint-foreground",
+      "--accent", "--accent-foreground",
+      "--destructive", "--success", "--warning", "--info",
+      "--brand", "--brand-foreground",
+      "--border", "--input", "--ring", "--radius",
+      "--app-shell", "--page-canvas",
+      "--surface", "--surface-foreground", "--surface-raised",
+      "--surface-hover", "--surface-selected",
+      "--surface-selected-foreground", "--surface-border",
+      "--sidebar", "--sidebar-foreground",
+      "--sidebar-primary", "--sidebar-primary-foreground",
+      "--sidebar-accent", "--sidebar-accent-foreground",
+      "--sidebar-border", "--sidebar-ring",
+      "--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5",
+    ];
+    const light = definedVars(block(":root"));
+    const missing = REQUIRED.filter((name) => !light.has(name));
+    expect(missing, `missing semantic slots: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("exposes every semantic slot to Tailwind", () => {
+    // A slot that exists in :root but has no --color-* alias is unreachable
+    // from a utility class, which is the only way primitives consume it.
+    const theme = block("@theme inline");
+    for (const name of [
+      "background", "foreground", "muted-foreground",
+      "border", "input", "ring", "sidebar", "chart-1",
+    ]) {
+      expect(theme, `no Tailwind alias for --${name}`).toContain(`--color-${name}:`);
+    }
+  });
+
   it("defines every colour token in both light and dark", () => {
-    // The classic failure is adding a token to :root and forgetting .dark — it
-    // renders correctly in whichever theme the author happened to be using and
-    // falls back to an inherited colour in the other one.
+    // Two failures hide here, and neither shows up as an error anywhere else.
+    //
+    // 1. Adding a token to :root and forgetting .dark. It renders correctly in
+    //    whichever theme the author happened to be using and falls back to an
+    //    inherited colour in the other one.
+    //
+    // 2. Assuming a slot written as `var(--uw-something)` tracks the palette on
+    //    its own. It does not. Custom properties are computed and then
+    //    INHERITED: the var() is resolved where the slot is DECLARED, so a slot
+    //    declared on :root carries the light value into every .dark subtree no
+    //    matter what .dark does to the token underneath. The onboarding rail —
+    //    a dark panel inside a light page — rendered its heading at 1.03:1 that
+    //    way. Every themed slot must be restated under .dark, which is why this
+    //    check does not exempt var() values.
     const light = definedVars(block(":root"));
     const dark = definedVars(block(".dark"));
     const singleTheme = new Set([
       // Deliberately identical in both themes; see the comments in tokens.css.
       "--uw-rail-bg",
       "--uw-radius",
+      // Geometry, not colour — nothing for a theme to change.
+      "--radius",
     ]);
     const missing = [...light].filter(
       (name) => !dark.has(name) && !singleTheme.has(name),

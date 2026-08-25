@@ -29,7 +29,7 @@ export function MeetingRoomView({
         : t("common.error");
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-sm text-secondary">{msg}</p>
+        <p className="text-sm text-text-secondary">{msg}</p>
         <Button variant="secondary" onClick={onLeave}>
           {t("meetings.leave")}
         </Button>
@@ -38,7 +38,7 @@ export function MeetingRoomView({
   }
 
   if (!tokenReq.data) {
-    return <p className="p-6 text-secondary">{t("common.loading")}</p>;
+    return <p className="p-6 text-text-secondary">{t("common.loading")}</p>;
   }
 
   return (

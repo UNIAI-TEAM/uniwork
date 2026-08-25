@@ -323,7 +323,7 @@ function StepperIndicator({
       data-slot="stepper-indicator"
       data-state={state}
       className={cn(
-        "border-canvas bg-subtle text-secondary data-[state=completed]:bg-primary data-[state=completed]:text-inverse data-[state=active]:bg-primary data-[state=active]:text-inverse relative flex size-6 shrink-0 items-center justify-center overflow-hidden",
+        "border-canvas bg-subtle text-text-secondary data-[state=completed]:bg-primary data-[state=completed]:text-inverse data-[state=active]:bg-primary data-[state=active]:text-inverse relative flex size-6 shrink-0 items-center justify-center overflow-hidden",
         "rounded-full text-caption",
         className
       )}
@@ -387,7 +387,7 @@ function StepperDescription({
     <div
       data-slot="stepper-description"
       data-state={state}
-      className={cn("text-secondary text-caption", className)}
+      className={cn("text-text-secondary text-caption", className)}
     >
       {children}
     </div>

@@ -28,6 +28,6 @@ export function AcceptInviteView({
   }, [status, token, accept, onAccepted, onAnon]);
 
   return (
-    <p className="p-8 text-secondary">{accept.error ? t("common.error") : t("common.loading")}</p>
+    <p className="p-8 text-text-secondary">{accept.error ? t("common.error") : t("common.loading")}</p>
   );
 }

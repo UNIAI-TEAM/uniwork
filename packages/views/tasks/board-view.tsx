@@ -36,7 +36,7 @@ function Column({
       )}
     >
       <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-[13px] font-medium text-secondary">{t(`tasks.status_${status}`)}</span>
+        <span className="text-[13px] font-medium text-text-secondary">{t(`tasks.status_${status}`)}</span>
         <span className="text-[12px] text-tertiary">{tasks.length}</span>
       </div>
       <div className="flex-1 space-y-1.5 overflow-auto">

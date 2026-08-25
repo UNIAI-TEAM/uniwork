@@ -38,6 +38,97 @@
      ở :root và KHÔNG override trong .dark. Nhấc trên --uw-canvas dark để rail
      vẫn tách khỏi nền khi toàn app ở dark mode. */
   --uw-rail-bg: #1b1b1f;
+
+  /* Slots pointing at --uw-* inherit the dark palette automatically. Only the
+     absolute values need restating. */
+  --chart-1: oklch(0.62 0.16 255);
+  --chart-2: oklch(0.70 0.13 255);
+  --chart-3: oklch(0.78 0.10 255);
+  --chart-4: oklch(0.85 0.06 255);
+  --chart-5: oklch(0.91 0.03 255);
+  --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 1px 1px rgb(0 0 0 / 0.16);
+  --menu-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.25);
+  --floating-shadow: 0 16px 40px rgb(0 0 0 / 0.5), 0 3px 10px rgb(0 0 0 / 0.35);
+
+  /* ---------------------------------------------------------------------
+   * Semantic slot layer (shadcn / Base UI contract).
+   *
+   * Additive on purpose: the --uw-* palette above stays the source of the
+   * actual colour values, and every slot here points at one of them. That
+   * keeps the WCAG ratios documented on those tokens — measured, not
+   * guessed — while giving the ported primitives the names they expect.
+   * The --uw-* aliases are removed only once nothing references them, at
+   * the end of the frontend rebuild.
+   * ------------------------------------------------------------------- */
+  --app-shell: var(--uw-subtle);
+  --page-canvas: var(--uw-canvas);
+  --background: var(--uw-canvas);
+  --foreground: var(--uw-text-primary);
+
+  --surface: var(--uw-surface);
+  --surface-foreground: var(--uw-text-primary);
+  --surface-raised: var(--uw-surface);
+  --surface-hover: var(--uw-subtle);
+  --surface-selected: var(--uw-brand-soft);
+  --surface-selected-foreground: var(--uw-text-primary);
+  --surface-border: var(--uw-line);
+
+  --card: var(--uw-surface);
+  --card-foreground: var(--uw-text-primary);
+  --popover: var(--uw-surface);
+  --popover-foreground: var(--uw-text-primary);
+
+  /* shadcn's "primary" is the high-contrast neutral used by solid buttons,
+     not the brand hue. Brand keeps its own slot. */
+  --primary: var(--uw-text-primary);
+  --primary-foreground: var(--uw-text-inverse);
+  --secondary: var(--uw-subtle);
+  --secondary-foreground: var(--uw-text-primary);
+  --accent: var(--uw-subtle);
+  --accent-foreground: var(--uw-text-primary);
+  --muted: var(--uw-subtle);
+  --muted-foreground: var(--uw-text-secondary);
+  /* Non-text marks only (chevrons, separators, empty-state glyphs): clears
+     the 3:1 floor of WCAG 1.4.11 but not the 4.5:1 text floor. */
+  --faint-foreground: var(--uw-text-tertiary);
+
+  --brand: var(--uw-brand);
+  --brand-foreground: var(--uw-on-brand);
+  --destructive: var(--uw-danger);
+  --success: var(--uw-success);
+  --warning: var(--uw-warning);
+  --info: var(--uw-brand);
+
+  /* --border is the quiet divider (uw-line); --input is the control outline
+     and must stay on uw-line-loud, the token measured at 3:1 against every
+     surface it sits on. */
+  --border: var(--uw-line);
+  --input: var(--uw-line-loud);
+  --ring: var(--uw-focus);
+  --radius: var(--uw-radius);
+
+  --sidebar: var(--uw-subtle);
+  --sidebar-foreground: var(--uw-text-primary);
+  --sidebar-primary: var(--uw-brand);
+  --sidebar-primary-foreground: var(--uw-on-brand);
+  --sidebar-accent: var(--uw-surface);
+  --sidebar-accent-foreground: var(--uw-text-primary);
+  --sidebar-border: var(--uw-line);
+  --sidebar-ring: var(--uw-focus);
+
+  /* Chart ramp: no uniwork equivalent, so the usf ramp is inherited as-is.
+     chart-1 is the brand hue so the leading series anchors to the product
+     colour; 2..5 step lighter and less saturated so a stacked bar reads as a
+     hierarchy instead of five equally loud greys. */
+  --chart-1: oklch(0.55 0.16 255);
+  --chart-2: oklch(0.66 0.13 255);
+  --chart-3: oklch(0.76 0.10 255);
+  --chart-4: oklch(0.85 0.06 255);
+  --chart-5: oklch(0.92 0.03 255);
+
+  --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 1px rgb(15 23 42 / 0.03);
+  --menu-shadow: 0 8px 24px rgb(15 23 42 / 0.08), 0 2px 6px rgb(15 23 42 / 0.05);
+  --floating-shadow: 0 16px 40px rgb(15 23 42 / 0.14), 0 3px 10px rgb(15 23 42 / 0.08);
 }
 
 .dark {
@@ -65,27 +156,130 @@
   --uw-focus: #6584ff;
   --uw-select-bg: #2b3a72;
   --uw-select-fg: #f4f4f5;
+
+  /* The slot layer restated for dark.
+   *
+   * Custom properties are computed and then INHERITED: `--foreground:
+   * var(--uw-text-primary)` declared on :root resolves to the light value
+   * there, and that resolved value inherits into every `.dark` subtree.
+   * Redefining --uw-text-primary below does NOT reach it. The onboarding
+   * rail — a dark panel inside a light page — rendered its heading at
+   * 1.03:1 before these lines existed.
+   *
+   * Keep this list in step with the :root slot layer; the token contract
+   * test fails when one drifts from the other. */
+  --app-shell: var(--uw-subtle);
+  --page-canvas: var(--uw-canvas);
+  --background: var(--uw-canvas);
+  --foreground: var(--uw-text-primary);
+  --surface: var(--uw-surface);
+  --surface-foreground: var(--uw-text-primary);
+  --surface-raised: var(--uw-surface);
+  --surface-hover: var(--uw-subtle);
+  --surface-selected: var(--uw-brand-soft);
+  --surface-selected-foreground: var(--uw-text-primary);
+  --surface-border: var(--uw-line);
+  --card: var(--uw-surface);
+  --card-foreground: var(--uw-text-primary);
+  --popover: var(--uw-surface);
+  --popover-foreground: var(--uw-text-primary);
+  --primary: var(--uw-text-primary);
+  --primary-foreground: var(--uw-text-inverse);
+  --secondary: var(--uw-subtle);
+  --secondary-foreground: var(--uw-text-primary);
+  --accent: var(--uw-subtle);
+  --accent-foreground: var(--uw-text-primary);
+  --muted: var(--uw-subtle);
+  --muted-foreground: var(--uw-text-secondary);
+  --faint-foreground: var(--uw-text-tertiary);
+  --brand: var(--uw-brand);
+  --brand-foreground: var(--uw-on-brand);
+  --destructive: var(--uw-danger);
+  --success: var(--uw-success);
+  --warning: var(--uw-warning);
+  --info: var(--uw-brand);
+  --border: var(--uw-line);
+  --input: var(--uw-line-loud);
+  --ring: var(--uw-focus);
+  --radius: var(--uw-radius);
+  --sidebar: var(--uw-subtle);
+  --sidebar-foreground: var(--uw-text-primary);
+  --sidebar-primary: var(--uw-brand);
+  --sidebar-primary-foreground: var(--uw-on-brand);
+  --sidebar-accent: var(--uw-surface);
+  --sidebar-accent-foreground: var(--uw-text-primary);
+  --sidebar-border: var(--uw-line);
+  --sidebar-ring: var(--uw-focus);
 }
 
 /* Tailwind mapping. Lives beside the tokens it maps so that any consumer —
    a second app, a render test, Storybook — gets the whole contract from one
    import instead of copying this block. */
 @theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-app-shell: var(--app-shell);
+  --color-page-canvas: var(--page-canvas);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-selected-foreground: var(--surface-selected-foreground);
+  --color-surface-border: var(--surface-border);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint-foreground: var(--faint-foreground);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-destructive: var(--destructive);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
   --color-canvas: var(--uw-canvas);
-  --color-surface: var(--uw-surface);
+  --color-surface: var(--surface);
   --color-subtle: var(--uw-subtle);
-  --color-primary: var(--uw-text-primary);
-  --color-secondary: var(--uw-text-secondary);
+  --color-primary: var(--primary);
+  /* Renamed out of the way of the shadcn `secondary` slot, which is a muted
+     SURFACE while this one is a text colour. Transitional: the rebuilt views
+     use text-muted-foreground and this alias goes away with the --uw-* layer. */
+  --color-text-secondary: var(--uw-text-secondary);
   --color-tertiary: var(--uw-text-tertiary);
   --color-inverse: var(--uw-text-inverse);
   --color-line: var(--uw-line);
   --color-line-strong: var(--uw-line-strong);
   --color-line-loud: var(--uw-line-loud);
-  --color-brand: var(--uw-brand);
+  --color-brand: var(--brand);
   --color-on-brand: var(--uw-on-brand);
   --color-danger: var(--uw-danger);
-  --color-success: var(--uw-success);
-  --color-warning: var(--uw-warning);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-danger-text: var(--uw-danger-text);
   --color-success-text: var(--uw-success-text);
   --color-warning-text: var(--uw-warning-text);

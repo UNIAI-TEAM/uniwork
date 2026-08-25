@@ -35,17 +35,17 @@ export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspac
     <div className="mx-auto flex min-h-dvh w-full max-w-[28rem] flex-col justify-center gap-6 px-6 py-10">
       <div className="flex flex-col gap-1.5">
         <h1 className="text-title-lg font-semibold text-primary">{t("invitations.title")}</h1>
-        <p className="text-body text-secondary">{t("invitations.subtitle")}</p>
+        <p className="text-body text-text-secondary">{t("invitations.subtitle")}</p>
       </div>
       <ul className="flex flex-col gap-3">
         {invites.map((i) => (
           <li key={i.id} className="flex items-center gap-4 rounded-lg border border-line bg-surface px-5 py-4">
             <div className="min-w-0 flex-1">
-              <div className="text-caption text-secondary">{t("invitations.invitedBy", { name: i.invited_by.display_name })}</div>
+              <div className="text-caption text-text-secondary">{t("invitations.invitedBy", { name: i.invited_by.display_name })}</div>
               <div className="truncate text-body font-medium text-primary">
                 {i.organization.name} › {i.workspace.name}
               </div>
-              <div className="truncate font-mono text-caption text-secondary">
+              <div className="truncate font-mono text-caption text-text-secondary">
                 {appHost()}/{i.organization.slug}/{i.workspace.slug} · {t("invitations.role", { role: i.role })}
               </div>
             </div>

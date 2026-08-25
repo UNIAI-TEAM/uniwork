@@ -7,7 +7,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 // Màu chỉ là signal: priority cao/khẩn mới có màu, còn lại grayscale.
 const priorityClass: Record<Task["priority"], string> = {
   low: "text-tertiary",
-  medium: "text-secondary",
+  medium: "text-text-secondary",
   high: "text-warning",
   urgent: "text-danger",
 };

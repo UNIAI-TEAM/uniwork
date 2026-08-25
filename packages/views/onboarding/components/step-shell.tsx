@@ -33,7 +33,7 @@ export function StepHeading({ title, description }: { title: ReactNode; descript
       >
         {title}
       </h1>
-      {description ? <p className="text-pretty text-body text-secondary">{description}</p> : null}
+      {description ? <p className="text-pretty text-body text-text-secondary">{description}</p> : null}
     </div>
   );
 }
@@ -63,7 +63,7 @@ export function StepFooter({ children, hint }: { children: ReactNode; hint?: str
           là đích của `aria-describedby` từ CTA. Để cả hai cùng đọc được nghĩa là
           screen reader đọc câu này hai lần — một lần theo thứ tự đọc, một lần
           khi vùng live đổi. */}
-      {hint ? <p aria-hidden className="text-caption text-secondary">{hint}</p> : null}
+      {hint ? <p aria-hidden className="text-caption text-text-secondary">{hint}</p> : null}
       <span id={STEP_HINT_ID} className="sr-only" role="status" aria-live="polite">
         {announced}
       </span>

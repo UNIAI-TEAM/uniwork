@@ -177,7 +177,7 @@ export function PickerCard({
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-body font-medium text-primary">{title}</span>
-        <span className="truncate font-mono text-caption text-secondary">{subtitle}</span>
+        <span className="truncate font-mono text-caption text-text-secondary">{subtitle}</span>
       </span>
       <RadioMark selected={selected} />
     </button>
@@ -213,12 +213,12 @@ export function CollapsibleCreateCard({
         onClick={onSelect}
         className="flex w-full items-center gap-4 px-5 py-4 text-left"
       >
-        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-subtle text-secondary">
+        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-subtle text-text-secondary">
           <Plus className="size-4" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-body font-medium text-primary">{title}</span>
-          <span className="truncate text-caption text-secondary">{subtitle}</span>
+          <span className="truncate text-caption text-text-secondary">{subtitle}</span>
         </span>
         <RadioMark selected={selected} />
       </button>

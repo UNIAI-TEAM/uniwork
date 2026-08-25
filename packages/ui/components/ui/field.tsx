@@ -35,7 +35,7 @@ export function FieldTitle({ className, ...props }: React.ComponentProps<"div">)
 }
 
 export function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
-  return <p data-slot="field-description" className={cn("text-body text-secondary", className)} {...props} />;
+  return <p data-slot="field-description" className={cn("text-body text-text-secondary", className)} {...props} />;
 }
 
 export function FieldError({ className, children, ...props }: React.ComponentProps<"div">) {

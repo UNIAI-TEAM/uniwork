@@ -36,7 +36,7 @@ export function Sidebar({
               "flex items-center gap-2 rounded-[var(--uw-radius)] px-2.5 py-1.5 text-sm",
               active === href
                 ? "bg-subtle font-medium text-primary"
-                : "text-secondary hover:bg-subtle hover:text-primary",
+                : "text-text-secondary hover:bg-subtle hover:text-primary",
             )}
           >
             <Icon className="size-4" />
@@ -46,7 +46,7 @@ export function Sidebar({
       </nav>
       <div className="truncate border-t border-line px-4 pt-3 text-[12px] text-tertiary">{user.display_name}</div>
       <button
-        className="flex items-center gap-2 px-4 py-3 text-sm text-secondary hover:text-primary"
+        className="flex items-center gap-2 px-4 py-3 text-sm text-text-secondary hover:text-primary"
         onClick={() => {
           logout.mutate(undefined, { onSuccess: () => window.location.assign("/login") });
         }}

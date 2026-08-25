@@ -54,7 +54,7 @@ export function WorkspaceSwitcher({ current }: { current: Workspace }) {
             <Menu.Separator className="my-1 h-px bg-line" />
             <Menu.Item
               onClick={() => go(paths.newWorkspace())}
-              className="flex cursor-default items-center gap-2 rounded px-2 py-1.5 text-sm text-secondary data-[highlighted]:bg-subtle data-[highlighted]:text-primary"
+              className="flex cursor-default items-center gap-2 rounded px-2 py-1.5 text-sm text-text-secondary data-[highlighted]:bg-subtle data-[highlighted]:text-primary"
             >
               <Plus className="size-4" />
               {t("workspace.new")}

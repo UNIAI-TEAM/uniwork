@@ -23,7 +23,7 @@ export function MeetingDetailView({
   const del = useDeleteMeeting(workspaceId);
   const [note, setNote] = useState("");
 
-  if (!meeting) return <p className="p-6 text-secondary">{t("common.loading")}</p>;
+  if (!meeting) return <p className="p-6 text-text-secondary">{t("common.loading")}</p>;
 
   return (
     <div className="mx-auto max-w-2xl p-6">
@@ -47,7 +47,7 @@ export function MeetingDetailView({
         </div>
       </div>
       {meeting.description && (
-        <p className="mt-3 whitespace-pre-wrap text-sm text-secondary">{meeting.description}</p>
+        <p className="mt-3 whitespace-pre-wrap text-sm text-text-secondary">{meeting.description}</p>
       )}
       <h2 className="mb-2 mt-6 text-sm font-semibold text-primary">{t("meetings.notes")}</h2>
       <ul className="space-y-2">

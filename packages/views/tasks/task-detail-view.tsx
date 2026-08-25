@@ -47,7 +47,7 @@ export function TaskDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- đồng bộ khi đổi task/bản mới
   }, [task?.id, task?.updated_at]);
 
-  if (!task) return <p className="p-6 text-secondary">{t("common.loading")}</p>;
+  if (!task) return <p className="p-6 text-text-secondary">{t("common.loading")}</p>;
 
   const patch = (p: Parameters<typeof update.mutate>[0]["patch"]) =>
     update.mutate({ taskId, patch: p });

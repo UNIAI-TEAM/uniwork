@@ -78,7 +78,7 @@ export function IconOptionCard({
       {/* pointer-events-none: phần trang trí không được cướp cú bấm của input. */}
       <span
         aria-hidden
-        className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-secondary")}
+        className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-text-secondary")}
       >
         {icon}
       </span>
@@ -136,7 +136,7 @@ export function IconOtherOptionCard({
         />
         <span
           aria-hidden
-          className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-secondary")}
+          className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-text-secondary")}
         >
           {icon}
         </span>
@@ -168,7 +168,7 @@ export function IconOtherOptionCard({
               type="button"
               onClick={onDeselect}
               aria-label={`${t("common.delete")} ${label}`}
-              className="-mr-2 flex size-6 shrink-0 items-center justify-center rounded-full text-secondary transition-colors hover:bg-subtle hover:text-primary pointer-coarse:size-11"
+              className="-mr-2 flex size-6 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-subtle hover:text-primary pointer-coarse:size-11"
             >
               <X aria-hidden className="size-3.5" />
             </button>

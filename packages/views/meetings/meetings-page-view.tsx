@@ -43,7 +43,7 @@ export function MeetingsPageView({
       </header>
       <div className="mx-auto w-full max-w-2xl flex-1 space-y-6 overflow-auto p-6">
         <section>
-          <h2 className="mb-2 text-[13px] font-medium text-secondary">{t("meetings.upcoming")}</h2>
+          <h2 className="mb-2 text-[13px] font-medium text-text-secondary">{t("meetings.upcoming")}</h2>
           <div className="space-y-2">
             {upcoming.length === 0 && (
               <p className="text-[13px] text-tertiary">{t("common.empty")}</p>
@@ -54,7 +54,7 @@ export function MeetingsPageView({
           </div>
         </section>
         <section>
-          <h2 className="mb-2 text-[13px] font-medium text-secondary">{t("meetings.past")}</h2>
+          <h2 className="mb-2 text-[13px] font-medium text-text-secondary">{t("meetings.past")}</h2>
           <div className="space-y-2">
             {past.map((m) => (
               <MeetingRow key={m.id} meeting={m} onOpen={onOpen} />

@@ -66,7 +66,7 @@ export function StepProgressBar({
           />
         ))}
       </span>
-      <span className="min-w-0 truncate text-caption font-medium text-secondary">
+      <span className="min-w-0 truncate text-caption font-medium text-text-secondary">
         {/* Các đoạn tiến độ là aria-hidden, nên vị trí phải được nói bằng chữ:
             dưới md rail bị ẩn và đây là chỉ báo tiến độ duy nhất. */}
         <span className="sr-only">
@@ -177,7 +177,7 @@ export function StepSidebar({
                           isDone
                             ? "bg-primary text-inverse ring-primary"
                             : isCurrent
-                              ? "text-transparent ring-secondary"
+                              ? "text-transparent ring-text-secondary"
                               : "text-transparent ring-line-loud",
                         )}
                       >
@@ -190,10 +190,10 @@ export function StepSidebar({
                         )}
                       </StepperIndicator>
                       <div className="min-w-0 flex-1 text-left">
-                        <StepperTitle className={cn("transition-colors", isCurrent || isDone ? "text-primary" : "text-secondary")}>
+                        <StepperTitle className={cn("transition-colors", isCurrent || isDone ? "text-primary" : "text-text-secondary")}>
                           {t(`onboarding.step_nav.${stepId}.label`)}
                         </StepperTitle>
-                        <StepperDescription className="mt-0.5 max-w-none text-secondary">
+                        <StepperDescription className="mt-0.5 max-w-none text-text-secondary">
                           {t(`onboarding.step_nav.${stepId}.description`)}
                         </StepperDescription>
                       </div>
@@ -225,7 +225,7 @@ export function StepSidebar({
                           className={cn(
                             "absolute left-2 top-6 -order-1 m-0 w-px -translate-x-1/2",
                             "group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-1.75rem)]",
-                            isDone ? "bg-secondary" : "bg-line",
+                            isDone ? "bg-text-secondary" : "bg-line",
                           )}
                         />
                       ) : null}
