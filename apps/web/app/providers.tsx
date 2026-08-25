@@ -2,6 +2,7 @@
 // Must be first: it feeds packages/core the endpoint origins before any
 // module below can issue a request with them.
 import "../platform/runtime-config";
+import { WebNavigationProvider } from "../platform/navigation";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { createQueryClient, initI18n } from "@uniwork/core";
@@ -13,7 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [qc] = useState(createQueryClient);
   return (
     <QueryClientProvider client={qc}>
-      {children}
+      <WebNavigationProvider>{children}</WebNavigationProvider>
       <Toaster />
     </QueryClientProvider>
   );

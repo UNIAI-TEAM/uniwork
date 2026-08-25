@@ -14,7 +14,8 @@
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
     "./meetings/*": "./meetings/*.tsx",
-    "./onboarding/*": "./onboarding/*.tsx"
+    "./onboarding/*": "./onboarding/*.tsx",
+    "./navigation": "./navigation/index.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

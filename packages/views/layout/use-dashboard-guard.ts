@@ -1,0 +1,54 @@
+"use client";
+
+import { useEffect } from "react";
+import { useSession } from "@uniwork/core/auth";
+import { paths } from "@uniwork/core/paths";
+import type { User, Workspace } from "@uniwork/core/types";
+import { useWorkspace } from "@uniwork/core/workspaces";
+import { useNavigation } from "../navigation";
+
+/**
+ * Auth + workspace gate for every /{org}/{ws}/* screen.
+ *
+ *  - session loading            → wait
+ *  - anonymous                  → /login?next=<current path>
+ *  - signed in, not onboarded   → /onboarding (onboarded_at is the single
+ *                                 source of truth, never the workspace count)
+ *  - URL pair does not resolve  → /workspaces
+ *
+ * Runs through the navigation adapter, so the same guard serves any host.
+ */
+export function useDashboardGuard(
+  orgSlug: string,
+  wsSlug: string,
+): { user: User | null; workspace: Workspace | null; isLoading: boolean } {
+  const { pathname, replace } = useNavigation();
+  const { user, status } = useSession();
+  const {
+    data: workspace,
+    error,
+    isLoading: workspaceLoading,
+  } = useWorkspace(status === "authed" ? orgSlug : "", wsSlug);
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if (status === "anon") {
+      replace(`${paths.login()}?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    if (user && user.onboarded_at == null) {
+      replace(paths.onboarding());
+      return;
+    }
+    // A drifted response resolves to null rather than an error; both mean
+    // "this URL is not a workspace you can see".
+    if (error || (!workspaceLoading && workspace === null)) replace(paths.workspaces());
+  }, [status, user, error, workspace, workspaceLoading, replace, pathname]);
+
+  const ready = status === "authed" && !!user && user.onboarded_at != null && !!workspace;
+  return {
+    user: ready ? user : null,
+    workspace: ready ? workspace : null,
+    isLoading: status === "loading" || workspaceLoading,
+  };
+}
