@@ -1,6 +1,4 @@
-// CoreProvider and AuthInitializer are not part of this layer yet: both wire
-// the auth and workspace stores, which are domain code and arrive with the
-// tier-2 port. What is here is the platform storage contract itself.
+export { CoreProvider } from "./core-provider";
 export type { CoreProviderProps, ClientIdentity } from "./types";
 export { defaultStorage } from "./storage";
 export { createPersistStorage } from "./persist-storage";
