@@ -848,3 +848,63 @@ git commit -m "test: fail the build if usf branding survives a port"
 ## Cổng ra của Plan 2
 
 Tất cả lệnh ở Task 13 Step 4 phải xanh, **gồm cả 13 spec e2e**. Nếu spec focus hoặc mobile đỏ, đó là vòng focus hoặc chiều cao nút của usf không đạt ngưỡng đã đo — sửa component, không sửa spec.
+
+---
+
+## Ghi chép thực thi (2026-08-25)
+
+Hoàn tất trên `feat/base-port-phase-0-1`. **177 file, +17.081 dòng.** Mọi cổng ra xanh:
+typecheck · 181 test đơn vị (28 file) · lint · turbo probe · catalog · no-usf-leak · web build ·
+**13/13 e2e**.
+
+### Điều plan đoán sai
+
+**1. Spec §6.3 nói "usf có test cho gần như mọi file". Sai với nửa lớn nhất.**
+`packages/ui` của usf có **ZERO** test — 93 file, không một cái nào. Lưới an toàn của lô primitive
+phải tự viết: `render-smoke.test.tsx` import và mount từng primitive. Nó lập tức có ích — bắt ra
+`data-table`, `data-table-column-header`, `sidebar` không đứng một mình được (đúng theo thiết kế,
+đã ghi vào danh sách miễn trừ kèm lý do).
+
+Bản smoke test đầu của tôi cũng sai: nó render **mọi** export, nên 30/62 đỏ — `AccordionItem` ngoài
+`Accordion` vốn phải ném lỗi. Sửa thành: khẳng định module import được, và chỉ mount **component gốc**.
+
+**2. `schema.test.ts` và `ws-client` không phải Tầng 1.**
+`schema.test.ts` là 749 dòng test **endpoint của usf** (listIssues, listAutopilots, GitHub import),
+không phải test `parseWithFallback` — bỏ, và viết test riêng cho chính cái guard đó.
+`ws-client` kéo theo 597 dòng kiểu sự kiện usf cho một phong bì `{type, payload}` — `WSEventType` giờ
+là `string`, domain thu hẹp sau. 15 test đi kèm của nó sang nguyên và xanh.
+
+**3. Xung đột primitive rộng hơn Button rất nhiều.**
+Bẫy B của plan chỉ nêu Button. Thực tế đè 12 primitive làm gãy thêm: `sonner` (usf không re-export
+`toast`, 6 chỗ), `Select` và `Dialog` (API compound), và **`DialogContent title=`** — cái này
+**không báo lỗi** vì `title` là thuộc tính HTML hợp lệ, nó âm thầm biến tiêu đề hộp thoại thành
+tooltip và làm hộp thoại mất tên khả truy cập, ở cả 4 call site.
+
+**4. Bốn hợp đồng a11y của uniwork bị đè mất, mỗi cái do một test bắt chứ không phải mắt người.**
+- `Button aria-disabled` — giữ nút trong tab order, chặn hành động bằng JS.
+- Vùng chạm — cỡ của usf là 28–36px so với ngưỡng 44px.
+- Vòng focus — `outline-none` vô điều kiện của usf giết outline toàn cục trong `base.css`, mà ring
+  thay thế thì **không tổng hợp được vào `box-shadow`**, kết quả là không còn chỉ báo focus nào.
+  Cách đúng của uniwork là để outline toàn cục làm việc.
+- `StepperTitle` là `span` chứ không phải `h3` — tên bước là nhãn điều hướng, không phải tiêu đề mục.
+- `use-scroll-fade` — bản uniwork cho đặt riêng độ mờ từng đầu để mask không che vòng focus của CTA.
+
+**5. Xung đột alias `secondary`** (đã cảnh báo ở plan) đúng là chỉ một cái, 56 chỗ dùng.
+
+### Việc phát sinh ngoài plan
+
+- `tsconfig lib` ES2022 → **ES2023** (`findLastIndex`). Không nhảy sang `ESNext`.
+- `packages/ui/tsconfig.json` cần `paths` thì shadcn CLI mới chạy.
+- `types/i18next.ts` của usf mô hình namespace + selector; uniwork dùng namespace phẳng → bỏ file,
+  thêm 6 khoá `ui.*` vào cả hai locale, chuyển 8 lời gọi `t(($) => $.key)` sang `t("ui.key")`.
+- **Định danh đã lưu** phải đổi tên, không chỉ import: khoá localStorage, cookie locale, scheme
+  deep-link. `scripts/no-usf-leak.test.mjs` giờ làm build đỏ nếu còn sót.
+- Luật ranh giới `core` được miễn trừ cho `platform/**` — đó chính là nơi hiện thực `StorageAdapter`.
+- `packages/core` chuyển sang môi trường `jsdom` + `cleanup` giữa các case; thiếu nó thì Testing
+  Library giữ mọi lần render trước trong cùng document và `getByTestId` tìm ra nhiều phần tử.
+
+### Việc dời sang plan sau
+
+`platform/{core-provider,auth-initializer}`, `i18n/user-locale-sync`, `hooks/use-file-upload`,
+`shortcuts/definitions` (danh sách hành động) — tất cả cần store auth/workspace hoặc kiểu nghiệp vụ,
+tức Tầng 2 (Plan 4). Không phải bỏ, là **chưa tới lượt**.
