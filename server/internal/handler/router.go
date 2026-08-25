@@ -11,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -22,6 +23,7 @@ type Deps struct {
 	Workspaces *service.WorkspaceService
 	Tasks      *service.TaskService
 	Meetings   *service.MeetingService
+	Hub        *realtime.Hub
 }
 
 type handlers struct {
@@ -40,6 +42,7 @@ func New(d Deps) http.Handler {
 	}))
 	r.Get("/healthz", h.health)
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/ws", h.ws)
 		r.Post("/auth/register", h.register)
 		r.Post("/auth/login", h.login)
 		r.Post("/auth/refresh", h.refresh)

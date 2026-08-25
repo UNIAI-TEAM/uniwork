@@ -11,6 +11,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -30,6 +31,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Workspaces: service.NewWorkspaceService(q),
 		Tasks:      service.NewTaskService(q, service.NewWorkspaceService(q), service.NopPublisher{}),
 		Meetings:   service.NewMeetingService(q, service.NewWorkspaceService(q), service.NopPublisher{}),
+		Hub:        realtime.NewHub(),
 	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)

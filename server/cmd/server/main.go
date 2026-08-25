@@ -11,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
+	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -32,13 +33,19 @@ func main() {
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	wsSvc := service.NewWorkspaceService(q)
-	var pub service.EventPublisher = service.NopPublisher{} // Task 8 thay bằng realtime publisher
+	hub := realtime.NewHub()
+	pub, err := realtime.NewPublisher(hub, cfg.RedisURL, log)
+	if err != nil {
+		log.Error("realtime", "err", err)
+		os.Exit(1)
+	}
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:       service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
 		Workspaces: wsSvc,
 		Tasks:      service.NewTaskService(q, wsSvc, pub),
 		Meetings:   service.NewMeetingService(q, wsSvc, pub),
+		Hub:        hub,
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {

@@ -6,10 +6,12 @@ require (
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-chi/cors v1.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/livekit/protocol v1.50.4
 	github.com/lmittmann/tint v1.2.0
 	github.com/oklog/ulid/v2 v2.1.2
+	github.com/redis/go-redis/v9 v9.22.0
 	golang.org/x/crypto v0.55.0
 )
 
@@ -63,7 +65,6 @@ require (
 	github.com/prometheus/common v0.68.1 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
-	github.com/redis/go-redis/v9 v9.20.0 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
