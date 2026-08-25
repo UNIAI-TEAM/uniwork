@@ -51,7 +51,7 @@ Keep server state and client state separate.
   other server interaction is a query or a mutation.
 - WebSocket events invalidate Query keys (`packages/core/realtime/use-realtime-sync.ts`).
   The frame payload is never written into a query or a store — the cache is
-  refreshed from the API. `use-realtime-sync.test.tsx` pins this.
+  refreshed from the API. `packages/core/realtime/use-realtime-sync.test.tsx` pins this.
 - Optimistic updates only when ALL hold: the outcome is locally predictable,
   the user stays on the same screen, failure is rare, rollback is a cache
   restore. Canonical: task status/position on the board
