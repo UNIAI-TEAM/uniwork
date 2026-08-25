@@ -64,3 +64,39 @@
 
 - [ ] **Step 1:** README: mục "Chạy dev" → `make dev`; "Worktree" → `make worktree-env && make setup-worktree && make start-worktree`; "Kiểm tra" → `make check`; giữ phần LiveKit/deploy.
 - [ ] **Step 2:** Cổng ra: `make check` xanh (13/13 e2e) · `git status` sạch · `node --test scripts/*.test.mjs` · `bash scripts/turbo-cache-check.sh`. Ghi "Ghi chép thực thi". Commit.
+
+---
+
+## Ghi chép thực thi (2026-08-25)
+
+Hoàn tất trên `feat/base-port-phase-0-1`, 6 commit. `make check` chạy trọn trên máy dev với stack đang
+mở (phát hiện "already running", không restart) và xanh toàn bộ: typecheck · lint · 368 test đơn vị
+(views 46 · ui 87 · core 235) + 2 contract test + turbo probe · Go `-race`/gofmt/vet · **13/13 e2e**.
+
+### Điều thực thi lộ ra
+
+**1. Pipeline bắt lỗi ngay lần chạy đầu — hai lỗi thật.** (a) Makefile `export` toàn bộ env của app, nên
+`LOCAL_UPLOAD_BASE_URL` rò vào test avatar → URL tuyệt đối thay vì `/uploads/…`. Sửa ở **test** (ghim env
+mình phụ thuộc), không sửa Makefile: test phải tự đứng dù shell dev có gì. Đã đưa thành luật trong
+CLAUDE.md § Testing. (b) `render-smoke.test.tsx` trượt timeout 5s dưới tải toàn máy (ba worker vitest +
+Go `-race`) dù chạy riêng chỉ 1.5s → 30s/case, kèm lý do ngay cạnh.
+
+**2. CI chưa được chứng minh.** YAML parse được (js-yaml), review tay từng action/version, nhưng nhánh
+chưa push nên **chưa có lần chạy thật nào trên GitHub**. Commit message nói rõ. Lần push đầu là phép thử
+thật; hai chỗ dễ trượt: `pnpm/action-setup@v4` đọc `packageManager` (cần pnpm ≥ 9 trên runner — có), và
+`scripts/turbo-cache-check.sh` sửa rồi `git checkout` một file — cần checkout đầy đủ, `actions/checkout@v4`
+mặc định là đủ.
+
+**3. Tài liệu mô tả đúng cái đã có, kể cả nợ.** CLAUDE.md nêu rõ sidebar + pages còn `useRouter` là nợ
+Pha 5; luật ID viết theo ULID `TEXT` thật của uniwork chứ không chép UUID của usf; `X-Workspace-ID` của usf
+**không** xuất hiện vì uniwork đưa workspace qua path. Mọi đường dẫn/target/script nêu trong hai file đã
+được kiểm bằng lệnh (`test -e`, `make -n`, `package.json`).
+
+**4. Glossary lấy từ locale thật.** `workspace` giữ tiếng Anh trong bản vi (đúng như `vi.json`), `tổ chức`,
+`công việc`/`việc`, `cuộc họp`. Phát hiện nhỏ: parity test buộc `vi.json` có cả `_one` lẫn `_other` dù
+tiếng Việt không chia số — ghi thành quy tắc thay vì bịa quy tắc "chỉ `_other`".
+
+### Còn lại
+
+Pha 5 (dựng lại FE theo 5 lát dọc) — plan riêng. Khi xong: cập nhật mục *Web Features* của CLAUDE.md
+(gỡ đoạn "known debt") và xoá lớp `--uw-*` trong `tokens.css`.
