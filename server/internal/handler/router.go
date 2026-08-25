@@ -21,6 +21,7 @@ type Deps struct {
 	Auth       *service.AuthService
 	Workspaces *service.WorkspaceService
 	Tasks      *service.TaskService
+	Meetings   *service.MeetingService
 }
 
 type handlers struct {
@@ -59,6 +60,13 @@ func New(d Deps) http.Handler {
 			r.Delete("/tasks/{taskID}", h.deleteTask)
 			r.Get("/tasks/{taskID}/comments", h.listComments)
 			r.Post("/tasks/{taskID}/comments", h.createComment)
+			r.Get("/workspaces/{workspaceID}/meetings", h.listMeetings)
+			r.Post("/workspaces/{workspaceID}/meetings", h.createMeeting)
+			r.Get("/meetings/{meetingID}", h.getMeeting)
+			r.Patch("/meetings/{meetingID}", h.updateMeeting)
+			r.Delete("/meetings/{meetingID}", h.deleteMeeting)
+			r.Get("/meetings/{meetingID}/notes", h.listNotes)
+			r.Post("/meetings/{meetingID}/notes", h.createNote)
 		})
 	})
 	return r

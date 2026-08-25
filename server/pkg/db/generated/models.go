@@ -19,6 +19,33 @@ type Invitation struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type Meeting struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	StartsAt    pgtype.Timestamptz `json:"starts_at"`
+	EndsAt      pgtype.Timestamptz `json:"ends_at"`
+	RoomName    string             `json:"room_name"`
+	CreatedBy   string             `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MeetingAttendee struct {
+	MeetingID string             `json:"meeting_id"`
+	UserID    string             `json:"user_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type MeetingNote struct {
+	ID        string             `json:"id"`
+	MeetingID string             `json:"meeting_id"`
+	AuthorID  string             `json:"author_id"`
+	Body      string             `json:"body"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type RefreshToken struct {
 	ID        string             `json:"id"`
 	UserID    string             `json:"user_id"`

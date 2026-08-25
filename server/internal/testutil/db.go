@@ -52,7 +52,8 @@ func DB(t *testing.T) *pgxpool.Pool {
 		t.Fatal("migrate:", err)
 	}
 	_, err = pool.Exec(ctx, `TRUNCATE users, workspaces, workspace_members,
-		invitations, refresh_tokens, tasks, task_comments CASCADE`)
+		invitations, refresh_tokens, tasks, task_comments,
+		meetings, meeting_attendees, meeting_notes CASCADE`)
 	if err != nil {
 		t.Fatal("truncate:", err)
 	}

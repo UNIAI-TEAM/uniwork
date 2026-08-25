@@ -38,6 +38,7 @@ func main() {
 		Auth:       service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
 		Workspaces: wsSvc,
 		Tasks:      service.NewTaskService(q, wsSvc, pub),
+		Meetings:   service.NewMeetingService(q, wsSvc, pub),
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {
