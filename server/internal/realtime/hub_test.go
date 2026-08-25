@@ -408,7 +408,7 @@ func TestCheckOrigin(t *testing.T) {
 	prev := allowedWSOrigins.Load().([]string)
 	SetAllowedOrigins([]string{
 		"http://localhost:3000",
-		"https://multica.ai",
+		"https://uniwork.app",
 	})
 	t.Cleanup(func() { SetAllowedOrigins(prev) })
 
@@ -428,24 +428,24 @@ func TestCheckOrigin(t *testing.T) {
 		remoteAddr string
 		want       bool
 	}{
-		{"empty origin allowed", "api.multica.ai", "", "", "1.2.3.4:5678", true},
+		{"empty origin allowed", "api.uniwork.app", "", "", "1.2.3.4:5678", true},
 		{"same-origin allowed (native client default)", "localhost:8080", "http://localhost:8080", "", "1.2.3.4:5678", true},
-		{"same-origin allowed (https)", "api.multica.ai", "https://api.multica.ai", "", "1.2.3.4:5678", true},
-		{"same-origin allowed (case-insensitive host, RFC 7230)", "API.Multica.AI", "https://api.multica.ai", "", "1.2.3.4:5678", true},
+		{"same-origin allowed (https)", "api.uniwork.app", "https://api.uniwork.app", "", "1.2.3.4:5678", true},
+		{"same-origin allowed (case-insensitive host, RFC 7230)", "API.Uniwork.APP", "https://api.uniwork.app", "", "1.2.3.4:5678", true},
 		{"whitelisted origin allowed (web cross-origin)", "localhost:8080", "http://localhost:3000", "", "1.2.3.4:5678", true},
-		{"whitelisted origin allowed (prod web)", "api.multica.ai", "https://multica.ai", "", "1.2.3.4:5678", true},
-		{"unknown origin rejected (CSWSH defense)", "api.multica.ai", "https://evil.com", "", "1.2.3.4:5678", false},
+		{"whitelisted origin allowed (prod web)", "api.uniwork.app", "https://uniwork.app", "", "1.2.3.4:5678", true},
+		{"unknown origin rejected (CSWSH defense)", "api.uniwork.app", "https://evil.com", "", "1.2.3.4:5678", false},
 		{"different port rejected", "localhost:8080", "http://localhost:9999", "", "1.2.3.4:5678", false},
-		{"X-Forwarded-Host from trusted proxy matches origin", "internal.proxy", "https://multica.ai", "multica.ai", "127.0.0.1:5678", true},
-		{"X-Forwarded-Host from trusted proxy case-insensitive", "internal.proxy", "https://Multica.AI", "multica.ai", "10.0.0.1:5678", true},
+		{"X-Forwarded-Host from trusted proxy matches origin", "internal.proxy", "https://uniwork.app", "uniwork.app", "127.0.0.1:5678", true},
+		{"X-Forwarded-Host from trusted proxy case-insensitive", "internal.proxy", "https://Uniwork.APP", "uniwork.app", "10.0.0.1:5678", true},
 		{"X-Forwarded-Host from untrusted source rejected", "internal.proxy", "https://example.com", "example.com", "1.2.3.4:5678", false},
-		{"X-Forwarded-Host from trusted proxy but evil origin rejected", "internal.proxy", "https://evil.com", "multica.ai", "127.0.0.1:5678", false},
-		{"X-Forwarded-Host present but origin matches direct Host", "multica.ai", "https://multica.ai", "other.host", "1.2.3.4:5678", true},
+		{"X-Forwarded-Host from trusted proxy but evil origin rejected", "internal.proxy", "https://evil.com", "uniwork.app", "127.0.0.1:5678", false},
+		{"X-Forwarded-Host present but origin matches direct Host", "uniwork.app", "https://uniwork.app", "other.host", "1.2.3.4:5678", true},
 		{"X-Forwarded-Host spoofed by attacker rejected", "internal.proxy", "https://evil.com", "evil.com", "1.2.3.4:5678", false},
-		{"X-Forwarded-Host from trusted CIDR range matches origin", "internal.proxy", "https://multica.ai", "multica.ai", "10.5.6.7:5678", true},
-		{"X-Forwarded-Host from trusted IPv6 proxy matches origin", "internal.proxy", "https://multica.ai", "multica.ai", "[::1]:5678", true},
-		{"X-Forwarded-Host comma list uses first (client-facing) value", "internal.proxy", "https://multica.ai", "multica.ai, proxy.internal", "127.0.0.1:5678", true},
-		{"X-Forwarded-Host comma list ignores trailing values", "internal.proxy", "https://staging.multica.ai", "proxy.internal, staging.multica.ai", "127.0.0.1:5678", false},
+		{"X-Forwarded-Host from trusted CIDR range matches origin", "internal.proxy", "https://uniwork.app", "uniwork.app", "10.5.6.7:5678", true},
+		{"X-Forwarded-Host from trusted IPv6 proxy matches origin", "internal.proxy", "https://uniwork.app", "uniwork.app", "[::1]:5678", true},
+		{"X-Forwarded-Host comma list uses first (client-facing) value", "internal.proxy", "https://uniwork.app", "uniwork.app, proxy.internal", "127.0.0.1:5678", true},
+		{"X-Forwarded-Host comma list ignores trailing values", "internal.proxy", "https://staging.uniwork.app", "proxy.internal, staging.uniwork.app", "127.0.0.1:5678", false},
 	}
 
 	for _, tc := range cases {

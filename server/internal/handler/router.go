@@ -13,6 +13,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
+	"github.com/unicomhub/uniwork/server/internal/metrics"
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -46,6 +47,9 @@ type Deps struct {
 	// MembershipCache short-circuits the workspace membership lookup on hot
 	// paths (WebSocket connects). nil without Redis; every check then hits the DB.
 	MembershipCache *auth.MembershipCache
+	// HTTPMetrics is nil unless METRICS_ADDR is set; when present every request
+	// is counted and timed by chi route pattern.
+	HTTPMetrics *metrics.HTTPMetrics
 }
 
 type handlers struct {
@@ -65,6 +69,9 @@ func New(d Deps) http.Handler {
 	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
 	r.Use(mw.ContentSecurityPolicy)
+	if d.HTTPMetrics != nil {
+		r.Use(d.HTTPMetrics.Middleware)
+	}
 	if d.Redis != nil {
 		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, mw.ParseTrustedProxies(d.Cfg.TrustedProxies)))
 	}

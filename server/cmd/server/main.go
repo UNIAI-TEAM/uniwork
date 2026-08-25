@@ -13,6 +13,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/events"
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
+	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -60,6 +61,19 @@ func main() {
 		os.Exit(1)
 	}
 	bus := events.New()
+	// METRICS_ADDR (e.g. 127.0.0.1:9090) exposes Prometheus metrics on a
+	// separate listener so the scrape endpoint never shares the public port.
+	var httpMetrics *metrics.HTTPMetrics
+	if mcfg := metrics.ConfigFromEnv(); mcfg.Enabled() {
+		reg := metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
+		httpMetrics = reg.HTTP
+		go func() {
+			log.Info("metrics listening", "addr", mcfg.Addr)
+			if err := metrics.NewServer(mcfg.Addr, reg.Gatherer).ListenAndServe(); err != nil {
+				log.Error("metrics server", "err", err)
+			}
+		}()
+	}
 	// STORAGE_BACKEND=s3 uses the S3-compatible backend (AWS_* / AWS_ENDPOINT_URL);
 	// anything else is local disk under LOCAL_UPLOAD_DIR, served by the API.
 	var store storage.Storage
@@ -96,6 +110,7 @@ func main() {
 		Bus:             bus,
 		Storage:         store,
 		MembershipCache: membershipCache,
+		HTTPMetrics:     httpMetrics,
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {
