@@ -1,36 +1,33 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
-import * as api from "../api/client";
-import { OrganizationSchema, WorkspaceSchema, type Workspace } from "../types";
+import * as organizations from "../api/endpoints/organizations";
+import type { Workspace } from "../types/workspace";
+import { workspaceKeys } from "../workspaces/hooks";
 
-const OrgsResponse = z.object({ organizations: z.array(OrganizationSchema) });
-const OrgResponse = z.object({ organization: OrganizationSchema });
-const WorkspacesResponse = z.object({ workspaces: z.array(WorkspaceSchema) });
-const WorkspaceResponse = z.object({ workspace: WorkspaceSchema });
+export const organizationKeys = {
+  list: () => ["organizations"] as const,
+  workspaces: (orgId: string) => ["org-workspaces", orgId] as const,
+};
 
 export function useOrganizations() {
   return useQuery({
-    queryKey: ["organizations"],
-    queryFn: () => api.request("/api/v1/orgs", { schema: OrgsResponse }),
-    select: (d) => d.organizations,
+    queryKey: organizationKeys.list(),
+    queryFn: () => organizations.list(),
   });
 }
 
 export function useCreateOrganization() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; slug: string }) =>
-      api.request("/api/v1/orgs", { method: "POST", body, schema: OrgResponse }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["organizations"] }),
+    mutationFn: (body: { name: string; slug: string }) => organizations.create(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: organizationKeys.list() }),
   });
 }
 
 export function useOrgWorkspaces(orgId: string) {
   return useQuery({
-    queryKey: ["org-workspaces", orgId],
-    queryFn: () => api.request(`/api/v1/orgs/${orgId}/workspaces`, { schema: WorkspacesResponse }),
-    select: (d) => d.workspaces,
+    queryKey: organizationKeys.workspaces(orgId),
+    queryFn: () => organizations.listWorkspaces(orgId),
     enabled: !!orgId,
   });
 }
@@ -39,20 +36,18 @@ export function useCreateWorkspaceInOrg() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ orgId, name, slug }: { orgId: string; name: string; slug: string }) =>
-      api.request(`/api/v1/orgs/${orgId}/workspaces`, {
-        method: "POST",
-        body: { name, slug },
-        schema: WorkspaceResponse,
-      }),
-    // Seed cache TRƯỚC khi caller navigate để layout [orgSlug]/[workspaceSlug]
-    // resolve ngay, không nháy.
-    onSuccess: (d) => {
-      qc.setQueryData<{ workspaces: Workspace[] }>(["workspaces"], (old) => ({
-        workspaces: [...(old?.workspaces ?? []), d.workspace],
-      }));
-      qc.setQueryData(["workspace", d.workspace.organization_slug, d.workspace.slug], d);
-      void qc.invalidateQueries({ queryKey: ["org-workspaces", d.workspace.organization_id] });
+      organizations.createWorkspace(orgId, { name, slug }),
+    // Seed the caches BEFORE the caller navigates so the [orgSlug]/[workspaceSlug]
+    // layout resolves immediately instead of flashing a loader.
+    onSuccess: (workspace) => {
+      if (!workspace) {
+        void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
+        return;
+      }
+      qc.setQueryData<Workspace[]>(workspaceKeys.list(), (old) => [...(old ?? []), workspace]);
+      qc.setQueryData(workspaceKeys.bySlugs(workspace.organization_slug, workspace.slug), workspace);
+      void qc.invalidateQueries({ queryKey: organizationKeys.workspaces(workspace.organization_id) });
     },
-    onError: () => qc.invalidateQueries({ queryKey: ["workspaces"] }),
+    onError: () => qc.invalidateQueries({ queryKey: workspaceKeys.list() }),
   });
 }

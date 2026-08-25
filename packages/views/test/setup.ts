@@ -7,12 +7,14 @@ afterEach(cleanup);
 
 installMediaStubs();
 
-// Mock api.request cho toàn bộ test views (setup chạy trước import của test file,
-// nên module thật không kịp được nạp).
-vi.mock("@uniwork/core/api", async (orig) => {
+// Mock the HTTP transport for every views test. Endpoints call `request` from
+// api/http; mocking that one module (by resolved path) covers all of them and
+// keeps the real schemas in the loop, so a fixture that drifts from the
+// contract fails the test the way it would fail the page.
+vi.mock("@uniwork/core/api/http", async (orig) => {
   const { requestMock } = await import("./request-mock");
   return {
-    ...(await orig<typeof import("@uniwork/core/api")>()),
+    ...(await orig<typeof import("@uniwork/core/api/http")>()),
     request: (...a: unknown[]) => requestMock(...a),
   };
 });

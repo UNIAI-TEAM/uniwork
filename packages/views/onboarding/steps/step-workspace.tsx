@@ -47,7 +47,9 @@ export function StepWorkspace({
     create.mutate(
       { orgId: organization.id, name: form.name.trim(), slug: form.slug.trim() },
       {
-        onSuccess: (d) => onCreated(d.workspace),
+        onSuccess: (workspace) => {
+          if (workspace) onCreated(workspace);
+        },
         onError: (err) => {
           if (isSlugConflict(err)) {
             form.setServerError(t("onboarding.step_workspace.slug_taken_error"));

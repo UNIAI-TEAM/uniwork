@@ -1,40 +1,28 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
-import * as api from "../api/client";
-import { TaskCommentSchema, TaskSchema, type Task } from "../types";
+import * as tasks from "../api/endpoints/tasks";
+import type { Task } from "../types/task";
 
-const TasksResponse = z.object({ tasks: z.array(TaskSchema) });
-const TaskResponse = z.object({ task: TaskSchema });
-const CommentsResponse = z.object({ comments: z.array(TaskCommentSchema) });
-const CommentResponse = z.object({ comment: TaskCommentSchema });
+export type { CreateTaskBody, TaskPatch } from "../api/endpoints/tasks";
 
-export interface TaskPatch {
-  title?: string;
-  description?: string;
-  status?: Task["status"];
-  priority?: Task["priority"];
-  position?: number;
-  assignee_id?: string | null;
-  due_date?: string | null;
-}
+export const taskKeys = {
+  list: (wsId: string) => ["tasks", wsId] as const,
+  detail: (taskId: string) => ["task", taskId] as const,
+  comments: (taskId: string) => ["comments", taskId] as const,
+};
 
 export function useTasks(workspaceId: string) {
   return useQuery({
-    queryKey: ["tasks", workspaceId],
-    queryFn: () => api.request(`/api/v1/workspaces/${workspaceId}/tasks`, { schema: TasksResponse }),
-    // The response schema is lenient on status/priority (see types/task.ts);
-    // the call site asserts the known unions, and switches carry a default.
-    select: (d) => d.tasks as Task[],
+    queryKey: taskKeys.list(workspaceId),
+    queryFn: () => tasks.listTasks(workspaceId),
     enabled: !!workspaceId,
   });
 }
 
 export function useTask(taskId: string) {
   return useQuery({
-    queryKey: ["task", taskId],
-    queryFn: () => api.request(`/api/v1/tasks/${taskId}`, { schema: TaskResponse }),
-    select: (d) => d.task as Task,
+    queryKey: taskKeys.detail(taskId),
+    queryFn: () => tasks.getTask(taskId),
     enabled: !!taskId,
   });
 }
@@ -42,28 +30,26 @@ export function useTask(taskId: string) {
 export function useCreateTask(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { title: string; description?: string; priority?: Task["priority"] }) =>
-      api.request(`/api/v1/workspaces/${workspaceId}/tasks`, {
-        method: "POST",
-        body,
-        schema: TaskResponse,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks", workspaceId] }),
+    mutationFn: (body: tasks.CreateTaskBody) => tasks.createTask(workspaceId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) }),
   });
 }
 
 export function useUpdateTask(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ taskId, patch }: { taskId: string; patch: TaskPatch }) =>
-      api.request(`/api/v1/tasks/${taskId}`, { method: "PATCH", body: patch, schema: TaskResponse }),
-    // optimistic: board phản hồi tức thì khi kéo-thả
+    mutationFn: ({ taskId, patch }: { taskId: string; patch: tasks.TaskPatch }) =>
+      tasks.updateTask(taskId, patch),
+    // Optimistic on purpose, and only here: a status/position patch is locally
+    // predictable, the user stays on the board, failure is rare and the
+    // rollback is a cache restore. Create/delete flows stay pessimistic.
     onMutate: async ({ taskId, patch }) => {
-      await qc.cancelQueries({ queryKey: ["tasks", workspaceId] });
-      const prev = qc.getQueryData<{ tasks: Task[] }>(["tasks", workspaceId]);
+      await qc.cancelQueries({ queryKey: taskKeys.list(workspaceId) });
+      const prev = qc.getQueryData<Task[]>(taskKeys.list(workspaceId));
       if (prev) {
-        qc.setQueryData(["tasks", workspaceId], {
-          tasks: prev.tasks.map((t) =>
+        qc.setQueryData<Task[]>(
+          taskKeys.list(workspaceId),
+          prev.map((t) =>
             t.id === taskId
               ? {
                   ...t,
@@ -71,16 +57,16 @@ export function useUpdateTask(workspaceId: string) {
                 }
               : t,
           ),
-        });
+        );
       }
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["tasks", workspaceId], ctx.prev);
+      if (ctx?.prev) qc.setQueryData(taskKeys.list(workspaceId), ctx.prev);
     },
     onSettled: (_d, _e, { taskId }) => {
-      void qc.invalidateQueries({ queryKey: ["tasks", workspaceId] });
-      void qc.invalidateQueries({ queryKey: ["task", taskId] });
+      void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
     },
   });
 }
@@ -88,16 +74,15 @@ export function useUpdateTask(workspaceId: string) {
 export function useDeleteTask(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (taskId: string) => api.request(`/api/v1/tasks/${taskId}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks", workspaceId] }),
+    mutationFn: (taskId: string) => tasks.deleteTask(taskId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) }),
   });
 }
 
 export function useComments(taskId: string) {
   return useQuery({
-    queryKey: ["comments", taskId],
-    queryFn: () => api.request(`/api/v1/tasks/${taskId}/comments`, { schema: CommentsResponse }),
-    select: (d) => d.comments,
+    queryKey: taskKeys.comments(taskId),
+    queryFn: () => tasks.listComments(taskId),
     enabled: !!taskId,
   });
 }
@@ -105,12 +90,7 @@ export function useComments(taskId: string) {
 export function useAddComment(taskId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) =>
-      api.request(`/api/v1/tasks/${taskId}/comments`, {
-        method: "POST",
-        body: { body },
-        schema: CommentResponse,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["comments", taskId] }),
+    mutationFn: (body: string) => tasks.addComment(taskId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.comments(taskId) }),
   });
 }

@@ -1,29 +1,23 @@
-import { z } from "zod";
-import * as api from "../api/client";
+import * as auth from "../api/endpoints/auth";
+import { ApiError } from "../api/http";
 import { setSessionUser } from "../auth/hooks";
-import { UserSchema } from "../types";
 import type { OnboardingCompletionPath, QuestionnaireAnswers } from "./types";
 
-const UserResponse = z.object({ user: UserSchema });
-
 export async function saveQuestionnaire(answers: QuestionnaireAnswers): Promise<void> {
-  const d = await api.request("/api/v1/me/onboarding", {
-    method: "PATCH",
-    body: { questionnaire: answers },
-    schema: UserResponse,
-  });
-  setSessionUser(d.user);
+  const user = await auth.patchOnboarding(answers);
+  if (user) setSessionUser(user);
 }
 
-/** Cơ chế DUY NHẤT phía FE làm `onboarded_at` chuyển từ null → có giá trị. */
+/**
+ * The ONLY frontend path that moves `onboarded_at` from null to a value.
+ * A drifted response here is surfaced rather than ignored: the caller is
+ * about to navigate into the workspace on the strength of it.
+ */
 export async function completeOnboarding(
   path: OnboardingCompletionPath,
   workspaceId?: string,
 ): Promise<void> {
-  const d = await api.request("/api/v1/me/onboarding/complete", {
-    method: "POST",
-    body: { completion_path: path, workspace_id: workspaceId },
-    schema: UserResponse,
-  });
-  setSessionUser(d.user);
+  const user = await auth.completeOnboarding(path, workspaceId);
+  if (!user) throw new ApiError("Unexpected response from the server", "malformed_response", 502);
+  setSessionUser(user);
 }

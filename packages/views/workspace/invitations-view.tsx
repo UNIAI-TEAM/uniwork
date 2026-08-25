@@ -18,12 +18,17 @@ export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspac
   if (!invites?.length) return null;
 
   const join = (token: string) =>
-    accept.mutate(token, { onSuccess: (d) => onJoined(d.workspace), onError: () => toast.error(t("common.error")) });
+    accept.mutate(token, {
+      onSuccess: (workspace) => {
+        if (workspace) onJoined(workspace);
+      },
+      onError: () => toast.error(t("common.error")),
+    });
   const joinAll = async () => {
     let last: Workspace | null = null;
     for (const i of invites) {
       try {
-        last = (await accept.mutateAsync(i.token)).workspace;
+        last = (await accept.mutateAsync(i.token)) ?? last;
       } catch {
         toast.error(t("common.error"));
       }

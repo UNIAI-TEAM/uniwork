@@ -48,7 +48,9 @@ export function StepOrganization({
     create.mutate(
       { name: form.name.trim(), slug: form.slug.trim() },
       {
-        onSuccess: (d) => onSelected(d.organization),
+        onSuccess: (organization) => {
+          if (organization) onSelected(organization);
+        },
         onError: (err) => {
           if (isSlugConflict(err)) {
             form.setServerError(t("onboarding.step_organization.slug_taken_error"));

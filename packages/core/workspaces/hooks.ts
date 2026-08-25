@@ -1,8 +1,8 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
-import * as api from "../api/client";
-import { MemberSchema, PendingInvitationSchema, WorkspaceSchema, type Workspace } from "../types";
+import * as workspaces from "../api/endpoints/workspaces";
+
+export type { InviteResult } from "../api/endpoints/workspaces";
 
 export function slugify(name: string): string {
   return name
@@ -15,24 +15,24 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-const WorkspacesResponse = z.object({ workspaces: z.array(WorkspaceSchema) });
-const WorkspaceResponse = z.object({ workspace: WorkspaceSchema });
-const MembersResponse = z.object({ members: z.array(MemberSchema) });
+export const workspaceKeys = {
+  list: () => ["workspaces"] as const,
+  bySlugs: (orgSlug: string, wsSlug: string) => ["workspace", orgSlug, wsSlug] as const,
+  members: (wsId: string) => ["members", wsId] as const,
+  myInvitations: () => ["my-invitations"] as const,
+};
 
 export function useWorkspaces() {
   return useQuery({
-    queryKey: ["workspaces"],
-    queryFn: () => api.request("/api/v1/workspaces", { schema: WorkspacesResponse }),
-    select: (d) => d.workspaces,
+    queryKey: workspaceKeys.list(),
+    queryFn: () => workspaces.list(),
   });
 }
 
 export function useWorkspace(orgSlug: string, wsSlug: string) {
   return useQuery({
-    queryKey: ["workspace", orgSlug, wsSlug],
-    queryFn: () =>
-      api.request(`/api/v1/orgs/${orgSlug}/workspaces/${wsSlug}`, { schema: WorkspaceResponse }),
-    select: (d) => d.workspace,
+    queryKey: workspaceKeys.bySlugs(orgSlug, wsSlug),
+    queryFn: () => workspaces.getBySlugs(orgSlug, wsSlug),
     enabled: !!orgSlug && !!wsSlug,
     retry: false,
   });
@@ -40,57 +40,35 @@ export function useWorkspace(orgSlug: string, wsSlug: string) {
 
 export function useMembers(workspaceId: string) {
   return useQuery({
-    queryKey: ["members", workspaceId],
-    queryFn: () =>
-      api.request(`/api/v1/workspaces/${workspaceId}/members`, { schema: MembersResponse }),
-    select: (d) => d.members,
+    queryKey: workspaceKeys.members(workspaceId),
+    queryFn: () => workspaces.listMembers(workspaceId),
     enabled: !!workspaceId,
   });
 }
 
-const InviteResponse = z.object({
-  invitations: z.array(
-    z.object({ id: z.string(), email: z.string(), role: z.string(), token: z.string() }),
-  ),
-  skipped: z.array(z.string()),
-});
-
 export function useInvite(workspaceId: string) {
   return useMutation({
-    mutationFn: ({ emails, role }: { emails: string[]; role: "admin" | "member" }) =>
-      api.request(`/api/v1/workspaces/${workspaceId}/invitations`, {
-        method: "POST",
-        body: { emails, role },
-        schema: InviteResponse,
-      }),
+    mutationFn: (body: { emails: string[]; role: "admin" | "member" }) =>
+      workspaces.invite(workspaceId, body),
   });
 }
 
-const MyInvitationsResponse = z.object({ invitations: z.array(PendingInvitationSchema) });
-
 export function useMyInvitations(enabled = true) {
   return useQuery({
-    queryKey: ["my-invitations"],
-    queryFn: () => api.request("/api/v1/me/invitations", { schema: MyInvitationsResponse }),
-    select: (d) => d.invitations,
+    queryKey: workspaceKeys.myInvitations(),
+    queryFn: () => workspaces.myInvitations(),
     enabled,
   });
 }
 
 export function fetchMyInvitations() {
-  return api
-    .request("/api/v1/me/invitations", { schema: MyInvitationsResponse })
-    .then((d) => d.invitations);
+  return workspaces.myInvitations();
 }
 
 export function useAcceptInvite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (token: string) =>
-      api.request<{ workspace: Workspace }>(`/api/v1/invitations/${token}/accept`, {
-        method: "POST",
-        schema: WorkspaceResponse,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workspaces"] }),
+    mutationFn: (token: string) => workspaces.acceptInvite(token),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workspaceKeys.list() }),
   });
 }

@@ -28,7 +28,9 @@ function Seeder({ workspaceId, onOpenTask }: { workspaceId: string; onOpenTask: 
     if (fired.current || taskId || failed) return;
     fired.current = true;
     seed.mutate(workspaceId, {
-      onSuccess: (d) => setTaskId(d.task.id),
+      onSuccess: (task) => {
+        if (task) setTaskId(task.id);
+      },
       onError: () => {
         setFailed(true);
         fired.current = false;
