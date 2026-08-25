@@ -1,70 +1,27 @@
 package handler
 
 import (
+	"context"
 	"net/http"
-	"time"
-
-	"github.com/gorilla/websocket"
 
 	"github.com/unicomhub/uniwork/server/internal/realtime"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-var upgrader = websocket.Upgrader{
-	// CORS đã chặn ở tầng HTTP; origin FE cho phép qua config
-	CheckOrigin: func(r *http.Request) bool { return true },
+// workspaceMembership adapts the workspace service to the hub's
+// MembershipChecker so the hub never sees the service layer.
+type workspaceMembership struct{ ws *service.WorkspaceService }
+
+func (m workspaceMembership) IsMember(ctx context.Context, userID, workspaceID string) bool {
+	_, err := m.ws.RequireMember(ctx, workspaceID, userID)
+	return err == nil
 }
 
-// GET /api/v1/ws?workspace=...&token=...
-// Token qua query vì browser WebSocket không gửi được Authorization header.
+// GET /api/v1/ws?workspace_id=…
+//
+// Authentication is either the transitional ?token= query parameter (what the
+// current web client sends) or an `auth` frame as the first message (what the
+// ported ws-client.ts sends). Membership is checked on every connect.
 func (h *handlers) ws(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	workspaceID := r.URL.Query().Get("workspace")
-	uid, err := h.Minter.Parse(token)
-	if err != nil {
-		respondError(w, 401, "unauthorized", "invalid token")
-		return
-	}
-	if _, err := h.Workspaces.RequireMember(r.Context(), workspaceID, uid); err != nil {
-		respondError(w, 403, "forbidden", "not a member")
-		return
-	}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	send := make(chan []byte, 32)
-	client := realtime.NewClient(send)
-	h.Hub.Add(workspaceID, client)
-	defer func() {
-		h.Hub.Remove(workspaceID, client)
-		conn.Close()
-	}()
-
-	// reader: chỉ để phát hiện close
-	go func() {
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				conn.Close()
-				return
-			}
-		}
-	}()
-
-	ping := time.NewTicker(30 * time.Second)
-	defer ping.Stop()
-	for {
-		select {
-		case msg, ok := <-send:
-			if !ok {
-				return
-			}
-			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-				return
-			}
-		case <-ping.C:
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
-		}
-	}
+	realtime.HandleWebSocket(h.Hub, workspaceMembership{h.Workspaces}, h.Minter.Parse, nil, w, r)
 }

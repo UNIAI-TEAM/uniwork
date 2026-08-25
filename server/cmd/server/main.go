@@ -45,11 +45,19 @@ func main() {
 		rdb = redis.NewClient(opt)
 	}
 	hub := realtime.NewHub()
-	pub, err := realtime.NewPublisher(hub, cfg.RedisURL, log)
-	if err != nil {
-		log.Error("realtime", "err", err)
-		os.Exit(1)
+	go hub.Run()
+	// Without Redis every event fans out in-process only. With it, the relay
+	// writes each event to a per-scope stream and consumes the streams this
+	// node has subscribers for, so several API nodes deliver each other's
+	// events; DualWrite keeps local delivery immediate.
+	var broadcaster realtime.Broadcaster = hub
+	if rdb != nil {
+		relay := realtime.NewRedisRelay(hub, rdb)
+		relay.Start(ctx)
+		defer relay.Stop()
+		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
 	}
+	pub := realtime.NewPublisher(broadcaster, log)
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:          service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
