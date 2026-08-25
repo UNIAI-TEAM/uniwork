@@ -1,7 +1,12 @@
-# Placeholder pipeline. The full four-job workflow lands in the phase-6 plan.
-# It exists now because turbo.json lists this file in globalDependencies: the
-# toolchain versions pinned here must be part of every task hash, so that
-# bumping Node can never replay results produced by the previous runtime.
+# Four jobs. `changes` decides whether the frontend half has anything to do;
+# the two frontend jobs are split so the jsdom test suite and the Next build
+# do not starve each other on a 4-vCPU runner; `backend` runs Go against real
+# Postgres and Redis services. Playwright is not run here — it is the local
+# `make check` gate — because the e2e suite needs a running app and a browser.
+#
+# turbo.json lists this file in globalDependencies: the toolchain versions
+# pinned below are part of every task hash, so bumping Node can never replay
+# results produced by the previous runtime.
 name: CI
 
 on:
@@ -9,13 +14,194 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   NODE_VERSION: "22"
   GO_VERSION: "1.27.0"
   PNPM_VERSION: "10.28.2"
 
 jobs:
-  placeholder:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      frontend: ${{ steps.decide.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # Bias toward over-matching: a missed path silently skips validation.
+          filters: |
+            frontend:
+              - 'apps/**'
+              - 'packages/**'
+              - 'e2e/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+              - 'server/internal/service/reserved_slugs.json'
+      - id: decide
+        # Always run on push to main; on a PR only when frontend paths changed.
+        # The frontend jobs still run and report success in that case — their
+        # steps are gated on this output — so the required check goes green
+        # instead of staying pending.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ] || [ "$FRONTEND_CHANGED" = "true" ]; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  frontend-build:
+    needs: changes
+    runs-on: ubuntu-latest
+    env:
+      TURBO_CACHE_DIR: .turbo/cache
+    steps:
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: actions/checkout@v4
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: pnpm/action-setup@v4
+        # Reads `packageManager` from package.json — one place pins pnpm.
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: pnpm install --frozen-lockfile
+      # `node-version: 22` floats across patch releases and turbo's hash does
+      # not include the interpreter; without the resolved version in the key a
+      # runner moving to another 22.x would restore a cache built by the old
+      # one and report green without executing anything.
+      - id: runtime
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: echo "node=$(node --version)" >> "$GITHUB_OUTPUT"
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ steps.runtime.outputs.node }}-${{ github.sha }}
+          restore-keys: |
+            turbo-build-${{ runner.os }}-${{ steps.runtime.outputs.node }}-
+      - name: Reserved slugs are generated from the server's list
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: |
+          pnpm generate:reserved-slugs
+          git diff --exit-code -- packages/core/paths/reserved-slugs.ts
+      - name: Repo contract tests
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        # Catalog completeness, no usf branding left behind, and the turbo
+        # dependency-hash probe that proves `test` cannot replay a stale pass.
+        run: |
+          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs
+          bash scripts/turbo-cache-check.sh
+      - name: Build, typecheck, lint
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: pnpm exec turbo build typecheck lint
+
+  frontend-test:
+    needs: changes
+    runs-on: ubuntu-latest
+    env:
+      TURBO_CACHE_DIR: .turbo/cache
+    steps:
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: actions/checkout@v4
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: pnpm/action-setup@v4
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: pnpm install --frozen-lockfile
+      - id: runtime
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: echo "node=$(node --version)" >> "$GITHUB_OUTPUT"
+      - if: ${{ needs.changes.outputs.frontend == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-test-${{ runner.os }}-${{ steps.runtime.outputs.node }}-${{ github.sha }}
+          restore-keys: |
+            turbo-test-${{ runner.os }}-${{ steps.runtime.outputs.node }}-
+      - name: Unit tests
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        # `test` reaches dependency sources through the hash-only
+        # `^cache-inputs` edge in turbo.json, so no tsc runs here.
+        run: pnpm exec turbo test
+
+  # Stable status-check name for branch rules; fails when either half fails.
+  frontend:
+    needs: [frontend-build, frontend-test]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Real jobs land with the phase-6 plan."
+      - env:
+          BUILD_RESULT: ${{ needs.frontend-build.result }}
+          TEST_RESULT: ${{ needs.frontend-test.result }}
+        run: |
+          echo "frontend-build: $BUILD_RESULT"
+          echo "frontend-test:  $TEST_RESULT"
+          if [ "$BUILD_RESULT" != "success" ] || [ "$TEST_RESULT" != "success" ]; then
+            echo "::error::frontend validation failed"
+            exit 1
+          fi
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: uniwork_test
+          POSTGRES_USER: uniwork
+          POSTGRES_PASSWORD: uniwork
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uniwork -d uniwork_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The Go suite truncates every table, so it owns this database outright.
+      DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable
+      REDIS_TEST_URL: redis://localhost:6379/1
+      JWT_SECRET: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+      - name: Build
+        run: cd server && go build ./...
+      - name: Migrate the test database
+        run: cd server && go run ./cmd/migrate up
+      - name: gofmt, vet, test (-race)
+        run: bash scripts/test-go.sh --race
