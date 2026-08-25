@@ -43,6 +43,9 @@ type Deps struct {
 	// Storage holds uploaded files. nil disables every upload endpoint with a
 	// 501 rather than a panic.
 	Storage storage.Storage
+	// MembershipCache short-circuits the workspace membership lookup on hot
+	// paths (WebSocket connects). nil without Redis; every check then hits the DB.
+	MembershipCache *auth.MembershipCache
 }
 
 type handlers struct {

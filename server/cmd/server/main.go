@@ -48,6 +48,10 @@ func main() {
 		}
 		rdb = redis.NewClient(opt)
 	}
+	var membershipCache *auth.MembershipCache
+	if rdb != nil {
+		membershipCache = auth.NewMembershipCache(rdb)
+	}
 	// Flags come from FEATURE_FLAGS_FILE when set; absent, every lookup returns
 	// its default and the service is nil.
 	flags, err := featureflag.NewServiceFromEnv(featureflag.WithLogger(log))
@@ -80,17 +84,18 @@ func main() {
 	pub := realtime.NewPublisher(broadcaster, log)
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
-		Auth:          service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
-		Organizations: orgSvc,
-		Workspaces:    wsSvc,
-		Onboarding:    service.NewOnboardingService(q, wsSvc, pub),
-		Tasks:         service.NewTaskService(q, wsSvc, pub),
-		Meetings:      service.NewMeetingService(q, wsSvc, pub),
-		Hub:           hub,
-		Redis:         rdb,
-		FeatureFlags:  flags,
-		Bus:           bus,
-		Storage:       store,
+		Auth:            service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
+		Organizations:   orgSvc,
+		Workspaces:      wsSvc,
+		Onboarding:      service.NewOnboardingService(q, wsSvc, pub),
+		Tasks:           service.NewTaskService(q, wsSvc, pub),
+		Meetings:        service.NewMeetingService(q, wsSvc, pub),
+		Hub:             hub,
+		Redis:           rdb,
+		FeatureFlags:    flags,
+		Bus:             bus,
+		Storage:         store,
+		MembershipCache: membershipCache,
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {
