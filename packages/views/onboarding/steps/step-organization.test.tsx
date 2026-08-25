@@ -4,6 +4,7 @@ import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../../test/api-mock";
 import { StepOrganization } from "./step-organization";
+import { expectInactive } from "../../test/inactive";
 
 initI18n();
 beforeEach(() => requestMock.mockReset());
@@ -20,7 +21,7 @@ describe("StepOrganization", () => {
     const onSelected = vi.fn();
     const org = { id: "o1", slug: "unicom", name: "Unicom", role: "owner" };
     render(wrap(<StepOrganization organizations={[org]} selected={null} onSelected={onSelected} />));
-    expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeDisabled();
+    expectInactive(screen.getByRole("button", { name: "Tiếp tục" }));
     fireEvent.click(screen.getByRole("radio", { name: /Unicom/ }));
     fireEvent.click(screen.getByRole("button", { name: "Tiếp tục với Unicom" }));
     expect(onSelected).toHaveBeenCalledWith(org);

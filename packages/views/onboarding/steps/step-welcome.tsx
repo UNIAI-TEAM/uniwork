@@ -32,9 +32,14 @@ export function StepWelcome({
   };
 
   return (
-    <div className="animate-onboarding-enter flex h-full min-h-[640px] flex-col lg:flex-row">
-      <div className="flex flex-col lg:flex-1">
-        <div className="flex flex-1 flex-col justify-center px-6 pb-12 pt-16 sm:px-10 md:px-20 lg:px-20 lg:pt-0 xl:px-24">
+    // `<main>`: các bước 1–4 nhận landmark từ StepShell, còn màn đầu tiên của
+    // cả luồng thì trước đây không có landmark nào — không có đích để "nhảy tới
+    // nội dung", không có gì cho chế độ duyệt landmark của screen reader.
+    <main className="animate-onboarding-enter flex h-full min-h-[640px] flex-col lg:flex-row">
+      {/* Cột chữ giữ phần lớn hơn: chia đôi 50/50 khiến cột co từ 540px xuống
+          352px đúng ở 1024px — cửa sổ rộng ra mà chỗ cho chữ lại hẹp đi. */}
+      <div className="flex flex-col lg:flex-[1.15]">
+        <div className="flex flex-1 flex-col justify-center px-6 pb-12 pt-16 sm:px-10 md:px-20 lg:px-14 lg:pt-0 xl:px-20">
           <div className="flex w-full max-w-[540px] flex-col gap-8">
             <div className="flex items-center gap-2.5">
               <span aria-hidden className="size-5 rounded-md bg-brand" />
@@ -43,9 +48,16 @@ export function StepWelcome({
               </span>
             </div>
 
-            <h1 className="text-balance font-serif text-5xl font-medium leading-[1.04] tracking-tight text-primary sm:text-6xl">
-              {t("onboarding.welcome.headline_line1")}
-              <br />
+            {/* Dừng ở 48px: cột bị chặn 540px, nên bước 60px đo được là 4 dòng với dòng
+                cuối chỉ 48% bề rộng ("gian." mồ côi) ở MỌI viewport từ 1280 trở lên —
+                cỡ chữ to hơn mà đọc kém đi. 48px cho 3 dòng đều từ 640px. */}
+            <h1 className="text-balance font-serif text-hero-sm font-medium text-primary sm:text-hero">
+              {t("onboarding.welcome.headline_line1")}{" "}
+              {/* Ngắt dòng cứng chỉ đúng ở cột 540px của lg+ (xem chú thích trên).
+                  Dưới đó cột chỉ còn ~327px: dòng 1 đã tự xuống dòng rồi, ngắt
+                  cứng chèn thêm một dòng thứ tư lệch nhịp và vô hiệu hoá
+                  `text-balance`. Ẩn thẻ <br> là bỏ hẳn nó khỏi cây hộp. */}
+              <br className="hidden lg:inline" />
               {t("onboarding.welcome.headline_line2")}{" "}
               <em className="italic text-brand">{t("onboarding.welcome.headline_emphasis")}</em>
             </h1>
@@ -56,13 +68,13 @@ export function StepWelcome({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <Button size="lg" onClick={() => run("next", onNext)} disabled={pending !== null}>
+              <Button size="lg" onClick={() => run("next", onNext)} aria-disabled={pending !== null || undefined}>
                 {pending === "next" && <Loader2 className="size-4 animate-spin" />}
                 {t("onboarding.welcome.start")}
                 <ArrowRight className="size-4" />
               </Button>
               {onSkip && (
-                <Button size="lg" variant="ghost" onClick={() => run("skip", onSkip)} disabled={pending !== null}>
+                <Button size="lg" variant="ghost" onClick={() => run("skip", onSkip)} aria-disabled={pending !== null || undefined}>
                   {pending === "skip" && <Loader2 className="size-4 animate-spin" />}
                   {t("onboarding.welcome.skip_existing")}
                 </Button>
@@ -73,7 +85,7 @@ export function StepWelcome({
       </div>
 
       {/* Cột phải: minh hoạ, ẩn dưới lg để headline + CTA giữ tiêu điểm. */}
-      <div className="hidden border-l border-line bg-subtle/40 lg:flex lg:flex-1 lg:flex-col lg:overflow-hidden">
+      <div className="hidden border-l border-line bg-subtle/40 lg:flex lg:flex-[0.85] lg:flex-col lg:overflow-hidden">
         <div className="flex flex-1 flex-col items-center justify-center gap-7 px-8 py-8">
           <p className="max-w-[440px] text-balance text-center font-serif text-body-lg italic leading-snug text-secondary">
             {t("onboarding.welcome.illustration_caption")}
@@ -81,6 +93,6 @@ export function StepWelcome({
           <WelcomeIllustration />
         </div>
       </div>
-    </div>
+    </main>
   );
 }

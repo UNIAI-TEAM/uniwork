@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import type { QuestionnaireAnswers, Role, UseCase } from "@uniwork/core/onboarding";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { IconOptionCard, IconOtherOptionCard, type QuestionOption } from "../components/icon-option-card";
-import { StepFooter, StepHeading } from "../components/step-shell";
+import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 
 /**
  * Bước 1 — "Về bạn": vai trò (chọn một) + mục đích (chọn nhiều) trên MỘT màn.
@@ -104,6 +104,7 @@ export function StepAboutYou({
       <div className="flex flex-col gap-8 pt-2 sm:pt-6">
         <StepHeading title={t("onboarding.questions.about_you.question")} />
         <QuestionGroup
+          name="onboarding-role"
           question={r("question")}
           options={roleOptions}
           selectedSlugs={roleSelected}
@@ -114,6 +115,7 @@ export function StepAboutYou({
           onConfirm={confirmAdvance}
         />
         <QuestionGroup
+          name="onboarding-use-case"
           question={u("question")}
           options={useCaseOptions}
           selectedSlugs={useCaseSlugs}
@@ -126,7 +128,16 @@ export function StepAboutYou({
         />
       </div>
       <StepFooter hint={canContinue ? t("onboarding.step_question.hint_continue") : t("onboarding.step_question.hint_pick")}>
-        <Button size="lg" className="w-full" disabled={!canContinue} onClick={confirmAdvance}>
+        {/* `aria-disabled` chứ không phải `disabled`: nút `disabled` rời khỏi thứ
+            tự Tab, nên người dùng bàn phím không bao giờ tới được nó để nghe
+            dòng hint giải thích còn thiếu gì. `confirmAdvance` vẫn tự chặn. */}
+        <Button
+          size="lg"
+          className="w-full"
+          aria-disabled={!canContinue || undefined}
+          aria-describedby={STEP_HINT_ID}
+          onClick={confirmAdvance}
+        >
           {t("common.continue")}
         </Button>
         <Button size="lg" variant="ghost" className="w-full" onClick={handleSkip}>
@@ -138,6 +149,7 @@ export function StepAboutYou({
 }
 
 function QuestionGroup({
+  name,
   question,
   options,
   selectedSlugs,
@@ -148,6 +160,7 @@ function QuestionGroup({
   onConfirm,
   multiSelect = false,
 }: {
+  name: string;
   question: string;
   options: readonly QuestionOption[];
   selectedSlugs: readonly string[];
@@ -160,36 +173,42 @@ function QuestionGroup({
 }) {
   const otherOption = options.find((o) => o.isOther) ?? null;
   const otherSelected = otherOption ? selectedSlugs.includes(otherOption.slug) : false;
+  const mode = multiSelect ? "checkbox" : "radio";
+  // `<fieldset>` + `<legend>` là nhóm native: radio cùng `name` bên trong tự có
+  // roving tabindex và phím mũi tên. Không cần role thủ công nữa.
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-label font-medium text-primary">{question}</h2>
-      <fieldset role={multiSelect ? "group" : "radiogroup"} aria-label={question} className="m-0 flex flex-row flex-wrap gap-2 border-0 p-0">
+    <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
+      <legend className="mb-0 p-0 text-label font-medium text-primary">{question}</legend>
+      <div className="flex flex-row flex-wrap gap-2">
         {options.map((option) =>
           option.isOther ? (
             <IconOtherOptionCard
               key={option.slug}
+              name={name}
               icon={option.icon}
               label={option.label}
               selected={otherSelected}
               onSelect={() => onAnswer(option.slug)}
+              onDeselect={multiSelect ? () => onAnswer(option.slug) : undefined}
               otherValue={otherValue}
               onOtherChange={onOtherChange}
               onConfirm={onConfirm}
               placeholder={otherPlaceholder}
-              mode={multiSelect ? "checkbox" : "radio"}
+              mode={mode}
             />
           ) : (
             <IconOptionCard
               key={option.slug}
+              name={name}
               icon={option.icon}
               label={option.label}
               selected={selectedSlugs.includes(option.slug)}
               onSelect={() => onAnswer(option.slug)}
-              mode={multiSelect ? "checkbox" : "radio"}
+              mode={mode}
             />
           ),
         )}
-      </fieldset>
-    </section>
+      </div>
+    </fieldset>
   );
 }

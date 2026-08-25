@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../../test/api-mock";
 import { StepInvite } from "./step-invite";
+import { expectInactive } from "../../test/inactive";
 
 initI18n();
 beforeEach(() => requestMock.mockReset());
@@ -14,15 +15,15 @@ describe("StepInvite", () => {
     const onFinish = vi.fn();
     const onSkip = vi.fn();
     render(wrap(<StepInvite workspace={ws} onFinish={onFinish} onSkip={onSkip} />));
-    expect(screen.getByRole("button", { name: "Hoàn tất" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Gửi lời mời" })).toBeDisabled();
+    expectInactive(screen.getByRole("button", { name: "Hoàn tất" }));
+    expectInactive(screen.getByRole("button", { name: "Gửi lời mời" }));
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "b@x.com" } });
     fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.click(screen.getByRole("button", { name: "Gửi lời mời" }));
     await waitFor(() => expect(screen.getByText("Đã tạo 1 lời mời")).toBeInTheDocument());
     expect(screen.getByText(/\/invite\/tok/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hoàn tất" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Hoàn tất" })).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByRole("button", { name: "Bỏ qua, mời sau" }));
     expect(onSkip).toHaveBeenCalled();
   });

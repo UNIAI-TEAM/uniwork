@@ -1,5 +1,5 @@
 "use client";
-import { X } from "lucide-react";
+import { TriangleAlert, X } from "lucide-react";
 import { useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -49,10 +49,14 @@ export function EmailChipsInput({
     e.preventDefault();
     add(e.clipboardData.getData("text"));
   };
+  const invalidCount = value.filter((e) => !EMAIL_RE.test(e)).length;
   return (
-    <div
+    <>
+      <div
       className={cn(
-        "flex min-h-10 flex-wrap items-center gap-1.5 rounded-[var(--uw-radius)] border border-line bg-surface px-2 py-1.5 focus-within:border-primary",
+        "flex min-h-10 flex-wrap items-center gap-1.5 rounded-[var(--uw-radius)] border bg-surface px-2 py-1.5 focus-within:border-primary pointer-coarse:min-h-11",
+        // Đường bao của một control phải đạt 3:1 — xem `input.tsx`.
+        invalidCount > 0 ? "border-danger" : "border-line-loud",
         disabled && "opacity-60",
       )}
       onClick={() => document.getElementById(id)?.focus()}
@@ -65,15 +69,24 @@ export function EmailChipsInput({
             data-invalid={ok ? undefined : true}
             className={cn(
               "flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption",
-              ok ? "border-line bg-subtle text-primary" : "border-danger/40 bg-danger/5 text-danger",
+              ok ? "border-line bg-subtle text-primary" : "border-danger/40 bg-danger/5 text-danger-text",
             )}
           >
+            {/* Địa chỉ sai trước đây chỉ khác nhau ở màu — người mù màu, màn hình
+                đơn sắc và screen reader đều không nhận ra. Thêm biểu tượng và
+                một nhãn nói rõ vấn đề. */}
+            {ok ? null : (
+              <>
+                <TriangleAlert aria-hidden className="size-3 shrink-0" />
+                <span className="sr-only">{t("workspace.invite_invalid_email")}: </span>
+              </>
+            )}
             {email}
             <button
               type="button"
               aria-label={`${t("common.delete")} ${email}`}
               disabled={disabled}
-              className="rounded-full p-0.5 hover:bg-line"
+              className="-mr-1 flex size-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-line pointer-coarse:size-11"
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(value.filter((v) => v !== email));
@@ -86,16 +99,32 @@ export function EmailChipsInput({
       })}
       <input
         id={id}
-        type="text"
+        type="email"
+        multiple
         value={draft}
         disabled={disabled}
         placeholder={value.length ? "" : placeholder}
+        // Bàn phím mobile phải có "@" và không tự viết hoa/tự sửa địa chỉ email.
+        inputMode="email"
+        autoComplete="email"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        enterKeyHint="enter"
         className="min-w-[10rem] flex-1 bg-transparent text-body text-primary placeholder:text-tertiary focus:outline-none"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onPaste={onPaste}
         onBlur={() => draft.trim() && add(draft)}
+        aria-describedby={invalidCount > 0 ? `${id}-invalid` : undefined}
+        aria-invalid={invalidCount > 0 ? true : undefined}
       />
-    </div>
+      </div>
+      {invalidCount > 0 && (
+        <p id={`${id}-invalid`} role="alert" className="mt-1.5 text-caption text-danger-text">
+          {t("workspace.invite_invalid_summary", { count: invalidCount })}
+        </p>
+      )}
+    </>
   );
 }

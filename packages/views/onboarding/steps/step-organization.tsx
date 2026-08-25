@@ -8,8 +8,8 @@ import type { Organization } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "@uniwork/ui/components/ui/sonner";
 import { isSlugConflict } from "../../workspace/slug";
-import { pickerCardClass, RadioMark } from "../components/option-card";
-import { StepFooter, StepHeading } from "../components/step-shell";
+import { pickerCardClass, RadioCardGroup, RadioMark } from "../components/option-card";
+import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";
 
 /**
@@ -123,7 +123,7 @@ export function StepOrganization({
           description={resume ? t("onboarding.step_organization.lede_resume") : t("onboarding.step_organization.lede_first")}
         />
         {resume ? (
-          <div className="flex flex-col gap-3">
+          <RadioCardGroup label={t("onboarding.step_organization.picker_label")} className="flex flex-col gap-3">
             {organizations.map((o) => (
               <PickerCard
                 key={o.id}
@@ -135,6 +135,7 @@ export function StepOrganization({
               />
             ))}
             <CollapsibleCreateCard
+              idPrefix="org"
               selected={pickedId === "create"}
               onSelect={() => setPickedId((p) => (p === "create" ? null : "create"))}
               title={t("onboarding.step_organization.create_new_title")}
@@ -142,13 +143,13 @@ export function StepOrganization({
             >
               {fields}
             </CollapsibleCreateCard>
-          </div>
+          </RadioCardGroup>
         ) : (
           fields
         )}
       </div>
       <StepFooter hint={hint}>
-        <Button size="lg" className="w-full" disabled={disabled} onClick={onContinue}>
+        <Button size="lg" className="w-full" aria-disabled={disabled || undefined} aria-describedby={STEP_HINT_ID} onClick={onContinue}>
           {label}
         </Button>
       </StepFooter>
@@ -184,12 +185,14 @@ export function PickerCard({
 }
 
 export function CollapsibleCreateCard({
+  idPrefix,
   selected,
   onSelect,
   title,
   subtitle,
   children,
 }: {
+  idPrefix: string;
   selected: boolean;
   onSelect: () => void;
   title: string;
@@ -198,7 +201,18 @@ export function CollapsibleCreateCard({
 }) {
   return (
     <div className={pickerCardClass(selected) + " overflow-hidden"}>
-      <button type="button" role="radio" aria-checked={selected} aria-expanded={selected} onClick={onSelect} className="flex w-full items-center gap-4 px-5 py-4 text-left">
+      {/* `aria-expanded` + `aria-controls`: bấm vào đây không chỉ chọn, nó còn
+          mở ra một form bên dưới. Không nói ra thì screen reader thông báo "đã
+          chọn" và im lặng về phần vừa xuất hiện. */}
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selected}
+        aria-expanded={selected}
+        aria-controls={`${idPrefix}-create-panel`}
+        onClick={onSelect}
+        className="flex w-full items-center gap-4 px-5 py-4 text-left"
+      >
         <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-subtle text-secondary">
           <Plus className="size-4" />
         </span>
@@ -208,7 +222,11 @@ export function CollapsibleCreateCard({
         </span>
         <RadioMark selected={selected} />
       </button>
-      {selected && <div className="border-t border-line px-5 py-5">{children}</div>}
+      {selected && (
+        <div id={`${idPrefix}-create-panel`} className="border-t border-line px-5 py-5">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

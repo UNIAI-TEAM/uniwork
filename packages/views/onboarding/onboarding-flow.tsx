@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@uniwork/core/auth";
 import {
@@ -32,18 +32,36 @@ type PersistedStep = (typeof ONBOARDING_STEP_ORDER)[number];
  * persist — mỗi lần vào bắt đầu từ Welcome. Một StepShell duy nhất bao mọi
  * bước (hoisted) để rail không remount và không nháy fade mỗi lần chuyển bước.
  */
-export function OnboardingFlow({
-  onComplete,
-  mode = "first_run",
-  onCancel,
-}: {
+export function OnboardingFlow(props: {
   onComplete: (workspace?: Workspace) => void;
   mode?: OnboardingMode;
   onCancel?: () => void;
 }) {
-  const { t } = useTranslation();
   const { user } = useSession();
-  if (!user) throw new Error("OnboardingFlow requires an authenticated user");
+  // Guard nằm ở component BỌC, không nằm giữa các hook.
+  //
+  // Trước đây thân hàm `throw` sau `useTranslation`/`useSession` nhưng trước
+  // `useState`: đăng xuất giữa flow làm user về null, và lần render đó chạy ít
+  // hook hơn lần trước → React báo "Rendered fewer hooks than expected" thay vì
+  // một lỗi đọc được. Hôm nay cả hai call site đều chặn trước bằng
+  // `status !== "authed"` nên chưa nổ, nhưng đó là may mắn về thứ tự render chứ
+  // không phải thiết kế.
+  if (!user) return null;
+  return <AuthedOnboardingFlow {...props} user={user} />;
+}
+
+function AuthedOnboardingFlow({
+  onComplete,
+  mode = "first_run",
+  onCancel,
+  user,
+}: {
+  onComplete: (workspace?: Workspace) => void;
+  mode?: OnboardingMode;
+  onCancel?: () => void;
+  user: NonNullable<ReturnType<typeof useSession>["user"]>;
+}) {
+  const { t } = useTranslation();
   const isNew = mode === "new_workspace";
 
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(() => mergeQuestionnaire(user.onboarding_questionnaire ?? {}));
@@ -63,16 +81,38 @@ export function OnboardingFlow({
     if (n) setStep(n);
   }, []);
 
+  // Nguồn sự thật để gộp patch nằm ngoài updater: gọi API bên trong hàm cập nhật
+  // state là side effect trong pha render — StrictMode chạy updater hai lần nên
+  // mỗi thay đổi thành hai lần PATCH.
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const applyAnswers = useCallback(
     (patch: Partial<QuestionnaireAnswers>) => {
-      setAnswers((a) => {
-        const merged = { ...a, ...patch };
+      const merged = { ...answersRef.current, ...patch };
+      answersRef.current = merged;
+      setAnswers(merged);
+      // Ô "Khác" gọi hàm này mỗi ký tự — gom lại thành một PATCH sau khi ngừng gõ.
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
         void saveQuestionnaire(merged).catch(() => toast.error(t("onboarding.errors.save_failed")));
-        return merged;
-      });
+      }, 600);
     },
     [t],
   );
+
+  // Rời bước khi còn PATCH đang chờ thì đẩy đi ngay, đừng bỏ mất câu trả lời.
+  const flushAnswers = useCallback(() => {
+    if (!saveTimer.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    void saveQuestionnaire(answersRef.current).catch(() => toast.error(t("onboarding.errors.save_failed")));
+  }, [t]);
+
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+  }, []);
 
   const finish = useCallback(
     async (path: "full" | "invite_skipped") => {
@@ -136,7 +176,18 @@ export function OnboardingFlow({
   return (
     <StepShell currentStep={step} onBack={stepBack} backDisabled={stepBusy} onStepChange={onStepChange} chromeFooter={<OnboardingLogoutButton inline />}>
       {step === "about_you" && (
-        <StepAboutYou answers={answers} onChange={applyAnswers} onAdvance={() => next("about_you")} onSkip={() => next("about_you")} />
+        <StepAboutYou
+          answers={answers}
+          onChange={applyAnswers}
+          onAdvance={() => {
+            flushAnswers();
+            next("about_you");
+          }}
+          onSkip={() => {
+            flushAnswers();
+            next("about_you");
+          }}
+        />
       )}
       {step === "organization" && (
         <StepOrganization

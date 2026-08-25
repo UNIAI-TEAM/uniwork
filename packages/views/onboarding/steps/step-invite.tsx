@@ -9,7 +9,7 @@ import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "@uniwork/ui/components/ui/sonner";
 import { EMAIL_RE, EmailChipsInput } from "../../workspace/email-chips-input";
 import { InviteRow, type SentInvite } from "../../workspace/invite-row";
-import { StepFooter, StepHeading } from "../components/step-shell";
+import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 
 /**
  * Bước 4 — Mời đồng nghiệp. Gửi từng đợt (chip email + vai trò), hiện link mời
@@ -71,7 +71,7 @@ export function StepInvite({
           <Field>
             <FieldLabel htmlFor="invite-role">{t("onboarding.step_invite.role_label")}</FieldLabel>
             <Select
-              className="h-10"
+              className="h-10 pointer-coarse:h-11"
               value={role}
               onValueChange={(v) => setRole((v as "member" | "admin") ?? "member")}
               items={[
@@ -80,7 +80,15 @@ export function StepInvite({
               ]}
             />
           </Field>
-          <Button type="button" variant="outline" size="lg" className="w-full" disabled={!valid.length || busy} onClick={send}>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full"
+            aria-disabled={!valid.length || busy || undefined}
+            aria-describedby={STEP_HINT_ID}
+            onClick={send}
+          >
             {busy ? t("onboarding.step_invite.sending") : t("onboarding.step_invite.send")}
           </Button>
           {sent.length > 0 && (
@@ -98,10 +106,10 @@ export function StepInvite({
         </FieldGroup>
       </div>
       <StepFooter hint={hint}>
-        <Button size="lg" className="w-full" disabled={!sent.length || busy} onClick={onFinish}>
+        <Button size="lg" className="w-full" aria-disabled={!sent.length || busy || undefined} aria-describedby={STEP_HINT_ID} onClick={onFinish}>
           {t("onboarding.step_invite.finish")}
         </Button>
-        <Button size="lg" variant="ghost" className="w-full" disabled={busy} onClick={onSkip}>
+        <Button size="lg" variant="ghost" className="w-full" aria-disabled={busy || undefined} onClick={onSkip}>
           {t("onboarding.step_invite.skip")}
         </Button>
       </StepFooter>

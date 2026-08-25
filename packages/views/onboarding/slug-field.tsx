@@ -3,6 +3,7 @@ import { Dices } from "lucide-react";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { isReservedSlug } from "@uniwork/core/paths";
+import { useCoarsePointer } from "@uniwork/ui/hooks/use-pointer";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldTitle } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -92,6 +93,11 @@ export function SlugFields({
   preview?: { title: string; body: ReactNode };
 }) {
   const { t } = useTranslation();
+  // Trên thiết bị cảm ứng, autoFocus bật bàn phím ngay khi vào bước và đẩy tiêu
+  // đề + lede ra khỏi màn — user mất luôn phần giải thích bước này là gì.
+  const coarsePointer = useCoarsePointer();
+  // Enter vẫn phải chặn thủ công: IME tiếng Việt/CJK dùng Enter để chốt chữ,
+  // submit native sẽ nuốt mất phím đó.
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (isImeComposing(e)) return;
     if (e.key === "Enter") {
@@ -100,17 +106,30 @@ export function SlugFields({
     }
   };
   return (
-    <FieldGroup>
+    // `<form>` thật, không phải div: bàn phím mobile đổi phím trả về thành "Go",
+    // trình quản lý mật khẩu nhận diện đúng, và Enter có ngữ nghĩa gửi ngay cả
+    // khi handler onKeyDown phía trên hỏng.
+    <form
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        onEnter();
+      }}
+    >
+      <FieldGroup>
       <Field>
         <FieldLabel htmlFor={`${idPrefix}-name`}>{nameLabel}</FieldLabel>
         <div className="flex items-center gap-2">
           <Input
             id={`${idPrefix}-name`}
-            autoFocus={autoFocus}
+            autoFocus={autoFocus && !coarsePointer}
             value={form.name}
             placeholder={namePlaceholder}
-            className="h-10 min-w-0 text-body"
+            className="h-10 min-w-0 text-body pointer-coarse:h-11"
             disabled={disabled}
+            autoComplete="organization"
+            enterKeyHint="go"
+            spellCheck={false}
             onChange={(e) => form.setNameValue(e.target.value)}
             onKeyDown={onKey}
           />
@@ -126,8 +145,10 @@ export function SlugFields({
         <FieldLabel htmlFor={`${idPrefix}-slug`}>{urlLabel}</FieldLabel>
         <div
           className={
-            "flex h-10 items-center rounded-[var(--uw-radius)] border bg-subtle transition-colors focus-within:border-primary " +
-            (form.slugError ? "border-danger" : "border-line")
+            "flex h-10 items-center rounded-[var(--uw-radius)] border bg-subtle transition-colors focus-within:border-primary pointer-coarse:h-11 " +
+            // `bg-subtle` trên canvas chỉ 1.03:1 — viền là thứ duy nhất vẽ ra
+            // hình hài của ô nhập, nên nó phải đạt 3:1 (WCAG 1.4.11).
+            (form.slugError ? "border-danger" : "border-line-loud")
           }
         >
           <span className="max-w-[60%] shrink-0 select-none truncate pl-3 font-mono text-body text-secondary" title={hostPrefix}>
@@ -138,12 +159,20 @@ export function SlugFields({
             value={form.slug}
             placeholder={slugPlaceholder}
             disabled={disabled}
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="url"
+            enterKeyHint="go"
+            aria-describedby={form.slugError ? `${idPrefix}-slug-error` : undefined}
+            aria-invalid={form.slugError ? true : undefined}
             className="h-full border-0 bg-transparent font-mono text-body shadow-none focus-visible:outline-none"
             onChange={(e) => form.setSlugValue(e.target.value)}
             onKeyDown={onKey}
           />
         </div>
-        <FieldError>{form.slugError}</FieldError>
+        <FieldError id={`${idPrefix}-slug-error`}>{form.slugError}</FieldError>
       </Field>
       {preview && (
         <Field>
@@ -151,6 +180,7 @@ export function SlugFields({
           <FieldDescription>{preview.body}</FieldDescription>
         </Field>
       )}
-    </FieldGroup>
+      </FieldGroup>
+    </form>
   );
 }

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { EMPTY_QUESTIONNAIRE } from "@uniwork/core/onboarding";
 import { StepAboutYou } from "./step-about-you";
+import { expectInactive } from "../../test/inactive";
 
 initI18n();
 
@@ -13,7 +14,7 @@ describe("StepAboutYou", () => {
     const { rerender } = render(
       <StepAboutYou answers={EMPTY_QUESTIONNAIRE} onChange={onChange} onAdvance={onAdvance} onSkip={() => {}} />,
     );
-    expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeDisabled();
+    expectInactive(screen.getByRole("button", { name: "Tiếp tục" }));
     screen.getByRole("radio", { name: "Quản lý" }).click();
     expect(onChange).toHaveBeenCalledWith({ role: "manager", role_other: "", role_skipped: false });
     rerender(

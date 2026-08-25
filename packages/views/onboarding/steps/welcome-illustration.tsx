@@ -14,7 +14,10 @@ export function WelcomeIllustration() {
   const { t } = useTranslation();
   const i = (k: string) => t(`onboarding.welcome.illustration.${k}`);
   return (
-    <div className="flex w-full max-w-[460px] flex-col gap-3">
+    // Toàn khối là minh hoạ: 5 thẻ việc dựng sẵn, không phải dữ liệu của user.
+    // Để screen reader đọc chúng như nội dung thật là nói dối; câu chú thích ngay
+    // phía trên đã mang trọn ý nghĩa của hình.
+    <div aria-hidden className="flex w-full max-w-[460px] flex-col gap-3">
       <MockCard
         actor={{ name: i("card1_actor"), initial: i("card1_initial") }}
         refLabel={i("card1_ref")}
@@ -85,12 +88,7 @@ function MockCard({
 }) {
   return (
     <div
-      className={cn(
-        "rounded-lg border border-line bg-surface px-4 py-3.5 shadow-sm",
-        // Hover trang trí: nhấc lên, thẳng lại, bóng sâu hơn — để minh hoạ giống UI thật.
-        "transition-all duration-200 ease-out will-change-transform hover:-translate-y-0.5 hover:rotate-0 hover:shadow-md",
-        className,
-      )}
+      className={cn("rounded-lg border border-line bg-surface px-4 py-3.5 shadow-sm", className)}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -113,7 +111,7 @@ function MockCard({
           <span
             className={cn(
               "flex items-center gap-1.5 font-medium",
-              status === "done" ? "text-success" : status === "in_progress" ? "text-warning" : "text-brand",
+              status === "done" ? "text-success-text" : status === "in_progress" ? "text-warning-text" : "text-brand",
             )}
           >
             {status === "done" ? (

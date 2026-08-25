@@ -7,8 +7,9 @@ import type { Organization, Workspace } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "@uniwork/ui/components/ui/sonner";
 import { isSlugConflict } from "../../workspace/slug";
-import { StepFooter, StepHeading } from "../components/step-shell";
+import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";
+import { RadioCardGroup } from "../components/option-card";
 import { CollapsibleCreateCard, PickerCard } from "./step-organization";
 
 /**
@@ -135,7 +136,7 @@ export function StepWorkspace({
           description={resume ? t("onboarding.step_workspace.lede_resume") : t("onboarding.step_workspace.lede_first")}
         />
         {resume ? (
-          <div className="flex flex-col gap-3">
+          <RadioCardGroup label={t("onboarding.step_workspace.picker_label")} className="flex flex-col gap-3">
             {existing.map((w) => (
               <PickerCard
                 key={w.id}
@@ -147,6 +148,7 @@ export function StepWorkspace({
               />
             ))}
             <CollapsibleCreateCard
+              idPrefix="ws"
               selected={pickedId === "create"}
               onSelect={() => setPickedId((p) => (p === "create" ? null : "create"))}
               title={t("onboarding.step_workspace.create_new_title")}
@@ -154,13 +156,13 @@ export function StepWorkspace({
             >
               {fields}
             </CollapsibleCreateCard>
-          </div>
+          </RadioCardGroup>
         ) : (
           fields
         )}
       </div>
       <StepFooter hint={hint}>
-        <Button size="lg" className="w-full" disabled={disabled} onClick={onContinue}>
+        <Button size="lg" className="w-full" aria-disabled={disabled || undefined} aria-describedby={STEP_HINT_ID} onClick={onContinue}>
           {label}
         </Button>
       </StepFooter>

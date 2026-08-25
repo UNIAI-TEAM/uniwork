@@ -1,6 +1,6 @@
 "use client";
 import { ArrowLeft, Check } from "lucide-react";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ONBOARDING_STEP_ORDER, type OnboardingStep } from "@uniwork/core/onboarding";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -14,10 +14,16 @@ import {
   StepperSeparator,
   StepperTitle,
 } from "@uniwork/ui/components/ui/stepper";
-import { cn } from "@uniwork/ui/lib/utils";
+import { useCssVars } from "@uniwork/ui/hooks/use-css-var";
+import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
+import { cn, withAlpha } from "@uniwork/ui/lib/utils";
 
-/** Màu nền canvas dot-sphere = --uw-canvas ở dark (canvas không đọc được CSS var). */
-const RAIL_BG = "#111113";
+/**
+ * Canvas 2D không nhận `var()`, nên màu của dot-sphere phải là chuỗi thật.
+ * `useCssVars` đọc chúng từ chính panel rail (scope `.dark`) thay vì chép cứng —
+ * đổi token là rail đổi theo. Fallback chỉ dùng cho frame SSR đầu tiên.
+ */
+export const RAIL_VAR_FALLBACK = { "--uw-rail-bg": "#1b1b1f", "--uw-brand": "#6584ff" };
 
 /**
  * Thanh tiến độ gọn cho < md (rail ẩn): Back + các đoạn + tên bước + slot footer.
@@ -51,7 +57,8 @@ export function StepProgressBar({
           <ArrowLeft />
         </Button>
       ) : null}
-      <span aria-hidden className="flex flex-1 items-center gap-1.5">
+      {/* min-w giữ các đoạn khỏi bị bóp về sợi chỉ khi nhãn bước dài ở 375px. */}
+      <span aria-hidden className="flex min-w-[5rem] flex-1 items-center gap-1.5">
         {ONBOARDING_STEP_ORDER.map((stepId, index) => (
           <span
             key={stepId}
@@ -60,6 +67,14 @@ export function StepProgressBar({
         ))}
       </span>
       <span className="min-w-0 truncate text-caption font-medium text-secondary">
+        {/* Các đoạn tiến độ là aria-hidden, nên vị trí phải được nói bằng chữ:
+            dưới md rail bị ẩn và đây là chỉ báo tiến độ duy nhất. */}
+        <span className="sr-only">
+          {t("onboarding.step_nav.position", {
+            current: currentIndex + 1,
+            total: ONBOARDING_STEP_ORDER.length,
+          })}{" "}
+        </span>
         {t(`onboarding.step_nav.${key}.label`)}
       </span>
       {footer ? <span className="shrink-0">{footer}</span> : null}
@@ -88,12 +103,42 @@ export function StepSidebar({
 }) {
   const { t } = useTranslation();
   const currentIndex = Math.max(0, ONBOARDING_STEP_ORDER.indexOf(currentStep as never));
+  const panelRef = useRef<HTMLDivElement>(null);
+  const railVars = useCssVars(panelRef, RAIL_VAR_FALLBACK);
+  // Hai cơ chế ẩn khác nhau, cho hai vấn đề khác nhau — trước đây gộp làm một và
+  // hỏng cả hai:
+  //
+  // BỐ CỤC ẩn bằng CSS. `useMediaQuery` trả `false` ở render đầu (và khi SSR) rồi
+  // mới chỉnh trong effect, tức là SAU khi trình duyệt đã vẽ. Gác cả <aside> vào
+  // nó nghĩa là mọi lần mở onboarding trên desktop đều vẽ một khung không rail
+  // trước, rồi 22rem nhảy vào — cột nội dung `mx-auto` trượt ngang ~11rem sau
+  // khi hydrate xong. CSS thì áp ngay từ pixel đầu tiên, không có bước nhảy nào.
+  //
+  // CANVAS ẩn bằng JS. `display:none` vẫn mount subtree và vẫn chạy mọi effect:
+  // vòng lặp rAF của dot-sphere sẽ quay 60fps trên điện thoại để vẽ một canvas
+  // 0×0. Cái đó phải chặn ở tầng React, và chỉ cái đó.
+  const showSphere = useMediaQuery("(min-width: 768px)");
 
   return (
-    <aside className="hidden w-[15rem] shrink-0 p-2 md:block md:w-[19rem] md:p-3 lg:w-[22rem] lg:p-4">
-      <div className="dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl bg-canvas px-5 pb-5 text-primary ring-1 ring-line">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-canvas">
-          <DotSphere dotGap={19} motion="wave" sphereCount={5} sphereRadius="20%" dotRadiusMax={1.9} speed={0.4} bgColor={RAIL_BG} />
+    <aside className="hidden shrink-0 md:block md:w-[19rem] md:p-3 lg:w-[22rem] lg:p-4">
+      <div
+        ref={panelRef}
+        className="dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl px-5 pb-5 text-primary ring-1 ring-line"
+        style={{ background: "var(--uw-rail-bg)" }}
+      >
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          {showSphere && (
+          <DotSphere
+            dotGap={19}
+            motion="wave"
+            sphereCount={5}
+            sphereRadius="20%"
+            dotRadiusMax={1.9}
+            speed={0.4}
+            bgColor={railVars["--uw-rail-bg"]}
+            dotColor={withAlpha(railVars["--uw-brand"], 0.5)}
+          />
+          )}
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col pt-5">
@@ -133,7 +178,7 @@ export function StepSidebar({
                             ? "bg-primary text-inverse ring-primary"
                             : isCurrent
                               ? "text-transparent ring-secondary"
-                              : "text-transparent ring-line",
+                              : "text-transparent ring-line-loud",
                         )}
                       >
                         {isDone ? (

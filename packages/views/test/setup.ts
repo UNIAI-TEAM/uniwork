@@ -1,8 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
+import { installMediaStubs } from "./media-stub";
 import { afterEach, vi } from "vitest";
 
 afterEach(cleanup);
+
+installMediaStubs();
 
 // Mock api.request cho toàn bộ test views (setup chạy trước import của test file,
 // nên module thật không kịp được nạp).
