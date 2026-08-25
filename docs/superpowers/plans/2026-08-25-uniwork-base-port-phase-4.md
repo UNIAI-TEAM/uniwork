@@ -134,3 +134,49 @@ export const WorkspaceEventSchema = z.object({ type: z.string(), payload: z.reco
 ## Cổng ra Plan 4
 
 `pnpm typecheck && pnpm test && pnpm lint` · `go test ./...` · leak gate · **13/13 e2e** · `grep -rn "schema.parse(" packages/core/api packages/core/*/hooks.ts` = 0 · `grep -c "next/navigation" apps/web/app/[orgSlug]/[workspaceSlug]/layout.tsx` = 0 ngoại trừ `useParams`.
+
+---
+
+## Ghi chép thực thi (2026-08-25)
+
+Hoàn tất trên `feat/base-port-phase-0-1`, 10 commit. Mọi cổng ra xanh: typecheck · **262 test đơn vị**
+(core 210 · ui 87 · views 46, cộng dồn) · lint · Go test · **13/13 e2e** sau mỗi task · `schema.parse` trong
+api/hooks = 0 · layout workspace chỉ còn `useParams` từ `next/navigation` · log server xác nhận FE bắt tay WS
+bằng frame `auth` + `workspace_slug=org/ws`.
+
+### Điều plan đoán sai hoặc phải quyết tại chỗ
+
+**1. Hình dạng dữ liệu đổi lan ra views nhiều hơn dự kiến.** Chuyển hooks sang endpoints làm query data
+thành giá trị domain (`Task[]`) thay vì phong bì `{tasks}`, và mutation trả `Entity | null`. **7 call site**
+trong views đọc `d.workspace`/`d.task`/`d.organization` gãy — typecheck bắt được hết; hai test views bắt được
+phần typecheck không thấy (`onSuccess` đọc `undefined.id`).
+
+**2. Mock của views phải trỏ vào module transport, không phải bề mặt public.** `vi.mock("@uniwork/core/api")`
+không chặn được `request` mà endpoints import từ `../http`. Đổi sang mock `@uniwork/core/api/http` theo
+đường dẫn resolve — và **giữ schema thật trong vòng test**: fixture lệch hợp đồng làm test đỏ đúng như trang
+sẽ đỏ.
+
+**3. Gate Go permissive hơn tôi tưởng.** Xoá task/meeting chỉ cần là thành viên (`authorize()` không xem
+creator); tạo workspace chỉ cần là thành viên org. Rule FE **mirror** đúng như vậy, ghi số dòng gate cạnh
+từng rule — siết ở FE mà backend không siết chỉ giấu nút; nới thì lộ nút 403.
+
+**4. `paths` đã hai tầng sẵn** — không cần đổi hình dạng. Test nhất quán route↔builder **xanh ngay lần đầu**
+(mọi page đã có builder); phần đỏ chỉ là `isGlobalPath`/`GLOBAL_PREFIXES` chưa có.
+
+**5. Auth store: giữ mô hình token-trong-memory của uniwork** (XSS-safe hơn usf localStorage). Store phải
+**theo dõi token bị xoá ngầm** bởi transport khi refresh thất bại — nếu không UI giữ session cũ.
+
+**6. Slug workspace chỉ duy nhất trong org** → WS gửi `workspace_slug=org/ws`; server có `ResolveSlugs`
+**cố ý bỏ kiểm membership** vì hub kiểm ngay dòng sau. Đường `?token=` tạm của Pha 3 đã gỡ, có Go test khẳng
+định query token không còn xác thực được.
+
+**7. e2e đỏ tạm thời hai lần** ngay sau khi đổi provider gốc (`providers.tsx`) — Next HMR đang biên dịch lại;
+chạy lại là 13/13. Không phải hồi quy, nhưng đáng ghi: cổng e2e sau khi đổi file gốc cần chạy lần hai.
+
+### Việc dời sang plan sau
+
+- Sidebar và 14 chỗ `useRouter` trong `apps/web` pages chuyển sang `AppLink`/`useNavigation` — Pha 5 (dựng lại
+  màn hình).
+- `shortcuts/definitions` cho uniwork (`g t`, `g m`) và command palette — Pha 5.
+- `useCurrentWorkspace` context trong web layout vẫn còn (3 page dùng) — thay bằng `WorkspaceIdProvider`
+  của views ở Pha 5.

@@ -45,6 +45,32 @@ Shared dependency versions are pinned once in the `catalog:` block of
 `pnpm-workspace.yaml`. Do not write a version number in a package manifest for
 anything the catalog already covers.
 
+## State Rules
+
+- TanStack Query owns server state: tasks, meetings, workspaces, members,
+  organizations, invitations. Query keys come from the `*Keys` factories next
+  to each hook, and workspace-scoped keys always include the workspace id.
+- Zustand owns client state (`packages/core/auth/store.ts`, `navigation/`,
+  `modals/`). Stores live in `packages/core/`, never in views or apps.
+- WebSocket events invalidate Query keys (`realtime/use-realtime-sync.ts`);
+  the frame payload is never written into a query or a store — the cache is
+  refreshed from the API. A test pins this.
+- Optimistic updates only where the outcome is locally predictable, the user
+  stays on the same screen, and rollback is a cache restore (task
+  status/position on the board). Create, delete and anything that navigates
+  await the server.
+
+## API Compatibility
+
+- `packages/core/api/http.ts` returns `unknown`; only `api/endpoints/*` may
+  shape a response, through `parseWithFallback` with a zod schema and a
+  fallback. Nothing outside `api/` calls the transport.
+- Response schemas are lenient (enums as `z.string()`); the exported types
+  narrow them, so every switch over a server enum carries a `default`.
+- Every endpoint has a malformed-response test proving it degrades instead
+  of throwing. Login, register and complete-onboarding are the deliberate
+  exceptions that still fail loudly.
+
 ## Design Tokens
 
 `packages/ui/styles/tokens.css` is the single source: the `--uw-*` palette, the
