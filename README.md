@@ -38,11 +38,14 @@ make e2e       # Playwright smoke (cần make dev đang chạy)
 - `server/` — Go: handler → service → pkg/db (sqlc); realtime WS; migrations
 - `packages/core` — api client, zod schemas, hooks, i18n
 - `packages/ui` — design tokens + primitives (Base UI)
-- `packages/views` — màn hình theo domain
+- `packages/views` — màn hình theo domain (`onboarding/` = flow 4 bước: Về bạn → Tổ chức → Workspace → Mời)
 - `apps/web` — Next.js shell
 - `docs/superpowers/` — spec & plan
 
-Spec: `docs/superpowers/specs/2026-08-24-uniwork-platform-design.md`
+Spec đợt 1: `docs/superpowers/specs/2026-08-24-uniwork-platform-design.md`
+Spec onboarding + tổ chức: `docs/superpowers/specs/2026-08-25-onboarding-organizations-design.md`
+
+URL workspace có dạng `/{orgSlug}/{workspaceSlug}/…` — workspace nằm trong tổ chức; `NEXT_PUBLIC_APP_URL` là host hiển thị trong pill đường dẫn khi onboarding.
 
 ## Deploy demo
 
