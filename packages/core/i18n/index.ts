@@ -29,3 +29,15 @@ export function initI18n() {
   }
   return i18next;
 }
+
+// The adapter layer ported from usf. `initI18n` above stays the app's entry
+// point; these are the pieces platform code and future hosts need — the locale
+// contract, the cookie-backed adapter, and the provider.
+export type {
+  SupportedLocale,
+  LocaleResources,
+  LocaleAdapter,
+} from "./types";
+export { SUPPORTED_LOCALES, DEFAULT_LOCALE } from "./types";
+export { pickLocale } from "./pick-locale";
+export { createBrowserCookieLocaleAdapter } from "./browser-cookie-adapter";

@@ -7,7 +7,10 @@ export default [
   // injected through the platform adapters rather than reached for directly.
   {
     files: ["**/*.{ts,tsx}"],
-    ignores: ["**/*.test.{ts,tsx}", "test/**"],
+    // platform/ is the adapter layer itself: forbidding it from touching
+    // localStorage would forbid implementing the very abstraction the rule
+    // makes everything else use.
+    ignores: ["**/*.test.{ts,tsx}", "test/**", "platform/**"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [{
