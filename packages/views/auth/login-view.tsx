@@ -3,12 +3,13 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLogin } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api";
+import type { SessionResponse } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { AuthCard } from "./auth-card";
 
-export function LoginView({ onSuccess }: { onSuccess: () => void }) {
+export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) => void }) {
   const { t } = useTranslation();
   const login = useLogin();
   const [email, setEmail] = useState("");

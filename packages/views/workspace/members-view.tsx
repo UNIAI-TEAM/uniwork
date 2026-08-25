@@ -3,14 +3,37 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInvite, useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
+import { Select } from "@uniwork/ui/components/ui/select";
+import { toast } from "@uniwork/ui/components/ui/sonner";
+import { EMAIL_RE, EmailChipsInput } from "./email-chips-input";
+import { InviteRow, type SentInvite } from "./invite-row";
 
 export function MembersView({ workspaceId }: { workspaceId: string }) {
   const { t } = useTranslation();
   const { data: members } = useMembers(workspaceId);
   const invite = useInvite(workspaceId);
-  const [email, setEmail] = useState("");
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [emails, setEmails] = useState<string[]>([]);
+  const [role, setRole] = useState<"member" | "admin">("member");
+  const [sent, setSent] = useState<SentInvite[]>([]);
+  const [skipped, setSkipped] = useState<string[]>([]);
+  const valid = emails.filter((e) => EMAIL_RE.test(e));
+
+  const send = () => {
+    if (!valid.length || invite.isPending) return;
+    invite.mutate(
+      { emails: valid, role },
+      {
+        onSuccess: (d) => {
+          setSent((s) => [...s, ...d.invitations.map((i) => ({ email: i.email, token: i.token }))]);
+          setSkipped(d.skipped);
+          setEmails([]);
+          toast.success(t("workspace.inviteSent", { count: d.invitations.length }));
+        },
+        onError: () => toast.error(t("common.error")),
+      },
+    );
+  };
 
   return (
     <div className="mx-auto max-w-2xl p-6">
@@ -26,35 +49,39 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
           </li>
         ))}
       </ul>
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          invite.mutate(
-            { email, role: "member" },
-            {
-              onSuccess: (d) =>
-                setInviteLink(`${window.location.origin}/invite/${d.invitation.token}`),
-            },
-          );
-        }}
-      >
-        <Input
-          type="email"
-          placeholder={t("auth.email")}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <Button type="submit" disabled={invite.isPending}>
-          {t("workspace.invite")}
-        </Button>
-      </form>
-      {inviteLink && (
-        <p className="mt-3 break-all rounded border border-line bg-subtle p-2 text-[13px] text-secondary">
-          {t("workspace.inviteLink")}: {inviteLink}
-        </p>
-      )}
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="members-invite-emails">{t("workspace.inviteEmails")}</FieldLabel>
+          <EmailChipsInput id="members-invite-emails" value={emails} onChange={setEmails} disabled={invite.isPending} placeholder={t("workspace.inviteHint")} />
+        </Field>
+        <div className="flex items-end gap-2">
+          <Field className="flex-1">
+            <FieldLabel htmlFor="members-invite-role">{t("workspace.role")}</FieldLabel>
+            <Select
+              value={role}
+              onValueChange={(v) => setRole((v as "member" | "admin") ?? "member")}
+              items={[
+                { value: "member", label: t("onboarding.step_invite.role_member") },
+                { value: "admin", label: t("onboarding.step_invite.role_admin") },
+              ]}
+            />
+          </Field>
+          <Button type="button" disabled={!valid.length || invite.isPending} onClick={send}>
+            {t("workspace.invite")}
+          </Button>
+        </div>
+        {sent.length > 0 && (
+          <Field>
+            <FieldLabel htmlFor="members-invite-list">{t("workspace.inviteLink")}</FieldLabel>
+            <ul id="members-invite-list" className="flex flex-col gap-2">
+              {sent.map((s) => (
+                <InviteRow key={s.token} sent={s} />
+              ))}
+            </ul>
+            {skipped.length > 0 && <FieldDescription>{t("workspace.inviteSkipped", { list: skipped.join(", ") })}</FieldDescription>}
+          </Field>
+        )}
+      </FieldGroup>
     </div>
   );
 }

@@ -3,12 +3,13 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRegister } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api";
+import type { SessionResponse } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { AuthCard } from "./auth-card";
 
-export function RegisterView({ onSuccess }: { onSuccess: () => void }) {
+export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse) => void }) {
   const { t } = useTranslation();
   const reg = useRegister();
   const [displayName, setDisplayName] = useState("");

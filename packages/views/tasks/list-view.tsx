@@ -35,7 +35,12 @@ export function ListView({
               onClick={() => onOpenTask(task.id)}
               className="cursor-pointer border-b border-line hover:bg-subtle"
             >
-              <td className="py-2 pr-4 text-primary">{task.title}</td>
+              <td className="py-2 pr-4 text-primary">
+                {task.title}
+                {task.kind === "welcome" && (
+                  <span className="ml-2 rounded-full bg-brand/10 px-1.5 py-0.5 text-micro font-medium text-brand">{t("workspace.guideBadge")}</span>
+                )}
+              </td>
               <td className="py-2 pr-4 text-secondary">{t(`tasks.status_${task.status}`)}</td>
               <td className="py-2 pr-4 text-secondary">{t(`tasks.priority_${task.priority}`)}</td>
               <td className="py-2 pr-4 text-secondary">{nameOf(task.assignee_id)}</td>

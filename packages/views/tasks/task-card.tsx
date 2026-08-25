@@ -33,6 +33,9 @@ export function TaskCard({ task, onOpen }: { task: Task; onOpen: (id: string) =>
     >
       <div className="text-sm text-primary">{task.title}</div>
       <div className="mt-1 flex items-center gap-2 text-[12px]">
+        {task.kind === "welcome" && (
+          <span className="rounded-full bg-brand/10 px-1.5 py-0.5 text-micro font-medium text-brand">{t("workspace.guideBadge")}</span>
+        )}
         <span className={priorityClass[task.priority]}>{t(`tasks.priority_${task.priority}`)}</span>
         {task.due_date && <span className="text-tertiary">{task.due_date}</span>}
       </div>
