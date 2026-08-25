@@ -14,7 +14,10 @@
     "@uniwork/ui": "workspace:*",
     "next": "^16.2.5",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "@uniwork/core": "workspace:*",
+    "@uniwork/views": "workspace:*",
+    "@tanstack/react-query": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",

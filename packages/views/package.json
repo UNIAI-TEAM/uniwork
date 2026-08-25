@@ -1,0 +1,33 @@
+{
+  "name": "@uniwork/views",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "exports": {
+    "./auth/*": "./auth/*.tsx",
+    "./layout/*": "./layout/*.tsx",
+    "./workspace/*": "./workspace/*.tsx",
+    "./tasks/*": "./tasks/*.tsx",
+    "./meetings/*": "./meetings/*.tsx"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "catalog:",
+    "@uniwork/core": "workspace:*",
+    "@uniwork/ui": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@uniwork/tsconfig": "workspace:*",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
