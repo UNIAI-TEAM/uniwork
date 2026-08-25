@@ -24,7 +24,7 @@ export const pickerCardClass = (selected: boolean) =>
     // hề đổi.
     "w-full rounded-lg border bg-surface text-left transition-[color,background-color,border-color,box-shadow]",
     selected
-      ? "border-primary shadow-[inset_0_0_0_1px_var(--uw-text-foreground)]"
+      ? "border-primary shadow-[inset_0_0_0_1px_var(--primary)]"
       : "border-border hover:border-input hover:bg-muted/60",
   );
 

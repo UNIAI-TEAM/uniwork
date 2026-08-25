@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { paths } from "@uniwork/core/paths";
 import { useTaskPermissions } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
 import {
@@ -15,6 +16,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
+import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import { useWorkspace } from "../layout/workspace-context";
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done", "cancelled"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -29,6 +32,7 @@ export function TaskDetailView({
   onDeleted: () => void;
 }) {
   const { t } = useTranslation();
+  const { workspace } = useWorkspace();
   const { data: task } = useTask(taskId);
   const { data: members } = useMembers(workspaceId);
   const update = useUpdateTask(workspaceId);
@@ -46,105 +50,123 @@ export function TaskDetailView({
       setTitle(task.title);
       setDescription(task.description);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- đồng bộ khi đổi task/bản mới
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resync when the task or a newer revision arrives
   }, [task?.id, task?.updated_at]);
 
-  if (!task) return <p className="p-6 text-muted-foreground">{t("common.loading")}</p>;
+  const tasksHref = paths.workspace(workspace.organization_slug, workspace.slug).tasks();
+  const segments = [{ href: tasksHref, label: t("tasks.title") }];
+
+  if (!task) {
+    return (
+      <div className="flex h-full flex-col">
+        <BreadcrumbHeader segments={segments} leaf={t("common.loading")} />
+      </div>
+    );
+  }
 
   const patch = (p: Parameters<typeof update.mutate>[0]["patch"]) =>
     update.mutate({ taskId, patch: p });
 
   return (
-    <div className="flex h-full">
-      <div className="min-w-0 flex-1 overflow-auto p-6">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => title.trim() && title !== task.title && patch({ title })}
-          className="w-full bg-transparent text-title font-semibold text-foreground outline-none"
-        />
-        <textarea
-          value={description}
-          placeholder={t("tasks.description")}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={() => description !== task.description && patch({ description })}
-          rows={8}
-          className="mt-4 w-full resize-y rounded-lg border border-border bg-surface p-3 text-body text-foreground placeholder:text-muted-foreground"
-        />
-        <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">{t("tasks.comments")}</h2>
-        <ul className="space-y-3">
-          {(comments ?? []).map((c) => (
-            <li key={c.id} className="rounded-lg border border-border bg-surface p-3">
-              <div className="mb-1 text-caption text-muted-foreground">{c.display_name ?? c.author_id}</div>
-              <div className="whitespace-pre-wrap text-body text-foreground">{c.body}</div>
-            </li>
-          ))}
-        </ul>
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (comment.trim()) addComment.mutate(comment, { onSuccess: () => setComment("") });
-          }}
-        >
-          <Input
-            placeholder={t("tasks.addComment")}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-          <Button type="submit" disabled={addComment.isPending}>
-            {t("common.save")}
+    <div className="flex h-full flex-col">
+      <BreadcrumbHeader
+        segments={segments}
+        leaf={task.title}
+        actions={
+          <Button
+            variant="destructive"
+            size="sm"
+            aria-disabled={!canDelete.allowed || undefined}
+            title={canDelete.allowed ? undefined : canDelete.message}
+            onClick={() => del.mutate(taskId, { onSuccess: onDeleted })}
+          >
+            {t("common.delete")}
           </Button>
-        </form>
-      </div>
+        }
+      />
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <div className="min-w-0 flex-1 overflow-auto p-6">
+          <input
+            aria-label={t("tasks.taskTitle")}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => title.trim() && title !== task.title && patch({ title })}
+            className="w-full rounded-md bg-transparent text-title font-semibold text-foreground"
+          />
+          <textarea
+            aria-label={t("tasks.description")}
+            value={description}
+            placeholder={t("tasks.description")}
+            onChange={(e) => setDescription(e.target.value)}
+            onBlur={() => description !== task.description && patch({ description })}
+            rows={8}
+            className="mt-4 w-full resize-y rounded-lg border border-border bg-surface p-3 text-body text-foreground placeholder:text-muted-foreground"
+          />
+          <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">{t("tasks.comments")}</h2>
+          <ul className="space-y-3">
+            {(comments ?? []).map((c) => (
+              <li key={c.id} className="rounded-lg border border-border bg-surface p-3">
+                <div className="mb-1 text-caption text-muted-foreground">{c.display_name ?? c.author_id}</div>
+                <div className="whitespace-pre-wrap text-body text-foreground">{c.body}</div>
+              </li>
+            ))}
+          </ul>
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (comment.trim()) addComment.mutate(comment, { onSuccess: () => setComment("") });
+            }}
+          >
+            <Input
+              placeholder={t("tasks.addComment")}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+            <Button type="submit" disabled={addComment.isPending}>
+              {t("common.save")}
+            </Button>
+          </form>
+        </div>
 
-      <aside className="w-64 shrink-0 space-y-4 border-l border-border p-4">
-        <div>
-          <Label>{t("tasks.status")}</Label>
-          <Select
-            items={STATUSES.map((s) => ({ value: s, label: t(`tasks.status_${s}`) }))}
-            value={task.status}
-            onValueChange={(v) => v && patch({ status: v as TaskStatus })}
-          />
-        </div>
-        <div>
-          <Label>{t("tasks.priority")}</Label>
-          <Select
-            items={PRIORITIES.map((p) => ({ value: p, label: t(`tasks.priority_${p}`) }))}
-            value={task.priority}
-            onValueChange={(v) => v && patch({ priority: v as TaskPriority })}
-          />
-        </div>
-        <div>
-          <Label>{t("tasks.assignee")}</Label>
-          <Select
-            items={[
-              { value: "", label: t("tasks.unassigned") },
-              ...(members ?? []).map((m) => ({ value: m.user_id, label: m.display_name })),
-            ]}
-            value={task.assignee_id ?? ""}
-            onValueChange={(v) => patch({ assignee_id: v ? v : null })}
-          />
-        </div>
-        <div>
-          <Label>{t("tasks.dueDate")}</Label>
-          <Input
-            type="date"
-            value={task.due_date ?? ""}
-            onChange={(e) => patch({ due_date: e.target.value || null })}
-          />
-        </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          className="w-full"
-          aria-disabled={!canDelete.allowed || undefined}
-          title={canDelete.allowed ? undefined : canDelete.message}
-          onClick={() => del.mutate(taskId, { onSuccess: onDeleted })}
-        >
-          {t("common.delete")}
-        </Button>
-      </aside>
+        <aside className="shrink-0 space-y-4 border-t border-border p-4 md:w-64 md:border-l md:border-t-0">
+          <div className="space-y-1.5">
+            <Label>{t("tasks.status")}</Label>
+            <Select
+              items={STATUSES.map((s) => ({ value: s, label: t(`tasks.status_${s}`) }))}
+              value={task.status}
+              onValueChange={(v) => v && patch({ status: v as TaskStatus })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("tasks.priority")}</Label>
+            <Select
+              items={PRIORITIES.map((p) => ({ value: p, label: t(`tasks.priority_${p}`) }))}
+              value={task.priority}
+              onValueChange={(v) => v && patch({ priority: v as TaskPriority })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("tasks.assignee")}</Label>
+            <Select
+              items={[
+                { value: "", label: t("tasks.unassigned") },
+                ...(members ?? []).map((m) => ({ value: m.user_id, label: m.display_name })),
+              ]}
+              value={task.assignee_id ?? ""}
+              onValueChange={(v) => patch({ assignee_id: v ? v : null })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("tasks.dueDate")}</Label>
+            <Input
+              type="date"
+              value={task.due_date ?? ""}
+              onChange={(e) => patch({ due_date: e.target.value || null })}
+            />
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

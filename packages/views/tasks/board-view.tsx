@@ -32,7 +32,7 @@ function Column({
       ref={setNodeRef}
       className={cn(
         "flex w-64 shrink-0 flex-col rounded-lg bg-muted p-2",
-        isOver && "ring-2 ring-[var(--uw-focus)]",
+        isOver && "ring-2 ring-ring",
       )}
     >
       <div className="mb-2 flex items-center justify-between px-1">
