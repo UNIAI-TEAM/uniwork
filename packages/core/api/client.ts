@@ -57,18 +57,7 @@ export async function request<T = unknown>(path: string, opts: RequestOpts<T> = 
 }
 
 async function tryRefresh(): Promise<boolean> {
-  try {
-    const sess = await request<SessionResponse>("/api/v1/auth/refresh", {
-      method: "POST",
-      schema: SessionResponseSchema,
-      skipRefresh: true,
-    });
-    setAccessToken(sess.access_token);
-    return true;
-  } catch {
-    setAccessToken(null);
-    return false;
-  }
+  return (await refreshSession()) !== null;
 }
 
 export async function login(email: string, password: string): Promise<SessionResponse> {
@@ -97,19 +86,29 @@ export async function registerUser(
   return sess;
 }
 
-export async function refreshSession(): Promise<SessionResponse | null> {
-  try {
-    const sess = await request<SessionResponse>("/api/v1/auth/refresh", {
-      method: "POST",
-      schema: SessionResponseSchema,
-      skipRefresh: true,
-    });
-    setAccessToken(sess.access_token);
-    return sess;
-  } catch {
-    setAccessToken(null);
-    return null;
-  }
+// Refresh token có rotation: hai refresh chạy song song (StrictMode mount
+// đôi, nhiều request cùng dính 401) sẽ đua nhau — cái sau dùng cookie đã bị
+// revoke → 401 → logout oan. Single-flight: mọi caller chia sẻ 1 promise.
+let refreshInFlight: Promise<SessionResponse | null> | null = null;
+
+export function refreshSession(): Promise<SessionResponse | null> {
+  refreshInFlight ??= (async () => {
+    try {
+      const sess = await request<SessionResponse>("/api/v1/auth/refresh", {
+        method: "POST",
+        schema: SessionResponseSchema,
+        skipRefresh: true,
+      });
+      setAccessToken(sess.access_token);
+      return sess;
+    } catch {
+      setAccessToken(null);
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 export async function logout(): Promise<void> {
