@@ -83,7 +83,7 @@ Org: `RequireOrgMember(orgID, userID)`; tạo workspace trong org cần role org
 
 ### 3.4 Reserved slugs
 
-`server/internal/handler/reserved_slugs.json` (`login, register, onboarding, workspaces, invitations, invite, api, me, orgs, auth, healthz, ws, tasks, meetings, members, settings, new, admin, static, _next`) → sinh `packages/core/paths/reserved-slugs.ts` bằng script `pnpm generate:reserved-slugs` (như usf). Áp dụng cho cả org slug và workspace slug. Regex slug dùng chung: `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 2–40 ký tự.
+`server/internal/service/reserved_slugs.json` (`login, register, onboarding, workspaces, invitations, invite, api, me, orgs, auth, healthz, ws, tasks, meetings, members, settings, new, admin, static, _next`) → sinh `packages/core/paths/reserved-slugs.ts` bằng script `pnpm generate:reserved-slugs` (như usf). Áp dụng cho cả org slug và workspace slug. Regex slug dùng chung: `^[a-z0-9]+(?:-[a-z0-9]+)*$`, 2–40 ký tự.
 
 ## 4. API (`/api/v1`, tất cả sau `RequireAuth`)
 
@@ -134,7 +134,7 @@ Guard gương: layout workspace đẩy user `onboarded_at == null` về `/onboar
 
 ### 5.2 `packages/ui` bổ sung
 
-- Primitives: `field` (Field/FieldGroup/FieldLabel/FieldTitle/FieldDescription/FieldError, `data-slot`), `card`, `skeleton`, `stepper`, `dot-sphere` (port canvas, tôn trọng `prefers-reduced-motion`), `sonner` (Toaster + `toast`), `tooltip`, `separator`. Hook `use-scroll-fade`.
+- Primitives: `field` (Field/FieldGroup/FieldLabel/FieldTitle/FieldDescription/FieldError, `data-slot`), `card`, `skeleton`, `stepper`, `dot-sphere` (port canvas, tôn trọng `prefers-reduced-motion`), `sonner` (Toaster + `toast`). Hook `use-scroll-fade`. (Không thêm tooltip/separator — không bước nào cần.)
 - `tokens.css`: thêm `--uw-brand-soft` (nền chip chọn), `--uw-card` = surface; text scale vai trò `--text-micro/caption/label/body/body-lg/title-sm/title/title-lg/display-sm/display` (+ line-height) khai báo trong `@theme` để dùng `text-caption`… Không xoá `text-sm` hiện có ở views cũ (không refactor lan).
 - `base.css`: keyframes `onboarding-enter` (opacity-only — **không** translate, lý do usf `base.css:55-67`), `welcome-emoji-pop`; tắt dưới `prefers-reduced-motion`.
 - Font: `apps/web/app/layout.tsx` nạp `Inter` (`--font-sans`) và `Source_Serif_4` italic (`--font-serif`) qua `next/font/google`; `font-serif` chỉ dùng cho headline onboarding/welcome.
@@ -192,7 +192,7 @@ templates/welcome-task.ts              tiêu đề/mô tả task hướng dẫn 
 - `service/onboarding.go`: `PatchQuestionnaire` (validate), `Complete(path, workspaceID)`; `SeedWelcomeTask` (template ở `service/templates/welcome_task.go`).
 - Handler mới: `organization.go`, `onboarding.go`; sửa `auth.go` (`userDTO` thêm 2 trường), `workspace.go`, `router.go`.
 - sqlc: `organizations.sql`, sửa `workspaces.sql`, `users.sql` (`PatchUserOnboarding`, `MarkUserOnboarded`), `tasks.sql` (`CreateWelcomeTask`, `GetWelcomeTask`), `invitations` queries (`ListInvitationsForEmail` join org/ws/user).
-- Reserved slugs JSON là nguồn, `go:embed` vào handler package.
+- Reserved slugs JSON là nguồn, `go:embed` vào package `service` (nơi validate slug).
 
 ## 7. Kiểm thử
 
