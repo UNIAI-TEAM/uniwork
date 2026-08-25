@@ -23,7 +23,9 @@ export function useTasks(workspaceId: string) {
   return useQuery({
     queryKey: ["tasks", workspaceId],
     queryFn: () => api.request(`/api/v1/workspaces/${workspaceId}/tasks`, { schema: TasksResponse }),
-    select: (d) => d.tasks,
+    // The response schema is lenient on status/priority (see types/task.ts);
+    // the call site asserts the known unions, and switches carry a default.
+    select: (d) => d.tasks as Task[],
     enabled: !!workspaceId,
   });
 }
@@ -32,7 +34,7 @@ export function useTask(taskId: string) {
   return useQuery({
     queryKey: ["task", taskId],
     queryFn: () => api.request(`/api/v1/tasks/${taskId}`, { schema: TaskResponse }),
-    select: (d) => d.task,
+    select: (d) => d.task as Task,
     enabled: !!taskId,
   });
 }
