@@ -1,0 +1,21 @@
+# Placeholder pipeline. The full four-job workflow lands in the phase-6 plan.
+# It exists now because turbo.json lists this file in globalDependencies: the
+# toolchain versions pinned here must be part of every task hash, so that
+# bumping Node can never replay results produced by the previous runtime.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  NODE_VERSION: "22"
+  GO_VERSION: "1.27.0"
+  PNPM_VERSION: "10.28.2"
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Real jobs land with the phase-6 plan."

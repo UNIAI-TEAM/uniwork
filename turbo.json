@@ -1,10 +1,36 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  // The CI workflow pins the toolchain these tasks run under. Without it in the
+  // global hash, bumping that version would replay typecheck/test results
+  // produced by the old runtime and hide an incompatibility behind a green check.
+  "globalDependencies": [".github/workflows/ci.yml"],
+  "globalEnv": [
+    "DATABASE_URL",
+    "PORT",
+    "FRONTEND_PORT",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_WS_URL",
+    "NEXT_PUBLIC_APP_URL"
+  ],
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**", "dist/**"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
     "typecheck": { "dependsOn": ["^typecheck"] },
     "lint": {},
-    "test": {},
+    // Hash-only transit task. No package implements a `cache-inputs` script, so
+    // every node resolves to <NONEXISTENT> and nothing is ever executed — but
+    // the edges still pull each dependency's file hashes into whatever depends
+    // on it. `dependsOn: ["^cache-inputs"]` makes that recursive. This exists
+    // because a turbo task hash covers a workspace dependency's sources only
+    // when a task edge reaches them.
+    "cache-inputs": { "dependsOn": ["^cache-inputs"] },
+    // Without this edge, editing packages/ui or packages/views left
+    // @uniwork/views#test byte-identical in hash, so a cached pass would be
+    // replayed over changed code. `^typecheck` would also work but drags real
+    // `tsc --noEmit` runs into the test job; `^test` would serialise the suites.
+    "test": { "dependsOn": ["^cache-inputs"] },
     "dev": { "cache": false, "persistent": true }
   }
 }
