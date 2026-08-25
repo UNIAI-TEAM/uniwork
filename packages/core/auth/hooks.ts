@@ -8,6 +8,13 @@ import type { User } from "../types";
 export type SessionStatus = "loading" | "authed" | "anon";
 
 let cachedUser: User | null = null;
+const userListeners = new Set<() => void>();
+
+/** Cập nhật user trong cache session (sau PATCH onboarding/complete) và báo mọi useSession. */
+export function setSessionUser(user: User) {
+  cachedUser = user;
+  userListeners.forEach((fn) => fn());
+}
 
 export function useSession(): { user: User | null; status: SessionStatus } {
   const [state, setState] = useState<{ user: User | null; status: SessionStatus }>(
@@ -29,9 +36,14 @@ export function useSession(): { user: User | null; status: SessionStatus } {
         if (!cancelled) setState({ user: null, status: "anon" });
       }
     });
+    const onUser = () => {
+      if (!cancelled && cachedUser) setState({ user: cachedUser, status: "authed" });
+    };
+    userListeners.add(onUser);
     return () => {
       cancelled = true;
       unsub();
+      userListeners.delete(onUser);
     };
   }, []);
 
@@ -42,9 +54,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>
       api.login(email, password),
-    onSuccess: (sess) => {
-      cachedUser = sess.user;
-    },
+    onSuccess: (sess) => setSessionUser(sess.user),
   });
 }
 
@@ -59,9 +69,7 @@ export function useRegister() {
       password: string;
       displayName: string;
     }) => api.registerUser(email, password, displayName),
-    onSuccess: (sess) => {
-      cachedUser = sess.user;
-    },
+    onSuccess: (sess) => setSessionUser(sess.user),
   });
 }
 

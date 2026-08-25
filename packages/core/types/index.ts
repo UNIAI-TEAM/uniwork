@@ -5,15 +5,41 @@ export const UserSchema = z.object({
   email: z.string(),
   display_name: z.string(),
   avatar_url: z.string().optional(),
+  onboarded_at: z.string().nullable().optional().default(null),
+  onboarding_questionnaire: z.record(z.string(), z.unknown()).optional().default({}),
 });
 export type User = z.infer<typeof UserSchema>;
+
+export const OrganizationSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  role: z.string().optional(),
+});
+export type Organization = z.infer<typeof OrganizationSchema>;
 
 export const WorkspaceSchema = z.object({
   id: z.string(),
   slug: z.string(),
   name: z.string(),
+  organization_id: z.string(),
+  organization_slug: z.string(),
+  organization_name: z.string(),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
+
+export const PendingInvitationSchema = z.object({
+  id: z.string(),
+  role: z.string(),
+  token: z.string(),
+  expires_at: z.string(),
+  workspace: z.object({ id: z.string(), slug: z.string(), name: z.string() }),
+  organization: z.object({ id: z.string(), slug: z.string(), name: z.string() }),
+  invited_by: z.object({ display_name: z.string() }),
+});
+export type PendingInvitation = z.infer<typeof PendingInvitationSchema>;
+
+export const TaskKindSchema = z.enum(["normal", "welcome"]);
 
 export const MemberSchema = z.object({
   workspace_id: z.string(),
@@ -40,6 +66,7 @@ export const TaskSchema = z.object({
   assignee_id: z.string().optional(),
   due_date: z.string().optional(),
   position: z.number(),
+  kind: TaskKindSchema.optional().default("normal"),
   created_by: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

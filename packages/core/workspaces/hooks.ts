@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import * as api from "../api/client";
-import { MemberSchema, WorkspaceSchema, type Workspace } from "../types";
+import { MemberSchema, PendingInvitationSchema, WorkspaceSchema, type Workspace } from "../types";
 
 export function slugify(name: string): string {
   return name
@@ -27,26 +27,14 @@ export function useWorkspaces() {
   });
 }
 
-export function useWorkspace(slug: string) {
+export function useWorkspace(orgSlug: string, wsSlug: string) {
   return useQuery({
-    queryKey: ["workspace", slug],
-    queryFn: () => api.request(`/api/v1/workspaces/${slug}`, { schema: WorkspaceResponse }),
+    queryKey: ["workspace", orgSlug, wsSlug],
+    queryFn: () =>
+      api.request(`/api/v1/orgs/${orgSlug}/workspaces/${wsSlug}`, { schema: WorkspaceResponse }),
     select: (d) => d.workspace,
-    enabled: !!slug,
+    enabled: !!orgSlug && !!wsSlug,
     retry: false,
-  });
-}
-
-export function useCreateWorkspace() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ name, slug }: { name: string; slug: string }) =>
-      api.request("/api/v1/workspaces", {
-        method: "POST",
-        body: { name, slug },
-        schema: WorkspaceResponse,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workspaces"] }),
   });
 }
 
@@ -61,18 +49,38 @@ export function useMembers(workspaceId: string) {
 }
 
 const InviteResponse = z.object({
-  invitation: z.object({ id: z.string(), email: z.string(), role: z.string(), token: z.string() }),
+  invitations: z.array(
+    z.object({ id: z.string(), email: z.string(), role: z.string(), token: z.string() }),
+  ),
+  skipped: z.array(z.string()),
 });
 
 export function useInvite(workspaceId: string) {
   return useMutation({
-    mutationFn: ({ email, role }: { email: string; role: "admin" | "member" }) =>
+    mutationFn: ({ emails, role }: { emails: string[]; role: "admin" | "member" }) =>
       api.request(`/api/v1/workspaces/${workspaceId}/invitations`, {
         method: "POST",
-        body: { email, role },
+        body: { emails, role },
         schema: InviteResponse,
       }),
   });
+}
+
+const MyInvitationsResponse = z.object({ invitations: z.array(PendingInvitationSchema) });
+
+export function useMyInvitations(enabled = true) {
+  return useQuery({
+    queryKey: ["my-invitations"],
+    queryFn: () => api.request("/api/v1/me/invitations", { schema: MyInvitationsResponse }),
+    select: (d) => d.invitations,
+    enabled,
+  });
+}
+
+export function fetchMyInvitations() {
+  return api
+    .request("/api/v1/me/invitations", { schema: MyInvitationsResponse })
+    .then((d) => d.invitations);
 }
 
 export function useAcceptInvite() {
