@@ -3,10 +3,12 @@ package handler
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -26,6 +28,9 @@ type Deps struct {
 	Tasks         *service.TaskService
 	Meetings      *service.MeetingService
 	Hub           *realtime.Hub
+	// Redis is optional: nil disables the rate limiter and any other feature
+	// that needs shared state across instances.
+	Redis *redis.Client
 }
 
 type handlers struct {
@@ -35,7 +40,19 @@ type handlers struct {
 func New(d Deps) http.Handler {
 	h := &handlers{Deps: d}
 	r := chi.NewRouter()
+	// Order matters: RequestID and RealIP first so every later middleware and
+	// the access log see them; ClientMetadata before RequestLogger so the log
+	// line carries the client dimensions; Recoverer inside the logger so a
+	// panic still produces an access-log entry with its status.
+	r.Use(chimw.RequestID)
+	r.Use(chimw.RealIP)
+	r.Use(mw.ClientMetadata)
+	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
+	r.Use(mw.ContentSecurityPolicy)
+	if d.Redis != nil {
+		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, mw.ParseTrustedProxies(d.Cfg.TrustedProxies)))
+	}
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},

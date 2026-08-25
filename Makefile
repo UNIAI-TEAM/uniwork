@@ -8,6 +8,7 @@ endif
 
 DATABASE_URL ?= postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable
 TEST_DATABASE_URL ?= postgres://uniwork:uniwork@localhost:5433/uniwork_test?sslmode=disable
+REDIS_TEST_URL ?= redis://localhost:6379
 
 db-up:
 	docker compose up -d postgres postgres-test redis

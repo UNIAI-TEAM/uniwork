@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -34,6 +35,15 @@ func main() {
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	orgSvc := service.NewOrganizationService(q)
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc)
+	var rdb *redis.Client
+	if cfg.RedisURL != "" {
+		opt, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			log.Error("redis url", "err", err)
+			os.Exit(1)
+		}
+		rdb = redis.NewClient(opt)
+	}
 	hub := realtime.NewHub()
 	pub, err := realtime.NewPublisher(hub, cfg.RedisURL, log)
 	if err != nil {
@@ -49,6 +59,7 @@ func main() {
 		Tasks:         service.NewTaskService(q, wsSvc, pub),
 		Meetings:      service.NewMeetingService(q, wsSvc, pub),
 		Hub:           hub,
+		Redis:         rdb,
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {
