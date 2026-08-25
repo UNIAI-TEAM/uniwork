@@ -45,7 +45,10 @@
     "inviteSent": "Đã tạo {{count}} lời mời",
     "inviteSkipped": "Bỏ qua (đã là thành viên hoặc không hợp lệ): {{list}}",
     "orgRole": "Vai trò tổ chức",
-    "guideBadge": "Hướng dẫn"
+    "guideBadge": "Hướng dẫn",
+    "invite_invalid_email": "Địa chỉ không hợp lệ",
+    "invite_invalid_summary_one": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
+    "invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi."
   },
   "nav": {
     "tasks": "Công việc",
@@ -122,7 +125,8 @@
       "invite": {
         "label": "Mời đồng nghiệp",
         "description": "Đưa cả đội vào cùng làm."
-      }
+      },
+      "position": "Bước {{current}} trên {{total}}:"
     },
     "common": {
       "log_out": "Đăng xuất"
@@ -217,7 +221,8 @@
       "cta_creating": "Đang tạo…",
       "cta_open": "Tiếp tục với {{name}}",
       "slug_taken_error": "Định danh tổ chức này đã có người dùng.",
-      "slug_conflict_toast": "Hãy chọn định danh tổ chức khác"
+      "slug_conflict_toast": "Hãy chọn định danh tổ chức khác",
+      "picker_label": "Chọn tổ chức"
     },
     "step_workspace": {
       "headline_first": "Đặt tên workspace.",
@@ -248,7 +253,8 @@
       "slug_reserved_error": "Định danh này được hệ thống dành riêng",
       "slug_taken_error": "Định danh này đã có người dùng.",
       "slug_conflict_toast": "Hãy chọn định danh khác",
-      "create_failed_toast": "Không tạo được. Vui lòng thử lại."
+      "create_failed_toast": "Không tạo được. Vui lòng thử lại.",
+      "picker_label": "Chọn workspace"
     },
     "step_invite": {
       "headline": "Mời đồng nghiệp vào {{workspace}}.",

@@ -3,12 +3,27 @@ import { initReactI18next } from "react-i18next";
 import en from "./locales/en.json";
 import vi from "./locales/vi.json";
 
+/**
+ * Chỉ nạp locale nào THẬT SỰ có chuỗi. Đăng ký một file rỗng khiến i18next báo
+ * có ngôn ngữ đó trong khi mọi chuỗi đều rơi về tiếng Việt — đổi `lng` là ra một
+ * app "tiếng Anh" nói tiếng Việt. `vi` và `en` hiện đã ngang nhau (xem
+ * `parity.test.ts`); thêm locale mới chỉ cần đổ nội dung vào file, không phải
+ * sửa gì ở đây.
+ */
+function withContent(resources: Record<string, object>) {
+  return Object.fromEntries(
+    Object.entries(resources)
+      .filter(([, dict]) => Object.keys(dict).length > 0)
+      .map(([lng, dict]) => [lng, { translation: dict }]),
+  );
+}
+
 export function initI18n() {
   if (!i18next.isInitialized) {
     void i18next.use(initReactI18next).init({
       lng: "vi",
       fallbackLng: "vi",
-      resources: { vi: { translation: vi }, en: { translation: en } },
+      resources: withContent({ vi, en }),
       interpolation: { escapeValue: false },
     });
   }
