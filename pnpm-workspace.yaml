@@ -26,3 +26,29 @@ catalog:
   "@vitejs/plugin-react": "^6.0.1"
   "@testing-library/react": "^16.3.2"
   "@testing-library/jest-dom": "^6.9.1"
+
+  # State management — Zustand giữ client/view state; React Query giữ server state
+  zustand: "^5.0.0"
+
+  # Bảng và danh sách ảo hoá
+  "@tanstack/react-table": "^8.21.3"
+  "@tanstack/react-virtual": "^3.13.0"
+  react-virtuoso: "^4.14.0"
+
+  # i18n
+  "@formatjs/intl-localematcher": "^0.8.4"
+  eslint-plugin-i18next: "^6.1.4"
+
+  # Markdown / toán học (packages/ui/markdown)
+  katex: "^0.16.45"
+  rehype-katex: "^7.0.1"
+  remark-math: "^6.0.0"
+
+  # Product analytics (packages/core/analytics)
+  posthog-js: "^1.176.1"
+
+  # Animation loading cho StatusPill
+  unicode-animations: "^1.0.3"
+
+  # Testing
+  "@testing-library/user-event": "^14.6.1"
