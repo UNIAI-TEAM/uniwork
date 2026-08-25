@@ -44,7 +44,7 @@ function Seeder({ workspaceId, onOpenTask }: { workspaceId: string; onOpenTask: 
       <Dialog open onOpenChange={(o) => { if (!o) dismissWelcome(); }}>
         <DialogContent>
           <DialogTitle>{t("onboarding.welcome_after_onboarding.error_title")}</DialogTitle>
-          <p className="text-body text-text-secondary">{t("onboarding.welcome_after_onboarding.error_body")}</p>
+          <p className="text-body text-muted-foreground">{t("onboarding.welcome_after_onboarding.error_body")}</p>
           <div className="mt-6 flex justify-end gap-2">
             <Button variant="ghost" onClick={dismissWelcome}>{t("onboarding.welcome_after_onboarding.dismiss")}</Button>
             <Button onClick={() => setFailed(false)}>{t("onboarding.welcome_after_onboarding.retry")}</Button>
@@ -55,10 +55,10 @@ function Seeder({ workspaceId, onOpenTask }: { workspaceId: string; onOpenTask: 
   }
   if (!taskId) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/80 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="size-6 animate-spin text-text-secondary" />
-          <p className="text-body text-text-secondary">{t("onboarding.welcome_after_onboarding.loading")}</p>
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          <p className="text-body text-muted-foreground">{t("onboarding.welcome_after_onboarding.loading")}</p>
         </div>
       </div>
     );
@@ -73,18 +73,18 @@ function Seeder({ workspaceId, onOpenTask }: { workspaceId: string; onOpenTask: 
           <div className="animate-welcome-emoji-pop text-6xl" aria-hidden>
             🎉
           </div>
-          <h2 className="text-center text-display-sm font-semibold text-primary">{t("onboarding.welcome_after_onboarding.title")}</h2>
-          <p className="max-w-md text-center text-body text-text-secondary">{t("onboarding.welcome_after_onboarding.subtitle")}</p>
+          <h2 className="text-center text-display-sm font-semibold text-foreground">{t("onboarding.welcome_after_onboarding.title")}</h2>
+          <p className="max-w-md text-center text-body text-muted-foreground">{t("onboarding.welcome_after_onboarding.subtitle")}</p>
         </div>
-        <div className="mt-6 flex items-start gap-3 rounded-lg border border-line bg-canvas px-3 py-2.5">
+        <div className="mt-6 flex items-start gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-body font-medium text-primary">{t("onboarding.welcome_after_onboarding.card_title")}</p>
+              <p className="text-body font-medium text-foreground">{t("onboarding.welcome_after_onboarding.card_title")}</p>
               <span className="rounded-full bg-brand/10 px-2 py-0.5 text-micro font-medium text-brand">
                 {t("onboarding.welcome_after_onboarding.status_in_progress")}
               </span>
             </div>
-            <p className="mt-1 text-caption text-text-secondary">{t("onboarding.welcome_after_onboarding.card_subtitle")}</p>
+            <p className="mt-1 text-caption text-muted-foreground">{t("onboarding.welcome_after_onboarding.card_subtitle")}</p>
           </div>
         </div>
         <div className="mt-6 flex justify-end">

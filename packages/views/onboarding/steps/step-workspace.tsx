@@ -116,7 +116,7 @@ export function StepWorkspace({
         body: (
           <>
             {t("onboarding.step_workspace.url_preview_prefix")}
-            <span className="font-mono text-primary">
+            <span className="font-mono text-foreground">
               {host}/{organization.slug}/{form.slug || "…"}
             </span>
             {t("onboarding.step_workspace.url_preview_suffix")}

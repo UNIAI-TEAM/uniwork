@@ -88,30 +88,30 @@ function MockCard({
 }) {
   return (
     <div
-      className={cn("rounded-lg border border-line bg-surface px-4 py-3.5 shadow-sm", className)}
+      className={cn("rounded-lg border border-border bg-surface px-4 py-3.5 shadow-sm", className)}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {actor.icon === "meeting" ? (
-            <span aria-hidden className="flex size-6 items-center justify-center rounded-full border border-line bg-subtle/40 text-primary">
+            <span aria-hidden className="flex size-6 items-center justify-center rounded-full border border-border bg-muted/40 text-foreground">
               <CalendarDays className="size-3.5" />
             </span>
           ) : (
-            <span aria-hidden className="flex size-6 items-center justify-center rounded-full bg-primary text-micro font-semibold text-inverse">
+            <span aria-hidden className="flex size-6 items-center justify-center rounded-full bg-primary text-micro font-semibold text-primary-foreground">
               {actor.initial}
             </span>
           )}
-          <span className="truncate text-body font-medium text-primary">{actor.name}</span>
+          <span className="truncate text-body font-medium text-foreground">{actor.name}</span>
         </div>
-        <span className="shrink-0 font-mono text-micro text-text-secondary">{refLabel}</span>
+        <span className="shrink-0 font-mono text-micro text-muted-foreground">{refLabel}</span>
       </div>
-      <p className="mt-2.5 text-body leading-snug text-primary">{content}</p>
+      <p className="mt-2.5 text-body leading-snug text-foreground">{content}</p>
       {status && (
         <div className="mt-3 flex items-center gap-2 text-caption">
           <span
             className={cn(
               "flex items-center gap-1.5 font-medium",
-              status === "done" ? "text-success-text" : status === "in_progress" ? "text-warning-text" : "text-brand",
+              status === "done" ? "text-success" : status === "in_progress" ? "text-warning" : "text-brand",
             )}
           >
             {status === "done" ? (
@@ -125,8 +125,8 @@ function MockCard({
           </span>
           {timestamp && (
             <>
-              <span className="text-text-secondary">·</span>
-              <span className="text-text-secondary">{timestamp}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="text-muted-foreground">{timestamp}</span>
             </>
           )}
         </div>

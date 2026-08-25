@@ -54,9 +54,9 @@ export function EmailChipsInput({
     <>
       <div
       className={cn(
-        "flex min-h-10 flex-wrap items-center gap-1.5 rounded-[var(--uw-radius)] border bg-surface px-2 py-1.5 focus-within:border-primary pointer-coarse:min-h-11",
+        "flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border bg-surface px-2 py-1.5 focus-within:border-ring pointer-coarse:min-h-11",
         // Đường bao của một control phải đạt 3:1 — xem `input.tsx`.
-        invalidCount > 0 ? "border-danger" : "border-line-loud",
+        invalidCount > 0 ? "border-destructive" : "border-input",
         disabled && "opacity-60",
       )}
       onClick={() => document.getElementById(id)?.focus()}
@@ -69,7 +69,7 @@ export function EmailChipsInput({
             data-invalid={ok ? undefined : true}
             className={cn(
               "flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption",
-              ok ? "border-line bg-subtle text-primary" : "border-danger/40 bg-danger/5 text-danger-text",
+              ok ? "border-border bg-muted text-foreground" : "border-destructive/40 bg-destructive/5 text-destructive",
             )}
           >
             {/* Địa chỉ sai trước đây chỉ khác nhau ở màu — người mù màu, màn hình
@@ -86,7 +86,7 @@ export function EmailChipsInput({
               type="button"
               aria-label={`${t("common.delete")} ${email}`}
               disabled={disabled}
-              className="-mr-1 flex size-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-line pointer-coarse:size-11"
+              className="-mr-1 flex size-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-border pointer-coarse:size-11"
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(value.filter((v) => v !== email));
@@ -111,7 +111,7 @@ export function EmailChipsInput({
         autoCorrect="off"
         spellCheck={false}
         enterKeyHint="enter"
-        className="min-w-[10rem] flex-1 bg-transparent text-body text-primary placeholder:text-tertiary focus:outline-none"
+        className="min-w-[10rem] flex-1 bg-transparent text-body text-foreground placeholder:text-muted-foreground focus:outline-none"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onPaste={onPaste}
@@ -121,7 +121,7 @@ export function EmailChipsInput({
       />
       </div>
       {invalidCount > 0 && (
-        <p id={`${id}-invalid`} role="alert" className="mt-1.5 text-caption text-danger-text">
+        <p id={`${id}-invalid`} role="alert" className="mt-1.5 text-caption text-destructive">
           {t("workspace.invite_invalid_summary", { count: invalidCount })}
         </p>
       )}

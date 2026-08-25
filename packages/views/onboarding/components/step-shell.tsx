@@ -29,11 +29,11 @@ export function StepHeading({ title, description }: { title: ReactNode; descript
       <h1
         data-step-heading
         tabIndex={-1}
-        className="text-balance text-title-lg font-semibold text-primary outline-none"
+        className="text-balance text-title-lg font-semibold text-foreground outline-none"
       >
         {title}
       </h1>
-      {description ? <p className="text-pretty text-body text-text-secondary">{description}</p> : null}
+      {description ? <p className="text-pretty text-body text-muted-foreground">{description}</p> : null}
     </div>
   );
 }
@@ -63,7 +63,7 @@ export function StepFooter({ children, hint }: { children: ReactNode; hint?: str
           là đích của `aria-describedby` từ CTA. Để cả hai cùng đọc được nghĩa là
           screen reader đọc câu này hai lần — một lần theo thứ tự đọc, một lần
           khi vùng live đổi. */}
-      {hint ? <p aria-hidden className="text-caption text-text-secondary">{hint}</p> : null}
+      {hint ? <p aria-hidden className="text-caption text-muted-foreground">{hint}</p> : null}
       <span id={STEP_HINT_ID} className="sr-only" role="status" aria-live="polite">
         {announced}
       </span>
@@ -115,7 +115,7 @@ export function StepShell({
   }, [currentStep]);
 
   return (
-    <div className="animate-onboarding-enter flex h-full min-h-0 flex-col bg-canvas">
+    <div className="animate-onboarding-enter flex h-full min-h-0 flex-col bg-background">
       <div className="flex min-h-0 flex-1">
         <StepSidebar currentStep={currentStep} onBack={onBack} backDisabled={backDisabled} onStepChange={onStepChange} footer={chromeFooter} />
         <main ref={mainRef} style={fadeStyle} className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto", STEP_GUTTER)}>

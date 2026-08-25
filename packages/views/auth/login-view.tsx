@@ -45,11 +45,11 @@ export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) =>
             required
           />
         </div>
-        {errorMsg && <p className="text-[13px] text-danger">{errorMsg}</p>}
+        {errorMsg && <p className="text-label text-destructive">{errorMsg}</p>}
         <Button type="submit" className="w-full" disabled={login.isPending}>
           {t("auth.login")}
         </Button>
-        <p className="text-center text-[13px] text-text-secondary">
+        <p className="text-center text-label text-muted-foreground">
           {t("auth.noAccount")}{" "}
           <a href="/register" className="text-brand hover:underline">
             {t("auth.register")}

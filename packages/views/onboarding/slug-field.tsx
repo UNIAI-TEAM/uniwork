@@ -145,13 +145,13 @@ export function SlugFields({
         <FieldLabel htmlFor={`${idPrefix}-slug`}>{urlLabel}</FieldLabel>
         <div
           className={
-            "flex h-10 items-center rounded-[var(--uw-radius)] border bg-subtle transition-colors focus-within:border-primary pointer-coarse:h-11 " +
-            // `bg-subtle` trên canvas chỉ 1.03:1 — viền là thứ duy nhất vẽ ra
+            "flex h-10 items-center rounded-lg border bg-muted transition-colors focus-within:border-ring pointer-coarse:h-11 " +
+            // `bg-muted` trên canvas chỉ 1.03:1 — viền là thứ duy nhất vẽ ra
             // hình hài của ô nhập, nên nó phải đạt 3:1 (WCAG 1.4.11).
-            (form.slugError ? "border-danger" : "border-line-loud")
+            (form.slugError ? "border-destructive" : "border-input")
           }
         >
-          <span className="max-w-[60%] shrink-0 select-none truncate pl-3 font-mono text-body text-text-secondary" title={hostPrefix}>
+          <span className="max-w-[60%] shrink-0 select-none truncate pl-3 font-mono text-body text-muted-foreground" title={hostPrefix}>
             {hostPrefix}
           </span>
           <Input

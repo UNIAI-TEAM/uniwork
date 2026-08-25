@@ -20,13 +20,13 @@ export interface QuestionOption {
  */
 const chipClass = (selected: boolean) =>
   cn(
-    "relative inline-flex h-10 items-center gap-1.5 rounded-[var(--uw-radius)] border px-4 text-body font-medium transition-colors",
+    "relative inline-flex h-10 items-center gap-1.5 rounded-lg border px-4 text-body font-medium transition-colors",
     "focus-within:outline-none focus-within:ring-2 focus-within:ring-brand",
     "pointer-coarse:min-h-11",
     // Chưa chọn thì đường bao LÀ thứ duy nhất nói "đây là một control bấm được"
     // — nên nó phải đạt 3:1 (`line-loud`), không dùng `line` ở 1.27:1. Đã chọn
     // thì dấu Check và nền brand mang trạng thái, viền chỉ còn là hình thức.
-    selected ? "border-brand/40 bg-brand/5 text-primary" : "border-line-loud bg-surface text-primary hover:bg-subtle hover:border-primary",
+    selected ? "border-brand/40 bg-brand/5 text-foreground" : "border-input bg-surface text-foreground hover:bg-muted hover:border-primary",
   );
 
 /**
@@ -78,7 +78,7 @@ export function IconOptionCard({
       {/* pointer-events-none: phần trang trí không được cướp cú bấm của input. */}
       <span
         aria-hidden
-        className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-text-secondary")}
+        className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-muted-foreground")}
       >
         {icon}
       </span>
@@ -136,7 +136,7 @@ export function IconOtherOptionCard({
         />
         <span
           aria-hidden
-          className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-text-secondary")}
+          className={cn("pointer-events-none flex shrink-0 items-center [&_svg]:size-4", selected ? "text-brand" : "text-muted-foreground")}
         >
           {icon}
         </span>
@@ -159,7 +159,7 @@ export function IconOtherOptionCard({
             maxLength={OTHER_INPUT_MAX_LENGTH}
             aria-label={placeholder}
             enterKeyHint="done"
-            className="w-32 min-w-0 border-0 bg-transparent p-0 text-inherit placeholder:text-tertiary focus:outline-none"
+            className="w-32 min-w-0 border-0 bg-transparent p-0 text-inherit placeholder:text-muted-foreground focus:outline-none"
           />
           {onDeselect ? (
             // Checkbox "Khác" phải bỏ chọn được; trước đây click khi đang chọn
@@ -168,7 +168,7 @@ export function IconOtherOptionCard({
               type="button"
               onClick={onDeselect}
               aria-label={`${t("common.delete")} ${label}`}
-              className="-mr-2 flex size-6 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-subtle hover:text-primary pointer-coarse:size-11"
+              className="-mr-2 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground pointer-coarse:size-11"
             >
               <X aria-hidden className="size-3.5" />
             </button>

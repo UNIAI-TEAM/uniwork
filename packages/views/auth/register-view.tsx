@@ -56,11 +56,11 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
             required
           />
         </div>
-        {errorMsg && <p className="text-[13px] text-danger">{errorMsg}</p>}
+        {errorMsg && <p className="text-label text-destructive">{errorMsg}</p>}
         <Button type="submit" className="w-full" disabled={reg.isPending}>
           {t("auth.register")}
         </Button>
-        <p className="text-center text-[13px] text-text-secondary">
+        <p className="text-center text-label text-muted-foreground">
           {t("auth.hasAccount")}{" "}
           <a href="/login" className="text-brand hover:underline">
             {t("auth.login")}

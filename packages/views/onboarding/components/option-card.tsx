@@ -8,7 +8,7 @@ export function RadioMark({ selected }: { selected: boolean }) {
       aria-hidden
       className={cn(
         "relative inline-block h-4 w-4 shrink-0 rounded-full border-[1.5px] transition-colors",
-        selected ? "border-primary" : "border-line-loud",
+        selected ? "border-primary" : "border-input",
       )}
     >
       {selected && <span className="absolute inset-[3px] rounded-full bg-primary" />}
@@ -24,8 +24,8 @@ export const pickerCardClass = (selected: boolean) =>
     // hề đổi.
     "w-full rounded-lg border bg-surface text-left transition-[color,background-color,border-color,box-shadow]",
     selected
-      ? "border-primary shadow-[inset_0_0_0_1px_var(--uw-text-primary)]"
-      : "border-line hover:border-line-strong hover:bg-subtle/60",
+      ? "border-primary shadow-[inset_0_0_0_1px_var(--uw-text-foreground)]"
+      : "border-border hover:border-input hover:bg-muted/60",
   );
 
 const NAV_KEYS = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"];

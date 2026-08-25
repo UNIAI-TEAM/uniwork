@@ -39,15 +39,15 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-4 text-lg font-semibold text-primary">{t("workspace.members")}</h1>
-      <ul className="mb-6 divide-y divide-line rounded-lg border border-line bg-surface">
+      <h1 className="mb-4 text-title font-semibold text-foreground">{t("workspace.members")}</h1>
+      <ul className="mb-6 divide-y divide-border rounded-lg border border-border bg-surface">
         {(members ?? []).map((m) => (
           <li key={m.user_id} className="flex items-center justify-between px-4 py-2.5">
             <div>
-              <div className="text-sm text-primary">{m.display_name}</div>
-              <div className="text-[12px] text-tertiary">{m.email}</div>
+              <div className="text-body text-foreground">{m.display_name}</div>
+              <div className="text-caption text-muted-foreground">{m.email}</div>
             </div>
-            <span className="text-[12px] text-text-secondary">{m.role}</span>
+            <span className="text-caption text-muted-foreground">{m.role}</span>
           </li>
         ))}
       </ul>
@@ -88,7 +88,7 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
       ) : permissionsLoading ? null : (
         // Rendered from the Decision so the reason a member cannot invite is
         // the same sentence everywhere, not view-local copy.
-        <p className="text-body text-text-secondary" role="note">
+        <p className="text-body text-muted-foreground" role="note">
           {t("workspace.inviteNotAllowed")}
         </p>
       )}

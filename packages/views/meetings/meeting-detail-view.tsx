@@ -23,14 +23,14 @@ export function MeetingDetailView({
   const del = useDeleteMeeting(workspaceId);
   const [note, setNote] = useState("");
 
-  if (!meeting) return <p className="p-6 text-text-secondary">{t("common.loading")}</p>;
+  if (!meeting) return <p className="p-6 text-muted-foreground">{t("common.loading")}</p>;
 
   return (
     <div className="mx-auto max-w-2xl p-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-primary">{meeting.title}</h1>
-          <p className="text-[13px] text-tertiary">
+          <h1 className="text-title font-semibold text-foreground">{meeting.title}</h1>
+          <p className="text-label text-muted-foreground">
             {new Date(meeting.starts_at).toLocaleString("vi-VN")} –{" "}
             {new Date(meeting.ends_at).toLocaleString("vi-VN")}
           </p>
@@ -47,14 +47,14 @@ export function MeetingDetailView({
         </div>
       </div>
       {meeting.description && (
-        <p className="mt-3 whitespace-pre-wrap text-sm text-text-secondary">{meeting.description}</p>
+        <p className="mt-3 whitespace-pre-wrap text-body text-muted-foreground">{meeting.description}</p>
       )}
-      <h2 className="mb-2 mt-6 text-sm font-semibold text-primary">{t("meetings.notes")}</h2>
+      <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">{t("meetings.notes")}</h2>
       <ul className="space-y-2">
         {(notes ?? []).map((n) => (
-          <li key={n.id} className="rounded-[var(--uw-radius)] border border-line bg-surface p-3">
-            <div className="mb-1 text-[12px] text-tertiary">{n.display_name ?? n.author_id}</div>
-            <div className="whitespace-pre-wrap text-sm text-primary">{n.body}</div>
+          <li key={n.id} className="rounded-lg border border-border bg-surface p-3">
+            <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
+            <div className="whitespace-pre-wrap text-body text-foreground">{n.body}</div>
           </li>
         ))}
       </ul>

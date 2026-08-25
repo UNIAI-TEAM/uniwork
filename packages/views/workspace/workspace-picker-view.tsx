@@ -26,12 +26,12 @@ export function WorkspacePickerView({ onPick, onCreate }: { onPick: (w: Workspac
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
-      <h1 className="text-title-lg font-semibold text-primary">{t("workspace.pickTitle")}</h1>
+      <h1 className="text-title-lg font-semibold text-foreground">{t("workspace.pickTitle")}</h1>
       {[...groups.entries()].map(([orgId, g]) => (
         <section key={orgId} className="flex flex-col gap-3">
-          <h2 className="flex items-baseline gap-2 text-label font-medium text-text-secondary">
+          <h2 className="flex items-baseline gap-2 text-label font-medium text-muted-foreground">
             {g.name}
-            <span className="font-mono text-caption text-tertiary">/{g.slug}</span>
+            <span className="font-mono text-caption text-muted-foreground">/{g.slug}</span>
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {g.items.map((w) => (
@@ -39,14 +39,14 @@ export function WorkspacePickerView({ onPick, onCreate }: { onPick: (w: Workspac
                 key={w.id}
                 type="button"
                 onClick={() => onPick(w)}
-                className="flex items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-line-strong hover:bg-subtle/60"
+                className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-input hover:bg-muted/60"
               >
-                <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-body font-semibold text-inverse">
+                <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-body font-semibold text-primary-foreground">
                   {w.name.slice(0, 1).toUpperCase()}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-body font-medium text-primary">{w.name}</span>
-                  <span className="block truncate font-mono text-caption text-text-secondary">
+                  <span className="block truncate text-body font-medium text-foreground">{w.name}</span>
+                  <span className="block truncate font-mono text-caption text-muted-foreground">
                     {host}/{g.slug}/{w.slug}
                   </span>
                 </span>

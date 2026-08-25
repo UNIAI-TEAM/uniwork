@@ -174,12 +174,12 @@ export function PickerCard({
 }) {
   return (
     <button type="button" role="radio" aria-checked={selected} onClick={onSelect} className={pickerCardClass(selected) + " flex items-center gap-4 px-5 py-4"}>
-      <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-body font-semibold text-inverse">
+      <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-body font-semibold text-primary-foreground">
         {avatar}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-body font-medium text-primary">{title}</span>
-        <span className="truncate font-mono text-caption text-text-secondary">{subtitle}</span>
+        <span className="truncate text-body font-medium text-foreground">{title}</span>
+        <span className="truncate font-mono text-caption text-muted-foreground">{subtitle}</span>
       </span>
       <RadioMark selected={selected} />
     </button>
@@ -215,17 +215,17 @@ export function CollapsibleCreateCard({
         onClick={onSelect}
         className="flex w-full items-center gap-4 px-5 py-4 text-left"
       >
-        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-subtle text-text-secondary">
+        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Plus className="size-4" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body font-medium text-primary">{title}</span>
-          <span className="truncate text-caption text-text-secondary">{subtitle}</span>
+          <span className="truncate text-body font-medium text-foreground">{title}</span>
+          <span className="truncate text-caption text-muted-foreground">{subtitle}</span>
         </span>
         <RadioMark selected={selected} />
       </button>
       {selected && (
-        <div id={`${idPrefix}-create-panel`} className="border-t border-line px-5 py-5">
+        <div id={`${idPrefix}-create-panel`} className="border-t border-border px-5 py-5">
           {children}
         </div>
       )}

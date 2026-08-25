@@ -13,10 +13,10 @@ function MeetingRow({ meeting, onOpen }: { meeting: Meeting; onOpen: (id: string
   return (
     <button
       onClick={() => onOpen(meeting.id)}
-      className="flex w-full items-center justify-between rounded-[var(--uw-radius)] border border-line bg-surface px-4 py-2.5 text-left hover:border-line-strong"
+      className="flex w-full items-center justify-between rounded-lg border border-border bg-surface px-4 py-2.5 text-left hover:border-input"
     >
-      <span className="text-sm text-primary">{meeting.title}</span>
-      <span className="text-[12px] text-tertiary">
+      <span className="text-body text-foreground">{meeting.title}</span>
+      <span className="text-caption text-muted-foreground">
         {fmt(meeting.starts_at)} – {fmt(meeting.ends_at)}
       </span>
     </button>
@@ -37,16 +37,16 @@ export function MeetingsPageView({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-line px-4 py-2.5">
-        <h1 className="text-sm font-semibold text-primary">{t("meetings.title")}</h1>
+      <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <h1 className="text-body font-semibold text-foreground">{t("meetings.title")}</h1>
         <NewMeetingDialog workspaceId={workspaceId} />
       </header>
       <div className="mx-auto w-full max-w-2xl flex-1 space-y-6 overflow-auto p-6">
         <section>
-          <h2 className="mb-2 text-[13px] font-medium text-text-secondary">{t("meetings.upcoming")}</h2>
+          <h2 className="mb-2 text-label font-medium text-muted-foreground">{t("meetings.upcoming")}</h2>
           <div className="space-y-2">
             {upcoming.length === 0 && (
-              <p className="text-[13px] text-tertiary">{t("common.empty")}</p>
+              <p className="text-label text-muted-foreground">{t("common.empty")}</p>
             )}
             {upcoming.map((m) => (
               <MeetingRow key={m.id} meeting={m} onOpen={onOpen} />
@@ -54,7 +54,7 @@ export function MeetingsPageView({
           </div>
         </section>
         <section>
-          <h2 className="mb-2 text-[13px] font-medium text-text-secondary">{t("meetings.past")}</h2>
+          <h2 className="mb-2 text-label font-medium text-muted-foreground">{t("meetings.past")}</h2>
           <div className="space-y-2">
             {past.map((m) => (
               <MeetingRow key={m.id} meeting={m} onOpen={onOpen} />

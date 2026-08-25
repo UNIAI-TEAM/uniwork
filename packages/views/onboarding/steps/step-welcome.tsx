@@ -43,7 +43,7 @@ export function StepWelcome({
           <div className="flex w-full max-w-[540px] flex-col gap-8">
             <div className="flex items-center gap-2.5">
               <span aria-hidden className="size-5 rounded-md bg-brand" />
-              <span className="font-serif text-title-lg font-medium tracking-tight text-primary">
+              <span className="font-serif text-title-lg font-medium tracking-tight text-foreground">
                 {t("onboarding.welcome.wordmark")}
               </span>
             </div>
@@ -51,7 +51,7 @@ export function StepWelcome({
             {/* Dừng ở 48px: cột bị chặn 540px, nên bước 60px đo được là 4 dòng với dòng
                 cuối chỉ 48% bề rộng ("gian." mồ côi) ở MỌI viewport từ 1280 trở lên —
                 cỡ chữ to hơn mà đọc kém đi. 48px cho 3 dòng đều từ 640px. */}
-            <h1 className="text-balance font-serif text-hero-sm font-medium text-primary sm:text-hero">
+            <h1 className="text-balance font-serif text-hero-sm font-medium text-foreground sm:text-hero">
               {t("onboarding.welcome.headline_line1")}{" "}
               {/* Ngắt dòng cứng chỉ đúng ở cột 540px của lg+ (xem chú thích trên).
                   Dưới đó cột chỉ còn ~327px: dòng 1 đã tự xuống dòng rồi, ngắt
@@ -63,8 +63,8 @@ export function StepWelcome({
             </h1>
 
             <div className="flex flex-col gap-4">
-              <p className="text-title leading-relaxed text-primary">{t("onboarding.welcome.lede")}</p>
-              <p className="text-body leading-relaxed text-text-secondary">{t("onboarding.welcome.lede_secondary")}</p>
+              <p className="text-title leading-relaxed text-foreground">{t("onboarding.welcome.lede")}</p>
+              <p className="text-body leading-relaxed text-muted-foreground">{t("onboarding.welcome.lede_secondary")}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -85,9 +85,9 @@ export function StepWelcome({
       </div>
 
       {/* Cột phải: minh hoạ, ẩn dưới lg để headline + CTA giữ tiêu điểm. */}
-      <div className="hidden border-l border-line bg-subtle/40 lg:flex lg:flex-[0.85] lg:flex-col lg:overflow-hidden">
+      <div className="hidden border-l border-border bg-muted/40 lg:flex lg:flex-[0.85] lg:flex-col lg:overflow-hidden">
         <div className="flex flex-1 flex-col items-center justify-center gap-7 px-8 py-8">
-          <p className="max-w-[440px] text-balance text-center font-serif text-body-lg italic leading-snug text-text-secondary">
+          <p className="max-w-[440px] text-balance text-center font-serif text-body-lg italic leading-snug text-muted-foreground">
             {t("onboarding.welcome.illustration_caption")}
           </p>
           <WelcomeIllustration />

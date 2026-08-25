@@ -31,13 +31,13 @@ function Column({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-64 shrink-0 flex-col rounded-lg bg-subtle p-2",
+        "flex w-64 shrink-0 flex-col rounded-lg bg-muted p-2",
         isOver && "ring-2 ring-[var(--uw-focus)]",
       )}
     >
       <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-[13px] font-medium text-text-secondary">{t(`tasks.status_${status}`)}</span>
-        <span className="text-[12px] text-tertiary">{tasks.length}</span>
+        <span className="text-label font-medium text-muted-foreground">{t(`tasks.status_${status}`)}</span>
+        <span className="text-caption text-muted-foreground">{tasks.length}</span>
       </div>
       <div className="flex-1 space-y-1.5 overflow-auto">
         {tasks.map((task) => (

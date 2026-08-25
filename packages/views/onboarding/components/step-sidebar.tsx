@@ -62,11 +62,11 @@ export function StepProgressBar({
         {ONBOARDING_STEP_ORDER.map((stepId, index) => (
           <span
             key={stepId}
-            className={cn("h-1 flex-1 rounded-full transition-colors", index <= currentIndex ? "bg-primary" : "bg-line")}
+            className={cn("h-1 flex-1 rounded-full transition-colors", index <= currentIndex ? "bg-primary" : "bg-border")}
           />
         ))}
       </span>
-      <span className="min-w-0 truncate text-caption font-medium text-text-secondary">
+      <span className="min-w-0 truncate text-caption font-medium text-muted-foreground">
         {/* Các đoạn tiến độ là aria-hidden, nên vị trí phải được nói bằng chữ:
             dưới md rail bị ẩn và đây là chỉ báo tiến độ duy nhất. */}
         <span className="sr-only">
@@ -123,7 +123,7 @@ export function StepSidebar({
     <aside className="hidden shrink-0 md:block md:w-[19rem] md:p-3 lg:w-[22rem] lg:p-4">
       <div
         ref={panelRef}
-        className="dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl px-5 pb-5 text-primary ring-1 ring-line"
+        className="dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl px-5 pb-5 text-foreground ring-1 ring-border"
         style={{ background: "var(--uw-rail-bg)" }}
       >
         <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -145,7 +145,7 @@ export function StepSidebar({
           <header className="flex min-h-9 shrink-0 items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-2">
               <span aria-hidden className="size-5 shrink-0 rounded-md bg-brand" />
-              <span className="truncate text-label font-medium text-primary">{t("onboarding.step_nav.wordmark")}</span>
+              <span className="truncate text-label font-medium text-foreground">{t("onboarding.step_nav.wordmark")}</span>
             </span>
             {onBack ? (
               <Button type="button" variant="ghost" size="icon-sm" onClick={onBack} disabled={backDisabled} aria-label={t("common.back")}>
@@ -175,10 +175,10 @@ export function StepSidebar({
                         className={cn(
                           "mt-0.5 size-4 shrink-0 border-0 bg-transparent ring-1 transition-colors",
                           isDone
-                            ? "bg-primary text-inverse ring-primary"
+                            ? "bg-primary text-primary-foreground ring-primary"
                             : isCurrent
                               ? "text-transparent ring-text-secondary"
-                              : "text-transparent ring-line-loud",
+                              : "text-transparent ring-border-loud",
                         )}
                       >
                         {isDone ? (
@@ -190,10 +190,10 @@ export function StepSidebar({
                         )}
                       </StepperIndicator>
                       <div className="min-w-0 flex-1 text-left">
-                        <StepperTitle className={cn("transition-colors", isCurrent || isDone ? "text-primary" : "text-text-secondary")}>
+                        <StepperTitle className={cn("transition-colors", isCurrent || isDone ? "text-foreground" : "text-muted-foreground")}>
                           {t(`onboarding.step_nav.${stepId}.label`)}
                         </StepperTitle>
-                        <StepperDescription className="mt-0.5 max-w-none text-text-secondary">
+                        <StepperDescription className="mt-0.5 max-w-none text-muted-foreground">
                           {t(`onboarding.step_nav.${stepId}.description`)}
                         </StepperDescription>
                       </div>
@@ -225,7 +225,7 @@ export function StepSidebar({
                           className={cn(
                             "absolute left-2 top-6 -order-1 m-0 w-px -translate-x-1/2",
                             "group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-1.75rem)]",
-                            isDone ? "bg-text-secondary" : "bg-line",
+                            isDone ? "bg-text-secondary" : "bg-border",
                           )}
                         />
                       ) : null}

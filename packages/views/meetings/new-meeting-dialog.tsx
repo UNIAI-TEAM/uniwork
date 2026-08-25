@@ -64,7 +64,7 @@ export function NewMeetingDialog({ workspaceId }: { workspaceId: string }) {
               required
             />
           </div>
-          {create.error && <p className="text-[13px] text-danger">{t("common.error")}</p>}
+          {create.error && <p className="text-label text-destructive">{t("common.error")}</p>}
           <Button type="submit" disabled={create.isPending}>
             {t("common.create")}
           </Button>

@@ -19,8 +19,8 @@ export function TasksPageView({
   useWorkspaceEvents(workspaceId);
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-line px-4 py-2.5">
-        <h1 className="text-sm font-semibold text-primary">{t("tasks.title")}</h1>
+      <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <h1 className="text-body font-semibold text-foreground">{t("tasks.title")}</h1>
         <div className="flex items-center gap-2">
           <Button
             variant={mode === "board" ? "secondary" : "ghost"}

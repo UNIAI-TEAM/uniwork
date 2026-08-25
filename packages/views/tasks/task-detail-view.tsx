@@ -49,7 +49,7 @@ export function TaskDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- đồng bộ khi đổi task/bản mới
   }, [task?.id, task?.updated_at]);
 
-  if (!task) return <p className="p-6 text-text-secondary">{t("common.loading")}</p>;
+  if (!task) return <p className="p-6 text-muted-foreground">{t("common.loading")}</p>;
 
   const patch = (p: Parameters<typeof update.mutate>[0]["patch"]) =>
     update.mutate({ taskId, patch: p });
@@ -61,7 +61,7 @@ export function TaskDetailView({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title.trim() && title !== task.title && patch({ title })}
-          className="w-full bg-transparent text-lg font-semibold text-primary outline-none"
+          className="w-full bg-transparent text-title font-semibold text-foreground outline-none"
         />
         <textarea
           value={description}
@@ -69,14 +69,14 @@ export function TaskDetailView({
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() => description !== task.description && patch({ description })}
           rows={8}
-          className="mt-4 w-full resize-y rounded-[var(--uw-radius)] border border-line bg-surface p-3 text-sm text-primary placeholder:text-tertiary"
+          className="mt-4 w-full resize-y rounded-lg border border-border bg-surface p-3 text-body text-foreground placeholder:text-muted-foreground"
         />
-        <h2 className="mb-2 mt-6 text-sm font-semibold text-primary">{t("tasks.comments")}</h2>
+        <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">{t("tasks.comments")}</h2>
         <ul className="space-y-3">
           {(comments ?? []).map((c) => (
-            <li key={c.id} className="rounded-[var(--uw-radius)] border border-line bg-surface p-3">
-              <div className="mb-1 text-[12px] text-tertiary">{c.display_name ?? c.author_id}</div>
-              <div className="whitespace-pre-wrap text-sm text-primary">{c.body}</div>
+            <li key={c.id} className="rounded-lg border border-border bg-surface p-3">
+              <div className="mb-1 text-caption text-muted-foreground">{c.display_name ?? c.author_id}</div>
+              <div className="whitespace-pre-wrap text-body text-foreground">{c.body}</div>
             </li>
           ))}
         </ul>
@@ -98,7 +98,7 @@ export function TaskDetailView({
         </form>
       </div>
 
-      <aside className="w-64 shrink-0 space-y-4 border-l border-line p-4">
+      <aside className="w-64 shrink-0 space-y-4 border-l border-border p-4">
         <div>
           <Label>{t("tasks.status")}</Label>
           <Select

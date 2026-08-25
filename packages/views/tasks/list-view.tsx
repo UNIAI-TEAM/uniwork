@@ -18,9 +18,9 @@ export function ListView({
 
   return (
     <div className="overflow-auto p-4">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-body">
         <thead>
-          <tr className="border-b border-line text-left text-[12px] text-tertiary">
+          <tr className="border-b border-border text-left text-caption text-muted-foreground">
             <th className="py-2 pr-4 font-medium">{t("tasks.taskTitle")}</th>
             <th className="py-2 pr-4 font-medium">{t("tasks.status")}</th>
             <th className="py-2 pr-4 font-medium">{t("tasks.priority")}</th>
@@ -33,18 +33,18 @@ export function ListView({
             <tr
               key={task.id}
               onClick={() => onOpenTask(task.id)}
-              className="cursor-pointer border-b border-line hover:bg-subtle"
+              className="cursor-pointer border-b border-border hover:bg-muted"
             >
-              <td className="py-2 pr-4 text-primary">
+              <td className="py-2 pr-4 text-foreground">
                 {task.title}
                 {task.kind === "welcome" && (
                   <span className="ml-2 rounded-full bg-brand/10 px-1.5 py-0.5 text-micro font-medium text-brand">{t("workspace.guideBadge")}</span>
                 )}
               </td>
-              <td className="py-2 pr-4 text-text-secondary">{t(`tasks.status_${task.status}`)}</td>
-              <td className="py-2 pr-4 text-text-secondary">{t(`tasks.priority_${task.priority}`)}</td>
-              <td className="py-2 pr-4 text-text-secondary">{nameOf(task.assignee_id)}</td>
-              <td className="py-2 text-tertiary">{task.due_date ?? ""}</td>
+              <td className="py-2 pr-4 text-muted-foreground">{t(`tasks.status_${task.status}`)}</td>
+              <td className="py-2 pr-4 text-muted-foreground">{t(`tasks.priority_${task.priority}`)}</td>
+              <td className="py-2 pr-4 text-muted-foreground">{nameOf(task.assignee_id)}</td>
+              <td className="py-2 text-muted-foreground">{task.due_date ?? ""}</td>
             </tr>
           ))}
         </tbody>

@@ -178,7 +178,7 @@ function QuestionGroup({
   // roving tabindex và phím mũi tên. Không cần role thủ công nữa.
   return (
     <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
-      <legend className="mb-0 p-0 text-label font-medium text-primary">{question}</legend>
+      <legend className="mb-0 p-0 text-label font-medium text-foreground">{question}</legend>
       <div className="flex flex-row flex-wrap gap-2">
         {options.map((option) =>
           option.isOther ? (

@@ -22,8 +22,8 @@ export function OnboardingLogoutButton({ inline = false }: { inline?: boolean } 
       size="sm"
       className={cn(
         inline
-          ? "-ml-2 w-fit shrink-0 text-text-secondary hover:text-primary"
-          : "fixed right-8 top-8 z-50 text-text-secondary hover:text-danger",
+          ? "-ml-2 w-fit shrink-0 text-muted-foreground hover:text-foreground"
+          : "fixed right-8 top-8 z-50 text-muted-foreground hover:text-destructive",
       )}
       onClick={() => logout.mutate(undefined, { onSuccess: () => nav?.replace(paths.login()) })}
     >
