@@ -64,6 +64,9 @@ func uploadAvatar(t *testing.T, srv *httptest.Server, token, filename, declaredT
 func TestUploadAvatarStoresFileAndUpdatesUser(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("LOCAL_UPLOAD_DIR", dir)
+	// The Makefile exports the app's LOCAL_UPLOAD_BASE_URL; the assertion below
+	// is about the relative form, so the test pins the env it depends on.
+	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
 	srv := newTestServer(t)
 	token := registerAndToken(t, srv, "avatar@example.com")
 
@@ -105,6 +108,7 @@ func TestUploadAvatarStoresFileAndUpdatesUser(t *testing.T) {
 
 func TestUploadAvatarRejectsNonImages(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
 	srv := newTestServer(t)
 	token := registerAndToken(t, srv, "notimage@example.com")
 
@@ -117,6 +121,7 @@ func TestUploadAvatarRejectsNonImages(t *testing.T) {
 
 func TestUploadAvatarRejectsOversizedFiles(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
 	srv := newTestServer(t)
 	token := registerAndToken(t, srv, "big@example.com")
 
@@ -129,6 +134,7 @@ func TestUploadAvatarRejectsOversizedFiles(t *testing.T) {
 
 func TestUploadAvatarRequiresAuth(t *testing.T) {
 	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
 	srv := newTestServer(t)
 	res := uploadAvatar(t, srv, "", "me.png", "image/png", tinyPNG)
 	if res.StatusCode != 401 {
