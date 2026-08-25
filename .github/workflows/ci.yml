@@ -106,7 +106,7 @@ jobs:
         # Catalog completeness, no usf branding left behind, and the turbo
         # dependency-hash probe that proves `test` cannot replay a stale pass.
         run: |
-          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs
+          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs
           bash scripts/turbo-cache-check.sh
       - name: Build, typecheck, lint
         if: ${{ needs.changes.outputs.frontend == 'true' }}

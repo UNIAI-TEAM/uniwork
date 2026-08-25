@@ -9,7 +9,9 @@ const css = readFileSync(resolve(process.cwd(), "styles/tokens.css"), "utf8");
 
 /** Nội dung của một khối `selector { ... }` ở cấp cao nhất trong file. */
 function block(selector: string): string {
-  const start = css.indexOf(selector);
+  // Anchored at a line start so a selector mentioned in a comment (".dark"
+  // in the header) cannot pass for the block itself.
+  const start = css.search(new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{`, "m"));
   if (start === -1) return "";
   const open = css.indexOf("{", start);
   let depth = 0;
@@ -107,7 +109,7 @@ describe("token contract", () => {
     //    whichever theme the author happened to be using and falls back to an
     //    inherited colour in the other one.
     //
-    // 2. Assuming a slot written as `var(--uw-something)` tracks the palette on
+    // 2. Assuming a slot written as `var(--something)` tracks the palette on
     //    its own. It does not. Custom properties are computed and then
     //    INHERITED: the var() is resolved where the slot is DECLARED, so a slot
     //    declared on :root carries the light value into every .dark subtree no
@@ -118,9 +120,8 @@ describe("token contract", () => {
     const light = definedVars(block(":root"));
     const dark = definedVars(block(".dark"));
     const singleTheme = new Set([
-      // Deliberately identical in both themes; see the comments in tokens.css.
-      "--uw-rail-bg",
-      "--uw-radius",
+      // Deliberately identical in both themes; see the comment in tokens.css.
+      "--rail",
       // Geometry, not colour — nothing for a theme to change.
       "--radius",
     ]);
@@ -129,5 +130,31 @@ describe("token contract", () => {
     );
     expect(missing, `defined in :root but not in .dark: ${missing.join(", ")}`)
       .toEqual([]);
+  });
+
+  it("has retired the --uw-* palette", () => {
+    // The palette was the transitional source the slots pointed at during the
+    // base port. Values now live on the slots themselves; a reappearing alias
+    // means someone wrote against the old name.
+    expect(css).not.toMatch(/--uw-/);
+  });
+
+  it("exposes no legacy Tailwind aliases", () => {
+    const theme = definedVars(block("@theme inline"));
+    const LEGACY = [
+      "--color-canvas", "--color-subtle", "--color-text-secondary", "--color-tertiary",
+      "--color-inverse", "--color-line", "--color-line-strong", "--color-line-loud",
+      "--color-on-brand", "--color-danger", "--color-danger-text",
+      "--color-success-text", "--color-warning-text", "--color-brand-soft",
+    ];
+    const present = LEGACY.filter((name) => theme.has(name));
+    expect(present, `legacy aliases still exposed: ${present.join(", ")}`).toEqual([]);
+  });
+
+  it("defines the .dark block as a real block, not the :root fallback", () => {
+    // Guards block(): if the selector lookup ever regresses to indexOf, .dark
+    // resolves to :root and the light/dark comparison becomes vacuous.
+    expect(block(".dark")).not.toContain("--rail:");
+    expect(block(":root")).toContain("--rail:");
   });
 });

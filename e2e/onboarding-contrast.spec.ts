@@ -4,10 +4,10 @@ import { expect, test, type Page } from "@playwright/test";
  * Tương phản chữ, đo trên trang đã render — không phải đọc token rồi tự tin.
  *
  * Hai lỗi thật mà file này chặn lại, cả hai đều "trông vẫn ổn" trong review:
- *  - `tailwind-merge` nuốt `text-on-brand` của nút primary size lg vì nó xếp
- *    `text-body` (cỡ) và `text-on-brand` (màu) chung một nhóm → chữ nút CTA rơi
+ *  - `tailwind-merge` nuốt `text-brand-foreground` của nút primary size lg vì nó xếp
+ *    `text-body` (cỡ) và `text-brand-foreground` (màu) chung một nhóm → chữ nút CTA rơi
  *    về màu thừa kế, 3.40:1 trên nền brand.
- *  - `border-line` (1.27:1) dùng làm đường bao ô nhập.
+ *  - `border-border` (1.27:1) dùng làm đường bao ô nhập.
  * Không cái nào làm build đỏ. Chỉ có phép đo mới thấy.
  */
 async function reach(page: Page, tag: string) {

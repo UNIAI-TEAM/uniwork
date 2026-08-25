@@ -5,13 +5,13 @@ import { extendTailwindMerge } from "tailwind-merge";
  * Thang cỡ chữ và bảng màu của UniWork, khai báo lại cho tailwind-merge.
  *
  * Không có hai danh sách này, `twMerge` chỉ biết thang mặc định của Tailwind:
- * `text-body` và `text-on-brand` đều là `text-*` mang tên lạ, nó xếp chung MỘT
- * nhóm rồi giữ cái đứng sau. Nút primary size lg (`bg-brand text-on-brand` +
+ * `text-body` và `text-brand-foreground` đều là `text-*` mang tên lạ, nó xếp chung MỘT
+ * nhóm rồi giữ cái đứng sau. Nút primary size lg (`bg-brand text-brand-foreground` +
  * `text-body`) vì thế mất luôn màu chữ và rơi về màu thừa kế của body —
  * #18181b trên #2f5aff, tức 3.40:1, dưới ngưỡng 4.5:1 của WCAG 1.4.3.
  *
  * Lỗi kiểu này không bao giờ báo: class vẫn hợp lệ, build vẫn xanh, chỉ có chữ
- * đổi màu. Danh sách phải bám theo `@theme` trong globals.css.
+ * đổi màu. Danh sách phải bám theo `@theme` trong packages/ui/styles/tokens.css.
  */
 const FONT_SIZES = [
   "micro", "caption", "label", "body", "body-lg",
@@ -20,13 +20,19 @@ const FONT_SIZES = [
   "hero-sm", "hero", "hero-lg",
 ] as const;
 
+/* Mirrors the `--color-*` aliases in packages/ui/styles/tokens.css. */
 const COLORS = [
-  "canvas", "surface", "subtle",
-  "primary", "secondary", "tertiary", "inverse",
-  "line", "line-strong", "line-loud",
-  "brand", "brand-soft", "on-brand",
-  "danger", "success", "warning",
-  "danger-text", "success-text", "warning-text",
+  "background", "foreground", "app-shell", "page-canvas",
+  "surface", "surface-foreground", "surface-raised", "surface-hover",
+  "surface-selected", "surface-selected-foreground", "surface-border",
+  "card", "card-foreground", "popover", "popover-foreground",
+  "primary", "primary-foreground", "secondary", "secondary-foreground",
+  "accent", "accent-foreground", "muted", "muted-foreground", "faint-foreground",
+  "brand", "brand-foreground", "destructive", "success", "warning", "info",
+  "border", "input", "ring", "selection", "selection-foreground", "rail",
+  "sidebar", "sidebar-foreground", "sidebar-primary", "sidebar-primary-foreground",
+  "sidebar-accent", "sidebar-accent-foreground", "sidebar-border", "sidebar-ring",
+  "chart-1", "chart-2", "chart-3", "chart-4", "chart-5",
 ] as const;
 
 const twMerge = extendTailwindMerge({

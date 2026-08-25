@@ -9,15 +9,15 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; }
   body {
-    background: var(--uw-canvas);
-    color: var(--uw-text-primary);
+    background: var(--background);
+    color: var(--foreground);
     font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
       "Helvetica Neue", Arial, sans-serif);
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
-  :focus-visible { outline: 2px solid var(--uw-focus); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 }
 
 /* iOS Safari tự phóng to cả trang khi focus vào input có cỡ chữ dưới 16px, và
@@ -29,18 +29,18 @@
 
 /* Bề mặt do trình duyệt vẽ: mặc định của chúng không thuộc hệ màu nào.
    Chọn selection/caret/scrollbar từ palette để mọi pixel đều là chủ ý. */
-::selection { background: var(--uw-select-bg); color: var(--uw-select-fg); }
-input, textarea, [contenteditable] { caret-color: var(--uw-brand); }
-* { scrollbar-color: var(--uw-line-loud) transparent; scrollbar-width: thin; }
+::selection { background: var(--selection); color: var(--selection-foreground); }
+input, textarea, [contenteditable] { caret-color: var(--brand); }
+* { scrollbar-color: var(--input) transparent; scrollbar-width: thin; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--uw-line-loud);
+  background: var(--input);
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--uw-text-secondary); background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); background-clip: content-box; }
 /* Số trong bảng/đo lường xếp thẳng cột. */
 .font-mono, [data-tabular] { font-variant-numeric: tabular-nums; }
 

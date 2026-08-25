@@ -47,12 +47,12 @@ describe("RAIL_VAR_FALLBACK bám theo tokens.css", () => {
     return block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1]?.trim();
   };
 
-  it("--uw-rail-bg khớp giá trị ở :root", () => {
-    expect(readVar(/:root\s*\{[\s\S]*?\n\}/, "--uw-rail-bg")).toBe(RAIL_VAR_FALLBACK["--uw-rail-bg"]);
+  it("--rail matches :root", () => {
+    expect(readVar(/:root\s*\{[\s\S]*?\n\}/, "--rail")).toBe(RAIL_VAR_FALLBACK["--rail"]);
   });
 
   // Rail luôn là panel tối ở CẢ hai theme, nên brand của nó là brand của `.dark`.
-  it("--uw-brand khớp giá trị ở .dark", () => {
-    expect(readVar(/\.dark\s*\{[\s\S]*?\n\}/, "--uw-brand")).toBe(RAIL_VAR_FALLBACK["--uw-brand"]);
+  it("--brand matches .dark", () => {
+    expect(readVar(/^\.dark\s*\{[\s\S]*?\n\}/m, "--brand")).toBe(RAIL_VAR_FALLBACK["--brand"]);
   });
 });

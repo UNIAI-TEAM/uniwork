@@ -23,7 +23,7 @@ import { cn, withAlpha } from "@uniwork/ui/lib/utils";
  * `useCssVars` đọc chúng từ chính panel rail (scope `.dark`) thay vì chép cứng —
  * đổi token là rail đổi theo. Fallback chỉ dùng cho frame SSR đầu tiên.
  */
-export const RAIL_VAR_FALLBACK = { "--uw-rail-bg": "#1b1b1f", "--uw-brand": "#6584ff" };
+export const RAIL_VAR_FALLBACK = { "--rail": "#1b1b1f", "--brand": "#6584ff" };
 
 /**
  * Thanh tiến độ gọn cho < md (rail ẩn): Back + các đoạn + tên bước + slot footer.
@@ -124,7 +124,7 @@ export function StepSidebar({
       <div
         ref={panelRef}
         className="dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl px-5 pb-5 text-foreground ring-1 ring-border"
-        style={{ background: "var(--uw-rail-bg)" }}
+        style={{ background: "var(--rail)" }}
       >
         <div aria-hidden className="pointer-events-none absolute inset-0">
           {showSphere && (
@@ -135,8 +135,8 @@ export function StepSidebar({
             sphereRadius="20%"
             dotRadiusMax={1.9}
             speed={0.4}
-            bgColor={railVars["--uw-rail-bg"]}
-            dotColor={withAlpha(railVars["--uw-brand"], 0.5)}
+            bgColor={railVars["--rail"]}
+            dotColor={withAlpha(railVars["--brand"], 0.5)}
           />
           )}
         </div>
@@ -177,8 +177,8 @@ export function StepSidebar({
                           isDone
                             ? "bg-primary text-primary-foreground ring-primary"
                             : isCurrent
-                              ? "text-transparent ring-text-secondary"
-                              : "text-transparent ring-border-loud",
+                              ? "text-transparent ring-muted-foreground"
+                              : "text-transparent ring-input",
                         )}
                       >
                         {isDone ? (
@@ -225,7 +225,7 @@ export function StepSidebar({
                           className={cn(
                             "absolute left-2 top-6 -order-1 m-0 w-px -translate-x-1/2",
                             "group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-1.75rem)]",
-                            isDone ? "bg-text-secondary" : "bg-border",
+                            isDone ? "bg-muted-foreground" : "bg-border",
                           )}
                         />
                       ) : null}
