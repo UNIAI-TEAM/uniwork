@@ -1,1 +1,16 @@
-{ "extends": "@uniwork/tsconfig/react-library.json", "include": ["."] }
+{
+  "extends": "@uniwork/tsconfig/react-library.json",
+  "compilerOptions": {
+    // The shadcn CLI resolves the aliases in components.json through these
+    // paths. Without them `pnpm ui:add` refuses to run, and every primitive
+    // would have to be copied in by hand.
+    "paths": {
+      "@/lib/utils": ["./lib/utils.ts"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/components/ui/*": ["./components/ui/*"],
+      "@uniwork/ui/components": ["./components"],
+      "@uniwork/ui/lib": ["./lib"]
+    }
+  },
+  "include": ["."]
+}

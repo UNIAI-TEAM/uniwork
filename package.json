@@ -13,7 +13,8 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "turbo test --filter=!@uniwork/e2e",
-    "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs"
+    "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
+    "ui:add": "cd packages/ui && npx shadcn@latest add"
   },
   "devDependencies": {
     "turbo": "^2.5.0"
