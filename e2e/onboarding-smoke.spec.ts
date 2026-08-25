@@ -42,7 +42,10 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
   await expect(page).toHaveURL(new RegExp(`/to-chuc-${stamp}/doi-alpha/tasks$`));
   await expect(page.getByRole("button", { name: "Đã hiểu" })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Đã hiểu" }).click();
-  await expect(page).toHaveURL(/\/tasks\/[0-9A-Z]+$/);
+  // First client-side visit to the task detail route: under `make check` the
+  // dev server compiles it while Go's -race suite is hammering the machine,
+  // and that alone has exceeded the default 5s. Timing, not behaviour.
+  await expect(page).toHaveURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 15_000 });
   await expect(page.getByRole("textbox").first()).toHaveValue("Bắt đầu với UniWork");
 
   // Vào lại /onboarding khi đã onboard → bị đẩy về workspace

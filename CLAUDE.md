@@ -172,18 +172,27 @@ database and never reveal whether an id exists to a non-member.
 
 ## Web Features
 
+The workspace shell is `DashboardLayout` in `packages/views/layout/`: the
+gate (`DashboardGuard`: auth → onboarding → workspace), `WorkspaceProvider`
+(`useWorkspace()` / `useWorkspaceId()`), `WSProvider`, `AppSidebar`
+(`WorkspaceSwitcher` + one nav group) and `NavigationProgress`. The web
+layout at `apps/web/app/[orgSlug]/[workspaceSlug]/layout.tsx` only reads the
+route params and renders it.
+
 When adding a shared screen:
 
 1. Put the screen in `packages/views/<domain>/`.
-2. Wire the route in `apps/web/app/`; the workspace layout already composes
-   `DashboardGuard` (auth → onboarding → workspace) and `WSProvider`.
-3. Navigate with `useNavigation().push()` or `<AppLink>` in shared code.
-4. Keep platform-only UI in the app or inject it through props.
-5. Hooks that need workspace context accept `wsId`.
-
-Known debt (phase 5 of the base port): `packages/views/layout/sidebar.tsx`
-and the pages under `apps/web/app/` still use `useRouter` / plain anchors;
-new code must not add to that.
+2. Head it with the shell headers: `CollectionPageHeader` (icon, title,
+   count, actions) and `CollectionPageState` (empty / error, never mock
+   rows) for list screens; `BreadcrumbHeader` (`segments` › `leaf`,
+   `actions`) for detail screens; `PageHeader` for anything else. All in
+   `packages/views/layout/`.
+3. Wire the route in `apps/web/app/` — a page reads `useParams()` and renders
+   the view; the layout already provides the shell.
+4. Navigate with `useNavigation().push()` or `<AppLink>` in shared code.
+5. Keep platform-only UI in the app or inject it through props.
+6. Hooks that need workspace context accept `wsId`; screens rendered inside
+   the shell may read `useWorkspace()` for the slugs.
 
 ## UI Rules
 
@@ -195,7 +204,7 @@ new code must not add to that.
   colour. Font sizes come from the role-named `--text-*` scale
   (`text-caption`, `text-body`, `text-title`, …), not Tailwind's default ramp.
 - Every themed token is declared in BOTH `:root` and `.dark`; writing it as
-  `var(--uw-…)` does not exempt it (custom properties are computed, then
+  `var(--other-slot)` does not exempt it (custom properties are computed, then
   inherited — a `:root`-only slot carries the light value into every `.dark`
   subtree). `packages/ui/styles/tokens.test.ts` enforces it.
 - Every colour change is verified in both modes by
@@ -207,8 +216,10 @@ new code must not add to that.
   ≥ 44px on coarse pointers; the global `:focus-visible` outline is the focus
   indicator (no `outline-none` on interactive primitives); `StepperTitle`
   renders a `span`, not a heading.
-- The `--uw-*` aliases and `--color-text-secondary` are transitional; write
-  new code against the semantic slots.
+- The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`
+  fails on any `--uw-*` reference or pre-port utility (`bg-canvas`,
+  `text-tertiary`, `border-line`, …); `cn()` in `packages/ui/lib/utils.ts`
+  lists the colour names so tailwind-merge keeps colour and size apart.
 
 ## Testing
 
@@ -217,7 +228,7 @@ new code must not add to that.
 | Shared logic, stores, endpoints, hooks | `packages/core/**/*.test.ts(x)` |
 | Shared screens, components | `packages/views/**/*.test.tsx` |
 | Primitives, tokens | `packages/ui/**/*.test.ts(x)` |
-| Repo contracts (catalog, usf leak, turbo hash) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
+| Repo contracts (catalog, usf leak, legacy tokens, turbo hash) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
 | End-to-end flows | `e2e/*.spec.ts` |
 | Backend | `server/**/*_test.go` (test DB via `TEST_DATABASE_URL`, Redis via `REDIS_TEST_URL`) |
 
