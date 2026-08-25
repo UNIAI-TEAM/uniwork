@@ -6,7 +6,15 @@
     "create": "Tạo",
     "loading": "Đang tải…",
     "error": "Có lỗi xảy ra",
-    "empty": "Chưa có dữ liệu"
+    "empty": "Chưa có dữ liệu",
+    "back": "Quay lại",
+    "continue": "Tiếp tục",
+    "skip": "Bỏ qua",
+    "copy": "Sao chép",
+    "copied": "Đã sao chép",
+    "retry": "Thử lại",
+    "later": "Để sau",
+    "done": "Xong"
   },
   "auth": {
     "login": "Đăng nhập",
@@ -28,9 +36,22 @@
     "invite": "Mời thành viên",
     "inviteLink": "Link mời",
     "role": "Vai trò",
-    "acceptInvite": "Tham gia workspace"
+    "acceptInvite": "Tham gia workspace",
+    "new": "Workspace mới",
+    "pickTitle": "Chọn workspace",
+    "inviteEmails": "Email đồng nghiệp",
+    "inviteHint": "Nhập email, cách nhau bằng dấu phẩy hoặc Enter",
+    "invalidEmail": "Email không hợp lệ: {{email}}",
+    "inviteSent": "Đã tạo {{count}} lời mời",
+    "inviteSkipped": "Bỏ qua (đã là thành viên hoặc không hợp lệ): {{list}}",
+    "orgRole": "Vai trò tổ chức",
+    "guideBadge": "Hướng dẫn"
   },
-  "nav": { "tasks": "Công việc", "meetings": "Cuộc họp", "members": "Thành viên" },
+  "nav": {
+    "tasks": "Công việc",
+    "meetings": "Cuộc họp",
+    "members": "Thành viên"
+  },
   "tasks": {
     "title": "Công việc",
     "new": "Việc mới",
@@ -66,5 +87,205 @@
     "leave": "Rời phòng",
     "notes": "Biên bản",
     "notConfigured": "LiveKit chưa được cấu hình trên server"
+  },
+  "org": {
+    "name": "Tên tổ chức",
+    "slug": "Định danh tổ chức",
+    "create": "Tạo tổ chức",
+    "switch": "Chuyển workspace"
+  },
+  "invitations": {
+    "title": "Bạn có lời mời",
+    "subtitle": "Tham gia để bắt đầu làm việc cùng đồng nghiệp.",
+    "invitedBy": "{{name}} mời bạn vào",
+    "join": "Tham gia",
+    "joinAll": "Tham gia tất cả",
+    "empty": "Không có lời mời nào",
+    "role": "với vai trò {{role}}"
+  },
+  "onboarding": {
+    "step_nav": {
+      "wordmark": "UniWork",
+      "label": "Các bước khởi đầu",
+      "about_you": {
+        "label": "Về bạn",
+        "description": "Vai trò và điều bạn muốn làm."
+      },
+      "organization": {
+        "label": "Tổ chức",
+        "description": "Công ty hoặc đội nhóm của bạn."
+      },
+      "workspace": {
+        "label": "Workspace",
+        "description": "Đặt tên và chọn đường dẫn."
+      },
+      "invite": {
+        "label": "Mời đồng nghiệp",
+        "description": "Đưa cả đội vào cùng làm."
+      }
+    },
+    "common": {
+      "log_out": "Đăng xuất"
+    },
+    "welcome": {
+      "wordmark": "UniWork",
+      "headline_line1": "Công việc và cuộc họp của cả đội,",
+      "headline_line2": "trong",
+      "headline_emphasis": "một không gian.",
+      "lede": "Giao việc, kéo thẻ qua bảng, họp video ngay trong workspace — mọi người thấy cùng một bức tranh.",
+      "lede_secondary": "Vài phút nữa bạn sẽ có tổ chức, workspace đầu tiên và đồng nghiệp được mời vào.",
+      "start": "Bắt đầu",
+      "skip_existing": "Tôi đã dùng rồi",
+      "illustration_caption": "Một buổi sáng của đội bạn trên UniWork.",
+      "illustration": {
+        "card1_actor": "Lan",
+        "card1_initial": "L",
+        "card1_ref": "UW-42",
+        "card1_mention": "@Minh",
+        "card1_body": " xem giúp bản nháp đề xuất trước 3h nhé.",
+        "card2_actor": "Minh",
+        "card2_initial": "M",
+        "card2_ref": "UW-42",
+        "card2_body": "Đã sửa phần ngân sách, chuyển sang Đang làm.",
+        "card2_status": "Đang làm",
+        "card3_actor": "Cuộc họp",
+        "card3_ref": "14:00",
+        "card3_body": "Sync tuần · phòng video sẵn sàng trước 5 phút.",
+        "card3_status": "Sắp diễn ra",
+        "card4_actor": "Hà",
+        "card4_initial": "H",
+        "card4_ref": "UW-38",
+        "card4_body": "Hoàn thành onboarding khách hàng mới.",
+        "card4_status": "Hoàn thành",
+        "card4_timestamp": "10 phút trước",
+        "card5_actor": "Minh",
+        "card5_initial": "M",
+        "card5_ref": "UW-42",
+        "card5_prefix": "Xong rồi ",
+        "card5_mention": "@Lan",
+        "card5_body": " — mời bạn duyệt."
+      }
+    },
+    "questions": {
+      "about_you": {
+        "question": "Cho chúng tôi biết đôi chút về bạn."
+      },
+      "role": {
+        "question": "Bạn làm vai trò gì?",
+        "engineer": "Kỹ sư / phát triển",
+        "manager": "Quản lý",
+        "product": "Sản phẩm",
+        "ops": "Vận hành",
+        "sales": "Kinh doanh",
+        "hr": "Nhân sự",
+        "student": "Sinh viên",
+        "other": "Khác",
+        "other_placeholder": "Vai trò của bạn"
+      },
+      "use_case": {
+        "question": "Bạn muốn dùng UniWork để làm gì?",
+        "team_tasks": "Quản lý công việc nhóm",
+        "meetings": "Họp trực tuyến",
+        "personal_tasks": "Việc cá nhân",
+        "project_tracking": "Theo dõi dự án",
+        "other": "Khác",
+        "other_placeholder": "Mục đích khác"
+      }
+    },
+    "step_question": {
+      "hint_pick": "Chọn một mục để tiếp tục — hoặc bỏ qua nếu bạn không muốn trả lời.",
+      "hint_continue": "Ổn rồi. Nhấn Tiếp tục khi bạn sẵn sàng."
+    },
+    "step_organization": {
+      "headline_first": "Đặt tên tổ chức của bạn.",
+      "headline_resume": "Tiếp tục với {{name}}, hoặc tạo tổ chức khác.",
+      "lede_first": "Tổ chức là công ty hoặc đội nhóm; mọi workspace nằm trong đó. Bạn có thể tạo thêm sau.",
+      "lede_resume": "Chọn tổ chức bạn đã thuộc, hoặc tạo tổ chức mới.",
+      "name_label": "Tên tổ chức",
+      "name_placeholder": "Unicom, Đội Marketing, Lớp 12A…",
+      "url_label": "Đường dẫn",
+      "slug_placeholder": "unicom",
+      "create_new_title": "Tạo tổ chức mới",
+      "create_new_subtitle": "Bắt đầu một tổ chức riêng",
+      "hint_pick": "Chọn tổ chức hoặc tạo mới.",
+      "hint_name_first": "Đặt tên tổ chức để tạo.",
+      "hint_creating": "Sẽ tạo {{name}}.",
+      "hint_creating_pending": "Đang tạo {{name}}…",
+      "hint_opening": "Tiếp tục với {{name}}.",
+      "cta_create": "Tạo tổ chức",
+      "cta_create_named": "Tạo {{name}}",
+      "cta_creating": "Đang tạo…",
+      "cta_open": "Tiếp tục với {{name}}",
+      "slug_taken_error": "Định danh tổ chức này đã có người dùng.",
+      "slug_conflict_toast": "Hãy chọn định danh tổ chức khác"
+    },
+    "step_workspace": {
+      "headline_first": "Đặt tên workspace.",
+      "headline_resume": "Tiếp tục với {{name}}, hoặc tạo workspace khác.",
+      "lede_first": "Workspace là nơi công việc và cuộc họp của một đội sống. Bạn có thể mời đồng nghiệp hoặc tạo thêm workspace sau.",
+      "lede_resume": "Tiếp tục với workspace bạn đã tạo, hoặc tạo cái mới.",
+      "name_label": "Tên workspace",
+      "name_placeholder": "Đội sản phẩm, Dự án Alpha, Việc riêng…",
+      "random_name": "Ngẫu nhiên",
+      "url_label": "Đường dẫn",
+      "slug_placeholder": "doi-san-pham",
+      "url_preview_label": "Đường dẫn workspace",
+      "url_preview_prefix": "Đội bạn sẽ mở workspace tại ",
+      "url_preview_suffix": ".",
+      "create_new_title": "Tạo workspace mới",
+      "create_new_subtitle": "Bắt đầu một workspace trống",
+      "hint_pick": "Chọn workspace hoặc tạo mới.",
+      "hint_name_first": "Đặt tên workspace để tạo.",
+      "hint_creating": "Sẽ tạo {{name}}.",
+      "hint_creating_pending": "Đang tạo {{name}}…",
+      "hint_creating_fallback": "workspace",
+      "hint_opening": "Mở {{name}}.",
+      "cta_create_workspace": "Tạo workspace",
+      "cta_create_named": "Tạo {{name}}",
+      "cta_creating": "Đang tạo…",
+      "cta_open": "Mở {{name}}",
+      "slug_format_error": "Chỉ dùng chữ thường, số và dấu gạch ngang",
+      "slug_reserved_error": "Định danh này được hệ thống dành riêng",
+      "slug_taken_error": "Định danh này đã có người dùng.",
+      "slug_conflict_toast": "Hãy chọn định danh khác",
+      "create_failed_toast": "Không tạo được. Vui lòng thử lại."
+    },
+    "step_invite": {
+      "headline": "Mời đồng nghiệp vào {{workspace}}.",
+      "lede": "Nhập email của những người sẽ làm việc cùng bạn. Họ nhận link mời và vào thẳng workspace.",
+      "emails_label": "Email đồng nghiệp",
+      "role_label": "Vai trò",
+      "role_member": "Thành viên",
+      "role_admin": "Quản trị",
+      "send": "Gửi lời mời",
+      "sending": "Đang gửi…",
+      "sent_title": "Đã tạo {{count}} lời mời",
+      "sent_hint": "Gửi link cho từng người (email tự động sẽ có trong đợt sau).",
+      "skipped_note": "Bỏ qua {{count}} email (đã là thành viên hoặc không hợp lệ).",
+      "hint_empty": "Thêm ít nhất một email — hoặc bỏ qua, mời sau ở trang Thành viên.",
+      "hint_ready": "Sẵn sàng gửi {{count}} lời mời.",
+      "hint_done": "Bạn có thể thêm đợt nữa, hoặc hoàn tất.",
+      "finish": "Hoàn tất",
+      "skip": "Bỏ qua, mời sau",
+      "send_failed": "Không gửi được lời mời"
+    },
+    "welcome_after_onboarding": {
+      "loading": "Đang chuẩn bị workspace của bạn…",
+      "title": "Chào mừng đến UniWork!",
+      "subtitle": "Chúng tôi đã thêm một task hướng dẫn để bạn bắt đầu.",
+      "got_it": "Đã hiểu",
+      "status_in_progress": "Đang làm",
+      "card_title": "Bắt đầu với UniWork",
+      "card_subtitle": "Tạo việc, kéo qua bảng, lên lịch họp — trong 5 phút.",
+      "error_title": "Chưa chuẩn bị được workspace",
+      "error_body": "Task hướng dẫn chưa được tạo. Bạn có thể thử lại, hoặc để sau.",
+      "retry": "Thử lại",
+      "dismiss": "Để sau"
+    },
+    "errors": {
+      "save_failed": "Không lưu được câu trả lời",
+      "skip_failed": "Không thể hoàn tất phần khởi đầu",
+      "complete_failed": "Không thể hoàn tất. Vui lòng thử lại."
+    }
   }
 }
