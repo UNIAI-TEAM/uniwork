@@ -1,0 +1,31 @@
+{
+  "name": "@uniwork/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "sh -c 'next dev --port \"${FRONTEND_PORT:-3000}\"'",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@uniwork/ui": "workspace:*",
+    "next": "^16.2.5",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@uniwork/eslint-config": "workspace:*",
+    "@uniwork/tsconfig": "workspace:*",
+    "eslint": "^9.32.0",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,20 @@
+@import "tailwindcss";
+@import "@uniwork/ui/styles/tokens.css";
+@import "@uniwork/ui/styles/base.css";
+
+@theme inline {
+  --color-canvas: var(--uw-canvas);
+  --color-surface: var(--uw-surface);
+  --color-subtle: var(--uw-subtle);
+  --color-primary: var(--uw-text-primary);
+  --color-secondary: var(--uw-text-secondary);
+  --color-tertiary: var(--uw-text-tertiary);
+  --color-inverse: var(--uw-text-inverse);
+  --color-line: var(--uw-line);
+  --color-line-strong: var(--uw-line-strong);
+  --color-brand: var(--uw-brand);
+  --color-on-brand: var(--uw-on-brand);
+  --color-danger: var(--uw-danger);
+  --color-success: var(--uw-success);
+  --color-warning: var(--uw-warning);
+}

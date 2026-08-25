@@ -1,0 +1,43 @@
+/* UniWork design tokens. Light mặc định; dark qua .dark trên <html>.
+   Views không được hardcode màu — chỉ dùng các biến/class token. */
+:root {
+  /* nền */
+  --uw-canvas: #fafafa;
+  --uw-surface: #ffffff;
+  --uw-subtle: #f4f4f5;
+  /* chữ */
+  --uw-text-primary: #18181b;
+  --uw-text-secondary: #52525b;
+  --uw-text-tertiary: #a1a1aa;
+  --uw-text-inverse: #fafafa;
+  /* viền */
+  --uw-line: #e4e4e7;
+  --uw-line-strong: #d4d4d8;
+  /* brand + signal (màu là tín hiệu, không trang trí) */
+  --uw-brand: #2f5aff;
+  --uw-on-brand: #ffffff;
+  --uw-danger: #dc2626;
+  --uw-success: #16a34a;
+  --uw-warning: #d97706;
+  /* khác */
+  --uw-radius: 6px;
+  --uw-focus: #2f5aff;
+}
+
+.dark {
+  --uw-canvas: #111113;
+  --uw-surface: #18181b;
+  --uw-subtle: #232326;
+  --uw-text-primary: #f4f4f5;
+  --uw-text-secondary: #a1a1aa;
+  --uw-text-tertiary: #6b6b74;
+  --uw-text-inverse: #18181b;
+  --uw-line: #2a2a2e;
+  --uw-line-strong: #3b3b41;
+  --uw-brand: #6584ff;
+  --uw-on-brand: #0d1220;
+  --uw-danger: #f87171;
+  --uw-success: #4ade80;
+  --uw-warning: #fbbf24;
+  --uw-focus: #6584ff;
+}
