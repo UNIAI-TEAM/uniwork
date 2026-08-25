@@ -1,0 +1,25 @@
+// GENERATED from server/internal/service/reserved_slugs.json — pnpm generate:reserved-slugs
+export const RESERVED_SLUGS = [
+  "_next",
+  "admin",
+  "api",
+  "assets",
+  "auth",
+  "healthz",
+  "invitations",
+  "invite",
+  "login",
+  "me",
+  "meetings",
+  "members",
+  "new",
+  "onboarding",
+  "orgs",
+  "public",
+  "register",
+  "settings",
+  "static",
+  "tasks",
+  "workspaces",
+  "ws"
+] as const;

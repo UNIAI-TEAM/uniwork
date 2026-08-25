@@ -21,11 +21,14 @@ func taskFixture(t *testing.T) (*TaskService, *capturePublisher, db.User, db.Use
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour)
-	ws := NewWorkspaceService(q)
+	orgs := NewOrganizationService(q)
+	ws := NewWorkspaceService(pool, q, orgs)
 	ctx := context.Background()
 	sa, _ := as.Register(ctx, "a@example.com", "password123", "A")
 	sb, _ := as.Register(ctx, "b@example.com", "password123", "B")
-	w, _ := ws.Create(ctx, sa.User.ID, "Alpha", "alpha")
+	org, _ := orgs.Create(ctx, sa.User.ID, "Org", "org-alpha")
+	v, _ := ws.CreateInOrg(ctx, sa.User.ID, org.ID, "Alpha", "alpha")
+	w := v.Workspace
 	pub := &capturePublisher{}
 	return NewTaskService(q, ws, pub), pub, sa.User, sb.User, w
 }

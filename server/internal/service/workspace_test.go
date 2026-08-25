@@ -5,76 +5,157 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// fixture: tạo 2 user, trả (WorkspaceService, userA, userB)
-func wsFixture(t *testing.T) (*WorkspaceService, db.User, db.User) {
+type wsFix struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+	orgs *OrganizationService
+	ws   *WorkspaceService
+	ua   db.User
+	ub   db.User
+	uc   db.User
+	org  db.Organization
+}
+
+// fixture: 3 user; A tạo org "unicom".
+func wsFixture(t *testing.T) wsFix {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour)
 	ctx := context.Background()
-	sa, err := as.Register(ctx, "a@example.com", "password123", "A")
+	reg := func(email, name string) db.User {
+		s, err := as.Register(ctx, email, "password123", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.User
+	}
+	ua, ub, uc := reg("a@example.com", "A"), reg("b@example.com", "B"), reg("c@example.com", "C")
+	orgs := NewOrganizationService(q)
+	org, err := orgs.Create(ctx, ua.ID, "Unicom", "unicom")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sb, err := as.Register(ctx, "b@example.com", "password123", "B")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return NewWorkspaceService(q), sa.User, sb.User
+	return wsFix{pool: pool, q: q, orgs: orgs, ws: NewWorkspaceService(pool, q, orgs), ua: ua, ub: ub, uc: uc, org: org}
 }
 
-func TestCreateAndMembership(t *testing.T) {
-	s, ua, ub := wsFixture(t)
+func TestCreateInOrgAndAccess(t *testing.T) {
+	f := wsFixture(t)
 	ctx := context.Background()
 
-	w, err := s.Create(ctx, ua.ID, "Đội Alpha", "doi-alpha")
-	if err != nil {
-		t.Fatal(err)
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err != nil || w.OrganizationSlug != "unicom" {
+		t.Fatalf("create: %v %+v", err, w)
 	}
-	m, err := s.RequireMember(ctx, w.ID, ua.ID)
-	if err != nil || m.Role != "owner" {
-		t.Fatalf("owner membership: %v role=%s", err, m.Role)
+	if m, err := f.ws.RequireMember(ctx, w.ID, f.ua.ID); err != nil || m.Role != "owner" {
+		t.Fatalf("owner: %v %s", err, m.Role)
 	}
-	if _, err := s.RequireMember(ctx, w.ID, ub.ID); err != ErrForbidden {
-		t.Fatalf("non-member: got %v, want ErrForbidden", err)
+	if _, err := f.ws.RequireMember(ctx, w.ID, f.ub.ID); err != ErrForbidden {
+		t.Fatalf("outsider: %v", err)
 	}
-	if _, err := s.GetBySlug(ctx, ub.ID, "doi-alpha"); err != ErrNotFound {
-		t.Fatalf("non-member GetBySlug: got %v", err)
+	// B không thuộc org → không tạo được workspace trong org
+	if _, err := f.ws.CreateInOrg(ctx, f.ub.ID, f.org.ID, "X", "x-ws"); err != ErrForbidden {
+		t.Fatalf("outsider create: %v", err)
 	}
-	if _, err := s.Create(ctx, ub.ID, "Khác", "doi-alpha"); err != ErrConflict {
-		t.Fatalf("dup slug: got %v", err)
+	// trùng slug trong cùng org → conflict; slug đó ở org khác → OK
+	if _, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Khác", "doi-alpha"); err != ErrConflict {
+		t.Fatalf("dup slug: %v", err)
 	}
-	if _, err := s.Create(ctx, ua.ID, "X", "Bad Slug!"); err == nil {
-		t.Fatal("invalid slug accepted")
+	org2, _ := f.orgs.Create(ctx, f.ub.ID, "Org B", "org-b")
+	if _, err := f.ws.CreateInOrg(ctx, f.ub.ID, org2.ID, "Alpha của B", "doi-alpha"); err != nil {
+		t.Fatalf("same slug other org: %v", err)
+	}
+	if _, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "X", "login"); err == nil {
+		t.Fatal("reserved slug accepted")
+	}
+	got, err := f.ws.GetBySlugs(ctx, f.ua.ID, "unicom", "doi-alpha")
+	if err != nil || got.ID != w.ID {
+		t.Fatalf("GetBySlugs: %v", err)
+	}
+	if _, err := f.ws.GetBySlugs(ctx, f.ub.ID, "unicom", "doi-alpha"); err != ErrNotFound {
+		t.Fatalf("outsider GetBySlugs: %v", err)
 	}
 }
 
-func TestInviteFlow(t *testing.T) {
-	s, ua, ub := wsFixture(t)
+func TestOrgAdminSeesAllWorkspaces(t *testing.T) {
+	f := wsFixture(t)
 	ctx := context.Background()
-	w, _ := s.Create(ctx, ua.ID, "Đội Alpha", "doi-alpha")
-
-	// người ngoài workspace không được mời
-	if _, err := s.Invite(ctx, ub.ID, w.ID, "c@example.com", "member"); err != ErrForbidden {
-		t.Fatalf("outsider invite: got %v", err)
+	// C là org admin nhưng không có dòng workspace_members
+	if err := f.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: f.org.ID, UserID: f.uc.ID, Role: "admin"}); err != nil {
+		t.Fatal(err)
 	}
-	inv, err := s.Invite(ctx, ua.ID, w.ID, "b@example.com", "member")
+	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	m, err := f.ws.RequireMember(ctx, w.ID, f.uc.ID)
+	if err != nil || m.Role != "admin" {
+		t.Fatalf("org admin access: %v role=%q", err, m.Role)
+	}
+	list, err := f.ws.ListForUser(ctx, f.uc.ID)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("org admin list: %v n=%d", err, len(list))
+	}
+	// member thường của org không tự động vào
+	if err := f.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: f.org.ID, UserID: f.ub.ID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ws.RequireMember(ctx, w.ID, f.ub.ID); err != ErrForbidden {
+		t.Fatalf("org member without ws membership: %v", err)
+	}
+}
+
+func TestInviteManyAndAccept(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+
+	if _, _, err := f.ws.InviteMany(ctx, f.ub.ID, w.ID, []string{"c@example.com"}, "member"); err != ErrForbidden {
+		t.Fatalf("outsider invite: %v", err)
+	}
+	invs, skipped, err := f.ws.InviteMany(ctx, f.ua.ID, w.ID,
+		[]string{"B@example.com", "b@example.com", "a@example.com", "not-an-email", "c@example.com"}, "member")
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := s.AcceptInvite(ctx, ub.ID, inv.Token)
+	if len(invs) != 2 { // b, c (a là thành viên → skipped; dup + email sai bị loại)
+		t.Fatalf("want 2 invitations, got %d", len(invs))
+	}
+	if len(skipped) != 2 { // a@example.com (đã là thành viên), not-an-email
+		t.Fatalf("want 2 skipped, got %v", skipped)
+	}
+	pend, err := f.ws.PendingInvitations(ctx, f.ub.ID)
+	if err != nil || len(pend) != 1 || pend[0].OrganizationSlug != "unicom" {
+		t.Fatalf("pending: %v %+v", err, pend)
+	}
+	before, _ := f.q.GetUserByID(ctx, f.ub.ID)
+	if before.OnboardedAt.Valid {
+		t.Fatal("B should not be onboarded before accept")
+	}
+	got, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token)
 	if err != nil || got.ID != w.ID {
 		t.Fatalf("accept: %v", err)
 	}
-	if _, err := s.RequireMember(ctx, w.ID, ub.ID); err != nil {
-		t.Fatal("member not added after accept")
+	if _, err := f.ws.RequireMember(ctx, w.ID, f.ub.ID); err != nil {
+		t.Fatal("ws member not added")
 	}
-	// token dùng lại → not found
-	if _, err := s.AcceptInvite(ctx, ub.ID, inv.Token); err != ErrNotFound {
-		t.Fatalf("reused invite: got %v", err)
+	if _, err := f.orgs.RequireMember(ctx, f.org.ID, f.ub.ID); err != nil {
+		t.Fatal("org member not added")
+	}
+	after, _ := f.q.GetUserByID(ctx, f.ub.ID)
+	if !after.OnboardedAt.Valid {
+		t.Fatal("accept must mark user onboarded")
+	}
+	if _, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token); err != ErrNotFound {
+		t.Fatalf("reused token: %v", err)
+	}
+	if _, _, err := f.ws.InviteMany(ctx, f.ua.ID, w.ID, nil, "member"); err == nil {
+		t.Fatal("empty emails accepted")
+	}
+	if _, _, err := f.ws.InviteMany(ctx, f.ua.ID, w.ID, []string{"d@example.com"}, "owner"); err == nil {
+		t.Fatal("role owner accepted")
 	}
 }

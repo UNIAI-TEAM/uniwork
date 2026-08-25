@@ -32,7 +32,8 @@ func main() {
 	defer pool.Close()
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
-	wsSvc := service.NewWorkspaceService(q)
+	orgSvc := service.NewOrganizationService(q)
+	wsSvc := service.NewWorkspaceService(pool, q, orgSvc)
 	hub := realtime.NewHub()
 	pub, err := realtime.NewPublisher(hub, cfg.RedisURL, log)
 	if err != nil {
