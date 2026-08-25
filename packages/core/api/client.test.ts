@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ApiError, request } from "./client";
 import { setAccessToken } from "./session";
+import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 
 const okJson = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -10,11 +11,13 @@ describe("request", () => {
   beforeEach(() => {
     setAccessToken("tok-1");
     vi.stubGlobal("fetch", vi.fn());
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.test");
+    // The base URL now arrives through the platform injection point rather
+    // than the environment, so the test configures it the same way the app does.
+    configureRuntime({ apiUrl: "http://api.test" });
   });
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
+    resetRuntimeConfig();
     setAccessToken(null);
   });
 

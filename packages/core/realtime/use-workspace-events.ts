@@ -2,6 +2,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { getAccessToken } from "../api/session";
+import { runtimeConfig } from "../runtime-config";
 import { WorkspaceEventSchema } from "../types";
 
 export function useWorkspaceEvents(workspaceId: string) {
@@ -16,7 +17,7 @@ export function useWorkspaceEvents(workspaceId: string) {
     const connect = () => {
       const token = getAccessToken();
       if (!token) return;
-      const base = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080";
+      const base = runtimeConfig().wsUrl;
       ws = new WebSocket(`${base}/api/v1/ws?workspace=${workspaceId}&token=${token}`);
       ws.onmessage = (msg) => {
         const parsed = WorkspaceEventSchema.safeParse(JSON.parse(String(msg.data)));

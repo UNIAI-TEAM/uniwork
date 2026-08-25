@@ -24,7 +24,8 @@
     "./paths": "./paths/index.ts",
     "./organizations": "./organizations/hooks.ts",
     "./onboarding": "./onboarding/index.ts",
-    "./config": "./config.ts"
+    "./config": "./config.ts",
+    "./runtime-config": "./runtime-config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:",

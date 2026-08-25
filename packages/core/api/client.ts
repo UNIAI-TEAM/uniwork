@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import { SessionResponseSchema, type SessionResponse } from "../types";
 import { getAccessToken, setAccessToken } from "./session";
+import { runtimeConfig } from "../runtime-config";
 
 export class ApiError extends Error {
   constructor(
@@ -13,7 +14,7 @@ export class ApiError extends Error {
 }
 
 function baseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+  return runtimeConfig().apiUrl;
 }
 
 interface RequestOpts<T> {
