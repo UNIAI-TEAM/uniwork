@@ -20,6 +20,7 @@ type Deps struct {
 	Minter     auth.TokenMinter
 	Auth       *service.AuthService
 	Workspaces *service.WorkspaceService
+	Tasks      *service.TaskService
 }
 
 type handlers struct {
@@ -51,6 +52,13 @@ func New(d Deps) http.Handler {
 			r.Get("/workspaces/{workspaceID}/members", h.listMembers)
 			r.Post("/workspaces/{workspaceID}/invitations", h.createInvitation)
 			r.Post("/invitations/{token}/accept", h.acceptInvitation)
+			r.Get("/workspaces/{workspaceID}/tasks", h.listTasks)
+			r.Post("/workspaces/{workspaceID}/tasks", h.createTask)
+			r.Get("/tasks/{taskID}", h.getTask)
+			r.Patch("/tasks/{taskID}", h.updateTask)
+			r.Delete("/tasks/{taskID}", h.deleteTask)
+			r.Get("/tasks/{taskID}/comments", h.listComments)
+			r.Post("/tasks/{taskID}/comments", h.createComment)
 		})
 	})
 	return r

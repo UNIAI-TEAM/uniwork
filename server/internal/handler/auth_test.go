@@ -28,6 +28,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Minter:     minter,
 		Auth:       service.NewAuthService(q, minter, time.Hour),
 		Workspaces: service.NewWorkspaceService(q),
+		Tasks:      service.NewTaskService(q, service.NewWorkspaceService(q), service.NopPublisher{}),
 	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)

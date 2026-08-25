@@ -31,10 +31,13 @@ func main() {
 	defer pool.Close()
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
+	wsSvc := service.NewWorkspaceService(q)
+	var pub service.EventPublisher = service.NopPublisher{} // Task 8 thay bằng realtime publisher
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:       service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
-		Workspaces: service.NewWorkspaceService(q),
+		Workspaces: wsSvc,
+		Tasks:      service.NewTaskService(q, wsSvc, pub),
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {

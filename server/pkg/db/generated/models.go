@@ -28,6 +28,29 @@ type RefreshToken struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Task struct {
+	ID          string             `json:"id"`
+	WorkspaceID string             `json:"workspace_id"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	Status      string             `json:"status"`
+	Priority    string             `json:"priority"`
+	AssigneeID  pgtype.Text        `json:"assignee_id"`
+	DueDate     pgtype.Date        `json:"due_date"`
+	Position    float64            `json:"position"`
+	CreatedBy   string             `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TaskComment struct {
+	ID        string             `json:"id"`
+	TaskID    string             `json:"task_id"`
+	AuthorID  string             `json:"author_id"`
+	Body      string             `json:"body"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type User struct {
 	ID           string             `json:"id"`
 	Email        string             `json:"email"`
