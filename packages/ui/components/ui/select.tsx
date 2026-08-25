@@ -29,7 +29,7 @@ export function Select({
     >
       <BaseSelect.Trigger
         className={cn(
-          "flex h-8 w-full items-center justify-between rounded-[var(--uw-radius)] border border-line bg-surface px-2.5 text-sm text-primary",
+          "flex h-8 w-full items-center justify-between rounded-[var(--uw-radius)] border border-line-loud bg-surface px-2.5 text-body text-primary",
           className,
         )}
       >

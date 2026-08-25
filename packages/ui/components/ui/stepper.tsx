@@ -359,17 +359,21 @@ function StepperSeparator({ className }: React.ComponentProps<"div">) {
   )
 }
 
-function StepperTitle({ children, className }: React.ComponentProps<"h3">) {
+function StepperTitle({ children, className }: React.ComponentProps<"span">) {
   const { state } = useStepItem()
 
+  // Không phải <h3>: tên bước là NHÃN của một control điều hướng, không phải
+  // tiêu đề của một mục nội dung. Dựng chúng thành heading sẽ chèn bốn h3 vào
+  // dàn ý tài liệu TRƯỚC h1 của trang, và screen reader ở chế độ duyệt heading
+  // sẽ nhảy vào rail thay vì vào nội dung bước.
   return (
-    <h3
+    <span
       data-slot="stepper-title"
       data-state={state}
-      className={cn("text-label font-medium", className)}
+      className={cn("block text-label font-medium", className)}
     >
       {children}
-    </h3>
+    </span>
   )
 }
 

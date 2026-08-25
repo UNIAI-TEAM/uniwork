@@ -8,11 +8,16 @@
   /* chữ */
   --uw-text-primary: #18181b;
   --uw-text-secondary: #52525b;
-  --uw-text-tertiary: #a1a1aa;
+  --uw-text-tertiary: #6d6d76;
   --uw-text-inverse: #fafafa;
   /* viền */
   --uw-line: #e4e4e7;
   --uw-line-strong: #d4d4d8;
+  /* Đường bao của MỌI control (ô nhập, chip chọn, chấm bước) — phải đạt 3:1
+     theo WCAG 1.4.11, đo trên cả ba nền nó nằm lên: canvas, surface, subtle.
+     Sáng: 3.41 / 3.56 / 3.24. `--uw-line` (1.27:1) chỉ dành cho đường phân
+     cách và mép thẻ, nơi không có control nào cần nhận diện. */
+  --uw-line-loud: #87878f;
   /* brand + signal (màu là tín hiệu, không trang trí) */
   --uw-brand: #2f5aff;
   --uw-brand-soft: #eef2ff;
@@ -20,9 +25,19 @@
   --uw-danger: #dc2626;
   --uw-success: #16a34a;
   --uw-warning: #d97706;
+  /* Bản chữ của màu signal: fill/icon dùng màu trên, CHỮ dùng màu dưới (>=4.5:1). */
+  --uw-danger-text: #dc2626;
+  --uw-success-text: #15803d;
+  --uw-warning-text: #a1580a;
   /* khác */
   --uw-radius: 6px;
   --uw-focus: #2f5aff;
+  --uw-select-bg: #d9e1ff;
+  --uw-select-fg: #18181b;
+  /* Rail onboarding luôn là panel tối, ở CẢ hai theme — nên định nghĩa một lần
+     ở :root và KHÔNG override trong .dark. Nhấc trên --uw-canvas dark để rail
+     vẫn tách khỏi nền khi toàn app ở dark mode. */
+  --uw-rail-bg: #1b1b1f;
 }
 
 .dark {
@@ -31,15 +46,23 @@
   --uw-subtle: #232326;
   --uw-text-primary: #f4f4f5;
   --uw-text-secondary: #a1a1aa;
-  --uw-text-tertiary: #6b6b74;
+  --uw-text-tertiary: #8b8b95;
   --uw-text-inverse: #18181b;
   --uw-line: #2a2a2e;
   --uw-line-strong: #3b3b41;
+  /* Tối: 3.68 canvas / 3.46 surface / 3.06 subtle / 3.35 rail. #6b6b74 cũ rơi
+     xuống 2.97 trên `subtle` — nền của pill slug — nên trượt đúng ở đó. */
+  --uw-line-loud: #6d6d76;
   --uw-brand: #6584ff;
   --uw-brand-soft: #1b2340;
   --uw-on-brand: #0d1220;
   --uw-danger: #f87171;
   --uw-success: #4ade80;
   --uw-warning: #fbbf24;
+  --uw-danger-text: #f87171;
+  --uw-success-text: #4ade80;
+  --uw-warning-text: #fbbf24;
   --uw-focus: #6584ff;
+  --uw-select-bg: #2b3a72;
+  --uw-select-fg: #f4f4f5;
 }

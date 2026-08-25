@@ -17,11 +17,15 @@
   --color-inverse: var(--uw-text-inverse);
   --color-line: var(--uw-line);
   --color-line-strong: var(--uw-line-strong);
+  --color-line-loud: var(--uw-line-loud);
   --color-brand: var(--uw-brand);
   --color-on-brand: var(--uw-on-brand);
   --color-danger: var(--uw-danger);
   --color-success: var(--uw-success);
   --color-warning: var(--uw-warning);
+  --color-danger-text: var(--uw-danger-text);
+  --color-success-text: var(--uw-success-text);
+  --color-warning-text: var(--uw-warning-text);
   --color-brand-soft: var(--uw-brand-soft);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
@@ -36,4 +40,10 @@
   --text-title-lg: 20px;   --text-title-lg--line-height: 28px;
   --text-display-sm: 24px; --text-display-sm--line-height: 32px;
   --text-display: 36px;    --text-display--line-height: 40px;
+  /* Vai trò hero (chỉ dùng cho headline dẫn dắt màn hình). Leading và tracking
+     gắn liền cỡ chữ: chữ càng lớn thì càng cần leading chặt và tracking âm hơn,
+     nên để chúng nằm trong token thay vì phải nhớ ghép tay ở từng chỗ dùng. */
+  --text-hero-sm: 36px;    --text-hero-sm--line-height: 38px;  --text-hero-sm--letter-spacing: -0.02em;
+  --text-hero: 48px;       --text-hero--line-height: 50px;     --text-hero--letter-spacing: -0.025em;
+  --text-hero-lg: 60px;    --text-hero-lg--line-height: 62px;  --text-hero-lg--letter-spacing: -0.03em;
 }

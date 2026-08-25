@@ -1,15 +1,48 @@
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; height: 100%; }
-body {
-  background: var(--uw-canvas);
-  color: var(--uw-text-primary);
-  font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif);
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+/* Đặt trong `@layer base` chứ không để trần.
+ *
+ * `@import "tailwindcss"` xếp mọi utility vào layer; CSS KHÔNG layer luôn thắng
+ * CSS có layer bất kể specificity. Khi file này để trần, `:focus-visible` bên
+ * dưới đè mọi `focus:outline-none` của Tailwind ở khắp app — không component nào
+ * từ chối được viền focus toàn cục, và những chỗ tự vẽ ring sẽ hiện HAI vòng
+ * lồng nhau. Vào layer `base` thì utility lại thắng được, đúng như mong đợi. */
+@layer base {
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--uw-canvas);
+    color: var(--uw-text-primary);
+    font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--uw-focus); outline-offset: 2px; }
 }
-:focus-visible { outline: 2px solid var(--uw-focus); outline-offset: 2px; }
+
+/* iOS Safari tự phóng to cả trang khi focus vào input có cỡ chữ dưới 16px, và
+   không thu lại — layout form vỡ giữa chừng lúc đang gõ. Body 14px là chủ ý cho
+   một app dày đặc, nhưng riêng ô nhập trên thiết bị cảm ứng phải đạt 16px. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
+}
+
+/* Bề mặt do trình duyệt vẽ: mặc định của chúng không thuộc hệ màu nào.
+   Chọn selection/caret/scrollbar từ palette để mọi pixel đều là chủ ý. */
+::selection { background: var(--uw-select-bg); color: var(--uw-select-fg); }
+input, textarea, [contenteditable] { caret-color: var(--uw-brand); }
+* { scrollbar-color: var(--uw-line-loud) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--uw-line-loud);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--uw-text-secondary); background-clip: content-box; }
+/* Số trong bảng/đo lường xếp thẳng cột. */
+.font-mono, [data-tabular] { font-variant-numeric: tabular-nums; }
 
 /* Onboarding: chỉ đổi opacity — transform trên root h-full bị tính vào
    scrollable overflow của parent → nháy scrollbar mỗi bước (bài học usf). */
@@ -25,6 +58,18 @@ body {
 }
 .animate-welcome-emoji-pop { animation: welcome-emoji-pop 0.7s cubic-bezier(0.4, 0, 0.2, 1) both; }
 
+/* Backstop cho toàn hệ, thay vì liệt kê từng class — mọi animation mới đều được
+   bọc sẵn. Chủ ý là GIẢM chứ không TẮT: rút ngắn thời lượng và cắt vòng lặp vô
+   hạn, nhưng giữ lại chuyển đổi opacity/màu vì chúng mang thông tin trạng thái.
+   Đặt animation về 0.01ms sẽ xoá luôn phản hồi cho biết thao tác đã ăn. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-onboarding-enter, .animate-welcome-emoji-pop { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.15s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+  }
+  html { scroll-behavior: auto !important; }
+  /* Emoji pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
+  .animate-welcome-emoji-pop { animation-name: onboarding-enter; }
 }
