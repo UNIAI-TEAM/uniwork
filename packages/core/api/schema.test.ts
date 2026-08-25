@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { parseWithFallback, setSchemaLogger } from "./schema";
+import type { Logger } from "../logger";
+
+/** A Logger whose warn channel the test can watch; the rest is inert. */
+const testLogger = (warn: Logger["warn"]): Logger => ({
+  debug: () => {},
+  info: () => {},
+  warn,
+  error: () => {},
+});
 
 /**
  * `parseWithFallback` is the boundary defence that turns "the API contract
@@ -8,7 +17,7 @@ import { parseWithFallback, setSchemaLogger } from "./schema";
  * The usf suite that shipped with this file tested that repo's endpoints
  * rather than the guard itself, so it stayed behind; this covers the guard.
  */
-afterEach(() => setSchemaLogger({ warn: () => {}, error: () => {} }));
+afterEach(() => setSchemaLogger(testLogger(() => {})));
 
 const User = z.object({ id: z.string(), name: z.string() });
 
@@ -38,7 +47,7 @@ describe("parseWithFallback", () => {
 
   it("reports the endpoint and the zod issues so drift is greppable", () => {
     const warn = vi.fn();
-    setSchemaLogger({ warn, error: () => {} });
+    setSchemaLogger(testLogger(warn));
     parseWithFallback({}, User, { id: "", name: "" }, { endpoint: "GET /me" });
     expect(warn).toHaveBeenCalledTimes(1);
     const [message, context] = warn.mock.calls[0] as [
@@ -52,7 +61,7 @@ describe("parseWithFallback", () => {
 
   it("stays silent on success", () => {
     const warn = vi.fn();
-    setSchemaLogger({ warn, error: () => {} });
+    setSchemaLogger(testLogger(warn));
     parseWithFallback(
       { id: "1", name: "Quang" },
       User,
