@@ -180,3 +180,51 @@ cd server && gofmt -l . && go vet ./... && go test ./... -count=1
 cd .. && node --test scripts/no-usf-leak.test.mjs && pnpm typecheck && pnpm test && pnpm --filter @uniwork/e2e test
 ```
 - [ ] **Step 3:** Commit. Ghi "Ghi chép thực thi" vào cuối plan này.
+
+---
+
+## Ghi chép thực thi (2026-08-25)
+
+Hoàn tất trên `feat/base-port-phase-0-1`, 9 commit. Mọi cổng ra xanh: `gofmt`/`go vet`/`go test ./...`
+(có Redis thật cho rate-limit và membership cache) · leak gate quét cả `*.go` · typecheck/test/lint FE ·
+turbo probe · catalog · web build · **13/13 e2e** trên server đã restart với code mới · `/metrics` đo trên
+server đang chạy (`uniwork_http_requests_total{route="/api/v1/me"…}`).
+
+### Điều plan đoán sai hoặc phải quyết tại chỗ
+
+**1. Runner migration.** Bẫy A đúng như dự đoán: `CREATE INDEX CONCURRENTLY` bị PostgreSQL từ chối trong
+transaction (SQLSTATE 25001) — chứng minh bằng probe trước khi sửa. Runner giờ chạy từng file ngoài
+transaction; hai luật no-FK / CONCURRENTLY được lint kèm baseline `004`, và đã chứng minh luật bắn bằng
+một migration xấu tạm thời.
+
+**2. Hub realtime.** Port nguyên khối được, nhưng phần gỡ nhiều hơn plan liệt kê: `DaemonRuntimeDeliverer`
+xuất hiện ở **4 file** (broadcaster, redis_relay, sharded_stream_relay, relay_lifecycle), không chỉ hai.
+`MirroredRelay` có nhánh bỏ qua mirror cho scope daemon. Một test (`TestMirroredRelayDoesNotMirrorDaemonRuntimeEvents`)
+bị cắt — lần cắt đầu nuốt luôn kiểu `recordingManagedRelay` nằm sau nó; phải cắt lại theo cân bằng ngoặc.
+
+**3. Ba test hồi quy của hub cũ** cần viết lại theo API mới, và cả ba đều lộ sai lầm của tôi chứ không phải
+của hub: (a) hub usf **đóng kênh `send`** khi gỡ client — đọc từ kênh đóng trả về ngay, test phải phân
+biệt `ok=false` với "nhận tin"; (b) helper đăng ký client chờ `HasLocalSubscribers` — nó đúng ngay khi client
+**đầu tiên** vào phòng, nên broadcast có thể chạy trước khi client thứ hai kịp đăng ký → flaky. Sửa: chờ đúng
+client đó có mặt trong phòng. Chạy `-race -count=3` xanh.
+
+**4. Storage cần `go get` lại.** `go mod tidy` ở Task 1 đã gỡ các module AWS vì chưa có gì import; phải
+`go get` lần nữa khi `storage/` xuất hiện. Không phải lỗi, nhưng plan nên ghi thứ tự.
+
+**5. Metrics.** `registry.go` cắt được như plan; nhưng `testutil.go` là helper **thuần business** (xoá), và
+`http.go` còn một histogram cho route daemon `/api/daemon/workspaces` (xoá kèm test). Namespace metric đổi
+`multica_` → `uniwork_`. CloudFront signing **không port**: kéo theo Secrets Manager cho một CDN uniwork chưa có.
+
+**6. Membership cache** chỉ dùng được ở nơi cần *presence* (WS connect), vì `RequireMember` trả về **role**
+mà cache của usf chỉ lưu bool. Chỉ cache kết quả dương; TTL 5 phút là giới hạn stale vì uniwork **chưa có
+thao tác xoá thành viên** để invalidate.
+
+**7. Định danh đã lưu — lần thứ hai.** Như Pha 2 với localStorage/cookie, phía server có: prefix khoá Redis
+(`mul:` → `uw:`), env (`MULTICA_TRUSTED_PROXIES`, `MULTICA_FEATURE_FLAGS_FILE`), namespace Prometheus, và
+hostname trong test. Leak gate bắt được tất cả; không cái nào lộ qua typecheck hay test.
+
+### Việc dời sang plan sau
+
+`auth/{jwt,cookie,pat_cache,cloud_pat,daemon_token_cache}` (mô hình auth cookie/PAT — Tầng 2, Plan 4);
+`middleware/{auth,workspace,owner_lookup}.go` (viết lại hai tầng org/workspace — Plan 4); cloudfront (khi có
+CDN); `analytics` server (dính agent). Đường `?token=` trên WS là **tạm** — gỡ khi FE chuyển sang `ws-client.ts`.
