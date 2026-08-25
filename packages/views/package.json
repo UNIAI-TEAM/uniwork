@@ -12,7 +12,8 @@
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
-    "./meetings/*": "./meetings/*.tsx"
+    "./meetings/*": "./meetings/*.tsx",
+    "./onboarding/*": "./onboarding/*.tsx"
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:",
