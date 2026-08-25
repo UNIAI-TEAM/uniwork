@@ -30,7 +30,7 @@ export function MeetingRoomView({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <p className="text-sm text-text-secondary">{msg}</p>
-        <Button variant="secondary" onClick={onLeave}>
+        <Button variant="outline" onClick={onLeave}>
           {t("meetings.leave")}
         </Button>
       </div>

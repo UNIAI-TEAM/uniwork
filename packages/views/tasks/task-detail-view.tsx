@@ -133,7 +133,7 @@ export function TaskDetailView({
           />
         </div>
         <Button
-          variant="danger"
+          variant="destructive"
           size="sm"
           className="w-full"
           onClick={() => del.mutate(taskId, { onSuccess: onDeleted })}

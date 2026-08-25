@@ -15,7 +15,7 @@ import {
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 
-import { cn } from "../../lib/utils"
+import { cn } from "@uniwork/ui/lib/utils"
 
 // Types
 type StepperOrientation = "horizontal" | "vertical"
@@ -293,7 +293,7 @@ function StepperTrigger({
     "data-state": state,
     "data-loading": isLoading,
     className: cn(
-      "focus-visible:border-brand focus-visible:ring-brand/50 inline-flex cursor-pointer items-center outline-none focus-visible:z-10 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-60",
+      "focus-visible:border-ring focus-visible:ring-ring/50 inline-flex cursor-pointer items-center outline-none focus-visible:z-10 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-60",
       "gap-2.5 rounded-full",
       className
     ),
@@ -323,7 +323,7 @@ function StepperIndicator({
       data-slot="stepper-indicator"
       data-state={state}
       className={cn(
-        "border-canvas bg-subtle text-text-secondary data-[state=completed]:bg-primary data-[state=completed]:text-inverse data-[state=active]:bg-primary data-[state=active]:text-inverse relative flex size-6 shrink-0 items-center justify-center overflow-hidden",
+        "border-background bg-accent text-accent-foreground data-[state=completed]:bg-primary data-[state=completed]:text-primary-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground relative flex size-6 shrink-0 items-center justify-center overflow-hidden",
         "rounded-full text-caption",
         className
       )}
@@ -352,7 +352,7 @@ function StepperSeparator({ className }: React.ComponentProps<"div">) {
       data-slot="stepper-separator"
       data-state={state}
       className={cn(
-        "bg-subtle rounded-sm m-0.5 group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:h-12 group-data-[orientation=vertical]/stepper-nav:w-0.5",
+        "bg-muted rounded-sm m-0.5 group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:h-12 group-data-[orientation=vertical]/stepper-nav:w-0.5",
         className
       )}
     />
@@ -362,10 +362,12 @@ function StepperSeparator({ className }: React.ComponentProps<"div">) {
 function StepperTitle({ children, className }: React.ComponentProps<"span">) {
   const { state } = useStepItem()
 
-  // Không phải <h3>: tên bước là NHÃN của một control điều hướng, không phải
-  // tiêu đề của một mục nội dung. Dựng chúng thành heading sẽ chèn bốn h3 vào
-  // dàn ý tài liệu TRƯỚC h1 của trang, và screen reader ở chế độ duyệt heading
-  // sẽ nhảy vào rail thay vì vào nội dung bước.
+  // Not an <h3>: a step name is the LABEL of a navigation control, not the
+  // heading of a content section. Making them headings inserts four h3s into
+  // the document outline ahead of the page's h1, and a screen reader browsing
+  // by heading lands in the rail instead of in the step content. Diverges from
+  // the upstream registry component on purpose; onboarding-a11y.test.tsx holds
+  // the contract.
   return (
     <span
       data-slot="stepper-title"
@@ -387,7 +389,7 @@ function StepperDescription({
     <div
       data-slot="stepper-description"
       data-state={state}
-      className={cn("text-text-secondary text-caption", className)}
+      className={cn("text-muted-foreground text-caption", className)}
     >
       {children}
     </div>

@@ -14,7 +14,7 @@ import {
 import { useOrganizations } from "@uniwork/core/organizations";
 import type { Organization, Workspace } from "@uniwork/core/types";
 import { useWorkspaces } from "@uniwork/core/workspaces";
-import { toast } from "@uniwork/ui/components/ui/sonner";
+import { toast } from "sonner";
 import { OnboardingLogoutButton } from "./components/onboarding-logout-button";
 import { StepShell } from "./components/step-shell";
 import { StepAboutYou } from "./steps/step-about-you";

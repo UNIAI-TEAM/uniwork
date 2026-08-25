@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from "react"
 
-import { cn } from "../../lib/utils"
+import { cn } from "@uniwork/ui/lib/utils"
 
 interface DotSphereProps {
   className?: string
@@ -20,10 +20,8 @@ interface DotSphereProps {
   sphereRadius?: number | `${number}%`
   dotRadiusMax?: number
   speed?: number
-  /** Bắt buộc: canvas không đọc được `var()`, và component không được mang
-   *  palette riêng — màu phải đến từ token của nơi dùng. */
-  bgColor: string
-  dotColor: string
+  bgColor?: string
+  dotColor?: string
   followMouse?: boolean
 }
 
@@ -58,6 +56,8 @@ interface DotSphereState {
   color: string
   opacity: number
 }
+
+const DOT_SPHERE_COLOR = "rgba(129, 140, 248, 0.5)"
 
 const SPHERE_PATHS: readonly [SpherePath, ...SpherePath[]] = [
   {
@@ -146,8 +146,8 @@ export function DotSphere({
   sphereRadius = 200,
   dotRadiusMax = 3,
   speed = 0.18,
-  bgColor,
-  dotColor,
+  bgColor = "oklch(0.145 0 0)",
+  dotColor = DOT_SPHERE_COLOR,
   followMouse = false,
 }: DotSphereProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -175,8 +175,9 @@ export function DotSphere({
     const canvasElement = canvas
     const context = ctx
     const state = stateRef.current
-    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
-    let prefersReducedMotion = reducedMotionQuery.matches
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches
 
     state.spheres = createSpheres()
 
@@ -264,6 +265,17 @@ export function DotSphere({
       })
     }
 
+    function getDistance(
+      x: number,
+      y: number,
+      center: { x: number; y: number }
+    ) {
+      const distanceX = x - center.x
+      const distanceY = y - center.y
+
+      return Math.sqrt(distanceX * distanceX + distanceY * distanceY)
+    }
+
     function getAlpha(distance: number, radius: number) {
       return 1 - distance / radius
     }
@@ -285,41 +297,28 @@ export function DotSphere({
           return
         }
 
-        // Chỉ quét ô lưới nằm trong hình vuông bao quanh sphere. Quét cả lưới rồi
-        // mới đo khoảng cách là ném đi phần lớn số vòng lặp — với rail cao, đó là
-        // hàng nghìn phép tính mỗi frame cho những điểm chắc chắn ở ngoài.
-        const minI = Math.max(0, Math.floor((sphere.center.x - sphere.radius - state.posStart.x) / dotGap) - 1)
-        const maxI = Math.min(state.circleNumber.x - 1, Math.ceil((sphere.center.x + sphere.radius - state.posStart.x) / dotGap) + 1)
-        const minJ = Math.max(0, Math.floor((sphere.center.y - sphere.radius - state.posStart.y) / dotGap))
-        const maxJ = Math.min(state.circleNumber.y - 1, Math.ceil((sphere.center.y + sphere.radius - state.posStart.y) / dotGap))
-
-        // fillStyle/globalAlpha đặt một lần cho cả sphere; save()/restore() mỗi
-        // chấm là hàng nghìn lần đẩy/lấy state đồ hoạ cho cùng một giá trị.
-        context.fillStyle = sphere.color
-        const radiusSquared = sphere.radius * sphere.radius
-
-        for (let i = minI; i <= maxI; i++) {
-          for (let j = minJ; j <= maxJ; j++) {
+        for (let i = 0; i < state.circleNumber.x; i++) {
+          for (let j = 0; j < state.circleNumber.y; j++) {
             const gapX = j % 2 === 0 ? -dotGap / 2 : 0
             const x = state.posStart.x + gapX + i * dotGap
             const y = state.posStart.y + j * dotGap
-            const dx = x - sphere.center.x
-            const dy = y - sphere.center.y
-            const distanceSquared = dx * dx + dy * dy
+            const distance = getDistance(x, y, sphere.center)
 
-            if (distanceSquared <= radiusSquared) {
-              const alpha = getAlpha(Math.sqrt(distanceSquared), sphere.radius)
+            if (distance <= sphere.radius) {
+              const alpha = getAlpha(distance, sphere.radius)
               const radius = getRadius(alpha, sphere.dotRadiusMax)
 
+              context.save()
               context.globalAlpha = alpha * sphere.opacity
               context.beginPath()
+              context.fillStyle = sphere.color
               context.arc(x, y, radius, 0, 2 * Math.PI, false)
               context.fill()
+              context.closePath()
+              context.restore()
             }
           }
         }
-
-        context.globalAlpha = 1
       })
 
       context.globalCompositeOperation = "source-over"
@@ -361,29 +360,6 @@ export function DotSphere({
       render()
     }
 
-    // Vòng lặp này vẽ hàng nghìn cung mỗi frame. Chỉ chạy khi canvas đang thật
-    // sự nhìn thấy và tab đang mở — nếu không thì đó là CPU/pin đốt cho một bức
-    // tranh không ai xem.
-    let running = false
-    let onScreen = true
-
-    function stop() {
-      if (!running) return
-      running = false
-      window.cancelAnimationFrame(state.animationId)
-    }
-
-    function sync() {
-      const shouldRun = !prefersReducedMotion && onScreen && !document.hidden
-      if (shouldRun === running) return
-      if (shouldRun) {
-        running = true
-        draw()
-      } else {
-        stop()
-      }
-    }
-
     function handleMouseMove(event: MouseEvent) {
       if (followMouse) {
         moveSpheres(event)
@@ -391,26 +367,14 @@ export function DotSphere({
     }
 
     const resizeObserver = new ResizeObserver(handleResize)
-    const intersectionObserver = new IntersectionObserver((entries) => {
-      onScreen = entries.some((entry) => entry.isIntersecting)
-      sync()
-    })
 
     resizeObserver.observe(canvasElement)
-    intersectionObserver.observe(canvasElement)
     handleResize()
     render()
-    sync()
 
-    document.addEventListener("visibilitychange", sync)
-    // Thiết lập giảm chuyển động đổi được giữa phiên (nhất là trên macOS/iOS);
-    // đọc một lần lúc mount nghĩa là người dùng phải tải lại trang mới có tác dụng.
-    const onReducedMotionChange = (event: MediaQueryListEvent) => {
-      prefersReducedMotion = event.matches
-      sync()
-      if (prefersReducedMotion) render()
+    if (!prefersReducedMotion) {
+      draw()
     }
-    reducedMotionQuery.addEventListener("change", onReducedMotionChange)
 
     if (followMouse) {
       window.addEventListener("mousemove", handleMouseMove)
@@ -418,9 +382,6 @@ export function DotSphere({
 
     return () => {
       resizeObserver.disconnect()
-      intersectionObserver.disconnect()
-      document.removeEventListener("visibilitychange", sync)
-      reducedMotionQuery.removeEventListener("change", onReducedMotionChange)
       window.removeEventListener("mousemove", handleMouseMove)
       window.cancelAnimationFrame(state.animationId)
     }

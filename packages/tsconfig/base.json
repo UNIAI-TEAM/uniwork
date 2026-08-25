@@ -2,7 +2,12 @@
   "compilerOptions": {
     "strict": true,
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // ES2023 for the array methods the ported primitives use (findLastIndex).
+    // Deliberately not "ESNext": that moves with the TypeScript version and
+    // would let code assume runtime APIs Node 22 and current browsers do not
+    // ship. `target` stays ES2022 — these are methods, not syntax, so nothing
+    // needs downlevelling.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,

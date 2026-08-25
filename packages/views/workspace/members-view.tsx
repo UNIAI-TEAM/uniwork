@@ -5,7 +5,7 @@ import { useInvite, useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Select } from "@uniwork/ui/components/ui/select";
-import { toast } from "@uniwork/ui/components/ui/sonner";
+import { toast } from "sonner";
 import { EMAIL_RE, EmailChipsInput } from "./email-chips-input";
 import { InviteRow, type SentInvite } from "./invite-row";
 

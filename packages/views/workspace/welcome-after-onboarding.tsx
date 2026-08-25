@@ -5,7 +5,10 @@ import { useTranslation } from "react-i18next";
 import { dismissWelcome, useSeedWelcomeTask, useWelcomeSignal } from "@uniwork/core/onboarding";
 import type { Workspace } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogContent } from "@uniwork/ui/components/ui/dialog";
+import { Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@uniwork/ui/components/ui/dialog";
 
 /** Một lần sau onboarding: seed task hướng dẫn (server idempotent) rồi dialog 🎉. */
 export function WelcomeAfterOnboarding({ workspace, onOpenTask }: { workspace: Workspace; onOpenTask: (taskId: string) => void }) {
@@ -37,7 +40,8 @@ function Seeder({ workspaceId, onOpenTask }: { workspaceId: string; onOpenTask: 
   if (failed) {
     return (
       <Dialog open onOpenChange={(o) => { if (!o) dismissWelcome(); }}>
-        <DialogContent title={t("onboarding.welcome_after_onboarding.error_title")}>
+        <DialogContent>
+          <DialogTitle>{t("onboarding.welcome_after_onboarding.error_title")}</DialogTitle>
           <p className="text-body text-text-secondary">{t("onboarding.welcome_after_onboarding.error_body")}</p>
           <div className="mt-6 flex justify-end gap-2">
             <Button variant="ghost" onClick={dismissWelcome}>{t("onboarding.welcome_after_onboarding.dismiss")}</Button>
@@ -59,7 +63,10 @@ function Seeder({ workspaceId, onOpenTask }: { workspaceId: string; onOpenTask: 
   }
   return (
     <Dialog open onOpenChange={(o) => { if (!o) dismissWelcome(); }}>
-      <DialogContent title="" srTitle={t("onboarding.welcome_after_onboarding.title")} className="w-[560px]">
+      <DialogContent className="w-[560px]">
+        {/* The heading below is the visible one; the dialog still needs an
+            accessible name, so this repeats it for screen readers only. */}
+        <DialogTitle className="sr-only">{t("onboarding.welcome_after_onboarding.title")}</DialogTitle>
         <div className="flex flex-col items-center gap-4 pt-2">
           <div className="animate-welcome-emoji-pop text-6xl" aria-hidden>
             🎉

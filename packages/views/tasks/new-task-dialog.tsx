@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateTask } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 
@@ -16,7 +16,8 @@ export function NewTaskDialog({ workspaceId }: { workspaceId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm">{t("tasks.new")}</Button>} />
-      <DialogContent title={t("tasks.new")}>
+      <DialogContent>
+        <DialogTitle>{t("tasks.new")}</DialogTitle>
         <form
           className="space-y-3"
           onSubmit={(e) => {

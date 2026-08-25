@@ -6,7 +6,7 @@ import { appHost } from "@uniwork/core/config";
 import { useCreateOrganization } from "@uniwork/core/organizations";
 import type { Organization } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { toast } from "@uniwork/ui/components/ui/sonner";
+import { toast } from "sonner";
 import { isSlugConflict } from "../../workspace/slug";
 import { pickerCardClass, RadioCardGroup, RadioMark } from "../components/option-card";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";

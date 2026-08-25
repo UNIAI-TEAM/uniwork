@@ -5,8 +5,14 @@ import type { Workspace } from "@uniwork/core/types";
 import { useInvite } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
-import { Select } from "@uniwork/ui/components/ui/select";
-import { toast } from "@uniwork/ui/components/ui/sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
+import { toast } from "sonner";
 import { EMAIL_RE, EmailChipsInput } from "../../workspace/email-chips-input";
 import { InviteRow, type SentInvite } from "../../workspace/invite-row";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
@@ -71,14 +77,21 @@ export function StepInvite({
           <Field>
             <FieldLabel htmlFor="invite-role">{t("onboarding.step_invite.role_label")}</FieldLabel>
             <Select
-              className="h-10 pointer-coarse:h-11"
               value={role}
               onValueChange={(v) => setRole((v as "member" | "admin") ?? "member")}
               items={[
                 { value: "member", label: t("onboarding.step_invite.role_member") },
                 { value: "admin", label: t("onboarding.step_invite.role_admin") },
               ]}
-            />
+            >
+              <SelectTrigger id="invite-role" className="h-10 w-full pointer-coarse:h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="member">{t("onboarding.step_invite.role_member")}</SelectItem>
+                <SelectItem value="admin">{t("onboarding.step_invite.role_admin")}</SelectItem>
+              </SelectContent>
+            </Select>
           </Field>
           <Button
             type="button"

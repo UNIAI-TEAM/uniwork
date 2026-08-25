@@ -1,30 +1,54 @@
-"use client";
-import { CircleCheck, Info, Loader2, OctagonX, TriangleAlert } from "lucide-react";
-import * as React from "react";
-import { Toaster as Sonner, type ToasterProps, toast } from "sonner";
+"use client"
 
-export { toast };
+import { useTheme } from "next-themes"
+import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
-export function Toaster(props: ToasterProps) {
+const Toaster = ({ ...props }: ToasterProps) => {
+  // Use `resolvedTheme` (the concrete "light" / "dark" value) instead of
+  // `theme` (which can be "system"). When we forward "system", sonner reads
+  // `prefers-color-scheme` itself, and the Electron renderer's media query
+  // can disagree with next-themes' `html.dark` class — that's why the toast
+  // sometimes rendered light on a dark UI.
+  const { resolvedTheme = "system" } = useTheme()
+
   return (
     <Sonner
-      position="bottom-right"
+      theme={resolvedTheme as ToasterProps["theme"]}
+      className="toaster group"
       icons={{
-        success: <CircleCheck className="size-4 text-success" />,
-        info: <Info className="size-4 text-brand" />,
-        warning: <TriangleAlert className="size-4 text-warning" />,
-        error: <OctagonX className="size-4 text-danger" />,
-        loading: <Loader2 className="size-4 animate-spin text-brand" />,
+        success: (
+          <CircleCheckIcon className="size-4 text-success" />
+        ),
+        info: (
+          <InfoIcon className="size-4 text-info" />
+        ),
+        warning: (
+          <TriangleAlertIcon className="size-4 text-warning" />
+        ),
+        error: (
+          <OctagonXIcon className="size-4 text-destructive" />
+        ),
+        loading: (
+          <Loader2Icon className="size-4 animate-spin text-brand" />
+        ),
       }}
       style={
         {
-          "--normal-bg": "var(--uw-surface)",
-          "--normal-text": "var(--uw-text-primary)",
-          "--normal-border": "var(--uw-line)",
-          "--border-radius": "var(--uw-radius)",
+          "--normal-bg": "var(--popover)",
+          "--normal-text": "var(--popover-foreground)",
+          "--normal-border": "var(--border)",
+          "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
+      toastOptions={{
+        classNames: {
+          toast: "cn-toast",
+        },
+      }}
       {...props}
     />
-  );
+  )
 }
+
+export { Toaster }

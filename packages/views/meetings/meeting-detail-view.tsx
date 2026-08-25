@@ -38,8 +38,8 @@ export function MeetingDetailView({
         <div className="flex gap-2">
           <Button onClick={onJoin}>{t("meetings.join")}</Button>
           <Button
-            variant="danger"
-            size="md"
+            variant="destructive"
+            size="default"
             onClick={() => del.mutate(meetingId, { onSuccess: onDeleted })}
           >
             {t("common.delete")}

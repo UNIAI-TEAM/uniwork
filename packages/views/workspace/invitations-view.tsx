@@ -5,7 +5,7 @@ import { appHost } from "@uniwork/core/config";
 import type { Workspace } from "@uniwork/core/types";
 import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { toast } from "@uniwork/ui/components/ui/sonner";
+import { toast } from "sonner";
 
 /** Danh sách lời mời đang chờ của user; chấp nhận từng cái hoặc tất cả. */
 export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspace) => void; onEmpty: () => void }) {

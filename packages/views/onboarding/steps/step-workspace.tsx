@@ -5,7 +5,7 @@ import { appHost } from "@uniwork/core/config";
 import { useCreateWorkspaceInOrg } from "@uniwork/core/organizations";
 import type { Organization, Workspace } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { toast } from "@uniwork/ui/components/ui/sonner";
+import { toast } from "sonner";
 import { isSlugConflict } from "../../workspace/slug";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";

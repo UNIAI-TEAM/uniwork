@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateMeeting } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 
@@ -18,7 +18,8 @@ export function NewMeetingDialog({ workspaceId }: { workspaceId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm">{t("meetings.new")}</Button>} />
-      <DialogContent title={t("meetings.new")}>
+      <DialogContent>
+        <DialogTitle>{t("meetings.new")}</DialogTitle>
         <form
           className="space-y-3"
           onSubmit={(e) => {
