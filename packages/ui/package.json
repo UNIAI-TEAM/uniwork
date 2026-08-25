@@ -15,7 +15,9 @@
     "./styles/base.css": "./styles/base.css",
     "./hooks/*": "./hooks/*.ts",
     "./lib/*": "./lib/*.ts",
-    "./components/common/*": "./components/common/*.tsx"
+    "./components/common/*": "./components/common/*.tsx",
+    "./markdown": "./markdown/index.ts",
+    "./markdown/*": "./markdown/*.ts"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
