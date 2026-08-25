@@ -23,10 +23,11 @@ func newTestServer(t *testing.T) *httptest.Server {
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	d := Deps{
-		Cfg:    config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
-		Log:    slog.Default(),
-		Minter: minter,
-		Auth:   service.NewAuthService(q, minter, time.Hour),
+		Cfg:        config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
+		Log:        slog.Default(),
+		Minter:     minter,
+		Auth:       service.NewAuthService(q, minter, time.Hour),
+		Workspaces: service.NewWorkspaceService(q),
 	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)

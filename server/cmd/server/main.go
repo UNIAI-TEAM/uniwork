@@ -33,7 +33,8 @@ func main() {
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
-		Auth: service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
+		Auth:       service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
+		Workspaces: service.NewWorkspaceService(q),
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {

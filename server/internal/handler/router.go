@@ -15,10 +15,11 @@ import (
 )
 
 type Deps struct {
-	Cfg    config.Config
-	Log    *slog.Logger
-	Minter auth.TokenMinter
-	Auth   *service.AuthService
+	Cfg        config.Config
+	Log        *slog.Logger
+	Minter     auth.TokenMinter
+	Auth       *service.AuthService
+	Workspaces *service.WorkspaceService
 }
 
 type handlers struct {
@@ -44,6 +45,12 @@ func New(d Deps) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireAuth(d.Minter))
 			r.Get("/me", h.me)
+			r.Get("/workspaces", h.listWorkspaces)
+			r.Post("/workspaces", h.createWorkspace)
+			r.Get("/workspaces/{slug}", h.getWorkspace)
+			r.Get("/workspaces/{workspaceID}/members", h.listMembers)
+			r.Post("/workspaces/{workspaceID}/invitations", h.createInvitation)
+			r.Post("/invitations/{token}/accept", h.acceptInvitation)
 		})
 	})
 	return r
