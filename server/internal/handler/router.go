@@ -12,9 +12,11 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/events"
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 type Deps struct {
@@ -31,6 +33,12 @@ type Deps struct {
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
 	Redis *redis.Client
+	// FeatureFlags is nil when no flag file is configured; handlers treat that
+	// as "every flag at its default".
+	FeatureFlags *featureflag.Service
+	// Bus carries in-process domain events between services and side-effect
+	// listeners (audit, notifications) without coupling them.
+	Bus *events.Bus
 }
 
 type handlers struct {

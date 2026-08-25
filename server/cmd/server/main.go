@@ -10,14 +10,17 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/events"
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 func main() {
+	logger.Init()
 	log := logger.New()
 	cfg, err := config.Load()
 	if err != nil {
@@ -44,6 +47,14 @@ func main() {
 		}
 		rdb = redis.NewClient(opt)
 	}
+	// Flags come from FEATURE_FLAGS_FILE when set; absent, every lookup returns
+	// its default and the service is nil.
+	flags, err := featureflag.NewServiceFromEnv(featureflag.WithLogger(log))
+	if err != nil {
+		log.Error("feature flags", "err", err)
+		os.Exit(1)
+	}
+	bus := events.New()
 	hub := realtime.NewHub()
 	go hub.Run()
 	// Without Redis every event fans out in-process only. With it, the relay
@@ -68,6 +79,8 @@ func main() {
 		Meetings:      service.NewMeetingService(q, wsSvc, pub),
 		Hub:           hub,
 		Redis:         rdb,
+		FeatureFlags:  flags,
+		Bus:           bus,
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {
