@@ -55,7 +55,8 @@
   "nav": {
     "tasks": "Tasks",
     "meetings": "Meetings",
-    "members": "Members"
+    "members": "Members",
+    "workspace_group": "Workspace"
   },
   "tasks": {
     "title": "Tasks",

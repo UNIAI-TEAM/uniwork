@@ -26,6 +26,16 @@ export default [
     files: ["**/*.{ts,tsx}"],
     ignores: ["**/*.test.{ts,tsx}", "test/**"],
     rules: {
+      // A full-page reload throws away the query cache, the socket and the
+      // pending transition; navigation goes through the adapter.
+      "no-restricted-globals": ["error", {
+        name: "location",
+        message: "packages/views must not reload the page. Use useNavigation().push()/replace().",
+      }],
+      "no-restricted-syntax": ["error", {
+        selector: "MemberExpression[object.name='window'][property.name='location']",
+        message: "packages/views must not reload the page. Use useNavigation().push()/replace().",
+      }],
       "no-restricted-imports": ["error", {
         patterns: [
           {

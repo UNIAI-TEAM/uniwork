@@ -1,21 +1,21 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useSession } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
+import { useNavigation } from "@uniwork/views/navigation";
 import { WorkspacePickerView } from "@uniwork/views/workspace/workspace-picker-view";
 
 export default function WorkspacesPage() {
-  const router = useRouter();
+  const { push, replace } = useNavigation();
   const { status } = useSession();
   useEffect(() => {
-    if (status === "anon") router.replace(paths.login());
-  }, [status, router]);
+    if (status === "anon") replace(paths.login());
+  }, [status, replace]);
   if (status !== "authed") return null;
   return (
     <WorkspacePickerView
-      onPick={(w) => router.push(paths.workspace(w.organization_slug, w.slug).tasks())}
-      onCreate={() => router.replace(paths.newWorkspace())}
+      onPick={(w) => push(paths.workspace(w.organization_slug, w.slug).tasks())}
+      onCreate={() => replace(paths.newWorkspace())}
     />
   );
 }

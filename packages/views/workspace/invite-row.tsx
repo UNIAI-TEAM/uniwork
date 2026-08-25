@@ -2,7 +2,9 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useOptionalNavigation } from "../navigation";
 
 export interface SentInvite {
   email: string;
@@ -13,7 +15,10 @@ export interface SentInvite {
 export function InviteRow({ sent }: { sent: SentInvite }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
-  const link = `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${sent.token}`;
+  // The host knows the public origin; outside a provider (isolated mounts)
+  // the relative path is still a correct link.
+  const nav = useOptionalNavigation();
+  const link = nav ? nav.getShareableUrl(paths.invite(sent.token)) : paths.invite(sent.token);
   return (
     <li className="flex items-center gap-3 rounded-[var(--uw-radius)] border border-line bg-surface px-3 py-2">
       <span className="min-w-0 flex-1">

@@ -1,22 +1,22 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import { useSession } from "@uniwork/core/auth";
 import { paths, resolvePostAuthDestination, useHasOnboarded } from "@uniwork/core/paths";
+import { useNavigation } from "@uniwork/views/navigation";
 import { InvitationsView } from "@uniwork/views/workspace/invitations-view";
 
 export default function InvitationsPage() {
-  const router = useRouter();
+  const { replace } = useNavigation();
   const { status } = useSession();
   const hasOnboarded = useHasOnboarded();
   useEffect(() => {
-    if (status === "anon") router.replace(paths.login());
-  }, [status, router]);
-  const onEmpty = useCallback(() => router.replace(resolvePostAuthDestination([], hasOnboarded)), [router, hasOnboarded]);
+    if (status === "anon") replace(paths.login());
+  }, [status, replace]);
+  const onEmpty = useCallback(() => replace(resolvePostAuthDestination([], hasOnboarded)), [replace, hasOnboarded]);
   if (status !== "authed") return null;
   return (
     <InvitationsView
-      onJoined={(ws) => router.replace(paths.workspace(ws.organization_slug, ws.slug).tasks())}
+      onJoined={(ws) => replace(paths.workspace(ws.organization_slug, ws.slug).tasks())}
       onEmpty={onEmpty}
     />
   );

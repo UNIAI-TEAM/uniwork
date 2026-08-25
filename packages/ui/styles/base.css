@@ -73,3 +73,9 @@ input, textarea, [contenteditable] { caret-color: var(--uw-brand); }
   /* Emoji pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
   .animate-welcome-emoji-pop { animation-name: onboarding-enter; }
 }
+
+/* Indeterminate sweep for the navigation progress bar (views/layout). */
+@keyframes nav-progress-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}

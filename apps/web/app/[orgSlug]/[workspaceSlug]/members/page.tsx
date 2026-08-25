@@ -1,8 +1,8 @@
 "use client";
+import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { MembersView } from "@uniwork/views/workspace/members-view";
-import { useCurrentWorkspace } from "../layout";
 
 export default function MembersPage() {
-  const { workspace } = useCurrentWorkspace();
+  const { workspace } = useWorkspace();
   return <MembersView workspaceId={workspace.id} />;
 }

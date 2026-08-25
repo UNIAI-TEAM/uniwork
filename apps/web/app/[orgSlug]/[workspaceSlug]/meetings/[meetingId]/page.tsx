@@ -1,20 +1,21 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { paths } from "@uniwork/core/paths";
+import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { MeetingDetailView } from "@uniwork/views/meetings/meeting-detail-view";
-import { useCurrentWorkspace } from "../../layout";
+import { useNavigation } from "@uniwork/views/navigation";
 
 export default function MeetingDetailPage() {
-  const router = useRouter();
-  const { orgSlug, workspaceSlug, meetingId } = useParams<{ orgSlug: string; workspaceSlug: string; meetingId: string }>();
-  const { workspace } = useCurrentWorkspace();
-  const ws = paths.workspace(orgSlug, workspaceSlug);
+  const { meetingId } = useParams<{ meetingId: string }>();
+  const { workspace } = useWorkspace();
+  const { push, replace } = useNavigation();
+  const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
     <MeetingDetailView
       workspaceId={workspace.id}
       meetingId={meetingId}
-      onJoin={() => router.push(ws.room(meetingId))}
-      onDeleted={() => router.replace(ws.meetings())}
+      onJoin={() => push(ws.room(meetingId))}
+      onDeleted={() => replace(ws.meetings())}
     />
   );
 }

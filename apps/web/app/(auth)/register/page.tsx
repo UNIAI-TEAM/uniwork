@@ -1,14 +1,14 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { RegisterView } from "@uniwork/views/auth/register-view";
 import { resolveLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
+import { useNavigation } from "@uniwork/views/navigation";
 
 export default function RegisterPage() {
-  const router = useRouter();
+  const { push } = useNavigation();
   return (
     <RegisterView
       onSuccess={async (sess) => {
-        router.push(await resolveLoggedInDestination(sess.user.onboarded_at != null, []));
+        push(await resolveLoggedInDestination(sess.user.onboarded_at != null, []));
       }}
     />
   );

@@ -2,8 +2,10 @@
 import { LogOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
+import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useOptionalNavigation } from "../../navigation";
 
 /**
  * Lối thoát đổi tài khoản. `fixed` chỉ ở màn Welcome (không có rail); các bước
@@ -13,6 +15,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 export function OnboardingLogoutButton({ inline = false }: { inline?: boolean } = {}) {
   const { t } = useTranslation();
   const logout = useLogout();
+  const nav = useOptionalNavigation();
   return (
     <Button
       variant="ghost"
@@ -22,7 +25,7 @@ export function OnboardingLogoutButton({ inline = false }: { inline?: boolean } 
           ? "-ml-2 w-fit shrink-0 text-text-secondary hover:text-primary"
           : "fixed right-8 top-8 z-50 text-text-secondary hover:text-danger",
       )}
-      onClick={() => logout.mutate(undefined, { onSuccess: () => window.location.assign("/login") })}
+      onClick={() => logout.mutate(undefined, { onSuccess: () => nav?.replace(paths.login()) })}
     >
       <LogOut className="size-4" />
       {t("onboarding.common.log_out")}

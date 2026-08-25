@@ -1,11 +1,14 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { paths } from "@uniwork/core/paths";
+import { useWorkspace } from "@uniwork/views/layout/workspace-context";
+import { useNavigation } from "@uniwork/views/navigation";
 
 export default function WorkspaceHome() {
-  const router = useRouter();
-  const { orgSlug, workspaceSlug } = useParams<{ orgSlug: string; workspaceSlug: string }>();
-  useEffect(() => router.replace(paths.workspace(orgSlug, workspaceSlug).tasks()), [router, orgSlug, workspaceSlug]);
+  const { workspace } = useWorkspace();
+  const { replace } = useNavigation();
+  useEffect(() => {
+    replace(paths.workspace(workspace.organization_slug, workspace.slug).tasks());
+  }, [replace, workspace]);
   return null;
 }

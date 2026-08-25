@@ -1,14 +1,12 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
 import { paths } from "@uniwork/core/paths";
+import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { MeetingsPageView } from "@uniwork/views/meetings/meetings-page-view";
-import { useCurrentWorkspace } from "../layout";
+import { useNavigation } from "@uniwork/views/navigation";
 
 export default function MeetingsPage() {
-  const router = useRouter();
-  const { orgSlug, workspaceSlug } = useParams<{ orgSlug: string; workspaceSlug: string }>();
-  const { workspace } = useCurrentWorkspace();
-  return (
-    <MeetingsPageView workspaceId={workspace.id} onOpen={(id) => router.push(paths.workspace(orgSlug, workspaceSlug).meeting(id))} />
-  );
+  const { workspace } = useWorkspace();
+  const { push } = useNavigation();
+  const ws = paths.workspace(workspace.organization_slug, workspace.slug);
+  return <MeetingsPageView workspaceId={workspace.id} onOpen={(id) => push(ws.meeting(id))} />;
 }

@@ -54,7 +54,8 @@
   "nav": {
     "tasks": "Công việc",
     "meetings": "Cuộc họp",
-    "members": "Thành viên"
+    "members": "Thành viên",
+    "workspace_group": "Không gian làm việc"
   },
   "tasks": {
     "title": "Công việc",

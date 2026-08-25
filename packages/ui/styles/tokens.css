@@ -216,6 +216,7 @@
    a second app, a render test, Storybook — gets the whole contract from one
    import instead of copying this block. */
 @theme inline {
+  --animate-nav-progress-sweep: nav-progress-sweep 1.2s ease-in-out infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-app-shell: var(--app-shell);

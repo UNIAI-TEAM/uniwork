@@ -1,14 +1,12 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
 import { paths } from "@uniwork/core/paths";
+import { useWorkspace } from "@uniwork/views/layout/workspace-context";
+import { useNavigation } from "@uniwork/views/navigation";
 import { TasksPageView } from "@uniwork/views/tasks/tasks-page-view";
-import { useCurrentWorkspace } from "../layout";
 
 export default function TasksPage() {
-  const router = useRouter();
-  const { orgSlug, workspaceSlug } = useParams<{ orgSlug: string; workspaceSlug: string }>();
-  const { workspace } = useCurrentWorkspace();
-  return (
-    <TasksPageView workspaceId={workspace.id} onOpenTask={(id) => router.push(paths.workspace(orgSlug, workspaceSlug).task(id))} />
-  );
+  const { workspace } = useWorkspace();
+  const { push } = useNavigation();
+  const ws = paths.workspace(workspace.organization_slug, workspace.slug);
+  return <TasksPageView workspaceId={workspace.id} onOpenTask={(id) => push(ws.task(id))} />;
 }
