@@ -14,7 +14,8 @@
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/base.css": "./styles/base.css",
     "./hooks/*": "./hooks/*.ts",
-    "./lib/*": "./lib/*.ts"
+    "./lib/*": "./lib/*.ts",
+    "./components/common/*": "./components/common/*.tsx"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
