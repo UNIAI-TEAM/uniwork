@@ -15,6 +15,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -55,6 +56,14 @@ func main() {
 		os.Exit(1)
 	}
 	bus := events.New()
+	// STORAGE_BACKEND=s3 uses the S3-compatible backend (AWS_* / AWS_ENDPOINT_URL);
+	// anything else is local disk under LOCAL_UPLOAD_DIR, served by the API.
+	var store storage.Storage
+	if os.Getenv("STORAGE_BACKEND") == "s3" {
+		store = storage.NewS3StorageFromEnv()
+	} else if local := storage.NewLocalStorageFromEnv(); local != nil {
+		store = local
+	}
 	hub := realtime.NewHub()
 	go hub.Run()
 	// Without Redis every event fans out in-process only. With it, the relay
@@ -81,6 +90,7 @@ func main() {
 		Redis:         rdb,
 		FeatureFlags:  flags,
 		Bus:           bus,
+		Storage:       store,
 	})
 	log.Info("listening", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {

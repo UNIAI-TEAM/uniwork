@@ -16,6 +16,7 @@ import (
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
@@ -39,6 +40,9 @@ type Deps struct {
 	// Bus carries in-process domain events between services and side-effect
 	// listeners (audit, notifications) without coupling them.
 	Bus *events.Bus
+	// Storage holds uploaded files. nil disables every upload endpoint with a
+	// 501 rather than a panic.
+	Storage storage.Storage
 }
 
 type handlers struct {
@@ -68,6 +72,13 @@ func New(d Deps) http.Handler {
 		AllowCredentials: true,
 	}))
 	r.Get("/healthz", h.health)
+	// The local backend serves its own files; S3 objects are reached through
+	// the URL storage returned, so this route only exists for local storage.
+	if local, ok := d.Storage.(*storage.LocalStorage); ok {
+		r.Get("/uploads/*", func(w http.ResponseWriter, r *http.Request) {
+			local.ServeFile(w, r, chi.URLParam(r, "*"))
+		})
+	}
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/ws", h.ws)
 		r.Post("/auth/register", h.register)
@@ -77,6 +88,7 @@ func New(d Deps) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireAuth(d.Minter))
 			r.Get("/me", h.me)
+			r.Post("/me/avatar", h.uploadAvatar)
 			r.Patch("/me/onboarding", h.patchOnboarding)
 			r.Post("/me/onboarding/complete", h.completeOnboarding)
 			r.Get("/me/invitations", h.myInvitations)

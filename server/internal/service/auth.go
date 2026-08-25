@@ -106,6 +106,18 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 	return u, err
 }
 
+// UpdateAvatar persists the URL storage returned for the user's new avatar.
+func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.User, error) {
+	u, err := s.q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
+		ID:        userID,
+		AvatarUrl: pgtype.Text{String: url, Valid: url != ""},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.User{}, ErrNotFound
+	}
+	return u, err
+}
+
 func (s *AuthService) newSession(ctx context.Context, u db.User) (Session, error) {
 	access, err := s.minter.Mint(u.ID)
 	if err != nil {

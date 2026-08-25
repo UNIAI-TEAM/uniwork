@@ -13,6 +13,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -36,6 +37,8 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Tasks:         service.NewTaskService(q, ws, service.NopPublisher{}),
 		Meetings:      service.NewMeetingService(q, ws, service.NopPublisher{}),
 		Hub:           realtime.NewHub(),
+		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.
+		Storage: storage.NewLocalStorageFromEnv(),
 	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)

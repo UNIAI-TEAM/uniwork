@@ -8,3 +8,6 @@ server/bin/
 coverage/
 test-results/
 playwright-report/
+
+# local upload storage (LOCAL_UPLOAD_DIR default)
+server/data/

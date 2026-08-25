@@ -20,3 +20,8 @@ RETURNING *;
 UPDATE users SET onboarded_at = COALESCE(onboarded_at, now()), updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateUserAvatar :one
+UPDATE users SET avatar_url = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;
