@@ -6,7 +6,11 @@ describe("cn", () => {
     expect(cn("p-2", "p-4")).toBe("p-4");
   });
   it("drops falsy values", () => {
-    expect(cn("a", false && "b", undefined, "c")).toBe("a c");
+    // `enabled` is a variable rather than a literal `false` so this reads as
+    // the real call site — a conditional class — instead of a constant
+    // expression the linter is right to reject.
+    const enabled = false as boolean;
+    expect(cn("a", enabled && "b", undefined, "c")).toBe("a c");
   });
 });
 

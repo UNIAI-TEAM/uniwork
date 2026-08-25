@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint ."
   },
   "exports": {
     ".": "./index.ts",
@@ -34,7 +35,9 @@
   },
   "devDependencies": {
     "@types/react": "catalog:",
+    "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
+    "eslint": "^9.32.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
