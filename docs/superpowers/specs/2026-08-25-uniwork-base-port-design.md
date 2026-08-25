@@ -121,7 +121,17 @@ Builder: `paths.org(o).workspace(w).tasks()`.
 
 **Quyết định:** lấy hợp đồng token của usf, giữ giá trị thương hiệu của uniwork. Bê nguyên khung
 `@theme inline` + thang `--text-*` role-named + `--radius-*`, rót bảng màu `--uw-*` hiện tại vào đúng
-khe ngữ nghĩa (`--uw-canvas`→`--background`, `--uw-brand`→`--brand`…), rồi xoá tiền tố `--uw-*`.
+khe ngữ nghĩa (`--uw-canvas`→`--background`, `--uw-brand`→`--brand`…).
+
+**Cộng thêm trước, xoá sau** (sửa ngày 2026-08-25 khi lập plan pha 0–1). Bản đầu của mục này nói xoá
+`--uw-*` ngay ở pha 1. Đọc code cho thấy làm vậy tự chuốc rủi ro: `apps/web/app/globals.css` ánh xạ
+`--uw-*` sang tên Tailwind và toàn bộ 14 primitive + 38 view hiện tại dùng các class đó — xoá là hỏng app
+ngay, và mất `onboarding-contrast.spec.ts` (phép đo tương phản trên trang đã render) đúng lúc cần nó nhất
+để chứng minh bảng màu mới không phá WCAG. Nên: pha 1 **thêm** lớp slot ngữ nghĩa trỏ vào chính các giá trị
+`--uw-*` đã tính toán; việc xoá dời sang cuối pha 5, khi không còn ai tham chiếu và nó là dọn dẹp cơ học.
+
+Thang `--text-*` role-named **đã có sẵn** trong `globals.css` của uniwork, khớp từng giá trị với usf —
+phần đó không phải port.
 
 Lý do: (a) điều kiện cần để 62 primitive chạy không cần sửa, và để `pnpm ui:add` còn dùng được với
 shadcn/ReUI về sau; (b) tầng FE vốn phải viết lại nên chi phí gần bằng 0; (c) mọi nguyên tắc trong
@@ -350,19 +360,19 @@ Không sửa ngược 001–004.
 | Pha | Nội dung | Cổng ra |
 | --- | --- | --- |
 | 0 | Nền tảng build: pnpm 10, catalog mở rộng, eslint 3 tầng, `turbo.json` (2 sửa lỗi cache), CLAUDE.md nháp | `pnpm install` + `typecheck` xanh |
-| 1 | Hợp đồng token: khung `@theme inline` của usf + giá trị màu uniwork, xoá `--uw-*` | app dựng được, không trắng màn |
+| 1 | Hợp đồng token: thêm lớp slot ngữ nghĩa trên bảng màu uniwork (`--uw-*` giữ nguyên) | build xanh + 6 spec e2e xanh |
 | 2 | Sweep Tầng 1 — FE (~160 file) | `typecheck` + `test` + `lint` xanh, `grep multica` rỗng |
 | 3 | Sweep Tầng 1 — server (~75 file) | `go build ./... && go test ./...` xanh |
 | 4 | Tầng 2 core: `paths` 2 tầng, `permissions` 2 tầng, `types` tách file, `api/http.ts` + `endpoints/`, realtime provider | test-contract 1+2 xanh |
-| 5 | Dựng lại FE theo 5 lát dọc | e2e hiện có xanh trở lại |
+| 5 | Dựng lại FE theo 5 lát dọc, task cuối xoá lớp `--uw-*` | e2e hiện có vẫn xanh |
 | 6 | Tooling + CI + `AGENTS.md`/`CLAUDE.md`/`docs/conventions.md` bản chính thức | `make check` xanh trên CI |
 
 Pha 2 và 3 độc lập → chạy song song được.
 
-**Trạng thái FE giữa chừng.** Từ pha 1 tới hết pha 4, `packages/views` và `apps/web` hiện tại chạy trên hợp
-đồng token mới nhưng chưa được dựng lại — giao diện sẽ lệch và xấu. Đây là **trạng thái tạm được chấp nhận
-có chủ ý**, không phải hồi quy cần sửa: pha 5 dựng lại toàn bộ. Cổng chất lượng giao diện duy nhất là cuối
-pha 5, khi 5 spec e2e onboarding (gồm contrast/focus/mobile) phải xanh trở lại.
+**Trạng thái FE giữa chừng.** Nhờ cách cộng-thêm-trước ở §5.4, FE hiện tại **vẫn chạy đúng** suốt pha 1–4:
+lớp `--uw-*` và các alias của nó ở nguyên tại chỗ, lớp slot ngữ nghĩa chỉ nằm cạnh chứ không thay thế. Nghĩa là
+5 spec e2e onboarding (gồm contrast/focus/mobile) là cổng chất lượng **liên tục** từ pha 1, chứ không phải chỉ
+ở cuối pha 5. Việc xoá `--uw-*` là task cuối của pha 5.
 
 ## 12. Rủi ro và cách chặn
 
