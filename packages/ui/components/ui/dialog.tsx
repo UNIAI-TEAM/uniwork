@@ -9,10 +9,13 @@ export const DialogClose = BaseDialog.Close;
 
 export function DialogContent({
   title,
+  srTitle,
   className,
   children,
 }: {
   title: string;
+  /** Khi `title` rỗng (dialog tự vẽ heading), vẫn cần title cho screen reader. */
+  srTitle?: string;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -25,7 +28,11 @@ export function DialogContent({
           className,
         )}
       >
-        <BaseDialog.Title className="mb-3 text-base font-semibold text-primary">{title}</BaseDialog.Title>
+        {title ? (
+          <BaseDialog.Title className="mb-3 text-base font-semibold text-primary">{title}</BaseDialog.Title>
+        ) : (
+          <BaseDialog.Title className="sr-only">{srTitle}</BaseDialog.Title>
+        )}
         {children}
       </BaseDialog.Popup>
     </BaseDialog.Portal>
