@@ -1,53 +1,29 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import * as auth from "../api/endpoints/auth";
 import { ApiError } from "../api/http";
-import { getAccessToken, subscribe } from "../api/session";
 import type { SessionResponse, User } from "../types/user";
+import { useAuthStore, type SessionStatus } from "./store";
 
-export type SessionStatus = "loading" | "authed" | "anon";
+export type { SessionStatus };
 
-let cachedUser: User | null = null;
-const userListeners = new Set<() => void>();
-
-/** Update the cached session user (after PATCH onboarding/complete) and notify every useSession. */
+/** Update the session user (after PATCH onboarding/complete). */
 export function setSessionUser(user: User) {
-  cachedUser = user;
-  userListeners.forEach((fn) => fn());
+  useAuthStore.getState().setUser(user);
 }
 
+/**
+ * Thin view over the auth store, kept under the name every screen already
+ * uses. Triggers initialization on first use so a page rendered outside
+ * CoreProvider (tests, isolated mounts) still resolves the session.
+ */
 export function useSession(): { user: User | null; status: SessionStatus } {
-  const [state, setState] = useState<{ user: User | null; status: SessionStatus }>(
-    cachedUser ? { user: cachedUser, status: "authed" } : { user: null, status: "loading" },
-  );
-
+  const state = useAuthStore(useShallow((s) => ({ user: s.user, status: s.status })));
   useEffect(() => {
-    let cancelled = false;
-    if (!cachedUser && !getAccessToken()) {
-      void auth.refreshSession().then((sess) => {
-        if (cancelled) return;
-        cachedUser = sess?.user ?? null;
-        setState(sess ? { user: sess.user, status: "authed" } : { user: null, status: "anon" });
-      });
-    }
-    const unsub = subscribe(() => {
-      if (!getAccessToken()) {
-        cachedUser = null;
-        if (!cancelled) setState({ user: null, status: "anon" });
-      }
-    });
-    const onUser = () => {
-      if (!cancelled && cachedUser) setState({ user: cachedUser, status: "authed" });
-    };
-    userListeners.add(onUser);
-    return () => {
-      cancelled = true;
-      unsub();
-      userListeners.delete(onUser);
-    };
+    void useAuthStore.getState().initialize();
   }, []);
-
   return state;
 }
 
@@ -85,10 +61,7 @@ export function useRegister() {
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => auth.logout(),
-    onSuccess: () => {
-      cachedUser = null;
-      qc.clear();
-    },
+    mutationFn: () => useAuthStore.getState().logout(),
+    onSuccess: () => qc.clear(),
   });
 }

@@ -15,7 +15,7 @@
     "./session": "./api/session.ts",
     "./query-client": "./query-client.ts",
     "./i18n": "./i18n/index.ts",
-    "./auth": "./auth/hooks.ts",
+    "./auth": "./auth/index.ts",
     "./workspaces": "./workspaces/hooks.ts",
     "./tasks": "./tasks/hooks.ts",
     "./tasks/position": "./tasks/position.ts",
@@ -43,7 +43,9 @@
     "./types/*": "./types/*.ts",
     "./api/http": "./api/http.ts",
     "./api/endpoints/*": "./api/endpoints/*.ts",
-    "./permissions": "./permissions/index.ts"
+    "./permissions": "./permissions/index.ts",
+    "./navigation": "./navigation/store.ts",
+    "./modals": "./modals/store.ts"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "catalog:",
