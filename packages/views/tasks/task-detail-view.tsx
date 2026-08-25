@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useTaskPermissions } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
 import {
   useAddComment,
@@ -32,6 +33,7 @@ export function TaskDetailView({
   const { data: members } = useMembers(workspaceId);
   const update = useUpdateTask(workspaceId);
   const del = useDeleteTask(workspaceId);
+  const { canDelete } = useTaskPermissions(task ?? null, workspaceId);
   const { data: comments } = useComments(taskId);
   const addComment = useAddComment(taskId);
 
@@ -136,6 +138,8 @@ export function TaskDetailView({
           variant="destructive"
           size="sm"
           className="w-full"
+          aria-disabled={!canDelete.allowed || undefined}
+          title={canDelete.allowed ? undefined : canDelete.message}
           onClick={() => del.mutate(taskId, { onSuccess: onDeleted })}
         >
           {t("common.delete")}

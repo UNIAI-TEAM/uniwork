@@ -49,7 +49,8 @@
     "invite_invalid_email": "Not a valid address",
     "invite_invalid_summary_one": "{{count}} address isn't formatted correctly — fix or remove it before sending.",
     "invite_invalid_summary_other": "{{count}} addresses aren't formatted correctly — fix or remove them before sending.",
-    "inviteSkipped": "Skipped (already a member, or not valid): {{list}}"
+    "inviteSkipped": "Skipped (already a member, or not valid): {{list}}",
+    "inviteNotAllowed": "Only workspace owners and admins can invite members."
   },
   "nav": {
     "tasks": "Tasks",

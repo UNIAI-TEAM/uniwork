@@ -48,7 +48,8 @@
     "guideBadge": "Hướng dẫn",
     "invite_invalid_email": "Địa chỉ không hợp lệ",
     "invite_invalid_summary_one": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
-    "invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi."
+    "invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
+    "inviteNotAllowed": "Chỉ chủ sở hữu và quản trị viên workspace mới mời được thành viên."
   },
   "nav": {
     "tasks": "Công việc",

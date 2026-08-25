@@ -42,7 +42,8 @@
     "./i18n/types": "./i18n/types.ts",
     "./types/*": "./types/*.ts",
     "./api/http": "./api/http.ts",
-    "./api/endpoints/*": "./api/endpoints/*.ts"
+    "./api/endpoints/*": "./api/endpoints/*.ts",
+    "./permissions": "./permissions/index.ts"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "catalog:",

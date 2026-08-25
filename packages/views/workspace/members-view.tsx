@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useWorkspacePermissions } from "@uniwork/core/permissions";
 import { useInvite, useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
@@ -13,6 +14,7 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
   const { t } = useTranslation();
   const { data: members } = useMembers(workspaceId);
   const invite = useInvite(workspaceId);
+  const { canInvite, isLoading: permissionsLoading } = useWorkspacePermissions(workspaceId);
   const [emails, setEmails] = useState<string[]>([]);
   const [role, setRole] = useState<"member" | "admin">("member");
   const [sent, setSent] = useState<SentInvite[]>([]);
@@ -49,39 +51,47 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
           </li>
         ))}
       </ul>
-      <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="members-invite-emails">{t("workspace.inviteEmails")}</FieldLabel>
-          <EmailChipsInput id="members-invite-emails" value={emails} onChange={setEmails} disabled={invite.isPending} placeholder={t("workspace.inviteHint")} />
-        </Field>
-        <div className="flex items-end gap-2">
-          <Field className="flex-1">
-            <FieldLabel htmlFor="members-invite-role">{t("workspace.role")}</FieldLabel>
-            <Select
-              value={role}
-              onValueChange={(v) => setRole((v as "member" | "admin") ?? "member")}
-              items={[
-                { value: "member", label: t("onboarding.step_invite.role_member") },
-                { value: "admin", label: t("onboarding.step_invite.role_admin") },
-              ]}
-            />
-          </Field>
-          <Button type="button" disabled={!valid.length || invite.isPending} onClick={send}>
-            {t("workspace.invite")}
-          </Button>
-        </div>
-        {sent.length > 0 && (
+      {canInvite.allowed ? (
+        <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="members-invite-list">{t("workspace.inviteLink")}</FieldLabel>
-            <ul id="members-invite-list" className="flex flex-col gap-2">
-              {sent.map((s) => (
-                <InviteRow key={s.token} sent={s} />
-              ))}
-            </ul>
-            {skipped.length > 0 && <FieldDescription>{t("workspace.inviteSkipped", { list: skipped.join(", ") })}</FieldDescription>}
+            <FieldLabel htmlFor="members-invite-emails">{t("workspace.inviteEmails")}</FieldLabel>
+            <EmailChipsInput id="members-invite-emails" value={emails} onChange={setEmails} disabled={invite.isPending} placeholder={t("workspace.inviteHint")} />
           </Field>
-        )}
-      </FieldGroup>
+          <div className="flex items-end gap-2">
+            <Field className="flex-1">
+              <FieldLabel htmlFor="members-invite-role">{t("workspace.role")}</FieldLabel>
+              <Select
+                value={role}
+                onValueChange={(v) => setRole((v as "member" | "admin") ?? "member")}
+                items={[
+                  { value: "member", label: t("onboarding.step_invite.role_member") },
+                  { value: "admin", label: t("onboarding.step_invite.role_admin") },
+                ]}
+              />
+            </Field>
+            <Button type="button" disabled={!valid.length || invite.isPending} onClick={send}>
+              {t("workspace.invite")}
+            </Button>
+          </div>
+          {sent.length > 0 && (
+            <Field>
+              <FieldLabel htmlFor="members-invite-list">{t("workspace.inviteLink")}</FieldLabel>
+              <ul id="members-invite-list" className="flex flex-col gap-2">
+                {sent.map((s) => (
+                  <InviteRow key={s.token} sent={s} />
+                ))}
+              </ul>
+              {skipped.length > 0 && <FieldDescription>{t("workspace.inviteSkipped", { list: skipped.join(", ") })}</FieldDescription>}
+            </Field>
+          )}
+        </FieldGroup>
+      ) : permissionsLoading ? null : (
+        // Rendered from the Decision so the reason a member cannot invite is
+        // the same sentence everywhere, not view-local copy.
+        <p className="text-body text-text-secondary" role="note">
+          {t("workspace.inviteNotAllowed")}
+        </p>
+      )}
     </div>
   );
 }
