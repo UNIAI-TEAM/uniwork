@@ -293,5 +293,13 @@
       "skip_failed": "Không thể hoàn tất phần khởi đầu",
       "complete_failed": "Không thể hoàn tất. Vui lòng thử lại."
     }
+  },
+  "ui": {
+    "attach_file": "Đính kèm tệp",
+    "copy_code": "Sao chép mã",
+    "pagination_next": "Trang sau",
+    "pagination_previous": "Trang trước",
+    "plain_text": "Văn bản thuần",
+    "toggle_sidebar": "Ẩn/hiện thanh bên"
   }
 }

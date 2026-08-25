@@ -297,5 +297,13 @@
       "skip_failed": "Couldn't finish getting you started",
       "complete_failed": "Couldn't finish. Please try again."
     }
+  },
+  "ui": {
+    "attach_file": "Attach file",
+    "copy_code": "Copy code",
+    "pagination_next": "Next page",
+    "pagination_previous": "Previous page",
+    "plain_text": "Plain text",
+    "toggle_sidebar": "Toggle sidebar"
   }
 }
