@@ -1,6 +1,7 @@
 // Package migrations embeds SQL migrations and applies them in order,
 // tracked in schema_migrations, serialized by a Postgres advisory lock
-// so concurrent instances don't race (same model as usf).
+// so concurrent instances don't race (same model as usf). Files run outside
+// a transaction so concurrent index builds are possible; see Up.
 package migrations
 
 import (
@@ -65,19 +66,16 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 		if err != nil {
 			return err
 		}
-		tx, err := conn.Begin(ctx)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, string(sql)); err != nil {
-			tx.Rollback(ctx)
+		// Applied OUTSIDE a transaction on purpose. CREATE INDEX CONCURRENTLY —
+		// the only kind of index build allowed from migration 005 on — is
+		// rejected by PostgreSQL inside a transaction block, and the advisory
+		// lock above already serializes runners. The cost is that a failing
+		// multi-statement file can leave earlier statements applied; the file
+		// is then fixed forward, which is the convention anyway.
+		if _, err := conn.Exec(ctx, string(sql)); err != nil {
 			return fmt.Errorf("migration %s: %w", v, err)
 		}
-		if _, err := tx.Exec(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", v); err != nil {
-			tx.Rollback(ctx)
-			return err
-		}
-		if err := tx.Commit(ctx); err != nil {
+		if _, err := conn.Exec(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", v); err != nil {
 			return err
 		}
 	}
@@ -100,17 +98,10 @@ func Down(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return err
 	}
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return err
+	// Same reasoning as Up: DROP INDEX CONCURRENTLY cannot run in a transaction.
+	if _, err := conn.Exec(ctx, string(sql)); err != nil {
+		return fmt.Errorf("rollback %s: %w", v, err)
 	}
-	if _, err := tx.Exec(ctx, string(sql)); err != nil {
-		tx.Rollback(ctx)
-		return err
-	}
-	if _, err := tx.Exec(ctx, "DELETE FROM schema_migrations WHERE version=$1", v); err != nil {
-		tx.Rollback(ctx)
-		return err
-	}
-	return tx.Commit(ctx)
+	_, err = conn.Exec(ctx, "DELETE FROM schema_migrations WHERE version=$1", v)
+	return err
 }
