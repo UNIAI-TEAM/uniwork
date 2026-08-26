@@ -4,6 +4,7 @@ import { CalendarDays, LogOut, SquareCheckBig, Users, type LucideIcon } from "lu
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
+import { Logo } from "@uniwork/ui/brand";
 import {
   Sidebar,
   SidebarContent,
@@ -51,6 +52,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
+        {/* Decorative: the workspace switcher directly below carries the
+            accessible name for this region, and announcing "UniWork" ahead of
+            it would put the product name between the user and their own
+            workspace on every screen. */}
+        <div className="flex h-8 items-center px-2">
+          <Logo variant="mark" size={20} decorative />
+        </div>
         <SidebarMenu>
           <SidebarMenuItem>
             <WorkspaceSwitcher current={workspace} />

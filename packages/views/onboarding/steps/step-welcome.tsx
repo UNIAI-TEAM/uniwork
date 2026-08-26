@@ -2,6 +2,7 @@
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Logo } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { WelcomeIllustration } from "./welcome-illustration";
 
@@ -42,7 +43,7 @@ export function StepWelcome({
         <div className="flex flex-1 flex-col justify-center px-6 pb-12 pt-16 sm:px-10 md:px-20 lg:px-14 lg:pt-0 xl:px-20">
           <div className="flex w-full max-w-[540px] flex-col gap-8">
             <div className="flex items-center gap-2.5">
-              <span aria-hidden className="size-5 rounded-md bg-brand" />
+              <Logo variant="mark" size={22} decorative />
               <span className="font-serif text-title-lg font-medium tracking-tight text-foreground">
                 {t("onboarding.welcome.wordmark")}
               </span>
