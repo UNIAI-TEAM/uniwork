@@ -41,6 +41,7 @@ func (h *handlers) setRefreshCookie(w http.ResponseWriter, token string, exp tim
 	http.SetCookie(w, &http.Cookie{
 		Name: refreshCookie, Value: token, Path: "/api/v1/auth",
 		Expires: exp, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		Secure: h.Cfg.SecureCookies,
 	})
 }
 

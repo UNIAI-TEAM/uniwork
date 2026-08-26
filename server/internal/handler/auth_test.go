@@ -98,3 +98,24 @@ func TestMeWithoutTokenIs401(t *testing.T) {
 		t.Fatalf("status = %d, want 401", res.StatusCode)
 	}
 }
+
+func TestRefreshCookieSecureFollowsConfig(t *testing.T) {
+	for _, secure := range []bool{false, true} {
+		h := &handlers{Deps: Deps{Cfg: config.Config{SecureCookies: secure}}}
+		rec := httptest.NewRecorder()
+		h.setRefreshCookie(rec, "tok", time.Now().Add(time.Hour))
+		res := rec.Result()
+		var found *http.Cookie
+		for _, c := range res.Cookies() {
+			if c.Name == refreshCookie {
+				found = c
+			}
+		}
+		if found == nil {
+			t.Fatal("refresh cookie not set")
+		}
+		if found.Secure != secure || !found.HttpOnly || found.SameSite != http.SameSiteLaxMode || found.Path != "/api/v1/auth" {
+			t.Fatalf("secure=%v: cookie = %+v", secure, found)
+		}
+	}
+}
