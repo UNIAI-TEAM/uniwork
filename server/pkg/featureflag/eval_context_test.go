@@ -55,7 +55,7 @@ func TestEvalContextFromUnattachedContext(t *testing.T) {
 
 func TestEvalContextFromNilContext(t *testing.T) {
 	t.Parallel()
-	//nolint:staticcheck // deliberately exercise the nil-ctx defensive path.
+	//lint:ignore SA1012 deliberately exercise the nil-ctx defensive path.
 	got := EvalContextFrom(nil)
 	if got.UserID != "" {
 		t.Fatalf("nil context must yield zero EvalContext, got %+v", got)

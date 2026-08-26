@@ -50,10 +50,10 @@ func init() {
 }
 
 func loadAllowedOrigins() []string {
+	// ALLOWED_ORIGINS widens the WebSocket allowlist beyond FRONTEND_ORIGIN
+	// (a second host serving the same app); FRONTEND_ORIGIN alone is the
+	// common case and what CORS allows.
 	raw := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
-	if raw == "" {
-		raw = strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
-	}
 	if raw == "" {
 		raw = strings.TrimSpace(os.Getenv("FRONTEND_ORIGIN"))
 	}
@@ -76,12 +76,11 @@ func loadAllowedOrigins() []string {
 	return origins
 }
 
-// loadTrustedProxies reads the same TRUSTED_PROXIES env var the rest of
-// the server uses (see cmd/server/router.go and handler.Config.TrustedProxies),
-// parsing it as a comma-separated list of CIDR prefixes. Invalid entries are
-// dropped with a warn-line rather than crashing. Empty input returns nil, which
-// means "trust no proxy" — X-Forwarded-Host is then never honored. The router
-// overrides this at startup via SetTrustedProxies so both share one config.
+// loadTrustedProxies reads the same TRUSTED_PROXIES env var the rate limiter
+// uses (config.Config.TrustedProxies), parsing it as a comma-separated list
+// of CIDR prefixes. Invalid entries are dropped with a warn-line rather than
+// crashing. Empty input returns nil, which means "trust no proxy" —
+// X-Forwarded-Host is then never honored. SetTrustedProxies exists for tests.
 func loadTrustedProxies() []netip.Prefix {
 	raw := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
 	if raw == "" {
@@ -635,7 +634,7 @@ func (h *Hub) evictSlow(slow []*Client) {
 				delete(room, c)
 				if len(room) == 0 {
 					delete(h.rooms, key)
-					drainedRooms = append(drainedRooms, emptied{key.Type, key.ID})
+					drainedRooms = append(drainedRooms, emptied(key))
 				}
 			}
 		}

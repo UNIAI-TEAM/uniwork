@@ -78,7 +78,8 @@ a shared package; there is no "small enough to duplicate".
 
 ### Go
 
-- `gofmt`, `go vet`, checked errors; `bash scripts/test-go.sh --race` runs all three.
+- `gofmt`, `go vet`, `staticcheck` (pinned as a `tool` in `go.mod`), checked
+  errors; `bash scripts/test-go.sh --race` runs all of them before the tests.
 - Layers: `internal/handler` (HTTP, chi) → `internal/service` (rules,
   membership, events) → `pkg/db` (sqlc). Handlers never query the database.
 - Membership is decided in one place: `WorkspaceService.RequireMember`.

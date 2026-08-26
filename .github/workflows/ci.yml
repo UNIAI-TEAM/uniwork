@@ -203,5 +203,5 @@ jobs:
         run: cd server && go build ./...
       - name: Migrate the test database
         run: cd server && go run ./cmd/migrate up
-      - name: gofmt, vet, test (-race)
+      - name: gofmt, vet, staticcheck, test (-race)
         run: bash scripts/test-go.sh --race

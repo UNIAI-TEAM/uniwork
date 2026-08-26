@@ -27,7 +27,7 @@ func isTerminal(f *os.File) bool {
 }
 
 func newHandler() slog.Handler {
-	return tint.NewHandler(os.Stderr, &tint.Options{
+	return tint.NewTextHandler(os.Stderr, &tint.Options{
 		Level:      parseLevel(os.Getenv("LOG_LEVEL")),
 		TimeFormat: "15:04:05.000",
 		NoColor:    !isTerminal(os.Stderr),

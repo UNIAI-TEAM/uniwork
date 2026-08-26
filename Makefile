@@ -120,7 +120,7 @@ build: ## Build the server and migrate binaries into server/bin
 
 test: test-go test-fe ## Go tests then TS tests
 
-test-go: ## Go tests (-race) after ensuring the test DB exists and migrations are applied
+test-go: ## Go: gofmt, vet, staticcheck, test -race (ensures the test DB and migrations first)
 	$(REQUIRE_ENV)
 	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
 	cd server && go run ./cmd/migrate up
