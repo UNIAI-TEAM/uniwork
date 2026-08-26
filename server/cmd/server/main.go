@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -64,12 +68,14 @@ func main() {
 	// METRICS_ADDR (e.g. 127.0.0.1:9090) exposes Prometheus metrics on a
 	// separate listener so the scrape endpoint never shares the public port.
 	var httpMetrics *metrics.HTTPMetrics
+	var metricsSrv *http.Server
 	if mcfg := metrics.ConfigFromEnv(); mcfg.Enabled() {
 		reg := metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
 		httpMetrics = reg.HTTP
+		metricsSrv = metrics.NewServer(mcfg.Addr, reg.Gatherer)
 		go func() {
 			log.Info("metrics listening", "addr", mcfg.Addr)
-			if err := metrics.NewServer(mcfg.Addr, reg.Gatherer).ListenAndServe(); err != nil {
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Error("metrics server", "err", err)
 			}
 		}()
@@ -89,10 +95,10 @@ func main() {
 	// node has subscribers for, so several API nodes deliver each other's
 	// events; DualWrite keeps local delivery immediate.
 	var broadcaster realtime.Broadcaster = hub
+	var relay *realtime.RedisRelay
 	if rdb != nil {
-		relay := realtime.NewRedisRelay(hub, rdb)
+		relay = realtime.NewRedisRelay(hub, rdb)
 		relay.Start(ctx)
-		defer relay.Stop()
 		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
 	}
 	pub := realtime.NewPublisher(broadcaster, log)
@@ -112,9 +118,51 @@ func main() {
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
 	})
-	log.Info("listening", "port", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {
-		log.Error("server", "err", err)
-		os.Exit(1)
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: h,
+		// ReadHeaderTimeout bounds how long a peer may sit on an open socket
+		// without sending headers (slowloris). No ReadTimeout/WriteTimeout:
+		// WebSocket connections are hijacked and live far longer than any
+		// sensible request deadline; per-request bodies are capped in the
+		// handlers instead.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
+	errCh := make(chan error, 1)
+	go func() {
+		log.Info("listening", "port", cfg.Port)
+		errCh <- srv.ListenAndServe()
+	}()
+
+	// SIGTERM is what a container runtime sends first; finish in-flight
+	// requests before the process goes away so a rolling deploy does not
+	// surface as a burst of failed requests.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	select {
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("server", "err", err)
+			os.Exit(1)
+		}
+	case sig := <-quit:
+		log.Info("shutting down", "signal", sig.String())
+	}
+	signal.Stop(quit)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Warn("http shutdown", "err", err)
+	}
+	if relay != nil {
+		relay.Stop()
+	}
+	if metricsSrv != nil {
+		metricsCtx, metricsCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = metricsSrv.Shutdown(metricsCtx)
+		metricsCancel()
+	}
+	log.Info("stopped")
 }
