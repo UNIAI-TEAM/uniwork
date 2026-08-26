@@ -59,12 +59,17 @@ type handlers struct {
 func New(d Deps) http.Handler {
 	h := &handlers{Deps: d}
 	r := chi.NewRouter()
-	// Order matters: RequestID and RealIP first so every later middleware and
-	// the access log see them; ClientMetadata before RequestLogger so the log
-	// line carries the client dimensions; Recoverer inside the logger so a
-	// panic still produces an access-log entry with its status.
+	// Order matters: RequestID first so every later middleware and the access
+	// log see it; ClientMetadata before RequestLogger so the log line carries
+	// the client dimensions; Recoverer inside the logger so a panic still
+	// produces an access-log entry with its status.
+	//
+	// Nothing here rewrites r.RemoteAddr from X-Forwarded-For (chi's RealIP
+	// does, unconditionally, which lets any client pick its own rate-limit
+	// bucket with one header). Each consumer that needs the client address —
+	// the rate limiter, the WebSocket origin check — applies TRUSTED_PROXIES
+	// itself. router_test.go pins this.
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
 	r.Use(mw.ClientMetadata)
 	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
@@ -72,9 +77,17 @@ func New(d Deps) http.Handler {
 	if d.HTTPMetrics != nil {
 		r.Use(d.HTTPMetrics.Middleware)
 	}
+	// Rate limits are per IP and per path, and only exist with Redis (the
+	// counters must be shared across API nodes). The global budget covers
+	// normal use; the credential endpoints get a smaller one because they
+	// are the only ones worth brute-forcing. 60/min still leaves room for an
+	// office behind one NAT address (or the e2e suite registering a user per
+	// spec from localhost) — 20 did not.
+	proxies := mw.ParseTrustedProxies(d.Cfg.TrustedProxies)
 	if d.Redis != nil {
-		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, mw.ParseTrustedProxies(d.Cfg.TrustedProxies)))
+		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, proxies))
 	}
+	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
@@ -91,8 +104,8 @@ func New(d Deps) http.Handler {
 	}
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/ws", h.ws)
-		r.Post("/auth/register", h.register)
-		r.Post("/auth/login", h.login)
+		r.With(credentialLimit).Post("/auth/register", h.register)
+		r.With(credentialLimit).Post("/auth/login", h.login)
 		r.Post("/auth/refresh", h.refresh)
 		r.Post("/auth/logout", h.logout)
 		r.Group(func(r chi.Router) {
