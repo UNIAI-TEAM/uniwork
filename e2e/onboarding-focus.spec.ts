@@ -1,18 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { reachStep, walkOnboarding } from "./onboarding-nav";
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
-async function reachAboutYou(page: Page) {
-  const stamp = Date.now();
-  await page.goto("/register");
-  await page.getByLabel("Tên hiển thị").fill("Focus");
-  await page.getByLabel("Email").fill(`focus-${stamp}@example.com`);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng ký" }).click();
-  await page.waitForURL(/\/onboarding$/);
-  await page.getByRole("button", { name: /Bắt đầu/ }).click();
-  await page.getByText("Cho chúng tôi biết đôi chút về bạn.").waitFor();
-}
 
 /**
  * Điều hướng bằng bàn phím hỏng âm thầm: giao diện vẫn đúng bằng mắt trong khi
@@ -21,10 +11,9 @@ async function reachAboutYou(page: Page) {
  * `focus:outline-none` và sinh ring đôi; và control trong suốt phủ chip khiến
  * chỉ báo focus rơi lên một element opacity-0.
  */
-test("mọi điểm dừng Tab trong onboarding đều có chỉ báo focus nhìn thấy được", async ({ page }) => {
-  await reachAboutYou(page);
-
+test("mọi điểm dừng Tab đều có chỉ báo focus nhìn thấy được — cả 4 bước", async ({ page }) => {
   const bare: string[] = [];
+  await walkOnboarding(page, "Focus", async (step) => {
   for (let i = 0; i < 20; i++) {
     await page.keyboard.press("Tab");
     const info = await page.evaluate(() => {
@@ -33,10 +22,16 @@ test("mọi điểm dừng Tab trong onboarding đều có chỉ báo focus nhì
       // Lớp phủ dev của Next.js không thuộc app.
       if (el.tagName.toLowerCase() === "nextjs-portal") return null;
 
+      // Nhận MỌI cú pháp màu, không riêng `rgb()`. `ring-ring/50` compile thành
+      // `color-mix(in oklab, …)` và trình duyệt trả về `oklab(…)`, nên bản cũ
+      // chỉ dò `rgb(` báo "không có chỉ báo" trên một vòng ring 3px có thật —
+      // mọi `Input` của app đều dùng đúng ring đó. Test không bao giờ Tab tới
+      // một ô nhập nào nên chỗ mù này chưa từng lộ ra.
+      const COLOR_FN = /(?:rgba?|oklab|oklch|lab|lch|hwb|hsla?|color)\(/;
       const visibleShadow = (n: Element | null) => {
         if (!n) return false;
         const s = getComputedStyle(n).boxShadow;
-        return s !== "none" && /rgb\((?!0, 0, 0, 0)/.test(s.replace(/rgba\(0, 0, 0, 0\)[^,]*/g, ""));
+        return s !== "none" && COLOR_FN.test(s.replace(/rgba\(0, 0, 0, 0\)[^,]*/g, ""));
       };
       const cs = getComputedStyle(el);
       // Viền chỉ tính khi chính element nhìn thấy được — element opacity-0 thì
@@ -56,14 +51,15 @@ test("mọi điểm dừng Tab trong onboarding đều có chỉ báo focus nhì
         what: `${el.tagName.toLowerCase()} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 24)}"`,
       };
     });
-    if (info && !info.ok) bare.push(info.what);
+    if (info && !info.ok) bare.push(`${step}: ${info.what}`);
   }
+  });
 
   expect(bare, `điểm dừng Tab không có chỉ báo focus: ${bare.join(", ")}`).toEqual([]);
 });
 
 test("chỉ có MỘT chỉ báo focus, không lồng hai vòng", async ({ page }) => {
-  await reachAboutYou(page);
+  await reachStep(page, "about_you", "Focus");
   await page.getByRole("radio", { name: "Khác" }).first().click();
 
   const free = page.getByRole("textbox").first();
@@ -85,10 +81,9 @@ test("chỉ có MỘT chỉ báo focus, không lồng hai vòng", async ({ page 
  * `:focus-visible`, đọc nó trên một nút không có tiêu điểm luôn ra chuỗi rỗng —
  * và test sẽ xanh mà chẳng kiểm tra gì.
  */
-test("vòng focus tách được khỏi nền ngay sát nó (>= 3:1)", async ({ page }) => {
-  await reachAboutYou(page);
-
+test("vòng focus tách được khỏi nền ngay sát nó (>= 3:1) — cả 4 bước", async ({ page }) => {
   const offenders: string[] = [];
+  await walkOnboarding(page, "Ring", async (step) => {
   for (let i = 0; i < 20; i++) {
     await page.keyboard.press("Tab");
     const bad = await page.evaluate(() => {
@@ -167,8 +162,9 @@ test("vòng focus tách được khỏi nền ngay sát nó (>= 3:1)", async ({ 
       probe.remove();
       return null;
     });
-    if (bad) offenders.push(bad);
+    if (bad) offenders.push(`${step}: ${bad}`);
   }
+  });
 
   expect(offenders, `chỉ báo focus không tách khỏi nền sát nó: ${offenders.join(" | ")}`).toEqual([]);
 });

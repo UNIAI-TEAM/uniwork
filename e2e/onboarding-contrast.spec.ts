@@ -33,8 +33,31 @@ for (const mode of ["light", "dark"] as const) {
 
     await page.getByRole("button", { name: "Tiếp tục" }).click();
     await page.getByRole("heading", { name: "Đặt tên tổ chức của bạn." }).waitFor();
+    // `.dark` phải bật lại sau MỖI lần chuyển bước: class nằm trên <html> nhưng
+    // điều hướng phía client dựng lại cây, và lần toggle trước không theo sang.
     await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
     const step2 = await auditText(page);
     expect(step2.fails, `bước "Tổ chức" (${mode}): ${step2.fails.join(" | ")}`).toEqual([]);
+
+    // Bước 3 và 4 trước đây không được đo lần nào — mà bước Mời là nơi có nhiều
+    // chữ phụ nhất (chip email, link mời mono, dòng "đã bỏ qua").
+    const orgName = `Contrast${mode} ${Date.now()}`;
+    await page.getByLabel("Tên tổ chức").fill(orgName);
+    await page.getByRole("button", { name: `Tạo ${orgName}` }).click();
+    await page.getByRole("heading", { name: "Đặt tên workspace." }).waitFor();
+    await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
+    const step3 = await auditText(page);
+    expect(step3.fails, `bước "Workspace" (${mode}): ${step3.fails.join(" | ")}`).toEqual([]);
+
+    await page.getByLabel("Tên workspace").fill("Đội Contrast");
+    await page.getByRole("button", { name: "Tạo Đội Contrast" }).click();
+    await page.getByRole("heading", { name: /Mời đồng nghiệp/ }).waitFor();
+    await page.getByLabel("Email đồng nghiệp").fill("contrast@example.com");
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Gửi lời mời" }).click();
+    await page.getByRole("button", { name: "Sao chép" }).first().waitFor();
+    await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
+    const step4 = await auditText(page);
+    expect(step4.fails, `bước "Mời" (${mode}): ${step4.fails.join(" | ")}`).toEqual([]);
   });
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { reachStep, walkOnboarding } from "./onboarding-nav";
 
 /**
  * Dưới `md`, onboarding là một CÂY RENDER KHÁC: rail biến mất, StepProgressBar
@@ -7,47 +8,31 @@ import { expect, test, type Page } from "@playwright/test";
  */
 test.use({ viewport: { width: 375, height: 667 }, hasTouch: true, isMobile: true });
 
-async function reachAboutYou(page: Page) {
-  const stamp = Date.now();
-  await page.goto("/register");
-  await page.getByLabel("Tên hiển thị").fill("Mobile");
-  await page.getByLabel("Email").fill(`mobile-${stamp}@example.com`);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng ký" }).click();
-  await expect(page).toHaveURL(/\/onboarding$/);
-  await page.getByRole("button", { name: /Bắt đầu/ }).click();
-  await page.getByText("Cho chúng tôi biết đôi chút về bạn.").waitFor();
-}
-
 test("không có thanh cuộn ngang ở bất kỳ bước nào", async ({ page }) => {
-  await reachAboutYou(page);
-  const overflow = async (label: string) => {
+  const over: string[] = [];
+  await walkOnboarding(page, "Mobile", async (step) => {
     const w = await page.evaluate(() => ({
       doc: document.documentElement.scrollWidth,
       win: window.innerWidth,
     }));
-    expect(w.doc, `${label}: tràn ngang ${w.doc}px > ${w.win}px`).toBeLessThanOrEqual(w.win + 1);
-  };
-  await overflow("về bạn");
-
-  await page.getByRole("radio", { name: "Kỹ sư / phát triển" }).click();
-  await page.getByRole("button", { name: "Tiếp tục" }).click();
-  await page.getByRole("heading", { name: "Đặt tên tổ chức của bạn." }).waitFor();
-  await overflow("tổ chức");
+    if (w.doc > w.win + 1) over.push(`${step}: ${w.doc}px > ${w.win}px`);
+  });
+  expect(over, `tràn ngang: ${over.join(" | ")}`).toEqual([]);
 });
 
 test("rail ẩn, thanh tiến độ nói được vị trí bước", async ({ page }) => {
-  await reachAboutYou(page);
+  await reachStep(page, "about_you", "Mobile");
   await expect(page.locator("aside")).toBeHidden();
   await expect(page.getByText(/Bước 1 trên 4/)).toBeAttached();
   // Canvas trang trí không được mount dưới md — nó chạy rAF 60fps để vẽ 0×0.
   await expect(page.locator('[data-slot="dot-sphere"]')).toHaveCount(0);
 });
 
-test("mọi vùng chạm đạt 44px", async ({ page }) => {
-  await reachAboutYou(page);
+test("mọi vùng chạm đạt 44px ở mọi bước", async ({ page }) => {
+  const small: string[] = [];
+  await walkOnboarding(page, "Touch", async (step) => {
   // Nhóm nhiều-lựa-chọn: chọn "Khác" để dựng cả ô nhập tự do lẫn nút bỏ chọn.
-  await page.getByRole("checkbox", { name: "Khác" }).click();
+  if (step === "about_you") await page.getByRole("checkbox", { name: "Khác" }).click();
 
   const result = await page.evaluate(() => {
     const seen = new Set<Element>();
@@ -64,9 +49,14 @@ test("mọi vùng chạm đạt 44px", async ({ page }) => {
       // từ cây DOM: chip "Khác" đặt control absolute so với <div> bọc ngoài chứ
       // không so với <label> bên trong, nên `closest("label")` ra đúng cái nhãn
       // 16×16 của mỗi biểu tượng.
+      //
+      // Bắt đầu từ CHA, không từ chính element: `closest()` tính cả chính nó, mà
+      // primitive `Input` cũng mang `data-slot="input"` — nên nhánh này luôn trả
+      // về đúng cái input vừa bị loại, và cái khung nó cần đo (pill slug, khung
+      // chip email) chưa từng được nhìn tới lần nào.
       const bare = el.tagName === "INPUT" && parseFloat(getComputedStyle(el).borderTopWidth) === 0;
       const target = bare
-        ? (el.closest<HTMLElement>("[data-slot]") ?? el.closest("label") ?? el.parentElement ?? el)
+        ? (el.parentElement?.closest<HTMLElement>("[data-slot]") ?? el.closest("label") ?? el.parentElement ?? el)
         : el;
       if (seen.has(target)) continue;
       seen.add(target);
@@ -78,14 +68,19 @@ test("mọi vùng chạm đạt 44px", async ({ page }) => {
     return rows;
   });
 
-  // Chống test rỗng: nếu selector trượt hết thì mảng rỗng cũng "đạt".
-  expect(result.length, "không tìm thấy vùng chạm nào để đo").toBeGreaterThan(8);
-  const small = result.filter((r) => r.w < 44 || r.h < 44);
-  expect(small, `vùng chạm dưới 44px: ${small.map((r) => `${r.label} ${r.w}×${r.h}`).join(", ")}`).toEqual([]);
+  // Chống test rỗng: nếu selector trượt hết thì mảng rỗng cũng "đạt". Số đếm
+  // theo từng bước — bước "Về bạn" có 18 control, bước Tổ chức chỉ có 5, nên
+  // một ngưỡng chung hoặc là vô dụng ở bước này hoặc là đỏ giả ở bước kia.
+  const floor = { about_you: 15, organization: 5, workspace: 6, invite: 7 }[step];
+  expect(result.length, `${step}: chỉ tìm thấy ${result.length} vùng chạm, selector đã trượt`).toBeGreaterThanOrEqual(floor);
+  for (const r of result) if (r.w < 44 || r.h < 44) small.push(`${step}: ${r.label} ${r.w}×${r.h}`);
+  });
+
+  expect(small, `vùng chạm dưới 44px: ${small.join(", ")}`).toEqual([]);
 });
 
 test("CTA chính không bị vệt mờ của vùng cuộn ăn vào", async ({ page }) => {
-  await reachAboutYou(page);
+  await reachStep(page, "about_you", "Mobile");
 
   const main = page.locator("main");
   const overflows = await main.evaluate((el) => el.scrollHeight > el.clientHeight + 1);
