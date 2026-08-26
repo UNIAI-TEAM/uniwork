@@ -18,6 +18,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet"
+import { Kbd } from "@uniwork/ui/components/ui/kbd"
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton"
 import {
   Tooltip,
@@ -33,6 +34,10 @@ const SIDEBAR_WIDTH_STORAGE_KEY = "sidebar_width"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_DRAG_THRESHOLD = 2
+// The nav toggle every desktop app of this class binds. Discoverable from
+// the trigger's tooltip; without it the only way back from a collapsed rail
+// is a pointer, which PRODUCT.md's keyboard requirement does not allow.
+const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 // Tailwind `lg`–`xl`: wide enough to keep a two-pane list/detail surface, too
 // narrow to also spend 256px on the nav. The nav starts collapsed here and the
 // header's trigger brings it back.
@@ -181,6 +186,25 @@ function SidebarProvider({
   const toggleSidebar = React.useCallback(() => {
     return isCompact ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isCompact, setOpen, setOpenMobile])
+
+  // Cmd/Ctrl+B toggles the nav. Gated on the event target rather than on
+  // `document.activeElement` so it also stands down inside a contenteditable
+  // surface (the task/meeting editors), where "b" is bold and stealing it
+  // would corrupt what the user is writing.
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== SIDEBAR_KEYBOARD_SHORTCUT) return
+      if (!event.metaKey && !event.ctrlKey) return
+      const target = event.target as HTMLElement | null
+      if (target?.isContentEditable) return
+      const tag = target?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+      event.preventDefault()
+      toggleSidebar()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [toggleSidebar])
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
@@ -337,6 +361,20 @@ function Sidebar({
   )
 }
 
+/**
+ * `null` until mounted: the modifier depends on the user's platform, which the
+ * server does not know, so rendering a guess would either hydrate-mismatch or
+ * show Windows users a key they do not have. The tooltip is a hint, not the
+ * control — it can arrive a frame late.
+ */
+function useShortcutModifier() {
+  const [modifier, setModifier] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    setModifier(/mac|iphone|ipad|ipod/i.test(navigator.userAgent) ? "\u2318" : "Ctrl")
+  }, [])
+  return modifier
+}
+
 function SidebarTrigger({
   className,
   onClick,
@@ -344,23 +382,35 @@ function SidebarTrigger({
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar()
   const { t } = useTranslation()
+  const modifier = useShortcutModifier()
+  const label = t("ui.toggle_sidebar")
 
   return (
-    <Button
-      data-sidebar="trigger"
-      data-slot="sidebar-trigger"
-      variant="ghost"
-      size="icon-sm"
-      className={cn(className)}
-      onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
-      }}
-      {...props}
-    >
-      <PanelLeftIcon />
-      <span className="sr-only">{t("ui.toggle_sidebar")}</span>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            data-sidebar="trigger"
+            data-slot="sidebar-trigger"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            className={cn(className)}
+            onClick={(event) => {
+              onClick?.(event)
+              toggleSidebar()
+            }}
+            {...props}
+          />
+        }
+      >
+        <PanelLeftIcon />
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="flex items-center gap-1.5">
+        {label}
+        {modifier ? <Kbd>{modifier}B</Kbd> : null}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -669,7 +719,7 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
     <ul
       data-slot="sidebar-menu"
       data-sidebar="menu"
-      className={cn("flex w-full min-w-0 flex-col gap-0", className)}
+      className={cn("flex w-full min-w-0 flex-col gap-0 [[data-mobile=true]_&]:gap-1", className)}
       {...props}
     />
   )
@@ -686,8 +736,24 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
   )
 }
 
+/**
+ * Three states that have to be told apart at a glance, so each one adds a cue
+ * the previous one does not have:
+ *
+ *   rest    muted label, no surface
+ *   hover   full-strength label, `--sidebar-accent` surface
+ *   active  the above, plus semibold and a brand bar on the leading edge
+ *
+ * The bar carries the state on its own. `--sidebar-accent` sits ~1.1:1 against
+ * `--sidebar` in both modes (#ffffff on #f4f4f5, #18181b on #232326) — a
+ * deliberate whisper of a surface, but far under the 3:1 WCAG 1.4.11 asks of a
+ * state indicator, and identical to the hover surface besides. `--sidebar-primary`
+ * against `--sidebar` is 5.0:1 light and 4.9:1 dark, and it is a shape rather
+ * than a tint, so the current section survives both a contrast audit and a
+ * collapsed icon rail where the label is gone.
+ */
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button group/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-body ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-sidebar-accent [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
+  "peer/menu-button group/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-body text-muted-foreground ring-sidebar-ring outline-hidden transition-[width,height,padding,background-color,color] duration-150 ease-out group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 motion-reduce:transition-none data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-sidebar-accent data-active:before:absolute data-active:before:inset-y-1.5 data-active:before:left-0 data-active:before:w-[3px] data-active:before:rounded-r-full data-active:before:bg-sidebar-primary [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
   {
     variants: {
       variant: {
@@ -695,9 +761,13 @@ const sidebarMenuButtonVariants = cva(
         outline:
           "bg-background shadow-[0_0_0_1px_var(--color-sidebar-border)] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_var(--color-sidebar-accent)]",
       },
+      // The `[data-mobile=true]` overrides are the sheet: below `lg` the nav is
+      // a touch surface, and 32px rows fail the >=44px target PRODUCT.md
+      // requires. The descendant selector outranks the base height, so the
+      // desktop column keeps its 32px density.
       size: {
-        default: "h-8 text-body",
-        sm: "h-7 text-caption",
+        default: "h-8 text-body [[data-mobile=true]_&]:h-11",
+        sm: "h-7 text-caption [[data-mobile=true]_&]:h-11 [[data-mobile=true]_&]:text-body",
         lg: "h-12 text-body group-data-[collapsible=icon]:p-0!",
       },
     },
