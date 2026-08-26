@@ -1,12 +1,52 @@
 # Product
 
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+
+web
+
 ## Users
 
 Small-to-medium Vietnamese teams (10–1,000 people) running daily operations — tasks, projects, meetings, documents, communications. Team leads, PMs, operators, developers, HR/ops admins, in the workspace many hours a day. Web, tablet, mobile. UI in Vietnamese or English (full parity both; Myanmar/Khmer/Lao are roadmap-only, flag as beta).
 
 ## Product Purpose
 
-UNIWORK is an AI-native Work OS: humans and AI agents co-own tasks, co-attend meetings, co-author documents, co-run workflows. Success = the tool disappears into the work; a team coordinates people + agents without switching context, and every surface (task, meeting, doc, email, chat) feels built for the same flow.
+UniWork is an AI-native Work OS: humans and AI agents co-own tasks, co-attend meetings, co-author documents, co-run workflows. Success = the tool disappears into the work; a team coordinates people + agents without switching context, and every surface (task, meeting, doc, email, chat) feels built for the same flow.
+
+## Positioning
+
+Agents are co-owners of the work, not a feature bolted onto it. Neighbouring
+products (Base.vn, Lark, Notion, Slack) attach AI as a button or a side panel
+next to work that remains entirely human-owned. UniWork's data model and
+permission model are built for an agent to own a task, attend a meeting and run
+a workflow as a peer — which is why every agent action carries visible
+attribution, its own undo, and a real state, rather than a chat transcript
+beside the real record.
+
+Nothing else in the product is claimed as unique. Tasks, meetings and workspaces
+are table stakes; they are the ground the positioning stands on, not the claim.
+
+## Operating Context
+
+Pre-launch as of 2026-08-26: no one outside the development team uses UniWork.
+Every future statement about adoption, usage, customers or outcomes starts from
+zero — see Evidence on Hand.
+
+What exists and runs today:
+
+- Two membership tiers, organization and workspace, with slugs unique within an
+  organization; URLs and the WebSocket handshake carry the pair `/{org}/{ws}`.
+- Tasks with a board, statuses and comments; meetings with a scheduled record
+  and a LiveKit video room; workspace members and email invitations.
+- A four-step onboarding that creates the user's first organization and
+  workspace and hands them a guide task.
+- Realtime through a WebSocket relay: events are `<entity>.<verb>` with id-only
+  payloads that invalidate caches rather than carrying state.
+- Vietnamese and English at full parity. Myanmar, Khmer and Lao are roadmap
+  only and must be flagged beta wherever they appear.
+- Web is the only host. The shared packages carry adapters so a desktop or
+  mobile host can be added without rewriting the screens, but none exists.
 
 ## Brand Personality
 
@@ -39,6 +79,39 @@ Restrained, precise, trustworthy. Interface stays neutral; color appears only as
 - Show real agent state (queued/running/waiting/failed) with real timestamps — never fake progress.
 - Humans can always pause, redirect, or take over agent work; agent activity history is filterable and readable.
 - Agent copy uses the same calm register as human-facing copy — colleague, not mascot.
+
+## Evidence on Hand
+
+The brand identity, and nothing else.
+
+- Logo system: `packages/ui/brand/` — mark, wordmark, lockups, on-dark and
+  monochrome variants, app and platform icons, and the guideline in its README.
+  Generated from `scripts/brand/geometry.py`.
+- The running product itself. Screenshots of real screens are legitimate proof;
+  the interface is truthful because it is the interface.
+
+Deliberately absent, and not to be invented by any later work: customers,
+customer logos, testimonials, case studies, press, pilot results, adoption or
+usage numbers, time-saved claims, pricing, availability dates, certifications,
+and named partners. There are no users outside the team, so there is no usage
+data to cite and none may be estimated.
+
+## Product Principles
+
+1. **Agents are peers, not features.** Anything an agent does gets the same
+   record, the same attribution and the same undo a person's action gets. When
+   a design choice would make agent work a second-class annotation on human
+   work, that choice is wrong.
+2. **The tool disappears into the work.** Success is a team coordinating people
+   and agents without switching context — not time spent in UniWork, not
+   features discovered.
+3. **Vietnamese is the first language, not a translation layer.** Copy is
+   written natively; parity with English is a floor, not the goal.
+4. **Never advertise what does not exist.** No surface lists a capability, a
+   customer, or a number the product cannot back today. Empty states explain
+   the next step instead of showing mock rows.
+5. **Restraint is the quality signal.** Subtraction by default; colour is
+   signal; every element justifies its existence.
 
 ## Accessibility & Inclusion
 
