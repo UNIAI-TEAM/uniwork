@@ -9,7 +9,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.goto("/register");
   await page.getByLabel("Tên hiển thị").fill("E2E Bot");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Mật khẩu").fill("password123");
+  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Đăng ký" }).click();
 
   // onboarding: welcome → bỏ qua "về bạn" → tổ chức → workspace → bỏ qua mời → 🎉

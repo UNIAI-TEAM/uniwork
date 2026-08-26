@@ -27,6 +27,39 @@
   input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
 }
 
+/* Chrome/Safari vẽ nền và màu chữ RIÊNG vào ô vừa được autofill, và bỏ qua
+   `background-color` — để nguyên thì form đăng nhập, màn duy nhất người chưa
+   đăng nhập thấy, hiện một hộp xanh nhạt; ở chế độ tối là chữ tối trên nền
+   sáng. `box-shadow` inset là thuộc tính DUY NHẤT thắng được lớp vẽ đó (tô
+   `background` không ăn), và `-webkit-text-fill-color` là thứ duy nhất đổi được
+   màu chữ. Đọc token nên vẫn đổi theo theme; `.dark` phải viết lại vì token
+   trong đó resolve ra giá trị khác.
+
+   KHÔNG dùng mẹo `transition: background-color 0s 600000s`. Nó có lan truyền
+   rộng trên mạng, nhưng nó tạo ra một CSSTransition dài 166 GIỜ: mọi thứ chờ
+   `getAnimations()` lắng xuống — bộ đo tương phản trong `e2e/contrast.ts`, và
+   bất kỳ công cụ đo nào khác — sẽ treo cho tới khi hết giờ. `box-shadow` đã đủ
+   đè lớp vẽ của trình duyệt; không cần trì hoãn nó. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: inset 0 0 0 100rem var(--surface);
+  box-shadow: inset 0 0 0 100rem var(--surface);
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--brand);
+}
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-box-shadow: inset 0 0 0 100rem var(--surface);
+  box-shadow: inset 0 0 0 100rem var(--surface);
+  -webkit-text-fill-color: var(--foreground);
+}
+
 /* Bề mặt do trình duyệt vẽ: mặc định của chúng không thuộc hệ màu nào.
    Chọn selection/caret/scrollbar từ palette để mọi pixel đều là chủ ý. */
 ::selection { background: var(--selection); color: var(--selection-foreground); }

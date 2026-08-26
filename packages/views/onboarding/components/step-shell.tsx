@@ -3,11 +3,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { OnboardingStep } from "@uniwork/core/onboarding";
 import { useScrollFade } from "@uniwork/ui/hooks/use-scroll-fade";
 import { cn } from "@uniwork/ui/lib/utils";
+import { RAIL_COLUMN, RAIL_GUTTER } from "../../layout/brand-rail";
 import { StepProgressBar, StepSidebar } from "./step-sidebar";
 
-/** Một thước đo duy nhất cho mọi bước (28rem). */
-export const STEP_COLUMN = "mx-auto flex min-h-full w-full max-w-[28rem] flex-col";
-export const STEP_GUTTER = "px-6 py-8 sm:px-10 lg:px-14 lg:py-10";
+/** Một thước đo duy nhất cho mọi bước (28rem) — dùng chung với màn đăng nhập. */
+export const STEP_COLUMN = RAIL_COLUMN;
+export const STEP_GUTTER = RAIL_GUTTER;
 
 /**
  * Id của dòng gợi ý ở chân bước. CTA của mỗi bước trỏ `aria-describedby` vào

@@ -26,7 +26,17 @@
     "noAccount": "Chưa có tài khoản?",
     "hasAccount": "Đã có tài khoản?",
     "invalidCredentials": "Email hoặc mật khẩu không đúng",
-    "emailTaken": "Email đã được đăng ký"
+    "emailTaken": "Email đã được đăng ký",
+    "loginSubtitle": "Tiếp tục vào workspace của bạn.",
+    "registerSubtitle": "Tạo tài khoản để bắt đầu với UniWork.",
+    "signingIn": "Đang đăng nhập…",
+    "registering": "Đang tạo tài khoản…",
+    "showPassword": "Hiện mật khẩu",
+    "hidePassword": "Ẩn mật khẩu",
+    "emailPlaceholder": "ban@congty.com",
+    "passwordMinHint": "Ít nhất {{min}} ký tự",
+    "wordmark": "UniWork",
+    "railTagline": "Con người và AI cùng sở hữu công việc."
   },
   "workspace": {
     "create": "Tạo workspace",
@@ -55,7 +65,9 @@
     "tasks": "Công việc",
     "meetings": "Cuộc họp",
     "members": "Thành viên",
-    "workspace_group": "Không gian làm việc"
+    "workspace_group": "Điều hướng workspace",
+    "account": "Tài khoản",
+    "skip_to_content": "Tới nội dung chính"
   },
   "tasks": {
     "title": "Công việc",

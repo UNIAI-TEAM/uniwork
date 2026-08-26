@@ -12,7 +12,7 @@ async function reachAboutYou(page: Page) {
   await page.goto("/register");
   await page.getByLabel("Tên hiển thị").fill("Mobile");
   await page.getByLabel("Email").fill(`mobile-${stamp}@example.com`);
-  await page.getByLabel("Mật khẩu").fill("password123");
+  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Đăng ký" }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
   await page.getByRole("button", { name: /Bắt đầu/ }).click();

@@ -9,7 +9,7 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
   await page.goto("/register");
   await page.getByLabel("Tên hiển thị").fill("Onboard Bot");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Mật khẩu").fill("password123");
+  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Đăng ký" }).click();
 
   await expect(page).toHaveURL(/\/onboarding$/);
