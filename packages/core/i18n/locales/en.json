@@ -26,7 +26,17 @@
     "noAccount": "No account yet?",
     "hasAccount": "Already have an account?",
     "invalidCredentials": "That email or password isn't right",
-    "emailTaken": "That email is already registered"
+    "emailTaken": "That email is already registered",
+    "loginSubtitle": "Continue to your workspace.",
+    "registerSubtitle": "Create an account to get started with UniWork.",
+    "signingIn": "Signing in…",
+    "registering": "Creating account…",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "emailPlaceholder": "you@company.com",
+    "passwordMinHint": "At least {{min}} characters",
+    "wordmark": "UniWork",
+    "railTagline": "People and AI co-own the work."
   },
   "workspace": {
     "create": "Create workspace",
