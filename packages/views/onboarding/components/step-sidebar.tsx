@@ -3,6 +3,7 @@ import { ArrowLeft, Check } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ONBOARDING_STEP_ORDER, type OnboardingStep } from "@uniwork/core/onboarding";
+import { Logo } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DotSphere } from "@uniwork/ui/components/ui/dot-sphere";
 import {
@@ -23,7 +24,7 @@ import { cn, withAlpha } from "@uniwork/ui/lib/utils";
  * `useCssVars` đọc chúng từ chính panel rail (scope `.dark`) thay vì chép cứng —
  * đổi token là rail đổi theo. Fallback chỉ dùng cho frame SSR đầu tiên.
  */
-export const RAIL_VAR_FALLBACK = { "--rail": "#1b1b1f", "--brand": "#6584ff" };
+export const RAIL_VAR_FALLBACK = { "--rail": "#1b1b1f", "--brand": "#4d8dff" };
 
 /**
  * Thanh tiến độ gọn cho < md (rail ẩn): Back + các đoạn + tên bước + slot footer.
@@ -144,7 +145,7 @@ export function StepSidebar({
         <div className="relative flex min-h-0 flex-1 flex-col pt-5">
           <header className="flex min-h-9 shrink-0 items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-2">
-              <span aria-hidden className="size-5 shrink-0 rounded-md bg-brand" />
+              <Logo variant="mark" tone="mono" size={20} decorative />
               <span className="truncate text-label font-medium text-foreground">{t("onboarding.step_nav.wordmark")}</span>
             </span>
             {onBack ? (

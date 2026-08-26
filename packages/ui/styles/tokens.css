@@ -17,7 +17,7 @@
   --surface-foreground: #18181b;
   --surface-raised: #ffffff;
   --surface-hover: #f4f4f5;
-  --surface-selected: #eef2ff;
+  --surface-selected: #ecf3ff;
   --surface-selected-foreground: #18181b;
   --surface-border: #e4e4e7;
 
@@ -43,12 +43,16 @@
   /* Colour is a signal, not decoration. The signal slots double as text
      colours, so they hold the ≥ 4.5:1 text-safe value on every light surface
      (success 4.6:1, warning 4.6:1, destructive 4.5:1 on white). */
-  --brand: #2f5aff;
+  /* The mark's own deep blue, flattened and lightened until it clears the
+     4.5:1 text floor: hue 262 against the logo gradient's 263. The previous
+     #2f5aff sat at hue 266 and measured 5.00 on --background; this reads 5.25
+     on the same surface, so the realignment costs no contrast. */
+  --brand: #0b5bf5;
   --brand-foreground: #ffffff;
   --destructive: #dc2626;
   --success: #15803d;
   --warning: #a1580a;
-  --info: #2f5aff;
+  --info: #0b5bf5;
 
   /* --border is the quiet divider (1.27:1 — separators and card edges only).
      --input outlines EVERY control (inputs, choice chips, step dots) and must
@@ -56,12 +60,12 @@
      background, 3.56 on surface, 3.24 on muted. */
   --border: #e4e4e7;
   --input: #87878f;
-  --ring: #2f5aff;
+  --ring: #0b5bf5;
   --radius: 6px;
 
   /* Browser-drawn surfaces (selection, caret, scrollbar) read these so every
      pixel belongs to the palette. */
-  --selection: #d9e1ff;
+  --selection: #d3e3ff;
   --selection-foreground: #18181b;
 
   /* The onboarding rail is a dark panel in BOTH themes, so it is defined once
@@ -71,21 +75,21 @@
 
   --sidebar: #f4f4f5;
   --sidebar-foreground: #18181b;
-  --sidebar-primary: #2f5aff;
+  --sidebar-primary: #0b5bf5;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #ffffff;
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #e4e4e7;
-  --sidebar-ring: #2f5aff;
+  --sidebar-ring: #0b5bf5;
 
   /* Chart ramp: chart-1 is the brand hue so the leading series anchors to
      the product colour; 2..5 step lighter and less saturated so a stacked bar
      reads as a hierarchy instead of five equally loud greys. */
-  --chart-1: oklch(0.55 0.16 255);
-  --chart-2: oklch(0.66 0.13 255);
-  --chart-3: oklch(0.76 0.10 255);
-  --chart-4: oklch(0.85 0.06 255);
-  --chart-5: oklch(0.92 0.03 255);
+  --chart-1: oklch(0.55 0.16 262);
+  --chart-2: oklch(0.66 0.13 262);
+  --chart-3: oklch(0.76 0.10 262);
+  --chart-4: oklch(0.85 0.06 262);
+  --chart-5: oklch(0.92 0.03 262);
 
   --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 1px rgb(15 23 42 / 0.03);
   --menu-shadow: 0 8px 24px rgb(15 23 42 / 0.08), 0 2px 6px rgb(15 23 42 / 0.05);
@@ -102,7 +106,7 @@
   --surface-foreground: #f4f4f5;
   --surface-raised: #18181b;
   --surface-hover: #232326;
-  --surface-selected: #1b2340;
+  --surface-selected: #162440;
   --surface-selected-foreground: #f4f4f5;
   --surface-border: #2a2a2e;
 
@@ -121,36 +125,39 @@
   --muted-foreground: #a1a1aa;
   --faint-foreground: #8b8b95;
 
-  --brand: #6584ff;
+  /* Hue 261 against light's 262. The old pair drifted 4 degrees (266 light /
+     270 dark), which shows as a hue shift when the theme is toggled beside a
+     brand-coloured control. 5.90 on --background, up from 5.66. */
+  --brand: #4d8dff;
   --brand-foreground: #0d1220;
   --destructive: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
-  --info: #6584ff;
+  --info: #4d8dff;
 
   --border: #2a2a2e;
   /* Dark: 3.68 background / 3.46 surface / 3.06 muted / 3.35 rail. The old
      #6b6b74 fell to 2.97 on `muted` — the slug pill's background. */
   --input: #6d6d76;
-  --ring: #6584ff;
+  --ring: #4d8dff;
 
-  --selection: #2b3a72;
+  --selection: #213d72;
   --selection-foreground: #f4f4f5;
 
   --sidebar: #232326;
   --sidebar-foreground: #f4f4f5;
-  --sidebar-primary: #6584ff;
+  --sidebar-primary: #4d8dff;
   --sidebar-primary-foreground: #0d1220;
   --sidebar-accent: #18181b;
   --sidebar-accent-foreground: #f4f4f5;
   --sidebar-border: #2a2a2e;
-  --sidebar-ring: #6584ff;
+  --sidebar-ring: #4d8dff;
 
-  --chart-1: oklch(0.62 0.16 255);
-  --chart-2: oklch(0.70 0.13 255);
-  --chart-3: oklch(0.78 0.10 255);
-  --chart-4: oklch(0.85 0.06 255);
-  --chart-5: oklch(0.91 0.03 255);
+  --chart-1: oklch(0.62 0.16 262);
+  --chart-2: oklch(0.70 0.13 262);
+  --chart-3: oklch(0.78 0.10 262);
+  --chart-4: oklch(0.85 0.06 262);
+  --chart-5: oklch(0.91 0.03 262);
 
   --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 1px 1px rgb(0 0 0 / 0.16);
   --menu-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.25);
