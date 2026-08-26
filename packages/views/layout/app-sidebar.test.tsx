@@ -59,9 +59,19 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).not.toHaveAttribute("aria-current");
   });
 
-  it("logs out through the store and then navigates, never by reloading the page", async () => {
+  it("names the navigation landmark so a screen reader can jump to it", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.getByRole("navigation", { name: "Điều hướng workspace" })).toBeInTheDocument();
+  });
+
+  it("keeps log out behind the account menu rather than one click away in the chrome", async () => {
     const nav = renderSidebar("/acme/team/tasks");
-    fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
+    expect(screen.queryByRole("menuitem", { name: "Đăng xuất" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tài khoản" }));
+    const logout = await screen.findByRole("menuitem", { name: "Đăng xuất" });
+    fireEvent.click(logout);
+
     await vi.waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/login"));
     expect(useAuthStore.getState().status).toBe("anon");
   });

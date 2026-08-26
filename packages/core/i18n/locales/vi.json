@@ -55,7 +55,9 @@
     "tasks": "Công việc",
     "meetings": "Cuộc họp",
     "members": "Thành viên",
-    "workspace_group": "Không gian làm việc"
+    "workspace_group": "Điều hướng workspace",
+    "account": "Tài khoản",
+    "skip_to_content": "Tới nội dung chính"
   },
   "tasks": {
     "title": "Công việc",

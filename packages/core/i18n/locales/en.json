@@ -56,7 +56,9 @@
     "tasks": "Tasks",
     "meetings": "Meetings",
     "members": "Members",
-    "workspace_group": "Workspace"
+    "workspace_group": "Workspace navigation",
+    "account": "Account",
+    "skip_to_content": "Skip to main content"
   },
   "tasks": {
     "title": "Tasks",
