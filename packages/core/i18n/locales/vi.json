@@ -36,7 +36,9 @@
     "emailPlaceholder": "ban@congty.com",
     "passwordMinHint": "Ít nhất {{min}} ký tự",
     "wordmark": "UniWork",
-    "railTagline": "Con người và AI cùng sở hữu công việc."
+    "railTagline": "Con người và AI cùng sở hữu công việc.",
+    "forgotPassword": "Quên mật khẩu?",
+    "forgotPasswordHelp": "Nhờ chủ sở hữu hoặc quản trị viên workspace đặt lại giúp — UniWork chưa có tự đặt lại mật khẩu."
   },
   "workspace": {
     "create": "Tạo workspace",
@@ -59,7 +61,12 @@
     "invite_invalid_email": "Địa chỉ không hợp lệ",
     "invite_invalid_summary_one": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
     "invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
-    "inviteNotAllowed": "Chỉ chủ sở hữu và quản trị viên workspace mới mời được thành viên."
+    "inviteNotAllowed": "Chỉ chủ sở hữu và quản trị viên workspace mới mời được thành viên.",
+    "copy_failed": "Không sao chép được — link đã được bôi đen, bấm Ctrl/Cmd+C",
+    "copy_confirmed": "Đã sao chép link mời của {{email}}",
+    "invite_recipients_empty": "Chưa có người nhận nào",
+    "invite_recipient_count_one": "{{count}} người nhận",
+    "invite_recipient_count_other": "{{count}} người nhận"
   },
   "nav": {
     "tasks": "Công việc",
@@ -241,7 +248,10 @@
       "cta_open": "Tiếp tục với {{name}}",
       "slug_taken_error": "Định danh tổ chức này đã có người dùng.",
       "slug_conflict_toast": "Hãy chọn định danh tổ chức khác",
-      "picker_label": "Chọn tổ chức"
+      "picker_label": "Chọn tổ chức",
+      "url_preview_label": "Đường dẫn tổ chức",
+      "url_preview_prefix": "Mọi thứ của tổ chức này nằm dưới ",
+      "url_preview_suffix": "."
     },
     "step_workspace": {
       "headline_first": "Đặt tên workspace.",

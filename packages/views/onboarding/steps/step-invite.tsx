@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { Workspace } from "@uniwork/core/types";
 import { useInvite } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@uniwork/ui/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -106,9 +106,15 @@ export function StepInvite({
           </Button>
           {sent.length > 0 && (
             <Field>
-              <FieldLabel htmlFor="invite-list">{t("onboarding.step_invite.sent_title", { count: sent.length })}</FieldLabel>
+              {/* `FieldTitle`, not `FieldLabel`: `<label for>` is only valid
+                  against a labelable element (input/button/select/…), and the
+                  target here is a <ul>. The old form rendered an inert
+                  `<label for="invite-list">` — clicking it did nothing and the
+                  list got no accessible name. `aria-labelledby` takes any
+                  target. */}
+              <FieldTitle id="invite-list-title">{t("onboarding.step_invite.sent_title", { count: sent.length })}</FieldTitle>
               <FieldDescription>{t("onboarding.step_invite.sent_hint")}</FieldDescription>
-              <ul id="invite-list" className="flex flex-col gap-2">
+              <ul aria-labelledby="invite-list-title" className="flex flex-col gap-2">
                 {sent.map((s) => (
                   <InviteRow key={s.token} sent={s} />
                 ))}

@@ -110,6 +110,20 @@ export function StepOrganization({
       slugPlaceholder={t("onboarding.step_organization.slug_placeholder")}
       onEnter={handleCreate}
       autoFocus={!resume || pickedId === "create"}
+      // Same preview the workspace step carries. Without it this step was the
+      // one place the resulting URL existed only inside a truncated pill.
+      preview={{
+        title: t("onboarding.step_organization.url_preview_label"),
+        body: (
+          <>
+            {t("onboarding.step_organization.url_preview_prefix")}
+            <span className="font-mono text-foreground">
+              {host}/{form.slug || "…"}
+            </span>
+            {t("onboarding.step_organization.url_preview_suffix")}
+          </>
+        ),
+      }}
     />
   );
 

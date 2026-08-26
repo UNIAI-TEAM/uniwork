@@ -110,8 +110,15 @@ function AuthedOnboardingFlow({
     void saveQuestionnaire(answersRef.current).catch(() => toast.error(t("onboarding.errors.save_failed")));
   }, [t]);
 
+  // Unmounting is also "leaving the step". This used to only `clearTimeout`,
+  // so typing into the "Other" box and hitting Log out within 600ms dropped the
+  // answer outright — the very thing `flushAnswers` above exists to prevent. No
+  // `toast` here: the component is already gone, so nobody would read it.
   useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (!saveTimer.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    void saveQuestionnaire(answersRef.current).catch(() => {});
   }, []);
 
   const finish = useCallback(
@@ -152,7 +159,15 @@ function AuthedOnboardingFlow({
   if (step === "welcome") {
     return (
       <>
-        <OnboardingLogoutButton />
+        {/* A `<header>` (banner) rather than a bare sibling: steps 1–4 receive
+            this button through the rail's footer slot, i.e. inside a landmark.
+            On Welcome it used to sit BEFORE `<main>` as a sibling, so it
+            belonged to no landmark at all and a landmark-browsing user never
+            reached the switch-account escape hatch. The button stays `fixed`,
+            so the wrapper takes no space in the flow. */}
+        <header>
+          <OnboardingLogoutButton />
+        </header>
         <StepWelcome onNext={() => setStep(ONBOARDING_STEP_ORDER[0]!)} onSkip={canSkipWelcome ? skipWelcome : undefined} />
       </>
     );

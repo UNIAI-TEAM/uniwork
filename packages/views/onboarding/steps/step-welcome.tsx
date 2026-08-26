@@ -36,7 +36,12 @@ export function StepWelcome({
     // `<main>`: các bước 1–4 nhận landmark từ StepShell, còn màn đầu tiên của
     // cả luồng thì trước đây không có landmark nào — không có đích để "nhảy tới
     // nội dung", không có gì cho chế độ duyệt landmark của screen reader.
-    <main className="animate-onboarding-enter flex h-full min-h-[640px] flex-col lg:flex-row">
+    // `lg:` on the min-height: it exists so the two-column hero has room for
+    // the illustration, and that column only appears at `lg`. Unqualified it
+    // also applied to a phone held landscape (~390px of viewport height) and to
+    // a 1280x800 window at 200% zoom, turning a hero that fits into one the
+    // user has to scroll for no reason.
+    <main className="animate-onboarding-enter flex h-full flex-col lg:min-h-[640px] lg:flex-row">
       {/* Cột chữ giữ phần lớn hơn: chia đôi 50/50 khiến cột co từ 540px xuống
           352px đúng ở 1024px — cửa sổ rộng ra mà chỗ cho chữ lại hẹp đi. */}
       <div className="flex flex-col lg:flex-[1.15]">

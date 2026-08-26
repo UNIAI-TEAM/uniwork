@@ -36,7 +36,9 @@
     "emailPlaceholder": "you@company.com",
     "passwordMinHint": "At least {{min}} characters",
     "wordmark": "UniWork",
-    "railTagline": "People and AI co-own the work."
+    "railTagline": "People and AI co-own the work.",
+    "forgotPassword": "Forgot your password?",
+    "forgotPasswordHelp": "Ask a workspace owner or admin to reset it — UniWork has no self-service reset yet."
   },
   "workspace": {
     "create": "Create workspace",
@@ -60,7 +62,12 @@
     "invite_invalid_summary_one": "{{count}} address isn't formatted correctly — fix or remove it before sending.",
     "invite_invalid_summary_other": "{{count}} addresses aren't formatted correctly — fix or remove them before sending.",
     "inviteSkipped": "Skipped (already a member, or not valid): {{list}}",
-    "inviteNotAllowed": "Only workspace owners and admins can invite members."
+    "inviteNotAllowed": "Only workspace owners and admins can invite members.",
+    "copy_failed": "Couldn't copy — the link is selected, press Ctrl/Cmd+C",
+    "copy_confirmed": "Invite link for {{email}} copied",
+    "invite_recipient_count_one": "{{count}} recipient",
+    "invite_recipient_count_other": "{{count}} recipients",
+    "invite_recipients_empty": "No recipients yet"
   },
   "nav": {
     "tasks": "Tasks",
@@ -242,7 +249,10 @@
       "cta_open": "Continue with {{name}}",
       "slug_taken_error": "That organization slug is already taken.",
       "slug_conflict_toast": "Pick a different organization slug",
-      "picker_label": "Choose an organization"
+      "picker_label": "Choose an organization",
+      "url_preview_label": "Organization URL",
+      "url_preview_prefix": "Everything in this organization lives under ",
+      "url_preview_suffix": "."
     },
     "step_workspace": {
       "headline_first": "Name your workspace.",

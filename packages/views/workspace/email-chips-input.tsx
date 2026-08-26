@@ -53,10 +53,24 @@ export function EmailChipsInput({
   return (
     <>
       <div
+      // The frame, not the bare <input>, is the real touch target and the real
+      // focus host — `e2e/onboarding-mobile.spec.ts` measures `[data-slot]` for
+      // exactly this reason and would otherwise climb to the whole field.
+      data-slot="email-chips"
       className={cn(
-        "flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border bg-surface px-2 py-1.5 focus-within:border-ring pointer-coarse:min-h-11",
+        "flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border bg-surface px-2 py-1.5 pointer-coarse:min-h-11",
         // Đường bao của một control phải đạt 3:1 — xem `input.tsx`.
         invalidCount > 0 ? "border-destructive" : "border-input",
+        // The draft input cannot carry its own focus ring (it is transparent
+        // and sits between the chips), so the FRAME draws one for it — the same
+        // `focus-within` pattern the option chips use.
+        //
+        // `has-[>input:focus-visible]` rather than `focus-within`: each chip's
+        // delete button also lives inside this frame and already has the global
+        // focus outline, so `focus-within` would wrap a second ring around it —
+        // exactly what `e2e/onboarding-focus.spec.ts` forbids. The `>` narrows
+        // this to the draft input, the only direct <input> child.
+        "has-[>input:focus-visible]:border-ring has-[>input:focus-visible]:ring-3 has-[>input:focus-visible]:ring-ring/50",
         disabled && "opacity-60",
       )}
       onClick={() => document.getElementById(id)?.focus()}
@@ -111,7 +125,10 @@ export function EmailChipsInput({
         autoCorrect="off"
         spellCheck={false}
         enterKeyHint="enter"
-        className="min-w-[10rem] flex-1 bg-transparent text-body text-foreground placeholder:text-muted-foreground focus:outline-none"
+        // `focus-visible:` rather than `focus:`: the frame draws the ring via
+        // `has-[>input:focus-visible]`, and the old `focus:` form also stripped
+        // the global outline in focus states where that ring never turns on.
+        className="min-w-[10rem] flex-1 bg-transparent text-body text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onPaste={onPaste}
@@ -120,6 +137,14 @@ export function EmailChipsInput({
         aria-invalid={invalidCount > 0 ? true : undefined}
       />
       </div>
+      {/* Enter adds a chip and Backspace removes one: both only change what is
+          INSIDE the frame, leaving the draft input's value and the focus
+          untouched, so a screen reader has nothing to announce. A recipient
+          count in a live region is the only thing that says "one more" or
+          "one gone". */}
+      <span role="status" aria-live="polite" className="sr-only">
+        {value.length ? t("workspace.invite_recipient_count", { count: value.length }) : t("workspace.invite_recipients_empty")}
+      </span>
       {invalidCount > 0 && (
         <p id={`${id}-invalid`} role="alert" className="mt-1.5 text-caption text-destructive">
           {t("workspace.invite_invalid_summary", { count: invalidCount })}

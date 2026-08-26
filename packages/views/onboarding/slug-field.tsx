@@ -144,6 +144,13 @@ export function SlugFields({
       <Field data-invalid={form.slugError ? true : undefined}>
         <FieldLabel htmlFor={`${idPrefix}-slug`}>{urlLabel}</FieldLabel>
         <div
+          // Same reason as the email chips frame: the pill is the touch target,
+          // the <input> inside it is borderless and, sitting inside the border,
+          // 2px shorter than the 44px coarse-pointer floor. Tapping the host
+          // prefix has to land in the field for that to be true, so the frame
+          // forwards the tap the way the email chips frame does.
+          data-slot="slug-pill"
+          onClick={() => document.getElementById(`${idPrefix}-slug`)?.focus()}
           className={
             "flex h-10 items-center rounded-lg border bg-muted transition-colors focus-within:border-ring pointer-coarse:h-11 " +
             // `bg-muted` trên canvas chỉ 1.03:1 — viền là thứ duy nhất vẽ ra
@@ -151,6 +158,11 @@ export function SlugFields({
             (form.slugError ? "border-destructive" : "border-input")
           }
         >
+          {/* `truncate` can cut this in half, and `title` is a mouse-hover
+              tooltip — touch and keyboard users have no way to read the rest.
+              The `preview` block below carries the whole URL in text, and it is
+              wired into this input's `aria-describedby` so it is announced on
+              focus rather than only found by reading the page top to bottom. */}
           <span className="max-w-[60%] shrink-0 select-none truncate pl-3 font-mono text-body text-muted-foreground" title={hostPrefix}>
             {hostPrefix}
           </span>
@@ -165,7 +177,11 @@ export function SlugFields({
             spellCheck={false}
             inputMode="url"
             enterKeyHint="go"
-            aria-describedby={form.slugError ? `${idPrefix}-slug-error` : undefined}
+            aria-describedby={
+              [form.slugError ? `${idPrefix}-slug-error` : null, preview ? `${idPrefix}-slug-preview` : null]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
             aria-invalid={form.slugError ? true : undefined}
             className="h-full border-0 bg-transparent font-mono text-body shadow-none focus-visible:outline-none"
             onChange={(e) => form.setSlugValue(e.target.value)}
@@ -177,7 +193,7 @@ export function SlugFields({
       {preview && (
         <Field>
           <FieldTitle>{preview.title}</FieldTitle>
-          <FieldDescription>{preview.body}</FieldDescription>
+          <FieldDescription id={`${idPrefix}-slug-preview`}>{preview.body}</FieldDescription>
         </Field>
       )}
       </FieldGroup>

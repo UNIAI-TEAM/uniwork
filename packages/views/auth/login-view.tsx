@@ -98,6 +98,16 @@ export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) =>
               {t("auth.register")}
             </AppLink>
           </p>
+          {/* Stated, not linked: there is no password-reset route, handler or
+              template anywhere in the repo, and no outbound email at all (the
+              invite step says as much in `step_invite.sent_hint`). A dead
+              "Forgot password?" link would be worse than the truth. Until a
+              reset flow exists, a locked-out user needs to be told the one
+              thing that does work instead of being left to guess. */}
+          <p className="text-center text-caption text-muted-foreground">
+            <span className="font-medium text-foreground">{t("auth.forgotPassword")}</span>{" "}
+            {t("auth.forgotPasswordHelp")}
+          </p>
         </div>
       </form>
     </AuthShell>
