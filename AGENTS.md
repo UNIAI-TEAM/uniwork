@@ -49,7 +49,7 @@ make dev              # bootstrap + start everything
 make check            # full verification pipeline (ends with Playwright)
 pnpm typecheck        # TypeScript
 pnpm test             # TS unit tests (Vitest)
-make test-go          # Go tests (gofmt, vet, -race)
+make test-go          # Go tests (gofmt, vet, staticcheck, -race)
 make worktree-env     # isolated DB + ports for a git worktree
 ```
 

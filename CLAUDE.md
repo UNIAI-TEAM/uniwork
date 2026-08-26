@@ -97,7 +97,7 @@ If logic would be needed by a second host, extract it now:
 make dev              # bootstrap this checkout and start everything
 make start            # app processes (migrates first); make stop leaves Postgres/Redis up
 make check            # typecheck → lint → unit + contract tests → Go tests → E2E
-make test-go          # Go: gofmt, vet, go test -race (ensures the test DB first)
+make test-go          # Go: gofmt, vet, staticcheck, go test -race (ensures the test DB first)
 make e2e              # Playwright against E2E_BASE_URL (app must be running)
 make migrate-up       # apply migrations to this checkout's database
 make sqlc             # regenerate after editing server/pkg/db/queries
@@ -135,7 +135,9 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
 
 ## Coding Rules
 
-- TypeScript strict; keep types explicit. Go: `gofmt`, `go vet`, checked errors.
+- TypeScript strict; keep types explicit. ESLint runs with `--max-warnings 0`,
+  so a warning fails `pnpm lint`. Go: `gofmt`, `go vet`, `staticcheck`
+  (`go tool staticcheck`, pinned in `server/go.mod`), checked errors.
 - Code comments in English. Specs and plans (`docs/superpowers/`) are in Vietnamese.
 - Prefer existing patterns over new parallel abstractions; no broad refactors
   unless the task requires them.
@@ -169,6 +171,23 @@ handed to the service, which decides visibility: `authorize()` /
 `RequireMember` return `ErrForbidden` or `ErrNotFound`, and
 `mapServiceError` turns those into 403/404. Handlers never query the
 database and never reveal whether an id exists to a non-member.
+
+## Backend HTTP Rules
+
+- Every JSON body goes through `decode(w, r, &in, limit)` in
+  `server/internal/handler/json.go`; it caps the body (`maxJSONBody`, 1 MiB)
+  and writes the 400/413 itself. Multipart uploads set their own cap.
+  `json_test.go` proves the cap on the public login route.
+- Nothing rewrites `r.RemoteAddr` from a forwarded header — no `RealIP`
+  middleware. Each consumer of the client address (rate limiter, WebSocket
+  origin check) applies `TRUSTED_PROXIES` itself. `router_test.go` pins it.
+- Rate limits exist only with Redis and are keyed by IP and path; the
+  credential routes carry their own small budget in `router.go`.
+- `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
+  refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
+- `cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get
+  10s, then the relay and metrics listener stop. Add new background workers
+  to that sequence, not as a bare goroutine.
 
 ## Web Features
 
