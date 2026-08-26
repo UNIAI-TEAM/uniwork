@@ -6,7 +6,7 @@ Next.js + Tailwind 4 + Base UI · realtime WebSocket · LiveKit.
 
 ## Yêu cầu
 
-- Go ≥ 1.26, Node ≥ 22, pnpm ≥ 9, Docker
+- Go ≥ 1.27, Node ≥ 22, pnpm 10 (`corepack enable`), Docker
 - `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest` (khi sửa queries)
 
 ## Chạy dev
@@ -40,7 +40,7 @@ restart server.
 
 ```sh
 make check     # typecheck → lint → unit + contract tests → Go (-race) → Playwright
-make test-go   # chỉ Go (tự đảm bảo DB test + migration)
+make test-go   # chỉ Go: gofmt, vet, staticcheck, test -race (tự đảm bảo DB test + migration)
 make e2e       # chỉ Playwright, cần app đang chạy (E2E_BASE_URL)
 ```
 
