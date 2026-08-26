@@ -69,8 +69,7 @@ func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
 		AssigneeID  *string `json:"assignee_id"`
 		DueDate     *string `json:"due_date"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	t, err := h.Tasks.Create(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"),
@@ -96,8 +95,7 @@ func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
 // Dùng json.RawMessage để phân biệt "vắng mặt" và "null".
 func (h *handlers) updateTask(w http.ResponseWriter, r *http.Request) {
 	var raw map[string]json.RawMessage
-	if err := decode(r, &raw); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &raw, maxJSONBody) {
 		return
 	}
 	in, err := parseTaskPatch(raw)
@@ -134,8 +132,7 @@ func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Body string `json:"body"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	c, err := h.Tasks.AddComment(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "taskID"), in.Body)

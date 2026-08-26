@@ -50,8 +50,7 @@ func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
 		StartsAt    time.Time `json:"starts_at"`
 		EndsAt      time.Time `json:"ends_at"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	m, err := h.Meetings.Create(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"),
@@ -79,8 +78,7 @@ func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {
 		StartsAt    *time.Time `json:"starts_at"`
 		EndsAt      *time.Time `json:"ends_at"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	m, err := h.Meetings.Update(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
@@ -113,8 +111,7 @@ func (h *handlers) createNote(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Body string `json:"body"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	n, err := h.Meetings.AddNote(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Body)

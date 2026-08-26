@@ -58,8 +58,7 @@ func (h *handlers) register(w http.ResponseWriter, r *http.Request) {
 		Password    string `json:"password"`
 		DisplayName string `json:"display_name"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	sess, err := h.Auth.Register(r.Context(), in.Email, in.Password, in.DisplayName)
@@ -75,8 +74,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	sess, err := h.Auth.Login(r.Context(), in.Email, in.Password)

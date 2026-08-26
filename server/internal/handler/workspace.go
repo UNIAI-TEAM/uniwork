@@ -63,8 +63,7 @@ func (h *handlers) createInvitation(w http.ResponseWriter, r *http.Request) {
 		Emails []string `json:"emails"`
 		Role   string   `json:"role"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	emails := in.Emails

@@ -13,12 +13,10 @@ import (
 const onboardingBodyLimit = 16 * 1024
 
 func (h *handlers) patchOnboarding(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, onboardingBodyLimit)
 	var in struct {
 		Questionnaire json.RawMessage `json:"questionnaire"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json or body too large")
+	if !decode(w, r, &in, onboardingBodyLimit) {
 		return
 	}
 	u, err := h.Onboarding.PatchQuestionnaire(r.Context(), middleware.UserID(r.Context()), in.Questionnaire)
@@ -34,11 +32,8 @@ func (h *handlers) completeOnboarding(w http.ResponseWriter, r *http.Request) {
 		CompletionPath string `json:"completion_path"`
 		WorkspaceID    string `json:"workspace_id"`
 	}
-	if r.ContentLength != 0 {
-		if err := decode(r, &in); err != nil {
-			respondError(w, 400, "invalid_request", "invalid json")
-			return
-		}
+	if r.ContentLength != 0 && !decode(w, r, &in, maxJSONBody) {
+		return
 	}
 	u, err := h.Onboarding.Complete(r.Context(), middleware.UserID(r.Context()), in.CompletionPath, in.WorkspaceID)
 	if err != nil {

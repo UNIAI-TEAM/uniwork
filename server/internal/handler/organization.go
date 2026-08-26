@@ -33,8 +33,7 @@ func (h *handlers) createOrganization(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 		Slug string `json:"slug"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	o, err := h.Organizations.Create(r.Context(), middleware.UserID(r.Context()), in.Name, in.Slug)
@@ -76,8 +75,7 @@ func (h *handlers) createOrgWorkspace(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 		Slug string `json:"slug"`
 	}
-	if err := decode(r, &in); err != nil {
-		respondError(w, 400, "invalid_request", "invalid json")
+	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	ws, err := h.Workspaces.CreateInOrg(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "org"), in.Name, in.Slug)
