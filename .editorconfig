@@ -1,0 +1,27 @@
+# Applies to every editor that reads EditorConfig. The values here are not a
+# preference — they are what gofmt, prettier-less TypeScript and the Makefile
+# already produce, written down so a new editor does not fight them.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# gofmt emits tabs. An editor set to spaces makes every Go file a diff.
+[*.go]
+indent_style = tab
+
+[Makefile]
+indent_style = tab
+
+[*.md]
+# A line ending in two spaces is a hard break in Markdown; trimming it silently
+# reflows the paragraph.
+trim_trailing_whitespace = false
+
+[*.{sql,sh}]
+indent_size = 2

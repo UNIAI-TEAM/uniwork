@@ -8,6 +8,7 @@
     ]
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "build": "turbo build",
     "dev": "turbo dev",
     "typecheck": "turbo typecheck",

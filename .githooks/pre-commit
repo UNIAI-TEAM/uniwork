@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Local gate in front of every commit. It runs the checks that are cheap enough
+# to sit here and expensive enough to be worth catching before the code leaves
+# your machine: gofmt, and package-boundary lint + typecheck for the workspaces
+# this commit actually touches.
+#
+# It is deliberately NOT `make check`. Tests, go vet/staticcheck and Playwright
+# stay there. The job here is to stop a commit that cannot compile or that
+# breaks a boundary rule, in seconds.
+#
+# Escape hatch: `git commit --no-verify`. If you use it, running `make check`
+# before you push is not optional.
+#
+# Wired by the root `prepare` script (`git config core.hooksPath .githooks`),
+# which pnpm runs on install. scripts/governance.test.mjs pins that wiring.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+# ACMRT, not ACMR: a typechange (file -> symlink) is exactly the shape a
+# .env smuggled in as a link would take, and it is how AGENTS.md became one.
+files="$(git diff --cached --name-only --diff-filter=ACMRT)"
+[ -n "$files" ] || exit 0
+
+fail=0
+
+# --- No env file, ever -------------------------------------------------------
+# .gitignore already covers .env, but `git add -f` walks straight past it and a
+# committed JWT_SECRET is not something a later commit can take back.
+secrets="$(printf '%s\n' "$files" | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)"
+if [ -n "$secrets" ]; then
+  echo "✗ refusing to commit an env file:"
+  printf '%s\n' "$secrets" | sed 's/^/    /'
+  echo "  .env holds real secrets. New variables belong in .env.example."
+  fail=1
+fi
+
+# --- Go: gofmt ---------------------------------------------------------------
+go_files="$(printf '%s\n' "$files" | grep -E '^server/.*\.go$' || true)"
+if [ -n "$go_files" ]; then
+  # shellcheck disable=SC2086
+  unformatted="$(gofmt -l $go_files 2>/dev/null || true)"
+  if [ -n "$unformatted" ]; then
+    echo "✗ gofmt:"
+    printf '%s\n' "$unformatted" | sed 's/^/    /'
+    echo "  run: gofmt -w $(printf '%s' "$unformatted" | tr '\n' ' ')"
+    fail=1
+  fi
+fi
+
+# --- TypeScript: lint + typecheck, scoped to the touched workspaces ----------
+# Whole-package tasks rather than per-file eslint: the flat config lives in each
+# package and resolves from its own directory, and turbo caches the result, so
+# scoping by package is both correct and fast.
+dirs="$(printf '%s\n' "$files" \
+  | grep -E '^(apps/[^/]+|packages/[^/]+|e2e)/' \
+  | sed -E 's#^(apps/[^/]+|packages/[^/]+|e2e)/.*#\1#' \
+  | sort -u || true)"
+if [ -n "$dirs" ]; then
+  filters=""
+  for d in $dirs; do
+    [ -f "$d/package.json" ] || continue
+    name="$(node -p "require('./$d/package.json').name" 2>/dev/null || true)"
+    [ -n "$name" ] && filters="$filters --filter=$name"
+  done
+  if [ -n "$filters" ]; then
+    echo "→ lint + typecheck:$(printf '%s' "$filters" | sed 's/--filter=//g')"
+    # shellcheck disable=SC2086
+    pnpm exec turbo lint typecheck $filters --output-logs=errors-only || fail=1
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "Commit blocked. Fix the above, or bypass with --no-verify and run 'make check'."
+  exit 1
+fi

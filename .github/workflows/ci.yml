@@ -49,6 +49,11 @@ jobs:
               - 'scripts/**'
               - '.github/workflows/ci.yml'
               - 'server/internal/service/reserved_slugs.json'
+              # governance.test.mjs reads these; a ruleset change must run the
+              # job that checks the ruleset.
+              - 'CLAUDE.md'
+              - 'AGENTS.md'
+              - '.githooks/**'
       - id: decide
         # Always run on push to main; on a PR only when frontend paths changed.
         # The frontend jobs still run and report success in that case — their
@@ -103,10 +108,11 @@ jobs:
           git diff --exit-code -- packages/core/paths/reserved-slugs.ts
       - name: Repo contract tests
         if: ${{ needs.changes.outputs.frontend == 'true' }}
-        # Catalog completeness, no usf branding left behind, and the turbo
+        # Catalog completeness, no usf branding left behind, the governance
+        # wiring (AGENTS.md, hooks, doc/hook agreement), and the turbo
         # dependency-hash probe that proves `test` cannot replay a stale pass.
         run: |
-          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs
+          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs
           bash scripts/turbo-cache-check.sh
       - name: Build, typecheck, lint
         if: ${{ needs.changes.outputs.frontend == 'true' }}

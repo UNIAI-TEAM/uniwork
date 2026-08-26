@@ -1,9 +1,12 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repository. Keep this file short
-and authoritative: rules here are the ones that are hard to infer from code or
-easy to get wrong. Every rule below is enforced by a command, a test, or a lint
-rule named next to it; if you find one that is not, fix the rule or the file.
+Guidance for anyone working in this repository, human or agent. `AGENTS.md` is
+a symlink to this file, so every tool that looks for its own convention name
+lands on the same ruleset — there is no short version that quietly omits half
+the rules. Keep this file short and authoritative: rules here are the ones
+that are hard to infer from code or easy to get wrong. Every rule below is
+enforced by a command, a test, or a lint rule named next to it; if you find
+one that is not, fix the rule or the file.
 
 ## Conventions
 
@@ -24,7 +27,13 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n.
+  Zustand stores, realtime sync, permissions, paths, i18n. Seven modules came
+  over with the port and no host reaches them yet: `packages/core/analytics/`,
+  `packages/core/constants/`, `packages/core/diagnostics/`,
+  `packages/core/feature-flags/`, `packages/core/modals/`,
+  `packages/core/navigation/`, `packages/core/shortcuts/`. They import each
+  other, not the app. Wire one before relying on it;
+  `scripts/governance.test.mjs` recomputes the list.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
 - `packages/views/` — shared business screens and the navigation adapter.
 - `packages/tsconfig/`, `packages/eslint-config/` — shared config.
@@ -44,9 +53,10 @@ Keep server state and client state separate.
   organizations, invitations. Query keys come from the `<feature>Keys`
   factories beside each hook; workspace-scoped keys always include the
   workspace id. Hooks that need a workspace take `wsId` as a parameter.
-- Zustand owns client state: `packages/core/auth/store.ts`,
-  `packages/core/navigation/store.ts`, `packages/core/modals/store.ts`.
-  Stores live in `packages/core/`, never in `views` or apps.
+- Zustand owns client state; stores live in `packages/core/`, never in `views`
+  or apps. `packages/core/auth/store.ts` is the only store a host reaches
+  today and the pattern to copy — `packages/core/navigation/store.ts` and
+  `packages/core/modals/store.ts` are unwired (see Project Shape).
 - Only the auth store and `api/endpoints/*` talk to the transport. Every
   other server interaction is a query or a mutation.
 - WebSocket events invalidate Query keys (`packages/core/realtime/use-realtime-sync.ts`).
@@ -63,9 +73,9 @@ Keep server state and client state separate.
 
 These are lint errors (`pnpm lint`), not conventions:
 
-- `packages/core/` — no `react-dom`, no `localStorage` / `sessionStorage`
-  (use `StorageAdapter` from `platform/`), no `process.env`. Endpoint origins
-  arrive through `configureRuntime()` in `packages/core/runtime-config.ts`,
+- `packages/core/` — no `react-dom`, no `localStorage` / `sessionStorage` (use
+  `StorageAdapter` from `packages/core/platform/`), no `process.env`. Endpoint
+  origins arrive through `configureRuntime()` in `packages/core/runtime-config.ts`,
   called by `apps/web/platform/runtime-config.ts`.
 - `packages/ui/` — no `@uniwork/core` imports, no business logic.
 - `packages/views/` — no `next/*`, no `react-router-dom`. Navigate with
@@ -177,15 +187,15 @@ database and never reveal whether an id exists to a non-member.
 - Every JSON body goes through `decode(w, r, &in, limit)` in
   `server/internal/handler/json.go`; it caps the body (`maxJSONBody`, 1 MiB)
   and writes the 400/413 itself. Multipart uploads set their own cap.
-  `json_test.go` proves the cap on the public login route.
+  `server/internal/handler/json_test.go` proves the cap on the public login route.
 - Nothing rewrites `r.RemoteAddr` from a forwarded header — no `RealIP`
   middleware. Each consumer of the client address (rate limiter, WebSocket
-  origin check) applies `TRUSTED_PROXIES` itself. `router_test.go` pins it.
+  origin check) applies `TRUSTED_PROXIES` itself. `server/internal/handler/router_test.go` pins it.
 - Rate limits exist only with Redis and are keyed by IP and path; the
-  credential routes carry their own small budget in `router.go`.
+  credential routes carry their own small budget in `server/internal/handler/router.go`.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
-- `cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get
+- `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get
   10s, then the relay and metrics listener stop. Add new background workers
   to that sequence, not as a bare goroutine.
 
@@ -274,11 +284,30 @@ if you skipped a check, say so. After changing a root provider
 (`apps/web/app/providers.tsx`), run e2e twice — the first run can land while
 Next is still recompiling.
 
+## Local Gates
+
+`pnpm install` points `core.hooksPath` at `.githooks/` (the root `prepare`
+script) — git hooks are not cloned, so this is the only moment every checkout
+is guaranteed to pass through. Two hooks then run unasked:
+
+- `pre-commit` — refuses any `.env` file, runs `gofmt` on staged Go files, and
+  runs `turbo lint typecheck` for the workspaces the commit touches. Seconds,
+  not minutes: it is not `make check`, it only stops a commit that cannot
+  compile or that breaks a package boundary.
+- `commit-msg` — enforces the prefixes below.
+
+`git commit --no-verify` bypasses both; if you use it, `make check` before you
+push is not optional. `make doctor` reports whether the hooks are wired and
+whether your Node/Go/pnpm match what the repo pins (`.nvmrc`, `server/go.mod`,
+`packageManager`). `scripts/governance.test.mjs` pins the wiring itself.
+
 ## Commits
 
 Conventional prefixes: `feat(scope)`, `fix(scope)`, `refactor(scope)`,
-`test(scope)`, `docs`, `chore(scope)`, `ci`. Atomic, grouped by intent; the
-body carries the reason and what was deliberately left out.
+`test(scope)`, `docs`, `chore(scope)`, `ci`, `style(scope)`. Atomic, grouped by
+intent; the body carries the reason and what was deliberately left out.
+`.githooks/commit-msg` rejects anything else, and `scripts/governance.test.mjs`
+fails if that hook's list and this line stop agreeing.
 
 ## Domain Reminders
 

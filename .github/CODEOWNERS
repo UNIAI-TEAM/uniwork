@@ -1,0 +1,29 @@
+# Review is required for these paths once branch protection is on ("Require
+# review from Code Owners"). Until the repo has a remote and that setting, this
+# file is a map of what is dangerous, not a gate.
+#
+# @quangpd is a placeholder derived from the current git identity. Replace it
+# with real handles or @unicomhub/<team> before inviting anyone.
+
+*                                   @quangpd
+
+# Schema changes are the only irreversible ones. lint_test.go enforces the
+# shape; nothing enforces that the change is a good idea.
+/server/migrations/                 @quangpd
+
+# Authentication, tokens, membership: a wrong call here is a data breach, not a
+# bug report.
+/server/internal/auth/              @quangpd
+/server/internal/middleware/        @quangpd
+/server/internal/handler/router.go  @quangpd
+
+# The rules themselves, and the machinery that enforces them.
+/CLAUDE.md                          @quangpd
+/docs/conventions.md                @quangpd
+/.githooks/                         @quangpd
+/.github/                           @quangpd
+/scripts/                           @quangpd
+
+# One source for every shared version, and the token slots every screen reads.
+/pnpm-workspace.yaml                @quangpd
+/packages/ui/styles/tokens.css      @quangpd

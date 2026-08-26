@@ -1,0 +1,12 @@
+# LF everywhere. The hooks in .githooks/ and the scripts in scripts/ are run by
+# bash; CRLF makes them fail with an unreadable "bad interpreter" error.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.mjs  text eol=lf
+
+# Generated. Collapsed in review and excluded from language statistics, so a
+# regeneration does not read as a large hand-written change.
+pnpm-lock.yaml                       linguist-generated=true
+server/pkg/db/generated/**           linguist-generated=true
+packages/core/paths/reserved-slugs.ts linguist-generated=true

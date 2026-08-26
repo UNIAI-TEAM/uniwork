@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Enforces the commit convention CLAUDE.md documents.
+#
+# The allowed prefixes are listed once, here. scripts/governance.test.mjs
+# asserts this list and the one in CLAUDE.md § Commits are the same set: a rule
+# that has drifted from its own documentation teaches the wrong thing to
+# everyone who reads the documentation instead of the rule.
+set -euo pipefail
+
+TYPES="feat|fix|refactor|test|docs|chore|ci|style"
+
+subject="$(head -n1 "$1")"
+
+# Empty subject: git aborts on its own, with a better message than this hook.
+[ -n "$subject" ] || exit 0
+
+# Git writes these itself; they are not ours to reformat.
+case "$subject" in
+  Merge*|Revert*|fixup!*|squash!*|amend!*|"#"*) exit 0 ;;
+esac
+
+if printf '%s' "$subject" | grep -qE "^($TYPES)(\([a-z0-9._/-]+\))?: .+"; then
+  exit 0
+fi
+
+cat >&2 <<MSG
+✗ commit message does not follow the convention.
+
+  got:      $subject
+  expected: <type>(<scope>): <subject>
+  types:    $(printf '%s' "$TYPES" | tr '|' ' ')
+
+  Scope is optional and lowercase; docs and ci usually go without one.
+
+  feat(tasks): board keeps the optimistic position on drop
+  fix(server): never derive the client address from X-Forwarded-For
+  docs: conventions gain the vi-en glossary
+
+  See CLAUDE.md § Commits. Bypass with --no-verify only for a commit you are
+  about to rewrite anyway.
+MSG
+exit 1

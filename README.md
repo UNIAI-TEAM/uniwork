@@ -12,6 +12,7 @@ Next.js + Tailwind 4 + Base UI · realtime WebSocket · LiveKit.
 ## Chạy dev
 
 ```sh
+make doctor                 # Node/Go/pnpm/Docker và git hook có đúng chưa
 make dev                    # tạo .env từ .env.example nếu chưa có, cài deps, db, migrate, chạy server + web
 make help                   # mọi target, có mô tả
 ```
@@ -54,12 +55,24 @@ CI (`.github/workflows/ci.yml`) chạy mọi thứ trừ Playwright.
 - `packages/views` — màn hình theo domain + `navigation/` (adapter, `AppLink`) + `layout/` (guard)
 - `apps/web` — Next.js shell
 - `docs/superpowers/` — spec & plan · `docs/conventions.md` — naming, glossary vi–en, giọng văn
-- `CLAUDE.md` / `AGENTS.md` — luật cho agent (nguồn sự thật)
+- `CLAUDE.md` — luật cho cả người và agent (nguồn sự thật); `AGENTS.md` là symlink tới nó
+- `.githooks/` — cổng lúc commit, tự nối khi `pnpm install`
 
 Spec đợt 1: `docs/superpowers/specs/2026-08-24-uniwork-platform-design.md`
 Spec onboarding + tổ chức: `docs/superpowers/specs/2026-08-25-onboarding-organizations-design.md`
 
 URL workspace có dạng `/{orgSlug}/{workspaceSlug}/…` — workspace nằm trong tổ chức; `NEXT_PUBLIC_APP_URL` là host hiển thị trong pill đường dẫn khi onboarding.
+
+## Quy tắc
+
+Người mới vào đọc [`CONTRIBUTING.md`](CONTRIBUTING.md) — vào việc thế nào và
+cái gì sẽ chặn mình. Luật kỹ thuật đầy đủ ở [`CLAUDE.md`](CLAUDE.md).
+
+Ba tầng chặn, từ nhanh tới chậm: git hook lúc commit (gofmt, lint + typecheck
+cho workspace vừa chạm, định dạng commit message) → `make check` → CI. Hook tự
+nối qua `pnpm install`; `make doctor` cho biết nó đã nối chưa.
+
+Lỗ hổng bảo mật: [`SECURITY.md`](SECURITY.md), đừng mở issue công khai.
 
 ## Deploy demo
 
