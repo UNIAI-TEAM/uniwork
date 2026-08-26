@@ -11,6 +11,8 @@
   "exports": {
     "./components/ui/*": "./components/ui/*.tsx",
     "./lib/utils": "./lib/utils.ts",
+    "./brand": "./brand/logo.tsx",
+    "./brand/*": "./brand/*.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/base.css": "./styles/base.css",
     "./hooks/*": "./hooks/*.ts",

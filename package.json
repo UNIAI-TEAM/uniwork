@@ -15,6 +15,7 @@
     "lint": "turbo lint",
     "test": "turbo test --filter=!@uniwork/e2e",
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
+    "brand:build": "bash scripts/brand/build.sh",
     "ui:add": "cd packages/ui && npx shadcn@latest add"
   },
   "devDependencies": {

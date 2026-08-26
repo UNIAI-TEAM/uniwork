@@ -1,0 +1,53 @@
+{
+  "generatedBy": "scripts/brand/build-assets.mjs",
+  "sources": {
+    "app-icon-maskable.svg": "098d83f72cb74ecd",
+    "app-icon.svg": "343d12cf93da9b1a",
+    "lockup-horizontal-mono.svg": "85f8ea61c06fb4b2",
+    "lockup-horizontal.svg": "abfc357842956699",
+    "lockup-stacked.svg": "17b2f6df9c5d5f8e",
+    "mark-compact.svg": "80611b266107ae89",
+    "mark-dark.svg": "a1abd9a50255a64e",
+    "mark-flat.svg": "62f229eef39c3ee7",
+    "mark-mono.svg": "120377f077f3935f",
+    "mark.svg": "608373b157f0a237",
+    "wordmark.svg": "de450ca979a78472"
+  },
+  "assets": {
+    "apps/web/app/apple-icon.png": {
+      "source": "app-icon.svg",
+      "size": 180,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/web/public/icon-192.png": {
+      "source": "app-icon.svg",
+      "size": 192,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/web/public/icon-512.png": {
+      "source": "app-icon.svg",
+      "size": 512,
+      "sha": "343d12cf93da9b1a"
+    },
+    "apps/web/public/icon-maskable-512.png": {
+      "source": "app-icon-maskable.svg",
+      "size": 512,
+      "sha": "098d83f72cb74ecd"
+    },
+    "apps/web/app/favicon.ico": {
+      "source": "mark-compact.svg",
+      "size": "16/32/48",
+      "sha": "80611b266107ae89"
+    },
+    "apps/web/app/opengraph-image.jpg": {
+      "source": "lockup-horizontal-mono.svg",
+      "size": "1200x630",
+      "sha": "85f8ea61c06fb4b2"
+    },
+    "apps/web/app/icon.svg": {
+      "source": "mark-compact.svg",
+      "size": "vector",
+      "sha": "80611b266107ae89"
+    }
+  }
+}
