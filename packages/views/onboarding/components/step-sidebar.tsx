@@ -1,11 +1,10 @@
 "use client";
 import { ArrowLeft, Check } from "lucide-react";
-import { useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ONBOARDING_STEP_ORDER, type OnboardingStep } from "@uniwork/core/onboarding";
 import { Logo } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { DotSphere } from "@uniwork/ui/components/ui/dot-sphere";
 import {
   Stepper,
   StepperDescription,
@@ -15,16 +14,10 @@ import {
   StepperSeparator,
   StepperTitle,
 } from "@uniwork/ui/components/ui/stepper";
-import { useCssVars } from "@uniwork/ui/hooks/use-css-var";
-import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
-import { cn, withAlpha } from "@uniwork/ui/lib/utils";
+import { cn } from "@uniwork/ui/lib/utils";
+import { BrandRail, BrandRailAside, RAIL_WIDTH_ONBOARDING } from "../../layout/brand-rail";
 
-/**
- * Canvas 2D không nhận `var()`, nên màu của dot-sphere phải là chuỗi thật.
- * `useCssVars` đọc chúng từ chính panel rail (scope `.dark`) thay vì chép cứng —
- * đổi token là rail đổi theo. Fallback chỉ dùng cho frame SSR đầu tiên.
- */
-export const RAIL_VAR_FALLBACK = { "--rail": "#1b1b1f", "--brand": "#4d8dff" };
+export { RAIL_VAR_FALLBACK } from "../../layout/brand-rail";
 
 /**
  * Thanh tiến độ gọn cho < md (rail ẩn): Back + các đoạn + tên bước + slot footer.
@@ -104,46 +97,11 @@ export function StepSidebar({
 }) {
   const { t } = useTranslation();
   const currentIndex = Math.max(0, ONBOARDING_STEP_ORDER.indexOf(currentStep as never));
-  const panelRef = useRef<HTMLDivElement>(null);
-  const railVars = useCssVars(panelRef, RAIL_VAR_FALLBACK);
-  // Hai cơ chế ẩn khác nhau, cho hai vấn đề khác nhau — trước đây gộp làm một và
-  // hỏng cả hai:
-  //
-  // BỐ CỤC ẩn bằng CSS. `useMediaQuery` trả `false` ở render đầu (và khi SSR) rồi
-  // mới chỉnh trong effect, tức là SAU khi trình duyệt đã vẽ. Gác cả <aside> vào
-  // nó nghĩa là mọi lần mở onboarding trên desktop đều vẽ một khung không rail
-  // trước, rồi 22rem nhảy vào — cột nội dung `mx-auto` trượt ngang ~11rem sau
-  // khi hydrate xong. CSS thì áp ngay từ pixel đầu tiên, không có bước nhảy nào.
-  //
-  // CANVAS ẩn bằng JS. `display:none` vẫn mount subtree và vẫn chạy mọi effect:
-  // vòng lặp rAF của dot-sphere sẽ quay 60fps trên điện thoại để vẽ một canvas
-  // 0×0. Cái đó phải chặn ở tầng React, và chỉ cái đó.
-  const showSphere = useMediaQuery("(min-width: 768px)");
-
   return (
-    <aside className="hidden shrink-0 md:block md:w-[19rem] md:p-3 lg:w-[22rem] lg:p-4">
-      <div
-        ref={panelRef}
-        className="dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl px-5 pb-5 text-foreground ring-1 ring-border"
-        style={{ background: "var(--rail)" }}
-      >
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          {showSphere && (
-          <DotSphere
-            dotGap={19}
-            motion="wave"
-            sphereCount={5}
-            sphereRadius="20%"
-            dotRadiusMax={1.9}
-            speed={0.4}
-            bgColor={railVars["--rail"]}
-            dotColor={withAlpha(railVars["--brand"], 0.5)}
-          />
-          )}
-        </div>
-
-        <div className="relative flex min-h-0 flex-1 flex-col pt-5">
-          <header className="flex min-h-9 shrink-0 items-center justify-between gap-3">
+    <BrandRailAside width={RAIL_WIDTH_ONBOARDING}>
+      <BrandRail
+        header={
+          <>
             <span className="flex min-w-0 items-center gap-2">
               <Logo variant="mark" tone="mono" size={20} decorative />
               <span className="truncate text-label font-medium text-foreground">{t("onboarding.step_nav.wordmark")}</span>
@@ -153,8 +111,10 @@ export function StepSidebar({
                 <ArrowLeft />
               </Button>
             ) : null}
-          </header>
-
+          </>
+        }
+        footer={footer}
+      >
           <div className="flex min-h-0 flex-1 items-center justify-center py-10">
             <Stepper
               value={currentIndex + 1}
@@ -236,10 +196,7 @@ export function StepSidebar({
               </StepperNav>
             </Stepper>
           </div>
-
-          {footer ? <footer className="flex min-h-8 shrink-0 items-end justify-between gap-4">{footer}</footer> : null}
-        </div>
-      </div>
-    </aside>
+      </BrandRail>
+    </BrandRailAside>
   );
 }
