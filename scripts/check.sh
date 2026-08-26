@@ -80,7 +80,11 @@ if curl -sf "http://localhost:${PORT}/healthz" > /dev/null 2>&1; then
   echo "    Backend already running on :$PORT"
 else
   echo "    Starting backend..."
-  (cd server && go run ./cmd/server) > /tmp/uniwork-check-backend.log 2>&1 &
+  # Build first and run the binary directly. `go run` would make $! the
+  # parent process; killing it leaves the server orphaned on its port, and
+  # the next run then tests stale code against "already running".
+  (cd server && go build -o bin/check-server ./cmd/server) || { EXIT_CODE=1; exit 1; }
+  server/bin/check-server > /tmp/uniwork-check-backend.log 2>&1 &
   BACKEND_PID=$!
   STARTED_BACKEND=true
   wait_for_port "$PORT" "Backend" 90 "/healthz"
