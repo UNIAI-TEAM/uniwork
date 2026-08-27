@@ -11,17 +11,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createGoogleUser = `-- name: CreateGoogleUser :one
+INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at)
+VALUES ($1, $2, $3, $4, $5, now())
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+`
+
+type CreateGoogleUserParams struct {
+	ID          string      `json:"id"`
+	Email       string      `json:"email"`
+	DisplayName string      `json:"display_name"`
+	AvatarUrl   pgtype.Text `json:"avatar_url"`
+	GoogleID    pgtype.Text `json:"google_id"`
+}
+
+func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createGoogleUser,
+		arg.ID,
+		arg.Email,
+		arg.DisplayName,
+		arg.AvatarUrl,
+		arg.GoogleID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, password_hash, display_name)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
 `
 
 type CreateUserParams struct {
-	ID           string `json:"id"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
-	DisplayName  string `json:"display_name"`
+	ID           string      `json:"id"`
+	Email        string      `json:"email"`
+	PasswordHash pgtype.Text `json:"password_hash"`
+	DisplayName  string      `json:"display_name"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -42,12 +81,14 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.OnboardedAt,
 		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -63,12 +104,37 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.OnboardedAt,
 		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
+const getUserByGoogleID = `-- name: GetUserByGoogleID :one
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id FROM users WHERE google_id = $1
+`
+
+func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByGoogleID, googleID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -84,6 +150,68 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.UpdatedAt,
 		&i.OnboardedAt,
 		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
+const linkGoogleAccount = `-- name: LinkGoogleAccount :one
+UPDATE users SET
+  google_id = $2,
+  email_verified_at = COALESCE(email_verified_at, now()),
+  avatar_url = COALESCE(avatar_url, $3),
+  updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+`
+
+type LinkGoogleAccountParams struct {
+	ID        string      `json:"id"`
+	GoogleID  pgtype.Text `json:"google_id"`
+	AvatarUrl pgtype.Text `json:"avatar_url"`
+}
+
+func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountParams) (User, error) {
+	row := q.db.QueryRow(ctx, linkGoogleAccount, arg.ID, arg.GoogleID, arg.AvatarUrl)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
+const markEmailVerified = `-- name: MarkEmailVerified :one
+UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+`
+
+func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRow(ctx, markEmailVerified, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }
@@ -91,7 +219,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 const markUserOnboarded = `-- name: MarkUserOnboarded :one
 UPDATE users SET onboarded_at = COALESCE(onboarded_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
 `
 
 func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error) {
@@ -107,6 +235,8 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error
 		&i.UpdatedAt,
 		&i.OnboardedAt,
 		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }
@@ -116,7 +246,7 @@ UPDATE users SET
   onboarding_questionnaire = COALESCE($1, onboarding_questionnaire),
   updated_at = now()
 WHERE id = $2
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
 `
 
 type PatchUserOnboardingParams struct {
@@ -137,6 +267,8 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.UpdatedAt,
 		&i.OnboardedAt,
 		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }
@@ -144,7 +276,7 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
 UPDATE users SET avatar_url = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
 `
 
 type UpdateUserAvatarParams struct {
@@ -165,6 +297,8 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.UpdatedAt,
 		&i.OnboardedAt,
 		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }

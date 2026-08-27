@@ -17,6 +17,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/events"
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -102,9 +103,24 @@ func main() {
 		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
 	}
 	pub := realtime.NewPublisher(broadcaster, log)
+	// SMTP when SMTP_HOST is set; otherwise messages (and verification codes)
+	// are printed to the log, which is what local development runs on.
+	sender, err := mail.New(mail.SMTPConfig{
+		Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername, Password: cfg.SMTPPassword,
+		From: cfg.MailFrom, TLS: cfg.SMTPTLS, TLSInsecure: cfg.SMTPTLSInsecure, EHLOName: cfg.SMTPEHLOName,
+	}, log)
+	if err != nil {
+		log.Error("mail", "err", err)
+		os.Exit(1)
+	}
+	if code := cfg.DevVerificationCode(); code != "" {
+		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
+	}
+	verification := service.NewVerificationService(q, sender, cfg.DevVerificationCode())
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
-		Auth:            service.NewAuthService(q, minter, cfg.RefreshTokenTTL),
+		Auth:            service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification),
+		Verification:    verification,
 		Organizations:   orgSvc,
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, pub),

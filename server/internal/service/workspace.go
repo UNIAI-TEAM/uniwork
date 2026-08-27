@@ -151,6 +151,9 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 	if m.Role != "owner" && m.Role != "admin" {
 		return nil, nil, ErrForbidden
 	}
+	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
+		return nil, nil, err
+	}
 	if role != "admin" && role != "member" {
 		return nil, nil, Invalid("role phải là admin hoặc member")
 	}

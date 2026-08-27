@@ -58,9 +58,19 @@ func TestOrganizationsGrandfather(t *testing.T) {
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	// Đưa DB về trạng thái sau 003 rồi chèn dữ liệu kiểu cũ.
-	if err := Down(ctx, pool); err != nil { // rollback 004
-		t.Fatal(err)
+	// Đưa DB về trạng thái sau 003 rồi chèn dữ liệu kiểu cũ. Down lùi một
+	// migration mỗi lần, nên lặp cho tới khi 004 đã bị gỡ.
+	for {
+		var applied bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version LIKE '004%')`).Scan(&applied); err != nil {
+			t.Fatal(err)
+		}
+		if !applied {
+			break
+		}
+		if err := Down(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := pool.Exec(ctx, `TRUNCATE users, workspaces, workspace_members CASCADE`); err != nil {
 		t.Fatal(err)

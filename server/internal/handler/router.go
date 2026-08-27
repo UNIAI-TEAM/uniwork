@@ -26,6 +26,7 @@ type Deps struct {
 	Log           *slog.Logger
 	Minter        auth.TokenMinter
 	Auth          *service.AuthService
+	Verification  *service.VerificationService
 	Organizations *service.OrganizationService
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
@@ -108,9 +109,12 @@ func New(d Deps) http.Handler {
 		r.With(credentialLimit).Post("/auth/login", h.login)
 		r.Post("/auth/refresh", h.refresh)
 		r.Post("/auth/logout", h.logout)
+		r.Get("/auth/providers", h.authProviders)
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireAuth(d.Minter))
 			r.Get("/me", h.me)
+			r.With(credentialLimit).Post("/me/email/verify", h.verifyEmail)
+			r.With(credentialLimit).Post("/me/email/resend", h.resendVerification)
 			r.Post("/me/avatar", h.uploadAvatar)
 			r.Patch("/me/onboarding", h.patchOnboarding)
 			r.Post("/me/onboarding/complete", h.completeOnboarding)

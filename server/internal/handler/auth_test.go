@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -11,12 +12,21 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// testDevCode is the development verification code the test server accepts.
+const testDevCode = "123456"
+
+// discardSender drops mail: the handler tests verify through the dev code.
+type discardSender struct{}
+
+func (discardSender) Send(context.Context, mail.Message) error { return nil }
 
 // newTestServer dựng handler đầy đủ trên DB test. Các task sau mở rộng
 // hàm này khi Deps thêm service mới.
@@ -26,11 +36,13 @@ func newTestServer(t *testing.T) *httptest.Server {
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	orgs := service.NewOrganizationService(q)
 	ws := service.NewWorkspaceService(pool, q, orgs)
+	verification := service.NewVerificationService(q, discardSender{}, testDevCode)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
 		Minter:        minter,
-		Auth:          service.NewAuthService(q, minter, time.Hour),
+		Auth:          service.NewAuthService(q, minter, time.Hour, verification),
+		Verification:  verification,
 		Organizations: orgs,
 		Workspaces:    ws,
 		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}),
@@ -117,5 +129,64 @@ func TestRefreshCookieSecureFollowsConfig(t *testing.T) {
 		if found.Secure != secure || !found.HttpOnly || found.SameSite != http.SameSiteLaxMode || found.Path != "/api/v1/auth" {
 			t.Fatalf("secure=%v: cookie = %+v", secure, found)
 		}
+	}
+}
+
+// verifyEmail confirms the registered user's address with the test server's
+// development code, the step every fixture needs before onboarding.
+func verifyEmail(t *testing.T, srv *httptest.Server, token string) {
+	t.Helper()
+	res, out := doJSON(t, srv, "POST", "/api/v1/me/email/verify", token, map[string]string{"code": testDevCode})
+	if res.StatusCode != 200 {
+		t.Fatalf("verify email: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestEmailVerificationFlow(t *testing.T) {
+	srv := newTestServer(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
+		"email": "v@example.com", "password": "password123", "display_name": "V"})
+	if res.StatusCode != 200 {
+		t.Fatalf("register: %d %v", res.StatusCode, out)
+	}
+	token := out["access_token"].(string)
+	if v, ok := out["user"].(map[string]any)["email_verified_at"]; !ok || v != nil {
+		t.Fatalf("register must expose email_verified_at=null, got %v", out["user"])
+	}
+
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/onboarding/complete", token, map[string]string{})
+	if res.StatusCode != 403 || out["error"].(map[string]any)["code"] != "email_unverified" {
+		t.Fatalf("complete before verify: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/email/resend", token, nil)
+	if res.StatusCode != 429 || out["error"].(map[string]any)["code"] != "rate_limited" {
+		t.Fatalf("resend right after register: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/email/verify", token, map[string]string{"code": "000000"})
+	if res.StatusCode != 400 || out["error"].(map[string]any)["code"] != "invalid_code" {
+		t.Fatalf("wrong code: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/email/verify", token, map[string]string{"code": testDevCode})
+	if res.StatusCode != 200 {
+		t.Fatalf("verify: %d %v", res.StatusCode, out)
+	}
+	if out["user"].(map[string]any)["email_verified_at"] == nil {
+		t.Fatalf("verified user must carry email_verified_at, got %v", out["user"])
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/email/resend", token, nil)
+	if res.StatusCode != 409 {
+		t.Fatalf("resend after verified: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/onboarding/complete", token, map[string]string{})
+	if res.StatusCode != 200 {
+		t.Fatalf("complete after verify: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestAuthProvidersReflectsGoogleConfig(t *testing.T) {
+	srv := newTestServer(t)
+	res, out := doJSON(t, srv, "GET", "/api/v1/auth/providers", "", nil)
+	if res.StatusCode != 200 || out["google"] != false {
+		t.Fatalf("providers without google: %d %v", res.StatusCode, out)
 	}
 }

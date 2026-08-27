@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -14,7 +16,7 @@ func newAuthService(t *testing.T) *AuthService {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return NewAuthService(q, m, time.Hour)
+	return NewAuthService(q, m, time.Hour, nil)
 }
 
 func TestRegisterLoginRefresh(t *testing.T) {
@@ -69,5 +71,23 @@ func TestRegisterValidation(t *testing.T) {
 	}
 	if _, err := s.Register(ctx, "b@example.com", "short", "An"); err == nil {
 		t.Fatal("short password accepted")
+	}
+}
+
+func TestLoginRejectsUserWithoutPassword(t *testing.T) {
+	s := newAuthService(t)
+	ctx := context.Background()
+	_, err := s.q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{
+		ID: "01GOOGLEONLY", Email: "g@example.com", DisplayName: "G",
+		GoogleID: pgtype.Text{String: "sub-1", Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Login(ctx, "g@example.com", ""); err != ErrInvalidCredentials {
+		t.Fatalf("empty password: want ErrInvalidCredentials, got %v", err)
+	}
+	if _, err := s.Login(ctx, "g@example.com", "anything"); err != ErrInvalidCredentials {
+		t.Fatalf("any password: want ErrInvalidCredentials, got %v", err)
 	}
 }

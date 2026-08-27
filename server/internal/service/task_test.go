@@ -20,17 +20,17 @@ func (c *capturePublisher) Publish(_ context.Context, _ string, ev Event) {
 func taskFixture(t *testing.T) (*TaskService, *capturePublisher, db.User, db.User, db.Workspace) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour)
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(q)
 	ws := NewWorkspaceService(pool, q, orgs)
 	ctx := context.Background()
-	sa, _ := as.Register(ctx, "a@example.com", "password123", "A")
-	sb, _ := as.Register(ctx, "b@example.com", "password123", "B")
-	org, _ := orgs.Create(ctx, sa.User.ID, "Org", "org-alpha")
-	v, _ := ws.CreateInOrg(ctx, sa.User.ID, org.ID, "Alpha", "alpha")
+	ua := registerVerified(t, q, as, "a@example.com", "A")
+	ub := registerVerified(t, q, as, "b@example.com", "B")
+	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
+	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
 	w := v.Workspace
 	pub := &capturePublisher{}
-	return NewTaskService(q, ws, pub), pub, sa.User, sb.User, w
+	return NewTaskService(q, ws, pub), pub, ua, ub, w
 }
 
 func TestTaskCRUD(t *testing.T) {

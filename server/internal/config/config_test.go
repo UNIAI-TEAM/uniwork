@@ -54,3 +54,59 @@ func TestLoadRequiresDatabaseAndSecret(t *testing.T) {
 		t.Fatal("expected an error without JWT_SECRET")
 	}
 }
+
+func TestLoadRejectsRelativeAPIPublicURL(t *testing.T) {
+	setRequired(t)
+	t.Setenv("API_PUBLIC_URL", "api.example.com")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error for an API_PUBLIC_URL without a scheme")
+	}
+}
+
+func TestDevVerificationCodeOnlyOutsideProduction(t *testing.T) {
+	cases := []struct {
+		name, env, code, want string
+	}{
+		{"development", "development", "123456", "123456"},
+		{"unset env", "", "123456", "123456"},
+		{"production", "production", "123456", ""},
+		{"Production case-insensitive", "Production", "123456", ""},
+		{"not six digits", "development", "12345", ""},
+		{"letters", "development", "12345a", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("APP_ENV", tc.env)
+			t.Setenv("DEV_VERIFICATION_CODE", tc.code)
+			c, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := c.DevVerificationCode(); got != tc.want {
+				t.Fatalf("DevVerificationCode() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGoogleEnabledNeedsBothCredentials(t *testing.T) {
+	setRequired(t)
+	t.Setenv("GOOGLE_CLIENT_ID", "id")
+	t.Setenv("GOOGLE_CLIENT_SECRET", "")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.GoogleEnabled() {
+		t.Fatal("enabled without a secret")
+	}
+	t.Setenv("GOOGLE_CLIENT_SECRET", "secret")
+	c, _ = Load()
+	if !c.GoogleEnabled() {
+		t.Fatal("not enabled with both set")
+	}
+	if got := c.GoogleRedirectURL(); got != "http://localhost:8080/api/v1/auth/google/callback" {
+		t.Fatalf("GoogleRedirectURL() = %q", got)
+	}
+}

@@ -48,6 +48,7 @@ func TestOnboardingEndToEnd(t *testing.T) {
 	if v, ok := user["onboarded_at"]; !ok || v != nil {
 		t.Fatalf("register user must expose onboarded_at=null, got %v", user)
 	}
+	verifyEmail(t, srv, token)
 
 	res, _ = doJSON(t, srv, "PATCH", "/api/v1/me/onboarding", token, map[string]any{
 		"questionnaire": map[string]any{"version": 1, "role": "manager", "use_case": []string{"meetings"}}})

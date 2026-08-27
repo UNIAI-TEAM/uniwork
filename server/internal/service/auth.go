@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -19,13 +20,14 @@ import (
 )
 
 type AuthService struct {
-	q          *db.Queries
-	minter     auth.TokenMinter
-	refreshTTL time.Duration
+	q            *db.Queries
+	minter       auth.TokenMinter
+	refreshTTL   time.Duration
+	verification *VerificationService
 }
 
-func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration) *AuthService {
-	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL}
+func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
+	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL, verification: verification}
 }
 
 type Session struct {
@@ -51,13 +53,20 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 		return Session{}, err
 	}
 	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
-		ID: util.NewID(), Email: email, PasswordHash: hash, DisplayName: displayName,
+		ID: util.NewID(), Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
 	})
 	if isUniqueViolation(err) {
 		return Session{}, ErrConflict
 	}
 	if err != nil {
 		return Session{}, err
+	}
+	// A failed send must not undo the registration: the verify screen has a
+	// resend button, and the session below is what lets the user reach it.
+	if s.verification != nil {
+		if err := s.verification.Send(ctx, u.ID); err != nil {
+			slog.Warn("send verification code after register", "user", u.ID, "err", err)
+		}
 	}
 	return s.newSession(ctx, u)
 }
@@ -70,7 +79,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 	if err != nil {
 		return Session{}, err
 	}
-	if !auth.CheckPassword(u.PasswordHash, password) {
+	// A Google-only account has no hash; it fails like a wrong password so the
+	// response does not reveal how the account was created.
+	if !u.PasswordHash.Valid || !auth.CheckPassword(u.PasswordHash.String, password) {
 		return Session{}, ErrInvalidCredentials
 	}
 	return s.newSession(ctx, u)
