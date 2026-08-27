@@ -28,3 +28,4 @@ apps/web/CLAUDE.md
 
 # stray upload dir when LOCAL_UPLOAD_DIR is resolved relative to a test's cwd
 server/internal/handler/data/
+.superpowers/
