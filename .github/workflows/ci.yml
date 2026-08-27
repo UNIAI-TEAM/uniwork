@@ -149,7 +149,16 @@ jobs:
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         # `test` reaches dependency sources through the hash-only
         # `^cache-inputs` edge in turbo.json, so no tsc runs here.
-        run: pnpm exec turbo test
+        #
+        # `pnpm test`, NOT `turbo test`: the root script carries
+        # `--filter=!@uniwork/e2e`, and bare `turbo test` picks the e2e
+        # workspace up through its own `test` script. That contradicts the
+        # header of this file — Playwright is the local `make check` gate,
+        # because it needs a running app and a browser, and this job has
+        # neither. Running it here fails every spec on a missing browser
+        # binary and says nothing about the change. Which workspaces the test
+        # gate covers is defined once, in the root package.json.
+        run: pnpm test
 
   # Stable status-check name for branch rules; fails when either half fails.
   frontend:
