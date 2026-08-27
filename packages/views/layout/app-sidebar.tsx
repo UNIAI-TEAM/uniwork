@@ -49,8 +49,8 @@ function initialOf(name: string) {
 }
 
 /**
- * Workspace navigation on the Multica inset shell: floating content card beside
- * a padded sidebar rail. PRODUCT.md keeps the nav to built surfaces only —
+ * Workspace navigation on the inset shell: floating content card beside a
+ * padded sidebar rail. PRODUCT.md keeps the nav to built surfaces only —
  * tasks, meetings, members — but the chrome matches the reference layout.
  */
 export function AppSidebar() {

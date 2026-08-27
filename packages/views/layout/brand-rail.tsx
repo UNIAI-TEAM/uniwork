@@ -9,7 +9,7 @@ import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
  * screen — it owns the panel, the dot field and the header/footer slots, and
  * nothing about what fills them.
  *
- * Structurally follows the Multica / ReUI onboarding-3 block: an inset panel
+ * Structurally follows the ReUI onboarding-3 block: an inset panel
  * with `.dark` scoping token overrides for this subtree only, `bg-background`
  * for the fill, and DotSphere as a decorative layer — not a hand-mixed
  * `--rail` colour that drifts from the token sheet.
