@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchLocale, pickLocale } from "./pick-locale";
+import { matchLocale, parseAcceptLanguage, pickLocale } from "./pick-locale";
 import type { LocaleAdapter } from "./types";
 
 function makeAdapter(
@@ -73,5 +73,22 @@ describe("pickLocale", () => {
       getSystemPreferences: () => ["en"],
     });
     expect(pickLocale(adapter)).toBe("en");
+  });
+});
+
+describe("parseAcceptLanguage", () => {
+  it("orders tags by q-value and strips weights", () => {
+    expect(parseAcceptLanguage("en-US,en;q=0.9,vi;q=0.8")).toEqual(["en-US", "en", "vi"]);
+    expect(parseAcceptLanguage("vi;q=0.5, en-GB;q=0.9")).toEqual(["en-GB", "vi"]);
+  });
+  it("tolerates a missing or malformed header", () => {
+    expect(parseAcceptLanguage(null)).toEqual([]);
+    expect(parseAcceptLanguage("")).toEqual([]);
+    expect(parseAcceptLanguage(";q=,,")).toEqual([]);
+  });
+  it("feeds matchLocale the same way navigator.languages does", () => {
+    expect(matchLocale(parseAcceptLanguage("en-US,en;q=0.9,vi;q=0.8"))).toBe("en");
+    expect(matchLocale(parseAcceptLanguage("vi-VN,vi;q=0.9,en;q=0.8"))).toBe("vi");
+    expect(matchLocale(parseAcceptLanguage("fr-FR"))).toBe("vi");
   });
 });

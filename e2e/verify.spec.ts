@@ -36,11 +36,11 @@ test("mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; c�
   await expect(page).toHaveURL(/\/onboarding$/);
 });
 
-test("nút Google không hiện khi server chưa cấu hình Google", async ({ page }) => {
-  const providers = await page.request.get(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/api/v1/auth/providers`);
-  const { google } = (await providers.json()) as { google: boolean };
+test("nút Google chỉ hiện khi server báo có Google", async ({ page }) => {
+  // Đọc cờ từ chính request mà trang gửi, nên không cần biết origin của API.
+  const providers = page.waitForResponse((r) => r.url().endsWith("/api/v1/auth/providers"));
   await page.goto("/login");
-  await page.getByLabel("Mật khẩu", { exact: true }).waitFor();
+  const { google } = (await (await providers).json()) as { google: boolean };
   await expect(page.getByRole("link", { name: "Tiếp tục với Google" })).toHaveCount(google ? 1 : 0);
 });
 

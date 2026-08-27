@@ -5,6 +5,7 @@ import "./globals.css";
 // config, and this module is the only place that config is populated.
 import "../platform/runtime-config";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
+import { resolveRequestLocale } from "../platform/locale-server";
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-inter", display: "swap" });
@@ -72,11 +73,12 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "UniWork", description: DESCRIPTION },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await resolveRequestLocale();
   return (
-    <html lang="vi" suppressHydrationWarning className={`${inter.variable} ${sourceSerif.variable}`}>
+    <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${sourceSerif.variable}`}>
       <body className="font-sans">
-        <Providers>{children}</Providers>
+        <Providers initialLocale={locale}>{children}</Providers>
       </body>
     </html>
   );

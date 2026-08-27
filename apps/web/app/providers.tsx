@@ -2,6 +2,7 @@
 // Must be first: it feeds packages/core the endpoint origins before any
 // module below can issue a request with them.
 import "../platform/runtime-config";
+import type { SupportedLocale } from "@uniwork/core/i18n";
 import { CoreProvider } from "@uniwork/core/platform";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { Toaster } from "@uniwork/ui/components/ui/sonner";
@@ -13,11 +14,11 @@ import { WebNavigationProvider } from "../platform/navigation";
  * session, i18n) from CoreProvider, then the two things only this host
  * provides — a router adapter and a toast outlet.
  */
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ initialLocale, children }: { initialLocale: SupportedLocale; children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <CoreProvider>
-        <WebLocaleProvider>
+        <WebLocaleProvider initialLocale={initialLocale}>
           <WebNavigationProvider>{children}</WebNavigationProvider>
         </WebLocaleProvider>
         <Toaster />
