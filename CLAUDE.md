@@ -201,10 +201,10 @@ database and never reveal whether an id exists to a non-member.
   10s, then the relay and metrics listener stop. Add new background workers
   to that sequence, not as a bare goroutine.
 - REST routes register through the `api` wrapper in
-  `server/internal/handler/router/` (`auth.go`, `me.go`, `tasks.go`, … +
+  `server/internal/handler/router/` (auth, me, tasks, … +
   `apiOp{sdi, sdo, …}`). `handler.New` maps handler methods onto
   `router.Routes`. OpenAPI is built at process start from that
-  catalog — no `swagger.json`, no swag comments, no `make swag`. SDI/SDO
+  catalog — no checked-in swagger spec, no swag comments, no `make swag`. SDI/SDO
   live in `server/internal/handler/dto/sdi/` and
   `server/internal/handler/dto/sdo/` with `description` and `example`
   tags. A new `{param}` name needs a `pathParamSDI` case in
