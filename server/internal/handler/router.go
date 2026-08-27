@@ -18,10 +18,15 @@ import (
 )
 
 type Deps struct {
-	Cfg           config.Config
-	Log           *slog.Logger
-	Minter        auth.TokenMinter
-	Auth          *service.AuthService
+	Cfg          config.Config
+	Log          *slog.Logger
+	Minter       auth.TokenMinter
+	Auth         *service.AuthService
+	Verification *service.VerificationService
+	GoogleAuth   *service.GoogleAuthService
+	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
+	// answers 503 and /auth/providers reports google=false.
+	Google        GoogleExchanger
 	Organizations *service.OrganizationService
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
@@ -66,14 +71,19 @@ func New(d Deps) http.Handler {
 		Health: h.health,
 		WS:     h.ws,
 
-		Register: h.register,
-		Login:    h.login,
-		Refresh:  h.refresh,
-		Logout:   h.logout,
+		Register:       h.register,
+		Login:          h.login,
+		Refresh:        h.refresh,
+		Logout:         h.logout,
+		AuthProviders:  h.authProviders,
+		GoogleStart:    h.googleStart,
+		GoogleCallback: h.googleCallback,
 
 		Me:                 h.me,
 		PatchMe:            h.patchMe,
 		UploadAvatar:       h.uploadAvatar,
+		VerifyEmail:        h.verifyEmail,
+		ResendVerification: h.resendVerification,
 		PatchOnboarding:    h.patchOnboarding,
 		CompleteOnboarding: h.completeOnboarding,
 		MyInvitations:      h.myInvitations,

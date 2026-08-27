@@ -39,5 +39,5 @@ export type {
   LocaleAdapter,
 } from "./types";
 export { SUPPORTED_LOCALES, DEFAULT_LOCALE } from "./types";
-export { pickLocale } from "./pick-locale";
-export { createBrowserCookieLocaleAdapter } from "./browser-cookie-adapter";
+export { matchLocale, parseAcceptLanguage, pickLocale } from "./pick-locale";
+export { createBrowserCookieLocaleAdapter, LOCALE_COOKIE } from "./browser-cookie-adapter";

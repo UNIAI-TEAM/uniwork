@@ -12,7 +12,7 @@ import {
   EmptyTitle,
 } from "@uniwork/ui/components/ui/empty";
 import { cn } from "@uniwork/ui/lib/utils";
-import { PageHeader } from "./page-header";
+import { PAGE_LEADING_ICON, PageHeader } from "./page-header";
 
 interface CollectionPageHeaderProps {
   icon: LucideIcon;
@@ -31,7 +31,9 @@ export function CollectionPageHeader({ icon: Icon, title, count, description, ac
   return (
     <PageHeader className={className}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        <span className={PAGE_LEADING_ICON}>
+          <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+        </span>
         <h1 className="truncate text-body font-medium">{title}</h1>
         {typeof count === "number" && count > 0 ? (
           <span className="shrink-0 font-mono text-caption tabular-nums text-muted-foreground">{count}</span>

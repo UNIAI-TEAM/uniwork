@@ -8,14 +8,19 @@ type Routes struct {
 	Health http.HandlerFunc
 	WS     http.HandlerFunc
 
-	Register http.HandlerFunc
-	Login    http.HandlerFunc
-	Refresh  http.HandlerFunc
-	Logout   http.HandlerFunc
+	Register       http.HandlerFunc
+	Login          http.HandlerFunc
+	Refresh        http.HandlerFunc
+	Logout         http.HandlerFunc
+	AuthProviders  http.HandlerFunc
+	GoogleStart    http.HandlerFunc
+	GoogleCallback http.HandlerFunc
 
 	Me                 http.HandlerFunc
 	PatchMe            http.HandlerFunc
 	UploadAvatar       http.HandlerFunc
+	VerifyEmail        http.HandlerFunc
+	ResendVerification http.HandlerFunc
 	PatchOnboarding    http.HandlerFunc
 	CompleteOnboarding http.HandlerFunc
 	MyInvitations      http.HandlerFunc

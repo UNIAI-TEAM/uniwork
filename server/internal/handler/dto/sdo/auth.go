@@ -19,5 +19,11 @@ type UserDTO struct {
 	DisplayName             string          `json:"display_name" example:"Nguyễn Văn An"`
 	AvatarURL               string          `json:"avatar_url,omitempty" description:"URL avatar công khai khi đã tải lên" example:"https://cdn.example.com/avatars/an.png"`
 	OnboardedAt             *string         `json:"onboarded_at" description:"Thời điểm hoàn thành onboarding (RFC3339); null nếu chưa xong" example:"2026-08-01T09:00:00Z"`
+	EmailVerifiedAt         *string         `json:"email_verified_at" description:"Thời điểm xác nhận email (RFC3339); null nếu chưa xác nhận" example:"2026-08-01T09:00:00Z"`
 	OnboardingQuestionnaire json.RawMessage `json:"onboarding_questionnaire" description:"JSON câu hỏi onboarding đã lưu" example:"{\"role\":\"lead\"}"`
+}
+
+// AuthProvidersSDO is GET /api/v1/auth/providers.
+type AuthProvidersSDO struct {
+	Google bool `json:"google" description:"true khi Google sign-in được cấu hình trên server" example:"true"`
 }

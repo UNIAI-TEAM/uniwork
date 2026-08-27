@@ -7,15 +7,29 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@uniwork/ui/c
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 
-export function NewTaskDialog({ workspaceId }: { workspaceId: string }) {
+export function NewTaskDialog({
+  workspaceId,
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: {
+  workspaceId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+}) {
   const { t } = useTranslation();
   const create = useCreateTask(workspaceId);
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm">{t("tasks.new")}</Button>} />
+      {showTrigger ? (
+        <DialogTrigger render={<Button size="sm">{t("tasks.new")}</Button>} />
+      ) : null}
       <DialogContent>
         <DialogTitle>{t("tasks.new")}</DialogTitle>
         <form

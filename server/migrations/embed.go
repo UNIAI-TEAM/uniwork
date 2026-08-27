@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -40,7 +41,7 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 		return err
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", lockKey); err != nil {
+	if err := WaitAdvisoryLock(ctx, conn, lockKey); err != nil {
 		return err
 	}
 	defer conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", lockKey)
@@ -104,4 +105,26 @@ func Down(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	_, err = conn.Exec(ctx, "DELETE FROM schema_migrations WHERE version=$1", v)
 	return err
+}
+
+// WaitAdvisoryLock takes a session advisory lock by polling pg_try_advisory_lock
+// instead of blocking in pg_advisory_lock. A blocked pg_advisory_lock is an
+// open transaction, and CREATE INDEX CONCURRENTLY waits for every open
+// transaction to finish — so a second node (or test package) waiting for
+// this lock while the first builds an index would deadlock both.
+func WaitAdvisoryLock(ctx context.Context, conn *pgxpool.Conn, key int) error {
+	for {
+		var got bool
+		if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&got); err != nil {
+			return err
+		}
+		if got {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }

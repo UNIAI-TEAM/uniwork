@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { registerVerified } from "./auth-nav";
 
 /**
  * Điều hướng dùng chung cho các spec onboarding.
@@ -21,13 +22,7 @@ export interface OnboardingRun {
 }
 
 export async function registerAndStart(page: Page, tag: string): Promise<OnboardingRun> {
-  const stamp = Date.now();
-  await page.goto("/register");
-  await page.getByLabel("Tên hiển thị").fill(tag);
-  await page.getByLabel("Email").fill(`${tag.toLowerCase()}-${stamp}@example.com`);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng ký" }).click();
-  await expect(page).toHaveURL(/\/onboarding$/);
+  const { stamp } = await registerVerified(page, tag);
   await page.getByRole("button", { name: /Bắt đầu/ }).click();
   await page.getByText("Cho chúng tôi biết đôi chút về bạn.").waitFor();
   return { stamp, orgName: `${tag} ${stamp}`, wsName: `Đội ${tag}` };

@@ -1,15 +1,16 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useSession } from "@uniwork/core/auth";
-import { paths, resolvePostAuthDestination, useHasOnboarded } from "@uniwork/core/paths";
+import { paths, resolvePostAuthDestination, useHasOnboarded, usePendingAuthStep } from "@uniwork/core/paths";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { useNavigation } from "@uniwork/views/navigation";
 import { OnboardingFlow } from "@uniwork/views/onboarding/onboarding-flow";
 
 export default function OnboardingPage() {
   const { push, replace } = useNavigation();
-  const { status } = useSession();
+  const { status, user } = useSession();
   const hasOnboarded = useHasOnboarded();
+  const step = usePendingAuthStep();
   const { data: workspaces = [], isFetched } = useWorkspaces();
   // Latch: while onComplete is pushing, the guard (which just saw onboarded_at
   // flip) must not replace over it.
@@ -17,12 +18,13 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (status === "anon") replace(paths.login());
+    if (status === "authed" && step === "verify") replace(paths.verify());
     if (status === "authed" && hasOnboarded && isFetched && !completing.current) {
-      replace(resolvePostAuthDestination(workspaces, true));
+      replace(resolvePostAuthDestination(workspaces, user));
     }
-  }, [status, hasOnboarded, isFetched, workspaces, replace]);
+  }, [status, step, user, hasOnboarded, isFetched, workspaces, replace]);
 
-  if (status !== "authed" || (hasOnboarded && !completing.current)) return null;
+  if (status !== "authed" || step === "verify" || (hasOnboarded && !completing.current)) return null;
   return (
     <div className="h-dvh overflow-y-auto bg-background">
       <OnboardingFlow

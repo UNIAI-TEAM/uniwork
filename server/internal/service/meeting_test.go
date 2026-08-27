@@ -14,16 +14,16 @@ import (
 func meetingFixture(t *testing.T) (*MeetingService, db.User, db.User, db.Workspace) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour)
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(q)
 	ws := NewWorkspaceService(pool, q, orgs)
 	ctx := context.Background()
-	sa, _ := as.Register(ctx, "a@example.com", "password123", "A")
-	sb, _ := as.Register(ctx, "b@example.com", "password123", "B")
-	org, _ := orgs.Create(ctx, sa.User.ID, "Org", "org-alpha")
-	v, _ := ws.CreateInOrg(ctx, sa.User.ID, org.ID, "Alpha", "alpha")
+	ua := registerVerified(t, q, as, "a@example.com", "A")
+	ub := registerVerified(t, q, as, "b@example.com", "B")
+	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
+	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
 	w := v.Workspace
-	return NewMeetingService(q, ws, NopPublisher{}), sa.User, sb.User, w
+	return NewMeetingService(q, ws, NopPublisher{}), ua, ub, w
 }
 
 func TestMeetingCRUD(t *testing.T) {

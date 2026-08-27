@@ -26,6 +26,28 @@ UPDATE users SET avatar_url = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
+-- name: CreateGoogleUser :one
+INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at)
+VALUES ($1, $2, $3, $4, $5, now())
+RETURNING *;
+
+-- name: GetUserByGoogleID :one
+SELECT * FROM users WHERE google_id = $1;
+
+-- name: LinkGoogleAccount :one
+UPDATE users SET
+  google_id = $2,
+  email_verified_at = COALESCE(email_verified_at, now()),
+  avatar_url = COALESCE(avatar_url, sqlc.narg('avatar_url')),
+  updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: MarkEmailVerified :one
+UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: UpdateUserDisplayName :one
 UPDATE users SET display_name = $2, updated_at = now()
 WHERE id = $1

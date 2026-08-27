@@ -11,6 +11,8 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@un
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink } from "../navigation";
 import { AuthShell } from "./auth-shell";
+import { GoogleButton } from "./google-button";
+import { AUTH_LINK } from "./login-view";
 import { PasswordField } from "./password-field";
 
 /** The server's minimum, restated here so the rule is visible before submitting. */
@@ -102,9 +104,10 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
               t("auth.register")
             )}
           </Button>
+          <GoogleButton />
           <p className="text-center text-label text-muted-foreground">
             {t("auth.hasAccount")}{" "}
-            <AppLink href={paths.login()} className="font-medium text-brand hover:underline">
+            <AppLink href={paths.login()} className={AUTH_LINK}>
               {t("auth.login")}
             </AppLink>
           </p>

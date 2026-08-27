@@ -10,6 +10,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 export const PAGE_GUTTER = "px-4";
 
 /**
+ * Footprint of the TopBar collapse control (`SidebarTrigger` / `Button size="icon"`).
+ * Page-header leading icons sit in this box so their glyphs share a vertical
+ * axis with the trigger above once `hasExternalTrigger` removes the in-header
+ * collapse button.
+ */
+export const PAGE_LEADING_ICON = "flex size-8 shrink-0 items-center justify-center";
+
+/**
  * The filter/actions row directly under a `PageHeader`: same height and
  * gutter so the two read as one chrome block.
  */

@@ -27,6 +27,9 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	if err := ValidateSlug(slug); err != nil {
 		return db.Organization{}, err
 	}
+	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
+		return db.Organization{}, err
+	}
 	o, err := s.q.CreateOrganization(ctx, db.CreateOrganizationParams{
 		ID: util.NewID(), Slug: slug, Name: name, CreatedBy: userID,
 	})

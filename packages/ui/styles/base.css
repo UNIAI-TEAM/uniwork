@@ -95,7 +95,24 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
    bọc sẵn. Chủ ý là GIẢM chứ không TẮT: rút ngắn thời lượng và cắt vòng lặp vô
    hạn, nhưng giữ lại chuyển đổi opacity/màu vì chúng mang thông tin trạng thái.
    Đặt animation về 0.01ms sẽ xoá luôn phản hồi cho biết thao tác đã ăn. */
+/* Base UI marks orientation as data-orientation="…"; the registry primitives
+   (separator, tabs, slider, toggle-group, …) style it through the shorthand
+   variants below. Without these two lines the variants match nothing and a
+   Separator renders as a 0×0 box. styles/base.test.ts pins them. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
+/* Fake caret of the OTP input: the real <input> is visually hidden, so the
+   active slot draws its own. */
+@keyframes caret-blink {
+  0%, 70%, 100% { opacity: 1; }
+  20%, 50% { opacity: 0; }
+}
+.animate-caret-blink { animation: caret-blink 1.2s ease-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
+  /* A single truncated blink would end on the invisible frame; keep it lit. */
+  .animate-caret-blink { animation: none; }
   *, *::before, *::after {
     animation-duration: 0.15s !important;
     animation-delay: 0s !important;

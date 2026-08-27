@@ -66,7 +66,7 @@ func New(d Deps, h Routes) http.Handler {
 		registerAuth(v1, h, credentialLimit)
 		v1.Group(func(authed api) {
 			authed.Use(mw.RequireAuth(d.Minter))
-			registerMe(authed, h)
+			registerMe(authed, h, credentialLimit)
 			registerOrganizations(authed, h)
 			registerWorkspaces(authed, h)
 			registerOnboarding(authed, h)

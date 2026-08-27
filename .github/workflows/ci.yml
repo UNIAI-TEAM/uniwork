@@ -11,7 +11,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 concurrency:
@@ -55,7 +55,7 @@ jobs:
               - 'AGENTS.md'
               - '.githooks/**'
       - id: decide
-        # Always run on push to main; on a PR only when frontend paths changed.
+        # Always run on push (main/develop); on a PR only when frontend paths changed.
         # The frontend jobs still run and report success in that case — their
         # steps are gated on this output — so the required check goes green
         # instead of staying pending.

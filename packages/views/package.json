@@ -16,6 +16,7 @@
     "./meetings/*": "./meetings/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",
+    "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts"
   },
   "dependencies": {

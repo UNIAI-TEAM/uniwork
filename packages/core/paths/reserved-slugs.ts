@@ -20,6 +20,7 @@ export const RESERVED_SLUGS = [
   "settings",
   "static",
   "tasks",
+  "verify",
   "workspaces",
   "ws"
 ] as const;

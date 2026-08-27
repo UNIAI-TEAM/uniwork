@@ -13,6 +13,9 @@ import (
 //	POST /api/v1/auth/login      (credential rate limit)
 //	POST /api/v1/auth/refresh
 //	POST /api/v1/auth/logout
+//	GET  /api/v1/auth/providers
+//	GET  /api/v1/auth/google/start     (credential rate limit)
+//	GET  /api/v1/auth/google/callback  (credential rate limit)
 func registerAuth(v1 api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	v1.With(credentialLimit).Post("/auth/register", h.Register, apiOp{
 		summary:     "Register",
@@ -39,5 +42,25 @@ func registerAuth(v1 api, h Routes, credentialLimit func(http.Handler) http.Hand
 		description: "Thu hồi refresh token và xóa cookie.",
 		tags:        []string{"auth"},
 		sdo:         sdo.StatusSDO{},
+	})
+	v1.Get("/auth/providers", h.AuthProviders, apiOp{
+		summary:     "Auth providers",
+		description: "Các phương thức đăng nhập bên thứ ba đang bật trên deployment này.",
+		tags:        []string{"auth"},
+		sdo:         sdo.AuthProvidersSDO{},
+	})
+	v1.With(credentialLimit).Get("/auth/google/start", h.GoogleStart, apiOp{
+		summary:     "Start Google sign-in",
+		description: "Ghi cookie CSRF rồi chuyển tới Google. Query next là đường dẫn cùng origin sau khi đăng nhập.",
+		tags:        []string{"auth"},
+		sdi:         sdi.GoogleStartSDI{},
+		status:      302,
+	})
+	v1.With(credentialLimit).Get("/auth/google/callback", h.GoogleCallback, apiOp{
+		summary:     "Google sign-in callback",
+		description: "Đổi mã Google lấy phiên, ghi cookie refresh, rồi chuyển về frontend /auth/callback.",
+		tags:        []string{"auth"},
+		sdi:         sdi.GoogleCallbackSDI{},
+		status:      302,
 	})
 }

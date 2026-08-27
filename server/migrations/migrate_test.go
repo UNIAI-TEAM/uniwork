@@ -28,6 +28,14 @@ func testPool(t *testing.T) *pgxpool.Pool {
 func TestUpIsIdempotent(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
@@ -51,16 +59,26 @@ func TestOrganizationsGrandfather(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lock.Exec(ctx, "SELECT pg_advisory_lock($1)", 727273); err != nil {
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	// Đưa DB về trạng thái sau 003 rồi chèn dữ liệu kiểu cũ.
-	if err := Down(ctx, pool); err != nil { // rollback 004
-		t.Fatal(err)
+	// Đưa DB về trạng thái sau 003 rồi chèn dữ liệu kiểu cũ. Down lùi một
+	// migration mỗi lần, nên lặp cho tới khi 004 đã bị gỡ.
+	for {
+		var applied bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version LIKE '004%')`).Scan(&applied); err != nil {
+			t.Fatal(err)
+		}
+		if !applied {
+			break
+		}
+		if err := Down(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := pool.Exec(ctx, `TRUNCATE users, workspaces, workspace_members CASCADE`); err != nil {
 		t.Fatal(err)

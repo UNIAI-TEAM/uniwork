@@ -24,6 +24,10 @@ func toUserDTO(u db.User) sdo.UserDTO {
 		s := u.OnboardedAt.Time.Format(time.RFC3339)
 		out.OnboardedAt = &s
 	}
+	if u.EmailVerifiedAt.Valid {
+		s := u.EmailVerifiedAt.Time.Format(time.RFC3339)
+		out.EmailVerifiedAt = &s
+	}
 	if len(u.OnboardingQuestionnaire) > 0 {
 		out.OnboardingQuestionnaire = json.RawMessage(u.OnboardingQuestionnaire)
 	}
@@ -132,6 +136,12 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 401, "invalid_credentials", "invalid credentials")
 	case errors.Is(err, service.ErrConflict):
 		respondError(w, 409, "conflict", "already exists")
+	case errors.Is(err, service.ErrRateLimited):
+		respondError(w, 429, "rate_limited", "too many requests")
+	case errors.Is(err, service.ErrInvalidCode):
+		respondError(w, 400, "invalid_code", "invalid or expired code")
+	case errors.Is(err, service.ErrEmailUnverified):
+		respondError(w, 403, "email_unverified", "email address not verified")
 	default:
 		h.Log.Error("internal", "err", err)
 		respondError(w, 500, "internal", "internal error")

@@ -11,21 +11,46 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/component
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink } from "../navigation";
 import { AuthShell } from "./auth-shell";
+import { GoogleButton } from "./google-button";
 import { PasswordField } from "./password-field";
 
-export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) => void }) {
+/** Inline text link with the same 44px coarse-pointer floor the Button primitive carries. */
+export const AUTH_LINK =
+  "inline-flex items-center font-medium text-brand hover:underline pointer-coarse:min-h-11 pointer-coarse:px-1";
+
+/** Errors the Google callback can carry back on the login URL. */
+export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
+
+export function LoginView({
+  onSuccess,
+  next,
+  initialError,
+}: {
+  onSuccess: (sess: SessionResponse) => void;
+  /** Same-origin path to return to after any sign-in; forwarded to Google too. */
+  next?: string | null;
+  initialError?: GoogleLoginError | null;
+}) {
   const { t } = useTranslation();
   const login = useLogin();
   const errorId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // Two different failures, two different owners. A rejected login belongs to
+  // the email/password pair and marks them invalid; a Google error arrived on
+  // the URL before the user typed anything, so it is announced at form level
+  // and the fields stay clean until this form is actually submitted.
   const errorMsg =
     login.error instanceof ApiError && login.error.code === "invalid_credentials"
       ? t("auth.invalidCredentials")
       : login.error
         ? t("common.error")
         : null;
+  const googleError =
+    initialError && !login.isPending && !login.isSuccess && !login.error
+      ? t(`auth.google.${initialError.replace("google_", "")}`)
+      : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +104,7 @@ export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) =>
               wrong, and inventing a per-field answer would leak which emails
               are registered. */}
           <FieldError id={errorId}>{errorMsg}</FieldError>
+          {googleError ? <FieldError>{googleError}</FieldError> : null}
         </FieldGroup>
 
         <div className="flex flex-col gap-4">
@@ -92,18 +118,20 @@ export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) =>
               t("auth.login")
             )}
           </Button>
+          {/* The alternative sign-in sits with the primary action, before the
+              secondary links, so a phone user sees both ways in without
+              scrolling past the help text. */}
+          <GoogleButton next={next} />
           <p className="text-center text-label text-muted-foreground">
             {t("auth.noAccount")}{" "}
-            <AppLink href={paths.register()} className="font-medium text-brand hover:underline">
+            <AppLink href={paths.register()} className={AUTH_LINK}>
               {t("auth.register")}
             </AppLink>
           </p>
-          {/* Stated, not linked: there is no password-reset route, handler or
-              template anywhere in the repo, and no outbound email at all (the
-              invite step says as much in `step_invite.sent_hint`). A dead
-              "Forgot password?" link would be worse than the truth. Until a
-              reset flow exists, a locked-out user needs to be told the one
-              thing that does work instead of being left to guess. */}
+          {/* Stated, not linked: there is no password-reset route or handler
+              yet. The mailer (server/internal/mail) exists now, so a reset flow
+              is buildable — until it is, a locked-out user is told the one
+              thing that does work instead of being handed a dead link. */}
           <p className="text-center text-caption text-muted-foreground">
             <span className="font-medium text-foreground">{t("auth.forgotPassword")}</span>{" "}
             {t("auth.forgotPasswordHelp")}

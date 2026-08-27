@@ -12,7 +12,7 @@ initI18n();
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "An",
-  onboarded_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
+  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
 };
 const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team", organization_id: "o1",
@@ -64,6 +64,11 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("navigation", { name: "Điều hướng workspace" })).toBeInTheDocument();
   });
 
+  it("places the search trigger in the sidebar chrome", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeInTheDocument();
+  });
+
   it("keeps log out behind the account menu rather than one click away in the chrome", async () => {
     const nav = renderSidebar("/acme/team/tasks");
     expect(screen.queryByRole("menuitem", { name: "Đăng xuất" })).toBeNull();
@@ -83,5 +88,21 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Thành viên" })).toBeNull();
+  });
+
+  it("keeps icon controls visible when collapsed to the icon rail", () => {
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <SidebarProvider defaultOpen={false}>
+            <AppSidebar />
+          </SidebarProvider>
+        </WorkspaceProvider>,
+      ),
+    );
+    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tài khoản" })).toBeInTheDocument();
   });
 });

@@ -54,7 +54,7 @@ for (const mode of ["light", "dark"] as const) {
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
     await page.getByRole("button", { name: "Đăng ký" }).click();
-    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page).toHaveURL(/\/verify$/);
 
     await page.goto("/register");
     await page.getByLabel("Tên hiển thị").fill("Contrast");

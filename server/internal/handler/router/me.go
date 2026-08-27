@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -9,11 +11,13 @@ import (
 //
 //	GET   /api/v1/me
 //	PATCH /api/v1/me
+//	POST  /api/v1/me/email/verify   (credential rate limit)
+//	POST  /api/v1/me/email/resend   (credential rate limit)
 //	POST  /api/v1/me/avatar
 //	PATCH /api/v1/me/onboarding
 //	POST  /api/v1/me/onboarding/complete
 //	GET   /api/v1/me/invitations
-func registerMe(r api, h Routes) {
+func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	r.Get("/me", h.Me, apiOp{
 		summary:     "Current user",
 		description: "Trả người dùng đang đăng nhập, gồm trạng thái onboarding.",
@@ -27,6 +31,21 @@ func registerMe(r api, h Routes) {
 		tags:        []string{"me"},
 		sdi:         sdi.PatchMeSDI{},
 		sdo:         sdo.UserSDO{},
+		auth:        true,
+	})
+	r.With(credentialLimit).Post("/me/email/verify", h.VerifyEmail, apiOp{
+		summary:     "Verify email",
+		description: "Xác nhận địa chỉ email bằng mã 6 số đã gửi.",
+		tags:        []string{"me"},
+		sdi:         sdi.VerifyEmailSDI{},
+		sdo:         sdo.UserSDO{},
+		auth:        true,
+	})
+	r.With(credentialLimit).Post("/me/email/resend", h.ResendVerification, apiOp{
+		summary:     "Resend verification code",
+		description: "Gửi lại mã xác nhận email. Tối đa một lần mỗi 60 giây.",
+		tags:        []string{"me"},
+		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
 	r.Post("/me/avatar", h.UploadAvatar, apiOp{
