@@ -19,8 +19,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        // `border-input` in both modes: the panel hairline (`--border`) sits
+        // at ~1.2:1 on the light page, which left outline buttons reading as
+        // bare text. Inputs draw their edge with the same token, so a button
+        // and a field now share one boundary weight. button.outline.test.tsx
+        // pins the token and its 3:1 floor.
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-input bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30 dark:hover:bg-input/50",
         // Brand-filled state for a control that is currently ON (an active
         // filter, a selected toggle). Self-contained on purpose: passing
         // brand classes through `className` on top of `outline` does NOT

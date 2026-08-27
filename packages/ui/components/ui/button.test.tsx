@@ -16,7 +16,7 @@ describe("Button", () => {
       </Button>,
     );
     expect(screen.getByRole("button", { name: "Ok" })).toHaveClass(
-      "border-border",
+      "border-input",
       "h-9",
     );
     rerender(
