@@ -10,6 +10,8 @@ coverage/
 test-results/
 playwright-report/
 
+multica/
+
 # local upload storage (LOCAL_UPLOAD_DIR default)
 server/data/
 .env.worktree
