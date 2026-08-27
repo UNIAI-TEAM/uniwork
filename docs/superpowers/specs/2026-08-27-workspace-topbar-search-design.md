@@ -1,7 +1,7 @@
 # UniWork — Workspace TopBar + Global Search (nền tảng)
 
 **Ngày:** 2026-08-27  
-**Trạng thái:** Chờ duyệt spec (brainstorming 2026-08-27)  
+**Trạng thái:** Đã duyệt spec (brainstorming 2026-08-27)  
 **Spec liên quan:** `2026-08-27-settings-design.md`, `2026-08-24-uniwork-platform-design.md`  
 **Tham chiếu UI:** Multica `packages/views/search/` (command palette) — không port full search API
 

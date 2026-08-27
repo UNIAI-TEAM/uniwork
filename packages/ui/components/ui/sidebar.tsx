@@ -743,7 +743,13 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
     <li
       data-slot="sidebar-menu-item"
       data-sidebar="menu-item"
-      className={cn("group/menu-item relative", className)}
+      className={cn(
+        "group/menu-item relative",
+        // Icon rail: pin the 32px control in the column centre — without this
+        // `w-full` rows leave the size-8 button flush to the leading edge.
+        "group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center",
+        className
+      )}
       {...props}
     />
   )
@@ -755,18 +761,17 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
  *
  *   rest    muted label, no surface
  *   hover   full-strength label, `--sidebar-accent` surface
- *   active  the above, plus semibold and a brand bar on the leading edge
+ *   active  the above, plus semibold — surface alone carries the current
+ *           section (no leading brand bar; it fought the icon rail and read
+ *           as a hard edge against the inset card)
  *
- * The bar carries the state on its own. `--sidebar-accent` sits ~1.1:1 against
- * `--sidebar` in both modes (#ffffff on #f4f4f5, #18181b on #232326) — a
- * deliberate whisper of a surface, but far under the 3:1 WCAG 1.4.11 asks of a
- * state indicator, and identical to the hover surface besides. `--sidebar-primary`
- * against `--sidebar` is 5.0:1 light and 4.9:1 dark, and it is a shape rather
- * than a tint, so the current section survives both a contrast audit and a
- * collapsed icon rail where the label is gone.
+ * `--sidebar-accent` sits ~1.1:1 against `--sidebar` in both modes
+ * (#ffffff on #f4f4f5, #18181b on #232326) — a deliberate whisper of a
+ * surface. Semibold + accent fill is what marks the current section once the
+ * brand bar is gone.
  */
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button group/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-body text-muted-foreground ring-sidebar-ring outline-hidden transition-[width,height,padding,background-color,color] duration-150 ease-out group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 motion-reduce:transition-none data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-sidebar-accent data-active:before:absolute data-active:before:inset-y-1.5 data-active:before:left-0 data-active:before:w-[3px] data-active:before:rounded-r-full data-active:before:bg-sidebar-primary [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
+  "peer/menu-button group/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-body text-muted-foreground ring-sidebar-ring outline-hidden transition-[width,height,padding,background-color,color] duration-150 ease-out group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:p-2! group-data-[collapsible=icon]:[&>kbd]:hidden group-data-[collapsible=icon]:[&>span:not([aria-hidden])]:hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 motion-reduce:transition-none data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-sidebar-accent [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
   {
     variants: {
       variant: {

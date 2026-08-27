@@ -98,6 +98,30 @@ function CommandInput({
   )
 }
 
+/** Bare cmdk input for custom palette chrome (spotlight-style header). */
+function CommandTextInput({
+  className,
+  onKeyDown,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+  return (
+    <CommandPrimitive.Input
+      data-slot="command-input"
+      className={cn(
+        "flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      onKeyDown={(e) => {
+        if (e.key === "Home" || e.key === "End") {
+          e.stopPropagation()
+        }
+        onKeyDown?.(e)
+      }}
+      {...props}
+    />
+  )
+}
+
 function CommandList({
   className,
   ...props
@@ -196,6 +220,7 @@ export {
   Command,
   CommandDialog,
   CommandInput,
+  CommandTextInput,
   CommandList,
   CommandEmpty,
   CommandGroup,

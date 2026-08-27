@@ -78,6 +78,38 @@
     "account": "Account",
     "skip_to_content": "Skip to main content"
   },
+  "topbar": {
+    "search": "Search…",
+    "createTask": "New task",
+    "theme": "Theme",
+    "language": "Language",
+    "collapseSidebar": "Collapse sidebar",
+    "shortcutMac": "⌘K",
+    "shortcutOther": "Ctrl+K"
+  },
+  "search": {
+    "title": "Search",
+    "description": "Navigate pages and run commands",
+    "placeholder": "Type a page or command…",
+    "groups": {
+      "pages": "Pages",
+      "commands": "Commands"
+    },
+    "empty": "No results.",
+    "commands": {
+      "createTask": "New task",
+      "themeLight": "Light theme",
+      "themeDark": "Dark theme",
+      "themeSystem": "System theme",
+      "languageVi": "Language: Tiếng Việt",
+      "languageEn": "Language: English"
+    },
+    "pages": {
+      "tasks": "Tasks",
+      "meetings": "Meetings",
+      "settings": "Settings"
+    }
+  },
   "settings": {
     "page": {
       "title": "Settings",

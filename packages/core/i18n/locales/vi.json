@@ -77,6 +77,38 @@
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính"
   },
+  "topbar": {
+    "search": "Tìm kiếm…",
+    "createTask": "Tạo việc",
+    "theme": "Giao diện",
+    "language": "Ngôn ngữ",
+    "collapseSidebar": "Thu gọn thanh bên",
+    "shortcutMac": "⌘K",
+    "shortcutOther": "Ctrl+K"
+  },
+  "search": {
+    "title": "Tìm kiếm",
+    "description": "Điều hướng trang và chạy lệnh",
+    "placeholder": "Gõ trang hoặc lệnh…",
+    "groups": {
+      "pages": "Trang",
+      "commands": "Lệnh"
+    },
+    "empty": "Không có kết quả.",
+    "commands": {
+      "createTask": "Tạo việc",
+      "themeLight": "Giao diện sáng",
+      "themeDark": "Giao diện tối",
+      "themeSystem": "Giao diện theo hệ thống",
+      "languageVi": "Ngôn ngữ: Tiếng Việt",
+      "languageEn": "Ngôn ngữ: English"
+    },
+    "pages": {
+      "tasks": "Công việc",
+      "meetings": "Cuộc họp",
+      "settings": "Cài đặt"
+    }
+  },
   "settings": {
     "page": {
       "title": "Cài đặt",

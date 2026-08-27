@@ -31,6 +31,7 @@ import {
 } from "@uniwork/ui/components/ui/sidebar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
+import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
@@ -75,18 +76,23 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar variant="inset">
-      <SidebarHeader className="py-3">
+    <Sidebar variant="inset" collapsible="icon">
+      <SidebarHeader className="gap-1 py-2 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>
           <SidebarMenuItem>
             <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} />
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SearchTrigger />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
         <nav aria-label={t("nav.workspace_group")} className="flex flex-col">
-          <SidebarGroup>
+          <SidebarGroup className="group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {items.map(({ key, href, icon: Icon }) => {
@@ -117,7 +123,7 @@ export function AppSidebar() {
         </nav>
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="p-2 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
@@ -137,10 +143,10 @@ export function AppSidebar() {
                   size="lg"
                   className="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
                 />
-                <span className="min-w-0 flex-1 truncate text-left text-body font-medium text-sidebar-foreground">
+                <span className="min-w-0 flex-1 truncate text-left text-body font-medium text-sidebar-foreground group-data-[collapsible=icon]:hidden">
                   {user.display_name}
                 </span>
-                <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-faint-foreground" />
+                <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-faint-foreground group-data-[collapsible=icon]:hidden" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="min-w-56">
                 <DropdownMenuGroup>

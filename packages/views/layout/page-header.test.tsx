@@ -96,6 +96,17 @@ describe("PageHeader base chrome", () => {
     expect(within(header).getByRole("heading")).toBe(header.firstElementChild);
   });
 
+  it("keeps the collection leading icon on the TopBar collapse column", () => {
+    const header = renderHeader(
+      <CollectionPageHeader icon={SquareCheckBig} title="Công việc" />,
+      { hasExternalTrigger: true },
+    );
+
+    expect(header.querySelector("[data-slot='sidebar-trigger']")).toBeNull();
+    const iconSlot = header.querySelector("svg")?.parentElement;
+    expect(iconSlot).toHaveClass("size-8");
+  });
+
   it("renders nothing when no sidebar is mounted", () => {
     const { container } = render(<CollapsedNavTrigger />);
     expect(container.querySelector("[data-slot='sidebar-trigger']")).toBeNull();

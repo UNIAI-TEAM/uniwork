@@ -64,6 +64,11 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("navigation", { name: "Điều hướng workspace" })).toBeInTheDocument();
   });
 
+  it("places the search trigger in the sidebar chrome", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeInTheDocument();
+  });
+
   it("keeps log out behind the account menu rather than one click away in the chrome", async () => {
     const nav = renderSidebar("/acme/team/tasks");
     expect(screen.queryByRole("menuitem", { name: "Đăng xuất" })).toBeNull();
@@ -83,5 +88,21 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Thành viên" })).toBeNull();
+  });
+
+  it("keeps icon controls visible when collapsed to the icon rail", () => {
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <SidebarProvider defaultOpen={false}>
+            <AppSidebar />
+          </SidebarProvider>
+        </WorkspaceProvider>,
+      ),
+    );
+    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tài khoản" })).toBeInTheDocument();
   });
 });

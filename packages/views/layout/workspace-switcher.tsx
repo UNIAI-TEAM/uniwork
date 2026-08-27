@@ -52,6 +52,7 @@ export function WorkspaceSwitcher({ current, onNavigate }: { current: Workspace;
           <SidebarMenuButton
             size="lg"
             aria-label={t("org.switch")}
+            tooltip={current.name}
             className="data-[popup-open]:bg-sidebar-accent"
           />
         }
@@ -62,11 +63,11 @@ export function WorkspaceSwitcher({ current, onNavigate }: { current: Workspace;
         >
           {current.name.trim().slice(0, 1).toUpperCase()}
         </span>
-        <span className="min-w-0 flex-1 text-left">
+        <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
           <span className="block truncate text-caption text-muted-foreground">{current.organization_name}</span>
           <span className="block truncate text-body font-medium text-sidebar-foreground">{current.name}</span>
         </span>
-        <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-faint-foreground" />
+        <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-faint-foreground group-data-[collapsible=icon]:hidden" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-60">
         {[...groups.entries()].map(([orgId, g]) => (

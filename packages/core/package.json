@@ -45,7 +45,8 @@
     "./api/endpoints/*": "./api/endpoints/*.ts",
     "./permissions": "./permissions/index.ts",
     "./navigation": "./navigation/store.ts",
-    "./modals": "./modals/store.ts"
+    "./modals": "./modals/store.ts",
+    "./search": "./search/index.ts"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "catalog:",

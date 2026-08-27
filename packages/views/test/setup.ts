@@ -29,3 +29,6 @@ class RO {
   disconnect() {}
 }
 (globalThis as unknown as { ResizeObserver: typeof RO }).ResizeObserver ??= RO;
+
+// jsdom: cmdk calls scrollIntoView when focusing CommandItems.
+Element.prototype.scrollIntoView ??= () => {};

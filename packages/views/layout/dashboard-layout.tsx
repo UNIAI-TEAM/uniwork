@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "@uniwork/ui/components/ui/sidebar
 import { AppSidebar } from "./app-sidebar";
 import { DashboardGuard } from "./dashboard-guard";
 import { NavigationProgress } from "./navigation-progress";
+import { WorkspaceChrome } from "./workspace-top-bar";
 import { WorkspaceLoader } from "./workspace-loader";
 import { WorkspaceProvider } from "./workspace-context";
 
@@ -40,7 +41,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
       {({ user, workspace }) => (
         <WorkspaceProvider workspace={workspace} user={user}>
           <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
-            <SidebarProvider className="h-svh bg-app-shell">
+            <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
               {/* First in the DOM so it is the first tab stop; visible only
                   while focused. */}
               <a
@@ -52,7 +53,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
               <AppSidebar />
               <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
                 <NavigationProgress />
-                {children}
+                <WorkspaceChrome>{children}</WorkspaceChrome>
                 {extra}
               </SidebarInset>
             </SidebarProvider>
