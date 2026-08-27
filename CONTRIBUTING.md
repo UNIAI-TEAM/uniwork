@@ -25,6 +25,7 @@ có DB và cổng riêng: `make worktree-env && make setup-worktree`.
 | --- | --- |
 | Bất cứ việc gì | [`CLAUDE.md`](CLAUDE.md) |
 | Đặt tên route/package/file/cột DB/type | [`docs/conventions.md`](docs/conventions.md) § 1 |
+| Thêm / sửa HTTP API (SDI, SDO, Swagger) | [`docs/api-sdi-sdo.md`](docs/api-sdi-sdo.md) |
 | Sửa `packages/core/i18n/locales/` | `docs/conventions.md` § 2 (glossary vi–en) |
 | Viết chữ tiếng Việt lên UI | `docs/conventions.md` § 3 (giọng văn) |
 | Hiểu vì sao sản phẩm tồn tại | [`PRODUCT.md`](PRODUCT.md) |

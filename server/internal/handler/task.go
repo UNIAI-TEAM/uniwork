@@ -8,29 +8,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-type taskDTO struct {
-	ID          string  `json:"id"`
-	WorkspaceID string  `json:"workspace_id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	Status      string  `json:"status"`
-	Priority    string  `json:"priority"`
-	AssigneeID  *string `json:"assignee_id,omitempty"`
-	DueDate     *string `json:"due_date,omitempty"`
-	Position    float64 `json:"position"`
-	Kind        string  `json:"kind"`
-	CreatedBy   string  `json:"created_by"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
-}
-
-func toTaskDTO(t db.Task) taskDTO {
-	dto := taskDTO{
+func toTaskDTO(t db.Task) sdo.TaskDTO {
+	out := sdo.TaskDTO{
 		ID: t.ID, WorkspaceID: t.WorkspaceID, Title: t.Title, Description: t.Description,
 		Status: t.Status, Priority: t.Priority,
 		Position: t.Position, Kind: t.Kind, CreatedBy: t.CreatedBy,
@@ -39,13 +25,13 @@ func toTaskDTO(t db.Task) taskDTO {
 	}
 	if t.AssigneeID.Valid {
 		s := t.AssigneeID.String
-		dto.AssigneeID = &s
+		out.AssigneeID = &s
 	}
 	if t.DueDate.Valid {
 		s := t.DueDate.Time.Format("2006-01-02")
-		dto.DueDate = &s
+		out.DueDate = &s
 	}
-	return dto
+	return out
 }
 
 func (h *handlers) listTasks(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +40,7 @@ func (h *handlers) listTasks(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]taskDTO, 0, len(ts))
+	out := make([]sdo.TaskDTO, 0, len(ts))
 	for _, t := range ts {
 		out = append(out, toTaskDTO(t))
 	}
@@ -62,13 +48,7 @@ func (h *handlers) listTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Title       string  `json:"title"`
-		Description string  `json:"description"`
-		Priority    string  `json:"priority"`
-		AssigneeID  *string `json:"assignee_id"`
-		DueDate     *string `json:"due_date"`
-	}
+	var in sdi.CreateTaskSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
@@ -129,9 +109,7 @@ func (h *handlers) listComments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Body string `json:"body"`
-	}
+	var in sdi.CreateCommentSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}

@@ -14,6 +14,8 @@ The source of truth for code naming, the vi–en i18n glossary, and the
 Vietnamese voice guide is `docs/conventions.md`. Read it before naming a
 route/package/file/DB column/type, before editing
 `packages/core/i18n/locales/`, and before writing Vietnamese UI copy.
+HTTP API + Swagger (SDI/SDO, Chi `apiOp`, `pathParamSDI`) is
+`docs/api-sdi-sdo.md`.
 
 ## Project Shape
 
@@ -192,12 +194,22 @@ database and never reveal whether an id exists to a non-member.
   middleware. Each consumer of the client address (rate limiter, WebSocket
   origin check) applies `TRUSTED_PROXIES` itself. `server/internal/handler/router_test.go` pins it.
 - Rate limits exist only with Redis and are keyed by IP and path; the
-  credential routes carry their own small budget in `server/internal/handler/router.go`.
+  credential routes carry their own small budget in `server/internal/handler/router/router.go`.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get
   10s, then the relay and metrics listener stop. Add new background workers
   to that sequence, not as a bare goroutine.
+- REST routes register through the `api` wrapper in
+  `server/internal/handler/router/` (auth, me, tasks, … +
+  `apiOp{sdi, sdo, …}`). `handler.New` maps handler methods onto
+  `router.Routes`. OpenAPI is built at process start from that
+  catalog — no checked-in swagger spec, no swag comments, no `make swag`. SDI/SDO
+  live in `server/internal/handler/dto/sdi/` and
+  `server/internal/handler/dto/sdo/` with `description` and `example`
+  tags. A new `{param}` name needs a `pathParamSDI` case in
+  `server/internal/handler/router/openapi.go`. Full checklist:
+  `docs/api-sdi-sdo.md`. `GET /api/v1/ws` stays off the spec.
 
 ## Web Features
 

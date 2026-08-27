@@ -1,21 +1,19 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 )
 
 const onboardingBodyLimit = 16 * 1024
 
 func (h *handlers) patchOnboarding(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Questionnaire json.RawMessage `json:"questionnaire"`
-	}
+	var in sdi.PatchOnboardingSDI
 	if !decode(w, r, &in, onboardingBodyLimit) {
 		return
 	}
@@ -28,10 +26,7 @@ func (h *handlers) patchOnboarding(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) completeOnboarding(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		CompletionPath string `json:"completion_path"`
-		WorkspaceID    string `json:"workspace_id"`
-	}
+	var in sdi.CompleteOnboardingSDI
 	if r.ContentLength != 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}

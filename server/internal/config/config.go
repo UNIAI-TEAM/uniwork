@@ -27,6 +27,10 @@ type Config struct {
 	LiveKitURL       string
 	LiveKitAPIKey    string
 	LiveKitAPISecret string
+	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
+	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
+	// surface and must not ship on a public listener by default.
+	EnableSwagger bool
 	// AppEnv is "production" in production; the only thing it gates today is
 	// the development verification code.
 	AppEnv string
@@ -117,6 +121,11 @@ func Load() (Config, error) {
 	if a, err := url.Parse(c.APIPublicURL); err != nil || a.Scheme == "" || a.Host == "" {
 		return c, fmt.Errorf("API_PUBLIC_URL must be an absolute origin like https://api.example.com, got %q", c.APIPublicURL)
 	}
+	// Swagger is opt-in in production (ENABLE_SWAGGER=1). Locally it is on
+	// unless the operator sets ENABLE_SWAGGER=0: GNU Make 3.81 (macOS stock)
+	// also drops a last .env line that has no trailing newline, so a
+	// localhost default is the only reliable local path.
+	c.EnableSwagger = swaggerEnabled(c.FrontendOrigin)
 	return c, nil
 }
 
@@ -125,4 +134,31 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func swaggerEnabled(frontendOrigin string) bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_SWAGGER")))
+	switch raw {
+	case "1", "true", "yes":
+		return true
+	case "0", "false", "no":
+		return false
+	case "":
+		return isLocalDevOrigin(frontendOrigin)
+	default:
+		return false
+	}
+}
+
+func isLocalDevOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
 }

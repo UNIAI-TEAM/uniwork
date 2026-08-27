@@ -17,6 +17,7 @@ POSTGRES_USER ?= uniwork
 POSTGRES_PASSWORD ?= uniwork
 POSTGRES_PORT ?= 5432
 PORT ?= 8080
+ENABLE_SWAGGER ?= true
 FRONTEND_PORT ?= 3000
 FRONTEND_ORIGIN ?= http://localhost:$(FRONTEND_PORT)
 DATABASE_URL ?= postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=disable
@@ -69,6 +70,9 @@ start: ## Start backend and frontend for the current checkout (migrates first)
 	@echo "Using env file: $(ENV_FILE)"
 	@echo "Backend:  http://localhost:$(PORT)"
 	@echo "Frontend: http://localhost:$(FRONTEND_PORT)"
+	@if [ "$(ENABLE_SWAGGER)" = "true" ] || [ "$(ENABLE_SWAGGER)" = "1" ] || [ "$(ENABLE_SWAGGER)" = "yes" ]; then \
+		echo "Swagger:  http://localhost:$(PORT)/swagger/index.html"; \
+	fi
 	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
 	cd server && go run ./cmd/migrate up
 	@trap 'kill 0' EXIT; \
