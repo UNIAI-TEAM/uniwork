@@ -43,6 +43,13 @@ const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 // header's trigger brings it back.
 const SIDEBAR_AUTO_COLLAPSE_QUERY = "(min-width: 1024px) and (max-width: 1279px)"
 
+/**
+ * Paints an element with whatever the sidebar wrapper is currently filled with.
+ * The wrapper publishes its fill as `--sidebar-wrapper-fill` under the same
+ * `:has()` condition that paints it, so descendants cannot drift from the shell.
+ */
+const SIDEBAR_WRAPPER_FILL_CLASS = "bg-(--sidebar-wrapper-fill)"
+
 function clampSidebarWidth(width: number) {
   return Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, width))
 }
@@ -60,6 +67,8 @@ type SidebarContextProps = {
    */
   isCompact: boolean
   toggleSidebar: () => void
+  /** True when the host shell keeps its own always-reachable sidebar trigger. */
+  hasExternalTrigger: boolean
 }
 
 type SidebarResizeContextProps = {
@@ -97,6 +106,7 @@ function SidebarProvider({
   defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
+  hasExternalTrigger = false,
   className,
   style,
   children,
@@ -105,6 +115,7 @@ function SidebarProvider({
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  hasExternalTrigger?: boolean
 }) {
   const isCompact = useIsCompact()
   const [openMobile, setOpenMobile] = React.useState(false)
@@ -219,8 +230,9 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      hasExternalTrigger,
     }),
-    [state, open, setOpen, isCompact, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isCompact, openMobile, setOpenMobile, toggleSidebar, hasExternalTrigger]
   )
   const resizeContextValue = React.useMemo<SidebarResizeContextProps>(
     () => ({
@@ -242,7 +254,8 @@ function SidebarProvider({
             } as React.CSSProperties
           }
           className={cn(
-            "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+            "group/sidebar-wrapper flex min-h-svh w-full",
+            "has-data-[variant=inset]:bg-sidebar has-data-[variant=inset]:[--sidebar-wrapper-fill:var(--sidebar)]",
             className
           )}
           {...props}
@@ -978,6 +991,7 @@ function SidebarMenuSubButton({
 }
 
 export {
+  SIDEBAR_WRAPPER_FILL_CLASS,
   Sidebar,
   SidebarContent,
   SidebarFooter,

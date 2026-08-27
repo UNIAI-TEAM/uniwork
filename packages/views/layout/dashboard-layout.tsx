@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "@uniwork/ui/components/ui/sidebar
 import { AppSidebar } from "./app-sidebar";
 import { DashboardGuard } from "./dashboard-guard";
 import { NavigationProgress } from "./navigation-progress";
+import { WorkspaceLoader } from "./workspace-loader";
 import { WorkspaceProvider } from "./workspace-context";
 
 interface DashboardLayoutProps {
@@ -35,7 +36,7 @@ const MAIN_CONTENT_ID = "main-content";
 export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallback }: DashboardLayoutProps) {
   const { t } = useTranslation();
   return (
-    <DashboardGuard orgSlug={orgSlug} wsSlug={wsSlug} loadingFallback={loadingFallback}>
+    <DashboardGuard orgSlug={orgSlug} wsSlug={wsSlug} loadingFallback={loadingFallback ?? <WorkspaceLoader />}>
       {({ user, workspace }) => (
         <WorkspaceProvider workspace={workspace} user={user}>
           <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>

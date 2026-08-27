@@ -30,7 +30,7 @@ interface BreadcrumbHeaderProps {
 /** Detail-page header: `ancestor › ancestor › leaf  [actions]`. */
 export function BreadcrumbHeader({ segments, leaf, actions, leading, className }: BreadcrumbHeaderProps) {
   return (
-    <PageHeader leading={leading} className={cn("gap-2 bg-background text-body", className)}>
+    <PageHeader leading={leading} className={cn("bg-background text-body", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {segments.map((segment) => (
           <Fragment key={segment.href}>

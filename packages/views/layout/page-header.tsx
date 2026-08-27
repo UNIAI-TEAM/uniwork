@@ -4,6 +4,21 @@ import { SidebarTrigger, useSidebarSafe } from "@uniwork/ui/components/ui/sideba
 import { cn } from "@uniwork/ui/lib/utils";
 
 /**
+ * The left edge every page shares: the header, the toolbar under it, and any
+ * body row that has to line up with them.
+ */
+export const PAGE_GUTTER = "px-4";
+
+/**
+ * The filter/actions row directly under a `PageHeader`: same height and
+ * gutter so the two read as one chrome block.
+ */
+export const PAGE_TOOLBAR = cn(
+  "flex h-12 shrink-0 items-center justify-between gap-2",
+  PAGE_GUTTER,
+);
+
+/**
  * The way back to the nav wherever it is not a permanent column (a sheet
  * below the compact breakpoint). Every surface below `xl` needs one of these;
  * PageHeader supplies it, and it is exported for pages that build their own
@@ -12,8 +27,8 @@ import { cn } from "@uniwork/ui/lib/utils";
  */
 export function CollapsedNavTrigger() {
   const sidebar = useSidebarSafe();
-  if (!sidebar) return null;
-  return <SidebarTrigger className="mr-2 xl:hidden" />;
+  if (!sidebar || sidebar.hasExternalTrigger) return null;
+  return <SidebarTrigger className="xl:hidden" />;
 }
 
 interface PageHeaderProps {
@@ -30,7 +45,13 @@ interface PageHeaderProps {
 /** 48px header row shared by every workspace screen. */
 export function PageHeader({ children, leading, className }: PageHeaderProps) {
   return (
-    <header className={cn("flex h-12 shrink-0 items-center border-b border-border px-4", className)}>
+    <header
+      className={cn(
+        "flex h-12 shrink-0 items-center gap-2 border-b border-border",
+        className,
+        PAGE_GUTTER,
+      )}
+    >
       {leading ?? <CollapsedNavTrigger />}
       {children}
     </header>

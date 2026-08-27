@@ -61,7 +61,7 @@
   --border: #e4e4e7;
   --input: #87878f;
   --ring: #0b5bf5;
-  --radius: 6px;
+  --radius: 0.625rem;
 
   /* Browser-drawn surfaces (selection, caret, scrollbar) read these so every
      pixel belongs to the palette. */
@@ -77,7 +77,7 @@
   --sidebar-foreground: #18181b;
   --sidebar-primary: #0b5bf5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ffffff;
+  --sidebar-accent: #ebebec;
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #e4e4e7;
   --sidebar-ring: #0b5bf5;
@@ -168,7 +168,7 @@
    a second app, a render test, Storybook — gets the whole contract from one
    import instead of copying this block. */
 @theme inline {
-  --animate-nav-progress-sweep: nav-progress-sweep 1.2s ease-in-out infinite;
+  --animate-nav-progress-sweep: nav-progress-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-app-shell: var(--app-shell);

@@ -17,8 +17,6 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { BrandRail, BrandRailAside, RAIL_WIDTH_ONBOARDING } from "../../layout/brand-rail";
 
-export { RAIL_VAR_FALLBACK } from "../../layout/brand-rail";
-
 /**
  * Thanh tiến độ gọn cho < md (rail ẩn): Back + các đoạn + tên bước + slot footer.
  */
@@ -56,7 +54,7 @@ export function StepProgressBar({
         {ONBOARDING_STEP_ORDER.map((stepId, index) => (
           <span
             key={stepId}
-            className={cn("h-1 flex-1 rounded-full transition-colors", index <= currentIndex ? "bg-primary" : "bg-border")}
+            className={cn("h-1 flex-1 rounded-full transition-colors", index <= currentIndex ? "bg-foreground" : "bg-border")}
           />
         ))}
       </span>
@@ -136,16 +134,16 @@ export function StepSidebar({
                         className={cn(
                           "mt-0.5 size-4 shrink-0 border-0 bg-transparent ring-1 transition-colors",
                           isDone
-                            ? "bg-primary text-primary-foreground ring-primary"
+                            ? "bg-foreground text-background ring-foreground"
                             : isCurrent
                               ? "text-transparent ring-muted-foreground"
-                              : "text-transparent ring-input",
+                              : "text-transparent ring-border",
                         )}
                       >
                         {isDone ? (
                           <Check aria-hidden className="size-3" />
                         ) : isCurrent ? (
-                          <span aria-hidden className="block size-1.5 rounded-full bg-primary" />
+                          <span aria-hidden className="block size-1.5 rounded-full bg-foreground" />
                         ) : (
                           <span className="sr-only">{index + 1}</span>
                         )}
@@ -173,7 +171,7 @@ export function StepSidebar({
                         <button
                           type="button"
                           onClick={() => onStepChange(stepId)}
-                          className="flex w-full items-start gap-3 rounded-md pb-6 text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                          className="flex w-full items-start gap-3 rounded-md pb-6 text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {body}
                         </button>

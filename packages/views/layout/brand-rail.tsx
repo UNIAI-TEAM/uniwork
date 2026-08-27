@@ -1,17 +1,7 @@
 "use client";
-import { useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { DotSphere } from "@uniwork/ui/components/ui/dot-sphere";
-import { useCssVars } from "@uniwork/ui/hooks/use-css-var";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
-import { withAlpha } from "@uniwork/ui/lib/utils";
-
-/**
- * Canvas 2D does not accept `var()`, so the dot-sphere's colours must be real
- * strings. `useCssVars` reads them off the rail panel itself (which is scoped
- * `.dark`) instead of hardcoding them, so changing a token moves the rail with
- * it. The fallback only covers the first server-rendered frame.
- */
-export const RAIL_VAR_FALLBACK = { "--rail": "#1b1b1f", "--brand": "#4d8dff" };
 
 /**
  * The dark panel every signed-out screen is built on: onboarding puts its
@@ -19,9 +9,10 @@ export const RAIL_VAR_FALLBACK = { "--rail": "#1b1b1f", "--brand": "#4d8dff" };
  * screen — it owns the panel, the dot field and the header/footer slots, and
  * nothing about what fills them.
  *
- * Extracted from the onboarding sidebar so login and onboarding cannot drift:
- * they are consecutive screens, and a panel that differed by a few pixels
- * between them would read as two products.
+ * Structurally follows the Multica / ReUI onboarding-3 block: an inset panel
+ * with `.dark` scoping token overrides for this subtree only, `bg-background`
+ * for the fill, and DotSphere as a decorative layer — not a hand-mixed
+ * `--rail` colour that drifts from the token sheet.
  */
 export function BrandRail({
   header,
@@ -34,8 +25,6 @@ export function BrandRail({
   className?: string;
   children?: ReactNode;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const railVars = useCssVars(panelRef, RAIL_VAR_FALLBACK);
   // Two different hiding mechanisms, for two different problems — they were
   // once merged into one and both broke:
   //
@@ -54,14 +43,12 @@ export function BrandRail({
 
   return (
     <div
-      ref={panelRef}
       className={
-        "dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl px-5 pb-5 text-foreground ring-1 ring-border" +
+        "dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl bg-background px-5 pb-5 text-foreground ring-1 ring-border" +
         (className ? " " + className : "")
       }
-      style={{ background: "var(--rail)" }}
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-background">
         {showSphere && (
           <DotSphere
             dotGap={19}
@@ -70,8 +57,6 @@ export function BrandRail({
             sphereRadius="20%"
             dotRadiusMax={1.9}
             speed={0.4}
-            bgColor={railVars["--rail"]}
-            dotColor={withAlpha(railVars["--brand"], 0.5)}
           />
         )}
       </div>
@@ -110,5 +95,5 @@ export const RAIL_WIDTH_AUTH = "md:w-[36%] lg:w-[42%]";
 
 /** The <aside> that positions the rail beside a content column. Hidden below `md`. */
 export function BrandRailAside({ width, children }: { width: string; children: ReactNode }) {
-  return <aside className={`hidden shrink-0 md:block md:p-3 lg:p-4 ${width}`}>{children}</aside>;
+  return <aside className={`hidden shrink-0 p-2 md:block md:p-3 lg:p-4 ${width}`}>{children}</aside>;
 }

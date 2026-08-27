@@ -41,11 +41,9 @@ export function StepWelcome({
     // also applied to a phone held landscape (~390px of viewport height) and to
     // a 1280x800 window at 200% zoom, turning a hero that fits into one the
     // user has to scroll for no reason.
-    <main className="animate-onboarding-enter flex h-full flex-col lg:min-h-[640px] lg:flex-row">
-      {/* Cột chữ giữ phần lớn hơn: chia đôi 50/50 khiến cột co từ 540px xuống
-          352px đúng ở 1024px — cửa sổ rộng ra mà chỗ cho chữ lại hẹp đi. */}
-      <div className="flex flex-col lg:flex-[1.15]">
-        <div className="flex flex-1 flex-col justify-center px-6 pb-12 pt-16 sm:px-10 md:px-20 lg:px-14 lg:pt-0 xl:px-20">
+    <main className="animate-onboarding-enter flex h-full min-h-[640px] flex-col lg:flex-row">
+      <div className="flex flex-col lg:flex-1">
+        <div className="flex flex-1 flex-col justify-center px-6 pb-12 pt-16 sm:px-10 md:px-20 lg:px-20 lg:pt-0 xl:px-24">
           <div className="flex w-full max-w-[540px] flex-col gap-8">
             <div className="flex items-center gap-2.5">
               <Logo variant="mark" size={22} decorative />
@@ -54,16 +52,9 @@ export function StepWelcome({
               </span>
             </div>
 
-            {/* Dừng ở 48px: cột bị chặn 540px, nên bước 60px đo được là 4 dòng với dòng
-                cuối chỉ 48% bề rộng ("gian." mồ côi) ở MỌI viewport từ 1280 trở lên —
-                cỡ chữ to hơn mà đọc kém đi. 48px cho 3 dòng đều từ 640px. */}
-            <h1 className="text-balance font-serif text-hero-sm font-medium text-foreground sm:text-hero">
+            <h1 className="text-balance font-serif text-hero font-medium leading-[1.04] tracking-tight text-foreground sm:text-hero-lg">
               {t("onboarding.welcome.headline_line1")}{" "}
-              {/* Ngắt dòng cứng chỉ đúng ở cột 540px của lg+ (xem chú thích trên).
-                  Dưới đó cột chỉ còn ~327px: dòng 1 đã tự xuống dòng rồi, ngắt
-                  cứng chèn thêm một dòng thứ tư lệch nhịp và vô hiệu hoá
-                  `text-balance`. Ẩn thẻ <br> là bỏ hẳn nó khỏi cây hộp. */}
-              <br className="hidden lg:inline" />
+              <br />
               {t("onboarding.welcome.headline_line2")}{" "}
               <em className="italic text-brand">{t("onboarding.welcome.headline_emphasis")}</em>
             </h1>
@@ -91,7 +82,7 @@ export function StepWelcome({
       </div>
 
       {/* Cột phải: minh hoạ, ẩn dưới lg để headline + CTA giữ tiêu điểm. */}
-      <div className="hidden border-l border-border bg-muted/40 lg:flex lg:flex-[0.85] lg:flex-col lg:overflow-hidden">
+      <div className="hidden border-l border-border bg-muted/40 lg:flex lg:flex-1 lg:flex-col lg:overflow-hidden">
         <div className="flex flex-1 flex-col items-center justify-center gap-7 px-8 py-8">
           <p className="max-w-[440px] text-balance text-center font-serif text-body-lg italic leading-snug text-muted-foreground">
             {t("onboarding.welcome.illustration_caption")}

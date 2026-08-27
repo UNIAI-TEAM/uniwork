@@ -109,6 +109,22 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 
 /* Indeterminate sweep for the navigation progress bar (views/layout). */
 @keyframes nav-progress-sweep {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(300%); }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Sidebar resizing: cursor and transition contract while dragging the rail. */
+html[data-sidebar-resizing="true"],
+html[data-sidebar-resizing="true"] * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+
+[data-sidebar-resizing="true"] [data-slot="sidebar-gap"],
+[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
+  transition: none !important;
+}
+
+[data-sidebar-resizing="true"] [data-sidebar="rail"]::after {
+  background-color: var(--sidebar-border);
 }

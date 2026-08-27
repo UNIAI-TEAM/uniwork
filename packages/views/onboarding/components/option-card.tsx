@@ -8,10 +8,10 @@ export function RadioMark({ selected }: { selected: boolean }) {
       aria-hidden
       className={cn(
         "relative inline-block h-4 w-4 shrink-0 rounded-full border-[1.5px] transition-colors",
-        selected ? "border-primary" : "border-input",
+        selected ? "border-foreground" : "border-input",
       )}
     >
-      {selected && <span className="absolute inset-[3px] rounded-full bg-primary" />}
+      {selected && <span className="absolute inset-[3px] rounded-full bg-foreground" />}
     </span>
   );
 }
@@ -19,12 +19,9 @@ export function RadioMark({ selected }: { selected: boolean }) {
 /** Card chọn có viền đậm khi chọn (dùng cho org/workspace có sẵn, tạo mới). */
 export const pickerCardClass = (selected: boolean) =>
   cn(
-    // Liệt kê đúng thứ đổi: `transition-all` kéo theo cả thuộc tính layout, tức
-    // là mỗi lần hover là một lần trình duyệt phải theo dõi những giá trị không
-    // hề đổi.
-    "w-full rounded-lg border bg-surface text-left transition-[color,background-color,border-color,box-shadow]",
+    "w-full rounded-lg border bg-card text-left transition-[color,background-color,border-color,box-shadow]",
     selected
-      ? "border-primary shadow-[inset_0_0_0_1px_var(--primary)]"
+      ? "border-foreground shadow-[inset_0_0_0_1px_var(--foreground)]"
       : "border-border hover:border-input hover:bg-muted/60",
   );
 
