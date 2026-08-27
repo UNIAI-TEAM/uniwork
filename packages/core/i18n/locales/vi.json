@@ -87,7 +87,13 @@
     "copy_confirmed": "Đã sao chép link mời của {{email}}",
     "invite_recipients_empty": "Chưa có người nhận nào",
     "invite_recipient_count_one": "{{count}} người nhận",
-    "invite_recipient_count_other": "{{count}} người nhận"
+    "invite_recipient_count_other": "{{count}} người nhận",
+    "changeRole": "Đổi vai trò",
+    "removeMember": "Xóa khỏi workspace",
+    "removeConfirm": "Xóa {{name}} khỏi workspace?",
+    "roleUpdated": "Đã cập nhật vai trò",
+    "memberRemoved": "Đã xóa thành viên",
+    "ownerLocked": "Không thể đổi hoặc xóa chủ sở hữu workspace"
   },
   "nav": {
     "tasks": "Công việc",

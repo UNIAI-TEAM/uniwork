@@ -177,6 +177,100 @@ func (s *WorkspaceService) Members(ctx context.Context, userID, workspaceID stri
 	return s.q.ListWorkspaceMembers(ctx, workspaceID)
 }
 
+const (
+	MembershipSourceMembership MembershipSource = "membership"
+	MembershipSourceOrgAdmin   MembershipSource = "org_admin"
+)
+
+// MembershipSource distinguishes an explicit workspace_members row from an
+// org owner/admin who only has effective access via GetWorkspaceAccess.
+type MembershipSource string
+
+// CurrentMembership is the caller's effective workspace role and how it was derived.
+type CurrentMembership struct {
+	UserID string
+	Role   string
+	Source MembershipSource
+}
+
+func (s *WorkspaceService) CurrentMembership(ctx context.Context, userID, workspaceID string) (CurrentMembership, error) {
+	eff, err := s.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return CurrentMembership{}, err
+	}
+	_, err = s.q.GetWorkspaceMember(ctx, db.GetWorkspaceMemberParams{
+		WorkspaceID: workspaceID, UserID: userID,
+	})
+	source := MembershipSourceOrgAdmin
+	if err == nil {
+		source = MembershipSourceMembership
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return CurrentMembership{}, err
+	}
+	return CurrentMembership{UserID: userID, Role: eff.Role, Source: source}, nil
+}
+
+func adminLikeRole(role string) bool {
+	return role == "owner" || role == "admin"
+}
+
+// UpdateMemberRole changes a non-owner member's role to admin or member.
+func (s *WorkspaceService) UpdateMemberRole(ctx context.Context, actorID, workspaceID, targetUserID, role string) (db.WorkspaceMember, error) {
+	actor, err := s.RequireMember(ctx, workspaceID, actorID)
+	if err != nil {
+		return db.WorkspaceMember{}, err
+	}
+	if !adminLikeRole(actor.Role) {
+		return db.WorkspaceMember{}, ErrForbidden
+	}
+	if role != "admin" && role != "member" {
+		return db.WorkspaceMember{}, Invalid("role phải là admin hoặc member")
+	}
+	target, err := s.q.GetWorkspaceMember(ctx, db.GetWorkspaceMemberParams{
+		WorkspaceID: workspaceID, UserID: targetUserID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.WorkspaceMember{}, ErrNotFound
+	}
+	if err != nil {
+		return db.WorkspaceMember{}, err
+	}
+	if target.Role == "owner" {
+		return db.WorkspaceMember{}, ErrForbidden
+	}
+	return s.q.UpdateWorkspaceMemberRole(ctx, db.UpdateWorkspaceMemberRoleParams{
+		WorkspaceID: workspaceID, UserID: targetUserID, Role: role,
+	})
+}
+
+// RemoveMember deletes an explicit workspace_members row. Explicit owners cannot
+// be removed. Any effective member may leave themselves; otherwise the actor
+// must be admin-like.
+func (s *WorkspaceService) RemoveMember(ctx context.Context, actorID, workspaceID, targetUserID string) error {
+	actor, err := s.RequireMember(ctx, workspaceID, actorID)
+	if err != nil {
+		return err
+	}
+	target, err := s.q.GetWorkspaceMember(ctx, db.GetWorkspaceMemberParams{
+		WorkspaceID: workspaceID, UserID: targetUserID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if target.Role == "owner" {
+		return ErrForbidden
+	}
+	if actorID != targetUserID && !adminLikeRole(actor.Role) {
+		return ErrForbidden
+	}
+	return s.q.DeleteWorkspaceMember(ctx, db.DeleteWorkspaceMemberParams{
+		WorkspaceID: workspaceID, UserID: targetUserID,
+	})
+}
+
 // InviteMany: dedupe + lowercase; email sai hoặc đã là thành viên → skipped.
 func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID string, emails []string, role string) ([]db.Invitation, []string, error) {
 	m, err := s.RequireMember(ctx, workspaceID, userID)

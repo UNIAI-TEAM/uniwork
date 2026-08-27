@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
@@ -168,5 +170,98 @@ func TestWorkspaceUpdateName(t *testing.T) {
 	got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Name: &name})
 	if err != nil || got.Name != name {
 		t.Fatalf("owner update: %v %+v", err, got)
+	}
+}
+
+func TestCurrentMembership_ExplicitAndOrgAdmin(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Alpha", "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := f.ws.CurrentMembership(ctx, f.ua.ID, w.ID)
+	if err != nil || m.Role != "owner" || m.Source != MembershipSourceMembership {
+		t.Fatalf("owner: %+v %v", m, err)
+	}
+	if err := f.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+		OrganizationID: f.org.ID, UserID: f.ub.ID, Role: "admin",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m, err = f.ws.CurrentMembership(ctx, f.ub.ID, w.ID)
+	if err != nil || m.Role != "admin" || m.Source != MembershipSourceOrgAdmin {
+		t.Fatalf("org admin: %+v %v", m, err)
+	}
+	if _, err := f.ws.CurrentMembership(ctx, f.uc.ID, w.ID); err != ErrForbidden {
+		t.Fatalf("outsider: %v", err)
+	}
+}
+
+func TestUpdateMemberRoleAndRemove(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Beta", "beta")
+	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+		WorkspaceID: w.ID, UserID: f.ub.ID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+		WorkspaceID: w.ID, UserID: f.uc.ID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := f.ws.UpdateMemberRole(ctx, f.ub.ID, w.ID, f.uc.ID, "admin"); err != ErrForbidden {
+		t.Fatalf("member promote: %v", err)
+	}
+	got, err := f.ws.UpdateMemberRole(ctx, f.ua.ID, w.ID, f.ub.ID, "admin")
+	if err != nil || got.Role != "admin" {
+		t.Fatalf("promote: %+v %v", got, err)
+	}
+	if _, err := f.ws.UpdateMemberRole(ctx, f.ua.ID, w.ID, f.ub.ID, "owner"); err == nil {
+		t.Fatal("expected invalid owner role")
+	}
+	if _, err := f.ws.UpdateMemberRole(ctx, f.ua.ID, w.ID, f.ua.ID, "admin"); err != ErrForbidden {
+		t.Fatalf("demote owner: %v", err)
+	}
+	if err := f.ws.RemoveMember(ctx, f.ua.ID, w.ID, f.ub.ID); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if _, err := f.q.GetWorkspaceMember(ctx, db.GetWorkspaceMemberParams{
+		WorkspaceID: w.ID, UserID: f.ub.ID,
+	}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("still member: %v", err)
+	}
+	if err := f.ws.RemoveMember(ctx, f.ua.ID, w.ID, f.ua.ID); err != ErrForbidden {
+		t.Fatalf("remove owner: %v", err)
+	}
+	// member may leave themselves
+	if err := f.ws.RemoveMember(ctx, f.uc.ID, w.ID, f.uc.ID); err != nil {
+		t.Fatalf("self leave: %v", err)
+	}
+}
+
+func TestOrgAdminCanManageMembersWithoutMembershipRow(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Gamma", "gamma")
+	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+		WorkspaceID: w.ID, UserID: f.ub.ID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+		OrganizationID: f.org.ID, UserID: f.uc.ID, Role: "admin",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.ws.UpdateMemberRole(ctx, f.uc.ID, w.ID, f.ub.ID, "admin")
+	if err != nil || got.Role != "admin" {
+		t.Fatalf("org admin promote: %+v %v", got, err)
+	}
+	if err := f.ws.RemoveMember(ctx, f.uc.ID, w.ID, f.ub.ID); err != nil {
+		t.Fatalf("org admin remove: %v", err)
 	}
 }

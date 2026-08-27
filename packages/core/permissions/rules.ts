@@ -37,6 +37,46 @@ export function canManageMembers(ctx: PermissionContext): Decision {
   return canInviteMembers(ctx);
 }
 
+/**
+ * Remove a workspace member (or leave yourself).
+ * Backend: WorkspaceService.RemoveMember — admin-like for others; any member may
+ * leave; explicit owner protected (server/internal/service/workspace.go).
+ */
+export function canRemoveMember(
+  target: { user_id: string; role: string } | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (!target) return deny("unknown", "Member not found.");
+  if (target.role === "owner") {
+    return deny("not_owner_role", "Workspace owners cannot be removed this way.");
+  }
+  if (ctx.userId === target.user_id) return ALLOW;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  return deny("not_admin_role", "Only workspace owners and admins can remove members.");
+}
+
+/**
+ * Change a non-owner member's role between admin and member.
+ * Backend: WorkspaceService.UpdateMemberRole (server/internal/service/workspace.go).
+ */
+export function canChangeMemberRole(
+  target: { user_id: string; role: string } | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (!isAdminLike(ctx.wsRole)) {
+    return deny("not_admin_role", "Only workspace owners and admins can change roles.");
+  }
+  if (!target) return deny("unknown", "Member not found.");
+  if (target.role === "owner") {
+    return deny("not_owner_role", "Workspace owner role cannot be changed this way.");
+  }
+  return ALLOW;
+}
+
 /** Mirror workspace.go InviteMany admin gate. */
 export function canUpdateWorkspaceSettings(ctx: PermissionContext): Decision {
   const gate = requireWorkspaceMember(ctx);
@@ -87,4 +127,23 @@ export function canEditTask(_task: Task | null, ctx: PermissionContext): Decisio
  */
 export function canDeleteMeeting(ctx: PermissionContext): Decision {
   return requireWorkspaceMember(ctx) ?? ALLOW;
+}
+
+// ---- Comments (policy; not wired to Tasks UI yet) ---------------------------
+
+/**
+ * Edit a comment: author or effective owner/admin.
+ * Spec: docs/superpowers/specs/2026-08-27-workspace-permissions-design.md
+ */
+export function canEditComment(authorId: string | null, ctx: PermissionContext): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (authorId && ctx.userId === authorId) return ALLOW;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  return deny("not_resource_owner", "You can only edit your own comments.");
+}
+
+/** Same gate as canEditComment (author or admin-like moderation). */
+export function canDeleteComment(authorId: string | null, ctx: PermissionContext): Decision {
+  return canEditComment(authorId, ctx);
 }

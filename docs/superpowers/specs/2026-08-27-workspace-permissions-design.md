@@ -1,7 +1,7 @@
 # UniWork — Ma trận quyền workspace (nền cho Issues)
 
 **Ngày:** 2026-08-27  
-**Trạng thái:** Chờ duyệt file spec  
+**Trạng thái:** Đã duyệt spec; foundation đang implement trên `develop`  
 **Spec liên quan:** `2026-08-24-uniwork-platform-design.md`, `2026-08-25-onboarding-organizations-design.md`, `2026-08-27-settings-design.md`  
 **Tham chiếu:** Multica Issues permissions + `packages/core/permissions` (UniWork)
 
@@ -199,8 +199,8 @@ Nếu đã có pattern invalidate members query: publish `member.updated` / `mem
 
 ## 9. Tiêu chí xong đợt này
 
-- [ ] Spec này đã duyệt.
-- [ ] `GET …/me` (hoặc tương đương) + FE `useCurrentMember` dùng effective role.
-- [ ] `PATCH` / `DELETE` members + service tests + FE rules + UI members.
-- [ ] Org admin ẩn danh: invite/settings/members actions khớp API.
+- [x] Spec này đã duyệt.
+- [x] `GET …/me` (hoặc tương đương) + FE `useCurrentMember` dùng effective role.
+- [x] `PATCH` / `DELETE` members + service tests + FE rules + UI members.
+- [x] Org admin ẩn danh: invite/settings/members actions khớp API.
 - [ ] Không ship transfer ownership, xóa WS, comment authorship code, Issues trong đợt này.
