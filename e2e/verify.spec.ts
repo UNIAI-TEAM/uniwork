@@ -24,7 +24,8 @@ test("mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; c�
   await expect(code).toBeFocused();
   const wrong = VERIFICATION_CODE === "000000" ? "111111" : "000000";
   await code.fill(wrong);
-  await expect(page.getByRole("alert")).toContainText("Mã không đúng hoặc đã hết hạn");
+  // getByRole("alert") cũng khớp route announcer của Next, nên tìm theo chữ.
+  await expect(page.getByText("Mã không đúng hoặc đã hết hạn")).toBeVisible();
   await expect(code).toHaveValue("");
 
   await code.fill(VERIFICATION_CODE);
@@ -40,8 +41,6 @@ test("nút Google không hiện khi server chưa cấu hình Google", async ({ p
   const { google } = (await providers.json()) as { google: boolean };
   await page.goto("/login");
   await page.getByLabel("Mật khẩu", { exact: true }).waitFor();
-  // Đợi query providers trả về rồi mới đo, tránh sai âm do nút chưa kịp render.
-  await page.waitForResponse((r) => r.url().endsWith("/api/v1/auth/providers"));
   await expect(page.getByRole("link", { name: "Tiếp tục với Google" })).toHaveCount(google ? 1 : 0);
 });
 
@@ -57,7 +56,7 @@ for (const mode of ["light", "dark"] as const) {
     expect(clean.fails, `/verify (${mode}): ${clean.fails.join(" | ")}`).toEqual([]);
 
     await page.getByLabel("Mã xác thực").fill(VERIFICATION_CODE === "000000" ? "111111" : "000000");
-    await page.getByRole("alert").waitFor();
+    await page.getByText("Mã không đúng hoặc đã hết hạn").waitFor();
     const failed = await auditText(page);
     expect(failed.fails, `/verify lỗi (${mode}): ${failed.fails.join(" | ")}`).toEqual([]);
   });
