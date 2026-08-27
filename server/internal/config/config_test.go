@@ -8,6 +8,11 @@ func setRequired(t *testing.T) {
 	t.Setenv("JWT_SECRET", "s")
 	t.Setenv("PORT", "")
 	t.Setenv("TRUSTED_PROXIES", "")
+	// make check exports the app's .env; pin everything Load reads so a local
+	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
+	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM"} {
+		t.Setenv(k, "")
+	}
 }
 
 func TestLoadDerivesSecureCookiesFromFrontendOrigin(t *testing.T) {

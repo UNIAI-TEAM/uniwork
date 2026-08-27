@@ -1,7 +1,7 @@
 # UniWork — Đăng nhập Google + xác thực email
 
 **Ngày:** 2026-08-27
-**Trạng thái:** Đã duyệt thiết kế trong chat (brainstorming với chủ dự án), chờ duyệt spec
+**Trạng thái:** Đã triển khai (nhánh `feat/google-auth-email-verification`, 2026-08-27)
 **Spec nền:** `2026-08-25-onboarding-organizations-design.md` (onboarding, `onboarded_at`)
 **Tham chiếu:** `../usf/server/internal/handler/auth.go`, `../usf/server/internal/service/email.go`,
 `../usf/packages/views/auth/login-page.tsx`
