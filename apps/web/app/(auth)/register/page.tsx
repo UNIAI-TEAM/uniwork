@@ -8,7 +8,7 @@ export default function RegisterPage() {
   return (
     <RegisterView
       onSuccess={async (sess) => {
-        push(await resolveLoggedInDestination(sess.user.onboarded_at != null, []));
+        push(await resolveLoggedInDestination(sess.user, []));
       }}
     />
   );

@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import * as auth from "../api/endpoints/auth";
@@ -8,6 +8,10 @@ import type { SessionResponse, User } from "../types/user";
 import { useAuthStore, type SessionStatus } from "./store";
 
 export type { SessionStatus };
+
+export const authKeys = {
+  providers: () => ["auth", "providers"] as const,
+};
 
 /** Update the session user (after PATCH onboarding/complete). */
 export function setSessionUser(user: User) {
@@ -64,4 +68,26 @@ export function useLogout() {
     mutationFn: () => useAuthStore.getState().logout(),
     onSuccess: () => qc.clear(),
   });
+}
+
+// The verified user replaces the session user so every gate that reads
+// email_verified_at moves on without a refetch.
+export function useVerifyEmail() {
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const user = await auth.verifyEmail(code);
+      if (!user) throw new ApiError("Unexpected response from the server", "malformed_response", 502);
+      return user;
+    },
+    onSuccess: (user) => setSessionUser(user),
+  });
+}
+
+export function useResendVerification() {
+  return useMutation({ mutationFn: () => auth.resendVerification() });
+}
+
+/** Deployment-level and static for the page's life, hence never stale. */
+export function useAuthProviders() {
+  return useQuery({ queryKey: authKeys.providers(), queryFn: auth.authProviders, staleTime: Infinity });
 }

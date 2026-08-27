@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useSession } from "@uniwork/core/auth";
-import { paths } from "@uniwork/core/paths";
+import { authStepPath, paths, pendingAuthStep } from "@uniwork/core/paths";
 import type { User, Workspace } from "@uniwork/core/types";
 import { useWorkspace } from "@uniwork/core/workspaces";
 import { useNavigation } from "../navigation";
@@ -12,8 +12,10 @@ import { useNavigation } from "../navigation";
  *
  *  - session loading            → wait
  *  - anonymous                  → /login?next=<current path>
+ *  - signed in, email unverified → /verify
  *  - signed in, not onboarded   → /onboarding (onboarded_at is the single
  *                                 source of truth, never the workspace count)
+ *    (both decided by pendingAuthStep, which owns the order)
  *  - URL pair does not resolve  → /workspaces
  *
  * Runs through the navigation adapter, so the same guard serves any host.
@@ -36,8 +38,9 @@ export function useDashboardGuard(
       replace(`${paths.login()}?next=${encodeURIComponent(pathname)}`);
       return;
     }
-    if (user && user.onboarded_at == null) {
-      replace(paths.onboarding());
+    const step = pendingAuthStep(user);
+    if (step) {
+      replace(authStepPath(step));
       return;
     }
     // A drifted response resolves to null rather than an error; both mean
@@ -45,7 +48,7 @@ export function useDashboardGuard(
     if (error || (!workspaceLoading && workspace === null)) replace(paths.workspaces());
   }, [status, user, error, workspace, workspaceLoading, replace, pathname]);
 
-  const ready = status === "authed" && !!user && user.onboarded_at != null && !!workspace;
+  const ready = status === "authed" && !!user && pendingAuthStep(user) === null && !!workspace;
   return {
     user: ready ? user : null,
     workspace: ready ? workspace : null,

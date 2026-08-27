@@ -9,7 +9,7 @@ initI18n();
 
 const me = {
   id: "u-me", email: "me@x.com", display_name: "Me",
-  onboarded_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
+  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
 };
 const memberRow = (role: string) => ({
   workspace_id: "w1", user_id: "u-me", role, email: "me@x.com", display_name: "Me",

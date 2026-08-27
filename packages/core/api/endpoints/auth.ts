@@ -8,6 +8,9 @@ export { refreshSession } from "../http";
 
 const UserResponse = z.object({ user: UserSchema });
 
+const ProvidersSchema = z.object({ google: z.boolean().optional().default(false) });
+export type AuthProviders = z.infer<typeof ProvidersSchema>;
+
 /**
  * Login and register are the two places a malformed response must NOT be
  * smoothed over: without a token the session cannot start, so the caller
@@ -72,4 +75,23 @@ export async function completeOnboarding(
   return parseWithFallback<{ user: User } | null>(raw, UserResponse, null, {
     endpoint: "POST /api/v1/me/onboarding/complete",
   })?.user ?? null;
+}
+
+export async function verifyEmail(code: string): Promise<User | null> {
+  const raw = await request("/api/v1/me/email/verify", { method: "POST", body: { code } });
+  return parseWithFallback<{ user: User } | null>(raw, UserResponse, null, {
+    endpoint: "POST /api/v1/me/email/verify",
+  })?.user ?? null;
+}
+
+export async function resendVerification(): Promise<void> {
+  await request("/api/v1/me/email/resend", { method: "POST" });
+}
+
+/** Which third-party sign-ins this deployment offers; every provider off on drift. */
+export async function authProviders(): Promise<AuthProviders> {
+  const raw = await request("/api/v1/auth/providers", { skipRefresh: true });
+  return parseWithFallback<AuthProviders>(raw, ProvidersSchema, { google: false }, {
+    endpoint: "GET /api/v1/auth/providers",
+  });
 }

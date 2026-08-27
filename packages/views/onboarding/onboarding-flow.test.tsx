@@ -9,7 +9,7 @@ initI18n();
 vi.mock("@uniwork/core/auth", () => ({
   useSession: () => ({
     status: "authed",
-    user: { id: "u1", email: "a@x.com", display_name: "A", onboarded_at: null, onboarding_questionnaire: {} },
+    user: { id: "u1", email: "a@x.com", display_name: "A", onboarded_at: null, email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {} },
   }),
   useLogout: () => ({ mutate: vi.fn() }),
 }));
@@ -19,7 +19,7 @@ beforeEach(() => {
   requestMock.mockImplementation((path: string) => {
     if (path === "/api/v1/workspaces") return Promise.resolve({ workspaces: [] });
     if (path === "/api/v1/orgs") return Promise.resolve({ organizations: [] });
-    return Promise.resolve({ user: { id: "u1", email: "a@x.com", display_name: "A", onboarded_at: null, onboarding_questionnaire: {} } });
+    return Promise.resolve({ user: { id: "u1", email: "a@x.com", display_name: "A", onboarded_at: null, email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {} } });
   });
 });
 

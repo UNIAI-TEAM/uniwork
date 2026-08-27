@@ -9,7 +9,7 @@ import { useDashboardGuard } from "./use-dashboard-guard";
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "A",
-  onboarded_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
+  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
 };
 const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team",
@@ -44,6 +44,14 @@ describe("useDashboardGuard", () => {
     await waitFor(() =>
       expect(adapter.replace).toHaveBeenCalledWith("/login?next=%2Facme%2Fteam%2Ftasks"),
     );
+  });
+
+  it("sends a signed-in but unverified user to verify, even when onboarded", async () => {
+    useAuthStore.getState().setUser({ ...user, email_verified_at: null });
+    requestMock.mockResolvedValue({ workspace });
+    const adapter = nav();
+    renderGuard(adapter);
+    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/verify"));
   });
 
   it("sends a signed-in but not-onboarded user to onboarding", async () => {

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { verifyEmail } from "./auth-nav";
 
 // Smoke: đăng ký → onboarding tối thiểu (tổ chức + workspace) → tạo task → mở detail → tạo meeting → mở phòng.
 // Yêu cầu `make dev` đang chạy. Mỗi lần chạy dùng email mới để không đụng dữ liệu cũ.
@@ -11,6 +12,8 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Đăng ký" }).click();
+  await expect(page).toHaveURL(/\/verify$/);
+  await verifyEmail(page);
 
   // onboarding: welcome → bỏ qua "về bạn" → tổ chức → workspace → bỏ qua mời → 🎉
   await page.getByRole("button", { name: /Bắt đầu/ }).click();

@@ -11,7 +11,7 @@ initI18n();
 vi.mock("@uniwork/core/auth", () => ({
   useSession: () => ({
     status: "authed",
-    user: { id: "u1", email: "a@x.com", display_name: "A", onboarded_at: null, onboarding_questionnaire: {} },
+    user: { id: "u1", email: "a@x.com", display_name: "A", onboarded_at: null, email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {} },
   }),
   useLogout: () => ({ mutate: vi.fn() }),
 }));

@@ -1,15 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { registerVerified } from "./auth-nav";
 import { auditText } from "./contrast";
 
 /** Tương phản chữ của luồng onboarding. Phép đo ở `./contrast`. */
 async function reach(page: Page, tag: string) {
-  const stamp = Date.now();
-  await page.goto("/register");
-  await page.getByLabel("Tên hiển thị").fill(tag);
-  await page.getByLabel("Email").fill(`${tag.toLowerCase()}-${stamp}@example.com`);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng ký" }).click();
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await registerVerified(page, tag);
   await page.getByRole("button", { name: /Bắt đầu/ }).click();
   await page.getByText("Cho chúng tôi biết đôi chút về bạn.").waitFor();
 }

@@ -11,21 +11,37 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/component
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink } from "../navigation";
 import { AuthShell } from "./auth-shell";
+import { GoogleButton } from "./google-button";
 import { PasswordField } from "./password-field";
 
-export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) => void }) {
+/** Errors the Google callback can carry back on the login URL. */
+export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
+
+export function LoginView({
+  onSuccess,
+  next,
+  initialError,
+}: {
+  onSuccess: (sess: SessionResponse) => void;
+  /** Same-origin path to return to after any sign-in; forwarded to Google too. */
+  next?: string | null;
+  initialError?: GoogleLoginError | null;
+}) {
   const { t } = useTranslation();
   const login = useLogin();
   const errorId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const googleError = initialError && !login.isPending && !login.isSuccess ? initialError : null;
   const errorMsg =
     login.error instanceof ApiError && login.error.code === "invalid_credentials"
       ? t("auth.invalidCredentials")
       : login.error
         ? t("common.error")
-        : null;
+        : googleError
+          ? t(`auth.google.${googleError.replace("google_", "")}`)
+          : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +126,7 @@ export function LoginView({ onSuccess }: { onSuccess: (sess: SessionResponse) =>
           </p>
         </div>
       </form>
+      <GoogleButton next={next} />
     </AuthShell>
   );
 }
