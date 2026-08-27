@@ -3,7 +3,9 @@
 // module below can issue a request with them.
 import "../platform/runtime-config";
 import { CoreProvider } from "@uniwork/core/platform";
+import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { Toaster } from "@uniwork/ui/components/ui/sonner";
+import { WebLocaleProvider } from "../platform/locale";
 import { WebNavigationProvider } from "../platform/navigation";
 
 /**
@@ -13,9 +15,13 @@ import { WebNavigationProvider } from "../platform/navigation";
  */
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <CoreProvider>
-      <WebNavigationProvider>{children}</WebNavigationProvider>
-      <Toaster />
-    </CoreProvider>
+    <ThemeProvider>
+      <CoreProvider>
+        <WebLocaleProvider>
+          <WebNavigationProvider>{children}</WebNavigationProvider>
+        </WebLocaleProvider>
+        <Toaster />
+      </CoreProvider>
+    </ThemeProvider>
   );
 }

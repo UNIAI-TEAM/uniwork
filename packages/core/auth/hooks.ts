@@ -65,3 +65,21 @@ export function useLogout() {
     onSuccess: () => qc.clear(),
   });
 }
+
+export function usePatchMe() {
+  return useMutation({
+    mutationFn: (displayName: string) => auth.patchMe({ display_name: displayName }),
+    onSuccess: (user) => {
+      if (user) setSessionUser(user);
+    },
+  });
+}
+
+export function useUploadAvatar() {
+  return useMutation({
+    mutationFn: (file: File) => auth.uploadAvatar(file),
+    onSuccess: (user) => {
+      if (user) setSessionUser(user);
+    },
+  });
+}

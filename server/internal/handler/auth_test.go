@@ -99,6 +99,26 @@ func TestMeWithoutTokenIs401(t *testing.T) {
 	}
 }
 
+func TestPatchMe(t *testing.T) {
+	srv := newTestServer(t)
+	res := postJSON(t, srv, "/api/v1/auth/register", map[string]string{
+		"email": "patch@example.com", "password": "password123", "display_name": "Before",
+	})
+	var out struct {
+		AccessToken string `json:"access_token"`
+	}
+	json.NewDecoder(res.Body).Decode(&out)
+
+	patchRes, patchOut := doJSON(t, srv, "PATCH", "/api/v1/me", out.AccessToken, map[string]string{"display_name": "After"})
+	if patchRes.StatusCode != 200 {
+		t.Fatalf("patch status = %d", patchRes.StatusCode)
+	}
+	user, _ := patchOut["user"].(map[string]any)
+	if user["display_name"] != "After" {
+		t.Fatalf("display_name = %v", user["display_name"])
+	}
+}
+
 func TestRefreshCookieSecureFollowsConfig(t *testing.T) {
 	for _, secure := range []bool{false, true} {
 		h := &handlers{Deps: Deps{Cfg: config.Config{SecureCookies: secure}}}

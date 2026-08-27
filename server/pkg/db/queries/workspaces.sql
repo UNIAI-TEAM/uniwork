@@ -6,6 +6,11 @@ RETURNING *;
 -- name: GetWorkspaceByID :one
 SELECT * FROM workspaces WHERE id = $1;
 
+-- name: UpdateWorkspaceName :one
+UPDATE workspaces SET name = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: GetWorkspaceBySlugs :one
 SELECT w.*, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id

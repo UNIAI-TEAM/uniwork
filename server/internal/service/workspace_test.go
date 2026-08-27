@@ -159,3 +159,20 @@ func TestInviteManyAndAccept(t *testing.T) {
 		t.Fatal("role owner accepted")
 	}
 }
+
+func TestWorkspaceUpdateName(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
+	if err := f.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: f.ub.ID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	name := "Đội Beta"
+	if _, err := f.ws.Update(ctx, f.ub.ID, w.ID, UpdateWorkspaceInput{Name: &name}); err != ErrForbidden {
+		t.Fatalf("member update: %v", err)
+	}
+	got, err := f.ws.Update(ctx, f.ua.ID, w.ID, UpdateWorkspaceInput{Name: &name})
+	if err != nil || got.Name != name {
+		t.Fatalf("owner update: %v %+v", err, got)
+	}
+}

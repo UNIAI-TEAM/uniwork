@@ -47,6 +47,22 @@ func (h *handlers) getWorkspaceBySlugs(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]any{"workspace": toWorkspaceDTO(ws)})
 }
 
+func (h *handlers) patchWorkspace(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name *string `json:"name"`
+	}
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	ws, err := h.Workspaces.Update(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"), service.UpdateWorkspaceInput{Name: in.Name})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"workspace": toWorkspaceDTO(ws)})
+}
+
 func (h *handlers) listMembers(w http.ResponseWriter, r *http.Request) {
 	ms, err := h.Workspaces.Members(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
 	if err != nil {

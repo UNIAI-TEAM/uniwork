@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { EMAIL_RE, EmailChipsInput } from "./email-chips-input";
 import { InviteRow, type SentInvite } from "./invite-row";
 
-export function MembersView({ workspaceId }: { workspaceId: string }) {
+export function MembersView({ workspaceId, embedded = false }: { workspaceId: string; embedded?: boolean }) {
   const { t } = useTranslation();
   const { data: members } = useMembers(workspaceId);
   const invite = useInvite(workspaceId);
@@ -38,8 +38,10 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
   };
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-4 text-title font-semibold text-foreground">{t("workspace.members")}</h1>
+    <div className={embedded ? undefined : "mx-auto max-w-2xl p-6"}>
+      {!embedded ? (
+        <h1 className="mb-4 text-title font-semibold text-foreground">{t("workspace.members")}</h1>
+      ) : null}
       <ul className="mb-6 divide-y divide-border rounded-lg border border-border bg-surface">
         {(members ?? []).map((m) => (
           <li key={m.user_id} className="flex items-center justify-between px-4 py-2.5">

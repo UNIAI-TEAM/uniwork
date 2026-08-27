@@ -6,6 +6,7 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -133,6 +134,40 @@ func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userI
 		return db.WorkspaceMember{}, err
 	}
 	return db.WorkspaceMember{WorkspaceID: workspaceID, UserID: userID, Role: role}, nil
+}
+
+type UpdateWorkspaceInput struct {
+	Name *string
+}
+
+const maxWorkspaceNameRunes = 100
+
+// Update changes workspace settings the caller is allowed to edit. v1: name only.
+func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID string, in UpdateWorkspaceInput) (WorkspaceView, error) {
+	m, err := s.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+	if m.Role != "owner" && m.Role != "admin" {
+		return WorkspaceView{}, ErrForbidden
+	}
+	if in.Name == nil {
+		return WorkspaceView{}, Invalid("name is required")
+	}
+	name := strings.TrimSpace(*in.Name)
+	if name == "" {
+		return WorkspaceView{}, Invalid("tên workspace không được để trống")
+	}
+	if utf8.RuneCountInString(name) > maxWorkspaceNameRunes {
+		return WorkspaceView{}, Invalid("tên workspace quá dài")
+	}
+	if _, err := s.q.UpdateWorkspaceName(ctx, db.UpdateWorkspaceNameParams{ID: workspaceID, Name: name}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return WorkspaceView{}, ErrNotFound
+		}
+		return WorkspaceView{}, err
+	}
+	return s.GetView(ctx, userID, workspaceID)
 }
 
 func (s *WorkspaceService) Members(ctx context.Context, userID, workspaceID string) ([]db.ListWorkspaceMembersRow, error) {

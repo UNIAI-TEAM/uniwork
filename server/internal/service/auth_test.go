@@ -71,3 +71,22 @@ func TestRegisterValidation(t *testing.T) {
 		t.Fatal("short password accepted")
 	}
 }
+
+func TestUpdateProfile(t *testing.T) {
+	s := newAuthService(t)
+	ctx := context.Background()
+	sess, err := s.Register(ctx, "patch@example.com", "password123", "Before")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := s.UpdateProfile(ctx, sess.User.ID, "  After  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.DisplayName != "After" {
+		t.Fatalf("display_name = %q", updated.DisplayName)
+	}
+	if _, err := s.UpdateProfile(ctx, sess.User.ID, "   "); err == nil {
+		t.Fatal("empty display name accepted")
+	}
+}

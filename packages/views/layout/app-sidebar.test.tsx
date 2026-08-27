@@ -69,10 +69,19 @@ describe("AppSidebar", () => {
     expect(screen.queryByRole("menuitem", { name: "Đăng xuất" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Tài khoản" }));
+    const settings = await screen.findByRole("menuitem", { name: "Cài đặt" });
+    expect(settings).toHaveAttribute("href", "/acme/team/settings");
     const logout = await screen.findByRole("menuitem", { name: "Đăng xuất" });
     fireEvent.click(logout);
 
     await vi.waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/login"));
     expect(useAuthStore.getState().status).toBe("anon");
+  });
+
+  it("shows only tasks and meetings in the workspace nav", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Thành viên" })).toBeNull();
   });
 });

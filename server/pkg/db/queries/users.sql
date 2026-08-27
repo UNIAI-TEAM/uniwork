@@ -25,3 +25,8 @@ RETURNING *;
 UPDATE users SET avatar_url = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateUserDisplayName :one
+UPDATE users SET display_name = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;

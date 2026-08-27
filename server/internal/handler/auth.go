@@ -116,6 +116,25 @@ func (h *handlers) me(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"user": toUserDTO(u)})
 }
 
+func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		DisplayName *string `json:"display_name"`
+	}
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if in.DisplayName == nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "display_name is required")
+		return
+	}
+	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), *in.DisplayName)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"user": toUserDTO(u)})
+}
+
 func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 	var ve service.ValidationError
 	switch {

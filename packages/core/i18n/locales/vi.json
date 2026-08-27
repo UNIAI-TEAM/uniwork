@@ -72,9 +72,60 @@
     "tasks": "Công việc",
     "meetings": "Cuộc họp",
     "members": "Thành viên",
+    "settings": "Cài đặt",
     "workspace_group": "Điều hướng workspace",
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính"
+  },
+  "settings": {
+    "page": {
+      "title": "Cài đặt",
+      "my_account": "Tài khoản",
+      "workspace_fallback": "Workspace",
+      "tabs": {
+        "profile": "Hồ sơ",
+        "preferences": "Tùy chọn",
+        "general": "Chung",
+        "workspace": "Chung",
+        "members": "Thành viên",
+        "integrations": "Tích hợp"
+      }
+    },
+    "save": {
+      "saving": "Đang lưu…",
+      "saved": "Đã lưu",
+      "error": "Không lưu được"
+    },
+    "profile": {
+      "section": "Hồ sơ",
+      "avatar": "Ảnh đại diện",
+      "avatarHint": "Nhấn để đổi ảnh",
+      "displayName": "Tên hiển thị",
+      "email": "Email",
+      "toastUpdated": "Đã cập nhật hồ sơ",
+      "toastAvatarUpdated": "Đã cập nhật ảnh đại diện",
+      "toastFailed": "Không cập nhật được hồ sơ"
+    },
+    "preferences": {
+      "section": "Chung",
+      "theme": "Giao diện",
+      "themeLight": "Sáng",
+      "themeDark": "Tối",
+      "themeSystem": "Theo hệ thống",
+      "language": "Ngôn ngữ",
+      "languageVi": "Tiếng Việt",
+      "languageEn": "English",
+      "toastSaved": "Đã lưu"
+    },
+    "workspace": {
+      "section": "Workspace",
+      "name": "Tên workspace",
+      "toastUpdated": "Đã lưu cài đặt workspace"
+    },
+    "integrations": {
+      "emptyTitle": "Chưa có tích hợp",
+      "emptyDescription": "Kết nối công cụ bên ngoài sẽ có ở đây khi UniWork sẵn sàng."
+    }
   },
   "tasks": {
     "title": "Công việc",

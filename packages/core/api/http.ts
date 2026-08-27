@@ -42,14 +42,23 @@ function baseUrl(): string {
 }
 
 async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {};
   const token = getAccessToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  let body: BodyInit | undefined;
+  if (opts.body instanceof FormData) {
+    body = opts.body;
+  } else if (opts.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(opts.body);
+  }
+
   return fetch(baseUrl() + path, {
     method: opts.method ?? "GET",
     headers,
     credentials: "include",
-    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    body,
   });
 }
 

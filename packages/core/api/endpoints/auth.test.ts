@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { getAccessToken, setAccessToken } from "../session";
-import { completeOnboarding, login, logout, me, patchOnboarding, registerUser } from "./auth";
+import { completeOnboarding, login, logout, me, patchMe, patchOnboarding, registerUser } from "./auth";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -60,5 +60,13 @@ describe("auth endpoints", () => {
     await expect(me()).resolves.toBeNull();
     expect((await patchOnboarding({ role: "pm" }))?.id).toBe("u1");
     await expect(completeOnboarding("workspace", "ws1")).resolves.toBeNull();
+  });
+
+  it("patchMe returns user or null on malformed response", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ user: { ...user, display_name: "B" } }))
+      .mockResolvedValueOnce(json({ nope: true }));
+    expect((await patchMe({ display_name: "B" }))?.display_name).toBe("B");
+    await expect(patchMe({ display_name: "B" })).resolves.toBeNull();
   });
 });
