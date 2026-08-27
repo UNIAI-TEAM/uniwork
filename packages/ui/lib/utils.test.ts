@@ -42,3 +42,25 @@ describe("cn: cỡ chữ và màu chữ là hai nhóm khác nhau", () => {
     expect(out).toContain("text-brand-foreground");
   });
 });
+
+describe("cn() keeps token colours apart from Tailwind's own, on every colour property", () => {
+  // The Button base class carries `border-transparent`; a variant overrides
+  // it with a token colour and relies on cn() to drop the base value —
+  // Tailwind orders both utilities alphabetically in the CSS, so if both
+  // survive `border-transparent` wins and an outline button loses its edge.
+  // That is exactly what happens to anyone who takes `buttonVariants()`
+  // raw (cva concatenates, it does not merge): wrap it in cn().
+  it.each([
+    ["border-transparent", "border-input"],
+    ["border-border", "border-input"],
+    ["bg-transparent", "bg-input/30"],
+    ["ring-transparent", "ring-ring/50"],
+    ["outline-transparent", "outline-brand"],
+  ])("%s then %s → only the token survives", (base, token) => {
+    expect(cn(base, token)).toBe(token);
+  });
+
+  it("still keeps colour and width apart on borders", () => {
+    expect(cn("border-2 border-input")).toBe("border-2 border-input");
+  });
+});

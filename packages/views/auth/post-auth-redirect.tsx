@@ -1,10 +1,15 @@
-import { paths, resolvePostAuthDestination } from "@uniwork/core/paths";
+import { paths, pendingAuthStep, resolvePostAuthDestination, type AuthGateUser } from "@uniwork/core/paths";
 import type { Workspace } from "@uniwork/core/types";
 import { fetchMyInvitations } from "@uniwork/core/workspaces";
 
-/** Chưa onboard + có lời mời chờ → /invitations; còn lại theo resolver onboarded-first. */
-export async function resolveLoggedInDestination(hasOnboarded: boolean, workspaces: Workspace[]): Promise<string> {
-  if (!hasOnboarded) {
+/**
+ * Chưa verify → /verify; chưa onboard + có lời mời chờ → /invitations; còn lại
+ * theo resolver verify → onboarding → workspace.
+ */
+export async function resolveLoggedInDestination(user: AuthGateUser, workspaces: Workspace[]): Promise<string> {
+  const step = pendingAuthStep(user);
+  if (step === "verify") return paths.verify();
+  if (step === "onboarding") {
     try {
       const invites = await fetchMyInvitations();
       if (invites.length > 0) return paths.invitations();
@@ -12,5 +17,5 @@ export async function resolveLoggedInDestination(hasOnboarded: boolean, workspac
       /* không chặn đăng nhập vì lỗi phụ */
     }
   }
-  return resolvePostAuthDestination(workspaces, hasOnboarded);
+  return resolvePostAuthDestination(workspaces, user);
 }

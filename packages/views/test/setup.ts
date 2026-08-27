@@ -30,5 +30,11 @@ class RO {
 }
 (globalThis as unknown as { ResizeObserver: typeof RO }).ResizeObserver ??= RO;
 
+// jsdom has no layout, so input-otp's caret/click handling cannot ask which
+// element sits under a point. Answering "none" keeps the input usable.
+if (typeof document.elementFromPoint !== "function") {
+  document.elementFromPoint = () => null;
+}
+
 // jsdom: cmdk calls scrollIntoView when focusing CommandItems.
 Element.prototype.scrollIntoView ??= () => {};

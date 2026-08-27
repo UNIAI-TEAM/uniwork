@@ -9,7 +9,7 @@ import { OnboardingFlow } from "@uniwork/views/onboarding/onboarding-flow";
 /** The onboarding flow in "new workspace" mode for a user who has already onboarded. */
 export default function NewWorkspacePage() {
   const { push, replace } = useNavigation();
-  const { status } = useSession();
+  const { status, user } = useSession();
   const { data: workspaces = [], isFetched } = useWorkspaces();
   useEffect(() => {
     if (status === "anon") replace(paths.login());
@@ -20,7 +20,7 @@ export default function NewWorkspacePage() {
       <OnboardingFlow
         mode="new_workspace"
         // Cancelling needs somewhere to return to; with no workspace the flow must complete.
-        onCancel={workspaces.length > 0 ? () => push(resolvePostAuthDestination(workspaces, true)) : undefined}
+        onCancel={workspaces.length > 0 ? () => push(resolvePostAuthDestination(workspaces, user)) : undefined}
         onComplete={(ws) => push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.root())}
       />
     </div>

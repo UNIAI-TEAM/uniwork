@@ -1,20 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { isReservedSlug, paths, resolvePostAuthDestination, sanitizeNextUrl } from "./index";
+import { isReservedSlug, paths, pendingAuthStep, resolvePostAuthDestination, sanitizeNextUrl } from "./index";
 import type { Workspace } from "../types";
+import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 
 const ws = (org: string, slug: string): Workspace => ({
   id: slug, slug, name: slug, organization_id: org, organization_slug: org, organization_name: org,
 });
 
+const verified = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: null };
+const onboarded = { email_verified_at: "2026-08-27T00:00:00Z", onboarded_at: "2026-08-27T00:00:00Z" };
+const unverified = { email_verified_at: null, onboarded_at: null };
+
+describe("pendingAuthStep", () => {
+  it("verify comes before onboarding", () => {
+    expect(pendingAuthStep(unverified)).toBe("verify");
+    expect(pendingAuthStep({ email_verified_at: null, onboarded_at: "2026-08-27T00:00:00Z" })).toBe("verify");
+    expect(pendingAuthStep(verified)).toBe("onboarding");
+    expect(pendingAuthStep(onboarded)).toBeNull();
+    expect(pendingAuthStep(null)).toBeNull();
+  });
+});
+
 describe("resolvePostAuthDestination", () => {
+  it("sends unverified users to verify regardless of workspaces", () => {
+    expect(resolvePostAuthDestination([ws("unicom", "alpha")], unverified)).toBe("/verify");
+  });
   it("sends un-onboarded users to onboarding regardless of workspaces", () => {
-    expect(resolvePostAuthDestination([ws("unicom", "alpha")], false)).toBe("/onboarding");
+    expect(resolvePostAuthDestination([ws("unicom", "alpha")], verified)).toBe("/onboarding");
   });
   it("lands on the first workspace tasks", () => {
-    expect(resolvePostAuthDestination([ws("unicom", "alpha"), ws("x", "y")], true)).toBe("/unicom/alpha/tasks");
+    expect(resolvePostAuthDestination([ws("unicom", "alpha"), ws("x", "y")], onboarded)).toBe("/unicom/alpha/tasks");
   });
   it("onboarded with no workspace → new workspace", () => {
-    expect(resolvePostAuthDestination([], true)).toBe("/workspaces/new");
+    expect(resolvePostAuthDestination([], onboarded)).toBe("/workspaces/new");
   });
 });
 
@@ -22,6 +40,18 @@ describe("paths", () => {
   it("builds workspace urls", () => {
     expect(paths.workspace("unicom", "alpha").task("T1")).toBe("/unicom/alpha/tasks/T1");
     expect(paths.workspace("unicom", "alpha").room("M1")).toBe("/unicom/alpha/meetings/M1/room");
+  });
+  it("builds the auth pages and the absolute Google start url", () => {
+    configureRuntime({ apiUrl: "http://api.test" });
+    try {
+      expect(paths.verify()).toBe("/verify");
+      expect(paths.authCallback()).toBe("/auth/callback");
+      expect(paths.googleStart()).toBe("http://api.test/api/v1/auth/google/start");
+      expect(paths.googleStart("/acme/team")).toBe("http://api.test/api/v1/auth/google/start?next=%2Facme%2Fteam");
+      expect(paths.googleStart(null)).toBe("http://api.test/api/v1/auth/google/start");
+    } finally {
+      resetRuntimeConfig();
+    }
   });
 });
 
@@ -37,6 +67,7 @@ describe("sanitizeNextUrl", () => {
 describe("isReservedSlug", () => {
   it("knows generated list", () => {
     expect(isReservedSlug("login")).toBe(true);
+    expect(isReservedSlug("verify")).toBe(true);
     expect(isReservedSlug("acme")).toBe(false);
   });
 });

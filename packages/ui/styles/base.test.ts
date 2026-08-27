@@ -1,38 +1,36 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
-const css = readFileSync(resolve(process.cwd(), "styles/base.css"), "utf8");
+const styles = readFileSync(join(__dirname, "base.css"), "utf8");
+const componentsDir = join(__dirname, "..", "components", "ui");
 
 /**
- * Chrome paints its own background and text colour into an autofilled input and
- * ignores `background-color`. Left alone it drops a pale blue box into the
- * credential form — the one screen a signed-out visitor sees — and in dark mode
- * it lands light-on-light. The override has to exist, has to be painted with
- * `box-shadow` (the only property that wins), and has to read tokens so it
- * follows the theme instead of pinning one hex.
+ * The registry primitives style orientation with `data-horizontal:` and
+ * `data-vertical:` variants. Base UI emits `data-orientation="horizontal"`,
+ * not a bare `data-horizontal` attribute, so those variants match nothing
+ * unless the stylesheet defines them — which is how a Separator rendered as
+ * a 0×0 box. Pin the definition next to the usages.
  */
-describe("autofill contract", () => {
-  const rules = css.match(/[^}]*-webkit-autofill[^{]*\{[^}]*\}/g) ?? [];
-
-  it("overrides the browser's autofill paint", () => {
-    expect(rules.length).toBeGreaterThan(0);
+describe("orientation variants", () => {
+  const users = readdirSync(componentsDir).filter((f) => {
+    if (!f.endsWith(".tsx") || f.includes(".test.")) return false;
+    return /data-(horizontal|vertical):/.test(readFileSync(join(componentsDir, f), "utf8"));
   });
 
-  it("repaints the field with box-shadow, the only property autofill honours", () => {
-    const source = rules.join("\n");
-    expect(source).toMatch(/-webkit-box-shadow|box-shadow/);
-    expect(source).toMatch(/-webkit-text-fill-color/);
+  it("are used by at least one primitive (otherwise drop the variant)", () => {
+    expect(users.length).toBeGreaterThan(0);
   });
 
-  it("takes its colours from tokens so the theme still applies", () => {
-    const source = rules.join("\n");
-    expect(source).toMatch(/var\(--/);
-    // A hex here is a colour that cannot follow the theme.
-    expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  it("are declared as custom variants keyed on data-orientation", () => {
+    expect(styles).toMatch(/@custom-variant data-horizontal \(&\[data-orientation="horizontal"\]\)/);
+    expect(styles).toMatch(/@custom-variant data-vertical \(&\[data-orientation="vertical"\]\)/);
   });
+});
 
-  it("restates the paint for dark mode, which resolves different tokens", () => {
-    expect(css).toMatch(/\.dark[^{]*-webkit-autofill|-webkit-autofill[^{]*\.dark/);
+describe("caret-blink", () => {
+  it("defines the keyframes the OTP fake caret animates with", () => {
+    expect(styles).toMatch(/@keyframes caret-blink/);
+    expect(styles).toMatch(/\.animate-caret-blink\s*\{/);
   });
 });

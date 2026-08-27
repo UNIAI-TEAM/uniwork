@@ -6,6 +6,7 @@ export const UserSchema = z.object({
   display_name: z.string(),
   avatar_url: z.string().optional(),
   onboarded_at: z.string().nullable().optional().default(null),
+  email_verified_at: z.string().nullable().optional().default(null),
   onboarding_questionnaire: z.record(z.string(), z.unknown()).optional().default({}),
 });
 export type User = z.infer<typeof UserSchema>;

@@ -38,7 +38,28 @@
     "wordmark": "UniWork",
     "railTagline": "Con người và AI cùng sở hữu công việc.",
     "forgotPassword": "Quên mật khẩu?",
-    "forgotPasswordHelp": "Nhờ chủ sở hữu hoặc quản trị viên workspace đặt lại giúp — UniWork chưa có tự đặt lại mật khẩu."
+    "forgotPasswordHelp": "Nhờ chủ sở hữu hoặc quản trị viên workspace đặt lại giúp — UniWork chưa có tự đặt lại mật khẩu.",
+    "verify": {
+      "title": "Xác thực email",
+      "subtitle": "Nhập mã 6 số vừa gửi tới {{email}}.",
+      "codeLabel": "Mã xác thực",
+      "invalidCode": "Mã không đúng hoặc đã hết hạn. Nhập lại hoặc gửi mã mới.",
+      "resend": "Gửi lại mã",
+      "resendIn": "Gửi lại sau {{seconds}}s",
+      "resent": "Đã gửi mã mới.",
+      "resendTooSoon": "Vừa gửi một mã rồi, chờ một phút rồi thử lại.",
+      "verifying": "Đang xác thực…",
+      "wrongAccount": "Nhầm tài khoản?",
+      "spamHint": "Không thấy email? Kiểm tra thư mục spam."
+    },
+    "google": {
+      "continueWith": "Tiếp tục với Google",
+      "or": "hoặc",
+      "denied": "Bạn đã hủy đăng nhập Google.",
+      "failed": "Đăng nhập Google không thành công. Thử lại hoặc dùng email và mật khẩu.",
+      "unverified": "Email của tài khoản Google này chưa được Google xác thực. Dùng tài khoản khác hoặc đăng ký bằng email.",
+      "signingIn": "Đang đăng nhập bằng Google…"
+    }
   },
   "workspace": {
     "create": "Tạo workspace",

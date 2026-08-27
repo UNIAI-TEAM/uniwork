@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { getAccessToken, setAccessToken } from "../session";
-import { completeOnboarding, login, logout, me, patchMe, patchOnboarding, registerUser } from "./auth";
+import {
+  authProviders,
+  completeOnboarding,
+  login,
+  logout,
+  me,
+  patchMe,
+  patchOnboarding,
+  registerUser,
+  resendVerification,
+  verifyEmail,
+} from "./auth";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -68,5 +79,44 @@ describe("auth endpoints", () => {
       .mockResolvedValueOnce(json({ nope: true }));
     expect((await patchMe({ display_name: "B" }))?.display_name).toBe("B");
     await expect(patchMe({ display_name: "B" })).resolves.toBeNull();
+  });
+});
+
+describe("email verification and providers", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("verifyEmail posts the code and returns the verified user", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user: { ...user, email_verified_at: "2026-08-27T00:00:00Z" } }));
+    const u = await verifyEmail("123456");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("http://api.test/api/v1/me/email/verify");
+    expect(JSON.parse(init!.body as string)).toEqual({ code: "123456" });
+    expect(u?.email_verified_at).toBe("2026-08-27T00:00:00Z");
+  });
+
+  it("verifyEmail returns null on a malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user: { id: 1 } }));
+    await expect(verifyEmail("123456")).resolves.toBeNull();
+  });
+
+  it("resendVerification resolves on a malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await expect(resendVerification()).resolves.toBeUndefined();
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/me/email/resend");
+  });
+
+  it("authProviders reads google and falls back to every provider off", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ google: true })).mockResolvedValueOnce(json({ google: "yes" }));
+    expect(await authProviders()).toEqual({ google: true });
+    expect(await authProviders()).toEqual({ google: false });
   });
 });

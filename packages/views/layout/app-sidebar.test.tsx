@@ -12,7 +12,7 @@ initI18n();
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "An",
-  onboarded_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
+  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
 };
 const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team", organization_id: "o1",

@@ -38,7 +38,28 @@
     "wordmark": "UniWork",
     "railTagline": "People and AI co-own the work.",
     "forgotPassword": "Forgot your password?",
-    "forgotPasswordHelp": "Ask a workspace owner or admin to reset it — UniWork has no self-service reset yet."
+    "forgotPasswordHelp": "Ask a workspace owner or admin to reset it — UniWork has no self-service reset yet.",
+    "verify": {
+      "title": "Verify your email",
+      "subtitle": "Enter the 6-digit code we just sent to {{email}}.",
+      "codeLabel": "Verification code",
+      "invalidCode": "That code is wrong or has expired. Try again or request a new one.",
+      "resend": "Resend code",
+      "resendIn": "Resend in {{seconds}}s",
+      "resent": "A new code is on its way.",
+      "resendTooSoon": "A code was just sent — wait a minute and try again.",
+      "verifying": "Verifying…",
+      "wrongAccount": "Wrong account?",
+      "spamHint": "No email? Check your spam folder."
+    },
+    "google": {
+      "continueWith": "Continue with Google",
+      "or": "or",
+      "denied": "You cancelled the Google sign-in.",
+      "failed": "Google sign-in didn't go through. Try again or use your email and password.",
+      "unverified": "Google hasn't verified this account's email. Use another account or sign up with email.",
+      "signingIn": "Signing in with Google…"
+    }
   },
   "workspace": {
     "create": "Create workspace",

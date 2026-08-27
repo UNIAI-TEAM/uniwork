@@ -37,6 +37,11 @@ function fill() {
   fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "hunter22" } });
 }
 
+/** The Google button also asks /auth/providers, so count only the login call. */
+function loginCalls() {
+  return requestMock.mock.calls.filter(([path]) => path === "/api/v1/auth/login");
+}
+
 const SESSION = {
   access_token: "tok",
   user: { id: "u1", email: "a@b.co", display_name: "A" },
@@ -92,7 +97,7 @@ describe("LoginView", () => {
     await screen.findByRole("button", { name: "Đang đăng nhập…" });
     fireEvent.click(screen.getByRole("button", { name: "Đang đăng nhập…" }));
 
-    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(loginCalls()).toHaveLength(1);
   });
 
   it("reveals the password without submitting the form", () => {
@@ -106,7 +111,7 @@ describe("LoginView", () => {
     expect(screen.getByLabelText("Mật khẩu")).toHaveAttribute("type", "text");
     expect(screen.getByRole("button", { name: "Ẩn mật khẩu" })).toHaveAttribute("aria-pressed", "true");
     // A bare <button> inside a <form> defaults to type="submit".
-    expect(requestMock).not.toHaveBeenCalled();
+    expect(loginCalls()).toHaveLength(0);
   });
 
   it("carries the password manager hints browsers key autofill off", () => {
@@ -122,6 +127,32 @@ describe("LoginView", () => {
     fireEvent.click(screen.getByRole("link", { name: "Đăng ký" }));
 
     expect(nav.push).toHaveBeenCalledWith("/register");
+  });
+
+  it("shows the Google error as a form-level alert without blaming the fields", () => {
+    render(wrap(<LoginView onSuccess={() => {}} initialError="google_denied" />));
+    expect(screen.getByRole("alert")).toHaveTextContent("Bạn đã hủy đăng nhập Google.");
+    // The fields were never submitted; marking them invalid would send a
+    // screen-reader user hunting for a typo that does not exist.
+    for (const label of ["Email", "Mật khẩu"]) {
+      expect(screen.getByLabelText(label)).not.toHaveAttribute("aria-invalid");
+    }
+  });
+
+  it("renders the Google sign-in as a real link, not a button acting as one", async () => {
+    requestMock.mockResolvedValue({ google: true });
+    render(wrap(<LoginView onSuccess={() => {}} />));
+    const link = await screen.findByRole("link", { name: "Tiếp tục với Google" });
+    expect(link.tagName).toBe("A");
+    expect(link).not.toHaveAttribute("role");
+    expect(link).not.toHaveAttribute("type");
+  });
+
+  it("offers Google when the deployment has it", async () => {
+    requestMock.mockResolvedValue({ google: true });
+    render(wrap(<LoginView onSuccess={() => {}} next="/acme/team" />));
+    const link = await screen.findByRole("link", { name: "Tiếp tục với Google" });
+    expect(link.getAttribute("href")).toContain("/api/v1/auth/google/start?next=%2Facme%2Fteam");
   });
 
   it("hands the session to onSuccess", async () => {

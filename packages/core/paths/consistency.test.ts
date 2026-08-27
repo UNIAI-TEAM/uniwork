@@ -43,6 +43,8 @@ function builderTemplates(): string[] {
     paths.root(),
     paths.login(),
     paths.register(),
+    paths.verify(),
+    paths.authCallback(),
     paths.onboarding(),
     paths.newWorkspace(),
     paths.invitations(),

@@ -40,7 +40,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 	if err != nil {
 		t.Fatal("acquire lock conn:", err)
 	}
-	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock($1)", testLockKey); err != nil {
+	if err := migrations.WaitAdvisoryLock(ctx, lockConn, testLockKey); err != nil {
 		t.Fatal("advisory lock:", err)
 	}
 	t.Cleanup(func() {

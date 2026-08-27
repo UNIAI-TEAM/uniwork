@@ -1,2 +1,2 @@
-["login","register","onboarding","workspaces","invitations","invite","api","me","orgs","auth",
- "healthz","ws","tasks","meetings","members","settings","new","admin","static","_next","assets","public"]
+["login", "register", "onboarding", "verify", "workspaces", "invitations", "invite", 
+ "api", "me", "orgs", "auth", "healthz", "ws", "tasks", "meetings", "members", "settings", "new", "admin", "static", "_next", "assets", "public"]

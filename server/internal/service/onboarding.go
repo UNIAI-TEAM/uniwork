@@ -82,6 +82,9 @@ func (s *OnboardingService) Complete(ctx context.Context, userID, path, workspac
 	if !validCompletionPaths[path] {
 		return db.User{}, Invalid("completion_path không hợp lệ")
 	}
+	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
+		return db.User{}, err
+	}
 	if workspaceID != "" {
 		if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 			return db.User{}, err

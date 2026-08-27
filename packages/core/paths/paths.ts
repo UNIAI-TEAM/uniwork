@@ -1,7 +1,18 @@
+import { runtimeConfig } from "../runtime-config";
+
 export const paths = {
   root: () => "/",
   login: () => "/login",
   register: () => "/register",
+  verify: () => "/verify",
+  authCallback: () => "/auth/callback",
+  /**
+   * Absolute URL on the API, not a page: the browser leaves for Google from
+   * here and the API sets the session cookie before sending it back to
+   * authCallback(). `next` is re-sanitized by the server.
+   */
+  googleStart: (next?: string | null) =>
+    `${runtimeConfig().apiUrl}/api/v1/auth/google/start${next ? `?next=${encodeURIComponent(next)}` : ""}`,
   onboarding: () => "/onboarding",
   newWorkspace: () => "/workspaces/new",
   invitations: () => "/invitations",
@@ -36,6 +47,8 @@ export function sanitizeNextUrl(raw: string | null | undefined): string | null {
 export const GLOBAL_PREFIXES = [
   "/login",
   "/register",
+  "/verify",
+  "/auth/",
   "/onboarding",
   "/invitations",
   "/workspaces",
