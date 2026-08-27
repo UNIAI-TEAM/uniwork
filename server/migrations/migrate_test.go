@@ -28,6 +28,14 @@ func testPool(t *testing.T) *pgxpool.Pool {
 func TestUpIsIdempotent(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +59,7 @@ func TestOrganizationsGrandfather(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lock.Exec(ctx, "SELECT pg_advisory_lock($1)", 727273); err != nil {
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })

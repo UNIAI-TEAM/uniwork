@@ -129,6 +129,12 @@ func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.
 	return u, err
 }
 
+// SessionFor mints a session for an already-authenticated user; the Google
+// sign-in uses it after it has resolved the account.
+func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error) {
+	return s.newSession(ctx, u)
+}
+
 func (s *AuthService) newSession(ctx context.Context, u db.User) (Session, error) {
 	access, err := s.minter.Mint(u.ID)
 	if err != nil {

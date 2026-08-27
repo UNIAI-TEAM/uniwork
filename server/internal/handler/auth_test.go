@@ -31,18 +31,26 @@ func (discardSender) Send(context.Context, mail.Message) error { return nil }
 // newTestServer dựng handler đầy đủ trên DB test. Các task sau mở rộng
 // hàm này khi Deps thêm service mới.
 func newTestServer(t *testing.T) *httptest.Server {
+	return newTestServerWithGoogle(t, nil)
+}
+
+// newTestServerWithGoogle wires a Google exchanger; nil leaves Google off.
+func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Server {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	orgs := service.NewOrganizationService(q)
 	ws := service.NewWorkspaceService(pool, q, orgs)
 	verification := service.NewVerificationService(q, discardSender{}, testDevCode)
+	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
 		Minter:        minter,
-		Auth:          service.NewAuthService(q, minter, time.Hour, verification),
+		Auth:          authSvc,
+		GoogleAuth:    service.NewGoogleAuthService(q, authSvc),
 		Verification:  verification,
+		Google:        google,
 		Organizations: orgs,
 		Workspaces:    ws,
 		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}),

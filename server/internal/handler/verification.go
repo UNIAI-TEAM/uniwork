@@ -34,5 +34,5 @@ func (h *handlers) resendVerification(w http.ResponseWriter, r *http.Request) {
 // authProviders tells the login page which third-party sign-ins exist, so a
 // deployment without Google credentials shows no Google button.
 func (h *handlers) authProviders(w http.ResponseWriter, _ *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]bool{"google": h.Cfg.GoogleEnabled()})
+	respondJSON(w, http.StatusOK, map[string]bool{"google": h.Google != nil})
 }
