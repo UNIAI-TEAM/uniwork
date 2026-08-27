@@ -119,6 +119,7 @@ func New(d Deps) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireAuth(d.Minter))
 			r.Get("/me", h.me)
+			r.Patch("/me", h.patchMe)
 			r.With(credentialLimit).Post("/me/email/verify", h.verifyEmail)
 			r.With(credentialLimit).Post("/me/email/resend", h.resendVerification)
 			r.Post("/me/avatar", h.uploadAvatar)
@@ -132,6 +133,7 @@ func New(d Deps) http.Handler {
 			r.Get("/orgs/{org}/workspaces", h.listOrgWorkspaces)            // {org} = id
 			r.Post("/orgs/{org}/workspaces", h.createOrgWorkspace)          // {org} = id
 			r.Get("/workspaces", h.listWorkspaces)
+			r.Patch("/workspaces/{workspaceID}", h.patchWorkspace)
 			r.Get("/workspaces/{workspaceID}/members", h.listMembers)
 			r.Post("/workspaces/{workspaceID}/invitations", h.createInvitation)
 			r.Post("/workspaces/{workspaceID}/welcome-task", h.seedWelcomeTask)

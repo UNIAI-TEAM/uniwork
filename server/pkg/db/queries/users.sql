@@ -47,3 +47,8 @@ RETURNING *;
 UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateUserDisplayName :one
+UPDATE users SET display_name = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;

@@ -72,3 +72,15 @@ export function useAcceptInvite() {
     onSuccess: () => qc.invalidateQueries({ queryKey: workspaceKeys.list() }),
   });
 }
+
+export function usePatchWorkspace(orgSlug: string, wsSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ wsId, name }: { wsId: string; name: string }) =>
+      workspaces.patchWorkspace(wsId, { name }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
+      void qc.invalidateQueries({ queryKey: workspaceKeys.bySlugs(orgSlug, wsSlug) });
+    },
+  });
+}

@@ -81,3 +81,10 @@ export async function acceptInvite(token: string): Promise<Workspace | null> {
     endpoint: "POST /api/v1/invitations/{token}/accept",
   })?.workspace ?? null;
 }
+
+export async function patchWorkspace(workspaceId: string, body: { name: string }): Promise<Workspace | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}`, { method: "PATCH", body });
+  return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
+    endpoint: "PATCH /api/v1/workspaces/{ws}",
+  })?.workspace ?? null;
+}

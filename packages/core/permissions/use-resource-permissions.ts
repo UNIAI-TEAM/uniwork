@@ -8,6 +8,7 @@ import {
   canEditTask,
   canInviteMembers,
   canManageMembers,
+  canUpdateWorkspaceSettings,
 } from "./rules";
 import { deny, type Decision, type PermissionContext } from "./types";
 import { useCurrentMember, useOrgMembership } from "./use-current-member";
@@ -24,17 +25,25 @@ export function useWorkspacePermissions(wsId: string): {
   canInvite: Decision;
   canManageMembers: Decision;
   canDeleteMeeting: Decision;
+  canUpdateSettings: Decision;
   isLoading: boolean;
 } {
   const { userId, role, isLoading } = useCurrentMember(wsId);
   const ctx: PermissionContext = { userId, orgRole: null, wsRole: role };
   if (isLoading) {
-    return { canInvite: PENDING, canManageMembers: PENDING, canDeleteMeeting: PENDING, isLoading };
+    return {
+      canInvite: PENDING,
+      canManageMembers: PENDING,
+      canDeleteMeeting: PENDING,
+      canUpdateSettings: PENDING,
+      isLoading,
+    };
   }
   return {
     canInvite: canInviteMembers(ctx),
     canManageMembers: canManageMembers(ctx),
     canDeleteMeeting: canDeleteMeeting(ctx),
+    canUpdateSettings: canUpdateWorkspaceSettings(ctx),
     isLoading,
   };
 }

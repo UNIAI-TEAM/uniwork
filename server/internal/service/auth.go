@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -111,6 +112,24 @@ func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
 
 func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 	u, err := s.q.GetUserByID(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.User{}, ErrNotFound
+	}
+	return u, err
+}
+
+const maxDisplayNameRunes = 100
+
+// UpdateProfile changes the caller's display name.
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, displayName string) (db.User, error) {
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		return db.User{}, Invalid("tên hiển thị không được để trống")
+	}
+	if utf8.RuneCountInString(name) > maxDisplayNameRunes {
+		return db.User{}, Invalid("tên hiển thị quá dài")
+	}
+	u, err := s.q.UpdateUserDisplayName(ctx, db.UpdateUserDisplayNameParams{ID: userID, DisplayName: name})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.User{}, ErrNotFound
 	}

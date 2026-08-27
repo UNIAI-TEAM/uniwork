@@ -28,6 +28,7 @@ export const paths = {
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       members: () => `${base}/members`,
+      settings: () => `${base}/settings`,
     };
   },
 };

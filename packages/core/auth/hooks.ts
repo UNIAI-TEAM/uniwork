@@ -91,3 +91,21 @@ export function useResendVerification() {
 export function useAuthProviders() {
   return useQuery({ queryKey: authKeys.providers(), queryFn: auth.authProviders, staleTime: Infinity });
 }
+
+export function usePatchMe() {
+  return useMutation({
+    mutationFn: (displayName: string) => auth.patchMe({ display_name: displayName }),
+    onSuccess: (user) => {
+      if (user) setSessionUser(user);
+    },
+  });
+}
+
+export function useUploadAvatar() {
+  return useMutation({
+    mutationFn: (file: File) => auth.uploadAvatar(file),
+    onSuccess: (user) => {
+      if (user) setSessionUser(user);
+    },
+  });
+}

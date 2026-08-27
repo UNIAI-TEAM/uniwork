@@ -37,6 +37,14 @@ export function canManageMembers(ctx: PermissionContext): Decision {
   return canInviteMembers(ctx);
 }
 
+/** Mirror workspace.go InviteMany admin gate. */
+export function canUpdateWorkspaceSettings(ctx: PermissionContext): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  return deny("not_admin_role", "Only workspace owners and admins can update workspace settings.");
+}
+
 // ---- Organization ---------------------------------------------------------
 
 /**

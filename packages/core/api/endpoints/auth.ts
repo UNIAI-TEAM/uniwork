@@ -57,6 +57,22 @@ export async function me(): Promise<User | null> {
     ?.user ?? null;
 }
 
+export async function patchMe(body: { display_name: string }): Promise<User | null> {
+  const raw = await request("/api/v1/me", { method: "PATCH", body });
+  return parseWithFallback<{ user: User } | null>(raw, UserResponse, null, {
+    endpoint: "PATCH /api/v1/me",
+  })?.user ?? null;
+}
+
+export async function uploadAvatar(file: File): Promise<User | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request("/api/v1/me/avatar", { method: "POST", body: form });
+  return parseWithFallback<{ user: User } | null>(raw, UserResponse, null, {
+    endpoint: "POST /api/v1/me/avatar",
+  })?.user ?? null;
+}
+
 export async function patchOnboarding(questionnaire: unknown): Promise<User | null> {
   const raw = await request("/api/v1/me/onboarding", { method: "PATCH", body: { questionnaire } });
   return parseWithFallback<{ user: User } | null>(raw, UserResponse, null, {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { CalendarDays, ChevronsUpDown, LogOut, SquareCheckBig, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronsUpDown, LogOut, Settings, SquareCheckBig, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
@@ -35,7 +35,7 @@ import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.tasks" | "nav.meetings" | "nav.members";
+  key: "nav.tasks" | "nav.meetings";
   href: string;
   icon: LucideIcon;
 }
@@ -66,7 +66,6 @@ export function AppSidebar() {
   const items: NavItem[] = [
     { key: "nav.tasks", href: ws.tasks(), icon: SquareCheckBig },
     { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },
-    { key: "nav.members", href: ws.members(), icon: Users },
   ];
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
@@ -150,6 +149,14 @@ export function AppSidebar() {
                     <span className="truncate font-normal text-caption text-muted-foreground">{user.email}</span>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    render={
+                      <AppLink href={ws.settings()} onClick={dismissSheet} />
+                    }
+                  >
+                    <Settings aria-hidden />
+                    {t("nav.settings")}
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={async () => {

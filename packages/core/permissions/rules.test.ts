@@ -6,6 +6,7 @@ import {
   canEditTask,
   canInviteMembers,
   canManageMembers,
+  canUpdateWorkspaceSettings,
 } from "./rules";
 import type { PermissionContext } from "./types";
 
@@ -31,6 +32,16 @@ describe("canInviteMembers — mirrors workspace.go:136", () => {
   it("carries copy for the UI on every denial", () => {
     expect(canInviteMembers(ctx({ wsRole: "member" })).message.length).toBeGreaterThan(0);
     expect(canManageMembers(ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+  });
+});
+
+describe("canUpdateWorkspaceSettings — mirrors workspace invite admin gate", () => {
+  it("allows workspace owners and admins", () => {
+    expect(canUpdateWorkspaceSettings(ctx({ wsRole: "owner" })).allowed).toBe(true);
+    expect(canUpdateWorkspaceSettings(ctx({ wsRole: "admin" })).allowed).toBe(true);
+  });
+  it("denies a plain member", () => {
+    expect(canUpdateWorkspaceSettings(ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
   });
 });
 

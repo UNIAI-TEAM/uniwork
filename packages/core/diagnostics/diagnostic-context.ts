@@ -60,6 +60,7 @@ const WORKSPACE_ROUTES: readonly RoutePattern[] = [
   ["meetings", ":id"],
   ["meetings", ":id", "room"],
   ["members"],
+  ["settings"],
 ];
 
 const GLOBAL_ROUTES: readonly RoutePattern[] = [

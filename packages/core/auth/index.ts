@@ -6,8 +6,10 @@ export {
   useAuthProviders,
   useLogin,
   useLogout,
+  usePatchMe,
   useRegister,
   useResendVerification,
   useSession,
+  useUploadAvatar,
   useVerifyEmail,
 } from "./hooks";

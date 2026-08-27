@@ -425,3 +425,29 @@ func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markInvitationAccepted, id)
 	return err
 }
+
+const updateWorkspaceName = `-- name: UpdateWorkspaceName :one
+UPDATE workspaces SET name = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id
+`
+
+type UpdateWorkspaceNameParams struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNameParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceName, arg.ID, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+	)
+	return i, err
+}
