@@ -8,7 +8,9 @@ export function AuthCallbackView() {
   return (
     <main className="flex h-dvh items-center justify-center bg-background text-muted-foreground">
       <div role="status" className="flex items-center gap-3 text-body">
-        <Spinner />
+        {/* The text is the announcement; the icon must not add a second
+            (English) status of its own. */}
+        <Spinner role="presentation" aria-label={undefined} aria-hidden />
         <span>{t("auth.google.signingIn")}</span>
       </div>
     </main>

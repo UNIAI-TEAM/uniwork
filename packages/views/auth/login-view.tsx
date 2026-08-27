@@ -14,6 +14,10 @@ import { AuthShell } from "./auth-shell";
 import { GoogleButton } from "./google-button";
 import { PasswordField } from "./password-field";
 
+/** Inline text link with the same 44px coarse-pointer floor the Button primitive carries. */
+export const AUTH_LINK =
+  "inline-flex items-center font-medium text-brand hover:underline pointer-coarse:min-h-11 pointer-coarse:px-1";
+
 /** Errors the Google callback can carry back on the login URL. */
 export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
 
@@ -33,15 +37,20 @@ export function LoginView({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const googleError = initialError && !login.isPending && !login.isSuccess ? initialError : null;
+  // Two different failures, two different owners. A rejected login belongs to
+  // the email/password pair and marks them invalid; a Google error arrived on
+  // the URL before the user typed anything, so it is announced at form level
+  // and the fields stay clean until this form is actually submitted.
   const errorMsg =
     login.error instanceof ApiError && login.error.code === "invalid_credentials"
       ? t("auth.invalidCredentials")
       : login.error
         ? t("common.error")
-        : googleError
-          ? t(`auth.google.${googleError.replace("google_", "")}`)
-          : null;
+        : null;
+  const googleError =
+    initialError && !login.isPending && !login.isSuccess && !login.error
+      ? t(`auth.google.${initialError.replace("google_", "")}`)
+      : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +104,7 @@ export function LoginView({
               wrong, and inventing a per-field answer would leak which emails
               are registered. */}
           <FieldError id={errorId}>{errorMsg}</FieldError>
+          {googleError ? <FieldError>{googleError}</FieldError> : null}
         </FieldGroup>
 
         <div className="flex flex-col gap-4">
@@ -108,9 +118,13 @@ export function LoginView({
               t("auth.login")
             )}
           </Button>
+          {/* The alternative sign-in sits with the primary action, before the
+              secondary links, so a phone user sees both ways in without
+              scrolling past the help text. */}
+          <GoogleButton next={next} />
           <p className="text-center text-label text-muted-foreground">
             {t("auth.noAccount")}{" "}
-            <AppLink href={paths.register()} className="font-medium text-brand hover:underline">
+            <AppLink href={paths.register()} className={AUTH_LINK}>
               {t("auth.register")}
             </AppLink>
           </p>
@@ -124,7 +138,6 @@ export function LoginView({
           </p>
         </div>
       </form>
-      <GoogleButton next={next} />
     </AuthShell>
   );
 }

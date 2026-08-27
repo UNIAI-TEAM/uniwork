@@ -42,6 +42,23 @@ describe("VerifyEmailView", () => {
     expect(onSuccess.mock.calls[0]![0].email_verified_at).toBe("2026-08-27T00:00:00Z");
   });
 
+  it("keeps the code input focusable while verifying and announces the wait", async () => {
+    requestMock.mockReturnValue(new Promise(() => {}));
+    render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
+    fireEvent.change(otpInput(), { target: { value: "123456" } });
+    await screen.findByRole("button", { name: "Đang xác thực…" });
+    expect(otpInput()).not.toBeDisabled();
+    expect(otpInput()).toHaveAttribute("readonly");
+    expect(otpInput()).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("gives the log-out control a touch-sized hit area", () => {
+    render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
+    const logout = screen.getByRole("button", { name: "Đăng xuất" });
+    expect(logout).toHaveAttribute("data-slot", "button");
+    expect(logout.className).toContain("pointer-coarse:min-h-11");
+  });
+
   it("marks the code invalid and clears it when the server rejects it", async () => {
     requestMock.mockRejectedValue(new ApiError("bad", "invalid_code", 400));
     render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));

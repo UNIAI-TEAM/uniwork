@@ -86,8 +86,11 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
               pattern="[0-9]*"
               aria-invalid={invalidCode || undefined}
               aria-describedby={errorMsg ? errorId : undefined}
-              disabled={verify.isPending}
-              containerClassName="justify-center"
+              // readOnly, not disabled: the input keeps focus and its place in
+              // the tab order while the code is checked, and the wait is
+              // announced instead of the field silently greying out.
+              readOnly={verify.isPending}
+              aria-busy={verify.isPending || undefined}
             >
               <InputOTPGroup>
                 {Array.from({ length: CODE_LENGTH }, (_, i) => (
@@ -125,15 +128,20 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
             )}
           </Button>
           <p className="text-center text-caption text-muted-foreground">{t("auth.verify.spamHint")}</p>
-          <p className="text-center text-label text-muted-foreground">
-            {t("auth.verify.wrongAccount")}{" "}
-            <button
+          <p className="flex flex-wrap items-center justify-center gap-x-1 text-label text-muted-foreground">
+            {t("auth.verify.wrongAccount")}
+            {/* Button primitive for the 44px coarse-pointer floor; a bare
+                <button> in running text was 18px tall on touch. */}
+            <Button
               type="button"
-              className="font-medium text-brand hover:underline"
+              variant="link"
+              size="sm"
+              className="h-auto px-1 text-label text-brand"
               onClick={() => logout.mutate()}
+              aria-disabled={logout.isPending || undefined}
             >
               {t("auth.logout")}
-            </button>
+            </Button>
           </p>
         </div>
       </div>
