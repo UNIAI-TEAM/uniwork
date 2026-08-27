@@ -91,6 +91,12 @@ a shared package; there is no "small enough to duplicate".
   carries ids only.
 - Handler errors go through `mapServiceError`; a new error kind is added there
   once, not translated per handler.
+- HTTP request/response types are SDI/SDO in
+  `../server/internal/handler/dto/sdi/` and
+  `../server/internal/handler/dto/sdo/` (one `{domain}.go` per package).
+  REST routes live in `server/internal/handler/router/`.
+  OpenAPI is reflected from the Chi `api` wrapper at process start. The
+  checklist is [`docs/api-sdi-sdo.md`](api-sdi-sdo.md).
 
 ### TypeScript
 

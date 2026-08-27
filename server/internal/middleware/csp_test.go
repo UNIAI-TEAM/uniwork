@@ -26,6 +26,35 @@ func TestContentSecurityPolicy(t *testing.T) {
 	})
 }
 
+func TestContentSecurityPolicyAllowsSwaggerUI(t *testing.T) {
+	handler := ContentSecurityPolicy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	for _, path := range []string{"/swagger", "/swagger/index.html", "/swagger/doc.json"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			csp := rec.Header().Get("Content-Security-Policy")
+			assertCSPDirectives(t, csp, []string{
+				"script-src 'self' 'unsafe-inline'",
+				"font-src 'self' data:",
+				"object-src 'none'",
+				"frame-ancestors 'none'",
+			})
+		})
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if strings.Contains(rec.Header().Get("Content-Security-Policy"), "script-src 'self' 'unsafe-inline'") {
+		t.Fatal("global CSP must not allow inline scripts")
+	}
+}
+
 func TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews(t *testing.T) {
 	handler := ContentSecurityPolicy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

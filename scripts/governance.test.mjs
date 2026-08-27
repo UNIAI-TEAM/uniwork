@@ -96,6 +96,7 @@ test("the docs a newcomer is pointed at exist", () => {
   // the first thing a new contributor learns about how much the docs are worth.
   for (const f of ["CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md",
                    "PRODUCT.md", "README.md", "docs/conventions.md",
+                   "docs/api-sdi-sdo.md",
                    ".github/CODEOWNERS", ".github/pull_request_template.md"]) {
     assert.ok(fs.existsSync(path.join(root, f)), `${f} is missing`);
   }

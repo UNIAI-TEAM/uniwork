@@ -131,7 +131,11 @@ func main() {
 	}
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("listening", "port", cfg.Port)
+		if cfg.EnableSwagger {
+			log.Info("listening", "port", cfg.Port, "swagger", "http://localhost:"+cfg.Port+"/swagger/index.html")
+		} else {
+			log.Info("listening", "port", cfg.Port)
+		}
 		errCh <- srv.ListenAndServe()
 	}()
 

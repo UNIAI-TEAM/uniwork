@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -13,28 +15,19 @@ import (
 
 const refreshCookie = "uniwork_refresh"
 
-type userDTO struct {
-	ID                      string          `json:"id"`
-	Email                   string          `json:"email"`
-	DisplayName             string          `json:"display_name"`
-	AvatarURL               string          `json:"avatar_url,omitempty"`
-	OnboardedAt             *string         `json:"onboarded_at"`
-	OnboardingQuestionnaire json.RawMessage `json:"onboarding_questionnaire"`
-}
-
-func toUserDTO(u db.User) userDTO {
-	dto := userDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, OnboardingQuestionnaire: json.RawMessage("{}")}
+func toUserDTO(u db.User) sdo.UserDTO {
+	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, OnboardingQuestionnaire: json.RawMessage("{}")}
 	if u.AvatarUrl.Valid {
-		dto.AvatarURL = u.AvatarUrl.String
+		out.AvatarURL = u.AvatarUrl.String
 	}
 	if u.OnboardedAt.Valid {
 		s := u.OnboardedAt.Time.Format(time.RFC3339)
-		dto.OnboardedAt = &s
+		out.OnboardedAt = &s
 	}
 	if len(u.OnboardingQuestionnaire) > 0 {
-		dto.OnboardingQuestionnaire = json.RawMessage(u.OnboardingQuestionnaire)
+		out.OnboardingQuestionnaire = json.RawMessage(u.OnboardingQuestionnaire)
 	}
-	return dto
+	return out
 }
 
 func (h *handlers) setRefreshCookie(w http.ResponseWriter, token string, exp time.Time) {
@@ -53,11 +46,7 @@ func (h *handlers) sessionResponse(w http.ResponseWriter, sess service.Session) 
 }
 
 func (h *handlers) register(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Email       string `json:"email"`
-		Password    string `json:"password"`
-		DisplayName string `json:"display_name"`
-	}
+	var in sdi.RegisterSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
@@ -70,10 +59,7 @@ func (h *handlers) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
+	var in sdi.LoginSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
@@ -117,9 +103,7 @@ func (h *handlers) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		DisplayName *string `json:"display_name"`
-	}
+	var in sdi.PatchMeSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}

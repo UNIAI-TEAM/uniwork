@@ -6,24 +6,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-type meetingDTO struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	StartsAt    string `json:"starts_at"`
-	EndsAt      string `json:"ends_at"`
-	RoomName    string `json:"room_name"`
-	CreatedBy   string `json:"created_by"`
-}
-
-func toMeetingDTO(m db.Meeting) meetingDTO {
-	return meetingDTO{
+func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
+	return sdo.MeetingDTO{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Description: m.Description,
 		StartsAt: m.StartsAt.Time.Format(time.RFC3339), EndsAt: m.EndsAt.Time.Format(time.RFC3339),
 		RoomName: m.RoomName, CreatedBy: m.CreatedBy,
@@ -36,7 +27,7 @@ func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]meetingDTO, 0, len(ms))
+	out := make([]sdo.MeetingDTO, 0, len(ms))
 	for _, m := range ms {
 		out = append(out, toMeetingDTO(m))
 	}
@@ -44,12 +35,7 @@ func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Title       string    `json:"title"`
-		Description string    `json:"description"`
-		StartsAt    time.Time `json:"starts_at"`
-		EndsAt      time.Time `json:"ends_at"`
-	}
+	var in sdi.CreateMeetingSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
@@ -72,12 +58,7 @@ func (h *handlers) getMeeting(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Title       *string    `json:"title"`
-		Description *string    `json:"description"`
-		StartsAt    *time.Time `json:"starts_at"`
-		EndsAt      *time.Time `json:"ends_at"`
-	}
+	var in sdi.PatchMeetingSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
@@ -108,9 +89,7 @@ func (h *handlers) listNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) createNote(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Body string `json:"body"`
-	}
+	var in sdi.CreateNoteSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}

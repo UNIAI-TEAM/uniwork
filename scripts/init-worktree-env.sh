@@ -55,6 +55,7 @@ E2E_BASE_URL=${frontend_origin}
 LIVEKIT_URL=
 LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
+ENABLE_SWAGGER=true
 EOF
 
 echo "Generated $ENV_FILE for worktree '$worktree_name'"
