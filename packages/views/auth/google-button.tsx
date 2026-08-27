@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthProviders } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { Separator } from "@uniwork/ui/components/ui/separator";
 
 /** Google's four-colour "G", inline so no third-party script or image is loaded. */
@@ -38,7 +39,7 @@ export function GoogleButton({ next }: { next?: string | null }) {
       {/* A plain anchor styled as a button, not the Button primitive: this is
           a navigation to another origin, and Base UI's Button would layer
           button semantics (role, key handling) over the link either way. */}
-      <a href={paths.googleStart(next)} className={buttonVariants({ variant: "outline", size: "lg", className: "w-full" })}>
+      <a href={paths.googleStart(next)} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full")}>
         <GoogleMark />
         {t("auth.google.continueWith")}
       </a>

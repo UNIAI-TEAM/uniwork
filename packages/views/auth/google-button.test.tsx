@@ -28,5 +28,9 @@ describe("GoogleButton", () => {
     const link = await screen.findByRole("link", { name: "Tiếp tục với Google" });
     expect(link).toHaveAttribute("href", "http://api.test/api/v1/auth/google/start?next=%2Facme%2Fteam");
     expect(screen.getByText("hoặc")).toBeInTheDocument();
+    // buttonVariants() alone concatenates base + variant; only cn() drops the
+    // base `border-transparent` that would otherwise beat `border-input`.
+    expect(link.className).toContain("border-input");
+    expect(link.className).not.toContain("border-transparent");
   });
 });

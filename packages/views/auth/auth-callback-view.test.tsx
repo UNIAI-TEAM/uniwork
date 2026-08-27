@@ -12,5 +12,9 @@ describe("AuthCallbackView", () => {
     expect(statuses).toHaveLength(1);
     expect(statuses[0]).toHaveTextContent("Đang đăng nhập bằng Google…");
     expect(document.body.innerHTML).not.toContain("Loading");
+    // The page still needs a heading for the landmark list; the status
+    // line is the only content, so it is the heading.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Đang đăng nhập bằng Google…");
+    expect(screen.getAllByText("Đang đăng nhập bằng Google…")).toHaveLength(1);
   });
 });

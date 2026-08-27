@@ -11,7 +11,8 @@ export function AuthCallbackView() {
         {/* The text is the announcement; the icon must not add a second
             (English) status of its own. */}
         <Spinner role="presentation" aria-label={undefined} aria-hidden />
-        <span>{t("auth.google.signingIn")}</span>
+        {/* The only content on the page doubles as its heading. */}
+        <h1 className="text-body font-normal">{t("auth.google.signingIn")}</h1>
       </div>
     </main>
   );
