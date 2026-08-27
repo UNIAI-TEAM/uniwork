@@ -16,6 +16,7 @@ const user: User = {
   email: "a@b.c",
   display_name: "An",
   onboarded_at: "2026-08-25T00:00:00Z",
+  email_verified_at: "2026-08-25T00:00:00Z",
   onboarding_questionnaire: {},
 };
 const workspace: Workspace = {
