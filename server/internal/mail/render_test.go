@@ -53,6 +53,19 @@ func TestInviteEscapesUserFields(t *testing.T) {
 	}
 }
 
+func TestPasswordResetRenders(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	for _, loc := range []string{"vi", "en"} {
+		m, err := r.PasswordReset("a@example.com", loc, "u1", PasswordResetData{ResetURL: "http://localhost:3000/reset-password?token=abc", ExpiresInMinutes: 60})
+		if err != nil || m.Kind != KindPasswordReset || m.UserID != "u1" {
+			t.Fatalf("%s: %v %+v", loc, err, m)
+		}
+		if !strings.Contains(m.HTML, "token=abc") || !strings.Contains(m.Text, "token=abc") {
+			t.Fatalf("%s: reset url missing", loc)
+		}
+	}
+}
+
 func TestSafeFieldStripsControlAndCaps(t *testing.T) {
 	got := SafeField("Acme\r\nBcc: x@y.z " + strings.Repeat("a", 100))
 	if strings.ContainsAny(got, "\r\n") || len([]rune(got)) > 60 {

@@ -46,13 +46,22 @@ func NormalizeLocale(s string) string {
 	return "vi"
 }
 
+// validatePassword is the one password-strength rule, shared by
+// registration and password reset.
+func validatePassword(p string) error {
+	if len(p) < 8 {
+		return Invalid("mật khẩu tối thiểu 8 ký tự")
+	}
+	return nil
+}
+
 func (s *AuthService) Register(ctx context.Context, email, password, displayName, locale string) (Session, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !strings.Contains(email, "@") || len(email) < 5 {
 		return Session{}, Invalid("email không hợp lệ")
 	}
-	if len(password) < 8 {
-		return Session{}, Invalid("mật khẩu tối thiểu 8 ký tự")
+	if err := validatePassword(password); err != nil {
+		return Session{}, err
 	}
 	if strings.TrimSpace(displayName) == "" {
 		return Session{}, Invalid("tên hiển thị không được để trống")

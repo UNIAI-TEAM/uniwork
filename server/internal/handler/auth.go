@@ -146,6 +146,8 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 400, "invalid_code", "invalid or expired code")
 	case errors.Is(err, service.ErrEmailUnverified):
 		respondError(w, 403, "email_unverified", "email address not verified")
+	case errors.Is(err, service.ErrInvalidToken):
+		respondError(w, 400, "invalid_token", "invalid or expired token")
 	default:
 		h.Log.Error("internal", "err", err)
 		respondError(w, 500, "internal", "internal error")

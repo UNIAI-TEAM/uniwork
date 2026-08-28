@@ -15,6 +15,8 @@ var (
 	ErrInvalidCode = errors.New("invalid_code")
 	// ErrEmailUnverified: the action needs a verified email address.
 	ErrEmailUnverified = errors.New("email_unverified")
+	// ErrInvalidToken covers unknown, expired and used password reset tokens.
+	ErrInvalidToken = errors.New("invalid_token")
 )
 
 type ValidationError struct{ Msg string }

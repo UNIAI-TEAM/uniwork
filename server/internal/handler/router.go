@@ -22,12 +22,13 @@ import (
 )
 
 type Deps struct {
-	Cfg          config.Config
-	Log          *slog.Logger
-	Minter       auth.TokenMinter
-	Auth         *service.AuthService
-	Verification *service.VerificationService
-	GoogleAuth   *service.GoogleAuthService
+	Cfg           config.Config
+	Log           *slog.Logger
+	Minter        auth.TokenMinter
+	Auth          *service.AuthService
+	Verification  *service.VerificationService
+	PasswordReset *service.PasswordResetService
+	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
 	Google        GoogleExchanger
@@ -111,6 +112,8 @@ func New(d Deps) http.Handler {
 		r.Get("/ws", h.ws)
 		r.With(credentialLimit).Post("/auth/register", h.register)
 		r.With(credentialLimit).Post("/auth/login", h.login)
+		r.With(credentialLimit).Post("/auth/password/forgot", h.forgotPassword)
+		r.With(credentialLimit).Post("/auth/password/reset", h.resetPassword)
 		r.Post("/auth/refresh", h.refresh)
 		r.Post("/auth/logout", h.logout)
 		r.Get("/auth/providers", h.authProviders)

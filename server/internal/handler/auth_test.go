@@ -53,6 +53,7 @@ func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Ser
 		Auth:          authSvc,
 		GoogleAuth:    service.NewGoogleAuthService(q, authSvc),
 		Verification:  verification,
+		PasswordReset: service.NewPasswordResetService(q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
 		Google:        google,
 		Organizations: orgs,
 		Workspaces:    ws,
@@ -211,6 +212,22 @@ func TestEmailVerificationFlow(t *testing.T) {
 	res, out = doJSON(t, srv, "POST", "/api/v1/me/onboarding/complete", token, map[string]string{})
 	if res.StatusCode != 200 {
 		t.Fatalf("complete after verify: %d %v", res.StatusCode, out)
+	}
+}
+
+func TestForgotPasswordAlwaysOKAndResetChangesPassword(t *testing.T) {
+	srv := newTestServer(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/auth/password/forgot", "", map[string]string{"email": "ghost@example.com"})
+	if res.StatusCode != 200 || out["status"] != "ok" {
+		t.Fatalf("unknown email must be 200 ok: %d %v", res.StatusCode, out)
+	}
+	res, _ = doJSON(t, srv, "POST", "/api/v1/auth/password/forgot", "", map[string]string{"email": "not-an-email"})
+	if res.StatusCode != 400 {
+		t.Fatalf("malformed email: %d", res.StatusCode)
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/auth/password/reset", "", map[string]string{"token": "nope", "password": "newpassword1"})
+	if res.StatusCode != 400 || out["error"].(map[string]any)["code"] != "invalid_token" {
+		t.Fatalf("bad token: %d %v", res.StatusCode, out)
 	}
 }
 

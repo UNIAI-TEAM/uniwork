@@ -29,6 +29,17 @@ type VerifyEmailSDI struct {
 	Code string `json:"code" minLength:"6" description:"Mã 6 số gửi qua email" example:"123456"`
 }
 
+// ForgotPasswordSDI is POST /api/v1/auth/password/forgot.
+type ForgotPasswordSDI struct {
+	Email string `json:"email" format:"email" minLength:"1" description:"Email tài khoản; phản hồi giống nhau dù tồn tại hay không" example:"an@acme.vn"`
+}
+
+// ResetPasswordSDI is POST /api/v1/auth/password/reset.
+type ResetPasswordSDI struct {
+	Token    string `json:"token" minLength:"1" description:"Token trong link email" example:"01J8X4…"`
+	Password string `json:"password" minLength:"8" description:"Mật khẩu mới, tối thiểu 8 ký tự" example:"password123"`
+}
+
 // GoogleStartSDI is GET /api/v1/auth/google/start.
 type GoogleStartSDI struct {
 	Next string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập" example:"/acme/team"`
