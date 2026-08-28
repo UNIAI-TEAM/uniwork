@@ -145,7 +145,7 @@ func (h *handlers) resolveInviteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.PublicInviteLinkSDO{
-		LinkID: v.LinkID, Title: v.Title, StartsAt: v.StartsAt.UTC().Format(time.RFC3339),
+		LinkID: v.LinkID, MeetingID: v.MeetingID, Title: v.Title, StartsAt: v.StartsAt.UTC().Format(time.RFC3339),
 		AccessMode: v.AccessMode, Expired: v.Expired,
 	})
 }

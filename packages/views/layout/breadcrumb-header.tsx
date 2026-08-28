@@ -31,7 +31,7 @@ interface BreadcrumbHeaderProps {
 export function BreadcrumbHeader({ segments, leaf, actions, leading, className }: BreadcrumbHeaderProps) {
   return (
     <PageHeader leading={leading} className={cn("bg-background text-body", className)}>
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         {segments.map((segment) => (
           <Fragment key={segment.href}>
             <AppLink
@@ -46,9 +46,13 @@ export function BreadcrumbHeader({ segments, leaf, actions, leading, className }
             <ChevronRight aria-hidden className="size-3 shrink-0 text-faint-foreground" />
           </Fragment>
         ))}
-        {leaf}
+        <span className="min-w-0 truncate">{leaf}</span>
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+      {actions ? (
+        <div className="flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto sm:max-w-none">
+          {actions}
+        </div>
+      ) : null}
     </PageHeader>
   );
 }

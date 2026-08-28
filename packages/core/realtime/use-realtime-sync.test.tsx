@@ -67,6 +67,12 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-join-requests", "m1"]));
   });
 
+  it("refreshes invite-link list on invite_link.revoked", () => {
+    const { invalidate, client } = setup();
+    client.emit({ type: "invite_link.revoked", payload: { meeting_id: "m1" } });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-invite-links", "m1"]));
+  });
+
   it("ignores an event this client does not know", () => {
     const { invalidate, client } = setup();
     client.emit({ type: "agent.run_started", payload: {} });
@@ -83,7 +89,12 @@ describe("useRealtimeSync", () => {
     const { invalidate, client } = setup();
     client.reconnect();
     expect(keysCalled(invalidate)).toEqual(
-      expect.arrayContaining([JSON.stringify(["tasks", "ws1"]), JSON.stringify(["meetings", "ws1"])]),
+      expect.arrayContaining([
+        JSON.stringify(["tasks", "ws1"]),
+        JSON.stringify(["meetings", "ws1"]),
+        JSON.stringify(["meeting-stats", "ws1"]),
+        JSON.stringify(["meeting-join-requests"]),
+      ]),
     );
   });
 });

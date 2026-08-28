@@ -40,7 +40,11 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
     case "meeting.canceled":
     case "host.transferred": {
       push(meetingKeys.list(wsId));
-      if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
+      push(meetingKeys.stats(wsId));
+      if (payload.meeting_id) {
+        push(meetingKeys.detail(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
+      }
       break;
     }
     case "participant.invited":
@@ -49,6 +53,8 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
       if (payload.meeting_id) {
         push(meetingKeys.detail(payload.meeting_id));
         push(meetingKeys.participants(payload.meeting_id));
+        push(meetingKeys.invitations(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
       }
       break;
     }
@@ -59,11 +65,16 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
       if (payload.meeting_id) {
         push(meetingKeys.joinRequests(payload.meeting_id));
         push(meetingKeys.participants(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
       }
       break;
     }
     case "invite_link.revoked": {
-      if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
+      if (payload.meeting_id) {
+        push(meetingKeys.detail(payload.meeting_id));
+        push(meetingKeys.inviteLinks(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
+      }
       break;
     }
     default:
@@ -75,7 +86,12 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
 
 /** Keys that could have gone stale while the socket was down. */
 function allWorkspaceKeys(wsId: string) {
-  return [taskKeys.list(wsId), meetingKeys.list(wsId)];
+  return [
+    taskKeys.list(wsId),
+    meetingKeys.list(wsId),
+    meetingKeys.stats(wsId),
+    meetingKeys.joinRequestsRoot,
+  ];
 }
 
 export function useRealtimeSync(client: WSClient | null, wsId: string): void {

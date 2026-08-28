@@ -10,7 +10,8 @@
 name: uniwork-livekit
 services:
   livekit:
-    image: livekit/livekit-server:v1.8.4
+    # livekit-client 2.22 talks to /rtc/v1; v1.8.4 only has /rtc and 404s validate in a reconnect loop.
+    image: livekit/livekit-server:v1.9.12
     command: ["--config", "/etc/livekit.yaml"]
     ports:
       - "7880:7880"

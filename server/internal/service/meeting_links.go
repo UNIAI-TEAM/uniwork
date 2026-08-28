@@ -111,6 +111,7 @@ func (s *MeetingService) RevokeInviteLink(ctx context.Context, userID, meetingID
 
 type PublicInviteView struct {
 	LinkID     string
+	MeetingID  string
 	Title      string
 	StartsAt   time.Time
 	AccessMode string
@@ -132,7 +133,7 @@ func (s *MeetingService) ResolveInviteLink(ctx context.Context, linkID, secret s
 	}
 	expired := link.RevokedAt.Valid || !link.ExpiresAt.Time.After(time.Now())
 	return PublicInviteView{
-		LinkID: link.ID, Title: m.Title, StartsAt: m.StartsAt.Time,
+		LinkID: link.ID, MeetingID: m.ID, Title: m.Title, StartsAt: m.StartsAt.Time,
 		AccessMode: link.AccessMode, Expired: expired,
 	}, nil
 }

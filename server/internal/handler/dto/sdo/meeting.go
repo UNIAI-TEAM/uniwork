@@ -112,6 +112,7 @@ type InviteLinkListSDO struct {
 
 type PublicInviteLinkSDO struct {
 	LinkID     string `json:"link_id"`
+	MeetingID  string `json:"meeting_id,omitempty"`
 	Title      string `json:"title"`
 	StartsAt   string `json:"starts_at"`
 	AccessMode string `json:"access_mode"`

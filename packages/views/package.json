@@ -24,6 +24,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
+    "@livekit/track-processors": "^0.5.8",
     "@tanstack/react-query": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
