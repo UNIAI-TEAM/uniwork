@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	passwordResetTTL    = time.Hour
-	passwordResetResend = 60 * time.Second
+	passwordResetTTL      = time.Hour
+	passwordResetResend   = 60 * time.Second
+	passwordResetDailyCap = 5
 )
 
 // PasswordResetService issues one-time reset links and applies them. Request
@@ -55,24 +56,44 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	// Only the newest token is valid.
-	if err := s.q.DeletePasswordResetTokensForUser(ctx, u.ID); err != nil {
+	n, err := s.q.CountPasswordResetTokensForUserSince(ctx, db.CountPasswordResetTokensForUserSinceParams{
+		UserID: u.ID, CreatedAt: pgtype.Timestamptz{Time: s.now().Add(-24 * time.Hour), Valid: true},
+	})
+	if err != nil {
 		return err
+	}
+	if n >= passwordResetDailyCap {
+		slog.Info("password reset daily cap", "user", u.ID)
+		return nil
 	}
 	token := util.NewID() + util.NewID()
-	if _, err := s.q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
-		ID: util.NewID(), UserID: u.ID, TokenHash: hashToken(token),
-		ExpiresAt: pgtype.Timestamptz{Time: s.now().Add(passwordResetTTL), Valid: true},
-	}); err != nil {
-		return err
-	}
 	msg, err := s.render.PasswordReset(u.Email, u.Locale, u.ID, mail.PasswordResetData{
 		ResetURL: s.render.AppURL + "/reset-password?token=" + token, ExpiresInMinutes: int(passwordResetTTL / time.Minute),
 	})
 	if err != nil {
 		return err
 	}
-	if _, err := s.out.Enqueue(ctx, s.q, msg); err != nil {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	qtx := s.q.WithTx(tx)
+	// Only the newest unused token is valid; older ones are invalidated, not
+	// deleted, so they still count toward the daily cap.
+	if err := qtx.ExpirePasswordResetTokensForUser(ctx, u.ID); err != nil {
+		return err
+	}
+	if _, err := qtx.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
+		ID: util.NewID(), UserID: u.ID, TokenHash: hashToken(token),
+		ExpiresAt: pgtype.Timestamptz{Time: s.now().Add(passwordResetTTL), Valid: true},
+	}); err != nil {
+		return err
+	}
+	if _, err := s.out.Enqueue(ctx, qtx, msg); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	s.out.Kick()
@@ -106,8 +127,12 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if err != nil {
 		return Session{}, err
 	}
-	if err := qtx.MarkPasswordResetTokenUsed(ctx, t.ID); err != nil {
+	rows, err := qtx.MarkPasswordResetTokenUsed(ctx, t.ID)
+	if err != nil {
 		return Session{}, err
+	}
+	if rows == 0 {
+		return Session{}, ErrInvalidToken
 	}
 	if err := qtx.RevokeAllRefreshTokensForUser(ctx, t.UserID); err != nil {
 		return Session{}, err

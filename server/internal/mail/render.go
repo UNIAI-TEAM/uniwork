@@ -58,6 +58,9 @@ func normalizeLocale(l string) string {
 // text file's first line is "Subject: …"; it is the subject for both parts.
 func renderKind(kind, locale, appURL string, data any) (subject, html, text string, err error) {
 	key := kind + "." + locale
+	if htmlTemplates[key] == nil || textTemplates[key] == nil {
+		return "", "", "", fmt.Errorf("mail: no template for %s", key)
+	}
 	ld := layoutData{AppURL: appURL, Data: data}
 	var hb, tb bytes.Buffer
 	if err := htmlTemplates[key].ExecuteTemplate(&hb, "layout", ld); err != nil {

@@ -136,3 +136,32 @@ func TestPasswordResetExpiredTokenIsInvalid(t *testing.T) {
 		t.Fatalf("expired token: %v", err)
 	}
 }
+
+// TestPasswordResetDailyCap proves the 6th request within 24h is silently
+// dropped (same as unknown-email and rate-limited paths), while the first
+// five all send.
+func TestPasswordResetDailyCap(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	out := &fakeOutbox{}
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
+	ctx := context.Background()
+	registerVerified(t, q, as, "cap@example.com", "Cap")
+
+	base := time.Now()
+	for i := 0; i < passwordResetDailyCap; i++ {
+		s.now = func() time.Time { return base.Add(time.Duration(i) * 61 * time.Second) }
+		if err := s.Request(ctx, "cap@example.com"); err != nil {
+			t.Fatalf("request %d: %v", i, err)
+		}
+	}
+	if len(out.queued) != passwordResetDailyCap {
+		t.Fatalf("expected %d mails, got %d", passwordResetDailyCap, len(out.queued))
+	}
+
+	s.now = func() time.Time { return base.Add(time.Duration(passwordResetDailyCap) * 61 * time.Second) }
+	if err := s.Request(ctx, "cap@example.com"); err != nil || len(out.queued) != passwordResetDailyCap {
+		t.Fatalf("6th request must be silently dropped: %v %d", err, len(out.queued))
+	}
+}

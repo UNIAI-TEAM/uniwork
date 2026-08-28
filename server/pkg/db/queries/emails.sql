@@ -24,7 +24,7 @@ UPDATE emails SET attempts = attempts + 1, failed_at = now(), last_error = $2 WH
 SELECT count(*) FROM emails WHERE user_id = $1 AND kind = $2;
 
 -- name: DeleteSentEmailsBefore :exec
-DELETE FROM emails WHERE sent_at IS NOT NULL AND sent_at < $1;
+DELETE FROM emails WHERE (sent_at IS NOT NULL AND sent_at < $1) OR (failed_at IS NOT NULL AND failed_at < $1);
 
 -- Test/e2e: mail mới nhất gửi tới một địa chỉ theo kind.
 -- name: GetLatestEmailForRecipient :one

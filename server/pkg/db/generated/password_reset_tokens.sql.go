@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countPasswordResetTokensForUserSince = `-- name: CountPasswordResetTokensForUserSince :one
+SELECT count(*) FROM password_reset_tokens WHERE user_id = $1 AND created_at > $2
+`
+
+type CountPasswordResetTokensForUserSinceParams struct {
+	UserID    string             `json:"user_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) CountPasswordResetTokensForUserSince(ctx context.Context, arg CountPasswordResetTokensForUserSinceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPasswordResetTokensForUserSince, arg.UserID, arg.CreatedAt)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :one
 INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
 VALUES ($1, $2, $3, $4)
@@ -52,12 +68,14 @@ func (q *Queries) DeleteExpiredPasswordResetTokens(ctx context.Context) error {
 	return err
 }
 
-const deletePasswordResetTokensForUser = `-- name: DeletePasswordResetTokensForUser :exec
-DELETE FROM password_reset_tokens WHERE user_id = $1
+const expirePasswordResetTokensForUser = `-- name: ExpirePasswordResetTokensForUser :exec
+UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL
 `
 
-func (q *Queries) DeletePasswordResetTokensForUser(ctx context.Context, userID string) error {
-	_, err := q.db.Exec(ctx, deletePasswordResetTokensForUser, userID)
+// Tokens cũ chưa dùng bị vô hiệu hoá (không xoá) để CountPasswordResetTokensForUserSince
+// vẫn đếm được lịch sử trong ngày; DeleteExpiredPasswordResetTokens dọn sau 1 ngày.
+func (q *Queries) ExpirePasswordResetTokensForUser(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, expirePasswordResetTokensForUser, userID)
 	return err
 }
 
@@ -99,11 +117,14 @@ func (q *Queries) GetLatestPasswordResetTokenForUser(ctx context.Context, userID
 	return i, err
 }
 
-const markPasswordResetTokenUsed = `-- name: MarkPasswordResetTokenUsed :exec
-UPDATE password_reset_tokens SET used_at = now() WHERE id = $1
+const markPasswordResetTokenUsed = `-- name: MarkPasswordResetTokenUsed :execrows
+UPDATE password_reset_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL
 `
 
-func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, markPasswordResetTokenUsed, id)
-	return err
+func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.Exec(ctx, markPasswordResetTokenUsed, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

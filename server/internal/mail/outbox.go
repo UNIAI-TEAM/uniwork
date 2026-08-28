@@ -78,6 +78,10 @@ func (o *Outbox) Enqueue(ctx context.Context, q *db.Queries, msg Message) (strin
 	return row.ID, nil
 }
 
+// count is not transaction-scoped: a failed bookkeeping call (MarkEmail*)
+// aborts the tx and re-runs the send on the next claim, so a retried row
+// increments this counter again too. It tracks SMTP attempts, not committed
+// rows.
 func (o *Outbox) count(kind, result string) {
 	if o.Counter != nil {
 		o.Counter.WithLabelValues(kind, result).Inc()

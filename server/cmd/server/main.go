@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -113,6 +114,9 @@ func main() {
 		log.Error("mail", "err", err)
 		os.Exit(1)
 	}
+	if cfg.SMTPHost == "" && strings.EqualFold(cfg.AppEnv, "production") {
+		log.Warn("SMTP_HOST is empty in production: mail (including password reset links) is only written to the log")
+	}
 	if code := cfg.DevVerificationCode(); code != "" {
 		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
 	}
@@ -169,7 +173,8 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 	}
 	workerCtx, stopWorker := context.WithCancel(ctx)
-	go outbox.Run(workerCtx)
+	outboxDone := make(chan struct{})
+	go func() { outbox.Run(workerCtx); close(outboxDone) }()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -203,6 +208,11 @@ func main() {
 		log.Warn("http shutdown", "err", err)
 	}
 	stopWorker()
+	select {
+	case <-outboxDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("mail: outbox worker did not stop in time")
+	}
 	if relay != nil {
 		relay.Stop()
 	}

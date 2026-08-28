@@ -120,7 +120,7 @@ func (q *Queries) CreateEmail(ctx context.Context, arg CreateEmailParams) (Email
 }
 
 const deleteSentEmailsBefore = `-- name: DeleteSentEmailsBefore :exec
-DELETE FROM emails WHERE sent_at IS NOT NULL AND sent_at < $1
+DELETE FROM emails WHERE (sent_at IS NOT NULL AND sent_at < $1) OR (failed_at IS NOT NULL AND failed_at < $1)
 `
 
 func (q *Queries) DeleteSentEmailsBefore(ctx context.Context, sentAt pgtype.Timestamptz) error {
