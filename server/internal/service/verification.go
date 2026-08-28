@@ -28,16 +28,17 @@ const (
 // receives after registering. Codes are stored hashed; the active-code query
 // enforces single use, expiry and the attempt cap.
 type VerificationService struct {
-	q    *db.Queries
-	mail mail.Sender
+	q      *db.Queries
+	render mail.Renderer
+	out    mail.Enqueuer
 	// devCode, when set, is accepted in place of the real code as long as an
 	// active code exists — CI and local runs verify without reading mail.
 	devCode string
 	now     func() time.Time
 }
 
-func NewVerificationService(q *db.Queries, sender mail.Sender, devCode string) *VerificationService {
-	return &VerificationService{q: q, mail: sender, devCode: devCode, now: time.Now}
+func NewVerificationService(q *db.Queries, r mail.Renderer, out mail.Enqueuer, devCode string) *VerificationService {
+	return &VerificationService{q: q, render: r, out: out, devCode: devCode, now: time.Now}
 }
 
 // Send issues a fresh code and mails it. ErrConflict when the email is
@@ -71,13 +72,14 @@ func (s *VerificationService) Send(ctx context.Context, userID string) error {
 	if err != nil {
 		return err
 	}
-	msg, err := mail.Renderer{}.VerificationCode(u.Email, u.Locale, u.ID, mail.VerificationData{Code: code, ExpiresInMinutes: int(verificationCodeTTL / time.Minute)})
+	msg, err := s.render.VerificationCode(u.Email, u.Locale, u.ID, mail.VerificationData{Code: code, ExpiresInMinutes: int(verificationCodeTTL / time.Minute)})
 	if err != nil {
 		return err
 	}
-	if err := s.mail.Send(ctx, msg); err != nil {
-		return fmt.Errorf("send verification mail: %w", err)
+	if _, err := s.out.Enqueue(ctx, s.q, msg); err != nil {
+		return fmt.Errorf("queue verification mail: %w", err)
 	}
+	s.out.Kick()
 	if err := s.q.DeleteExpiredEmailVerificationCodes(ctx); err != nil {
 		slog.Warn("delete expired verification codes", "err", err)
 	}

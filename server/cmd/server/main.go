@@ -116,7 +116,9 @@ func main() {
 	if code := cfg.DevVerificationCode(); code != "" {
 		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
 	}
-	verification := service.NewVerificationService(q, sender, cfg.DevVerificationCode())
+	outbox := mail.NewOutbox(pool, sender, log)
+	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
+	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
@@ -160,6 +162,9 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	workerCtx, stopWorker := context.WithCancel(ctx)
+	go outbox.Run(workerCtx)
+
 	errCh := make(chan error, 1)
 	go func() {
 		if cfg.EnableSwagger {
@@ -191,6 +196,7 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("http shutdown", "err", err)
 	}
+	stopWorker()
 	if relay != nil {
 		relay.Stop()
 	}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"sync"
 	"testing"
@@ -13,26 +14,29 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-type fakeSender struct {
-	mu   sync.Mutex
-	sent []mail.Message
+type fakeOutbox struct {
+	mu     sync.Mutex
+	queued []mail.Message
+	kicks  int
 }
 
-func (f *fakeSender) Send(_ context.Context, m mail.Message) error {
+func (f *fakeOutbox) Enqueue(_ context.Context, _ *db.Queries, m mail.Message) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.sent = append(f.sent, m)
-	return nil
+	f.queued = append(f.queued, m)
+	return fmt.Sprintf("e%d", len(f.queued)), nil
 }
 
-func (f *fakeSender) last(t *testing.T) mail.Message {
+func (f *fakeOutbox) Kick() { f.mu.Lock(); f.kicks++; f.mu.Unlock() }
+
+func (f *fakeOutbox) last(t *testing.T) mail.Message {
 	t.Helper()
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(f.sent) == 0 {
-		t.Fatal("no mail sent")
+	if len(f.queued) == 0 {
+		t.Fatal("no mail queued")
 	}
-	return f.sent[len(f.sent)-1]
+	return f.queued[len(f.queued)-1]
 }
 
 var sixDigits = regexp.MustCompile(`\b\d{6}\b`)
@@ -49,17 +53,17 @@ func codeFrom(t *testing.T, m mail.Message) string {
 type verificationFixture struct {
 	auth   *AuthService
 	verify *VerificationService
-	sender *fakeSender
+	out    *fakeOutbox
 	q      *db.Queries
 }
 
 func newVerificationFixture(t *testing.T, devCode string) verificationFixture {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	sender := &fakeSender{}
-	verify := NewVerificationService(q, sender, devCode)
+	out := &fakeOutbox{}
+	verify := NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, out, devCode)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return verificationFixture{auth: NewAuthService(q, m, time.Hour, verify), verify: verify, sender: sender, q: q}
+	return verificationFixture{auth: NewAuthService(q, m, time.Hour, verify), verify: verify, out: out, q: q}
 }
 
 func (f verificationFixture) registered(t *testing.T) db.User {
@@ -78,11 +82,17 @@ func TestRegisterSendsVerificationCodeAndConfirmVerifies(t *testing.T) {
 	if u.EmailVerifiedAt.Valid {
 		t.Fatal("new user must start unverified")
 	}
-	m := f.sender.last(t)
+	m := f.out.last(t)
 	if m.To != "v@example.com" {
 		t.Fatalf("mail to %q", m.To)
 	}
 	code := codeFrom(t, m)
+	if m.Kind != mail.KindVerificationCode || m.Locale != "vi" || m.UserID != u.ID {
+		t.Fatalf("envelope %+v", m)
+	}
+	if f.out.kicks == 0 {
+		t.Fatal("no kick")
+	}
 
 	got, err := f.verify.Confirm(ctx, u.ID, code)
 	if err != nil {
@@ -112,8 +122,8 @@ func TestVerificationResendGate(t *testing.T) {
 	if err := f.verify.Send(ctx, u.ID); err != nil {
 		t.Fatalf("send after gap: %v", err)
 	}
-	if len(f.sender.sent) != 2 {
-		t.Fatalf("want 2 mails, got %d", len(f.sender.sent))
+	if len(f.out.queued) != 2 {
+		t.Fatalf("want 2 mails, got %d", len(f.out.queued))
 	}
 }
 
@@ -121,7 +131,7 @@ func TestVerificationWrongCodeFiveTimesInvalidatesCode(t *testing.T) {
 	f := newVerificationFixture(t, "")
 	ctx := context.Background()
 	u := f.registered(t)
-	code := codeFrom(t, f.sender.last(t))
+	code := codeFrom(t, f.out.last(t))
 	wrong := "000000"
 	if wrong == code {
 		wrong = "111111"
@@ -148,7 +158,7 @@ func TestVerificationExpiredCode(t *testing.T) {
 	if err := f.verify.Send(ctx, u.ID); err != nil {
 		t.Fatal(err)
 	}
-	code := codeFrom(t, f.sender.last(t))
+	code := codeFrom(t, f.out.last(t))
 	if _, err := f.verify.Confirm(ctx, u.ID, code); err != ErrInvalidCode {
 		t.Fatalf("expired code: want ErrInvalidCode, got %v", err)
 	}
@@ -175,7 +185,7 @@ func TestVerificationDevCodeNeedsAnActiveCode(t *testing.T) {
 func TestVerificationMailCarriesExpiry(t *testing.T) {
 	f := newVerificationFixture(t, "")
 	f.registered(t)
-	m := f.sender.last(t)
+	m := f.out.last(t)
 	if m.Subject == "" || m.HTML == "" || m.Text == "" {
 		t.Fatalf("incomplete message: %+v", m)
 	}
@@ -195,7 +205,7 @@ func TestUnverifiedUserCannotCompleteOnboardingOrCreateOrganization(t *testing.T
 	if _, err := NewOrganizationService(f.q).Create(ctx, u.ID, "Org", "org"); err != ErrEmailUnverified {
 		t.Fatalf("create organization: want ErrEmailUnverified, got %v", err)
 	}
-	if _, err := f.verify.Confirm(ctx, u.ID, codeFrom(t, f.sender.last(t))); err != nil {
+	if _, err := f.verify.Confirm(ctx, u.ID, codeFrom(t, f.out.last(t))); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NewOrganizationService(f.q).Create(ctx, u.ID, "Org", "org"); err != nil {

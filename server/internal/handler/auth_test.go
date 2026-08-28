@@ -23,10 +23,13 @@ import (
 // testDevCode is the development verification code the test server accepts.
 const testDevCode = "123456"
 
-// discardSender drops mail: the handler tests verify through the dev code.
-type discardSender struct{}
+// discardOutbox drops mail: the handler tests verify through the dev code.
+type discardOutbox struct{}
 
-func (discardSender) Send(context.Context, mail.Message) error { return nil }
+func (discardOutbox) Enqueue(context.Context, *db.Queries, mail.Message) (string, error) {
+	return "e", nil
+}
+func (discardOutbox) Kick() {}
 
 // newTestServer dựng handler đầy đủ trên DB test. Các task sau mở rộng
 // hàm này khi Deps thêm service mới.
@@ -41,7 +44,7 @@ func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Ser
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	orgs := service.NewOrganizationService(q)
 	ws := service.NewWorkspaceService(pool, q, orgs)
-	verification := service.NewVerificationService(q, discardSender{}, testDevCode)
+	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
 	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
