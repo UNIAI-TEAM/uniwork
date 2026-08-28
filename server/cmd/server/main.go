@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,7 +46,6 @@ func main() {
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	orgSvc := service.NewOrganizationService(q)
-	wsSvc := service.NewWorkspaceService(pool, q, orgSvc)
 	var rdb *redis.Client
 	if cfg.RedisURL != "" {
 		opt, err := redis.ParseURL(cfg.RedisURL)
@@ -71,8 +71,9 @@ func main() {
 	// separate listener so the scrape endpoint never shares the public port.
 	var httpMetrics *metrics.HTTPMetrics
 	var metricsSrv *http.Server
+	var reg *metrics.Registry
 	if mcfg := metrics.ConfigFromEnv(); mcfg.Enabled() {
-		reg := metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
+		reg = metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
 		httpMetrics = reg.HTTP
 		metricsSrv = metrics.NewServer(mcfg.Addr, reg.Gatherer)
 		go func() {
@@ -114,11 +115,21 @@ func main() {
 		log.Error("mail", "err", err)
 		os.Exit(1)
 	}
+	if cfg.SMTPHost == "" && strings.EqualFold(cfg.AppEnv, "production") {
+		log.Warn("SMTP_HOST is empty in production: mail (including password reset links) is only written to the log")
+	}
 	if code := cfg.DevVerificationCode(); code != "" {
 		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
 	}
-	verification := service.NewVerificationService(q, sender, cfg.DevVerificationCode())
+	outbox := mail.NewOutbox(pool, sender, log)
+	if reg != nil {
+		outbox.Counter = reg.Emails
+	}
+	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
+	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
+	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
+	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
 		conference = &meetings.LiveKitAdapter{
@@ -149,11 +160,12 @@ func main() {
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:            authSvc,
 		Verification:    verification,
+		PasswordReset:   passwordReset,
 		GoogleAuth:      service.NewGoogleAuthService(q, authSvc),
 		Google:          google,
 		Organizations:   orgSvc,
 		Workspaces:      wsSvc,
-		Onboarding:      service.NewOnboardingService(q, wsSvc, pub),
+		Onboarding:      service.NewOnboardingService(q, wsSvc, pub, renderer, outbox),
 		Tasks:           service.NewTaskService(q, wsSvc, pub),
 		Meetings:        meetingSvc,
 		Hub:             hub,
@@ -175,6 +187,10 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	workerCtx, stopWorker := context.WithCancel(ctx)
+	outboxDone := make(chan struct{})
+	go func() { outbox.Run(workerCtx); close(outboxDone) }()
+
 	errCh := make(chan error, 1)
 	go func() {
 		if cfg.EnableSwagger {
@@ -205,6 +221,12 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("http shutdown", "err", err)
+	}
+	stopWorker()
+	select {
+	case <-outboxDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("mail: outbox worker did not stop in time")
 	}
 	if relay != nil {
 		relay.Stop()

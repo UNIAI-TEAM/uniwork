@@ -61,7 +61,6 @@ type InvitationCreatedDTO struct {
 	ID    string `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
 	Email string `json:"email" format:"email" example:"binh@acme.vn"`
 	Role  string `json:"role" example:"member"`
-	Token string `json:"token" description:"Token lời mời dùng trên URL chấp nhận" example:"inv_01J8X4TOKEN"`
 }
 
 // InvitationCreateSDO is POST /api/v1/workspaces/{workspaceID}/invitations.

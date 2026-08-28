@@ -1,0 +1,6 @@
+{{define "content"}}
+<tr><td style="font-size:15px;line-height:1.5;padding-bottom:16px">Your email verification code:</td></tr>
+<tr><td style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:SFMono-Regular,Menlo,Consolas,monospace;padding-bottom:16px">{{.Data.Code}}</td></tr>
+<tr><td style="font-size:13px;line-height:1.5;color:#555">The code expires in {{.Data.ExpiresInMinutes}} minutes. If you did not sign up for UniWork, ignore this email.</td></tr>
+{{end}}
+{{define "footer"}}You received this email because you signed up for UniWork.{{end}}

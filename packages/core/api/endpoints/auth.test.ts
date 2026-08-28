@@ -4,6 +4,7 @@ import { getAccessToken, setAccessToken } from "../session";
 import {
   authProviders,
   completeOnboarding,
+  forgotPassword,
   login,
   logout,
   me,
@@ -11,6 +12,7 @@ import {
   patchOnboarding,
   registerUser,
   resendVerification,
+  resetPassword,
   verifyEmail,
 } from "./auth";
 
@@ -79,6 +81,30 @@ describe("auth endpoints", () => {
       .mockResolvedValueOnce(json({ nope: true }));
     expect((await patchMe({ display_name: "B" }))?.display_name).toBe("B");
     await expect(patchMe({ display_name: "B" })).resolves.toBeNull();
+  });
+
+  it("patchMe sends locale alone", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user: { ...user, locale: "en" } }));
+    const u = await patchMe({ locale: "en" });
+    expect(u?.locale).toBe("en");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({ locale: "en" });
+  });
+
+  it("forgotPassword posts the email and resolves on 200", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await expect(forgotPassword("a@b.c")).resolves.toBeUndefined();
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/auth/password/forgot");
+    expect(JSON.parse(String(init?.body))).toEqual({ email: "a@b.c" });
+  });
+
+  it("resetPassword stores the token on success and returns null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user, access_token: "tok-9" }));
+    const sess = await resetPassword("tok", "newpassword1");
+    expect(sess?.access_token).toBe("tok-9");
+    expect(getAccessToken()).toBe("tok-9");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user }));
+    await expect(resetPassword("tok", "newpassword1")).resolves.toBeNull();
   });
 });
 

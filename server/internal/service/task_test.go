@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -22,7 +23,7 @@ func taskFixture(t *testing.T) (*TaskService, *capturePublisher, db.User, db.Use
 	q := db.New(pool)
 	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(q)
-	ws := NewWorkspaceService(pool, q, orgs)
+	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	ctx := context.Background()
 	ua := registerVerified(t, q, as, "a@example.com", "A")
 	ub := registerVerified(t, q, as, "b@example.com", "B")

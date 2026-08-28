@@ -20,6 +20,7 @@ type RegistryOptions struct {
 type Registry struct {
 	Gatherer prometheus.Gatherer
 	HTTP     *HTTPMetrics
+	Emails   *prometheus.CounterVec
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -44,9 +45,16 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
 	}
 
+	emails := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "uniwork_emails_total",
+		Help: "Outbox delivery outcomes by kind.",
+	}, []string{"kind", "result"})
+	reg.MustRegister(emails)
+
 	return &Registry{
 		Gatherer: reg,
 		HTTP:     httpMetrics,
+		Emails:   emails,
 	}
 }
 

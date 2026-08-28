@@ -50,7 +50,7 @@ for (const mode of ["light", "dark"] as const) {
     await page.getByLabel("Email đồng nghiệp").fill("contrast@example.com");
     await page.keyboard.press("Enter");
     await page.getByRole("button", { name: "Gửi lời mời" }).click();
-    await page.getByRole("button", { name: "Sao chép" }).first().waitFor();
+    await page.getByText("Đã gửi email").first().waitFor();
     await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
     const step4 = await auditText(page);
     expect(step4.fails, `bước "Mời" (${mode}): ${step4.fails.join(" | ")}`).toEqual([]);

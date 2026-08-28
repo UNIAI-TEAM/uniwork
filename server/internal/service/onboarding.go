@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/service/templates"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -21,13 +23,15 @@ var validCompletionPaths = map[string]bool{"": true, "full": true, "invite_skipp
 	"skip_existing": true, "invite_accept": true}
 
 type OnboardingService struct {
-	q   *db.Queries
-	ws  *WorkspaceService
-	pub EventPublisher
+	q      *db.Queries
+	ws     *WorkspaceService
+	pub    EventPublisher
+	render mail.Renderer
+	out    mail.Enqueuer
 }
 
-func NewOnboardingService(q *db.Queries, ws *WorkspaceService, pub EventPublisher) *OnboardingService {
-	return &OnboardingService{q: q, ws: ws, pub: pub}
+func NewOnboardingService(q *db.Queries, ws *WorkspaceService, pub EventPublisher, r mail.Renderer, out mail.Enqueuer) *OnboardingService {
+	return &OnboardingService{q: q, ws: ws, pub: pub, render: r, out: out}
 }
 
 // questionnaire chỉ validate shape; server không suy diễn gì từ nội dung.
@@ -90,7 +94,44 @@ func (s *OnboardingService) Complete(ctx context.Context, userID, path, workspac
 			return db.User{}, err
 		}
 	}
-	return s.q.MarkUserOnboarded(ctx, userID)
+	before, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return db.User{}, err
+	}
+	first := !before.OnboardedAt.Valid
+	u, err := s.q.MarkUserOnboarded(ctx, userID)
+	if err != nil {
+		return db.User{}, err
+	}
+	if first && (path == "full" || path == "invite_accept") && workspaceID != "" {
+		s.sendWelcome(ctx, u, workspaceID)
+	}
+	return u, nil
+}
+
+// sendWelcome queues the welcome mail. Complete already guards this to the
+// user's first-ever onboarding via onboarded_at, so no extra dedup check
+// against the (prunable) emails table is needed here. Failures are logged:
+// onboarding must not fail because of a greeting.
+func (s *OnboardingService) sendWelcome(ctx context.Context, u db.User, workspaceID string) {
+	view, err := s.ws.GetView(ctx, u.ID, workspaceID)
+	if err != nil {
+		slog.Warn("welcome mail: workspace view", "user", u.ID, "err", err)
+		return
+	}
+	msg, err := s.render.Welcome(u.Email, u.Locale, u.ID, mail.WelcomeData{
+		DisplayName: u.DisplayName, WorkspaceName: view.Name,
+		WorkspaceURL: s.render.AppURL + "/" + view.OrganizationSlug + "/" + view.Slug,
+	})
+	if err != nil {
+		slog.Warn("welcome mail: render", "user", u.ID, "err", err)
+		return
+	}
+	if _, err := s.out.Enqueue(ctx, s.q, msg); err != nil {
+		slog.Warn("welcome mail: enqueue", "user", u.ID, "err", err)
+		return
+	}
+	s.out.Kick()
 }
 
 // SeedWelcomeTask: đúng 1 task hướng dẫn / (workspace, user); lần 2 trả task cũ.

@@ -39,8 +39,19 @@ func TestMetricsServerCanBindLoopback(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("/metrics status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
+	registry.Emails.WithLabelValues("welcome", "sent").Inc()
+
+	resp2, err := http.Get("http://" + ln.Addr().String() + "/metrics")
+	if err != nil {
+		t.Fatalf("get /metrics: %v", err)
+	}
+	defer resp2.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), "uniwork_build_info") {
 		t.Fatalf("/metrics body missing build info: %s", body)
+	}
+	body2, _ := io.ReadAll(resp2.Body)
+	if !strings.Contains(string(body2), `uniwork_emails_total{kind="welcome",result="sent"} 1`) {
+		t.Fatalf("/metrics body missing emails counter: %s", body2)
 	}
 }

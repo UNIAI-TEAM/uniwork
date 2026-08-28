@@ -45,6 +45,8 @@ function builderTemplates(): string[] {
     paths.register(),
     paths.verify(),
     paths.authCallback(),
+    paths.forgotPassword(),
+    paths.resetPassword(),
     paths.onboarding(),
     paths.newWorkspace(),
     paths.invitations(),

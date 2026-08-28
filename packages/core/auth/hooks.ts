@@ -94,10 +94,22 @@ export function useAuthProviders() {
 
 export function usePatchMe() {
   return useMutation({
-    mutationFn: (displayName: string) => auth.patchMe({ display_name: displayName }),
+    mutationFn: (body: { display_name?: string; locale?: "vi" | "en" }) => auth.patchMe(body),
     onSuccess: (user) => {
       if (user) setSessionUser(user);
     },
+  });
+}
+
+export function useForgotPassword() {
+  return useMutation({ mutationFn: (email: string) => auth.forgotPassword(email) });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: async ({ token, password }: { token: string; password: string }) =>
+      requireSession(await auth.resetPassword(token, password)),
+    onSuccess: (sess) => setSessionUser(sess.user),
   });
 }
 

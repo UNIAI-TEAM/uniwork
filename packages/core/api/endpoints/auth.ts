@@ -57,7 +57,7 @@ export async function me(): Promise<User | null> {
     ?.user ?? null;
 }
 
-export async function patchMe(body: { display_name: string }): Promise<User | null> {
+export async function patchMe(body: { display_name?: string; locale?: "vi" | "en" }): Promise<User | null> {
   const raw = await request("/api/v1/me", { method: "PATCH", body });
   return parseWithFallback<{ user: User } | null>(raw, UserResponse, null, {
     endpoint: "PATCH /api/v1/me",
@@ -102,6 +102,23 @@ export async function verifyEmail(code: string): Promise<User | null> {
 
 export async function resendVerification(): Promise<void> {
   await request("/api/v1/me/email/resend", { method: "POST" });
+}
+
+export async function forgotPassword(email: string): Promise<void> {
+  await request("/api/v1/auth/password/forgot", { method: "POST", body: { email }, skipRefresh: true });
+}
+
+export async function resetPassword(token: string, password: string): Promise<SessionResponse | null> {
+  const raw = await request("/api/v1/auth/password/reset", {
+    method: "POST",
+    body: { token, password },
+    skipRefresh: true,
+  });
+  const sess = parseWithFallback<SessionResponse | null>(raw, SessionResponseSchema, null, {
+    endpoint: "POST /api/v1/auth/password/reset",
+  });
+  setAccessToken(sess?.access_token ?? null);
+  return sess;
 }
 
 /** Which third-party sign-ins this deployment offers; every provider off on drift. */

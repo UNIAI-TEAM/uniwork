@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"net/mail"
+	netmail "net/mail"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -26,13 +27,15 @@ type WorkspaceView struct {
 }
 
 type WorkspaceService struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
-	orgs *OrganizationService
+	pool   *pgxpool.Pool
+	q      *db.Queries
+	orgs   *OrganizationService
+	render mail.Renderer
+	out    mail.Enqueuer
 }
 
-func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *WorkspaceService {
-	return &WorkspaceService{pool: pool, q: q, orgs: orgs}
+func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, r mail.Renderer, out mail.Enqueuer) *WorkspaceService {
+	return &WorkspaceService{pool: pool, q: q, orgs: orgs, render: r, out: out}
 }
 
 func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
@@ -292,6 +295,14 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 	if len(emails) > maxInviteBatch {
 		return nil, nil, Invalid("tối đa 50 email mỗi lần")
 	}
+	inviter, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, nil, err
+	}
 	members, err := s.q.ListWorkspaceMembers(ctx, workspaceID)
 	if err != nil {
 		return nil, nil, err
@@ -309,7 +320,7 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 			continue
 		}
 		seen[email] = true
-		if _, perr := mail.ParseAddress(email); perr != nil || isMember[email] {
+		if _, perr := netmail.ParseAddress(email); perr != nil || isMember[email] {
 			skipped = append(skipped, email)
 			continue
 		}
@@ -322,6 +333,19 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 			return nil, nil, err
 		}
 		invs = append(invs, inv)
+		msg, err := s.render.Invite(email, inviter.Locale, mail.InviteData{
+			InviterName: inviter.DisplayName, WorkspaceName: ws.Name,
+			AcceptURL: s.render.AppURL + "/invite/" + inv.Token, ExpiresInDays: 7,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, err := s.out.Enqueue(ctx, s.q, msg); err != nil {
+			return nil, nil, err
+		}
+	}
+	if len(invs) > 0 {
+		s.out.Kick()
 	}
 	return invs, skipped, nil
 }

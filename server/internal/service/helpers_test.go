@@ -13,7 +13,7 @@ import (
 func registerVerified(t *testing.T, q *db.Queries, as *AuthService, email, name string) db.User {
 	t.Helper()
 	ctx := context.Background()
-	s, err := as.Register(ctx, email, "password123", name)
+	s, err := as.Register(ctx, email, "password123", name, "vi")
 	if err != nil {
 		t.Fatal(err)
 	}

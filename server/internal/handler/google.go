@@ -74,7 +74,7 @@ func (h *handlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 		h.redirectLoginError(w, r, "google_failed")
 		return
 	}
-	sess, err := h.GoogleAuth.SignIn(r.Context(), claims)
+	sess, err := h.GoogleAuth.SignIn(r.Context(), claims, requestLocale(r))
 	switch {
 	case errors.Is(err, service.ErrEmailUnverified):
 		h.redirectLoginError(w, r, "google_unverified")

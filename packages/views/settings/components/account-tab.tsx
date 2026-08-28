@@ -37,7 +37,7 @@ export function AccountTab() {
 
   const saveProfile = useCallback(
     async (name: string) => {
-      const updated = await patchMe.mutateAsync(name);
+      const updated = await patchMe.mutateAsync({ display_name: name });
       if (!updated) throw new Error(t("profile.toastFailed"));
     },
     [patchMe, t],

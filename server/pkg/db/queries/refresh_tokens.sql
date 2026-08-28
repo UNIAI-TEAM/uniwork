@@ -9,3 +9,6 @@ WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now();
 
 -- name: RevokeRefreshToken :exec
 UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1;
+
+-- name: RevokeAllRefreshTokensForUser :exec
+UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;

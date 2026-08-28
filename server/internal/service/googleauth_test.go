@@ -22,7 +22,7 @@ func newGoogleFixture(t *testing.T) (*GoogleAuthService, *AuthService, *db.Queri
 func TestGoogleSignInCreatesVerifiedUserWithoutPassword(t *testing.T) {
 	g, as, _ := newGoogleFixture(t)
 	ctx := context.Background()
-	sess, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-1", Email: "New@Example.com", EmailVerified: true, Name: "Ngọc", Picture: "https://img/p.png"})
+	sess, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-1", Email: "New@Example.com", EmailVerified: true, Name: "Ngọc", Picture: "https://img/p.png"}, "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestGoogleSignInCreatesVerifiedUserWithoutPassword(t *testing.T) {
 		t.Fatal("no session tokens")
 	}
 	// Signing in again finds the same account by google_id.
-	again, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-1", Email: "other@example.com", EmailVerified: true})
+	again, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-1", Email: "other@example.com", EmailVerified: true}, "vi")
 	if err != nil || again.User.ID != u.ID {
 		t.Fatalf("second sign-in: id=%s err=%v", again.User.ID, err)
 	}
@@ -49,14 +49,14 @@ func TestGoogleSignInCreatesVerifiedUserWithoutPassword(t *testing.T) {
 func TestGoogleSignInLinksExistingPasswordAccountByEmail(t *testing.T) {
 	g, as, _ := newGoogleFixture(t)
 	ctx := context.Background()
-	reg, err := as.Register(ctx, "link@example.com", "password123", "Link")
+	reg, err := as.Register(ctx, "link@example.com", "password123", "Link", "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if reg.User.EmailVerifiedAt.Valid {
 		t.Fatal("password user starts unverified")
 	}
-	sess, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-2", Email: "LINK@example.com", EmailVerified: true, Name: "Ignored", Picture: "https://img/a.png"})
+	sess, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-2", Email: "LINK@example.com", EmailVerified: true, Name: "Ignored", Picture: "https://img/a.png"}, "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,24 +76,24 @@ func TestGoogleSignInLinksExistingPasswordAccountByEmail(t *testing.T) {
 func TestGoogleSignInRejectsUnverifiedEmailAndForeignLink(t *testing.T) {
 	g, _, q := newGoogleFixture(t)
 	ctx := context.Background()
-	if _, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-3", Email: "u@example.com", EmailVerified: false}); err != ErrEmailUnverified {
+	if _, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-3", Email: "u@example.com", EmailVerified: false}, "vi"); err != ErrEmailUnverified {
 		t.Fatalf("unverified google email: want ErrEmailUnverified, got %v", err)
 	}
-	if _, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-4", Email: "", EmailVerified: true}); err != ErrEmailUnverified {
+	if _, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-4", Email: "", EmailVerified: true}, "vi"); err != ErrEmailUnverified {
 		t.Fatalf("empty email: want ErrEmailUnverified, got %v", err)
 	}
 	// An account already linked to a different Google subject is not re-linked.
 	if _, err := q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{ID: "01LINKED", Email: "taken@example.com", DisplayName: "T", GoogleID: pgtype.Text{String: "sub-5", Valid: true}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-6", Email: "taken@example.com", EmailVerified: true}); err != ErrConflict {
+	if _, err := g.SignIn(ctx, GoogleClaims{Sub: "sub-6", Email: "taken@example.com", EmailVerified: true}, "vi"); err != ErrConflict {
 		t.Fatalf("foreign link: want ErrConflict, got %v", err)
 	}
 }
 
 func TestGoogleSignInFallsBackToEmailLocalPartForName(t *testing.T) {
 	g, _, _ := newGoogleFixture(t)
-	sess, err := g.SignIn(context.Background(), GoogleClaims{Sub: "sub-7", Email: "minh.anh@example.com", EmailVerified: true})
+	sess, err := g.SignIn(context.Background(), GoogleClaims{Sub: "sub-7", Email: "minh.anh@example.com", EmailVerified: true}, "vi")
 	if err != nil {
 		t.Fatal(err)
 	}

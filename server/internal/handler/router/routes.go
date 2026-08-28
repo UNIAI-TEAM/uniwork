@@ -10,6 +10,8 @@ type Routes struct {
 
 	Register       http.HandlerFunc
 	Login          http.HandlerFunc
+	ForgotPassword http.HandlerFunc
+	ResetPassword  http.HandlerFunc
 	Refresh        http.HandlerFunc
 	Logout         http.HandlerFunc
 	AuthProviders  http.HandlerFunc

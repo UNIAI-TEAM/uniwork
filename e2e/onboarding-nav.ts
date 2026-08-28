@@ -61,7 +61,7 @@ export async function walkOnboarding(
   await page.getByLabel("Email đồng nghiệp").fill(`invitee-${run.stamp}@example.com`);
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Gửi lời mời" }).click();
-  await page.getByRole("button", { name: "Sao chép" }).first().waitFor();
+  await page.getByText("Đã gửi email").first().waitFor();
   await visit("invite", run);
 }
 
@@ -89,11 +89,11 @@ export async function reachStep(page: Page, target: OnboardingStepName, tag: str
   await page.getByRole("heading", { name: /Mời đồng nghiệp/ }).waitFor();
 
   // Chip trước, rồi gửi: chip dựng ra nút xoá của mỗi chip, còn lần gửi dựng ra
-  // danh sách `InviteRow` với nút sao chép. Cả hai đều là vùng chạm và điểm
+  // danh sách `InviteRow` với dòng "Đã gửi email". Cả hai đều là vùng chạm và điểm
   // dừng Tab mà không spec nào từng chạm tới.
   await page.getByLabel("Email đồng nghiệp").fill(`invitee-${run.stamp}@example.com`);
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Gửi lời mời" }).click();
-  await page.getByRole("button", { name: "Sao chép" }).first().waitFor();
+  await page.getByText("Đã gửi email").first().waitFor();
   return run;
 }
