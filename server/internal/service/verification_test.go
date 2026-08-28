@@ -64,7 +64,7 @@ func newVerificationFixture(t *testing.T, devCode string) verificationFixture {
 
 func (f verificationFixture) registered(t *testing.T) db.User {
 	t.Helper()
-	sess, err := f.auth.Register(context.Background(), "v@example.com", "password123", "V")
+	sess, err := f.auth.Register(context.Background(), "v@example.com", "password123", "V", "vi")
 	if err != nil {
 		t.Fatal(err)
 	}

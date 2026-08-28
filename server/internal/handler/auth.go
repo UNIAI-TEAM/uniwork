@@ -15,8 +15,16 @@ import (
 
 const refreshCookie = "uniwork_refresh"
 
+// requestLocale: cookie uniwork-locale (frontend ghi) rồi Accept-Language; mặc định vi.
+func requestLocale(r *http.Request) string {
+	if c, err := r.Cookie("uniwork-locale"); err == nil && c.Value != "" {
+		return service.NormalizeLocale(c.Value)
+	}
+	return service.NormalizeLocale(r.Header.Get("Accept-Language"))
+}
+
 func toUserDTO(u db.User) sdo.UserDTO {
-	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, OnboardingQuestionnaire: json.RawMessage("{}")}
+	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, OnboardingQuestionnaire: json.RawMessage("{}")}
 	if u.AvatarUrl.Valid {
 		out.AvatarURL = u.AvatarUrl.String
 	}
@@ -54,7 +62,7 @@ func (h *handlers) register(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	sess, err := h.Auth.Register(r.Context(), in.Email, in.Password, in.DisplayName)
+	sess, err := h.Auth.Register(r.Context(), in.Email, in.Password, in.DisplayName, requestLocale(r))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -111,11 +119,7 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	if in.DisplayName == nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "display_name is required")
-		return
-	}
-	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), *in.DisplayName)
+	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), in.DisplayName, in.Locale)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

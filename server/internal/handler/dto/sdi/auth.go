@@ -16,6 +16,7 @@ type LoginSDI struct {
 // PatchMeSDI is PATCH /api/v1/me.
 type PatchMeSDI struct {
 	DisplayName *string `json:"display_name" description:"Tên hiển thị mới" example:"Nguyễn Văn An"`
+	Locale      *string `json:"locale" description:"Ngôn ngữ email: vi hoặc en" example:"vi"`
 }
 
 // UploadAvatarSDI is POST /api/v1/me/avatar (multipart).

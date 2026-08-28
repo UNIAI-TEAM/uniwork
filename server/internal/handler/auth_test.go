@@ -218,3 +218,41 @@ func TestAuthProvidersReflectsGoogleConfig(t *testing.T) {
 		t.Fatalf("providers without google: %d %v", res.StatusCode, out)
 	}
 }
+
+func TestRegisterPicksLocaleFromCookieThenAcceptLanguage(t *testing.T) {
+	srv := newTestServer(t)
+	body, _ := json.Marshal(map[string]string{"email": "loc@example.com", "password": "password123", "display_name": "L"})
+	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/auth/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out map[string]any
+	_ = json.NewDecoder(res.Body).Decode(&out)
+	if got := out["user"].(map[string]any)["locale"]; got != "en" {
+		t.Fatalf("locale from Accept-Language: want en, got %v", got)
+	}
+
+	body, _ = json.Marshal(map[string]string{"email": "loc2@example.com", "password": "password123", "display_name": "L"})
+	req, _ = http.NewRequest("POST", srv.URL+"/api/v1/auth/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept-Language", "en")
+	req.AddCookie(&http.Cookie{Name: "uniwork-locale", Value: "vi"})
+	res, _ = http.DefaultClient.Do(req)
+	_ = json.NewDecoder(res.Body).Decode(&out)
+	if got := out["user"].(map[string]any)["locale"]; got != "vi" {
+		t.Fatalf("cookie wins: want vi, got %v", got)
+	}
+	token := out["access_token"].(string)
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/me", token, map[string]string{"locale": "en"})
+	if res.StatusCode != 200 || out["user"].(map[string]any)["locale"] != "en" {
+		t.Fatalf("patch locale: %d %v", res.StatusCode, out)
+	}
+	res, _ = doJSON(t, srv, "PATCH", "/api/v1/me", token, map[string]string{"locale": "fr"})
+	if res.StatusCode != 400 {
+		t.Fatalf("unsupported locale must be 400, got %d", res.StatusCode)
+	}
+}

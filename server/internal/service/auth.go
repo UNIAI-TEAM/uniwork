@@ -38,7 +38,15 @@ type Session struct {
 	RefreshExpiresAt time.Time
 }
 
-func (s *AuthService) Register(ctx context.Context, email, password, displayName string) (Session, error) {
+// NormalizeLocale maps any tag to a mail locale we have templates for.
+func NormalizeLocale(s string) string {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(s)), "en") {
+		return "en"
+	}
+	return "vi"
+}
+
+func (s *AuthService) Register(ctx context.Context, email, password, displayName, locale string) (Session, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !strings.Contains(email, "@") || len(email) < 5 {
 		return Session{}, Invalid("email không hợp lệ")
@@ -55,7 +63,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	}
 	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
 		ID: util.NewID(), Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
-		Locale: "vi",
+		Locale: NormalizeLocale(locale),
 	})
 	if isUniqueViolation(err) {
 		return Session{}, ErrConflict
@@ -121,20 +129,42 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 
 const maxDisplayNameRunes = 100
 
-// UpdateProfile changes the caller's display name.
-func (s *AuthService) UpdateProfile(ctx context.Context, userID, displayName string) (db.User, error) {
-	name := strings.TrimSpace(displayName)
-	if name == "" {
-		return db.User{}, Invalid("tên hiển thị không được để trống")
+// UpdateProfile changes display name and/or mail locale; nil leaves a field alone.
+func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale *string) (db.User, error) {
+	if displayName == nil && locale == nil {
+		return db.User{}, Invalid("cần display_name hoặc locale")
 	}
-	if utf8.RuneCountInString(name) > maxDisplayNameRunes {
-		return db.User{}, Invalid("tên hiển thị quá dài")
+	var u db.User
+	var err error
+	if displayName != nil {
+		name := strings.TrimSpace(*displayName)
+		if name == "" {
+			return db.User{}, Invalid("tên hiển thị không được để trống")
+		}
+		if utf8.RuneCountInString(name) > maxDisplayNameRunes {
+			return db.User{}, Invalid("tên hiển thị quá dài")
+		}
+		u, err = s.q.UpdateUserDisplayName(ctx, db.UpdateUserDisplayNameParams{ID: userID, DisplayName: name})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrNotFound
+		}
+		if err != nil {
+			return db.User{}, err
+		}
 	}
-	u, err := s.q.UpdateUserDisplayName(ctx, db.UpdateUserDisplayNameParams{ID: userID, DisplayName: name})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return db.User{}, ErrNotFound
+	if locale != nil {
+		if *locale != "vi" && *locale != "en" {
+			return db.User{}, Invalid("locale phải là vi hoặc en")
+		}
+		u, err = s.q.UpdateUserLocale(ctx, db.UpdateUserLocaleParams{ID: userID, Locale: *locale})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrNotFound
+		}
+		if err != nil {
+			return db.User{}, err
+		}
 	}
-	return u, err
+	return u, nil
 }
 
 // UpdateAvatar persists the URL storage returned for the user's new avatar.

@@ -32,7 +32,7 @@ func NewGoogleAuthService(q *db.Queries, auth *AuthService) *GoogleAuthService {
 // the Google subject; an account with the same (verified) email, which gets
 // linked; a new password-less account. A Google email that Google itself has
 // not verified is refused — it is the only thing that makes email linking safe.
-func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims) (Session, error) {
+func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims, locale string) (Session, error) {
 	email := strings.ToLower(strings.TrimSpace(c.Email))
 	if !c.EmailVerified || email == "" || c.Sub == "" {
 		return Session{}, ErrEmailUnverified
@@ -64,7 +64,7 @@ func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims) (Session
 		u, err := s.q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{
 			ID: util.NewID(), Email: email, DisplayName: name, AvatarUrl: avatar,
 			GoogleID: pgtype.Text{String: c.Sub, Valid: true},
-			Locale:   "vi",
+			Locale:   NormalizeLocale(locale),
 		})
 		if isUniqueViolation(err) {
 			return Session{}, ErrConflict
