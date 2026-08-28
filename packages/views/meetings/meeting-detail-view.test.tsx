@@ -58,6 +58,9 @@ describe("MeetingDetailView", () => {
   it("shows host start and cancel, and the join lobby entry", async () => {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      }
       if (p.endsWith("/members")) {
         return Promise.resolve({ members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }] });
       }
