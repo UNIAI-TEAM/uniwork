@@ -1,0 +1,39 @@
+package mail
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestVerificationCodeRendersBothLocales(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	for _, loc := range []string{"vi", "en"} {
+		m, err := r.VerificationCode("a@example.com", loc, "u1", VerificationData{Code: "123456", ExpiresInMinutes: 10})
+		if err != nil {
+			t.Fatalf("%s: %v", loc, err)
+		}
+		if m.Kind != KindVerificationCode || m.Locale != loc || m.UserID != "u1" || m.To != "a@example.com" {
+			t.Fatalf("%s: envelope %+v", loc, m)
+		}
+		if !strings.Contains(m.Subject, "123456") || strings.ContainsAny(m.Subject, "\r\n") {
+			t.Fatalf("%s: subject %q", loc, m.Subject)
+		}
+		if !strings.Contains(m.HTML, "123456") || !strings.Contains(m.Text, "123456") {
+			t.Fatalf("%s: code missing from body", loc)
+		}
+		if !strings.Contains(m.HTML, "UniWork") || !strings.Contains(m.HTML, "http://localhost:3000") {
+			t.Fatalf("%s: layout not applied", loc)
+		}
+	}
+	m, _ := r.VerificationCode("a@example.com", "fr", "", VerificationData{Code: "1", ExpiresInMinutes: 1})
+	if m.Locale != "vi" {
+		t.Fatalf("unknown locale must fall back to vi, got %q", m.Locale)
+	}
+}
+
+func TestSafeFieldStripsControlAndCaps(t *testing.T) {
+	got := SafeField("Acme\r\nBcc: x@y.z " + strings.Repeat("a", 100))
+	if strings.ContainsAny(got, "\r\n") || len([]rune(got)) > 60 {
+		t.Fatalf("got %q", got)
+	}
+}

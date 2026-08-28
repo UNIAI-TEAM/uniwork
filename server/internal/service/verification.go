@@ -71,7 +71,7 @@ func (s *VerificationService) Send(ctx context.Context, userID string) error {
 	if err != nil {
 		return err
 	}
-	msg, err := mail.VerificationCode(u.Email, code, int(verificationCodeTTL/time.Minute))
+	msg, err := mail.Renderer{}.VerificationCode(u.Email, u.Locale, u.ID, mail.VerificationData{Code: code, ExpiresInMinutes: int(verificationCodeTTL / time.Minute)})
 	if err != nil {
 		return err
 	}

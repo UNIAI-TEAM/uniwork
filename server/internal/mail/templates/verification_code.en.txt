@@ -1,0 +1,5 @@
+Subject: {{.Data.Code}} is your UniWork verification code
+
+Your UniWork verification code: {{.Data.Code}}
+
+The code expires in {{.Data.ExpiresInMinutes}} minutes. If you did not sign up for UniWork, ignore this email.

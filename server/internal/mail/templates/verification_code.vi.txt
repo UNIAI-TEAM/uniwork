@@ -1,0 +1,5 @@
+Subject: {{.Data.Code}} là mã xác thực UniWork của bạn
+
+Mã xác thực email UniWork của bạn: {{.Data.Code}}
+
+Mã hết hạn sau {{.Data.ExpiresInMinutes}} phút. Nếu bạn không đăng ký UniWork, bỏ qua email này.

@@ -1,0 +1,6 @@
+{{define "content"}}
+<tr><td style="font-size:15px;line-height:1.5;padding-bottom:16px">Mã xác thực email của bạn:</td></tr>
+<tr><td style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:SFMono-Regular,Menlo,Consolas,monospace;padding-bottom:16px">{{.Data.Code}}</td></tr>
+<tr><td style="font-size:13px;line-height:1.5;color:#555">Mã hết hạn sau {{.Data.ExpiresInMinutes}} phút. Nếu bạn không đăng ký UniWork, bỏ qua email này.</td></tr>
+{{end}}
+{{define "footer"}}Bạn nhận email này vì vừa đăng ký UniWork.{{end}}

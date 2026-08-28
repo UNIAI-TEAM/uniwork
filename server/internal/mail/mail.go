@@ -9,7 +9,17 @@ import (
 	"log/slog"
 )
 
+const (
+	KindVerificationCode = "verification_code"
+	KindPasswordReset    = "password_reset"
+	KindWorkspaceInvite  = "workspace_invite"
+	KindWelcome          = "welcome"
+)
+
 type Message struct {
+	Kind    string // Kind* constants
+	Locale  string // "vi" | "en"
+	UserID  string // "" when the recipient has no account (invites)
 	To      string
 	Subject string
 	HTML    string
@@ -50,6 +60,6 @@ func (s LogSender) Send(_ context.Context, msg Message) error {
 	if log == nil {
 		log = slog.Default()
 	}
-	log.Info("mail not configured, printing message", "to", msg.To, "subject", msg.Subject, "text", msg.Text)
+	log.Info("mail not configured, printing message", "kind", msg.Kind, "to", msg.To, "subject", msg.Subject, "text", msg.Text)
 	return nil
 }

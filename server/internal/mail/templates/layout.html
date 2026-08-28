@@ -1,0 +1,17 @@
+{{define "layout"}}<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f5f5f7;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px">
+      <tr><td style="padding-bottom:20px">
+        <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+          <td style="width:32px;height:32px;border-radius:8px;background:#3C83F6;text-align:center;vertical-align:middle;color:#fff;font-size:16px;line-height:32px">&#10022;</td>
+          <td style="padding-left:10px;font-size:18px;font-weight:700;letter-spacing:-0.01em">UniWork</td>
+        </tr></table>
+      </td></tr>
+      {{template "content" .}}
+      <tr><td style="padding-top:24px;font-size:12px;line-height:1.5;color:#888;border-top:1px solid #eee">
+        {{template "footer" .}} <a href="{{.AppURL}}" style="color:#888">{{.AppURL}}</a>
+      </td></tr>
+    </table>
+  </body>
+</html>{{end}}

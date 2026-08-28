@@ -1,3 +1,0 @@
-Mã xác thực email UniWork của bạn: {{.Code}}
-
-Mã hết hạn sau {{.ExpiresInMinutes}} phút. Nếu bạn không đăng ký UniWork, bỏ qua email này.
