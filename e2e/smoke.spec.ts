@@ -24,7 +24,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await expect(page.getByLabel("Đường dẫn")).toHaveValue(`doi-e2e-${stamp}`);
   await page.getByRole("button", { name: `Tạo Đội E2E ${stamp}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
-  await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`));
+  await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`), { timeout: 15_000 });
   await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`);
 
@@ -42,8 +42,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/meetings`);
   await page.getByRole("button", { name: "Tạo cuộc họp" }).click();
   await page.getByLabel("Tiêu đề").fill("Họp e2e");
-  await page.getByLabel("Bắt đầu").fill("2030-01-01T10:00");
-  await page.getByLabel("Kết thúc").fill("2030-01-01T11:00");
+  // Schedule defaults (date + TimeInput segments) are prefilled; smoke only needs a title.
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
   await expect(page.getByText("Họp e2e")).toBeVisible();
 

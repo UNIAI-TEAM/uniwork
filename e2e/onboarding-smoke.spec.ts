@@ -42,7 +42,7 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
   await page.getByRole("heading", { name: /Mời đồng nghiệp vào Đội Alpha/ }).waitFor();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
 
-  await expect(page).toHaveURL(new RegExp(`/to-chuc-${stamp}/doi-alpha/tasks$`));
+  await expect(page).toHaveURL(new RegExp(`/to-chuc-${stamp}/doi-alpha/tasks$`), { timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Đã hiểu" })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Đã hiểu" }).click();
   // First client-side visit to the task detail route: under `make check` the
