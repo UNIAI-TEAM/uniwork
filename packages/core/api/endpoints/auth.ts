@@ -57,7 +57,7 @@ export async function me(): Promise<User | null> {
     ?.user ?? null;
 }
 
-export async function patchMe(body: { display_name: string }): Promise<User | null> {
+export async function patchMe(body: { display_name?: string; locale?: "vi" | "en" }): Promise<User | null> {
   const raw = await request("/api/v1/me", { method: "PATCH", body });
   return parseWithFallback<{ user: User } | null>(raw, UserResponse, null, {
     endpoint: "PATCH /api/v1/me",

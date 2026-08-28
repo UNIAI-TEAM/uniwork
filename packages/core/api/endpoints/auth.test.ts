@@ -83,6 +83,13 @@ describe("auth endpoints", () => {
     await expect(patchMe({ display_name: "B" })).resolves.toBeNull();
   });
 
+  it("patchMe sends locale alone", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user: { ...user, locale: "en" } }));
+    const u = await patchMe({ locale: "en" });
+    expect(u?.locale).toBe("en");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({ locale: "en" });
+  });
+
   it("forgotPassword posts the email and resolves on 200", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
     await expect(forgotPassword("a@b.c")).resolves.toBeUndefined();
