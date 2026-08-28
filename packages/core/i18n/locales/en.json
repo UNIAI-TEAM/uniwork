@@ -38,7 +38,27 @@
     "wordmark": "UniWork",
     "railTagline": "People and AI co-own the work.",
     "forgotPassword": "Forgot your password?",
-    "forgotPasswordHelp": "Ask a workspace owner or admin to reset it — UniWork has no self-service reset yet.",
+    "forgot": {
+      "title": "Forgot password",
+      "subtitle": "Enter your account email and we will send a reset link.",
+      "submit": "Send reset link",
+      "sending": "Sending…",
+      "sentTitle": "Check your inbox",
+      "sentBody": "If {{email}} has a UniWork account, an email with a reset link is on its way. The link works for 60 minutes.",
+      "googleHint": "Signed in with Google? Use the Google button on the login page — no password needed.",
+      "backToLogin": "Back to login"
+    },
+    "reset": {
+      "title": "Set a new password",
+      "subtitle": "Choose a new password for your account.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "mismatch": "Passwords do not match",
+      "submit": "Change password",
+      "submitting": "Changing…",
+      "invalidToken": "This link has expired or was already used. Request a new one.",
+      "requestNew": "Request a new link"
+    },
     "verify": {
       "title": "Verify your email",
       "subtitle": "Enter the 6-digit code we just sent to {{email}}.",

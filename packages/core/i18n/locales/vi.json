@@ -38,7 +38,27 @@
     "wordmark": "UniWork",
     "railTagline": "Con người và AI cùng sở hữu công việc.",
     "forgotPassword": "Quên mật khẩu?",
-    "forgotPasswordHelp": "Nhờ chủ sở hữu hoặc quản trị viên workspace đặt lại giúp — UniWork chưa có tự đặt lại mật khẩu.",
+    "forgot": {
+      "title": "Quên mật khẩu",
+      "subtitle": "Nhập email tài khoản, chúng tôi sẽ gửi link đặt lại.",
+      "submit": "Gửi link đặt lại",
+      "sending": "Đang gửi…",
+      "sentTitle": "Kiểm tra hộp thư",
+      "sentBody": "Nếu {{email}} có tài khoản UniWork, một email kèm link đặt lại mật khẩu đã được gửi. Link có hiệu lực 60 phút.",
+      "googleHint": "Đăng nhập bằng Google? Dùng nút Google ở trang đăng nhập, không cần mật khẩu.",
+      "backToLogin": "Về trang đăng nhập"
+    },
+    "reset": {
+      "title": "Đặt mật khẩu mới",
+      "subtitle": "Chọn mật khẩu mới cho tài khoản của bạn.",
+      "newPassword": "Mật khẩu mới",
+      "confirmPassword": "Nhập lại mật khẩu",
+      "mismatch": "Hai mật khẩu chưa khớp",
+      "submit": "Đổi mật khẩu",
+      "submitting": "Đang đổi…",
+      "invalidToken": "Link đã hết hạn hoặc đã dùng. Yêu cầu link mới.",
+      "requestNew": "Yêu cầu link mới"
+    },
     "verify": {
       "title": "Xác thực email",
       "subtitle": "Nhập mã 6 số vừa gửi tới {{email}}.",

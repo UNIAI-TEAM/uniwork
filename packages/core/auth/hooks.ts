@@ -101,6 +101,18 @@ export function usePatchMe() {
   });
 }
 
+export function useForgotPassword() {
+  return useMutation({ mutationFn: (email: string) => auth.forgotPassword(email) });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: async ({ token, password }: { token: string; password: string }) =>
+      requireSession(await auth.resetPassword(token, password)),
+    onSuccess: (sess) => setSessionUser(sess.user),
+  });
+}
+
 export function useUploadAvatar() {
   return useMutation({
     mutationFn: (file: File) => auth.uploadAvatar(file),
