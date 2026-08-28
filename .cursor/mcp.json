@@ -6,6 +6,16 @@
         "-y",
         "chrome-devtools-mcp@latest"
       ]
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "codegraph",
+      "args": [
+        "serve",
+        "--mcp",
+        "--path",
+        "/Users/nguyencaothin/Documents/work/unicom/uniwork"
+      ]
     }
   }
 }

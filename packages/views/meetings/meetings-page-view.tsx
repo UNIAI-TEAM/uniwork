@@ -1,9 +1,10 @@
 "use client";
 import { CalendarDays } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { splitMeetings, useMeetings } from "@uniwork/core/meetings";
+import { splitMeetings, useCreateInstantMeeting, useMeetings } from "@uniwork/core/meetings";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import type { Meeting } from "@uniwork/core/types";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { NewMeetingDialog } from "./new-meeting-dialog";
 
@@ -36,6 +37,7 @@ export function MeetingsPageView({
   const { t } = useTranslation();
   useWorkspaceEvents(workspaceId);
   const { data: meetings, isFetched } = useMeetings(workspaceId);
+  const instant = useCreateInstantMeeting(workspaceId);
   const { upcoming, past } = splitMeetings(meetings ?? [], new Date());
   const isEmpty = isFetched && (meetings?.length ?? 0) === 0;
 
@@ -45,7 +47,19 @@ export function MeetingsPageView({
         icon={CalendarDays}
         title={t("meetings.title")}
         count={meetings?.length}
-        actions={<NewMeetingDialog workspaceId={workspaceId} />}
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={instant.isPending}
+              onClick={() => instant.mutate(undefined, { onSuccess: (m) => m && onOpen(m.id) })}
+            >
+              {t("meetings.instant")}
+            </Button>
+            <NewMeetingDialog workspaceId={workspaceId} />
+          </>
+        }
       />
       {isEmpty ? (
         <CollectionPageState

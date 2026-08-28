@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -23,7 +24,16 @@ func meetingFixture(t *testing.T) (*MeetingService, db.User, db.User, db.Workspa
 	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
 	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
 	w := v.Workspace
-	return NewMeetingService(q, ws, NopPublisher{}), ua, ub, w
+	return NewMeetingService(pool, q, ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: 2 * time.Minute, HMACKey: []byte("t")}), ua, ub, w
+}
+
+func addMember(t *testing.T, s *MeetingService, workspaceID, userID string) {
+	t.Helper()
+	if err := s.q.AddWorkspaceMember(context.Background(), db.AddWorkspaceMemberParams{
+		WorkspaceID: workspaceID, UserID: userID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestMeetingCRUD(t *testing.T) {
@@ -37,7 +47,7 @@ func TestMeetingCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(m.RoomName, "uniwork-") {
+	if !strings.HasPrefix(m.RoomName, "uw_mtg_") {
 		t.Fatalf("room_name = %q", m.RoomName)
 	}
 	// EndsAt trước StartsAt → lỗi
@@ -68,7 +78,8 @@ func TestMeetingCRUD(t *testing.T) {
 	if err := s.Delete(ctx, ua.ID, m.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Get(ctx, ua.ID, m.ID); err != ErrNotFound {
-		t.Fatalf("after delete: %v", err)
+	got, err := s.Get(ctx, ua.ID, m.ID)
+	if err != nil || got.Status != MeetingCanceled {
+		t.Fatalf("after cancel: %+v %v", got, err)
 	}
 }

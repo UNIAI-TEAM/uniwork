@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uidx_meeting_participants_active_guest ON meeting_participants (meeting_id, guest_id) WHERE status = 'ACTIVE' AND principal_type = 'GUEST' AND guest_id IS NOT NULL;

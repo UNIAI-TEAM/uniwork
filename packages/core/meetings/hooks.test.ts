@@ -24,4 +24,12 @@ describe("splitMeetings", () => {
     expect(upcoming.map((m) => m.id)).toEqual(["a", "b"]);
     expect(past.map((m) => m.id)).toEqual(["d", "c"]);
   });
+
+  it("treats ENDED and CANCELED as past even if ends_at is in the future", () => {
+    const now = new Date("2026-08-24T12:00:00Z");
+    const ended = { ...mk("e", "2026-08-24T13:00:00Z", "2026-08-24T14:00:00Z"), status: "ENDED" };
+    const { upcoming, past } = splitMeetings([ended], now);
+    expect(upcoming).toEqual([]);
+    expect(past.map((m) => m.id)).toEqual(["e"]);
+  });
 });

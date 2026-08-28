@@ -49,8 +49,12 @@ test("register → workspace → task → meeting", async ({ page }) => {
 
   // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
   await page.getByText("Họp e2e").click();
+  await page.getByRole("button", { name: "Bắt đầu" }).click();
   await page.getByRole("button", { name: "Vào phòng họp" }).click();
   await expect(
-    page.getByText("LiveKit chưa được cấu hình trên server").or(page.locator("[data-lk-theme]")),
+    page
+      .getByText("LiveKit chưa được cấu hình trên server")
+      .or(page.getByText("Đang chờ người chủ trì bắt đầu cuộc họp"))
+      .or(page.locator("[data-lk-theme]")),
   ).toBeVisible({ timeout: 15_000 });
 });

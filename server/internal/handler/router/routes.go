@@ -48,12 +48,35 @@ type Routes struct {
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
 
-	ListMeetings  http.HandlerFunc
-	CreateMeeting http.HandlerFunc
-	GetMeeting    http.HandlerFunc
-	UpdateMeeting http.HandlerFunc
-	DeleteMeeting http.HandlerFunc
-	ListNotes     http.HandlerFunc
-	CreateNote    http.HandlerFunc
-	MeetingToken  http.HandlerFunc
+	ListMeetings         http.HandlerFunc
+	CreateMeeting        http.HandlerFunc
+	CreateInstantMeeting http.HandlerFunc
+	GetMeeting           http.HandlerFunc
+	UpdateMeeting        http.HandlerFunc
+	DeleteMeeting        http.HandlerFunc
+	StartMeeting         http.HandlerFunc
+	EndMeeting           http.HandlerFunc
+	CancelMeeting        http.HandlerFunc
+	TransferHost         http.HandlerFunc
+	ListNotes            http.HandlerFunc
+	CreateNote           http.HandlerFunc
+	MeetingToken         http.HandlerFunc
+	JoinMeeting          http.HandlerFunc
+	ListParticipants     http.HandlerFunc
+	InviteParticipant    http.HandlerFunc
+	ListInvitations      http.HandlerFunc
+	RespondInvitation    http.HandlerFunc
+	RemoveParticipant    http.HandlerFunc
+	ListInviteLinks      http.HandlerFunc
+	CreateInviteLink     http.HandlerFunc
+	RevokeInviteLink     http.HandlerFunc
+	ResolveInviteLink    http.HandlerFunc
+	ListJoinRequests     http.HandlerFunc
+	CreateJoinRequest    http.HandlerFunc
+	ApproveJoinRequest   http.HandlerFunc
+	RejectJoinRequest    http.HandlerFunc
+	CancelJoinRequest    http.HandlerFunc
+	MeetingStatistics    http.HandlerFunc
+	MeetingActivity      http.HandlerFunc
+	LiveKitWebhook       http.HandlerFunc
 }

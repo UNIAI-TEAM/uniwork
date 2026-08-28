@@ -13,6 +13,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	meetingspkg "github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -55,7 +56,7 @@ func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Ser
 		Workspaces:    ws,
 		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}),
 		Tasks:         service.NewTaskService(q, ws, service.NopPublisher{}),
-		Meetings:      service.NewMeetingService(q, ws, service.NopPublisher{}),
+		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.
 		Storage: storage.NewLocalStorageFromEnv(),

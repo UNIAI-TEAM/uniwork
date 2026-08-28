@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import { addNote, createMeeting, deleteMeeting, getMeeting, listMeetings, listNotes, meetingToken } from "./meetings";
+import { addNote, createMeeting, deleteMeeting, getMeeting, joinMeeting, listMeetings, listNotes, meetingToken } from "./meetings";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -63,5 +63,14 @@ describe("meetings endpoints", () => {
     expect((await meetingToken("m1"))?.url).toBe("wss://lk");
     vi.mocked(fetch).mockResolvedValueOnce(json({ token: "t" }));
     await expect(meetingToken("m1")).resolves.toBeNull();
+  });
+
+  it("joinMeeting returns a decision or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      decision: "ADMIT", participant_token: "t", server_url: "wss://lk",
+    }));
+    expect((await joinMeeting("m1"))?.decision).toBe("ADMIT");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ token: "t" }));
+    await expect(joinMeeting("m1")).resolves.toBeNull();
   });
 });

@@ -81,10 +81,20 @@ export function canEditTask(_task: Task | null, ctx: PermissionContext): Decisio
 
 // ---- Meetings -----------------------------------------------------------------
 
-/**
- * Delete a meeting. Backend: MeetingService.Delete → authorize(), membership
- * only (server/internal/service/meeting.go).
- */
-export function canDeleteMeeting(ctx: PermissionContext): Decision {
-  return requireWorkspaceMember(ctx) ?? ALLOW;
+export function canDeleteMeeting(
+  meeting: { host_user_id?: string } | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  if (meeting && ctx.userId && meeting.host_user_id === ctx.userId) return ALLOW;
+  return deny("not_resource_owner", "Only the host or a workspace admin can cancel this meeting.");
+}
+
+export function canHostMeeting(
+  meeting: { host_user_id?: string } | null,
+  ctx: PermissionContext,
+): Decision {
+  return canDeleteMeeting(meeting, ctx);
 }

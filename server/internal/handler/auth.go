@@ -125,9 +125,12 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 	var ve service.ValidationError
+	var ce service.CodedError
 	switch {
 	case errors.As(err, &ve):
 		respondError(w, 400, "invalid_request", ve.Msg)
+	case errors.As(err, &ce):
+		respondError(w, ce.Status, ce.Code, ce.Msg)
 	case errors.Is(err, service.ErrNotFound):
 		respondError(w, 404, "not_found", "not found")
 	case errors.Is(err, service.ErrForbidden):

@@ -61,6 +61,12 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["meetings", "ws1"]));
   });
 
+  it("refreshes join requests on join_request.created", () => {
+    const { invalidate, client } = setup();
+    client.emit({ type: "join_request.created", payload: { meeting_id: "m1" } });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-join-requests", "m1"]));
+  });
+
   it("ignores an event this client does not know", () => {
     const { invalidate, client } = setup();
     client.emit({ type: "agent.run_started", payload: {} });

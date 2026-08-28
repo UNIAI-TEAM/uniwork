@@ -42,7 +42,7 @@ export function useWorkspacePermissions(wsId: string): {
   return {
     canInvite: canInviteMembers(ctx),
     canManageMembers: canManageMembers(ctx),
-    canDeleteMeeting: canDeleteMeeting(ctx),
+    canDeleteMeeting: canDeleteMeeting(null, ctx),
     canUpdateSettings: canUpdateWorkspaceSettings(ctx),
     isLoading,
   };
@@ -65,4 +65,15 @@ export function useOrgPermissions(orgId: string): { canCreateWorkspace: Decision
   const ctx: PermissionContext = { userId: role === null ? null : "member", orgRole: role, wsRole: null };
   if (isLoading) return { canCreateWorkspace: PENDING, isLoading };
   return { canCreateWorkspace: canCreateWorkspaceInOrg(ctx), isLoading };
+}
+
+export function useMeetingPermissions(
+  meeting: { host_user_id?: string } | null,
+  wsId: string,
+): { canHost: Decision; canCancel: Decision; isLoading: boolean } {
+  const { userId, role, isLoading } = useCurrentMember(wsId);
+  const ctx: PermissionContext = { userId, orgRole: null, wsRole: role };
+  if (isLoading) return { canHost: PENDING, canCancel: PENDING, isLoading };
+  const d = canDeleteMeeting(meeting, ctx);
+  return { canHost: d, canCancel: d, isLoading };
 }
