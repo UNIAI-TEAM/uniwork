@@ -255,4 +255,15 @@ func TestRegisterPicksLocaleFromCookieThenAcceptLanguage(t *testing.T) {
 	if res.StatusCode != 400 {
 		t.Fatalf("unsupported locale must be 400, got %d", res.StatusCode)
 	}
+
+	// A display_name paired with an invalid locale must not partially apply:
+	// the whole request fails and the display name stays unchanged.
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/me", token, map[string]string{"display_name": "Changed", "locale": "fr"})
+	if res.StatusCode != 400 {
+		t.Fatalf("display_name + invalid locale must be 400, got %d %v", res.StatusCode, out)
+	}
+	_, out = doJSON(t, srv, "GET", "/api/v1/me", token, nil)
+	if got := out["user"].(map[string]any)["display_name"]; got == "Changed" {
+		t.Fatalf("display_name must not persist when locale in the same request is invalid, got %v", got)
+	}
 }

@@ -129,21 +129,29 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 
 const maxDisplayNameRunes = 100
 
-// UpdateProfile changes display name and/or mail locale; nil leaves a field alone.
+// UpdateProfile changes display name and/or mail locale; nil leaves a field
+// alone. Both inputs are validated before either write, so a bad locale
+// never lets a display-name change slip through.
 func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale *string) (db.User, error) {
 	if displayName == nil && locale == nil {
 		return db.User{}, Invalid("cần display_name hoặc locale")
 	}
-	var u db.User
-	var err error
+	var name string
 	if displayName != nil {
-		name := strings.TrimSpace(*displayName)
+		name = strings.TrimSpace(*displayName)
 		if name == "" {
 			return db.User{}, Invalid("tên hiển thị không được để trống")
 		}
 		if utf8.RuneCountInString(name) > maxDisplayNameRunes {
 			return db.User{}, Invalid("tên hiển thị quá dài")
 		}
+	}
+	if locale != nil && *locale != "vi" && *locale != "en" {
+		return db.User{}, Invalid("locale phải là vi hoặc en")
+	}
+	var u db.User
+	var err error
+	if displayName != nil {
 		u, err = s.q.UpdateUserDisplayName(ctx, db.UpdateUserDisplayNameParams{ID: userID, DisplayName: name})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return db.User{}, ErrNotFound
@@ -153,9 +161,6 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 		}
 	}
 	if locale != nil {
-		if *locale != "vi" && *locale != "en" {
-			return db.User{}, Invalid("locale phải là vi hoặc en")
-		}
 		u, err = s.q.UpdateUserLocale(ctx, db.UpdateUserLocaleParams{ID: userID, Locale: *locale})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return db.User{}, ErrNotFound
