@@ -112,21 +112,84 @@ func TestOutboxKickWakesRun(t *testing.T) {
 	o := NewOutbox(pool, s, slog.Default())
 	o.tick = time.Hour // tick không thể là lý do gửi
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go o.Run(ctx)
+	done := make(chan struct{})
+	go func() {
+		o.Run(ctx)
+		close(done)
+	}()
 	if _, err := o.Enqueue(ctx, q, msg("c@example.com")); err != nil {
+		cancel()
+		<-done
 		t.Fatal(err)
 	}
 	o.Kick()
 	deadline := time.Now().Add(3 * time.Second)
+	ok := false
 	for time.Now().Before(deadline) {
 		s.mu.Lock()
 		n := len(s.sent)
 		s.mu.Unlock()
 		if n == 1 {
-			return
+			ok = true
+			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatal("Kick did not wake the worker")
+	if !ok {
+		cancel()
+		<-done
+		t.Fatal("Kick did not wake the worker")
+	}
+	// Send() records into s.sent slightly before RunOnce commits the
+	// bookkeeping update, so poll the row too instead of asserting right
+	// after observing s.sent.
+	var row db.Email
+	var err error
+	settleDeadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(settleDeadline) {
+		row, err = q.GetLatestEmailForRecipient(context.Background(), db.GetLatestEmailForRecipientParams{ToEmail: "c@example.com", Kind: KindWelcome})
+		if err == nil && row.SentAt.Valid {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !row.SentAt.Valid || row.LastError.Valid || row.Attempts != 1 {
+		t.Fatalf("sent row: %+v", row)
+	}
+}
+
+// deliver is a package-internal contract: any MarkEmail* failure must be
+// returned so RunOnce stops the loop and rolls back instead of continuing
+// to send against an aborted tx. The least invasive way to force a
+// deterministic MarkEmailSent failure is a context already canceled before
+// deliver runs its query — sender.Send doesn't check ctx (flakySender
+// ignores it), so this exercises exactly the "send ok, bookkeeping fails"
+// path without needing to poison the connection or the tx.
+func TestDeliverReturnsMarkEmailError(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	s := &flakySender{}
+	o := NewOutbox(pool, s, slog.Default())
+	ctx := context.Background()
+	id, err := o.Enqueue(ctx, q, msg("d@example.com"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := q.GetLatestEmailForRecipient(ctx, db.GetLatestEmailForRecipientParams{ToEmail: "d@example.com", Kind: KindWelcome})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.ID != id {
+		t.Fatalf("unexpected row id %s", row.ID)
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := o.deliver(canceled, q, row); err == nil {
+		t.Fatal("expected error from deliver when MarkEmailSent fails")
+	}
 }

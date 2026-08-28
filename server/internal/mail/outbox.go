@@ -21,14 +21,20 @@ type Enqueuer interface {
 }
 
 const (
-	outboxBatch     = 20
-	outboxMaxTries  = 5
-	outboxRetention = 30 * 24 * time.Hour
-	defaultTick     = 5 * time.Second
+	outboxBatch    = 20
+	outboxMaxTries = 5
+	// outboxBatchTimeout bounds how long RunOnce can hold the batch's row
+	// locks and tx connection. Worst case is outboxBatch SMTP sessions run
+	// serially in the same tx, each capped by smtpSessionTimeout (30s):
+	// 20 * 30s = 10m; cap at half that so one stuck batch doesn't tie up a
+	// worker/connection for the full worst case.
+	outboxBatchTimeout = 5 * time.Minute
+	outboxRetention    = 30 * 24 * time.Hour
+	defaultTick        = 5 * time.Second
 )
 
 // backoff[n] is the wait after the (n+1)th failure; the 5th failure gives up.
-var backoff = []time.Duration{time.Minute, 5 * time.Minute, 30 * time.Minute, 2 * time.Hour, 6 * time.Hour}
+var backoff = []time.Duration{time.Minute, 5 * time.Minute, 30 * time.Minute, 2 * time.Hour}
 
 // Outbox stores mail in the emails table and delivers it from Run. One
 // goroutine per process; several processes are safe because the claim uses
@@ -112,8 +118,14 @@ func (o *Outbox) Run(ctx context.Context) {
 }
 
 // RunOnce claims one batch, sends each row, records the outcome, commits.
-// Returns how many rows it claimed.
+// A bookkeeping (MarkEmail*) error aborts the Postgres tx, so it stops the
+// loop immediately, rolls back (nothing sent in this batch is recorded, and
+// SKIP LOCKED lets another worker pick the rows back up), and returns the
+// error instead of continuing to send against a doomed tx. Returns how many
+// rows it claimed and committed.
 func (o *Outbox) RunOnce(ctx context.Context) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, outboxBatchTimeout)
+	defer cancel()
 	tx, err := o.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -125,7 +137,9 @@ func (o *Outbox) RunOnce(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	for _, row := range rows {
-		o.deliver(ctx, qtx, row)
+		if err := o.deliver(ctx, qtx, row); err != nil {
+			return 0, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return 0, err
@@ -133,30 +147,22 @@ func (o *Outbox) RunOnce(ctx context.Context) (int, error) {
 	return len(rows), nil
 }
 
-func (o *Outbox) deliver(ctx context.Context, q *db.Queries, row db.Email) {
+func (o *Outbox) deliver(ctx context.Context, q *db.Queries, row db.Email) error {
 	msg := Message{Kind: row.Kind, Locale: row.Locale, UserID: row.UserID.String, To: row.ToEmail,
 		Subject: row.Subject, HTML: row.Html, Text: row.Text}
 	sendErr := o.sender.Send(ctx, msg)
 	if sendErr == nil {
-		if err := q.MarkEmailSent(ctx, row.ID); err != nil {
-			o.log.Error("mail: mark sent", "id", row.ID, "err", err)
-		}
-		return
+		return q.MarkEmailSent(ctx, row.ID)
 	}
 	attempt := int(row.Attempts) + 1
 	if attempt >= outboxMaxTries {
 		o.log.Error("mail: giving up", "kind", row.Kind, "to", row.ToEmail, "attempts", attempt, "err", sendErr)
-		if err := q.MarkEmailFailed(ctx, db.MarkEmailFailedParams{ID: row.ID, LastError: pgtype.Text{String: sendErr.Error(), Valid: true}}); err != nil {
-			o.log.Error("mail: mark failed", "id", row.ID, "err", err)
-		}
-		return
+		return q.MarkEmailFailed(ctx, db.MarkEmailFailedParams{ID: row.ID, LastError: pgtype.Text{String: sendErr.Error(), Valid: true}})
 	}
 	next := o.now().Add(backoff[attempt-1])
 	o.log.Warn("mail: send failed, will retry", "kind", row.Kind, "to", row.ToEmail, "attempts", attempt, "next", next, "err", sendErr)
-	if err := q.MarkEmailAttemptFailed(ctx, db.MarkEmailAttemptFailedParams{
+	return q.MarkEmailAttemptFailed(ctx, db.MarkEmailAttemptFailedParams{
 		ID: row.ID, NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},
 		LastError: pgtype.Text{String: sendErr.Error(), Valid: true},
-	}); err != nil {
-		o.log.Error("mail: mark attempt", "id", row.ID, "err", err)
-	}
+	})
 }
