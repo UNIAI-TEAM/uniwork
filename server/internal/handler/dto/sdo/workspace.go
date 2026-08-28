@@ -76,3 +76,28 @@ type PendingInvitationDTO struct {
 type PendingInvitationListSDO struct {
 	Invitations []PendingInvitationDTO `json:"invitations"`
 }
+
+// MembershipDTO is the caller's own standing in a workspace; source tells
+// whether it comes from the workspace itself or is implied by the organization.
+type MembershipDTO struct {
+	UserID string `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Role   string `json:"role" example:"admin"`
+	Source string `json:"source" description:"workspace hoặc organization" example:"workspace"`
+}
+
+// MembershipSDO is GET /api/v1/workspaces/{workspaceID}/me.
+type MembershipSDO struct {
+	Membership MembershipDTO `json:"membership"`
+}
+
+type WorkspaceMemberDTO struct {
+	WorkspaceID string `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	UserID      string `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Role        string `json:"role" example:"admin"`
+	CreatedAt   string `json:"created_at" example:"2026-08-01T09:00:00Z"`
+}
+
+// WorkspaceMemberSDO is PATCH /api/v1/workspaces/{workspaceID}/members/{userID}.
+type WorkspaceMemberSDO struct {
+	Member WorkspaceMemberDTO `json:"member"`
+}

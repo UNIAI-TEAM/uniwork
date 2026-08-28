@@ -48,14 +48,14 @@ UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated
 WHERE id = $1
 RETURNING *;
 
--- name: UpdateUserDisplayName :one
-UPDATE users SET display_name = $2, updated_at = now()
-WHERE id = $1
-RETURNING *;
-
--- name: UpdateUserLocale :one
-UPDATE users SET locale = $2, updated_at = now()
-WHERE id = $1
+-- Nil arguments keep the current value, so one statement serves both
+-- PATCH /me shapes and the two fields commit together.
+-- name: UpdateUserProfile :one
+UPDATE users SET
+  display_name = COALESCE(sqlc.narg('display_name'), display_name),
+  locale       = COALESCE(sqlc.narg('locale'), locale),
+  updated_at   = now()
+WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: UpdateUserPassword :one

@@ -20,9 +20,6 @@ UPDATE emails SET attempts = attempts + 1, next_attempt_at = $2, last_error = $3
 -- name: MarkEmailFailed :exec
 UPDATE emails SET attempts = attempts + 1, failed_at = now(), last_error = $2 WHERE id = $1;
 
--- name: CountEmailsForUserKind :one
-SELECT count(*) FROM emails WHERE user_id = $1 AND kind = $2;
-
 -- name: DeleteSentEmailsBefore :exec
 DELETE FROM emails WHERE (sent_at IS NOT NULL AND sent_at < $1) OR (failed_at IS NOT NULL AND failed_at < $1);
 

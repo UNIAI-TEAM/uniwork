@@ -15,7 +15,8 @@ import (
 
 const refreshCookie = "uniwork_refresh"
 
-// requestLocale: cookie uniwork-locale (frontend ghi) rồi Accept-Language; mặc định vi.
+// requestLocale reads the uniwork-locale cookie the frontend writes, then
+// Accept-Language; anything else means vi.
 func requestLocale(r *http.Request) string {
 	if c, err := r.Cookie("uniwork-locale"); err == nil && c.Value != "" {
 		return service.NormalizeLocale(c.Value)

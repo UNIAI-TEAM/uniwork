@@ -317,68 +317,6 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 	return i, err
 }
 
-const updateUserDisplayName = `-- name: UpdateUserDisplayName :one
-UPDATE users SET display_name = $2, updated_at = now()
-WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale
-`
-
-type UpdateUserDisplayNameParams struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
-}
-
-func (q *Queries) UpdateUserDisplayName(ctx context.Context, arg UpdateUserDisplayNameParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserDisplayName, arg.ID, arg.DisplayName)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.DisplayName,
-		&i.AvatarUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OnboardedAt,
-		&i.OnboardingQuestionnaire,
-		&i.EmailVerifiedAt,
-		&i.GoogleID,
-		&i.Locale,
-	)
-	return i, err
-}
-
-const updateUserLocale = `-- name: UpdateUserLocale :one
-UPDATE users SET locale = $2, updated_at = now()
-WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale
-`
-
-type UpdateUserLocaleParams struct {
-	ID     string `json:"id"`
-	Locale string `json:"locale"`
-}
-
-func (q *Queries) UpdateUserLocale(ctx context.Context, arg UpdateUserLocaleParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserLocale, arg.ID, arg.Locale)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.DisplayName,
-		&i.AvatarUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OnboardedAt,
-		&i.OnboardingQuestionnaire,
-		&i.EmailVerifiedAt,
-		&i.GoogleID,
-		&i.Locale,
-	)
-	return i, err
-}
-
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET password_hash = $2, updated_at = now()
 WHERE id = $1
@@ -392,6 +330,43 @@ type UpdateUserPasswordParams struct {
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+	)
+	return i, err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET
+  display_name = COALESCE($1, display_name),
+  locale       = COALESCE($2, locale),
+  updated_at   = now()
+WHERE id = $3
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale
+`
+
+type UpdateUserProfileParams struct {
+	DisplayName pgtype.Text `json:"display_name"`
+	Locale      pgtype.Text `json:"locale"`
+	ID          string      `json:"id"`
+}
+
+// Nil arguments keep the current value, so one statement serves both
+// PATCH /me shapes and the two fields commit together.
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile, arg.DisplayName, arg.Locale, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

@@ -158,27 +158,22 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 	if locale != nil && *locale != "vi" && *locale != "en" {
 		return db.User{}, Invalid("locale phải là vi hoặc en")
 	}
-	var u db.User
-	var err error
-	if displayName != nil {
-		u, err = s.q.UpdateUserDisplayName(ctx, db.UpdateUserDisplayNameParams{ID: userID, DisplayName: name})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.User{}, ErrNotFound
-		}
-		if err != nil {
-			return db.User{}, err
-		}
+	u, err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
+		ID:          userID,
+		DisplayName: pgtype.Text{String: name, Valid: displayName != nil},
+		Locale:      pgtype.Text{String: ptrString(locale), Valid: locale != nil},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.User{}, ErrNotFound
 	}
-	if locale != nil {
-		u, err = s.q.UpdateUserLocale(ctx, db.UpdateUserLocaleParams{ID: userID, Locale: *locale})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.User{}, ErrNotFound
-		}
-		if err != nil {
-			return db.User{}, err
-		}
+	return u, err
+}
+
+func ptrString(p *string) string {
+	if p == nil {
+		return ""
 	}
-	return u, nil
+	return *p
 }
 
 // UpdateAvatar persists the URL storage returned for the user's new avatar.

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -89,9 +90,7 @@ func (h *handlers) getWorkspaceMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) patchMember(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Role string `json:"role"`
-	}
+	var in sdi.PatchMemberSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}

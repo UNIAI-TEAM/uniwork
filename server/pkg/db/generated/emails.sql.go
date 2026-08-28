@@ -55,22 +55,6 @@ func (q *Queries) ClaimPendingEmails(ctx context.Context, limit int32) ([]Email,
 	return items, nil
 }
 
-const countEmailsForUserKind = `-- name: CountEmailsForUserKind :one
-SELECT count(*) FROM emails WHERE user_id = $1 AND kind = $2
-`
-
-type CountEmailsForUserKindParams struct {
-	UserID pgtype.Text `json:"user_id"`
-	Kind   string      `json:"kind"`
-}
-
-func (q *Queries) CountEmailsForUserKind(ctx context.Context, arg CountEmailsForUserKindParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countEmailsForUserKind, arg.UserID, arg.Kind)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createEmail = `-- name: CreateEmail :one
 INSERT INTO emails (id, kind, to_email, user_id, locale, subject, html, text)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

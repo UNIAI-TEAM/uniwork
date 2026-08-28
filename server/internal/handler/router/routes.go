@@ -37,6 +37,9 @@ type Routes struct {
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc
 	ListMembers         http.HandlerFunc
+	GetWorkspaceMe      http.HandlerFunc
+	PatchMember         http.HandlerFunc
+	DeleteMember        http.HandlerFunc
 	CreateInvitation    http.HandlerFunc
 	AcceptInvitation    http.HandlerFunc
 
