@@ -44,7 +44,6 @@ func main() {
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	orgSvc := service.NewOrganizationService(q)
-	wsSvc := service.NewWorkspaceService(pool, q, orgSvc)
 	var rdb *redis.Client
 	if cfg.RedisURL != "" {
 		opt, err := redis.ParseURL(cfg.RedisURL)
@@ -118,6 +117,7 @@ func main() {
 	}
 	outbox := mail.NewOutbox(pool, sender, log)
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
+	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
 	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
 	// Google needs both credentials; discovery runs once here. A failed

@@ -35,7 +35,7 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
       { emails: valid, role },
       {
         onSuccess: (d) => {
-          setSent((s) => [...s, ...d.invitations.map((i) => ({ email: i.email, token: i.token }))]);
+          setSent((s) => [...s, ...d.invitations.map((i) => ({ email: i.email }))]);
           setSkipped(d.skipped);
           setEmails([]);
           toast.success(t("workspace.inviteSent", { count: d.invitations.length }));
@@ -134,10 +134,10 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
           </div>
           {sent.length > 0 && (
             <Field>
-              <FieldLabel htmlFor="members-invite-list">{t("workspace.inviteLink")}</FieldLabel>
+              <FieldLabel htmlFor="members-invite-list">{t("workspace.inviteSent", { count: sent.length })}</FieldLabel>
               <ul id="members-invite-list" className="flex flex-col gap-2">
                 {sent.map((s) => (
-                  <InviteRow key={s.token} sent={s} />
+                  <InviteRow key={s.email} sent={s} />
                 ))}
               </ul>
               {skipped.length > 0 && <FieldDescription>{t("workspace.inviteSkipped", { list: skipped.join(", ") })}</FieldDescription>}

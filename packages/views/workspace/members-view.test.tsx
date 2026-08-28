@@ -37,8 +37,8 @@ function mockMembership(role: string, source = "membership") {
     if (path.includes("/invitations")) {
       return Promise.resolve({
         invitations: [
-          { id: "1", email: "a@x.com", role: "member", token: "t1" },
-          { id: "2", email: "b@x.com", role: "member", token: "t2" },
+          { id: "1", email: "a@x.com", role: "member" },
+          { id: "2", email: "b@x.com", role: "member" },
         ],
         skipped: [],
       });
@@ -48,14 +48,14 @@ function mockMembership(role: string, source = "membership") {
 }
 
 describe("MembersView", () => {
-  it("bulk invites and lists links when the current user is an owner", async () => {
+  it("bulk invites and lists emailed recipients when the current user is an owner", async () => {
     mockMembership("owner");
     render(wrap(<MembersView workspaceId="w1" />));
     const input = await screen.findByRole("textbox");
     fireEvent.paste(input, { clipboardData: { getData: () => "a@x.com, b@x.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Mời thành viên" }));
-    await waitFor(() => expect(screen.getByText(/\/invite\/t1/)).toBeInTheDocument());
-    expect(screen.getByText(/\/invite\/t2/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("a@x.com")).toBeInTheDocument());
+    expect(screen.getByText("b@x.com")).toBeInTheDocument();
   });
 
   it("hides the invite form from a plain member and says why", async () => {

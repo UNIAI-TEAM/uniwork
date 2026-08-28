@@ -136,7 +136,7 @@ func (h *handlers) createInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]string, 0, len(invs))
 	for _, inv := range invs {
-		out = append(out, map[string]string{"id": inv.ID, "email": inv.Email, "role": inv.Role, "token": inv.Token})
+		out = append(out, map[string]string{"id": inv.ID, "email": inv.Email, "role": inv.Role})
 	}
 	if skipped == nil {
 		skipped = []string{}

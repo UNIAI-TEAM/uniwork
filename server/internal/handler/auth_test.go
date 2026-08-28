@@ -43,7 +43,7 @@ func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Ser
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	orgs := service.NewOrganizationService(q)
-	ws := service.NewWorkspaceService(pool, q, orgs)
+	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
 	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
 	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
 	d := Deps{

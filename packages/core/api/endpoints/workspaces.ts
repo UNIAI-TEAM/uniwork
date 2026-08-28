@@ -18,9 +18,7 @@ const MembersResponse = z.object({ members: z.array(MemberSchema) });
 const MembershipResponse = z.object({ membership: WorkspaceMembershipSchema });
 const MyInvitationsResponse = z.object({ invitations: z.array(PendingInvitationSchema) });
 const InviteResponse = z.object({
-  invitations: z.array(
-    z.object({ id: z.string(), email: z.string(), role: z.string(), token: z.string() }),
-  ),
+  invitations: z.array(z.object({ id: z.string(), email: z.string(), role: z.string() })),
   skipped: z.array(z.string()),
 });
 export type InviteResult = z.infer<typeof InviteResponse>;

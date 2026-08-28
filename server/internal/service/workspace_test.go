@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -19,6 +21,7 @@ type wsFix struct {
 	q    *db.Queries
 	orgs *OrganizationService
 	ws   *WorkspaceService
+	out  *fakeOutbox
 	ua   db.User
 	ub   db.User
 	uc   db.User
@@ -38,7 +41,8 @@ func wsFixture(t *testing.T) wsFix {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return wsFix{pool: pool, q: q, orgs: orgs, ws: NewWorkspaceService(pool, q, orgs), ua: ua, ub: ub, uc: uc, org: org}
+	out := &fakeOutbox{}
+	return wsFix{pool: pool, q: q, orgs: orgs, ws: NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, out), out: out, ua: ua, ub: ub, uc: uc, org: org}
 }
 
 func TestCreateInOrgAndAccess(t *testing.T) {
@@ -119,6 +123,16 @@ func TestInviteManyAndAccept(t *testing.T) {
 	}
 	if len(invs) != 2 { // b, c (a là thành viên → skipped; dup + email sai bị loại)
 		t.Fatalf("want 2 invitations, got %d", len(invs))
+	}
+	f.out.mu.Lock()
+	queued := append([]mail.Message(nil), f.out.queued...)
+	f.out.mu.Unlock()
+	if len(queued) != 2 {
+		t.Fatalf("want 2 invite mails, got %d", len(queued))
+	}
+	if queued[0].Kind != mail.KindWorkspaceInvite || queued[0].Locale != f.ua.Locale ||
+		!strings.Contains(queued[0].HTML, "/invite/"+invs[0].Token) {
+		t.Fatalf("invite mail %+v", queued[0])
 	}
 	if len(skipped) != 2 { // a@example.com (đã là thành viên), not-an-email
 		t.Fatalf("want 2 skipped, got %v", skipped)
