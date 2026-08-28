@@ -198,7 +198,7 @@ func TestUnverifiedUserCannotCompleteOnboardingOrCreateOrganization(t *testing.T
 	f := newVerificationFixture(t, "")
 	ctx := context.Background()
 	u := f.registered(t)
-	onboarding := NewOnboardingService(f.q, NewWorkspaceService(nil, f.q, NewOrganizationService(f.q), mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{}), NopPublisher{})
+	onboarding := NewOnboardingService(f.q, NewWorkspaceService(nil, f.q, NewOrganizationService(f.q), mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{}), NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	if _, err := onboarding.Complete(ctx, u.ID, "invite_skipped", ""); err != ErrEmailUnverified {
 		t.Fatalf("complete onboarding: want ErrEmailUnverified, got %v", err)
 	}

@@ -1,1 +1,11 @@
-{{define "content"}}<tr><td>{{.Data}}</td></tr>{{end}}{{define "footer"}}UniWork{{end}}
+{{define "content"}}
+<tr><td style="font-size:20px;font-weight:700;padding-bottom:12px">Chào {{.Data.DisplayName}}, bạn đã sẵn sàng!</td></tr>
+<tr><td style="font-size:15px;line-height:1.5;padding-bottom:20px">Workspace <strong>{{.Data.WorkspaceName}}</strong> của bạn đã được tạo. Ba việc để bắt đầu:</td></tr>
+<tr><td style="font-size:15px;line-height:1.7;padding-bottom:20px">
+  1. Tạo công việc đầu tiên và giao cho một người.<br>
+  2. Mời đồng nghiệp ở trang Thành viên.<br>
+  3. Lên lịch một cuộc họp và ghi chú ngay trong UniWork.
+</td></tr>
+<tr><td style="padding-bottom:8px"><a href="{{.Data.WorkspaceURL}}" style="display:inline-block;padding:12px 24px;background:#3C83F6;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Vào workspace</a></td></tr>
+{{end}}
+{{define "footer"}}Bạn nhận email này vì vừa hoàn tất thiết lập UniWork.{{end}}

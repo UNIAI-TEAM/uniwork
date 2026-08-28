@@ -142,7 +142,7 @@ func main() {
 		Google:          google,
 		Organizations:   orgSvc,
 		Workspaces:      wsSvc,
-		Onboarding:      service.NewOnboardingService(q, wsSvc, pub),
+		Onboarding:      service.NewOnboardingService(q, wsSvc, pub, renderer, outbox),
 		Tasks:           service.NewTaskService(q, wsSvc, pub),
 		Meetings:        service.NewMeetingService(q, wsSvc, pub),
 		Hub:             hub,

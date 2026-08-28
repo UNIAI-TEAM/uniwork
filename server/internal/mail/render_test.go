@@ -66,6 +66,16 @@ func TestPasswordResetRenders(t *testing.T) {
 	}
 }
 
+func TestWelcomeRenders(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	for _, loc := range []string{"vi", "en"} {
+		m, err := r.Welcome("a@example.com", loc, "u1", WelcomeData{DisplayName: "An", WorkspaceName: "Đội Alpha", WorkspaceURL: "http://localhost:3000/acme/alpha"})
+		if err != nil || m.Kind != KindWelcome || !strings.Contains(m.HTML, "/acme/alpha") || !strings.Contains(m.Text, "/acme/alpha") {
+			t.Fatalf("%s: %v %+v", loc, err, m)
+		}
+	}
+}
+
 func TestSafeFieldStripsControlAndCaps(t *testing.T) {
 	got := SafeField("Acme\r\nBcc: x@y.z " + strings.Repeat("a", 100))
 	if strings.ContainsAny(got, "\r\n") || len([]rune(got)) > 60 {

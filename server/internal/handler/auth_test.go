@@ -92,7 +92,7 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 		Google:        google,
 		Organizations: orgs,
 		Workspaces:    ws,
-		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}),
+		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
 		Tasks:         service.NewTaskService(q, ws, service.NopPublisher{}),
 		Meetings:      service.NewMeetingService(q, ws, service.NopPublisher{}),
 		Hub:           realtime.NewHub(),
