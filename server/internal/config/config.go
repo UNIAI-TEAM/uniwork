@@ -23,10 +23,14 @@ type Config struct {
 	SecureCookies bool
 	// TrustedProxies is a comma-separated CIDR list; X-Forwarded-For is only
 	// honoured for the rate limiter when the peer is inside one of them.
-	TrustedProxies   string
-	LiveKitURL       string
-	LiveKitAPIKey    string
-	LiveKitAPISecret string
+	TrustedProxies          string
+	LiveKitURL              string
+	LiveKitAPIKey           string
+	LiveKitAPISecret        string
+	LiveKitTokenTTL         time.Duration
+	LiveKitEmptyTimeout     time.Duration
+	LiveKitDepartureTimeout time.Duration
+	MeetingProvider         string
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
 	// surface and must not ship on a public listener by default.
@@ -82,30 +86,34 @@ func (c Config) GoogleRedirectURL() string {
 
 func Load() (Config, error) {
 	c := Config{
-		Port:                getenv("PORT", "8080"),
-		DatabaseURL:         os.Getenv("DATABASE_URL"),
-		RedisURL:            os.Getenv("REDIS_URL"),
-		JWTSecret:           os.Getenv("JWT_SECRET"),
-		AccessTokenTTL:      15 * time.Minute,
-		RefreshTokenTTL:     30 * 24 * time.Hour,
-		FrontendOrigin:      getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
-		TrustedProxies:      os.Getenv("TRUSTED_PROXIES"),
-		LiveKitURL:          os.Getenv("LIVEKIT_URL"),
-		LiveKitAPIKey:       os.Getenv("LIVEKIT_API_KEY"),
-		LiveKitAPISecret:    os.Getenv("LIVEKIT_API_SECRET"),
-		AppEnv:              getenv("APP_ENV", "development"),
-		devVerificationCode: os.Getenv("DEV_VERIFICATION_CODE"),
-		APIPublicURL:        getenv("API_PUBLIC_URL", "http://localhost:8080"),
-		GoogleClientID:      os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret:  os.Getenv("GOOGLE_CLIENT_SECRET"),
-		SMTPHost:            os.Getenv("SMTP_HOST"),
-		SMTPPort:            getenv("SMTP_PORT", "25"),
-		SMTPUsername:        os.Getenv("SMTP_USERNAME"),
-		SMTPPassword:        os.Getenv("SMTP_PASSWORD"),
-		SMTPTLS:             os.Getenv("SMTP_TLS"),
-		SMTPTLSInsecure:     strings.EqualFold(os.Getenv("SMTP_TLS_INSECURE"), "true"),
-		SMTPEHLOName:        os.Getenv("SMTP_EHLO_NAME"),
-		MailFrom:            getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
+		Port:                    getenv("PORT", "8080"),
+		DatabaseURL:             os.Getenv("DATABASE_URL"),
+		RedisURL:                os.Getenv("REDIS_URL"),
+		JWTSecret:               os.Getenv("JWT_SECRET"),
+		AccessTokenTTL:          15 * time.Minute,
+		RefreshTokenTTL:         30 * 24 * time.Hour,
+		FrontendOrigin:          getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
+		TrustedProxies:          os.Getenv("TRUSTED_PROXIES"),
+		LiveKitURL:              os.Getenv("LIVEKIT_URL"),
+		LiveKitAPIKey:           os.Getenv("LIVEKIT_API_KEY"),
+		LiveKitAPISecret:        os.Getenv("LIVEKIT_API_SECRET"),
+		LiveKitTokenTTL:         parseDuration(os.Getenv("LIVEKIT_TOKEN_TTL"), 2*time.Minute),
+		LiveKitEmptyTimeout:     parseDuration(os.Getenv("LIVEKIT_ROOM_EMPTY_TIMEOUT"), 5*time.Minute),
+		LiveKitDepartureTimeout: parseDuration(os.Getenv("LIVEKIT_ROOM_DEPARTURE_TIMEOUT"), 20*time.Second),
+		MeetingProvider:         getenv("MEETING_PROVIDER", "livekit"),
+		AppEnv:                  getenv("APP_ENV", "development"),
+		devVerificationCode:     os.Getenv("DEV_VERIFICATION_CODE"),
+		APIPublicURL:            getenv("API_PUBLIC_URL", "http://localhost:8080"),
+		GoogleClientID:          os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:      os.Getenv("GOOGLE_CLIENT_SECRET"),
+		SMTPHost:                os.Getenv("SMTP_HOST"),
+		SMTPPort:                getenv("SMTP_PORT", "25"),
+		SMTPUsername:            os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:            os.Getenv("SMTP_PASSWORD"),
+		SMTPTLS:                 os.Getenv("SMTP_TLS"),
+		SMTPTLSInsecure:         strings.EqualFold(os.Getenv("SMTP_TLS_INSECURE"), "true"),
+		SMTPEHLOName:            os.Getenv("SMTP_EHLO_NAME"),
+		MailFrom:                getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
 	}
 	if c.DatabaseURL == "" {
 		return c, fmt.Errorf("DATABASE_URL is required")
@@ -134,6 +142,17 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func parseDuration(raw string, fallback time.Duration) time.Duration {
+	if raw == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return fallback
+	}
+	return d
 }
 
 func swaggerEnabled(frontendOrigin string) bool {

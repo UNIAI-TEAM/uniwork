@@ -19,6 +19,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -129,6 +130,20 @@ func main() {
 	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
+	var conference meetings.ConferenceProvider
+	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
+		conference = &meetings.LiveKitAdapter{
+			URL: cfg.LiveKitURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret,
+			TokenTTL: cfg.LiveKitTokenTTL, EmptyTimeout: cfg.LiveKitEmptyTimeout,
+		}
+	}
+	meetingSvc := service.NewMeetingService(pool, q, wsSvc, pub, conference, service.MeetingRuntime{
+		TokenTTL: cfg.LiveKitTokenTTL, HMACKey: []byte(cfg.JWTSecret), LiveKitURL: cfg.LiveKitURL,
+		ProviderKey: cfg.MeetingProvider, EmptyTimeout: cfg.LiveKitEmptyTimeout,
+	})
+	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	go meetingSvc.RunOutbox(runCtx)
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -152,7 +167,7 @@ func main() {
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, pub, renderer, outbox),
 		Tasks:           service.NewTaskService(q, wsSvc, pub),
-		Meetings:        service.NewMeetingService(q, wsSvc, pub),
+		Meetings:        meetingSvc,
 		Hub:             hub,
 		Redis:           rdb,
 		FeatureFlags:    flags,

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uidx_meeting_join_requests_pending_guest ON meeting_join_requests (meeting_id, requester_guest_id) WHERE status = 'PENDING' AND requester_guest_id IS NOT NULL;

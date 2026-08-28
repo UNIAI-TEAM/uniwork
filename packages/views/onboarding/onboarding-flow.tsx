@@ -34,6 +34,10 @@ type PersistedStep = (typeof ONBOARDING_STEP_ORDER)[number];
  */
 export function OnboardingFlow(props: {
   onComplete: (workspace?: Workspace) => void;
+  /** Fired before POST /me/onboarding/complete so the page latch can block the guard replace. */
+  onBeginComplete?: () => void;
+  /** Reset the page latch when completion fails. */
+  onCompleteFailed?: () => void;
   mode?: OnboardingMode;
   onCancel?: () => void;
 }) {
@@ -52,11 +56,15 @@ export function OnboardingFlow(props: {
 
 function AuthedOnboardingFlow({
   onComplete,
+  onBeginComplete,
+  onCompleteFailed,
   mode = "first_run",
   onCancel,
   user,
 }: {
   onComplete: (workspace?: Workspace) => void;
+  onBeginComplete?: () => void;
+  onCompleteFailed?: () => void;
   mode?: OnboardingMode;
   onCancel?: () => void;
   user: NonNullable<ReturnType<typeof useSession>["user"]>;
@@ -124,28 +132,32 @@ function AuthedOnboardingFlow({
   const finish = useCallback(
     async (path: "full" | "invite_skipped") => {
       if (!workspace) return;
+      onBeginComplete?.();
       try {
         await completeOnboarding(path, workspace.id);
       } catch {
+        onCompleteFailed?.();
         toast.error(t("onboarding.errors.complete_failed"));
         return;
       }
       setWelcomeSignal(workspace.id);
       onComplete(workspace);
     },
-    [workspace, onComplete, t],
+    [workspace, onBeginComplete, onCompleteFailed, onComplete, t],
   );
 
   const skipWelcome = useCallback(async () => {
     const first = workspaces[0];
+    onBeginComplete?.();
     try {
       await completeOnboarding("skip_existing", first?.id);
     } catch {
+      onCompleteFailed?.();
       toast.error(t("onboarding.errors.skip_failed"));
       return;
     }
     onComplete(first);
-  }, [workspaces, onComplete, t]);
+  }, [workspaces, onBeginComplete, onCompleteFailed, onComplete, t]);
 
   const back = (from: PersistedStep) => {
     if (isNew && from === "organization") {

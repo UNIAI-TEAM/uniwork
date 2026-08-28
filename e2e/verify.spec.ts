@@ -44,20 +44,23 @@ test("nút Google chỉ hiện khi server báo có Google", async ({ page }) => 
   await expect(page.getByRole("link", { name: "Tiếp tục với Google" })).toHaveCount(google ? 1 : 0);
 });
 
-for (const mode of ["light", "dark"] as const) {
-  test(`tương phản chữ đạt WCAG AA — /verify ${mode}`, async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await register(page, `VerifyContrast${mode}`);
-    await page.getByLabel("Mã xác thực").waitFor();
+test("tương phản chữ đạt WCAG AA — /verify light và dark", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await register(page, "VerifyContrast");
+  const code = page.getByLabel("Mã xác thực");
+
+  for (const mode of ["light", "dark"] as const) {
+    await page.reload();
+    await code.waitFor();
     await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
 
     const clean = await auditText(page);
     expect(clean.checked, "không đo được node chữ nào — selector đã trượt").toBeGreaterThan(5);
     expect(clean.fails, `/verify (${mode}): ${clean.fails.join(" | ")}`).toEqual([]);
 
-    await page.getByLabel("Mã xác thực").fill(VERIFICATION_CODE === "000000" ? "111111" : "000000");
+    await code.fill(VERIFICATION_CODE === "000000" ? "111111" : "000000");
     await page.getByText("Mã không đúng hoặc đã hết hạn").waitFor();
     const failed = await auditText(page);
     expect(failed.fails, `/verify lỗi (${mode}): ${failed.fails.join(" | ")}`).toEqual([]);
-  });
-}
+  }
+});

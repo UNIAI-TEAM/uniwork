@@ -85,11 +85,13 @@ describe("task and meeting rules — membership only, as the backend gates today
     const task = null;
     expect(canDeleteTask(task, ctx({ wsRole: "member" })).allowed).toBe(true);
     expect(canEditTask(task, ctx({ wsRole: "member" })).allowed).toBe(true);
-    expect(canDeleteMeeting(ctx({ wsRole: "member" })).allowed).toBe(true);
+    expect(canDeleteMeeting(null, ctx({ wsRole: "member" })).allowed).toBe(false);
+    expect(canDeleteMeeting({ host_user_id: "u1" }, ctx({ userId: "u1", wsRole: "member" })).allowed).toBe(true);
+    expect(canDeleteMeeting(null, ctx({ wsRole: "admin" })).allowed).toBe(true);
   });
   it("denies outside the workspace", () => {
     expect(canDeleteTask(null, ctx({ wsRole: null })).reason).toBe("not_member");
-    expect(canDeleteMeeting(ctx({ userId: null })).reason).toBe("not_authenticated");
+    expect(canDeleteMeeting(null, ctx({ userId: null })).reason).toBe("not_authenticated");
   });
 });
 

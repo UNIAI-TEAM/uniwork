@@ -9,7 +9,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
-	"github.com/unicomhub/uniwork/server/internal/handler/router"
+	rt "github.com/unicomhub/uniwork/server/internal/handler/router"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -58,14 +58,17 @@ type handlers struct {
 	Deps
 }
 
-// New builds the HTTP handler. The mux, middleware and OpenAPI catalog live
-// in the router package; this only binds handler funcs to route names, so a
-// route added in one place and not the other fails the swagger test.
+// New builds the HTTP handler. Routes live in package router, split by
+// OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
 	h := &handlers{Deps: d}
-	return router.New(router.Deps{
-		Cfg: d.Cfg, Minter: d.Minter, Redis: d.Redis, Storage: d.Storage, HTTPMetrics: d.HTTPMetrics,
-	}, router.Routes{
+	return rt.New(rt.Deps{
+		Cfg:         d.Cfg,
+		Minter:      d.Minter,
+		Redis:       d.Redis,
+		Storage:     d.Storage,
+		HTTPMetrics: d.HTTPMetrics,
+	}, rt.Routes{
 		Health: h.health,
 		WS:     h.ws,
 
@@ -97,8 +100,8 @@ func New(d Deps) http.Handler {
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,
 		PatchWorkspace:      h.patchWorkspace,
-		ListMembers:         h.listMembers,
 		GetWorkspaceMe:      h.getWorkspaceMe,
+		ListMembers:         h.listMembers,
 		PatchMember:         h.patchMember,
 		DeleteMember:        h.deleteMember,
 		CreateInvitation:    h.createInvitation,
@@ -114,13 +117,36 @@ func New(d Deps) http.Handler {
 		ListComments:  h.listComments,
 		CreateComment: h.createComment,
 
-		ListMeetings:  h.listMeetings,
-		CreateMeeting: h.createMeeting,
-		GetMeeting:    h.getMeeting,
-		UpdateMeeting: h.updateMeeting,
-		DeleteMeeting: h.deleteMeeting,
-		ListNotes:     h.listNotes,
-		CreateNote:    h.createNote,
-		MeetingToken:  h.meetingToken,
+		ListMeetings:         h.listMeetings,
+		CreateMeeting:        h.createMeeting,
+		CreateInstantMeeting: h.createInstantMeeting,
+		GetMeeting:           h.getMeeting,
+		UpdateMeeting:        h.updateMeeting,
+		DeleteMeeting:        h.deleteMeeting,
+		StartMeeting:         h.startMeeting,
+		EndMeeting:           h.endMeeting,
+		CancelMeeting:        h.cancelMeeting,
+		TransferHost:         h.transferHost,
+		ListNotes:            h.listNotes,
+		CreateNote:           h.createNote,
+		MeetingToken:         h.meetingToken,
+		JoinMeeting:          h.joinMeeting,
+		ListParticipants:     h.listParticipants,
+		InviteParticipant:    h.inviteParticipant,
+		ListInvitations:      h.listInvitations,
+		RespondInvitation:    h.respondInvitation,
+		RemoveParticipant:    h.removeParticipant,
+		ListInviteLinks:      h.listInviteLinks,
+		CreateInviteLink:     h.createInviteLink,
+		RevokeInviteLink:     h.revokeInviteLink,
+		ResolveInviteLink:    h.resolveInviteLink,
+		ListJoinRequests:     h.listJoinRequests,
+		CreateJoinRequest:    h.createJoinRequest,
+		ApproveJoinRequest:   h.approveJoinRequest,
+		RejectJoinRequest:    h.rejectJoinRequest,
+		CancelJoinRequest:    h.cancelJoinRequest,
+		MeetingStatistics:    h.meetingStatistics,
+		MeetingActivity:      h.meetingActivity,
+		LiveKitWebhook:       h.livekitWebhook,
 	})
 }

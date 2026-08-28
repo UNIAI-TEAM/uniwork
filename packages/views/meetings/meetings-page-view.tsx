@@ -1,81 +1,114 @@
 "use client";
-import { CalendarDays } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, Plus, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { splitMeetings, useMeetings } from "@uniwork/core/meetings";
+import { useMeetingStatistics, useMeetings } from "@uniwork/core/meetings";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
-import type { Meeting } from "@uniwork/core/types";
-import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { InstantMeetingDialog } from "./instant-meeting-dialog";
+import { MeetingFilters } from "./meeting-filters";
+import { MeetingListTable } from "./meeting-list-table";
+import { MeetingStatsRow } from "./meeting-stats-row";
 import { NewMeetingDialog } from "./new-meeting-dialog";
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
-}
-
-function MeetingRow({ meeting, onOpen }: { meeting: Meeting; onOpen: (id: string) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(meeting.id)}
-      className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-2.5 text-left transition-colors hover:border-input"
-    >
-      <span className="truncate text-body text-foreground">{meeting.title}</span>
-      <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
-        {fmt(meeting.starts_at)} – {fmt(meeting.ends_at)}
-      </span>
-    </button>
-  );
-}
+const PAGE_SIZE = 20;
 
 export function MeetingsPageView({
   workspaceId,
   onOpen,
+  onOpenRoom,
 }: {
   workspaceId: string;
   onOpen: (id: string) => void;
+  onOpenRoom: (id: string) => void;
 }) {
   const { t } = useTranslation();
   useWorkspaceEvents(workspaceId);
-  const { data: meetings, isFetched } = useMeetings(workspaceId);
-  const { upcoming, past } = splitMeetings(meetings ?? [], new Date());
-  const isEmpty = isFetched && (meetings?.length ?? 0) === 0;
+  const [status, setStatus] = useState("");
+  const [query, setQuery] = useState("");
+  const [offset, setOffset] = useState(0);
+  const { data, isFetched, isError, refetch } = useMeetings(workspaceId, {
+    status: status || undefined,
+    q: query.trim() || undefined,
+    limit: PAGE_SIZE,
+    offset,
+  });
+  const { data: stats } = useMeetingStatistics(workspaceId);
+  const meetings = data?.meetings ?? [];
+  const total = data?.total ?? 0;
+  const page = Math.floor(offset / PAGE_SIZE) + 1;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const isEmpty = isFetched && total === 0 && !query && !status;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <CollectionPageHeader
         icon={CalendarDays}
         title={t("meetings.title")}
-        count={meetings?.length}
-        actions={<NewMeetingDialog workspaceId={workspaceId} />}
+        count={total}
+        actions={
+          <>
+            <InstantMeetingDialog
+              workspaceId={workspaceId}
+              onStarted={onOpenRoom}
+              trigger={<CollectionPageHeaderAction icon={Zap} label={t("meetings.instant")} />}
+            />
+            <NewMeetingDialog
+              workspaceId={workspaceId}
+              onCreated={onOpen}
+              trigger={<CollectionPageHeaderAction icon={Plus} label={t("meetings.new")} variant="default" />}
+            />
+          </>
+        }
       />
-      {isEmpty ? (
+      {isError ? (
+        <CollectionPageState
+          icon={CalendarDays}
+          tone="destructive"
+          role="alert"
+          title={t("common.error")}
+          actions={<Button size="sm" variant="outline" onClick={() => void refetch()}>{t("common.retry")}</Button>}
+        />
+      ) : isEmpty ? (
         <CollectionPageState
           icon={CalendarDays}
           title={t("meetings.empty_title")}
           description={t("meetings.empty_description")}
         />
       ) : (
-        <div className="mx-auto w-full max-w-2xl flex-1 space-y-6 overflow-auto p-6">
-          <section>
-            <h2 className="mb-2 text-label font-medium text-muted-foreground">{t("meetings.upcoming")}</h2>
-            <div className="space-y-2">
-              {upcoming.length === 0 && (
-                <p className="text-label text-muted-foreground">{t("common.empty")}</p>
-              )}
-              {upcoming.map((m) => (
-                <MeetingRow key={m.id} meeting={m} onOpen={onOpen} />
-              ))}
-            </div>
-          </section>
-          {past.length > 0 && (
-            <section>
-              <h2 className="mb-2 text-label font-medium text-muted-foreground">{t("meetings.past")}</h2>
-              <div className="space-y-2">
-                {past.map((m) => (
-                  <MeetingRow key={m.id} meeting={m} onOpen={onOpen} />
-                ))}
-              </div>
-            </section>
+        <div className="mx-auto w-full min-w-0 max-w-2xl flex-1 space-y-4 overflow-auto p-4 sm:p-6">
+          <MeetingStatsRow stats={stats} />
+          <MeetingFilters
+            status={status}
+            query={query}
+            onStatus={(next) => {
+              setStatus(next);
+              setOffset(0);
+            }}
+            onQuery={(next) => {
+              setQuery(next);
+              setOffset(0);
+            }}
+          />
+          {meetings.length === 0 ? (
+            <p className="text-label text-muted-foreground">{t("common.empty")}</p>
+          ) : (
+            <MeetingListTable meetings={meetings} onOpen={onOpen} />
           )}
+          {total > PAGE_SIZE ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-caption text-muted-foreground">{t("meetings.pageOf", { page, pages })}</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
+                  {t("meetings.prevPage")}
+                </Button>
+                <Button size="sm" variant="outline" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(offset + PAGE_SIZE)}>
+                  {t("meetings.nextPage")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

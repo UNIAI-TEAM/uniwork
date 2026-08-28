@@ -1,7 +1,7 @@
 -- Outbox + lịch sử email. Không FK: user_id NULL khi mời email chưa có account,
 -- và lịch sử phải sống lâu hơn user. Trạng thái suy từ timestamp:
 -- sent_at/failed_at đều NULL = đang chờ.
-CREATE TABLE emails (
+CREATE TABLE IF NOT EXISTS emails (
   id              TEXT PRIMARY KEY,
   kind            TEXT NOT NULL,
   to_email        TEXT NOT NULL,

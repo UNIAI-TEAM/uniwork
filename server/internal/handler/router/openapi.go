@@ -131,6 +131,29 @@ func pathParamSDI(path string) any {
 		return struct {
 			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
 		}{}
+	case "participantID":
+		return struct {
+			ParticipantID string `path:"participantID" description:"ULID người tham dự" example:"01J8X4PARTN1P2Q3R4S5T6"`
+		}{}
+	case "meetingID,participantID":
+		return struct {
+			MeetingID     string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			ParticipantID string `path:"participantID" description:"ULID người tham dự" example:"01J8X4PARTN1P2Q3R4S5T6"`
+		}{}
+	case "meetingID,invitationID":
+		return struct {
+			MeetingID    string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			InvitationID string `path:"invitationID" description:"ULID lời mời" example:"01J8X4INVN1P2Q3R4S5T6U"`
+		}{}
+	case "meetingID,linkId":
+		return struct {
+			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			LinkId    string `path:"linkId" description:"ULID invite link" example:"01J8X4LINKN1P2Q3R4S5T"`
+		}{}
+	case "requestId":
+		return struct {
+			RequestId string `path:"requestId" description:"ULID join request" example:"01J8X4JREQN1P2Q3R4S5"`
+		}{}
 	case "token":
 		return struct {
 			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`
@@ -190,6 +213,11 @@ func (a api) Patch(path string, h http.HandlerFunc, op apiOp) {
 func (a api) Delete(path string, h http.HandlerFunc, op apiOp) {
 	a.r.Delete(path, h)
 	a.cat.add(http.MethodDelete, joinRoute(a.prefix, path), op)
+}
+
+func (a api) Put(path string, h http.HandlerFunc, op apiOp) {
+	a.r.Put(path, h)
+	a.cat.add(http.MethodPut, joinRoute(a.prefix, path), op)
 }
 
 func joinRoute(prefix, path string) string {

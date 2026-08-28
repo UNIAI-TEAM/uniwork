@@ -100,5 +100,24 @@ else
 fi
 
 echo ""; echo "==> [6/6] E2E tests (Playwright) against ${E2E_BASE_URL}..."
+# E2E registers many accounts from one IP; leftover uw:ratelimit:* keys from dev
+# or a prior run in the same minute can 429 the last register (verify dark).
+clear_rate_limits() {
+  local keys
+  if [ -n "${REDIS_URL:-}" ]; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'uniwork-redis-1'; then
+      keys=$(docker exec uniwork-redis-1 redis-cli --scan --pattern 'uw:ratelimit:*' 2>/dev/null || true)
+      if [ -n "$keys" ]; then
+        echo "$keys" | xargs docker exec -i uniwork-redis-1 redis-cli DEL >/dev/null 2>&1 || true
+      fi
+    elif command -v redis-cli >/dev/null 2>&1; then
+      keys=$(redis-cli -u "$REDIS_URL" --scan --pattern 'uw:ratelimit:*' 2>/dev/null || true)
+      if [ -n "$keys" ]; then
+        echo "$keys" | xargs redis-cli -u "$REDIS_URL" DEL >/dev/null 2>&1 || true
+      fi
+    fi
+  fi
+}
+clear_rate_limits
 pnpm --filter @uniwork/e2e exec playwright install chromium > /dev/null
 pnpm --filter @uniwork/e2e test || { EXIT_CODE=1; exit 1; }

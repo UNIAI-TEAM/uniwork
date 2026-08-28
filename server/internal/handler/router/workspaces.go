@@ -7,15 +7,15 @@ import (
 
 // tag: workspaces — workspace, members, invitations. Requires Bearer.
 //
-//	GET   /api/v1/orgs/{org}/workspaces/{wsSlug}
-//	GET   /api/v1/workspaces
-//	PATCH /api/v1/workspaces/{workspaceID}
-//	GET   /api/v1/workspaces/{workspaceID}/me
-//	GET   /api/v1/workspaces/{workspaceID}/members
-//	PATCH /api/v1/workspaces/{workspaceID}/members/{userID}
+//	GET    /api/v1/orgs/{org}/workspaces/{wsSlug}
+//	GET    /api/v1/workspaces
+//	PATCH  /api/v1/workspaces/{workspaceID}
+//	GET    /api/v1/workspaces/{workspaceID}/me
+//	GET    /api/v1/workspaces/{workspaceID}/members
+//	PATCH  /api/v1/workspaces/{workspaceID}/members/{userID}
 //	DELETE /api/v1/workspaces/{workspaceID}/members/{userID}
-//	POST  /api/v1/workspaces/{workspaceID}/invitations
-//	POST  /api/v1/invitations/{token}/accept
+//	POST   /api/v1/workspaces/{workspaceID}/invitations
+//	POST   /api/v1/invitations/{token}/accept
 func registerWorkspaces(r api, h Routes) {
 	r.Get("/orgs/{org}/workspaces/{wsSlug}", h.GetWorkspaceBySlugs, apiOp{
 		summary:     "Get workspace by slugs",
@@ -39,32 +39,33 @@ func registerWorkspaces(r api, h Routes) {
 		sdo:         sdo.WorkspaceSDO{},
 		auth:        true,
 	})
-	r.Get("/workspaces/{workspaceID}/members", h.ListMembers, apiOp{
-		summary:     "List workspace members",
-		description: "Thành viên workspace, gồm cả admin ngầm từ tổ chức.",
-		tags:        []string{"workspaces"},
-		sdo:         sdo.MemberListSDO{},
-		auth:        true,
-	})
 	r.Get("/workspaces/{workspaceID}/me", h.GetWorkspaceMe, apiOp{
-		summary:     "Current membership",
-		description: "Vai trò của người gọi trong workspace và nguồn của nó (workspace hay tổ chức).",
+		summary:     "Get current membership",
+		description: "Vai trò hiệu lực của người gọi trong workspace (membership tường minh hoặc admin ngầm từ tổ chức).",
 		tags:        []string{"workspaces"},
 		sdo:         sdo.MembershipSDO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/members", h.ListMembers, apiOp{
+		summary:     "List workspace members",
+		description: "Thành viên tường minh trên workspace_members (không gồm admin ngầm từ tổ chức).",
+		tags:        []string{"workspaces"},
+		sdo:         sdo.MemberListSDO{},
+		auth:        true,
+	})
 	r.Patch("/workspaces/{workspaceID}/members/{userID}", h.PatchMember, apiOp{
-		summary:     "Change member role",
-		description: "Đổi vai trò thành viên. Cần owner/admin workspace.",
+		summary:     "Update member role",
+		description: "Đổi role admin ↔ member. Không đổi owner tường minh; không PATCH thành owner. Cần admin workspace.",
 		tags:        []string{"workspaces"},
 		sdi:         sdi.PatchMemberSDI{},
-		sdo:         sdo.WorkspaceMemberSDO{},
+		sdo:         sdo.MemberSDO{},
 		auth:        true,
 	})
 	r.Delete("/workspaces/{workspaceID}/members/{userID}", h.DeleteMember, apiOp{
-		summary:     "Remove member",
-		description: "Gỡ thành viên khỏi workspace. Cần owner/admin workspace.",
+		summary:     "Remove workspace member",
+		description: "Xóa dòng workspace_members. Không xóa owner tường minh. Người gọi được tự rời nếu không phải owner.",
 		tags:        []string{"workspaces"},
+		sdo:         sdo.StatusSDO{},
 		status:      204,
 		auth:        true,
 	})

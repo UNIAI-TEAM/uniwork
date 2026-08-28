@@ -31,7 +31,7 @@ export function errorCode(err: unknown): string | undefined {
 }
 
 export interface RequestOpts {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   /** Skip the 401 → refresh → retry cycle. Used by the auth endpoints themselves. */
   skipRefresh?: boolean;
