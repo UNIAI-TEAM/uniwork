@@ -19,6 +19,7 @@ export const workspaceKeys = {
   list: () => ["workspaces"] as const,
   bySlugs: (orgSlug: string, wsSlug: string) => ["workspace", orgSlug, wsSlug] as const,
   members: (wsId: string) => ["members", wsId] as const,
+  me: (wsId: string) => ["workspace-me", wsId] as const,
   myInvitations: () => ["my-invitations"] as const,
 };
 
@@ -46,10 +47,42 @@ export function useMembers(workspaceId: string) {
   });
 }
 
+export function useMyMembership(workspaceId: string) {
+  return useQuery({
+    queryKey: workspaceKeys.me(workspaceId),
+    queryFn: () => workspaces.getMyMembership(workspaceId),
+    enabled: !!workspaceId,
+    retry: false,
+  });
+}
+
 export function useInvite(workspaceId: string) {
   return useMutation({
     mutationFn: (body: { emails: string[]; role: "admin" | "member" }) =>
       workspaces.invite(workspaceId, body),
+  });
+}
+
+export function useUpdateMemberRole(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: "admin" | "member" }) =>
+      workspaces.updateMemberRole(workspaceId, userId, { role }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) });
+      void qc.invalidateQueries({ queryKey: workspaceKeys.me(workspaceId) });
+    },
+  });
+}
+
+export function useRemoveMember(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => workspaces.removeMember(workspaceId, userId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) });
+      void qc.invalidateQueries({ queryKey: workspaceKeys.me(workspaceId) });
+    },
   });
 }
 

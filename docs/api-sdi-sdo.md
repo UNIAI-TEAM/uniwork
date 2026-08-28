@@ -187,6 +187,7 @@ GET không body: bỏ `sdi`. Refresh/logout không JSON body: bỏ `sdi`.
 | `/orgs/{org}` | `"org"` |
 | `/orgs/{org}/workspaces/{wsSlug}` | `"org,wsSlug"` |
 | `/workspaces/{workspaceID}` | `"workspaceID"` |
+| `/workspaces/{workspaceID}/members/{userID}` | `"workspaceID,userID"` |
 | `/tasks/{taskID}` | `"taskID"` |
 | `/meetings/{meetingID}` | `"meetingID"` |
 | `/invitations/{token}` | `"token"` |

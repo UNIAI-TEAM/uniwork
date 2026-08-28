@@ -11,6 +11,11 @@ type PatchWorkspaceSDI struct {
 	Name *string `json:"name" description:"Tên workspace mới" example:"Team"`
 }
 
+// PatchMemberSDI is PATCH /api/v1/workspaces/{workspaceID}/members/{userID}.
+type PatchMemberSDI struct {
+	Role string `json:"role" description:"Vai trò mới: admin hoặc member, không phải owner" example:"member"`
+}
+
 // CreateInvitationSDI is POST /api/v1/workspaces/{workspaceID}/invitations.
 type CreateInvitationSDI struct {
 	Email  string   `json:"email" format:"email" description:"Một email mời; cũng nhận qua emails[0]" example:"binh@acme.vn"`

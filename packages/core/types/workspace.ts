@@ -13,6 +13,17 @@ export type Workspace = z.infer<typeof WorkspaceSchema>;
 export const MEMBER_ROLES = ["owner", "admin", "member"] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
+export const WorkspaceMembershipSchema = z.object({
+  user_id: z.string(),
+  role: z.string(),
+  source: z.string(),
+});
+export type WorkspaceMembership = {
+  user_id: string;
+  role: string;
+  source: string;
+};
+
 export const MemberSchema = z.object({
   workspace_id: z.string(),
   user_id: z.string(),

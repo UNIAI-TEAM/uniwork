@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import { acceptInvite, getBySlugs, invite, list, listMembers, myInvitations, patchWorkspace } from "./workspaces";
+import { acceptInvite, getBySlugs, getMyMembership, invite, list, listMembers, myInvitations, patchWorkspace } from "./workspaces";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -69,5 +69,19 @@ describe("workspaces endpoints", () => {
       .mockResolvedValueOnce(json({ nope: true }));
     expect((await patchWorkspace("ws1", { name: "Renamed" }))?.name).toBe("Renamed");
     await expect(patchWorkspace("ws1", { name: "Renamed" })).resolves.toBeNull();
+  });
+
+  it("getMyMembership returns membership or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ membership: { user_id: "u1", role: "admin", source: "org_admin" } }),
+    );
+    expect(await getMyMembership("ws1")).toEqual({
+      user_id: "u1",
+      role: "admin",
+      source: "org_admin",
+    });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/workspaces/ws1/me");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ membership: null }));
+    await expect(getMyMembership("ws1")).resolves.toBeNull();
   });
 });

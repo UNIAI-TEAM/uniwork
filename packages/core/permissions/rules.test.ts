@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  canChangeMemberRole,
   canCreateWorkspaceInOrg,
+  canDeleteComment,
   canDeleteMeeting,
   canDeleteTask,
+  canEditComment,
   canEditTask,
   canInviteMembers,
   canManageMembers,
+  canRemoveMember,
   canUpdateWorkspaceSettings,
 } from "./rules";
 import type { PermissionContext } from "./types";
@@ -32,6 +36,26 @@ describe("canInviteMembers — mirrors workspace.go:136", () => {
   it("carries copy for the UI on every denial", () => {
     expect(canInviteMembers(ctx({ wsRole: "member" })).message.length).toBeGreaterThan(0);
     expect(canManageMembers(ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+  });
+});
+
+describe("canRemoveMember / canChangeMemberRole", () => {
+  const member = { user_id: "u2", role: "member" };
+  const owner = { user_id: "u9", role: "owner" };
+
+  it("allows admin-like actors on non-owner targets", () => {
+    expect(canRemoveMember(member, ctx({ wsRole: "admin" })).allowed).toBe(true);
+    expect(canChangeMemberRole(member, ctx({ wsRole: "owner" })).allowed).toBe(true);
+  });
+  it("allows a member to leave themselves", () => {
+    expect(canRemoveMember({ user_id: "u1", role: "member" }, ctx({ wsRole: "member" })).allowed).toBe(
+      true,
+    );
+  });
+  it("denies plain members removing others and protects owners", () => {
+    expect(canRemoveMember(member, ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+    expect(canRemoveMember(owner, ctx({ wsRole: "admin" })).reason).toBe("not_owner_role");
+    expect(canChangeMemberRole(owner, ctx({ wsRole: "admin" })).reason).toBe("not_owner_role");
   });
 });
 
@@ -68,5 +92,15 @@ describe("task and meeting rules — membership only, as the backend gates today
   it("denies outside the workspace", () => {
     expect(canDeleteTask(null, ctx({ wsRole: null })).reason).toBe("not_member");
     expect(canDeleteMeeting(null, ctx({ userId: null })).reason).toBe("not_authenticated");
+  });
+});
+
+describe("comment authorship policy (not wired to Tasks yet)", () => {
+  it("allows author or admin-like to edit/delete", () => {
+    expect(canEditComment("u1", ctx({ userId: "u1", wsRole: "member" })).allowed).toBe(true);
+    expect(canDeleteComment("u2", ctx({ userId: "u1", wsRole: "admin" })).allowed).toBe(true);
+    expect(canEditComment("u2", ctx({ userId: "u1", wsRole: "member" })).reason).toBe(
+      "not_resource_owner",
+    );
   });
 });

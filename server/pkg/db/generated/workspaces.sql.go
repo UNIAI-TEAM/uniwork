@@ -101,6 +101,21 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 	return i, err
 }
 
+const deleteWorkspaceMember = `-- name: DeleteWorkspaceMember :exec
+DELETE FROM workspace_members
+WHERE workspace_id = $1 AND user_id = $2
+`
+
+type DeleteWorkspaceMemberParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	UserID      string `json:"user_id"`
+}
+
+func (q *Queries) DeleteWorkspaceMember(ctx context.Context, arg DeleteWorkspaceMemberParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceMember, arg.WorkspaceID, arg.UserID)
+	return err
+}
+
 const getInvitationByToken = `-- name: GetInvitationByToken :one
 SELECT id, workspace_id, email, role, token, expires_at, accepted_at, created_at FROM invitations
 WHERE token = $1 AND accepted_at IS NULL AND expires_at > now()
@@ -424,6 +439,31 @@ UPDATE invitations SET accepted_at = now() WHERE id = $1
 func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markInvitationAccepted, id)
 	return err
+}
+
+const updateWorkspaceMemberRole = `-- name: UpdateWorkspaceMemberRole :one
+UPDATE workspace_members
+SET role = $3
+WHERE workspace_id = $1 AND user_id = $2
+RETURNING workspace_id, user_id, role, created_at
+`
+
+type UpdateWorkspaceMemberRoleParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	UserID      string `json:"user_id"`
+	Role        string `json:"role"`
+}
+
+func (q *Queries) UpdateWorkspaceMemberRole(ctx context.Context, arg UpdateWorkspaceMemberRoleParams) (WorkspaceMember, error) {
+	row := q.db.QueryRow(ctx, updateWorkspaceMemberRole, arg.WorkspaceID, arg.UserID, arg.Role)
+	var i WorkspaceMember
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const updateWorkspaceName = `-- name: UpdateWorkspaceName :one

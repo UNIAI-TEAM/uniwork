@@ -1,10 +1,10 @@
 "use client";
 
 import { useSession } from "../auth/hooks";
-import { useOrganizations } from "../organizations/hooks";
 import { MEMBER_ROLES, type Member, type MemberRole } from "../types/workspace";
 import { ORG_ROLES, type OrgRole } from "../types/organization";
-import { useMembers } from "../workspaces/hooks";
+import { useMembers, useMyMembership } from "../workspaces/hooks";
+import { useOrganizations } from "../organizations/hooks";
 
 function asMemberRole(role: string | undefined): MemberRole | null {
   return (MEMBER_ROLES as readonly string[]).includes(role ?? "") ? (role as MemberRole) : null;
@@ -18,25 +18,32 @@ function asOrgRole(role: string | undefined): OrgRole | null {
  * The current user's membership in a workspace — the single source of truth
  * for "what role am I", replacing ad-hoc `members.find(...)` in views.
  *
- * `wsId` is explicit so the hook stays usable in components that render
- * before workspace context is wired. A role the client does not recognise
- * resolves to null (least privilege), never to a guess.
+ * Role comes from GET /workspaces/{id}/me (effective role, including implicit
+ * org admin). The members list is only used for the explicit Member row when
+ * present.
  */
 export function useCurrentMember(wsId: string): {
   userId: string | null;
   role: MemberRole | null;
   member: Member | null;
+  source: "membership" | "org_admin" | null;
   isLoading: boolean;
 } {
   const { user, status } = useSession();
   const userId = user?.id ?? null;
-  const { data: members, isLoading } = useMembers(wsId);
+  const { data: membership, isLoading: meLoading } = useMyMembership(wsId);
+  const { data: members } = useMembers(wsId);
   const member = members?.find((m) => m.user_id === userId) ?? null;
+  const source =
+    membership?.source === "org_admin" || membership?.source === "membership"
+      ? membership.source
+      : null;
   return {
     userId,
-    role: asMemberRole(member?.role),
+    role: asMemberRole(membership?.role),
     member,
-    isLoading: status === "loading" || isLoading,
+    source,
+    isLoading: status === "loading" || meLoading,
   };
 }
 

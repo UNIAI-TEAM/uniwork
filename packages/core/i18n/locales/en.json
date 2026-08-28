@@ -88,7 +88,13 @@
     "copy_confirmed": "Invite link for {{email}} copied",
     "invite_recipient_count_one": "{{count}} recipient",
     "invite_recipient_count_other": "{{count}} recipients",
-    "invite_recipients_empty": "No recipients yet"
+    "invite_recipients_empty": "No recipients yet",
+    "changeRole": "Change role",
+    "removeMember": "Remove from workspace",
+    "removeConfirm": "Remove {{name}} from this workspace?",
+    "roleUpdated": "Role updated",
+    "memberRemoved": "Member removed",
+    "ownerLocked": "The workspace owner cannot be changed or removed this way"
   },
   "nav": {
     "tasks": "Tasks",

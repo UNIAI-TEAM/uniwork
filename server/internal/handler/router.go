@@ -97,7 +97,10 @@ func New(d Deps) http.Handler {
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,
 		PatchWorkspace:      h.patchWorkspace,
+		GetWorkspaceMe:      h.getWorkspaceMe,
 		ListMembers:         h.listMembers,
+		PatchMember:         h.patchMember,
+		DeleteMember:        h.deleteMember,
 		CreateInvitation:    h.createInvitation,
 		AcceptInvitation:    h.acceptInvitation,
 

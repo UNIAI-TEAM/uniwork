@@ -2,10 +2,12 @@ import { z } from "zod";
 import {
   MemberSchema,
   PendingInvitationSchema,
+  WorkspaceMembershipSchema,
   WorkspaceSchema,
   type Member,
   type PendingInvitation,
   type Workspace,
+  type WorkspaceMembership,
 } from "../../types/workspace";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -13,6 +15,7 @@ import { parseWithFallback } from "../schema";
 const WorkspacesResponse = z.object({ workspaces: z.array(WorkspaceSchema) });
 const WorkspaceResponse = z.object({ workspace: WorkspaceSchema });
 const MembersResponse = z.object({ members: z.array(MemberSchema) });
+const MembershipResponse = z.object({ membership: WorkspaceMembershipSchema });
 const MyInvitationsResponse = z.object({ invitations: z.array(PendingInvitationSchema) });
 const InviteResponse = z.object({
   invitations: z.array(
@@ -50,6 +53,32 @@ export async function listMembers(workspaceId: string): Promise<Member[]> {
   return parseWithFallback<{ members: Member[] }>(raw, MembersResponse, { members: [] }, {
     endpoint: "GET /api/v1/workspaces/{ws}/members",
   }).members;
+}
+
+export async function getMyMembership(workspaceId: string): Promise<WorkspaceMembership | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/me`);
+  return (
+    parseWithFallback<{ membership: WorkspaceMembership } | null>(raw, MembershipResponse, null, {
+      endpoint: "GET /api/v1/workspaces/{ws}/me",
+    })?.membership ?? null
+  );
+}
+
+export async function updateMemberRole(
+  workspaceId: string,
+  userId: string,
+  body: { role: "admin" | "member" },
+): Promise<unknown> {
+  return request(`/api/v1/workspaces/${enc(workspaceId)}/members/${enc(userId)}`, {
+    method: "PATCH",
+    body,
+  });
+}
+
+export async function removeMember(workspaceId: string, userId: string): Promise<void> {
+  await request(`/api/v1/workspaces/${enc(workspaceId)}/members/${enc(userId)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function invite(

@@ -78,3 +78,13 @@ JOIN organizations o ON o.id = w.organization_id
 JOIN users u ON u.id = w.created_by
 WHERE i.email = $1 AND i.accepted_at IS NULL AND i.expires_at > now()
 ORDER BY i.created_at DESC;
+
+-- name: UpdateWorkspaceMemberRole :one
+UPDATE workspace_members
+SET role = $3
+WHERE workspace_id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: DeleteWorkspaceMember :exec
+DELETE FROM workspace_members
+WHERE workspace_id = $1 AND user_id = $2;

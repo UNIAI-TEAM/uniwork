@@ -1,13 +1,16 @@
 "use client";
 
 import type { Task } from "../types/task";
+import type { Member } from "../types/workspace";
 import {
+  canChangeMemberRole,
   canCreateWorkspaceInOrg,
   canDeleteMeeting,
   canDeleteTask,
   canEditTask,
   canInviteMembers,
   canManageMembers,
+  canRemoveMember,
   canUpdateWorkspaceSettings,
 } from "./rules";
 import { deny, type Decision, type PermissionContext } from "./types";
@@ -26,6 +29,8 @@ export function useWorkspacePermissions(wsId: string): {
   canManageMembers: Decision;
   canDeleteMeeting: Decision;
   canUpdateSettings: Decision;
+  decideRemove: (target: Member) => Decision;
+  decideChangeRole: (target: Member) => Decision;
   isLoading: boolean;
 } {
   const { userId, role, isLoading } = useCurrentMember(wsId);
@@ -36,6 +41,8 @@ export function useWorkspacePermissions(wsId: string): {
       canManageMembers: PENDING,
       canDeleteMeeting: PENDING,
       canUpdateSettings: PENDING,
+      decideRemove: () => PENDING,
+      decideChangeRole: () => PENDING,
       isLoading,
     };
   }
@@ -44,6 +51,8 @@ export function useWorkspacePermissions(wsId: string): {
     canManageMembers: canManageMembers(ctx),
     canDeleteMeeting: canDeleteMeeting(null, ctx),
     canUpdateSettings: canUpdateWorkspaceSettings(ctx),
+    decideRemove: (target: Member) => canRemoveMember(target, ctx),
+    decideChangeRole: (target: Member) => canChangeMemberRole(target, ctx),
     isLoading,
   };
 }

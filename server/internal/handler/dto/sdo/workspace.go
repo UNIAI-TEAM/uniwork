@@ -19,10 +19,21 @@ type WorkspaceDTO struct {
 	OrganizationName string `json:"organization_name" example:"Acme"`
 }
 
+type MembershipDTO struct {
+	UserID string `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Role   string `json:"role" description:"Vai trò hiệu lực: owner, admin hoặc member" example:"admin"`
+	Source string `json:"source" description:"membership tường minh hoặc org_admin ngầm" example:"membership"`
+}
+
+// MembershipSDO is GET /api/v1/workspaces/{workspaceID}/me.
+type MembershipSDO struct {
+	Membership MembershipDTO `json:"membership"`
+}
+
 type MemberDTO struct {
 	WorkspaceID string `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	UserID      string `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Role        string `json:"role" description:"Vai trò trong workspace, hoặc admin ngầm từ tổ chức" example:"admin"`
+	Role        string `json:"role" description:"Vai trò tường minh trên workspace_members" example:"admin"`
 	CreatedAt   string `json:"created_at" example:"2026-08-01T09:00:00Z"`
 	Email       string `json:"email" format:"email" example:"an@acme.vn"`
 	DisplayName string `json:"display_name" example:"Nguyễn Văn An"`
@@ -32,6 +43,18 @@ type MemberDTO struct {
 // MemberListSDO is GET /api/v1/workspaces/{workspaceID}/members.
 type MemberListSDO struct {
 	Members []MemberDTO `json:"members"`
+}
+
+type WorkspaceMemberDTO struct {
+	WorkspaceID string `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	UserID      string `json:"user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Role        string `json:"role" example:"member"`
+	CreatedAt   string `json:"created_at" example:"2026-08-01T09:00:00Z"`
+}
+
+// MemberSDO is PATCH /api/v1/workspaces/{workspaceID}/members/{userID}.
+type MemberSDO struct {
+	Member WorkspaceMemberDTO `json:"member"`
 }
 
 type InvitationCreatedDTO struct {
