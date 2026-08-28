@@ -1,7 +1,7 @@
 # UniWork — Email giao dịch (transactional email)
 
 **Ngày:** 2026-08-28
-**Trạng thái:** Thiết kế, chưa triển khai
+**Trạng thái:** Đã triển khai (nhánh feat/transactional-email, 2026-08-28)
 **Spec nền:** `2026-08-27-google-auth-email-verification-design.md` (package `mail`,
 OTP xác thực), `2026-08-25-onboarding-organizations-design.md` (`OnboardingService.Complete`,
 `invitations`)

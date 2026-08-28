@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -41,13 +42,14 @@ var backoff = []time.Duration{time.Minute, 5 * time.Minute, 30 * time.Minute, 2 
 // FOR UPDATE SKIP LOCKED. Delivery is at-least-once: a crash between Send
 // and commit re-sends that one message.
 type Outbox struct {
-	pool   *pgxpool.Pool
-	q      *db.Queries
-	sender Sender
-	log    *slog.Logger
-	kick   chan struct{}
-	tick   time.Duration
-	now    func() time.Time
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	sender  Sender
+	log     *slog.Logger
+	kick    chan struct{}
+	tick    time.Duration
+	now     func() time.Time
+	Counter *prometheus.CounterVec
 }
 
 func NewOutbox(pool *pgxpool.Pool, sender Sender, log *slog.Logger) *Outbox {
@@ -74,6 +76,12 @@ func (o *Outbox) Enqueue(ctx context.Context, q *db.Queries, msg Message) (strin
 		return "", err
 	}
 	return row.ID, nil
+}
+
+func (o *Outbox) count(kind, result string) {
+	if o.Counter != nil {
+		o.Counter.WithLabelValues(kind, result).Inc()
+	}
 }
 
 // Kick wakes Run before the next tick. Non-blocking; a pending kick is enough.
@@ -152,15 +160,18 @@ func (o *Outbox) deliver(ctx context.Context, q *db.Queries, row db.Email) error
 		Subject: row.Subject, HTML: row.Html, Text: row.Text}
 	sendErr := o.sender.Send(ctx, msg)
 	if sendErr == nil {
+		o.count(row.Kind, "sent")
 		return q.MarkEmailSent(ctx, row.ID)
 	}
 	attempt := int(row.Attempts) + 1
 	if attempt >= outboxMaxTries {
 		o.log.Error("mail: giving up", "kind", row.Kind, "to", row.ToEmail, "attempts", attempt, "err", sendErr)
+		o.count(row.Kind, "failed")
 		return q.MarkEmailFailed(ctx, db.MarkEmailFailedParams{ID: row.ID, LastError: pgtype.Text{String: sendErr.Error(), Valid: true}})
 	}
 	next := o.now().Add(backoff[attempt-1])
 	o.log.Warn("mail: send failed, will retry", "kind", row.Kind, "to", row.ToEmail, "attempts", attempt, "next", next, "err", sendErr)
+	o.count(row.Kind, "retry")
 	return q.MarkEmailAttemptFailed(ctx, db.MarkEmailAttemptFailedParams{
 		ID: row.ID, NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},
 		LastError: pgtype.Text{String: sendErr.Error(), Valid: true},

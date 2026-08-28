@@ -69,8 +69,9 @@ func main() {
 	// separate listener so the scrape endpoint never shares the public port.
 	var httpMetrics *metrics.HTTPMetrics
 	var metricsSrv *http.Server
+	var reg *metrics.Registry
 	if mcfg := metrics.ConfigFromEnv(); mcfg.Enabled() {
-		reg := metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
+		reg = metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
 		httpMetrics = reg.HTTP
 		metricsSrv = metrics.NewServer(mcfg.Addr, reg.Gatherer)
 		go func() {
@@ -116,6 +117,9 @@ func main() {
 		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
 	}
 	outbox := mail.NewOutbox(pool, sender, log)
+	if reg != nil {
+		outbox.Counter = reg.Emails
+	}
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
 	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
