@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -25,6 +26,7 @@ const (
 // never reveals whether an address exists: unknown, Google-only and
 // rate-limited requests all return nil without mail.
 type PasswordResetService struct {
+	pool   *pgxpool.Pool
 	q      *db.Queries
 	auth   *AuthService
 	render mail.Renderer
@@ -32,8 +34,8 @@ type PasswordResetService struct {
 	now    func() time.Time
 }
 
-func NewPasswordResetService(q *db.Queries, a *AuthService, r mail.Renderer, out mail.Enqueuer) *PasswordResetService {
-	return &PasswordResetService{q: q, auth: a, render: r, out: out, now: time.Now}
+func NewPasswordResetService(pool *pgxpool.Pool, q *db.Queries, a *AuthService, r mail.Renderer, out mail.Enqueuer) *PasswordResetService {
+	return &PasswordResetService{pool: pool, q: q, auth: a, render: r, out: out, now: time.Now}
 }
 
 func (s *PasswordResetService) Request(ctx context.Context, email string) error {
@@ -94,14 +96,23 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if err != nil {
 		return Session{}, err
 	}
-	u, err := s.q.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, err
 	}
-	if err := s.q.MarkPasswordResetTokenUsed(ctx, t.ID); err != nil {
+	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
+	u, err := qtx.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
+	if err != nil {
 		return Session{}, err
 	}
-	if err := s.q.RevokeAllRefreshTokensForUser(ctx, t.UserID); err != nil {
+	if err := qtx.MarkPasswordResetTokenUsed(ctx, t.ID); err != nil {
+		return Session{}, err
+	}
+	if err := qtx.RevokeAllRefreshTokensForUser(ctx, t.UserID); err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return Session{}, err
 	}
 	return s.auth.SessionFor(ctx, u)

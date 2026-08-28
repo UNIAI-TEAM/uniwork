@@ -22,7 +22,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	out := &fakeOutbox{}
 	r := mail.Renderer{AppURL: "http://localhost:3000"}
 	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	s := NewPasswordResetService(q, as, r, out)
+	s := NewPasswordResetService(pool, q, as, r, out)
 	ctx := context.Background()
 	u := registerVerified(t, q, as, "p@example.com", "P")
 	old, _ := as.Login(ctx, "p@example.com", "password123")
@@ -73,12 +73,66 @@ func TestPasswordResetIgnoresGoogleOnly(t *testing.T) {
 	q := db.New(pool)
 	out := &fakeOutbox{}
 	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	s := NewPasswordResetService(q, as, mail.Renderer{AppURL: "x"}, out)
+	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "x"}, out)
 	ctx := context.Background()
 	if _, err := q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{ID: "g1", Email: "g@example.com", DisplayName: "G", GoogleID: pgtype.Text{String: "sub", Valid: true}, Locale: "vi"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Request(ctx, "g@example.com"); err != nil || len(out.queued) != 0 {
 		t.Fatalf("google-only: %v %d", err, len(out.queued))
+	}
+}
+
+// TestPasswordResetResendWindowUsesInjectedClock proves the 60s resend gate
+// reads s.now rather than wall-clock sleep: advancing the fake clock past
+// the window is enough to unblock a second mail without a real sleep.
+func TestPasswordResetResendWindowUsesInjectedClock(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	out := &fakeOutbox{}
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
+	ctx := context.Background()
+	registerVerified(t, q, as, "clock@example.com", "C")
+
+	base := time.Now()
+	s.now = func() time.Time { return base }
+	if err := s.Request(ctx, "clock@example.com"); err != nil || len(out.queued) != 1 {
+		t.Fatalf("first request: %v %d", err, len(out.queued))
+	}
+
+	s.now = func() time.Time { return base.Add(30 * time.Second) }
+	if err := s.Request(ctx, "clock@example.com"); err != nil || len(out.queued) != 1 {
+		t.Fatalf("still inside window: %v %d", err, len(out.queued))
+	}
+
+	s.now = func() time.Time { return base.Add(61 * time.Second) }
+	if err := s.Request(ctx, "clock@example.com"); err != nil || len(out.queued) != 2 {
+		t.Fatalf("past window must send: %v %d", err, len(out.queued))
+	}
+}
+
+// TestPasswordResetExpiredTokenIsInvalid proves an expired token is
+// rejected. expires_at is DB-computed from s.now at creation time (the
+// active-token query compares against the database's own now(), not
+// s.now), so the deterministic way to force expiry is to mint the token
+// with a clock already an hour in the past.
+func TestPasswordResetExpiredTokenIsInvalid(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	out := &fakeOutbox{}
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
+	ctx := context.Background()
+	registerVerified(t, q, as, "expired@example.com", "E")
+
+	s.now = func() time.Time { return time.Now().Add(-2 * time.Hour) }
+	if err := s.Request(ctx, "expired@example.com"); err != nil || len(out.queued) != 1 {
+		t.Fatalf("request: %v %d", err, len(out.queued))
+	}
+	tok := resetToken.FindStringSubmatch(out.queued[0].Text)[1]
+
+	if _, err := s.Reset(ctx, tok, "newpassword1"); err != ErrInvalidToken {
+		t.Fatalf("expired token: %v", err)
 	}
 }

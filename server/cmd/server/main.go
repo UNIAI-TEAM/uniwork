@@ -120,7 +120,7 @@ func main() {
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
 	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
-	passwordReset := service.NewPasswordResetService(q, authSvc, renderer, outbox)
+	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
