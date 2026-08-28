@@ -64,6 +64,7 @@ func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims) (Session
 		u, err := s.q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{
 			ID: util.NewID(), Email: email, DisplayName: name, AvatarUrl: avatar,
 			GoogleID: pgtype.Text{String: c.Sub, Valid: true},
+			Locale:   "vi",
 		})
 		if isUniqueViolation(err) {
 			return Session{}, ErrConflict

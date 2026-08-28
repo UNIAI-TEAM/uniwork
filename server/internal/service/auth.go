@@ -55,6 +55,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	}
 	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
 		ID: util.NewID(), Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
+		Locale: "vi",
 	})
 	if isUniqueViolation(err) {
 		return Session{}, ErrConflict
