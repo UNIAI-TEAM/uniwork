@@ -40,15 +40,17 @@ test("register → workspace → task → meeting", async ({ page }) => {
 
   // tạo meeting
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/meetings`);
-  await page.getByRole("button", { name: "Tạo cuộc họp" }).click();
+  // Header action and the empty-state CTA share the label; either opens the dialog.
+  await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
   await page.getByLabel("Tiêu đề").fill("Họp e2e");
   // Schedule defaults (date + TimeInput segments) are prefilled; smoke only needs a title.
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
-  // Tạo xong app mở thẳng trang chi tiết; tiêu đề xuất hiện cả ở list lẫn h1.
-  await expect(page.getByText("Họp e2e").first()).toBeVisible();
+  // Creating navigates to the detail page. 15s: under `next dev` the first
+  // visit compiles /meetings/[meetingId], which alone can take longer than
+  // the 5s default.
+  await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/, { timeout: 15_000 });
 
   // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
-  if (!/\/meetings\/[0-9A-Z]+$/.test(page.url())) await page.getByText("Họp e2e").first().click();
   await page.getByRole("button", { name: "Bắt đầu" }).click();
   // Detail → /room lands on the pre-join screen, whose join button carries
   // the same label; the second click is what asks the server for a token.

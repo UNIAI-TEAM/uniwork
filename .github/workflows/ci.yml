@@ -311,7 +311,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
-          path: e2e/test-results/
+          path: |
+            e2e/test-results/
+            /tmp/server.log
+            /tmp/web.log
           if-no-files-found: ignore
 
   # Secrets by content, not by filename: the pre-commit hook refuses `.env`,

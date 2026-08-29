@@ -25,13 +25,14 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
 
   await page.goto(`/org-m-${stamp}/doi-m-${stamp}/meetings`);
-  await page.getByRole("button", { name: "Tạo cuộc họp" }).click();
+  // Header action and the empty-state CTA share the label; either opens the dialog.
+  await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
   await page.getByLabel("Tiêu đề").fill("Họp AI e2e");
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
-  // Creating opens the detail page; on older builds the list stays — click through then.
-  await expect(page.getByText("Họp AI e2e").first()).toBeVisible();
-  if (!/\/meetings\/[0-9A-Z]+$/.test(page.url())) await page.getByText("Họp AI e2e").first().click();
-  await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/);
+  // Creating navigates to the detail page. 15s: under `next dev` the first
+  // visit compiles /meetings/[meetingId], which alone can take longer than
+  // the 5s default.
+  await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/, { timeout: 15_000 });
   await expect(page.getByRole("heading", { name: "Họp AI e2e" })).toBeVisible();
 
   // Scheduled: no summary panel yet, calendar available.
