@@ -1,7 +1,7 @@
 import type { TrackReferenceOrPlaceholder } from "@livekit/components-react";
 import { Track } from "livekit-client";
 
-export const TILES_PER_PAGE = 9;
+const TILES_PER_PAGE = 9;
 
 /** CSS grid columns for the conference stage. Keep tiles inside the shell. */
 export function tileGridClass(count: number): string {

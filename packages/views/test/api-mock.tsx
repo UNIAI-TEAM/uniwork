@@ -16,7 +16,7 @@ export function wrap(ui: React.ReactElement) {
 }
 
 /** A NavigationAdapter whose push/replace/back are vi.fn() spies. */
-export function fakeNav(pathname = "/"): NavigationAdapter {
+function fakeNav(pathname = "/"): NavigationAdapter {
   return {
     push: vi.fn(),
     replace: vi.fn(),

@@ -8,14 +8,13 @@
 export const SIGNAL_TOPIC = "uw.signal";
 
 export const REACTIONS = ["👍", "❤️", "😂", "🎉", "👏"] as const;
-export type Reaction = (typeof REACTIONS)[number];
 
 export type MeetingSignal =
   | { kind: "hand"; value: boolean }
   | { kind: "reaction"; value: string }
   | { kind: "mute_request"; target: string };
 
-export type ReactionBubble = { id: string; identity: string; value: string; at: number };
+type ReactionBubble = { id: string; identity: string; value: string; at: number };
 
 export type SignalsState = {
   /** identities with a raised hand, oldest first */

@@ -1,14 +1,4 @@
-export const MEETING_TIMEZONES = [
-  "Asia/Ho_Chi_Minh",
-  "Asia/Bangkok",
-  "Asia/Singapore",
-  "Asia/Tokyo",
-  "UTC",
-  "Europe/London",
-  "America/Los_Angeles",
-] as const;
-
-export function pad2(n: number): string {
+function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 

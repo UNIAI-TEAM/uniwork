@@ -11,7 +11,7 @@ import { registerVerified } from "./auth-nav";
  * lỗi focus đã sống sót ở đó. Một helper đi được tới BẤT KỲ bước nào là cách
  * duy nhất để các spec đó phủ hết mà không nhân bản kịch bản đăng ký.
  */
-export const ONBOARDING_STEPS = ["about_you", "organization", "workspace", "invite"] as const;
+const ONBOARDING_STEPS = ["about_you", "organization", "workspace", "invite"] as const;
 export type OnboardingStepName = (typeof ONBOARDING_STEPS)[number];
 
 /** Tên tổ chức/workspace sinh theo tag để hai spec chạy song song không đụng slug. */
@@ -21,7 +21,7 @@ export interface OnboardingRun {
   wsName: string;
 }
 
-export async function registerAndStart(page: Page, tag: string): Promise<OnboardingRun> {
+async function registerAndStart(page: Page, tag: string): Promise<OnboardingRun> {
   const { stamp } = await registerVerified(page, tag);
   await page.getByRole("button", { name: /Bắt đầu/ }).click();
   await page.getByText("Cho chúng tôi biết đôi chút về bạn.").waitFor();

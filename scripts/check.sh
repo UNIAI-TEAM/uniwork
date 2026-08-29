@@ -71,6 +71,9 @@ pnpm typecheck || { EXIT_CODE=1; exit 1; }
 echo ""; echo "==> [2/6] Lint (package boundaries are lint errors)..."
 pnpm lint || { EXIT_CODE=1; exit 1; }
 
+echo ""; echo "==> [2b/6] Unused exports, files, dependencies (knip)..."
+pnpm knip || { EXIT_CODE=1; exit 1; }
+
 echo ""; echo "==> [3/6] TypeScript unit tests + repo contract tests..."
 pnpm test || { EXIT_CODE=1; exit 1; }
 node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/brand-assets.test.mjs || { EXIT_CODE=1; exit 1; }

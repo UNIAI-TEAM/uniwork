@@ -16,7 +16,7 @@ import { type Page } from "@playwright/test";
  * 150ms. Đọc `getComputedStyle` ngay lúc đó trả về màu đang chạy dở — từng làm
  * test này báo "Bỏ qua 2.44:1" trong khi giá trị token đã đúng.
  */
-export async function settle(page: Page) {
+async function settle(page: Page) {
   await page.evaluate(
     async () =>
       await Promise.all(
