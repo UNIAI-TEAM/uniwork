@@ -6,7 +6,15 @@ import { useEndMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { formatMeetingRange, formatRemaining, meetingLocale } from "./meeting-datetime";
+import { cn } from "@uniwork/ui/lib/utils";
+import {
+  formatMeetingRange,
+  formatRemaining,
+  meetingLocale,
+} from "./meeting-datetime";
+
+/** The countdown turns red only when the end is this close. */
+const URGENT_MS = 5 * 60_000;
 
 export function MeetingRoomHeader({
   meeting,
@@ -33,9 +41,19 @@ export function MeetingRoomHeader({
     return () => window.clearInterval(id);
   }, [meeting?.ends_at]);
 
-  const remaining = meeting?.ends_at ? formatRemaining(meeting.ends_at, now) : null;
+  const remaining = meeting?.ends_at
+    ? formatRemaining(meeting.ends_at, now)
+    : null;
+  const urgent =
+    Boolean(meeting?.ends_at) &&
+    Date.parse(meeting!.ends_at) - now <= URGENT_MS;
   const subtitle = meeting
-    ? meeting.description.trim() || formatMeetingRange(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language))
+    ? meeting.description.trim() ||
+      formatMeetingRange(
+        meeting.starts_at,
+        meeting.ends_at,
+        meetingLocale(i18n.language),
+      )
     : "";
   const scheduled = meeting?.status === "SCHEDULED" || !meeting?.status;
   const inProgress = meeting?.status === "IN_PROGRESS";
@@ -46,17 +64,26 @@ export function MeetingRoomHeader({
       <Button
         type="button"
         variant="ghost"
-        aria-label={t("meetings.leaveRoom")}
+        aria-label={t("meetings.leave")}
         onClick={onLeave}
         className="shrink-0 gap-1.5 px-2 text-muted-foreground"
       >
         <ArrowLeft aria-hidden className="size-4" />
-        <span className="hidden sm:inline">{t("meetings.leaveRoom")}</span>
+        <span className="hidden sm:inline">{t("meetings.leave")}</span>
       </Button>
-      <span aria-hidden className="hidden h-8 w-px shrink-0 bg-border sm:block" />
+      <span
+        aria-hidden
+        className="hidden h-8 w-px shrink-0 bg-border sm:block"
+      />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-title-sm font-semibold text-foreground">{meeting?.title ?? t("meetings.title")}</p>
-        {subtitle ? <p className="truncate text-caption text-muted-foreground">{subtitle}</p> : null}
+        <h1 className="truncate text-title-sm font-semibold text-foreground">
+          {meeting?.title ?? t("meetings.title")}
+        </h1>
+        {subtitle ? (
+          <p className="truncate text-caption text-muted-foreground">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {recording ? (
@@ -64,14 +91,26 @@ export function MeetingRoomHeader({
             className="flex items-center gap-1.5 rounded-full bg-destructive px-2.5 py-1 text-caption font-medium text-destructive-foreground"
             data-testid="meeting-rec-badge"
           >
-            <span aria-hidden className="size-2 animate-pulse rounded-full motion-reduce:animate-none bg-destructive-foreground" />
+            <span
+              aria-hidden
+              className="size-2 animate-pulse rounded-full motion-reduce:animate-none bg-destructive-foreground"
+            />
             {t("meetings.recording")}
           </p>
         ) : null}
         {remaining ? (
-          <p className="flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-2.5 py-1 text-caption tabular-nums text-destructive">
+          <p
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption tabular-nums",
+              urgent
+                ? "border-destructive/30 bg-destructive/10 text-destructive"
+                : "border-border text-muted-foreground",
+            )}
+          >
             <Clock aria-hidden className="size-3.5 shrink-0" />
-            <span className="hidden sm:inline">{t("meetings.endsIn", { time: remaining })}</span>
+            <span className="hidden sm:inline">
+              {t("meetings.endsIn", { time: remaining })}
+            </span>
             <span className="sm:hidden">{remaining}</span>
           </p>
         ) : null}

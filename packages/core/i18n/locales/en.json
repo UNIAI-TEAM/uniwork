@@ -461,7 +461,9 @@
     "newLink": "Add invite link",
     "devicePreviewStarting": "Starting camera…",
     "devicePreviewNoCamera": "No camera found on this device.",
-    "devicePreviewTimeout": "The browser has not granted camera access yet. Check the camera icon in the address bar."
+    "devicePreviewTimeout": "The browser has not granted camera access yet. Check the camera icon in the address bar.",
+    "more": "More",
+    "reconnecting": "Connection lost, reconnecting…"
   },
   "org": {
     "name": "Organization name",

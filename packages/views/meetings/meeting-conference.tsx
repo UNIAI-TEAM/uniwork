@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  ConnectionStateToast,
   RoomAudioRenderer,
   StartMediaButton,
+  useConnectionState,
   useSpeakingParticipants,
   useTracks,
 } from "@livekit/components-react";
-import { Track } from "livekit-client";
+import { ConnectionState, Track } from "livekit-client";
+import { toast } from "sonner";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
@@ -22,8 +23,17 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { useIsCompact } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
-import { orderTracks, paginate, tileGridClass, trackTileKey } from "./conference-layout";
-import { captionsSupported, MeetingCaptionsOverlay, useLiveCaptions } from "./meeting-captions";
+import {
+  orderTracks,
+  paginate,
+  tileGridClass,
+  trackTileKey,
+} from "./conference-layout";
+import {
+  captionsSupported,
+  MeetingCaptionsOverlay,
+  useLiveCaptions,
+} from "./meeting-captions";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
@@ -33,12 +43,38 @@ import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass } from "./conference-layout";
 
+const CONNECTION_TOAST_ID = "meeting-connection";
+
+/** Reconnect notice through the app's own toaster, in the app's own language. */
+function ConnectionNotice() {
+  const { t } = useTranslation();
+  const state = useConnectionState();
+  useEffect(() => {
+    if (state === ConnectionState.Reconnecting) {
+      toast.loading(t("meetings.reconnecting"), { id: CONNECTION_TOAST_ID });
+    } else {
+      toast.dismiss(CONNECTION_TOAST_ID);
+    }
+  }, [state, t]);
+  useEffect(
+    () => () => {
+      toast.dismiss(CONNECTION_TOAST_ID);
+    },
+    [],
+  );
+  return null;
+}
+
 /**
  * Conference stage that does not use LiveKit GridLayout/CarouselLayout.
  * Those layouts call `updatePages`, which throws when a camera placeholder is
  * replaced by a published track (known LiveKit bug).
  */
-export function MeetingConference(props: { meeting?: Meeting; workspaceId?: string; onLeave: () => void }) {
+export function MeetingConference(props: {
+  meeting?: Meeting;
+  workspaceId?: string;
+  onLeave: () => void;
+}) {
   return (
     <MeetingSignalsProvider>
       <ConferenceStage {...props} />
@@ -64,7 +100,10 @@ function ConferenceStage({
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: recordings } = useRecordings(meeting?.id ?? "");
   const recording = (recordings ?? []).some((r) => r.status === "ACTIVE");
-  const captions = useLiveCaptions(meeting?.id ?? "", captionsOn && !!meeting?.id);
+  const captions = useLiveCaptions(
+    meeting?.id ?? "",
+    captionsOn && !!meeting?.id,
+  );
   const speaking = useSpeakingParticipants();
   const tracks = useTracks(
     [
@@ -73,7 +112,10 @@ function ConferenceStage({
     ],
     { onlySubscribed: false },
   );
-  const ordered = orderTracks(tracks, speaking.map((p) => p.identity));
+  const ordered = orderTracks(
+    tracks,
+    speaking.map((p) => p.identity),
+  );
   const view = paginate(ordered, page);
 
   useEffect(() => {
@@ -110,18 +152,39 @@ function ConferenceStage({
           </div>
           {view.pages > 1 ? (
             <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-full bg-background/80 p-1 ring-1 ring-border">
-              <Button type="button" size="icon" variant="ghost" className="size-7 rounded-full" aria-label={t("meetings.prevPage")} disabled={view.page === 0} onClick={() => setPage((p) => p - 1)}>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-7 rounded-full"
+                aria-label={t("meetings.prevPage")}
+                disabled={view.page === 0}
+                onClick={() => setPage((p) => p - 1)}
+              >
                 <ChevronLeft aria-hidden className="size-4" />
               </Button>
               <span className="px-1 text-caption tabular-nums text-foreground">
                 {view.page + 1}/{view.pages}
               </span>
-              <Button type="button" size="icon" variant="ghost" className="size-7 rounded-full" aria-label={t("meetings.nextPage")} disabled={view.page >= view.pages - 1} onClick={() => setPage((p) => p + 1)}>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-7 rounded-full"
+                aria-label={t("meetings.nextPage")}
+                disabled={view.page >= view.pages - 1}
+                onClick={() => setPage((p) => p + 1)}
+              >
                 <ChevronRight aria-hidden className="size-4" />
               </Button>
             </div>
           ) : null}
-          {captionsOn ? <MeetingCaptionsOverlay interim={captions.interim} lastFinal={captions.lastFinal} /> : null}
+          {captionsOn ? (
+            <MeetingCaptionsOverlay
+              interim={captions.interim}
+              lastFinal={captions.lastFinal}
+            />
+          ) : null}
           <StartMediaButton
             label={t("meetings.allowMedia")}
             className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground"
@@ -129,7 +192,11 @@ function ConferenceStage({
         </div>
         {!compact ? (
           <div className="hidden min-h-0 w-[20rem] shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border lg:flex">
-            <MeetingRoomSidebar meetingId={meeting?.id} canHost={canHost.allowed} className="h-full w-full" />
+            <MeetingRoomSidebar
+              meetingId={meeting?.id}
+              canHost={canHost.allowed}
+              className="h-full w-full"
+            />
           </div>
         ) : null}
       </div>
@@ -146,18 +213,26 @@ function ConferenceStage({
       <MeetingCameraBackgroundSync />
       {compact ? (
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetContent side="right" className="w-[min(100%,20rem)] p-0" showCloseButton>
+          <SheetContent
+            side="right"
+            className="w-[min(100%,20rem)] p-0"
+            showCloseButton
+          >
             <SheetHeader className="sr-only">
-              <SheetTitle>{t("meetings.participants")}</SheetTitle>
+              <SheetTitle>{t("meetings.openSidebar")}</SheetTitle>
             </SheetHeader>
             {sidebarOpen ? (
-              <MeetingRoomSidebar meetingId={meeting?.id} canHost={canHost.allowed} className="h-full w-full" />
+              <MeetingRoomSidebar
+                meetingId={meeting?.id}
+                canHost={canHost.allowed}
+                className="h-full w-full"
+              />
             ) : null}
           </SheetContent>
         </Sheet>
       ) : null}
       <RoomAudioRenderer />
-      <ConnectionStateToast />
+      <ConnectionNotice />
     </div>
   );
 }

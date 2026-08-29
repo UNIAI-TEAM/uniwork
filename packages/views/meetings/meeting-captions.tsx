@@ -8,7 +8,10 @@ import { cn } from "@uniwork/ui/lib/utils";
 // in some configurations; this is the minimal surface we touch.
 type RecognitionAlternative = { transcript: string };
 type RecognitionResult = { isFinal: boolean; 0: RecognitionAlternative };
-type RecognitionEvent = { resultIndex: number; results: ArrayLike<RecognitionResult> };
+type RecognitionEvent = {
+  resultIndex: number;
+  results: ArrayLike<RecognitionResult>;
+};
 type Recognition = {
   lang: string;
   continuous: boolean;
@@ -23,7 +26,10 @@ type RecognitionCtor = new () => Recognition;
 
 function recognitionCtor(): RecognitionCtor | null {
   if (typeof window === "undefined") return null;
-  const w = window as unknown as { SpeechRecognition?: RecognitionCtor; webkitSpeechRecognition?: RecognitionCtor };
+  const w = window as unknown as {
+    SpeechRecognition?: RecognitionCtor;
+    webkitSpeechRecognition?: RecognitionCtor;
+  };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
@@ -82,7 +88,8 @@ export function useLiveCaptions(meetingId: string, enabled: boolean) {
     };
     rec.onerror = (e) => {
       // "no-speech" and "aborted" are routine; anything else surfaces once.
-      if (e.error && e.error !== "no-speech" && e.error !== "aborted") setError(e.error);
+      if (e.error && e.error !== "no-speech" && e.error !== "aborted")
+        setError(e.error);
     };
     // Chromium stops continuous recognition after a silence; restart until told otherwise.
     rec.onend = () => {
@@ -122,17 +129,23 @@ export function MeetingCaptionsOverlay({
   const { t } = useTranslation();
   const text = interim || lastFinal;
   return (
-    <div
-      aria-live="polite"
-      className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-16 z-10 flex justify-center px-4",
-        className,
-      )}
-      data-testid="meeting-captions"
-    >
-      <p className="max-w-3xl rounded-xl bg-background/85 px-4 py-2 text-center text-body text-foreground ring-1 ring-border backdrop-blur">
-        {text || t("meetings.captionsListening")}
+    <>
+      {/* Interim words change several times a second; only finished sentences reach assistive tech. */}
+      <p className="sr-only" aria-live="polite">
+        {lastFinal}
       </p>
-    </div>
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-0 bottom-16 z-10 flex justify-center px-4",
+          className,
+        )}
+        data-testid="meeting-captions"
+      >
+        <p className="max-w-3xl rounded-xl bg-background/85 px-4 py-2 text-center text-body text-foreground ring-1 ring-border backdrop-blur">
+          {text || t("meetings.captionsListening")}
+        </p>
+      </div>
+    </>
   );
 }

@@ -460,7 +460,9 @@
     "newLink": "Thêm liên kết mời",
     "devicePreviewStarting": "Đang bật camera…",
     "devicePreviewNoCamera": "Không tìm thấy camera trên thiết bị này.",
-    "devicePreviewTimeout": "Trình duyệt chưa cấp quyền camera. Kiểm tra biểu tượng camera ở thanh địa chỉ."
+    "devicePreviewTimeout": "Trình duyệt chưa cấp quyền camera. Kiểm tra biểu tượng camera ở thanh địa chỉ.",
+    "more": "Thêm",
+    "reconnecting": "Mất kết nối, đang kết nối lại…"
   },
   "org": {
     "name": "Tên tổ chức",
