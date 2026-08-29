@@ -31,7 +31,7 @@ export function MeetingActivityTimeline({ workspaceId, meetingId }: { workspaceI
                 </div>
                 {showStates ? (
                   <div className="text-caption text-muted-foreground">
-                    {from} → {to}
+                    {t(`meetings.status_${from}`, { defaultValue: from })} → {t(`meetings.status_${to}`, { defaultValue: to })}
                   </div>
                 ) : null}
                 <div className="text-caption tabular-nums text-muted-foreground">

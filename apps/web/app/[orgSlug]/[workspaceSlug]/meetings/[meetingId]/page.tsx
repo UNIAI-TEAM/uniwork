@@ -8,14 +8,13 @@ import { useNavigation } from "@uniwork/views/navigation";
 export default function MeetingDetailPage() {
   const { meetingId } = useParams<{ meetingId: string }>();
   const { workspace } = useWorkspace();
-  const { push, replace } = useNavigation();
+  const { push } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
     <MeetingDetailView
       workspaceId={workspace.id}
       meetingId={meetingId}
       onJoin={() => push(ws.room(meetingId))}
-      onDeleted={() => replace(ws.meetings())}
     />
   );
 }

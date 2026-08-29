@@ -11,6 +11,9 @@ type SelectProps<
   Multiple extends boolean | undefined = false,
 > = SelectPrimitive.Root.Props<Value, Multiple> & {
   items: NonNullable<SelectPrimitive.Root.Props<Value, Multiple>["items"]>
+  /** Accessible name for the default trigger: pair with `<FieldLabel htmlFor>`. */
+  id?: string
+  "aria-label"?: string
 }
 
 /**
@@ -19,6 +22,8 @@ type SelectProps<
  */
 function Select<Value, Multiple extends boolean | undefined = false>({
   children,
+  id,
+  "aria-label": ariaLabel,
   ...props
 }: SelectProps<Value, Multiple>) {
   // Without children Base UI mounts nothing visible; a bare `<Select items />`
@@ -28,7 +33,7 @@ function Select<Value, Multiple extends boolean | undefined = false>({
     children ??
     (Array.isArray(items) ? (
       <>
-        <SelectTrigger className="w-full">
+        <SelectTrigger id={id} aria-label={ariaLabel} className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

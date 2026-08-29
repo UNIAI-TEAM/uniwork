@@ -451,7 +451,13 @@
     "prejoinTitle": "Sẵn sàng vào họp",
     "prejoinHint": "Có thể đổi thiết bị và nền sau khi vào phòng.",
     "hostUnknown": "Không rõ chủ trì",
-    "pagination": "Phân trang cuộc họp"
+    "pagination": "Phân trang cuộc họp",
+    "notFound": "Không tìm thấy cuộc họp",
+    "notFoundHint": "Cuộc họp có thể đã bị xoá hoặc bạn không có quyền xem.",
+    "backToList": "Về danh sách cuộc họp",
+    "transferHostTo": "Chuyển quyền chủ trì cho",
+    "transferHostPick": "Chọn người tham dự",
+    "newLink": "Thêm liên kết mời"
   },
   "org": {
     "name": "Tên tổ chức",

@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
 
@@ -32,22 +33,26 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
   const selected = eligible.find((m) => m.user_id === userId);
 
   return (
-    <div className="mt-4 space-y-2">
-      <div className="mt-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="min-w-0 flex-1">
-          <Select
-            value={userId}
-            onValueChange={(v) => setUserId(v ?? "")}
-            items={[
-              { value: "", label: t("meetings.transferHost") },
-              ...eligible.map((m) => ({ value: m.user_id, label: m.display_name })),
-            ]}
-          />
+    <div className="mt-6">
+      <Field>
+        <FieldLabel htmlFor="transfer-host">{t("meetings.transferHostTo")}</FieldLabel>
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <Select
+              id="transfer-host"
+              value={userId}
+              onValueChange={(v) => setUserId(v ?? "")}
+              items={[
+                { value: "", label: t("meetings.transferHostPick") },
+                ...eligible.map((m) => ({ value: m.user_id, label: m.display_name })),
+              ]}
+            />
+          </div>
+          <Button type="button" size="sm" variant="outline" className="shrink-0" disabled={!userId} onClick={() => setOpen(true)}>
+            {t("meetings.transferHost")}
+          </Button>
         </div>
-        <Button type="button" size="sm" variant="outline" className="shrink-0" disabled={!userId} onClick={() => setOpen(true)}>
-          {t("meetings.transferHost")}
-        </Button>
-      </div>
+      </Field>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

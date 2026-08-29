@@ -18,10 +18,7 @@ export function MeetingHostPanel({
 }) {
   const { t } = useTranslation();
   return (
-    <section className="mt-8 space-y-2" aria-labelledby="host-panel-heading">
-      <h2 id="host-panel-heading" className="text-body font-semibold text-foreground">
-        {t("meetings.hostPanel")}
-      </h2>
+    <section className="mt-2 space-y-2" aria-label={t("meetings.hostPanel")}>
       <MeetingParticipantsSection workspaceId={workspaceId} meeting={meeting} invitations={invitations} canManage />
       <MeetingJoinRequestsPanel meetingId={meeting.id} />
       <MeetingInviteLinksSection meetingId={meeting.id} />

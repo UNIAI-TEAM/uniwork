@@ -4,6 +4,7 @@ import { CalendarPlus, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api/http";
+import { meetingLocale } from "./meeting-datetime";
 import {
   useCreateMeetingSummary,
   useCreateTasksFromSummary,
@@ -228,7 +229,11 @@ export function MeetingSummaryPanel({
           <ul className="space-y-1">
             {(recordings ?? []).map((r) => (
               <li key={r.id} className="flex items-center gap-2 text-body text-foreground">
-                <span className="text-caption text-muted-foreground">{r.started_at?.slice(0, 16).replace("T", " ")}</span>
+                <span className="text-caption tabular-nums text-muted-foreground">
+                  {r.started_at
+                    ? new Date(r.started_at).toLocaleString(meetingLocale(i18n.language), { dateStyle: "short", timeStyle: "short" })
+                    : null}
+                </span>
                 {r.file_url ? (
                   <a href={r.file_url} target="_blank" rel="noreferrer" className="text-brand underline-offset-4 hover:underline">
                     {t("meetings.openRecording")}

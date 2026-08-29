@@ -9,7 +9,12 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 import { cn } from "@uniwork/ui/lib/utils";
-import { formatMeetingDay, formatMeetingTimes, meetingDayKey, meetingLocale } from "./meeting-datetime";
+import {
+  formatMeetingDay,
+  formatMeetingTimes,
+  meetingDayKey,
+  meetingLocale,
+} from "./meeting-datetime";
 import { MeetingStatusBadge } from "./meeting-status-badge";
 
 /**
@@ -18,7 +23,9 @@ import { MeetingStatusBadge } from "./meeting-status-badge";
  * upcoming and an ended meeting — today — is merged into one group and its
  * rows run chronologically.
  */
-export function groupMeetingsByDay(meetings: readonly Meeting[]): { day: string; items: Meeting[] }[] {
+export function groupMeetingsByDay(
+  meetings: readonly Meeting[],
+): { day: string; items: Meeting[] }[] {
   const byDay = new Map<string, Meeting[]>();
   for (const m of meetings) {
     const day = meetingDayKey(m.starts_at);
@@ -32,8 +39,9 @@ export function groupMeetingsByDay(meetings: readonly Meeting[]): { day: string;
   }));
 }
 
-// Phone: time + text; badge lives on the meta line. ≥sm: badge and join get their own columns.
-const ROW = "grid grid-cols-[4.75rem_minmax(0,1fr)] items-center gap-3 px-3 py-2.5 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto_auto] sm:gap-4";
+// Time + text; the status badge sits on the meta line. ≥sm reserves a join column so rows align.
+const ROW =
+  "grid grid-cols-[4.75rem_minmax(0,1fr)] items-center gap-3 px-3 py-2.5 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:gap-4";
 
 export function MeetingListSkeleton() {
   return (
@@ -47,9 +55,9 @@ export function MeetingListSkeleton() {
                 <Skeleton className="h-4 w-16" />
                 <div className="space-y-1.5">
                   <Skeleton className="h-4 w-48 max-w-full" />
-                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-40" />
                 </div>
-                <Skeleton className="hidden h-5 w-20 rounded-full sm:block" />
+                <span className="hidden w-24 sm:block" aria-hidden />
               </div>
             ))}
           </div>
@@ -75,16 +83,25 @@ export function MeetingList({
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const locale = meetingLocale(i18n.language);
   const { data: members } = useMembers(workspaceId);
-  const hostName = (id?: string) => members?.find((m) => m.user_id === id)?.display_name ?? t("meetings.hostUnknown");
+  const hostName = (id?: string) =>
+    members?.find((m) => m.user_id === id)?.display_name ??
+    t("meetings.hostUnknown");
   const today = meetingDayKey(new Date().toISOString());
 
   return (
     <div className={cn("space-y-6", className)}>
       {groupMeetingsByDay(meetings).map((group) => (
         <section key={group.day} aria-labelledby={`meeting-day-${group.day}`}>
-          <h2 id={`meeting-day-${group.day}`} className="mb-2 flex items-baseline gap-2 text-label font-medium text-foreground">
+          <h2
+            id={`meeting-day-${group.day}`}
+            className="mb-2 flex items-baseline gap-2 text-label font-medium text-foreground"
+          >
             {formatMeetingDay(group.day, locale)}
-            {group.day === today ? <span className="text-caption font-normal text-muted-foreground">{t("meetings.today")}</span> : null}
+            {group.day === today ? (
+              <span className="text-caption font-normal text-muted-foreground">
+                {t("meetings.today")}
+              </span>
+            ) : null}
           </h2>
           <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
             {group.items.map((m) => {
@@ -102,17 +119,23 @@ export function MeetingList({
                   >
                     <span className="whitespace-nowrap text-label tabular-nums text-muted-foreground">
                       {/* Same clock as the day heading: the viewer's, not the meeting's stored zone. */}
-                      {formatMeetingTimes(m.starts_at, m.ends_at, undefined, locale)}
+                      {formatMeetingTimes(
+                        m.starts_at,
+                        m.ends_at,
+                        undefined,
+                        locale,
+                      )}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-body font-medium text-foreground">{m.title}</span>
+                      <span className="block truncate text-body font-medium text-foreground">
+                        {m.title}
+                      </span>
                       <span className="mt-0.5 flex items-center gap-2 text-caption text-muted-foreground">
                         <span className="truncate">{host}</span>
-                        <MeetingStatusBadge status={m.status} className="sm:hidden" />
+                        <MeetingStatusBadge status={m.status} />
                       </span>
                     </span>
-                    <MeetingStatusBadge status={m.status} className="hidden sm:inline-flex" />
-                    {/* Reserve the join column on wide rows so badges stay aligned. */}
+                    {/* Reserve the join column on wide rows so titles stay aligned. */}
                     <span className="hidden w-24 sm:block" aria-hidden />
                   </AppLink>
                   {live ? (
@@ -125,7 +148,9 @@ export function MeetingList({
                       onClick={() => onOpenRoom(m.id)}
                     >
                       <Video aria-hidden className="size-4 sm:size-3.5" />
-                      <span className="hidden sm:inline">{t("meetings.joinNow")}</span>
+                      <span className="hidden sm:inline">
+                        {t("meetings.joinNow")}
+                      </span>
                     </Button>
                   ) : null}
                 </li>

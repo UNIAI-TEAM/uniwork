@@ -87,6 +87,7 @@ export function MeetingParticipantsSection({
         >
           <div className="min-w-0 flex-1">
             <Select
+              aria-label={t("meetings.inviteMember")}
               value={userId}
               onValueChange={(v) => setUserId(v ?? "")}
               items={[

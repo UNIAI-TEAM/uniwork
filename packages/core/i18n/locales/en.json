@@ -452,7 +452,13 @@
     "prejoinTitle": "Ready to join",
     "prejoinHint": "Devices and background can be changed inside the room.",
     "hostUnknown": "Host unknown",
-    "pagination": "Meeting pages"
+    "pagination": "Meeting pages",
+    "notFound": "Meeting not found",
+    "notFoundHint": "It may have been deleted, or you may not have access.",
+    "backToList": "Back to meetings",
+    "transferHostTo": "Transfer host role to",
+    "transferHostPick": "Pick a participant",
+    "newLink": "Add invite link"
   },
   "org": {
     "name": "Organization name",

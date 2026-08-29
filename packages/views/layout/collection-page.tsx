@@ -69,7 +69,7 @@ export function CollectionPageHeaderAction({
       type={type}
       size={size}
       variant={variant}
-      className={cn("size-11 gap-1 px-0 md:h-8 md:w-auto md:px-2.5", className)}
+      className={cn("h-8 w-8 gap-1 px-0 md:w-auto md:px-2.5", className)}
       aria-label={props["aria-label"] ?? label}
       {...props}
     >

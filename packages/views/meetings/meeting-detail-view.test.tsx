@@ -103,7 +103,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
-    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} />));
     expect(await screen.findByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
@@ -135,7 +135,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
-    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} />));
     expect(await screen.findByRole("button", { name: "Tham dự" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chưa chắc" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Từ chối" })).toBeInTheDocument();
