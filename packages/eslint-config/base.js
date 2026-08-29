@@ -52,6 +52,14 @@ export default [
       "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: { attributes: false, properties: false } }],
     },
   },
+  // A file past this size is two modules sharing a name. Registry copies
+  // (packages/ui/components/ui) and tests are exempt: the first are vendored
+  // as-is, the second grow with the cases they pin.
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["**/components/ui/**", "**/*.test.{ts,tsx}"],
+    rules: { "max-lines": ["error", { max: 500, skipBlankLines: true, skipComments: true }] },
+  },
   {
     ignores: ["node_modules/", "dist/", ".next/", "out/", ".turbo/"],
   },
