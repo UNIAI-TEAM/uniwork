@@ -6,6 +6,8 @@ import { cn } from "@uniwork/ui/lib/utils"
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
+    // Association arrives through {...props} (htmlFor / children); the rule cannot see it.
+    // eslint-disable-next-line jsx-a11y/label-has-associated-control
     <label
       data-slot="label"
       className={cn(

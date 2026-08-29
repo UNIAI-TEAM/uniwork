@@ -302,6 +302,7 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
         <input
           ref={fileInputRef}
           type="file"
+          aria-label={t("meetings.deviceBackgroundUpload")}
           accept={ACCEPTED_BACKGROUND_TYPES.join(",")}
           className="sr-only"
           onChange={(event) => {

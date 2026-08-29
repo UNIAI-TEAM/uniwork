@@ -203,6 +203,7 @@ export function TimeInput({
   return (
     <div
       data-slot="time-input"
+      role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           hourRef.current?.focus();

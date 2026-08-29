@@ -135,6 +135,7 @@ export function MeetingCameraPreview({
     >
       <video
         ref={videoRef}
+        aria-label={t("meetings.devicePreviewTitle")}
         muted
         playsInline
         autoPlay

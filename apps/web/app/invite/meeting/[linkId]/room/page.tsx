@@ -29,7 +29,7 @@ export default function MeetingInviteRoomPage() {
     void resolveInviteLink(linkId, secret).then((res) => {
       if (!res?.meeting_id || res.expired) replace(paths.meetingInvite(linkId));
       else setInvite({ meetingId: res.meeting_id, secret });
-    });
+    }, () => replace(paths.meetingInvite(linkId)));
   }, [linkId, replace]);
 
   if (!invite) return null;

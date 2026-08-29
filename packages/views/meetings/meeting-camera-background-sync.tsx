@@ -65,13 +65,14 @@ export function MeetingCameraBackgroundSync() {
       await syncBackgroundProcessor(track, processorRef, background, customBackgroundDataUrl);
     };
 
-    void applyToCamera();
-    room.on(RoomEvent.LocalTrackPublished, applyToCamera);
-    room.on(RoomEvent.LocalTrackUnpublished, applyToCamera);
+    const onTrackChange = () => void applyToCamera();
+    onTrackChange();
+    room.on(RoomEvent.LocalTrackPublished, onTrackChange);
+    room.on(RoomEvent.LocalTrackUnpublished, onTrackChange);
 
     return () => {
-      room.off(RoomEvent.LocalTrackPublished, applyToCamera);
-      room.off(RoomEvent.LocalTrackUnpublished, applyToCamera);
+      room.off(RoomEvent.LocalTrackPublished, onTrackChange);
+      room.off(RoomEvent.LocalTrackUnpublished, onTrackChange);
     };
   }, [room, background, customBackgroundDataUrl]);
 

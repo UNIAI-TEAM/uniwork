@@ -57,6 +57,7 @@ export function EmailChipsInput({
       // focus host — `e2e/onboarding-mobile.spec.ts` measures `[data-slot]` for
       // exactly this reason and would otherwise climb to the whole field.
       data-slot="email-chips"
+      role="presentation"
       className={cn(
         "flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border bg-surface px-2 py-1.5 pointer-coarse:min-h-11",
         // Đường bao của một control phải đạt 3:1 — xem `input.tsx`.

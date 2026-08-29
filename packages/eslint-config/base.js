@@ -38,6 +38,20 @@ export default [
       }],
     },
   },
+  // Type-aware: a promise that nobody awaits, `void`s or `.catch`es is a
+  // silent failure at runtime. `void p` is the explicit opt-out.
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["**/*.config.*", "**/scripts/**"],
+    languageOptions: { parserOptions: { projectService: true } },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      // JSX handlers and option-object callbacks (onSubmit, onSuccess) are
+      // conventionally async in React / TanStack; plain function arguments
+      // (addEventListener, emitter.on, forEach) are not and stay checked.
+      "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: { attributes: false, properties: false } }],
+    },
+  },
   {
     ignores: ["node_modules/", "dist/", ".next/", "out/", ".turbo/"],
   },
