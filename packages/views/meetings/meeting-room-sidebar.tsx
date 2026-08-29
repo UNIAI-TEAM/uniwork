@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { useChat, useParticipants } from "@livekit/components-react";
-import { Send } from "lucide-react";
+import { Hand, MicOff, Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -10,6 +10,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { groupChatMessages, type MeetingChatItem } from "./meeting-chat";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
+import { useMeetingSignals } from "./use-meeting-signals";
 
 const TAB_TRIGGER =
   "rounded-lg border border-transparent px-3 py-1.5 data-active:border-input data-active:bg-muted data-active:text-foreground data-active:shadow-none";
@@ -37,6 +38,12 @@ export function MeetingRoomSidebar({
 }) {
   const { t, i18n } = useTranslation();
   const participants = useParticipants();
+  const { hands, requestMute } = useMeetingSignals();
+  // Raised hands float to the top, in the order they were raised.
+  const ordered = [
+    ...hands.map((h) => participants.find((p) => p.identity === h)).filter((p) => p !== undefined),
+    ...participants.filter((p) => !hands.includes(p.identity)),
+  ];
   const { chatMessages, send, isSending } = useChat();
   const [draft, setDraft] = useState("");
 
@@ -70,10 +77,28 @@ export function MeetingRoomSidebar({
         </TabsList>
         <TabsContent value="participants" className="mt-3 min-h-0 flex-1 overflow-y-auto">
           {canHost && meetingId ? <MeetingJoinRequestsPanel meetingId={meetingId} compact /> : null}
+          {hands.length > 0 ? (
+            <p className="mb-2 flex items-center gap-1.5 text-caption text-muted-foreground">
+              <Hand aria-hidden className="size-3.5" />
+              {t("meetings.handsRaised", { count: hands.length })}
+            </p>
+          ) : null}
           <ul className="grid grid-cols-2 gap-2">
-            {participants.map((p) => (
-              <li key={p.identity}>
+            {ordered.map((p) => (
+              <li key={p.identity} className="relative">
                 <MeetingParticipantTile participant={p} compact />
+                {canHost && !p.isLocal ? (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    aria-label={t("meetings.muteParticipant", { name: p.name || p.identity })}
+                    className="absolute bottom-1.5 left-1.5 size-7 rounded-full"
+                    onClick={() => requestMute(p.identity)}
+                  >
+                    <MicOff aria-hidden className="size-3.5" />
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>

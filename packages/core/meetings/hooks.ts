@@ -1,9 +1,16 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
+import { taskKeys } from "../tasks/hooks";
 import type { Meeting } from "../types/meeting";
 
-export type { CreateMeetingBody, MeetingListFilters, MeetingToken, UpdateMeetingBody } from "../api/endpoints/meetings";
+export type {
+  CreateMeetingBody,
+  MeetingListFilters,
+  MeetingToken,
+  SummaryTaskItem,
+  UpdateMeetingBody,
+} from "../api/endpoints/meetings";
 export { activityLabelKey, inviteLinkStatus, isJoinAdmitted } from "./status";
 export type { InviteLinkUiStatus } from "./status";
 
@@ -20,6 +27,10 @@ export const meetingKeys = {
   joinRequests: (meetingId: string) => [...JOIN_REQUESTS_ROOT, meetingId] as const,
   inviteLinks: (meetingId: string) => ["meeting-invite-links", meetingId] as const,
   activity: (meetingId: string) => ["meeting-activity", meetingId] as const,
+  capabilities: (wsId: string) => ["meeting-capabilities", wsId] as const,
+  transcript: (meetingId: string) => ["meeting-transcript", meetingId] as const,
+  summary: (meetingId: string) => ["meeting-summary", meetingId] as const,
+  recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
 };
 
 export function splitMeetings(
@@ -297,5 +308,95 @@ export function useCancelMeeting(workspaceId: string) {
   return useMutation({
     mutationFn: (meetingId: string) => meetings.cancelMeeting(meetingId),
     onSuccess: (_d, meetingId) => invalidateMeeting(qc, workspaceId, meetingId),
+  });
+}
+
+// ---- D08b: capabilities, transcript, AI summary, recording, calendar ----------
+
+export function useMeetingCapabilities(workspaceId: string) {
+  return useQuery({
+    queryKey: meetingKeys.capabilities(workspaceId),
+    queryFn: () => meetings.getMeetingCapabilities(workspaceId),
+    enabled: !!workspaceId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useTranscript(meetingId: string, enabled = true) {
+  return useQuery({
+    queryKey: meetingKeys.transcript(meetingId),
+    queryFn: () => meetings.listTranscript(meetingId),
+    enabled: !!meetingId && enabled,
+  });
+}
+
+export function useAppendTranscript(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { text: string; spokenAt?: string }) =>
+      meetings.appendTranscript(meetingId, args.text, args.spokenAt),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.transcript(meetingId) }),
+  });
+}
+
+export function useMeetingSummary(meetingId: string) {
+  return useQuery({
+    queryKey: meetingKeys.summary(meetingId),
+    queryFn: () => meetings.getMeetingSummary(meetingId),
+    enabled: !!meetingId,
+    // 404 = no summary yet; that is a state, not an error worth retrying.
+    retry: false,
+  });
+}
+
+export function useCreateMeetingSummary(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (locale: string) => meetings.createMeetingSummary(meetingId, locale),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: meetingKeys.summary(meetingId) });
+      void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
+    },
+  });
+}
+
+export function useCreateTasksFromSummary(workspaceId: string, meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: meetings.SummaryTaskItem[]) => meetings.createTasksFromSummary(meetingId, items),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
+      void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
+    },
+  });
+}
+
+export function useRecordings(meetingId: string, enabled = true) {
+  return useQuery({
+    queryKey: meetingKeys.recordings(meetingId),
+    queryFn: () => meetings.listRecordings(meetingId),
+    enabled: !!meetingId && enabled,
+  });
+}
+
+export function useStartRecording(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => meetings.startRecording(meetingId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.recordings(meetingId) }),
+  });
+}
+
+export function useStopRecording(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => meetings.stopRecording(meetingId),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.recordings(meetingId) }),
+  });
+}
+
+export function useMeetingCalendar() {
+  return useMutation({
+    mutationFn: (meetingId: string) => meetings.fetchMeetingCalendar(meetingId),
   });
 }

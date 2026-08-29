@@ -103,6 +103,40 @@ func registerMeetings(r api, h Routes) {
 	r.Get("/meetings/{meetingID}/activity", h.MeetingActivity, apiOp{
 		summary: "Audit activity", tags: []string{"meetings"}, sdo: sdo.ActivityListSDO{}, auth: true,
 	})
+	r.Get("/workspaces/{workspaceID}/meeting-capabilities", h.MeetingCapabilities, apiOp{
+		summary: "Which optional meeting features (AI, recording) this server offers", tags: []string{"meetings"},
+		sdo: sdo.MeetingCapabilitiesSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/transcript", h.ListTranscript, apiOp{
+		summary: "List transcript segments", tags: []string{"meetings"}, sdo: sdo.TranscriptListSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
+		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
+		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
+		summary: "Latest AI summary", tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
+		summary: "Generate AI summary from transcript and notes", tags: []string{"meetings"},
+		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/summary/tasks", h.CreateSummaryTasks, apiOp{
+		summary: "Create tasks from summary action items", tags: []string{"meetings"},
+		sdi: sdi.SummaryTasksSDI{}, sdo: sdo.TaskIDListSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
+		summary: "List recordings", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/recording/start", h.StartRecording, apiOp{
+		summary: "Start recording", tags: []string{"meetings"}, sdo: sdo.RecordingSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/recording/stop", h.StopRecording, apiOp{
+		summary: "Stop recording", tags: []string{"meetings"}, sdo: sdo.RecordingSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/calendar.ics", h.MeetingCalendar, apiOp{
+		summary: "iCalendar file for the meeting", tags: []string{"meetings"}, auth: true,
+	})
 }
 
 func registerPublicMeetings(r api, h Routes) {

@@ -7,11 +7,19 @@ import {
   JoinRequestSchema,
   MeetingNoteSchema,
   MeetingSchema,
+  MeetingCapabilitiesSchema,
   MeetingStatisticsSchema,
+  MeetingSummarySchema,
   ParticipantSchema,
+  RecordingSchema,
+  TranscriptSegmentSchema,
   type JoinDecision,
   type Meeting,
   type MeetingActivityItem,
+  type MeetingCapabilities,
+  type MeetingRecording,
+  type MeetingSummary,
+  type MeetingTranscriptSegment,
   type MeetingInvitation,
   type MeetingInviteLink,
   type MeetingJoinRequest,
@@ -19,7 +27,7 @@ import {
   type MeetingParticipant,
   type MeetingStatistics,
 } from "../../types/meeting";
-import { request } from "../http";
+import { request, requestText } from "../http";
 import { parseWithFallback } from "../schema";
 
 export type { MeetingInvitation, MeetingInviteLink } from "../../types/meeting";
@@ -323,4 +331,71 @@ export async function listMeetingActivity(meetingId: string): Promise<MeetingAct
   return parseWithFallback<{ activity: MeetingActivityItem[] }>(raw, ActivityResponse, { activity: [] }, {
     endpoint: "GET /api/v1/meetings/{id}/activity",
   }).activity;
+}
+
+// ---- D08b: capabilities, transcript, AI summary, recording, calendar ----------
+
+const TranscriptResponse = z.object({ segments: z.array(TranscriptSegmentSchema) });
+const SummaryResponse = z.object({ summary: MeetingSummarySchema });
+const RecordingsResponse = z.object({ recordings: z.array(RecordingSchema) });
+const RecordingResponse = z.object({ recording: RecordingSchema });
+const TaskIDsResponse = z.object({ task_ids: z.array(z.string()) });
+
+export async function getMeetingCapabilities(workspaceId: string): Promise<MeetingCapabilities> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meeting-capabilities`);
+  return parseWithFallback(raw, MeetingCapabilitiesSchema, {}, { endpoint: "getMeetingCapabilities" });
+}
+
+export async function listTranscript(meetingId: string): Promise<MeetingTranscriptSegment[]> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/transcript`);
+  return parseWithFallback(raw, TranscriptResponse, { segments: [] }, { endpoint: "listTranscript" }).segments;
+}
+
+export async function appendTranscript(meetingId: string, text: string, spokenAt?: string): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/transcript`, {
+    method: "POST",
+    body: { text, spoken_at: spokenAt ?? new Date().toISOString() },
+  });
+}
+
+export async function getMeetingSummary(meetingId: string): Promise<MeetingSummary | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`);
+  return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "getMeetingSummary" }).summary;
+}
+
+export async function createMeetingSummary(meetingId: string, locale: string): Promise<MeetingSummary | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`, { method: "POST", body: { locale } });
+  return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "createMeetingSummary" }).summary;
+}
+
+export interface SummaryTaskItem {
+  title: string;
+  description?: string;
+  assignee_id?: string;
+  due_date?: string;
+}
+
+export async function createTasksFromSummary(meetingId: string, items: SummaryTaskItem[]): Promise<string[]> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary/tasks`, { method: "POST", body: { items } });
+  return parseWithFallback(raw, TaskIDsResponse, { task_ids: [] }, { endpoint: "createTasksFromSummary" }).task_ids;
+}
+
+export async function listRecordings(meetingId: string): Promise<MeetingRecording[]> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/recordings`);
+  return parseWithFallback(raw, RecordingsResponse, { recordings: [] }, { endpoint: "listRecordings" }).recordings;
+}
+
+export async function startRecording(meetingId: string): Promise<MeetingRecording | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/recording/start`, { method: "POST" });
+  return parseWithFallback(raw, RecordingResponse, { recording: null }, { endpoint: "startRecording" }).recording;
+}
+
+export async function stopRecording(meetingId: string): Promise<MeetingRecording | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/recording/stop`, { method: "POST" });
+  return parseWithFallback(raw, RecordingResponse, { recording: null }, { endpoint: "stopRecording" }).recording;
+}
+
+/** Fetches the iCalendar text; the caller turns it into a download. */
+export async function fetchMeetingCalendar(meetingId: string): Promise<string> {
+  return requestText(`/api/v1/meetings/${enc(meetingId)}/calendar.ics`);
 }

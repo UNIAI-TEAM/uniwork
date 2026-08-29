@@ -44,10 +44,11 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByLabel("Tiêu đề").fill("Họp e2e");
   // Schedule defaults (date + TimeInput segments) are prefilled; smoke only needs a title.
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
-  await expect(page.getByText("Họp e2e")).toBeVisible();
+  // Tạo xong app mở thẳng trang chi tiết; tiêu đề xuất hiện cả ở list lẫn h1.
+  await expect(page.getByText("Họp e2e").first()).toBeVisible();
 
   // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
-  await page.getByText("Họp e2e").click();
+  if (!/\/meetings\/[0-9A-Z]+$/.test(page.url())) await page.getByText("Họp e2e").first().click();
   await page.getByRole("button", { name: "Bắt đầu" }).click();
   await page.getByRole("button", { name: "Vào phòng họp" }).click();
   await expect(

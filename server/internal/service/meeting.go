@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -78,6 +79,11 @@ type MeetingService struct {
 	pub      EventPublisher
 	provider meetings.ConferenceProvider
 	rt       MeetingRuntime
+	// AI, Tasks and Metrics are optional collaborators set by main after
+	// construction; nil means the feature reports itself as unavailable.
+	AI      ai.Summarizer
+	Tasks   *TaskService
+	Metrics MeetingMetrics
 }
 
 func NewMeetingService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, pub EventPublisher, provider meetings.ConferenceProvider, rt MeetingRuntime) *MeetingService {

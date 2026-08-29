@@ -164,3 +164,69 @@ type ActivityItemDTO struct {
 type ActivityListSDO struct {
 	Activity []ActivityItemDTO `json:"activity"`
 }
+
+type TranscriptSegmentDTO struct {
+	ID            string `json:"id"`
+	MeetingID     string `json:"meeting_id"`
+	ParticipantID string `json:"participant_id"`
+	SpeakerName   string `json:"speaker_name"`
+	Text          string `json:"text"`
+	SpokenAt      string `json:"spoken_at" example:"2026-08-29T02:00:00Z"`
+}
+
+type TranscriptSegmentSDO struct {
+	Segment TranscriptSegmentDTO `json:"segment"`
+}
+
+type TranscriptListSDO struct {
+	Segments []TranscriptSegmentDTO `json:"segments"`
+}
+
+type SummaryActionItemDTO struct {
+	Title string `json:"title"`
+	Owner string `json:"owner"`
+	Due   string `json:"due"`
+}
+
+type MeetingSummaryDTO struct {
+	ID          string                 `json:"id"`
+	MeetingID   string                 `json:"meeting_id"`
+	Summary     string                 `json:"summary"`
+	Decisions   []string               `json:"decisions"`
+	ActionItems []SummaryActionItemDTO `json:"action_items"`
+	Model       string                 `json:"model"`
+	CreatedBy   string                 `json:"created_by"`
+	CreatedAt   string                 `json:"created_at"`
+}
+
+type MeetingSummarySDO struct {
+	Summary MeetingSummaryDTO `json:"summary"`
+}
+
+type TaskIDListSDO struct {
+	TaskIDs []string `json:"task_ids"`
+}
+
+type RecordingDTO struct {
+	ID        string `json:"id"`
+	MeetingID string `json:"meeting_id"`
+	Status    string `json:"status" example:"ACTIVE"`
+	FileURL   string `json:"file_url"`
+	StartedBy string `json:"started_by"`
+	StartedAt string `json:"started_at"`
+	EndedAt   string `json:"ended_at"`
+}
+
+type RecordingSDO struct {
+	Recording RecordingDTO `json:"recording"`
+}
+
+type RecordingListSDO struct {
+	Recordings []RecordingDTO `json:"recordings"`
+}
+
+// MeetingCapabilitiesSDO tells the client which optional features to show.
+type MeetingCapabilitiesSDO struct {
+	AISummary bool `json:"ai_summary"`
+	Recording bool `json:"recording"`
+}

@@ -220,6 +220,38 @@ type MeetingProviderEvent struct {
 	ReceivedAt      pgtype.Timestamptz `json:"received_at"`
 }
 
+type MeetingRecording struct {
+	ID        string             `json:"id"`
+	MeetingID string             `json:"meeting_id"`
+	EgressID  string             `json:"egress_id"`
+	Status    string             `json:"status"`
+	FileUrl   pgtype.Text        `json:"file_url"`
+	StartedBy string             `json:"started_by"`
+	StartedAt pgtype.Timestamptz `json:"started_at"`
+	EndedAt   pgtype.Timestamptz `json:"ended_at"`
+}
+
+type MeetingSummary struct {
+	ID          string             `json:"id"`
+	MeetingID   string             `json:"meeting_id"`
+	Summary     string             `json:"summary"`
+	Decisions   string             `json:"decisions"`
+	ActionItems string             `json:"action_items"`
+	Model       string             `json:"model"`
+	CreatedBy   string             `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type MeetingTranscriptSegment struct {
+	ID            string             `json:"id"`
+	MeetingID     string             `json:"meeting_id"`
+	ParticipantID pgtype.Text        `json:"participant_id"`
+	SpeakerName   string             `json:"speaker_name"`
+	Text          string             `json:"text"`
+	SpokenAt      pgtype.Timestamptz `json:"spoken_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type Organization struct {
 	ID        string             `json:"id"`
 	Slug      string             `json:"slug"`

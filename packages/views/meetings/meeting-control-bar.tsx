@@ -3,11 +3,16 @@ import { useState, type MouseEventHandler, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useTrackToggle } from "@livekit/components-react";
 import { Track } from "livekit-client";
-import { Mic, MicOff, MonitorUp, PhoneOff, Settings2, Video, VideoOff } from "lucide-react";
+import { Captions, Circle, Hand, Mic, MicOff, MonitorUp, PhoneOff, Settings2, SmilePlus, Square, Video, VideoOff } from "lucide-react";
+import { toast } from "sonner";
+import { useStartRecording, useStopRecording } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogTrigger } from "@uniwork/ui/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingDevicesDialog } from "./meeting-devices-dialog";
+import { REACTIONS } from "./meeting-signals";
+import { useMeetingSignals } from "./use-meeting-signals";
 
 function LabeledControl({
   label,
@@ -79,17 +84,73 @@ function DeviceSettingsControl() {
   );
 }
 
+function ReactionsControl() {
+  const { t } = useTranslation();
+  const { react } = useMeetingSignals();
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="flex w-14 flex-col items-center gap-1">
+        <PopoverTrigger
+          render={
+            <Button type="button" size="icon-lg" variant="outline" aria-label={t("meetings.reactions")} className="rounded-full" />
+          }
+        >
+          <SmilePlus aria-hidden />
+        </PopoverTrigger>
+        <span aria-hidden className="text-caption text-muted-foreground">
+          {t("meetings.react")}
+        </span>
+      </div>
+      <PopoverContent side="top" className="flex w-auto gap-1 p-1.5">
+        {REACTIONS.map((r) => (
+          <button
+            key={r}
+            type="button"
+            aria-label={r}
+            className="flex size-10 items-center justify-center rounded-full text-title hover:bg-muted"
+            onClick={() => {
+              react(r);
+              setOpen(false);
+            }}
+          >
+            {r}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function MeetingControlBar({
   className,
   onLeave,
+  meetingId,
+  canHost = false,
+  recordingEnabled = false,
+  recording = false,
+  captionsOn = false,
+  captionsAvailable = false,
+  onToggleCaptions,
 }: {
   className?: string;
   onLeave: () => void;
+  meetingId?: string;
+  canHost?: boolean;
+  recordingEnabled?: boolean;
+  recording?: boolean;
+  captionsOn?: boolean;
+  captionsAvailable?: boolean;
+  onToggleCaptions?: () => void;
 }) {
   const { t } = useTranslation();
   const mic = useTrackToggle({ source: Track.Source.Microphone });
   const camera = useTrackToggle({ source: Track.Source.Camera });
   const screen = useTrackToggle({ source: Track.Source.ScreenShare });
+  const { handRaised, toggleHand } = useMeetingSignals();
+  const startRec = useStartRecording(meetingId ?? "");
+  const stopRec = useStopRecording(meetingId ?? "");
+  const recPending = startRec.isPending || stopRec.isPending;
 
   return (
     <footer
@@ -137,6 +198,42 @@ export function MeetingControlBar({
           >
             <MonitorUp aria-hidden />
           </LabeledControl>
+          <LabeledControl
+            label={handRaised ? t("meetings.lowerHand") : t("meetings.raiseHand")}
+            caption={t("meetings.hand")}
+            pressed={handRaised}
+            tone={handRaised ? "active" : undefined}
+            onClick={toggleHand}
+          >
+            <Hand aria-hidden />
+          </LabeledControl>
+          <ReactionsControl />
+          {captionsAvailable && onToggleCaptions ? (
+            <LabeledControl
+              label={captionsOn ? t("meetings.captionsOff") : t("meetings.captionsOn")}
+              caption={t("meetings.captions")}
+              pressed={captionsOn}
+              tone={captionsOn ? "active" : undefined}
+              onClick={onToggleCaptions}
+            >
+              <Captions aria-hidden />
+            </LabeledControl>
+          ) : null}
+          {canHost && recordingEnabled && meetingId ? (
+            <LabeledControl
+              label={recording ? t("meetings.stopRecording") : t("meetings.startRecording")}
+              caption={t("meetings.record")}
+              pressed={recording}
+              tone={recording ? "off" : undefined}
+              disabled={recPending}
+              onClick={() => {
+                const m = recording ? stopRec : startRec;
+                m.mutate(undefined, { onError: () => toast.error(t("common.error")) });
+              }}
+            >
+              {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
+            </LabeledControl>
+          ) : null}
         </div>
         <div className="flex justify-end">
           <Button

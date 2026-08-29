@@ -77,6 +77,26 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
       }
       break;
     }
+    case "transcript.appended": {
+      if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
+      break;
+    }
+    case "summary.created": {
+      if (payload.meeting_id) {
+        push(meetingKeys.summary(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
+      }
+      break;
+    }
+    case "recording.started":
+    case "recording.stopped":
+    case "recording.ready": {
+      if (payload.meeting_id) {
+        push(meetingKeys.recordings(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
+      }
+      break;
+    }
     default:
       // An event this client predates. Nothing is stale that we know of.
       break;

@@ -147,6 +147,16 @@ func New(d Deps) http.Handler {
 		CancelJoinRequest:    h.cancelJoinRequest,
 		MeetingStatistics:    h.meetingStatistics,
 		MeetingActivity:      h.meetingActivity,
+		AppendTranscript:     h.appendTranscript,
+		ListTranscript:       h.listTranscript,
+		GetMeetingSummary:    h.getMeetingSummary,
+		CreateSummary:        h.createSummary,
+		CreateSummaryTasks:   h.createSummaryTasks,
+		StartRecording:       h.startRecording,
+		StopRecording:        h.stopRecording,
+		ListRecordings:       h.listRecordings,
+		MeetingCalendar:      h.meetingCalendar,
+		MeetingCapabilities:  h.meetingCapabilities,
 		LiveKitWebhook:       h.livekitWebhook,
 	})
 }

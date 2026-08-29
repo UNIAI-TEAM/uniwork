@@ -17,6 +17,10 @@ type ProviderNeutralEvent struct {
 	Identity        string
 	ProviderEventID string
 	RoomSID         string
+	// Recording fields are set for conference.recording_ended.
+	RecordingID     string
+	RecordingURL    string
+	RecordingFailed bool
 }
 
 func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeutralEvent) error {
@@ -30,6 +34,10 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		if n == 0 {
 			return nil
 		}
+	}
+	if ev.Type == "conference.recording_ended" {
+		s.finishRecordingFromProvider(ctx, ev)
+		return nil
 	}
 	sess, err := s.sessionByRoom(ctx, ev.RoomName)
 	if err != nil {

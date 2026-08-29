@@ -116,3 +116,49 @@ export const ActivityItemSchema = z.object({
   occurred_at: z.string(),
 });
 export type MeetingActivityItem = z.infer<typeof ActivityItemSchema>;
+
+export const TranscriptSegmentSchema = z.object({
+  id: z.string(),
+  meeting_id: z.string(),
+  participant_id: z.string().optional(),
+  speaker_name: z.string().optional(),
+  text: z.string(),
+  spoken_at: z.string(),
+});
+export type MeetingTranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
+
+export const SummaryActionItemSchema = z.object({
+  title: z.string(),
+  owner: z.string().optional(),
+  due: z.string().optional(),
+});
+export type MeetingSummaryActionItem = z.infer<typeof SummaryActionItemSchema>;
+
+export const MeetingSummarySchema = z.object({
+  id: z.string(),
+  meeting_id: z.string(),
+  summary: z.string(),
+  decisions: z.array(z.string()).optional(),
+  action_items: z.array(SummaryActionItemSchema).optional(),
+  model: z.string().optional(),
+  created_by: z.string().optional(),
+  created_at: z.string().optional(),
+});
+export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
+
+export const RecordingSchema = z.object({
+  id: z.string(),
+  meeting_id: z.string(),
+  status: z.string(),
+  file_url: z.string().optional(),
+  started_by: z.string().optional(),
+  started_at: z.string().optional(),
+  ended_at: z.string().optional(),
+});
+export type MeetingRecording = z.infer<typeof RecordingSchema>;
+
+export const MeetingCapabilitiesSchema = z.object({
+  ai_summary: z.boolean().optional(),
+  recording: z.boolean().optional(),
+});
+export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;

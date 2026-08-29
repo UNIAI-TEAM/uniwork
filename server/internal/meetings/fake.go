@@ -18,6 +18,11 @@ type FakeProvider struct {
 	EndErr      error
 	JoinErr     error
 	ServerURL   string
+	// RecordingEnabled flips the Recording capability on; StartRecording
+	// then returns a deterministic id.
+	RecordingEnabled bool
+	RecordCalls      int
+	StopRecordCalls  int
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -25,7 +30,7 @@ func (f *FakeProvider) Key() string { return "fake" }
 func (f *FakeProvider) Capabilities(context.Context) ConferenceCapabilities {
 	return ConferenceCapabilities{
 		TokenizedJoin: true, RemoveParticipant: true, UpdateParticipantPermissions: true,
-		Webhooks: true, DataChannel: true,
+		Webhooks: true, DataChannel: true, Recording: f.RecordingEnabled,
 	}
 }
 
@@ -70,4 +75,14 @@ func (f *FakeProvider) EndSession(_ context.Context, req EndProviderSessionReque
 	f.EndCalls++
 	f.LastEnd = req
 	return f.EndErr
+}
+
+func (f *FakeProvider) StartRecording(_ context.Context, req StartRecordingRequest) (RecordingRef, error) {
+	f.RecordCalls++
+	return RecordingRef{RecordingID: "fake-egress-" + req.RoomName}, nil
+}
+
+func (f *FakeProvider) StopRecording(context.Context, StopRecordingRequest) error {
+	f.StopRecordCalls++
+	return nil
 }

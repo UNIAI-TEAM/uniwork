@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
@@ -132,18 +133,37 @@ func main() {
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
-		conference = &meetings.LiveKitAdapter{
+		lk := &meetings.LiveKitAdapter{
 			URL: cfg.LiveKitURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret,
 			TokenTTL: cfg.LiveKitTokenTTL, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 		}
+		if cfg.LiveKitRecordingBucket != "" {
+			lk.Recording = &meetings.RecordingS3{
+				AccessKey: os.Getenv("AWS_ACCESS_KEY_ID"), Secret: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+				Region: os.Getenv("AWS_REGION"), Endpoint: os.Getenv("AWS_ENDPOINT_URL"),
+				Bucket: cfg.LiveKitRecordingBucket,
+			}
+			log.Info("meeting recording enabled", "bucket", cfg.LiveKitRecordingBucket)
+		}
+		conference = lk
 	}
 	meetingSvc := service.NewMeetingService(pool, q, wsSvc, pub, conference, service.MeetingRuntime{
 		TokenTTL: cfg.LiveKitTokenTTL, HMACKey: []byte(cfg.JWTSecret), LiveKitURL: cfg.LiveKitURL,
 		ProviderKey: cfg.MeetingProvider, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 	})
+	taskSvc := service.NewTaskService(q, wsSvc, pub)
+	meetingSvc.Tasks = taskSvc
+	if cfg.AnthropicAPIKey != "" {
+		meetingSvc.AI = ai.NewClaude(cfg.AnthropicAPIKey, cfg.AnthropicModel)
+		log.Info("meeting AI summaries enabled")
+	}
+	if reg != nil {
+		meetingSvc.Metrics = reg.Meetings
+	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 	go meetingSvc.RunOutbox(runCtx)
+	go meetingSvc.RunAutoEnd(runCtx)
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -166,7 +186,7 @@ func main() {
 		Organizations:   orgSvc,
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, pub, renderer, outbox),
-		Tasks:           service.NewTaskService(q, wsSvc, pub),
+		Tasks:           taskSvc,
 		Meetings:        meetingSvc,
 		Hub:             hub,
 		Redis:           rdb,

@@ -39,6 +39,7 @@ import { MeetingHostPanel } from "./host-panel";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 import { MeetingRsvpBar } from "./meeting-rsvp-bar";
 import { MeetingStatusBadge } from "./meeting-status-badge";
+import { MeetingCalendarButton, MeetingSummaryPanel } from "./meeting-summary-panel";
 
 export function MeetingDetailView({
   workspaceId,
@@ -139,9 +140,12 @@ export function MeetingDetailView({
           <h1 className="text-pretty text-title font-semibold text-foreground">{meeting.title}</h1>
           <MeetingStatusBadge status={meeting.status} />
         </div>
-        <p className="mt-1 text-label tabular-nums text-muted-foreground">
-          {formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone)}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <p className="text-label tabular-nums text-muted-foreground">
+            {formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone)}
+          </p>
+          {closed && meeting.status === "CANCELED" ? null : <MeetingCalendarButton meetingId={meetingId} />}
+        </div>
         {meeting.description ? (
           <p className="mt-3 whitespace-pre-wrap break-words text-pretty text-body text-muted-foreground">{meeting.description}</p>
         ) : null}
@@ -156,6 +160,9 @@ export function MeetingDetailView({
             canManage={false}
           />
         )}
+        {inProgress || meeting.status === "ENDED" ? (
+          <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
+        ) : null}
         <MeetingActivityTimeline workspaceId={workspaceId} meetingId={meetingId} />
         <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">{t("meetings.notes")}</h2>
         <ul className="space-y-2">

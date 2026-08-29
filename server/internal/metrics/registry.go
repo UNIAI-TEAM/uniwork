@@ -21,7 +21,13 @@ type Registry struct {
 	Gatherer prometheus.Gatherer
 	HTTP     *HTTPMetrics
 	Emails   *prometheus.CounterVec
+	Meetings *MeetingCounter
 }
+
+// MeetingCounter satisfies service.MeetingMetrics.
+type MeetingCounter struct{ vec *prometheus.CounterVec }
+
+func (m *MeetingCounter) Inc(event string) { m.vec.WithLabelValues(event).Inc() }
 
 func NewRegistry(opts RegistryOptions) *Registry {
 	reg := prometheus.NewRegistry()
@@ -51,10 +57,17 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	}, []string{"kind", "result"})
 	reg.MustRegister(emails)
 
+	meetingsVec := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "uniwork_meetings_total",
+		Help: "Meeting lifecycle and AI outcomes by event (started, ended, auto_ended, summary_ok, summary_error).",
+	}, []string{"event"})
+	reg.MustRegister(meetingsVec)
+
 	return &Registry{
 		Gatherer: reg,
 		HTTP:     httpMetrics,
 		Emails:   emails,
+		Meetings: &MeetingCounter{vec: meetingsVec},
 	}
 }
 

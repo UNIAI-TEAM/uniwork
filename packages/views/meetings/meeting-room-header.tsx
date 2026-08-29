@@ -13,11 +13,13 @@ export function MeetingRoomHeader({
   workspaceId,
   onLeave,
   onOpenSidebar,
+  recording = false,
 }: {
   meeting?: Meeting;
   workspaceId?: string;
   onLeave: () => void;
   onOpenSidebar?: () => void;
+  recording?: boolean;
 }) {
   const { t } = useTranslation();
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
@@ -57,6 +59,15 @@ export function MeetingRoomHeader({
         {subtitle ? <p className="truncate text-caption text-muted-foreground">{subtitle}</p> : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {recording ? (
+          <p
+            className="flex items-center gap-1.5 rounded-full bg-destructive px-2.5 py-1 text-caption font-medium text-destructive-foreground"
+            data-testid="meeting-rec-badge"
+          >
+            <span aria-hidden className="size-2 animate-pulse rounded-full bg-destructive-foreground" />
+            {t("meetings.recording")}
+          </p>
+        ) : null}
         {remaining ? (
           <p className="flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-2.5 py-1 text-caption tabular-nums text-destructive">
             <Clock aria-hidden className="size-3.5 shrink-0" />

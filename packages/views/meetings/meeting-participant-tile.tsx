@@ -8,10 +8,11 @@ import {
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
-import { MicOff, User, Volume2 } from "lucide-react";
+import { Hand, MicOff, User, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useMeetingSignals } from "./use-meeting-signals";
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -56,6 +57,9 @@ export function MeetingParticipantTile({
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
+  const { hands, reactions } = useMeetingSignals();
+  const handRaised = hands.includes(participant.identity);
+  const reaction = reactions.filter((r) => r.identity === participant.identity).at(-1);
   const name = displayName(participant);
   const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
   const showVideo = !compact && hasPlayableVideo(track);
@@ -69,8 +73,30 @@ export function MeetingParticipantTile({
         "dark relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-rail",
         compact ? "aspect-[4/3] rounded-xl ring-1 ring-border" : "h-full rounded-2xl ring-1 ring-border",
         speaking && "ring-2 ring-success",
+        handRaised && "ring-2 ring-warning",
       )}
+      data-hand-raised={handRaised || undefined}
     >
+      {handRaised ? (
+        <span
+          aria-label={t("meetings.handRaised")}
+          className={cn(
+            "absolute z-10 flex items-center justify-center rounded-full bg-warning text-background",
+            compact ? "top-2 right-2 size-6" : "top-2 right-2 size-8 sm:top-3 sm:right-3",
+          )}
+        >
+          <Hand aria-hidden className={compact ? "size-3.5" : "size-4"} />
+        </span>
+      ) : null}
+      {reaction ? (
+        <span
+          key={reaction.id}
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-1/3 z-10 animate-in fade-in zoom-in text-center text-4xl"
+        >
+          {reaction.value}
+        </span>
+      ) : null}
       {showVideo && isTrackReference(track) ? (
         <VideoTrack
           trackRef={track}
