@@ -42,7 +42,8 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   expect(file.suggestedFilename()).toMatch(/\.ics$/);
 
   await page.getByRole("button", { name: "Bắt đầu" }).click();
-  await expect(page.getByText("Đang diễn ra")).toBeVisible({ timeout: 10_000 });
+  // exact: the activity timeline also renders "Đã lên lịch → Đang diễn ra".
+  await expect(page.getByText("Đang diễn ra", { exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("meeting-summary-panel")).toBeVisible();
   // Without ANTHROPIC_API_KEY the panel explains that AI is off (or shows the
   // empty transcript hint when the key is set): either is a valid server state.

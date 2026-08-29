@@ -50,6 +50,10 @@ test("register → workspace → task → meeting", async ({ page }) => {
   // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
   if (!/\/meetings\/[0-9A-Z]+$/.test(page.url())) await page.getByText("Họp e2e").first().click();
   await page.getByRole("button", { name: "Bắt đầu" }).click();
+  // Detail → /room lands on the pre-join screen, whose join button carries
+  // the same label; the second click is what asks the server for a token.
+  await page.getByRole("button", { name: "Vào phòng họp" }).click();
+  await expect(page.getByText("Sẵn sàng vào họp")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Vào phòng họp" }).click();
   await expect(
     page
