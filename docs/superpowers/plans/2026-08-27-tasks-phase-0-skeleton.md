@@ -1,5 +1,7 @@
 # Tasks Phase 0 — Skeleton (Multica Issues parity) Implementation Plan
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the MVP `tasks` schema/API/UI path with Multica-shaped tasks: 7 built-in statuses, `number`/`identifier`, workspace `task_prefix`, seeded `task_statuses`, and board/list/detail that create/list/update/delete on the new model.

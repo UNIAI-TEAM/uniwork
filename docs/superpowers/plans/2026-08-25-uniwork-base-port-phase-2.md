@@ -1,5 +1,7 @@
 # UniWork Base Port — Pha 2 (Sweep Tầng 1: Frontend)
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Mang ~160 file hạ tầng frontend của usf sang uniwork — 62 primitive, `ui/{lib,hooks,types,markdown,common}`, và lớp headless của `core` — với kiểm chứng thật cho từng lô.

@@ -102,6 +102,38 @@ test("the docs a newcomer is pointed at exist", () => {
   }
 });
 
+test("every ADR is numbered once and carries a status", () => {
+  // docs/adr/ is where the "why" behind a CLAUDE.md "never" lives. An ADR
+  // without a status is a draft nobody closed; two with the same number is a
+  // merge that nobody read.
+  const files = fs.readdirSync(path.join(root, "docs/adr")).filter((f) => /^\d{4}-.*\.md$/.test(f));
+  assert.ok(files.length > 0, "docs/adr has no records");
+  const numbers = files.map((f) => f.slice(0, 4));
+  assert.equal(new Set(numbers).size, numbers.length, `duplicate ADR numbers: ${numbers.join(", ")}`);
+  for (const f of files) {
+    assert.match(
+      read(`docs/adr/${f}`),
+      /^\*\*Trạng thái:\*\* (accepted|superseded by \d{4}|deprecated)/m,
+      `docs/adr/${f} needs a "**Trạng thái:** accepted | superseded by NNNN | deprecated" line`,
+    );
+    assert.ok(read("docs/adr/README.md").includes(`(${f})`), `docs/adr/README.md does not list ${f}`);
+  }
+});
+
+test("every plan says whether it shipped", () => {
+  // Plans are read by agents as if they were current. A plan that shipped a
+  // month ago and still reads like a to-do list sends the next agent to
+  // re-implement it.
+  const dir = "docs/superpowers/plans";
+  for (const f of fs.readdirSync(path.join(root, dir)).filter((f) => f.endsWith(".md"))) {
+    assert.match(
+      read(`${dir}/${f}`),
+      /^> \*\*Trạng thái:\*\* (shipped|in-progress|superseded|abandoned)\b/m,
+      `${dir}/${f} needs a "> **Trạng thái:** shipped | in-progress | superseded | abandoned" line under its title`,
+    );
+  }
+});
+
 // --- The ruleset must describe the repo that exists --------------------------
 //
 // CLAUDE.md is injected into every agent session before it reads any code, so a
@@ -194,4 +226,17 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
     "are unreachable. Wired one up? Remove it from the list. Added a new " +
     "orphan? Say so, or delete it.",
   );
+
+  // Tracking dead code is not the same as removing it. The list above was
+  // accurate and unchanged for a month; past this date it has to be empty —
+  // wire each module to a host or delete it. Move the date only with a
+  // reason in the commit body.
+  const ORPHANS_DEADLINE = "2026-09-30";
+  if (new Date() > new Date(ORPHANS_DEADLINE)) {
+    assert.deepEqual(
+      orphans, [],
+      `packages/core still has unreachable modules after ${ORPHANS_DEADLINE}: ` +
+      `${orphans.join(", ")}. Wire them or delete them.`,
+    );
+  }
 });

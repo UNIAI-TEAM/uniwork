@@ -15,7 +15,10 @@ Vietnamese voice guide is `docs/conventions.md`. Read it before naming a
 route/package/file/DB column/type, before editing
 `packages/core/i18n/locales/`, and before writing Vietnamese UI copy.
 HTTP API + Swagger (SDI/SDO, Chi `apiOp`, `pathParamSDI`) is
-`docs/api-sdi-sdo.md`.
+`docs/api-sdi-sdo.md`. The *why* behind every "never" / "only" below is an
+ADR in `docs/adr/` — read it before arguing with the rule, and write one
+before changing it (`scripts/governance.test.mjs` checks numbering and
+status).
 
 ## Project Shape
 
@@ -36,7 +39,8 @@ Product intent and design principles live in `PRODUCT.md`.
   `packages/core/feature-flags/`, `packages/core/modals/`,
   `packages/core/navigation/`, `packages/core/shortcuts/`. They import each
   other, not the app. Wire one before relying on it;
-  `scripts/governance.test.mjs` recomputes the list.
+  `scripts/governance.test.mjs` recomputes the list and fails after
+  2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
 - `packages/views/` — shared business screens and the navigation adapter.
 - `packages/tsconfig/`, `packages/eslint-config/` — shared config.
@@ -128,7 +132,8 @@ and generates the file itself.
 
 CI (`.github/workflows/ci.yml`) runs Node 22, Go 1.27, pnpm 10.28 against
 `postgres:16` and `redis:7`, plus `pnpm audit --audit-level high`,
-`govulncheck` and a gitleaks scan. Playwright runs only in `make check`.
+`govulncheck`, a gitleaks scan, and the Playwright suite (`e2e` job: server
+binary + production Next build against the same services).
 
 ## Database and Migration Rules
 
@@ -153,7 +158,19 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
 - TypeScript strict; keep types explicit. ESLint runs with `--max-warnings 0`,
   so a warning fails `pnpm lint`. Go: `gofmt`, `go vet`, `staticcheck`
   (`go tool staticcheck`, pinned in `server/go.mod`), checked errors.
-- Code comments in English. Specs and plans (`docs/superpowers/`) are in Vietnamese.
+- A `.ts`/`.tsx` file is at most 500 lines (`max-lines`, excluding blanks and
+  comments; registry primitives and tests are exempt). Past that it is two
+  modules.
+- No unused exports, files or dependencies: `pnpm knip` (`knip.json`) runs
+  in `make check`. Test-only helpers are not exported unless a test imports
+  them.
+- Coverage only goes up. Each package's vitest config carries integer
+  `thresholds` and a drop fails `pnpm test`; Go has `server/coverage.floor`,
+  checked by `scripts/test-go.sh`. Raise the floor by hand, with the change
+  that earned it — the numbers never go down.
+- Code comments in English. Specs and plans (`docs/superpowers/`) are in
+  Vietnamese and carry a `> **Trạng thái:**` line (shipped / in-progress /
+  superseded / abandoned) under the title.
 - Prefer existing patterns over new parallel abstractions; no broad refactors
   unless the task requires them.
 - No compatibility layers, dual writes or shims in internal code unless
@@ -281,7 +298,8 @@ When adding a shared screen:
 | Shared logic, stores, endpoints, hooks | `packages/core/**/*.test.ts(x)` |
 | Shared screens, components | `packages/views/**/*.test.tsx` |
 | Primitives, tokens | `packages/ui/**/*.test.ts(x)` |
-| Repo contracts (catalog, usf leak, legacy tokens, turbo hash) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
+| Repo contracts (catalog, usf leak, legacy tokens, turbo hash, governance, ADRs, plan status) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
+| Go layering, membership gate | `server/internal/arch_test.go` |
 | End-to-end flows | `e2e/*.spec.ts` |
 | Backend | `server/**/*_test.go` (test DB via `TEST_DATABASE_URL`, Redis via `REDIS_TEST_URL`) |
 
