@@ -1,4 +1,4 @@
-# Four jobs. `changes` decides whether the frontend half has anything to do;
+# Four jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
 # the two frontend jobs are split so the jsdom test suite and the Next build
 # do not starve each other on a 4-vCPU runner; `backend` runs Go against real
 # Postgres and Redis services. Playwright is not run here — it is the local
@@ -117,6 +117,9 @@ jobs:
       - name: Build, typecheck, lint
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         run: pnpm exec turbo build typecheck lint
+      - name: Known vulnerabilities (high+)
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: pnpm audit --audit-level high
 
   frontend-test:
     needs: changes
@@ -220,3 +223,20 @@ jobs:
         run: cd server && go run ./cmd/migrate up
       - name: gofmt, vet, staticcheck, test (-race)
         run: bash scripts/test-go.sh --race
+      - name: govulncheck
+        # Reachability-based: only a vulnerability in a code path we call fails the job.
+        run: cd server && go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+  # Secrets by content, not by filename: the pre-commit hook refuses `.env`,
+  # this catches a token pasted into a test fixture or a yaml.
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
