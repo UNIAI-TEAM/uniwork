@@ -4,15 +4,25 @@ import { useTranslation } from "react-i18next";
 import { useUpdateMeeting } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+} from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { Select } from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
-import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { toast } from "sonner";
-import { combineLocalIso, MEETING_TIMEZONES, splitIsoLocal } from "./meeting-datetime";
+import { combineLocalIso, splitIsoLocal } from "./meeting-datetime";
+import {
+  browserTimeZone,
+  MeetingScheduleFields,
+  scheduleValid,
+} from "./meeting-schedule-fields";
 
 export function MeetingEditDialog({
   workspaceId,
@@ -33,26 +43,41 @@ export function MeetingEditDialog({
   const [date, setDate] = useState(initial.date);
   const [start, setStart] = useState(initial.time);
   const [end, setEnd] = useState(initialEnd.time);
-  const [timezone, setTimezone] = useState(meeting.timezone || "Asia/Ho_Chi_Minh");
-  const [allowJoin, setAllowJoin] = useState(meeting.allow_join_request !== false);
+  const [allowJoin, setAllowJoin] = useState(
+    meeting.allow_join_request !== false,
+  );
   const inProgress = meeting.status === "IN_PROGRESS";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger ?? <Button size="sm" variant="outline">{t("meetings.edit")}</Button>} />
-      <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto sm:max-w-lg">
+      <DialogTrigger
+        render={
+          trigger ?? (
+            <Button size="sm" variant="outline">
+              {t("meetings.edit")}
+            </Button>
+          )
+        }
+      />
+      <DialogContent className="flex max-h-[min(90dvh,40rem)] flex-col sm:max-w-lg">
         <DialogTitle>{t("meetings.edit")}</DialogTitle>
         <form
-          className="space-y-4"
+          className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if (!inProgress && !scheduleValid(start, end)) return;
             update.mutate(
               {
                 title,
                 description,
-                timezone,
+                timezone: browserTimeZone(),
                 allow_join_request: allowJoin,
-                ...(inProgress ? {} : { starts_at: combineLocalIso(date, start), ends_at: combineLocalIso(date, end) }),
+                ...(inProgress
+                  ? {}
+                  : {
+                      starts_at: combineLocalIso(date, start),
+                      ends_at: combineLocalIso(date, end),
+                    }),
               },
               {
                 onSuccess: () => {
@@ -64,50 +89,66 @@ export function MeetingEditDialog({
             );
           }}
         >
-          <FieldGroup>
+          <FieldGroup className="min-h-0 flex-1 overflow-y-auto">
             <Field>
-              <FieldLabel htmlFor="edit-title">{t("meetings.meetingTitle")}</FieldLabel>
-              <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="edit-desc">{t("meetings.description")}</FieldLabel>
-              <Textarea id="edit-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-            </Field>
-            {inProgress ? null : (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="edit-date">{t("meetings.date")}</FieldLabel>
-                  <Input id="edit-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-                </Field>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel>{t("meetings.startsAt")}</FieldLabel>
-                    <TimeInput value={start} onChange={setStart} hourLabel={t("meetings.startsAt")} minuteLabel={t("meetings.startsAt")} />
-                  </Field>
-                  <Field>
-                    <FieldLabel>{t("meetings.endsAt")}</FieldLabel>
-                    <TimeInput value={end} onChange={setEnd} hourLabel={t("meetings.endsAt")} minuteLabel={t("meetings.endsAt")} />
-                  </Field>
-                </div>
-              </>
-            )}
-            <Field>
-              <FieldLabel htmlFor="edit-meeting-timezone">{t("meetings.timezone")}</FieldLabel>
-              <Select
-                id="edit-meeting-timezone"
-                value={timezone}
-                onValueChange={(v) => v && setTimezone(v)}
-                items={MEETING_TIMEZONES.map((tz) => ({ value: tz, label: tz }))}
+              <FieldLabel htmlFor="edit-title">
+                {t("meetings.meetingTitle")}
+              </FieldLabel>
+              <Input
+                id="edit-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
               />
             </Field>
+            <Field>
+              <FieldLabel htmlFor="edit-desc">
+                {t("meetings.description")}
+              </FieldLabel>
+              <Textarea
+                id="edit-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+              />
+            </Field>
+            {inProgress ? null : (
+              <MeetingScheduleFields
+                idPrefix="edit"
+                date={date}
+                start={start}
+                end={end}
+                onDate={setDate}
+                onStart={setStart}
+                onEnd={setEnd}
+              />
+            )}
             <label className="flex min-h-11 items-center justify-between gap-3">
-              <span className="min-w-0 text-pretty text-body text-foreground">{t("meetings.allowJoinRequest")}</span>
-              <Switch className="shrink-0" checked={allowJoin} onCheckedChange={setAllowJoin} />
+              <span className="min-w-0 text-pretty text-body text-foreground">
+                {t("meetings.allowJoinRequest")}
+              </span>
+              <Switch
+                className="shrink-0"
+                checked={allowJoin}
+                onCheckedChange={setAllowJoin}
+              />
             </label>
           </FieldGroup>
-          <Button type="submit" disabled={update.isPending}>
-            {t("meetings.saveChanges")}
-          </Button>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="ghost" />}>
+              {t("common.cancel")}
+            </DialogClose>
+            <Button
+              type="submit"
+              disabled={
+                update.isPending ||
+                !title.trim() ||
+                (!inProgress && !scheduleValid(start, end))
+              }
+            >
+              {t("meetings.saveChanges")}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

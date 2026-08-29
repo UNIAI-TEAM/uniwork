@@ -21,7 +21,7 @@ export function MemberMultiPicker({
   return (
     <ul className="max-h-48 space-y-1 overflow-auto rounded-lg border border-border bg-surface p-2">
       {options.length === 0 ? (
-        <li className="px-2 py-1.5 text-label text-muted-foreground">{t("common.empty")}</li>
+        <li className="px-2 py-1.5 text-label text-muted-foreground">{t("meetings.noOtherMembers")}</li>
       ) : (
         options.map((m) => {
           const checked = value.includes(m.user_id);
