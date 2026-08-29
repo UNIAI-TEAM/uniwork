@@ -83,7 +83,7 @@ export function NewMeetingDialog({
                   }
                   setOpen(false);
                   reset();
-                  toast.success(t("common.create"));
+                  toast.success(t("meetings.created"));
                   onCreated?.(m.id);
                 },
                 onError: () => toast.error(t("common.error")),

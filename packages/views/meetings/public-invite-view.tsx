@@ -6,12 +6,16 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { useJoinMeeting } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { useWorkspaces } from "@uniwork/core/workspaces";
+import { CalendarDays, Link2Off } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { CollectionPageState } from "../layout/collection-page";
+import { meetingLocale } from "./meeting-datetime";
 import { toast } from "sonner";
 import { AppLink, useNavigation } from "../navigation";
 
 export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; secret: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const nav = useNavigation();
   const user = useAuthStore((s) => s.user);
   const { data: workspaces } = useWorkspaces();
@@ -35,24 +39,36 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   }, [linkId, secret]);
 
   if (state === "loading") {
-    return <p className="p-8 text-muted-foreground">{t("common.loading")}</p>;
+    return (
+      <div aria-busy className="mx-auto flex w-full min-w-0 max-w-md flex-col gap-4 p-4 sm:p-8">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-5 w-2/3" />
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-9 w-40" />
+      </div>
+    );
   }
   if (state === "expired") {
-    return <p className="p-8 text-muted-foreground">{t("meetings.publicInviteExpired")}</p>;
+    return <CollectionPageState icon={Link2Off} role="status" title={t("meetings.publicInviteExpired")} description={t("meetings.publicInviteExpiredHint")} />;
   }
   if (state === "error") {
-    return <p className="p-8 text-muted-foreground">{t("common.error")}</p>;
+    return <CollectionPageState icon={Link2Off} tone="destructive" role="alert" title={t("common.error")} />;
   }
 
   const loginHref = `${paths.login()}?next=${encodeURIComponent(paths.meetingInvite(linkId))}`;
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-md flex-col gap-4 p-4 sm:p-8">
-      <h1 className="text-pretty text-title font-semibold text-foreground">{t("meetings.publicInviteTitle")}</h1>
-      <p className="text-body text-foreground">{title}</p>
-      <p className="text-label tabular-nums text-muted-foreground">
-        {new Date(startsAt).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })}
-      </p>
+      <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <CalendarDays aria-hidden className="size-5" />
+      </span>
+      <div>
+        <p className="text-caption text-muted-foreground">{t("meetings.publicInviteTitle")}</p>
+        <h1 className="mt-1 text-pretty text-title font-semibold text-foreground">{title}</h1>
+        <p className="mt-1 text-label tabular-nums text-muted-foreground">
+          {new Date(startsAt).toLocaleString(meetingLocale(i18n.language), { dateStyle: "full", timeStyle: "short" })}
+        </p>
+      </div>
       {user && meetingId ? (
         <Button
           disabled={join.isPending}

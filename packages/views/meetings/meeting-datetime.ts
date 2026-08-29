@@ -32,17 +32,59 @@ export function combineLocalIso(date: string, time: string): string {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-export function formatMeetingRange(startsAt: string, endsAt: string, timeZone?: string): string {
-  const opts: Intl.DateTimeFormatOptions = {
-    dateStyle: "short",
+/** i18n language → BCP 47 tag the browser knows. */
+export function meetingLocale(language?: string): string {
+  return language?.startsWith("en") ? "en-GB" : "vi-VN";
+}
+
+function safeRange(
+  startsAt: string,
+  endsAt: string,
+  locale: string,
+  opts: Intl.DateTimeFormatOptions,
+): string {
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
+  try {
+    // formatRange collapses the shared part ("28 thg 8, 09:00 – 09:30")
+    // instead of printing the date twice.
+    return new Intl.DateTimeFormat(locale, opts).formatRange(start, end);
+  } catch {
+    const f = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" });
+    return `${f.format(start)} – ${f.format(end)}`;
+  }
+}
+
+/** Date + time span, e.g. "28 thg 8, 2026, 09:00 – 09:30". */
+export function formatMeetingRange(startsAt: string, endsAt: string, timeZone?: string, locale = "vi-VN"): string {
+  return safeRange(startsAt, endsAt, locale, {
+    dateStyle: "medium",
     timeStyle: "short",
     ...(timeZone ? { timeZone } : {}),
-  };
-  try {
-    return `${new Date(startsAt).toLocaleString("vi-VN", opts)} – ${new Date(endsAt).toLocaleString("vi-VN", opts)}`;
-  } catch {
-    return `${new Date(startsAt).toLocaleString("vi-VN")} – ${new Date(endsAt).toLocaleString("vi-VN")}`;
-  }
+  });
+}
+
+/** Time-only span for rows that already sit under a day heading: "09:00 – 09:30". */
+export function formatMeetingTimes(startsAt: string, endsAt: string, timeZone?: string, locale = "vi-VN"): string {
+  return safeRange(startsAt, endsAt, locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
+/** Local calendar day of a timestamp, as a stable group key ("2026-08-28"). */
+export function meetingDayKey(iso: string): string {
+  return splitIsoLocal(iso).date;
+}
+
+/** Day heading for a group of meetings: "Thứ Năm, 28 tháng 8". */
+export function formatMeetingDay(dayKey: string, locale = "vi-VN"): string {
+  const d = new Date(`${dayKey}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return dayKey;
+  return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(d);
 }
 
 /** Remaining time until `endsAt` as `HH:MM:SS`. Null when the stamp is unusable. */

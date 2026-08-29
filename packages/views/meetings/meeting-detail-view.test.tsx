@@ -165,16 +165,31 @@ describe("MeetingsPageView", () => {
     });
     render(shell(<MeetingsPageView workspaceId="w1" onOpen={() => {}} onOpenRoom={() => {}} />));
     expect(await screen.findByText("Standup")).toBeInTheDocument();
-    const table = screen.getByRole("table");
-    expect(within(table).getByText("Đã lên lịch")).toBeInTheDocument();
-    expect(within(table).getByText("Đang diễn ra")).toBeInTheDocument();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]!).getByText("Đã lên lịch")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Đang diễn ra")).toBeInTheDocument();
+    expect(within(rows[0]!).getByRole("link")).toHaveAttribute("href", "/org/team/meetings/m1");
+    expect(within(rows[1]!).getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
   });
 });
 
 describe("MeetingRoomView", () => {
+  it("shows the pre-join screen first and requests admission only after joining", async () => {
+    requestMock.mockResolvedValue({ decision: "ADMIT", participant_token: "tok", server_url: "wss://lk.test" });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    expect(screen.getByTestId("meeting-prejoin")).toBeInTheDocument();
+    expect(requestMock.mock.calls.some((c) => String(c[0]).endsWith("/join"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Tắt camera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
+    await screen.findByTestId("livekit-room");
+    expect(lastLiveKitMedia).toEqual({ video: false, audio: true });
+  });
+
   it("shows waiting-for-host and does not mount LiveKit when admission does not admit", async () => {
     requestMock.mockResolvedValue({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
     render(shell(<MeetingRoomView meetingId="m1" onLeave={() => {}} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await waitFor(() => expect(screen.getByText("Đang chờ người chủ trì bắt đầu cuộc họp")).toBeInTheDocument());
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Rời phòng" }));
@@ -188,9 +203,10 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     expect(await screen.findByTestId("livekit-room")).toBeInTheDocument();
     expect(screen.getByTestId("meeting-stage")).toHaveClass("fixed", "inset-0", "overflow-hidden");
-    expect(lastLiveKitMedia).toEqual({ video: false, audio: false });
+    expect(lastLiveKitMedia).toEqual({ video: true, audio: true });
   });
 
   it("does not leave the page when LiveKit fails to connect", async () => {
@@ -202,6 +218,7 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={onLeave} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     lastDisconnected?.(DisconnectReason.JOIN_FAILURE);
     expect(onLeave).not.toHaveBeenCalled();
@@ -216,6 +233,7 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={onLeave} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     lastDisconnected?.(DisconnectReason.CLIENT_INITIATED);
     expect(onLeave).not.toHaveBeenCalled();
@@ -230,6 +248,7 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={onLeave} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     lastDisconnected?.(DisconnectReason.ROOM_CLOSED);
     expect(onLeave).toHaveBeenCalledTimes(1);

@@ -8,6 +8,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
+import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRsvpBadge } from "./meeting-status-badge";
 
 export function MeetingParticipantsSection({
@@ -44,10 +45,13 @@ export function MeetingParticipantsSection({
           const rsvp = rsvpByParticipant.get(p.id);
           return (
             <li key={p.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5">
-              <div className="min-w-0">
-                <div className="truncate text-body text-foreground">{p.display_name_snapshot || p.user_id}</div>
-                <div className="text-caption text-muted-foreground">
-                  {isHost ? t("meetings.host") : t("meetings.attendees")}
+              <div className="flex min-w-0 items-center gap-2.5">
+                <MeetingPersonAvatar name={p.display_name_snapshot || p.user_id || ""} size="default" />
+                <div className="min-w-0">
+                  <div className="truncate text-body text-foreground">{p.display_name_snapshot || p.user_id}</div>
+                  <div className="text-caption text-muted-foreground">
+                    {isHost ? t("meetings.host") : t("meetings.attendees")}
+                  </div>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">

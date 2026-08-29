@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRemaining } from "./meeting-datetime";
+import { formatMeetingRange, formatMeetingTimes, formatRemaining } from "./meeting-datetime";
 
 describe("formatRemaining", () => {
   it("returns a padded H:MM:SS countdown", () => {
@@ -14,5 +14,24 @@ describe("formatRemaining", () => {
 
   it("returns null for an unparseable timestamp", () => {
     expect(formatRemaining("not-a-date")).toBeNull();
+  });
+});
+
+describe("formatMeetingRange", () => {
+  it("prints the date once when both ends fall on the same day", () => {
+    const s = formatMeetingRange("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "Asia/Ho_Chi_Minh", "vi-VN");
+    expect(s).toContain("09:00");
+    expect(s).toContain("09:30");
+    expect(s.match(/2026/g)?.length ?? 0).toBe(1);
+  });
+
+  it("returns an empty string for unparseable stamps", () => {
+    expect(formatMeetingRange("x", "y")).toBe("");
+  });
+});
+
+describe("formatMeetingTimes", () => {
+  it("is time-only in the meeting's zone", () => {
+    expect(formatMeetingTimes("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "Asia/Ho_Chi_Minh", "en-GB")).toMatch(/^09:00\s*[–-]\s*09:30$/);
   });
 });

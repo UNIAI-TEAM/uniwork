@@ -1,13 +1,15 @@
 "use client";
 import { LiveKitRoom } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { isJoinAdmitted, useJoinMeeting, useMeeting } from "@uniwork/core/meetings";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
 import { MeetingLobby } from "./meeting-lobby";
+import { MeetingPreJoin, type PreJoinChoice } from "./meeting-prejoin";
 import { shouldLeaveOnDisconnect, tokenRefreshDelayMs } from "./room-connection";
 
 function MeetingRoomShell({
@@ -40,14 +42,13 @@ export function MeetingRoomView({
   const join = useJoinMeeting();
   const { data: meeting } = useMeeting(meetingId);
   useWorkspaceEvents(workspaceId ?? meeting?.workspace_id ?? "");
-  const joinOnce = useRef(false);
+  const [choice, setChoice] = useState<PreJoinChoice | null>(null);
   const mutateJoin = join.mutate;
 
+  // Admission is requested only after the user leaves the pre-join screen.
   useEffect(() => {
-    if (joinOnce.current) return;
-    joinOnce.current = true;
-    mutateJoin({ meetingId });
-  }, [mutateJoin, meetingId]);
+    if (choice) mutateJoin({ meetingId });
+  }, [choice, mutateJoin, meetingId]);
 
   const expiresAt = join.data?.expires_at;
   const admittedNow = isJoinAdmitted(join.data);
@@ -70,6 +71,14 @@ export function MeetingRoomView({
   const decision = join.data;
   const admitted = isJoinAdmitted(decision);
 
+  if (!choice) {
+    return (
+      <MeetingRoomShell testId="meeting-prejoin">
+        <MeetingPreJoin meeting={meeting ?? undefined} onJoin={setChoice} onLeave={onLeave} />
+      </MeetingRoomShell>
+    );
+  }
+
   // A later re-join (token refresh) must not eject an admitted session on a
   // transient error — join.error would otherwise unmount LiveKit.
   if (!admitted && (join.error || decision)) {
@@ -77,6 +86,7 @@ export function MeetingRoomView({
       <MeetingRoomShell>
         <MeetingLobby
           meetingId={meetingId}
+          title={meeting?.title}
           decision={decision?.decision}
           error={join.error}
           allowJoinRequest={meeting?.allow_join_request}
@@ -89,8 +99,14 @@ export function MeetingRoomView({
   if (!admitted || !decision?.server_url || !decision.participant_token) {
     return (
       <MeetingRoomShell>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 p-6">
-          <p className="text-body text-muted-foreground">{t("common.loading")}</p>
+        <div role="status" className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+          <div aria-hidden className="grid w-full max-w-md grid-cols-2 gap-3">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="aspect-video rounded-2xl bg-rail" />
+            ))}
+          </div>
+          {meeting?.title ? <p className="max-w-md truncate text-title-sm font-semibold text-foreground">{meeting.title}</p> : null}
+          <p className="text-body text-muted-foreground">{t("meetings.connecting")}</p>
           <Button variant="outline" onClick={onLeave}>
             {t("meetings.leave")}
           </Button>
@@ -106,8 +122,8 @@ export function MeetingRoomView({
         serverUrl={decision.server_url}
         token={decision.participant_token}
         connect
-        video={false}
-        audio={false}
+        video={choice.video ? (choice.videoDeviceId ? { deviceId: choice.videoDeviceId } : true) : false}
+        audio={choice.audio ? (choice.audioDeviceId ? { deviceId: choice.audioDeviceId } : true) : false}
         onDisconnected={(reason) => {
           if (shouldLeaveOnDisconnect(reason)) onLeave();
         }}

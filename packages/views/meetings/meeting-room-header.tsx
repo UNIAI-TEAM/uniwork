@@ -6,7 +6,7 @@ import { useEndMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { formatMeetingRange, formatRemaining } from "./meeting-datetime";
+import { formatMeetingRange, formatRemaining, meetingLocale } from "./meeting-datetime";
 
 export function MeetingRoomHeader({
   meeting,
@@ -21,7 +21,7 @@ export function MeetingRoomHeader({
   onOpenSidebar?: () => void;
   recording?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const start = useStartMeeting(workspaceId ?? "");
   const end = useEndMeeting(workspaceId ?? "");
@@ -35,7 +35,7 @@ export function MeetingRoomHeader({
 
   const remaining = meeting?.ends_at ? formatRemaining(meeting.ends_at, now) : null;
   const subtitle = meeting
-    ? meeting.description.trim() || formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone)
+    ? meeting.description.trim() || formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone, meetingLocale(i18n.language))
     : "";
   const scheduled = meeting?.status === "SCHEDULED" || !meeting?.status;
   const inProgress = meeting?.status === "IN_PROGRESS";
@@ -64,7 +64,7 @@ export function MeetingRoomHeader({
             className="flex items-center gap-1.5 rounded-full bg-destructive px-2.5 py-1 text-caption font-medium text-destructive-foreground"
             data-testid="meeting-rec-badge"
           >
-            <span aria-hidden className="size-2 animate-pulse rounded-full bg-destructive-foreground" />
+            <span aria-hidden className="size-2 animate-pulse rounded-full motion-reduce:animate-none bg-destructive-foreground" />
             {t("meetings.recording")}
           </p>
         ) : null}

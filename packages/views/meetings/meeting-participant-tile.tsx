@@ -92,7 +92,7 @@ export function MeetingParticipantTile({
         <span
           key={reaction.id}
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-1/3 z-10 animate-in fade-in zoom-in text-center text-4xl"
+          className="pointer-events-none absolute inset-x-0 top-1/3 z-10 animate-in fade-in zoom-in text-center text-4xl motion-reduce:animate-none"
         >
           {reaction.value}
         </span>

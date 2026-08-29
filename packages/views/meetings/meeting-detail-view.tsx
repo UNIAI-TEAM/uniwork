@@ -27,13 +27,16 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { toast } from "sonner";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
-import { formatMeetingRange } from "./meeting-datetime";
+import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
+import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingHostPanel } from "./host-panel";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
@@ -52,7 +55,7 @@ export function MeetingDetailView({
   onJoin: () => void;
   onDeleted: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { workspace, user } = useWorkspace();
   useWorkspaceEvents(workspaceId);
   const { data: meeting } = useMeeting(meetingId);
@@ -60,7 +63,7 @@ export function MeetingDetailView({
   const { data: invitations } = useInvitations(meetingId);
   const { data: participants } = useParticipants(meetingId);
   const { data: joinRequests } = useJoinRequests(meetingId);
-  const { canHost, canCancel } = useMeetingPermissions(meeting ?? null, workspaceId);
+  const { canHost, canCancel, isLoading: permissionsLoading } = useMeetingPermissions(meeting ?? null, workspaceId);
   const addNote = useAddNote(meetingId);
   const start = useStartMeeting(workspaceId);
   const end = useEndMeeting(workspaceId);
@@ -73,10 +76,22 @@ export function MeetingDetailView({
   const myInvite = (invitations ?? []).find((inv) => inv.participant_id === myParticipant?.id);
   const pendingJoins = (joinRequests ?? []).filter((r) => r.status === "PENDING").length;
 
-  if (!meeting) {
+  // Wait for the role too: otherwise the host sees the attendee layout for a frame.
+  if (!meeting || permissionsLoading) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <BreadcrumbHeader segments={[{ href: meetingsHref, label: t("meetings.title") }]} leaf={t("common.loading")} />
+        <div aria-hidden className="mx-auto w-full min-w-0 max-w-2xl flex-1 space-y-6 p-4 sm:p-6">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-2/3" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -142,7 +157,7 @@ export function MeetingDetailView({
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <p className="text-label tabular-nums text-muted-foreground">
-            {formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone)}
+            {formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone, meetingLocale(i18n.language))}
           </p>
           {closed && meeting.status === "CANCELED" ? null : <MeetingCalendarButton meetingId={meetingId} />}
         </div>
@@ -167,23 +182,34 @@ export function MeetingDetailView({
         <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">{t("meetings.notes")}</h2>
         <ul className="space-y-2">
           {(notes ?? []).map((n) => (
-            <li key={n.id} className="rounded-lg border border-border bg-surface p-3">
-              <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
-              <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
+            <li key={n.id} className="flex gap-2.5 rounded-lg border border-border bg-surface p-3">
+              <MeetingPersonAvatar name={n.display_name ?? n.author_id} className="mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <div className="mb-0.5 text-caption font-medium text-muted-foreground">{n.display_name ?? n.author_id}</div>
+                <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
+              </div>
             </li>
           ))}
         </ul>
+        {(notes ?? []).length === 0 ? (
+          <p className="text-label text-muted-foreground">{t("meetings.notesEmpty")}</p>
+        ) : null}
         <form
-          className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row"
+          className="mt-3"
           onSubmit={(e) => {
             e.preventDefault();
-            if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
+            if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote(""), onError: () => toast.error(t("common.error")) });
           }}
         >
-          <Input className="min-w-0 flex-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("meetings.notes")} />
-          <Button type="submit" className="shrink-0" disabled={addNote.isPending}>
-            {t("common.save")}
-          </Button>
+          <Field>
+            <FieldLabel htmlFor="meeting-note">{t("meetings.addNote")}</FieldLabel>
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+              <Input id="meeting-note" className="min-w-0 flex-1" value={note} onChange={(e) => setNote(e.target.value)} />
+              <Button type="submit" className="shrink-0" disabled={addNote.isPending || !note.trim()}>
+                {t("common.save")}
+              </Button>
+            </div>
+          </Field>
         </form>
       </div>
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>

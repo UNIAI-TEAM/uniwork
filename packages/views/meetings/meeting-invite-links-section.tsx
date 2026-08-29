@@ -100,11 +100,7 @@ export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) 
               <Select
                 value={days}
                 onValueChange={(v) => v && setDays(v)}
-                items={[
-                  { value: "1", label: "1" },
-                  { value: "7", label: "7" },
-                  { value: "30", label: "30" },
-                ]}
+                items={["1", "7", "30"].map((d) => ({ value: d, label: t("meetings.linkDays", { count: Number(d) }) }))}
               />
             </Field>
             <Field>

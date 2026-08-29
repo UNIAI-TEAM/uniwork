@@ -2,6 +2,7 @@
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
 import { useCreateJoinRequest } from "@uniwork/core/meetings";
+import { Clock, ShieldAlert } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 
 export function lobbyMessage(t: (key: string) => string, decision: string | undefined, error: unknown): string {
@@ -26,12 +27,14 @@ export function lobbyMessage(t: (key: string) => string, decision: string | unde
 
 export function MeetingLobby({
   meetingId,
+  title,
   decision,
   error,
   allowJoinRequest,
   onLeave,
 }: {
   meetingId: string;
+  title?: string;
   decision: string | undefined;
   error: unknown;
   allowJoinRequest?: boolean;
@@ -41,9 +44,15 @@ export function MeetingLobby({
   const request = useCreateJoinRequest(meetingId);
   const waitingApproval = decision === "WAITING_APPROVAL";
   const showRequest = allowJoinRequest && decision === "DENY" && !waitingApproval;
+  const waiting = waitingApproval || decision === "WAITING_FOR_HOST";
+  const Icon = waiting ? Clock : ShieldAlert;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden p-6 text-center">
+    <div role="status" className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden p-6 text-center">
+      <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <Icon aria-hidden className="size-6" />
+      </span>
+      {title ? <p className="max-w-md truncate text-title-sm font-semibold text-foreground">{title}</p> : null}
       <p className="max-w-md text-pretty text-body text-muted-foreground">{lobbyMessage(t, decision, error)}</p>
       {waitingApproval ? <p className="text-label text-muted-foreground">{t("meetings.requestSent")}</p> : null}
       {showRequest ? (
