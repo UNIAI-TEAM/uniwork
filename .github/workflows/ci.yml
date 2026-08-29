@@ -296,7 +296,8 @@ jobs:
       - name: Build and start the web app
         run: |
           pnpm --filter @uniwork/web build
-          nohup pnpm --filter @uniwork/web start > /tmp/web.log 2>&1 &
+          # PORT above is the Go server's; `next start` reads the same variable.
+          PORT=3000 nohup pnpm --filter @uniwork/web start > /tmp/web.log 2>&1 &
       - name: Wait for both
         run: |
           for i in $(seq 1 60); do curl -sf http://localhost:8080/healthz && break; sleep 1; done
