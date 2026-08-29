@@ -25,7 +25,8 @@ Product intent and design principles live in `PRODUCT.md`.
 
 - `server/` — Go backend: Chi router, pgx + sqlc, gorilla/websocket, Redis
   relay, Prometheus metrics. Layers: `internal/handler` → `internal/service`
-  → `pkg/db`.
+  → `pkg/db`; `server/internal/arch_test.go` fails on an import that crosses
+  them the wrong way.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
@@ -126,7 +127,8 @@ ports via `.env.worktree` (`make worktree-env`, `make setup-worktree`,
 and generates the file itself.
 
 CI (`.github/workflows/ci.yml`) runs Node 22, Go 1.27, pnpm 10.28 against
-`postgres:16` and `redis:7`. Playwright runs only in `make check`.
+`postgres:16` and `redis:7`, plus `pnpm audit --audit-level high`,
+`govulncheck` and a gitleaks scan. Playwright runs only in `make check`.
 
 ## Database and Migration Rules
 
@@ -143,7 +145,8 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
 - Every query filters by `workspace_id`; membership is decided only in
   `WorkspaceService.RequireMember`, where organization owners/admins are
-  implicit workspace admins.
+  implicit workspace admins. `server/internal/arch_test.go` fails if any
+  other file calls the membership queries.
 
 ## Coding Rules
 
@@ -318,7 +321,10 @@ is guaranteed to pass through. Two hooks then run unasked:
 - `commit-msg` — enforces the prefixes below.
 
 `git commit --no-verify` bypasses both; if you use it, `make check` before you
-push is not optional. `make doctor` reports whether the hooks are wired and
+push is not optional. Agents do not get that escape hatch:
+`.claude/hooks/block-no-verify.sh` (wired in `.claude/settings.json`) refuses
+the flag. There is no second ruleset for any editor — Cursor, Codex and
+Copilot read `AGENTS.md`; do not add an editor-specific rules tree beside it. `make doctor` reports whether the hooks are wired and
 whether your Node/Go/pnpm match what the repo pins (`.nvmrc`, `server/go.mod`,
 `packageManager`). `scripts/governance.test.mjs` pins the wiring itself.
 
