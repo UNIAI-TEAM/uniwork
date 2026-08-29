@@ -220,11 +220,9 @@ export function MeetingDetailView({
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <p className="text-label tabular-nums text-muted-foreground">
-            {/* Viewer's clock, same as the list; the stored zone only seeds the edit form. */}
             {formatMeetingRange(
               meeting.starts_at,
               meeting.ends_at,
-              undefined,
               meetingLocale(i18n.language),
             )}
           </p>

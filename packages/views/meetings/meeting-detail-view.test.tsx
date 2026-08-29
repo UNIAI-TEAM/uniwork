@@ -180,7 +180,7 @@ describe("MeetingRoomView", () => {
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
     expect(screen.getByTestId("meeting-prejoin")).toBeInTheDocument();
     expect(requestMock.mock.calls.some((c) => String(c[0]).endsWith("/join"))).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Tắt camera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Camera", pressed: true }));
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     expect(lastLiveKitMedia).toEqual({ video: false, audio: true });

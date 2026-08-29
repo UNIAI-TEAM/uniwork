@@ -457,7 +457,10 @@
     "backToList": "Về danh sách cuộc họp",
     "transferHostTo": "Chuyển quyền chủ trì cho",
     "transferHostPick": "Chọn người tham dự",
-    "newLink": "Thêm liên kết mời"
+    "newLink": "Thêm liên kết mời",
+    "devicePreviewStarting": "Đang bật camera…",
+    "devicePreviewNoCamera": "Không tìm thấy camera trên thiết bị này.",
+    "devicePreviewTimeout": "Trình duyệt chưa cấp quyền camera. Kiểm tra biểu tượng camera ở thanh địa chỉ."
   },
   "org": {
     "name": "Tên tổ chức",

@@ -35,7 +35,7 @@ export function MeetingRoomHeader({
 
   const remaining = meeting?.ends_at ? formatRemaining(meeting.ends_at, now) : null;
   const subtitle = meeting
-    ? meeting.description.trim() || formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone, meetingLocale(i18n.language))
+    ? meeting.description.trim() || formatMeetingRange(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language))
     : "";
   const scheduled = meeting?.status === "SCHEDULED" || !meeting?.status;
   const inProgress = meeting?.status === "IN_PROGRESS";

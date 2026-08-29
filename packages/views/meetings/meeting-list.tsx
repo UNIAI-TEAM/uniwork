@@ -119,12 +119,7 @@ export function MeetingList({
                   >
                     <span className="whitespace-nowrap text-label tabular-nums text-muted-foreground">
                       {/* Same clock as the day heading: the viewer's, not the meeting's stored zone. */}
-                      {formatMeetingTimes(
-                        m.starts_at,
-                        m.ends_at,
-                        undefined,
-                        locale,
-                      )}
+                      {formatMeetingTimes(m.starts_at, m.ends_at, locale)}
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-body font-medium text-foreground">

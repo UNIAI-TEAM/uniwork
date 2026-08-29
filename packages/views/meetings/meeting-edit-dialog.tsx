@@ -92,8 +92,9 @@ export function MeetingEditDialog({
               </>
             )}
             <Field>
-              <FieldLabel>{t("meetings.timezone")}</FieldLabel>
+              <FieldLabel htmlFor="edit-meeting-timezone">{t("meetings.timezone")}</FieldLabel>
               <Select
+                id="edit-meeting-timezone"
                 value={timezone}
                 onValueChange={(v) => v && setTimezone(v)}
                 items={MEETING_TIMEZONES.map((tz) => ({ value: tz, label: tz }))}

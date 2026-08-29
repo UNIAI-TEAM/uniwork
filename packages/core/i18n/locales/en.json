@@ -458,7 +458,10 @@
     "backToList": "Back to meetings",
     "transferHostTo": "Transfer host role to",
     "transferHostPick": "Pick a participant",
-    "newLink": "Add invite link"
+    "newLink": "Add invite link",
+    "devicePreviewStarting": "Starting camera…",
+    "devicePreviewNoCamera": "No camera found on this device.",
+    "devicePreviewTimeout": "The browser has not granted camera access yet. Check the camera icon in the address bar."
   },
   "org": {
     "name": "Organization name",

@@ -35,12 +35,14 @@ const ACCEPTED_BACKGROUND_TYPES = ["image/jpeg", "image/png", "image/webp"] as c
 const MAX_BACKGROUND_BYTES = 5 * 1024 * 1024;
 
 function DeviceSelectField({
+  id,
   label,
   value,
   onValueChange,
   devices,
   emptyLabel,
 }: {
+  id: string;
   label: string;
   value: string;
   onValueChange: (id: string) => void;
@@ -55,9 +57,10 @@ function DeviceSelectField({
 
   return (
     <Field>
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       {items.length > 0 ? (
         <Select
+          id={id}
           value={value}
           onValueChange={(next) => next && onValueChange(next)}
           items={items}
@@ -177,6 +180,7 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
 
           <FieldGroup className="gap-4">
             <DeviceSelectField
+              id="room-device-camera"
               label={t("meetings.deviceCamera")}
               value={cameras.activeDeviceId}
               devices={cameras.devices}
@@ -187,6 +191,7 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
               }}
             />
             <DeviceSelectField
+              id="room-device-mic"
               label={t("meetings.deviceMic")}
               value={mics.activeDeviceId}
               devices={mics.devices}
@@ -197,6 +202,7 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
               }}
             />
             <DeviceSelectField
+              id="room-device-speaker"
               label={t("meetings.deviceSpeaker")}
               value={speakers.activeDeviceId}
               devices={speakers.devices}

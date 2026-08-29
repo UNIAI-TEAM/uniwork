@@ -52,7 +52,7 @@ export function MeetingLobby({
       <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
         <Icon aria-hidden className="size-6" />
       </span>
-      {title ? <p className="max-w-md truncate text-title-sm font-semibold text-foreground">{title}</p> : null}
+      {title ? <p className="line-clamp-2 max-w-md text-pretty text-title-sm font-semibold text-foreground">{title}</p> : null}
       <p className="max-w-md text-pretty text-body text-muted-foreground">{lobbyMessage(t, decision, error)}</p>
       {waitingApproval ? <p className="text-label text-muted-foreground">{t("meetings.requestSent")}</p> : null}
       {showRequest ? (

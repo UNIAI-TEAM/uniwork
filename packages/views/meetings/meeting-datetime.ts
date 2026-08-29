@@ -56,23 +56,18 @@ function safeRange(
   }
 }
 
-/** Date + time span, e.g. "28 thg 8, 2026, 09:00 – 09:30". */
-export function formatMeetingRange(startsAt: string, endsAt: string, timeZone?: string, locale = "vi-VN"): string {
-  return safeRange(startsAt, endsAt, locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    ...(timeZone ? { timeZone } : {}),
-  });
+/**
+ * Date + time span in the viewer's clock, e.g. "28 thg 8, 2026, 09:00 – 09:30".
+ * Every screen formats in the viewer's zone so list, detail and pre-join agree;
+ * the meeting's stored `timezone` only seeds the schedule form.
+ */
+export function formatMeetingRange(startsAt: string, endsAt: string, locale = "vi-VN"): string {
+  return safeRange(startsAt, endsAt, locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
 /** Time-only span for rows that already sit under a day heading: "09:00 – 09:30". */
-export function formatMeetingTimes(startsAt: string, endsAt: string, timeZone?: string, locale = "vi-VN"): string {
-  return safeRange(startsAt, endsAt, locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-    ...(timeZone ? { timeZone } : {}),
-  });
+export function formatMeetingTimes(startsAt: string, endsAt: string, locale = "vi-VN"): string {
+  return safeRange(startsAt, endsAt, locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
 
 /** Local calendar day of a timestamp, as a stable group key ("2026-08-28"). */

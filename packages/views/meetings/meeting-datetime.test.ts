@@ -19,9 +19,8 @@ describe("formatRemaining", () => {
 
 describe("formatMeetingRange", () => {
   it("prints the date once when both ends fall on the same day", () => {
-    const s = formatMeetingRange("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "Asia/Ho_Chi_Minh", "vi-VN");
-    expect(s).toContain("09:00");
-    expect(s).toContain("09:30");
+    const s = formatMeetingRange("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "vi-VN");
+    expect(s).toMatch(/\d{2}:\d{2}\s*[–-]\s*\d{2}:\d{2}/);
     expect(s.match(/2026/g)?.length ?? 0).toBe(1);
   });
 
@@ -31,7 +30,7 @@ describe("formatMeetingRange", () => {
 });
 
 describe("formatMeetingTimes", () => {
-  it("is time-only in the meeting's zone", () => {
-    expect(formatMeetingTimes("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "Asia/Ho_Chi_Minh", "en-GB")).toMatch(/^09:00\s*[–-]\s*09:30$/);
+  it("is time-only, in the viewer's zone", () => {
+    expect(formatMeetingTimes("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "en-GB")).toMatch(/^\d{2}:\d{2}\s*[–-]\s*\d{2}:\d{2}$/);
   });
 });
