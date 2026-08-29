@@ -26,6 +26,10 @@ STARTED_FRONTEND=false
 EXIT_CODE=0
 
 cleanup() {
+  # `set -e` exits with the failing command's status but never touches
+  # EXIT_CODE, so a failed ensure-postgres used to end in "All checks passed".
+  local rc=$?
+  [ "$rc" -ne 0 ] && EXIT_CODE=$rc
   echo ""
   if [ "$STARTED_BACKEND" = true ] && [ -n "$BACKEND_PID" ]; then
     kill "$BACKEND_PID" 2>/dev/null && wait "$BACKEND_PID" 2>/dev/null || true
