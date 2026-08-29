@@ -257,6 +257,15 @@ When adding a shared screen:
   ≥ 44px on coarse pointers; the global `:focus-visible` outline is the focus
   indicator (no `outline-none` on interactive primitives); `StepperTitle`
   renders a `span`, not a heading.
+- Static accessibility and unhandled promises are lint errors
+  (`packages/eslint-config/react.js` — `jsx-a11y` recommended;
+  `packages/eslint-config/base.js` — `no-floating-promises`,
+  `no-misused-promises`). `void p` is the explicit opt-out for fire-and-forget.
+  An `eslint-disable` on a primitive carries the reason on the line above it.
+- `scripts/fec-review.sh --min high <files>` runs the Front-End Checklist
+  (`mcp.frontendchecklist.io` — it sends the file's source to that service)
+  as an advisory review; it is not a gate and its regex findings are verified
+  against the code before being acted on.
 - The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`
   fails on any `--uw-*` reference or pre-port utility (`bg-canvas`,
   `text-tertiary`, `border-line`, …); `cn()` in `packages/ui/lib/utils.ts`
