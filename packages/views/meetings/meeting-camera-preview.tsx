@@ -88,7 +88,7 @@ export function MeetingCameraPreview({
   return (
     <div
       className={cn(
-        "relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-rail ring-1 ring-border",
+        "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-rail ring-1 ring-border",
         className,
       )}
     >

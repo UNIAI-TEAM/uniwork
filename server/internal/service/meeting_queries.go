@@ -172,12 +172,27 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 	return rows, n, err
 }
 
+// WorkspaceMeetingStats is served as-is; the tags are the contract with
+// packages/core/types/meeting.ts (MeetingStatisticsSchema).
 type WorkspaceMeetingStats struct {
-	Total, Scheduled, InProgress, Ended, Canceled, Instant int64
-	InvPending, InvAccepted, InvDeclined, InvTentative     int64
-	JoinTotal, JoinApproved, JoinRejected                  int64
-	AvgApprovalSeconds                                     float64
-	LinksCreated, LinksUsed, LinksRevoked, LinksExpired    int64
+	Total              int64   `json:"total"`
+	Scheduled          int64   `json:"scheduled"`
+	InProgress         int64   `json:"in_progress"`
+	Ended              int64   `json:"ended"`
+	Canceled           int64   `json:"canceled"`
+	Instant            int64   `json:"instant"`
+	InvPending         int64   `json:"invitation_pending"`
+	InvAccepted        int64   `json:"invitation_accepted"`
+	InvDeclined        int64   `json:"invitation_declined"`
+	InvTentative       int64   `json:"invitation_tentative"`
+	JoinTotal          int64   `json:"join_request_total"`
+	JoinApproved       int64   `json:"join_request_approved"`
+	JoinRejected       int64   `json:"join_request_rejected"`
+	AvgApprovalSeconds float64 `json:"avg_approval_seconds"`
+	LinksCreated       int64   `json:"invite_links_created"`
+	LinksUsed          int64   `json:"invite_links_used"`
+	LinksRevoked       int64   `json:"invite_links_revoked"`
+	LinksExpired       int64   `json:"invite_links_expired"`
 }
 
 func (s *MeetingService) Statistics(ctx context.Context, userID, workspaceID string) (WorkspaceMeetingStats, error) {
