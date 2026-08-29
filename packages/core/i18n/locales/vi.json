@@ -468,7 +468,9 @@
     "endHour": "Giờ kết thúc",
     "endMinute": "Phút kết thúc",
     "endBeforeStart": "Giờ kết thúc phải sau giờ bắt đầu.",
-    "noOtherMembers": "Chưa có thành viên khác trong workspace."
+    "noOtherMembers": "Chưa có thành viên khác trong workspace.",
+    "publicInviteInvalid": "Liên kết không hợp lệ hoặc đã bị thu hồi",
+    "publicInviteInvalidHint": "Mở lại đúng liên kết đã nhận, hoặc xin chủ trì gửi liên kết mới."
   },
   "org": {
     "name": "Tên tổ chức",

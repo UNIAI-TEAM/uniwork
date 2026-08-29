@@ -469,7 +469,9 @@
     "endHour": "End hour",
     "endMinute": "End minute",
     "endBeforeStart": "End time must be after the start time.",
-    "noOtherMembers": "No other members in this workspace yet."
+    "noOtherMembers": "No other members in this workspace yet.",
+    "publicInviteInvalid": "This link is invalid or has been revoked",
+    "publicInviteInvalidHint": "Open the exact link you received, or ask the host for a new one."
   },
   "org": {
     "name": "Organization name",
