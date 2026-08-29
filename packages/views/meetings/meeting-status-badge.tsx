@@ -9,10 +9,14 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   CANCELED: "destructive",
 };
 
-export function MeetingStatusBadge({ status }: { status?: string }) {
+export function MeetingStatusBadge({ status, className }: { status?: string; className?: string }) {
   const { t } = useTranslation();
   const key = status && status in STATUS_VARIANT ? status : "SCHEDULED";
-  return <Badge variant={STATUS_VARIANT[key]}>{t(`meetings.status_${key}`)}</Badge>;
+  return (
+    <Badge variant={STATUS_VARIANT[key]} className={className}>
+      {t(`meetings.status_${key}`)}
+    </Badge>
+  );
 }
 
 const RSVP_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {

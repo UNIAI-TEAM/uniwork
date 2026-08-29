@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
 import { taskKeys } from "../tasks/hooks";
 import type { Meeting } from "../types/meeting";
@@ -51,6 +51,7 @@ export function useMeetings(workspaceId: string, filters?: meetings.MeetingListF
     queryKey: filters ? [...meetingKeys.list(workspaceId), filters] : meetingKeys.list(workspaceId),
     queryFn: () => meetings.listMeetings(workspaceId, filters),
     enabled: !!workspaceId,
+    placeholderData: keepPreviousData,
   });
 }
 

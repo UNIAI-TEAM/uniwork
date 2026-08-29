@@ -23,6 +23,9 @@ WHERE workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('to_at')::timestamptz IS NULL OR starts_at <= sqlc.narg('to_at'))
 ORDER BY
   CASE WHEN sqlc.arg('sort') = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  -- Agenda order: live/upcoming soonest-first, then past most-recent-first.
+  (ends_at < now()),
+  CASE WHEN ends_at >= now() THEN starts_at END ASC,
   starts_at DESC
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 

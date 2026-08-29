@@ -8,23 +8,32 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { cn } from "@uniwork/ui/lib/utils";
 import { formatMeetingDay, formatMeetingTimes, meetingDayKey, meetingLocale } from "./meeting-datetime";
-import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingStatusBadge } from "./meeting-status-badge";
 
-/** Rows grouped by local calendar day, in the order the server returned them. */
+/**
+ * Rows grouped by the viewer's calendar day. Days keep the server's order
+ * (upcoming ascending, then past descending); a day that holds both an
+ * upcoming and an ended meeting — today — is merged into one group and its
+ * rows run chronologically.
+ */
 export function groupMeetingsByDay(meetings: readonly Meeting[]): { day: string; items: Meeting[] }[] {
-  const groups: { day: string; items: Meeting[] }[] = [];
+  const byDay = new Map<string, Meeting[]>();
   for (const m of meetings) {
     const day = meetingDayKey(m.starts_at);
-    const last = groups[groups.length - 1];
-    if (last && last.day === day) last.items.push(m);
-    else groups.push({ day, items: [m] });
+    const items = byDay.get(day);
+    if (items) items.push(m);
+    else byDay.set(day, [m]);
   }
-  return groups;
+  return [...byDay].map(([day, items]) => ({
+    day,
+    items: items.sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+  }));
 }
 
-const ROW = "grid grid-cols-[5.25rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto_auto] sm:gap-4";
+// Phone: time + text; badge lives on the meta line. ≥sm: badge and join get their own columns.
+const ROW = "grid grid-cols-[4.75rem_minmax(0,1fr)] items-center gap-3 px-3 py-2.5 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto_auto] sm:gap-4";
 
 export function MeetingListSkeleton() {
   return (
@@ -36,11 +45,11 @@ export function MeetingListSkeleton() {
             {Array.from({ length: rows }, (_, i) => (
               <div key={i} className={ROW}>
                 <Skeleton className="h-4 w-16" />
-                <div className="flex items-center gap-2.5">
-                  <Skeleton className="size-6 rounded-full" />
+                <div className="space-y-1.5">
                   <Skeleton className="h-4 w-48 max-w-full" />
+                  <Skeleton className="h-3 w-24" />
                 </div>
-                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="hidden h-5 w-20 rounded-full sm:block" />
               </div>
             ))}
           </div>
@@ -54,21 +63,23 @@ export function MeetingList({
   workspaceId,
   meetings,
   onOpenRoom,
+  className,
 }: {
   workspaceId: string;
   meetings: Meeting[];
   onOpenRoom: (id: string) => void;
+  className?: string;
 }) {
   const { t, i18n } = useTranslation();
   const { workspace } = useWorkspace();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const locale = meetingLocale(i18n.language);
   const { data: members } = useMembers(workspaceId);
-  const hostName = (id?: string) => members?.find((m) => m.user_id === id)?.display_name ?? t("meetings.host");
+  const hostName = (id?: string) => members?.find((m) => m.user_id === id)?.display_name ?? t("meetings.hostUnknown");
   const today = meetingDayKey(new Date().toISOString());
 
   return (
-    <div className="space-y-6">
+    <div className={cn("space-y-6", className)}>
       {groupMeetingsByDay(meetings).map((group) => (
         <section key={group.day} aria-labelledby={`meeting-day-${group.day}`}>
           <h2 id={`meeting-day-${group.day}`} className="mb-2 flex items-baseline gap-2 text-label font-medium text-foreground">
@@ -83,19 +94,24 @@ export function MeetingList({
                 <li key={m.id} className="relative">
                   <AppLink
                     href={ws.meeting(m.id)}
-                    className={`${ROW} rounded-lg outline-none transition-colors duration-100 hover:bg-surface-hover focus-visible:ring-[3px] focus-visible:ring-ring/50`}
+                    className={cn(
+                      ROW,
+                      "rounded-lg outline-none transition-colors duration-100 hover:bg-surface-hover focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      live && "pr-16 sm:pr-3",
+                    )}
                   >
                     <span className="whitespace-nowrap text-label tabular-nums text-muted-foreground">
-                      {formatMeetingTimes(m.starts_at, m.ends_at, m.timezone, locale)}
+                      {/* Same clock as the day heading: the viewer's, not the meeting's stored zone. */}
+                      {formatMeetingTimes(m.starts_at, m.ends_at, undefined, locale)}
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-body font-medium text-foreground">{m.title}</span>
-                      <span className="mt-0.5 flex items-center gap-1.5 text-caption text-muted-foreground">
-                        <MeetingPersonAvatar name={host} className="size-4 text-[9px]" />
+                      <span className="mt-0.5 flex items-center gap-2 text-caption text-muted-foreground">
                         <span className="truncate">{host}</span>
+                        <MeetingStatusBadge status={m.status} className="sm:hidden" />
                       </span>
                     </span>
-                    <MeetingStatusBadge status={m.status} />
+                    <MeetingStatusBadge status={m.status} className="hidden sm:inline-flex" />
                     {/* Reserve the join column on wide rows so badges stay aligned. */}
                     <span className="hidden w-24 sm:block" aria-hidden />
                   </AppLink>
@@ -104,11 +120,12 @@ export function MeetingList({
                       type="button"
                       size="sm"
                       variant="brand"
-                      className="absolute top-1/2 right-3 hidden -translate-y-1/2 sm:inline-flex"
+                      aria-label={t("meetings.joinNow")}
+                      className="absolute top-1/2 right-2 size-11 -translate-y-1/2 px-0 sm:right-3 sm:h-7 sm:w-auto sm:px-2.5"
                       onClick={() => onOpenRoom(m.id)}
                     >
-                      <Video aria-hidden className="size-3.5" />
-                      {t("meetings.joinNow")}
+                      <Video aria-hidden className="size-4 sm:size-3.5" />
+                      <span className="hidden sm:inline">{t("meetings.joinNow")}</span>
                     </Button>
                   ) : null}
                 </li>

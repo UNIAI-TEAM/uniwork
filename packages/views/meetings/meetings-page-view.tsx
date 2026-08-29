@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { CalendarDays, Plus, SearchX, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingStatistics, useMeetings } from "@uniwork/core/meetings";
@@ -27,9 +27,11 @@ export function MeetingsPageView({
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
-  const { data, isFetched, isError, refetch } = useMeetings(workspaceId, {
+  // Typing updates the input at once; the request follows when React is idle.
+  const deferredQuery = useDeferredValue(query.trim());
+  const { data, isError, isPlaceholderData, refetch } = useMeetings(workspaceId, {
     status: status || undefined,
-    q: query.trim() || undefined,
+    q: deferredQuery || undefined,
     limit: PAGE_SIZE,
     offset,
   });
@@ -39,7 +41,7 @@ export function MeetingsPageView({
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtered = Boolean(query || status);
-  const isEmpty = isFetched && total === 0 && !filtered;
+  const isEmpty = data !== undefined && total === 0 && !filtered;
 
   const resetFilters = () => {
     setStatus("");
@@ -100,7 +102,7 @@ export function MeetingsPageView({
               setOffset(0);
             }}
           />
-          {!isFetched ? (
+          {data === undefined ? (
             <MeetingListSkeleton />
           ) : meetings.length === 0 ? (
             <CollectionPageState
@@ -116,20 +118,27 @@ export function MeetingsPageView({
               }
             />
           ) : (
-            <MeetingList workspaceId={workspaceId} meetings={meetings} onOpenRoom={onOpenRoom} />
+            <MeetingList
+              workspaceId={workspaceId}
+              meetings={meetings}
+              onOpenRoom={onOpenRoom}
+              className={isPlaceholderData ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}
+            />
           )}
           {total > PAGE_SIZE ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-caption tabular-nums text-muted-foreground">{t("meetings.pageOf", { page, pages })}</p>
+            <nav aria-label={t("meetings.pagination")} className="flex flex-wrap items-center justify-between gap-2">
+              <p aria-live="polite" className="text-caption tabular-nums text-muted-foreground">
+                {t("meetings.pageOf", { page, pages })}
+              </p>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
+                <Button size="sm" variant="outline" className="h-11 sm:h-7" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
                   {t("meetings.prevPage")}
                 </Button>
-                <Button size="sm" variant="outline" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(offset + PAGE_SIZE)}>
+                <Button size="sm" variant="outline" className="h-11 sm:h-7" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(offset + PAGE_SIZE)}>
                   {t("meetings.nextPage")}
                 </Button>
               </div>
-            </div>
+            </nav>
           ) : null}
         </div>
       )}

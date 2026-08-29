@@ -449,7 +449,9 @@
     "linkDays_one": "{{count}} ngày",
     "linkDays_other": "{{count}} ngày",
     "prejoinTitle": "Sẵn sàng vào họp",
-    "prejoinHint": "Có thể đổi thiết bị và nền sau khi vào phòng."
+    "prejoinHint": "Có thể đổi thiết bị và nền sau khi vào phòng.",
+    "hostUnknown": "Không rõ chủ trì",
+    "pagination": "Phân trang cuộc họp"
   },
   "org": {
     "name": "Tên tổ chức",

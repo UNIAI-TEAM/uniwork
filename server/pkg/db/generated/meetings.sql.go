@@ -428,6 +428,9 @@ WHERE workspace_id = $1
   AND ($8::timestamptz IS NULL OR starts_at <= $8)
 ORDER BY
   CASE WHEN $9 = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  -- Agenda order: live/upcoming soonest-first, then past most-recent-first.
+  (ends_at < now()),
+  CASE WHEN ends_at >= now() THEN starts_at END ASC,
   starts_at DESC
 LIMIT $11 OFFSET $10
 `

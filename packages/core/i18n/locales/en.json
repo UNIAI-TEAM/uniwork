@@ -450,7 +450,9 @@
     "linkDays_one": "{{count}} day",
     "linkDays_other": "{{count}} days",
     "prejoinTitle": "Ready to join",
-    "prejoinHint": "Devices and background can be changed inside the room."
+    "prejoinHint": "Devices and background can be changed inside the room.",
+    "hostUnknown": "Host unknown",
+    "pagination": "Meeting pages"
   },
   "org": {
     "name": "Organization name",
