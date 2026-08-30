@@ -25,6 +25,7 @@ APP = os.path.join(ROOT, "apps", "web", "app")
 PUBLIC = os.path.join(ROOT, "apps", "web", "public")
 
 PNGS = [
+    os.path.join(PUBLIC, "brand", "email-lockup.png"),
     os.path.join(APP, "apple-icon.png"),
     os.path.join(PUBLIC, "icon-192.png"),
     os.path.join(PUBLIC, "icon-512.png"),
