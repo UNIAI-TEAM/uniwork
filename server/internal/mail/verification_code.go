@@ -1,8 +1,10 @@
 package mail
 
+import "time"
+
 type VerificationData struct {
-	Code             string
-	ExpiresInMinutes int
+	Code    string
+	Expires time.Duration
 }
 
 // VerificationCode is the sign-up code mail. The expiry is a parameter so

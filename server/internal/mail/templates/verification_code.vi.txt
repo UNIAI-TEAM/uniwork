@@ -1,5 +1,11 @@
 Subject: {{.Data.Code}} là mã xác thực UniWork của bạn
 
-Mã xác thực email UniWork của bạn: {{.Data.Code}}
+Xác thực email
 
-Mã hết hạn sau {{.Data.ExpiresInMinutes}} phút. Nếu bạn không đăng ký UniWork, bỏ qua email này.
+Nhập mã dưới đây để hoàn tất đăng ký UniWork:
+
+    {{.Data.Code}}
+
+Mã có hiệu lực trong {{expires .Data.Expires .Locale}} và chỉ dùng được một lần.
+
+Đừng chia sẻ mã này với ai. Nếu bạn không đăng ký UniWork, bỏ qua email này, không có gì thay đổi.

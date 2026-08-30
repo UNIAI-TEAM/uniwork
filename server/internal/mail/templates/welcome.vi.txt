@@ -1,10 +1,13 @@
 Subject: Chào mừng bạn đến với UniWork
 
-Chào {{.Data.DisplayName}}, workspace {{.Data.WorkspaceName}} của bạn đã được tạo.
+Chào {{.Data.DisplayName}}, bạn đã sẵn sàng
 
-Ba việc để bắt đầu:
+Workspace {{.Data.WorkspaceName}} của bạn đã được tạo. Ba việc để bắt đầu:
+
 1. Tạo công việc đầu tiên và giao cho một người.
 2. Mời đồng nghiệp ở trang Thành viên.
 3. Lên lịch một cuộc họp và ghi chú ngay trong UniWork.
 
-Vào workspace: {{.Data.WorkspaceURL}}
+Vào workspace:
+
+    {{.Data.WorkspaceURL}}
