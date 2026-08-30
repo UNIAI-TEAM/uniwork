@@ -83,10 +83,11 @@ describe("AppSidebar", () => {
     expect(useAuthStore.getState().status).toBe("anon");
   });
 
-  it("shows only tasks and meetings in the workspace nav", () => {
+  it("shows tasks, meetings and chat in the workspace nav", () => {
     renderSidebar("/acme/team/tasks");
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Trò chuyện" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Thành viên" })).toBeNull();
   });
 

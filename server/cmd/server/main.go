@@ -18,6 +18,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/matrix"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -117,7 +118,16 @@ func main() {
 		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
 	}
 	verification := service.NewVerificationService(q, sender, cfg.DevVerificationCode())
-	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
+	var matrixClient service.MatrixClient
+	matrixURL := cfg.MatrixHomeserverURL
+	if matrixURL != "" {
+		matrixClient = matrix.New(matrixURL)
+		log.Info("matrix registration enabled", "homeserver", matrixURL)
+	} else {
+		log.Info("matrix registration disabled", "hint", "set MATRIX_HOMESERVER_URL to provision Synapse users on register")
+	}
+	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification, matrixClient, matrixURL)
+	chatSvc := service.NewChatService(q, matrixClient, wsSvc)
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -141,6 +151,7 @@ func main() {
 		Onboarding:      service.NewOnboardingService(q, wsSvc, pub),
 		Tasks:           service.NewTaskService(q, wsSvc, pub),
 		Meetings:        service.NewMeetingService(q, wsSvc, pub),
+		Chat:            chatSvc,
 		Hub:             hub,
 		Redis:           rdb,
 		FeatureFlags:    flags,

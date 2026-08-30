@@ -36,6 +36,7 @@ type Deps struct {
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
 	Meetings      *service.MeetingService
+	Chat          *service.ChatService
 	Hub           *realtime.Hub
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -156,6 +157,10 @@ func New(d Deps) http.Handler {
 			r.Get("/meetings/{meetingID}/notes", h.listNotes)
 			r.Post("/meetings/{meetingID}/notes", h.createNote)
 			r.Post("/meetings/{meetingID}/token", h.meetingToken)
+			r.Get("/chat/users/lookup", h.lookupChatUser)
+			r.Post("/chat/voice/token", h.mintChatVoiceToken)
+			r.Get("/workspaces/{workspaceID}/chat/room", h.getWorkspaceChatRoom)
+			r.Post("/workspaces/{workspaceID}/chat/room", h.ensureWorkspaceChatRoom)
 		})
 	})
 	return r

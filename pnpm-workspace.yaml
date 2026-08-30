@@ -30,6 +30,9 @@ catalog:
   # State management — Zustand giữ client/view state; React Query giữ server state
   zustand: "^5.0.0"
 
+  # Matrix chat
+  matrix-js-sdk: "^37.3.0"
+
   # Bảng và danh sách ảo hoá
   "@tanstack/react-table": "^8.21.3"
   "@tanstack/react-virtual": "^3.13.0"

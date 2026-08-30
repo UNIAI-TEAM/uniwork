@@ -69,7 +69,7 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspaces (id, organization_id, slug, name, created_by)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id
 `
 
 type CreateWorkspaceParams struct {
@@ -97,6 +97,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomId,
 	)
 	return i, err
 }
@@ -159,7 +160,7 @@ func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccess
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, organization_id FROM workspaces WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id FROM workspaces WHERE id = $1
 `
 
 func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, error) {
@@ -173,6 +174,7 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomId,
 	)
 	return i, err
 }
@@ -469,7 +471,7 @@ func (q *Queries) UpdateWorkspaceMemberRole(ctx context.Context, arg UpdateWorks
 const updateWorkspaceName = `-- name: UpdateWorkspaceName :one
 UPDATE workspaces SET name = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id
 `
 
 type UpdateWorkspaceNameParams struct {
@@ -488,6 +490,34 @@ func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomId,
+	)
+	return i, err
+}
+
+const setWorkspaceMatrixRoomID = `-- name: SetWorkspaceMatrixRoomID :one
+UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id
+`
+
+type SetWorkspaceMatrixRoomIDParams struct {
+	ID           string      `json:"id"`
+	MatrixRoomID pgtype.Text `json:"matrix_room_id"`
+}
+
+func (q *Queries) SetWorkspaceMatrixRoomID(ctx context.Context, arg SetWorkspaceMatrixRoomIDParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, setWorkspaceMatrixRoomID, arg.ID, arg.MatrixRoomID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomId,
 	)
 	return i, err
 }

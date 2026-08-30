@@ -59,7 +59,7 @@ func newVerificationFixture(t *testing.T, devCode string) verificationFixture {
 	sender := &fakeSender{}
 	verify := NewVerificationService(q, sender, devCode)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return verificationFixture{auth: NewAuthService(q, m, time.Hour, verify), verify: verify, sender: sender, q: q}
+	return verificationFixture{auth: NewAuthService(q, m, time.Hour, verify, nil, ""), verify: verify, sender: sender, q: q}
 }
 
 func (f verificationFixture) registered(t *testing.T) db.User {

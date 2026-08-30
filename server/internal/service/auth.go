@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -25,10 +26,12 @@ type AuthService struct {
 	minter       auth.TokenMinter
 	refreshTTL   time.Duration
 	verification *VerificationService
+	matrix       MatrixClient
+	matrixBase   string
 }
 
-func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
-	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL, verification: verification}
+func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService, matrix MatrixClient, matrixHomeserverURL string) *AuthService {
+	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL, verification: verification, matrix: matrix, matrixBase: matrixHomeserverURL}
 }
 
 type Session struct {
@@ -36,6 +39,7 @@ type Session struct {
 	AccessToken      string
 	RefreshToken     string
 	RefreshExpiresAt time.Time
+	Matrix           *MatrixCredentials
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password, displayName string) (Session, error) {
@@ -53,8 +57,58 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	if err != nil {
 		return Session{}, err
 	}
+	userID := util.NewID()
+	matrixUsername := strings.ToLower(userID)
+	if s.matrix == nil {
+		slog.Info("register: matrix skipped",
+			"user", userID, "email", email, "reason", "MATRIX_HOMESERVER_URL unset")
+	} else {
+		// Matrix localpart: lowercase ULID matches UniWork user id and stays unique.
+		slog.Info("register: provisioning matrix user",
+			"user", userID, "email", email, "matrix_username", matrixUsername)
+		reg, err := s.matrix.RegisterUser(ctx, matrixUsername, password)
+		if err != nil {
+			slog.Warn("register: matrix provisioning failed",
+				"user", userID, "email", email, "matrix_username", matrixUsername, "err", err)
+			return Session{}, fmt.Errorf("matrix registration: %w", err)
+		}
+		slog.Info("register: matrix provisioning ok",
+			"user", userID, "email", email, "matrix_username", matrixUsername, "matrix_user_id", reg.UserID)
+		u, err := s.q.CreateUser(ctx, db.CreateUserParams{
+			ID: userID, Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
+		})
+		if isUniqueViolation(err) {
+			return Session{}, ErrConflict
+		}
+		if err != nil {
+			return Session{}, err
+		}
+		u, err = s.q.SetUserMatrixUserID(ctx, db.SetUserMatrixUserIDParams{
+			ID: u.ID, MatrixUserID: pgtype.Text{String: reg.UserID, Valid: true},
+		})
+		if err != nil {
+			return Session{}, err
+		}
+		if s.verification != nil {
+			if err := s.verification.Send(ctx, u.ID); err != nil {
+				slog.Warn("send verification code after register", "user", u.ID, "err", err)
+			}
+		}
+		sess, err := s.mintSession(ctx, u)
+		if err != nil {
+			return Session{}, err
+		}
+		// Synapse returns credentials on register; a immediate login can race and fail.
+		if reg.AccessToken != "" {
+			sess.Matrix = &MatrixCredentials{
+				UserID: reg.UserID, AccessToken: reg.AccessToken, DeviceID: reg.DeviceID,
+				HomeServer: reg.HomeServer, BaseURL: s.matrixBase,
+			}
+		}
+		return sess, nil
+	}
 	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
-		ID: util.NewID(), Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
+		ID: userID, Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
 	})
 	if isUniqueViolation(err) {
 		return Session{}, ErrConflict
@@ -69,7 +123,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 			slog.Warn("send verification code after register", "user", u.ID, "err", err)
 		}
 	}
-	return s.newSession(ctx, u)
+	return s.newSessionWithPassword(ctx, u, password)
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (Session, error) {
@@ -85,7 +139,14 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 	if !u.PasswordHash.Valid || !auth.CheckPassword(u.PasswordHash.String, password) {
 		return Session{}, ErrInvalidCredentials
 	}
-	return s.newSession(ctx, u)
+	if s.matrix != nil && (!u.MatrixUserId.Valid || u.MatrixUserId.String == "") {
+		if updated, err := provisionMatrixUser(ctx, s.matrix, s.q, u, password); err != nil {
+			slog.Warn("matrix lazy provision on login failed", "user", u.ID, "err", err)
+		} else {
+			u = updated
+		}
+	}
+	return s.newSessionWithPassword(ctx, u, password)
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {
@@ -155,6 +216,25 @@ func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error
 }
 
 func (s *AuthService) newSession(ctx context.Context, u db.User) (Session, error) {
+	return s.newSessionWithPassword(ctx, u, "")
+}
+
+func (s *AuthService) newSessionWithPassword(ctx context.Context, u db.User, password string) (Session, error) {
+	sess, err := s.mintSession(ctx, u)
+	if err != nil {
+		return Session{}, err
+	}
+	if s.matrix != nil && password != "" {
+		if creds, err := matrixCredentialsForUser(ctx, s.matrix, s.matrixBase, u, password); err != nil {
+			slog.Warn("matrix login after auth", "user", u.ID, "err", err)
+		} else {
+			sess.Matrix = &creds
+		}
+	}
+	return sess, nil
+}
+
+func (s *AuthService) mintSession(ctx context.Context, u db.User) (Session, error) {
 	access, err := s.minter.Mint(u.ID)
 	if err != nil {
 		return Session{}, err
@@ -183,4 +263,43 @@ func hashToken(raw string) string {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func matrixCredentialsForUser(ctx context.Context, matrix MatrixClient, baseURL string, u db.User, password string) (MatrixCredentials, error) {
+	if matrix == nil {
+		return MatrixCredentials{}, ErrNotFound
+	}
+	username := matrixLocalpart(u)
+	got, err := matrix.Login(ctx, username, password)
+	if err != nil {
+		return MatrixCredentials{}, err
+	}
+	return MatrixCredentials{
+		UserID: got.UserID, AccessToken: got.AccessToken, DeviceID: got.DeviceID,
+		HomeServer: got.HomeServer, BaseURL: baseURL,
+	}, nil
+}
+
+func matrixLocalpart(u db.User) string {
+	if u.MatrixUserId.Valid && u.MatrixUserId.String != "" {
+		id := u.MatrixUserId.String
+		if strings.HasPrefix(id, "@") {
+			if i := strings.Index(id, ":"); i > 1 {
+				return id[1:i]
+			}
+		}
+		return id
+	}
+	return strings.ToLower(u.ID)
+}
+
+func provisionMatrixUser(ctx context.Context, matrix MatrixClient, q *db.Queries, u db.User, password string) (db.User, error) {
+	username := strings.ToLower(u.ID)
+	reg, err := matrix.RegisterUser(ctx, username, password)
+	if err != nil {
+		return db.User{}, err
+	}
+	return q.SetUserMatrixUserID(ctx, db.SetUserMatrixUserIDParams{
+		ID: u.ID, MatrixUserID: pgtype.Text{String: reg.UserID, Valid: true},
+	})
 }

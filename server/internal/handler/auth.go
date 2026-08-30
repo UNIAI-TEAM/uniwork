@@ -42,11 +42,22 @@ func (h *handlers) setRefreshCookie(w http.ResponseWriter, token string, exp tim
 	})
 }
 
+func toMatrixDTO(m *service.MatrixCredentials) *sdo.MatrixSessionSDO {
+	if m == nil {
+		return nil
+	}
+	return &sdo.MatrixSessionSDO{
+		UserID: m.UserID, AccessToken: m.AccessToken, DeviceID: m.DeviceID,
+		HomeServer: m.HomeServer, BaseURL: m.BaseURL,
+	}
+}
+
 func (h *handlers) sessionResponse(w http.ResponseWriter, sess service.Session) {
 	h.setRefreshCookie(w, sess.RefreshToken, sess.RefreshExpiresAt)
-	respondJSON(w, http.StatusOK, map[string]any{
-		"user": toUserDTO(sess.User), "access_token": sess.AccessToken,
-	})
+	out := sdo.SessionSDO{
+		User: toUserDTO(sess.User), AccessToken: sess.AccessToken, Matrix: toMatrixDTO(sess.Matrix),
+	}
+	respondJSON(w, http.StatusOK, out)
 }
 
 func (h *handlers) register(w http.ResponseWriter, r *http.Request) {

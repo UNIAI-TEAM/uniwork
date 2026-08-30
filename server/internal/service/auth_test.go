@@ -2,12 +2,17 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/matrix"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -16,7 +21,7 @@ func newAuthService(t *testing.T) *AuthService {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return NewAuthService(q, m, time.Hour, nil)
+	return NewAuthService(q, m, time.Hour, nil, nil, "")
 }
 
 func TestRegisterLoginRefresh(t *testing.T) {
@@ -108,5 +113,48 @@ func TestUpdateProfile(t *testing.T) {
 	}
 	if _, err := s.UpdateProfile(ctx, sess.User.ID, "   "); err == nil {
 		t.Fatal("empty display name accepted")
+	}
+}
+
+func TestRegisterAlsoCreatesMatrixUser(t *testing.T) {
+	var gotUser, gotPass string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/_matrix/client/v3/register" {
+			t.Fatalf("path=%s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		var in map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		if in["auth"] == nil {
+			gotUser, _ = in["username"].(string)
+			gotPass, _ = in["password"].(string)
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]any{"session": "s1"})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"user_id": "@x:localhost", "access_token": "tok", "device_id": "d1",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
+	s := NewAuthService(q, m, time.Hour, nil, matrix.New(srv.URL), srv.URL)
+
+	sess, err := s.Register(context.Background(), "matrix@example.com", "password123", "Matrix User")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotUser != strings.ToLower(sess.User.ID) {
+		t.Fatalf("matrix username=%q want %q", gotUser, strings.ToLower(sess.User.ID))
+	}
+	if gotPass != "password123" {
+		t.Fatalf("matrix password=%q", gotPass)
+	}
+	if sess.Matrix == nil || sess.Matrix.AccessToken != "tok" {
+		t.Fatalf("matrix session = %+v, want access_token tok", sess.Matrix)
 	}
 }

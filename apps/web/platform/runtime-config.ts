@@ -15,4 +15,5 @@ configureRuntime({
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
   wsUrl: process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  matrixHomeserverUrl: process.env.NEXT_PUBLIC_MATRIX_HOMESERVER_URL ?? "",
 });

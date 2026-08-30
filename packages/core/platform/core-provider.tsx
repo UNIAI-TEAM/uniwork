@@ -7,6 +7,7 @@ import { useAuthStore } from "../auth/store";
 import { initI18n } from "../i18n";
 import { createLogger } from "../logger";
 import { createQueryClient } from "../query-client";
+import { restoreMatrixSession } from "../chat/matrix-store";
 
 /**
  * Resolves the session once at boot. The auth store's initialize is
@@ -17,6 +18,13 @@ import { createQueryClient } from "../query-client";
 function AuthInitializer() {
   useEffect(() => {
     void useAuthStore.getState().initialize();
+  }, []);
+  return null;
+}
+
+function MatrixRestorer() {
+  useEffect(() => {
+    restoreMatrixSession();
   }, []);
   return null;
 }
@@ -38,6 +46,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthInitializer />
+      <MatrixRestorer />
       {children}
     </QueryClientProvider>
   );

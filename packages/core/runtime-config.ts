@@ -17,12 +17,15 @@ export interface RuntimeConfig {
   wsUrl: string;
   /** Public origin of this app — the host shown in URL pills. */
   appUrl: string;
+  /** Matrix homeserver URL for matrix-js-sdk; empty when chat is disabled. */
+  matrixHomeserverUrl: string;
 }
 
 const DEFAULTS: RuntimeConfig = {
   apiUrl: "http://localhost:8080",
   wsUrl: "ws://localhost:8080",
   appUrl: "http://localhost:3000",
+  matrixHomeserverUrl: "",
 };
 
 let current: RuntimeConfig = { ...DEFAULTS };

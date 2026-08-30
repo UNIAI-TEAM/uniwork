@@ -4,8 +4,9 @@ import "encoding/json"
 
 // SessionSDO is the body of register, login and refresh.
 type SessionSDO struct {
-	User        UserDTO `json:"user"`
-	AccessToken string  `json:"access_token" description:"JWT access token, gửi kèm Authorization Bearer" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.example"`
+	User        UserDTO           `json:"user"`
+	AccessToken string            `json:"access_token" description:"JWT access token, gửi kèm Authorization Bearer" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.example"`
+	Matrix      *MatrixSessionSDO `json:"matrix,omitempty" description:"Matrix session when Synapse is configured"`
 }
 
 // UserSDO wraps the current user.

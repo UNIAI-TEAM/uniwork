@@ -204,7 +204,7 @@ function SidebarProvider({
   // would corrupt what the user is writing.
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== SIDEBAR_KEYBOARD_SHORTCUT) return
+      if (!event.key || event.key.toLowerCase() !== SIDEBAR_KEYBOARD_SHORTCUT) return
       if (!event.metaKey && !event.ctrlKey) return
       const target = event.target as HTMLElement | null
       if (target?.isContentEditable) return

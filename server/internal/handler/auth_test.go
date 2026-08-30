@@ -42,7 +42,7 @@ func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Ser
 	orgs := service.NewOrganizationService(q)
 	ws := service.NewWorkspaceService(pool, q, orgs)
 	verification := service.NewVerificationService(q, discardSender{}, testDevCode)
-	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
+	authSvc := service.NewAuthService(q, minter, time.Hour, verification, nil, "")
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),

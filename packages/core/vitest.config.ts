@@ -1,5 +1,6 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { vitestPoolOptions } from "../../scripts/vitest-pool";
 
 export default defineConfig({
   plugins: [react()],
@@ -7,5 +8,5 @@ export default defineConfig({
   // have to mount. `setup.ts` unmounts between cases — without it Testing
   // Library keeps every previous render in the same document and any
   // `getByTestId` finds several matches.
-  test: { environment: "jsdom", setupFiles: ["./test/setup.ts"] },
+  test: { environment: "jsdom", setupFiles: ["./test/setup.ts"], ...vitestPoolOptions() },
 });

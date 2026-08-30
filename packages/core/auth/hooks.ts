@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import * as auth from "../api/endpoints/auth";
+import { setMatrixSession } from "../chat/matrix-store";
 import { ApiError } from "../api/http";
 import type { SessionResponse, User } from "../types/user";
 import { useAuthStore, type SessionStatus } from "./store";
@@ -39,11 +40,16 @@ function requireSession(sess: SessionResponse | null): SessionResponse {
   return sess;
 }
 
+function applyAuthSession(sess: SessionResponse): void {
+  setSessionUser(sess.user);
+  if (sess.matrix) setMatrixSession(sess.matrix);
+}
+
 export function useLogin() {
   return useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) =>
       requireSession(await auth.login(email, password)),
-    onSuccess: (sess) => setSessionUser(sess.user),
+    onSuccess: applyAuthSession,
   });
 }
 
@@ -58,7 +64,7 @@ export function useRegister() {
       password: string;
       displayName: string;
     }) => requireSession(await auth.registerUser(email, password, displayName)),
-    onSuccess: (sess) => setSessionUser(sess.user),
+    onSuccess: applyAuthSession,
   });
 }
 

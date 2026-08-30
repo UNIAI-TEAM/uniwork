@@ -20,7 +20,7 @@ func (c *capturePublisher) Publish(_ context.Context, _ string, ev Event) {
 func taskFixture(t *testing.T) (*TaskService, *capturePublisher, db.User, db.User, db.Workspace) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil, nil, "")
 	orgs := NewOrganizationService(q)
 	ws := NewWorkspaceService(pool, q, orgs)
 	ctx := context.Background()

@@ -117,6 +117,7 @@ type User struct {
 	OnboardingQuestionnaire []byte             `json:"onboarding_questionnaire"`
 	EmailVerifiedAt         pgtype.Timestamptz `json:"email_verified_at"`
 	GoogleID                pgtype.Text        `json:"google_id"`
+	MatrixUserId            pgtype.Text        `json:"matrix_user_id"`
 }
 
 type Workspace struct {
@@ -127,6 +128,7 @@ type Workspace struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	OrganizationID string             `json:"organization_id"`
+	MatrixRoomId   pgtype.Text        `json:"matrix_room_id"`
 }
 
 type WorkspaceMember struct {
