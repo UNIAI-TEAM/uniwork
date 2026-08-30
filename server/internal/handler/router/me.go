@@ -27,7 +27,7 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 	})
 	r.Patch("/me", h.PatchMe, apiOp{
 		summary:     "Update profile",
-		description: "Đổi tên hiển thị của người dùng đang đăng nhập.",
+		description: "Đổi tên hiển thị hoặc ngôn ngữ email.",
 		tags:        []string{"me"},
 		sdi:         sdi.PatchMeSDI{},
 		sdo:         sdo.UserSDO{},

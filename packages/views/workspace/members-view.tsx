@@ -5,7 +5,7 @@ import { useWorkspacePermissions } from "@uniwork/core/permissions";
 import type { Member } from "@uniwork/core/types/workspace";
 import { useInvite, useMembers, useRemoveMember, useUpdateMemberRole } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@uniwork/ui/components/ui/field";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
 import { EMAIL_RE, EmailChipsInput } from "./email-chips-input";
@@ -35,7 +35,7 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
       { emails: valid, role },
       {
         onSuccess: (d) => {
-          setSent((s) => [...s, ...d.invitations.map((i) => ({ email: i.email, token: i.token }))]);
+          setSent((s) => [...s, ...d.invitations.map((i) => ({ email: i.email }))]);
           setSkipped(d.skipped);
           setEmails([]);
           toast.success(t("workspace.inviteSent", { count: d.invitations.length }));
@@ -134,10 +134,13 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
           </div>
           {sent.length > 0 && (
             <Field>
-              <FieldLabel htmlFor="members-invite-list">{t("workspace.inviteLink")}</FieldLabel>
-              <ul id="members-invite-list" className="flex flex-col gap-2">
+              {/* `FieldTitle`, not `FieldLabel`: `<label for>` is only valid
+                  against a labelable element (input/button/select/…), and the
+                  target here is a <ul>. `aria-labelledby` takes any target. */}
+              <FieldTitle id="members-invite-list-title">{t("workspace.inviteSent", { count: sent.length })}</FieldTitle>
+              <ul aria-labelledby="members-invite-list-title" className="flex flex-col gap-2">
                 {sent.map((s) => (
-                  <InviteRow key={s.token} sent={s} />
+                  <InviteRow key={s.email} sent={s} />
                 ))}
               </ul>
               {skipped.length > 0 && <FieldDescription>{t("workspace.inviteSkipped", { list: skipped.join(", ") })}</FieldDescription>}

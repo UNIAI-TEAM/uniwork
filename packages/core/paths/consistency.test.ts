@@ -45,11 +45,15 @@ function builderTemplates(): string[] {
     paths.register(),
     paths.verify(),
     paths.authCallback(),
+    paths.forgotPassword(),
+    paths.resetPassword(),
     paths.onboarding(),
     paths.newWorkspace(),
     paths.invitations(),
     paths.workspaces(),
     paths.invite(ID),
+    paths.meetingInvite(ID),
+    paths.meetingInviteRoom(ID),
   ];
   const ws = paths.workspace(ORG, WS);
   const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.members(), ws.settings()];

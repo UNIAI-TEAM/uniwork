@@ -8,5 +8,19 @@ export default defineConfig({
   // have to mount. `setup.ts` unmounts between cases — without it Testing
   // Library keeps every previous render in the same document and any
   // `getByTestId` finds several matches.
-  test: { environment: "jsdom", setupFiles: ["./test/setup.ts"], ...vitestPoolOptions() },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./test/setup.ts"],
+    ...vitestPoolOptions(),
+    // 5s tripped under `make check`: three suites run in parallel with v8
+    // coverage on. A test that needs more than this is a real problem.
+    testTimeout: 30_000,
+    coverage: {
+      provider: "v8",
+      include: ["**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}", "test/**", "**/*.config.*"],
+      reporter: ["text-summary"],
+      thresholds: { statements: 55, branches: 50, functions: 42, lines: 56 },
+    },
+  },
 });

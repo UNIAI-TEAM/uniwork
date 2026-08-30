@@ -31,7 +31,7 @@ export function errorCode(err: unknown): string | undefined {
 }
 
 export interface RequestOpts {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   /** Skip the 401 → refresh → retry cycle. Used by the auth endpoints themselves. */
   skipRefresh?: boolean;
@@ -86,6 +86,20 @@ export async function request(path: string, opts: RequestOpts = {}): Promise<unk
   }
   if (res.status === 204) return undefined;
   return res.json();
+}
+
+/**
+ * Like `request` but returns the body as text — for non-JSON downloads
+ * (an .ics file) that still need the bearer token.
+ */
+export async function requestText(path: string): Promise<string> {
+  let res = await rawFetch(path, {});
+  if (res.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed) res = await rawFetch(path, {});
+  }
+  if (!res.ok) throw new ApiError(res.statusText, "internal", res.status);
+  return res.text();
 }
 
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,

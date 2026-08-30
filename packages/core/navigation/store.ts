@@ -36,4 +36,4 @@ export const useNavigationStore = create<NavigationState>()(
 );
 
 // Workspace-aware: re-read lastPath when the current workspace changes.
-registerForWorkspaceRehydration(() => useNavigationStore.persist.rehydrate());
+registerForWorkspaceRehydration(() => void useNavigationStore.persist.rehydrate());

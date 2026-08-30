@@ -1,0 +1,7 @@
+{{define "content"}}
+<tr><td style="font-size:20px;font-weight:700;padding-bottom:12px">You're invited to {{.Data.WorkspaceName}}</td></tr>
+<tr><td style="font-size:15px;line-height:1.5;padding-bottom:20px"><strong>{{.Data.InviterName}}</strong> invited you to collaborate in the <strong>{{.Data.WorkspaceName}}</strong> workspace on UniWork.</td></tr>
+<tr><td style="padding-bottom:20px"><a href="{{.Data.AcceptURL}}" style="display:inline-block;padding:12px 24px;background:#3C83F6;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Accept invitation</a></td></tr>
+<tr><td style="font-size:13px;line-height:1.5;color:#555">The invitation expires in {{.Data.ExpiresInDays}} days. Sign in or create an account with this email address to join.</td></tr>
+{{end}}
+{{define "footer"}}You received this email because a UniWork member invited you.{{end}}

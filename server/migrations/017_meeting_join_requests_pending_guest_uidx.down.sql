@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS uidx_meeting_join_requests_pending_guest;

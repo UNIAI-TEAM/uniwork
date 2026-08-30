@@ -91,6 +91,13 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 }
 .animate-welcome-emoji-pop { animation: welcome-emoji-pop 0.7s cubic-bezier(0.4, 0, 0.2, 1) both; }
 
+/* A reaction landing on a meeting tile: quick scale-in, no bounce. */
+@keyframes reaction-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-reaction-pop { animation: reaction-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
 /* Backstop cho toàn hệ, thay vì liệt kê từng class — mọi animation mới đều được
    bọc sẵn. Chủ ý là GIẢM chứ không TẮT: rút ngắn thời lượng và cắt vòng lặp vô
    hạn, nhưng giữ lại chuyển đổi opacity/màu vì chúng mang thông tin trạng thái.
@@ -121,7 +128,8 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   }
   html { scroll-behavior: auto !important; }
   /* Emoji pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
-  .animate-welcome-emoji-pop { animation-name: onboarding-enter; }
+  .animate-welcome-emoji-pop,
+  .animate-reaction-pop { animation-name: onboarding-enter; }
 }
 
 /* Indeterminate sweep for the navigation progress bar (views/layout). */

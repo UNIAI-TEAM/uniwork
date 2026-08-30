@@ -15,7 +15,10 @@ Vietnamese voice guide is `docs/conventions.md`. Read it before naming a
 route/package/file/DB column/type, before editing
 `packages/core/i18n/locales/`, and before writing Vietnamese UI copy.
 HTTP API + Swagger (SDI/SDO, Chi `apiOp`, `pathParamSDI`) is
-`docs/api-sdi-sdo.md`.
+`docs/api-sdi-sdo.md`. The *why* behind every "never" / "only" below is an
+ADR in `docs/adr/` — read it before arguing with the rule, and write one
+before changing it (`scripts/governance.test.mjs` checks numbering and
+status).
 
 ## Project Shape
 
@@ -25,7 +28,8 @@ Product intent and design principles live in `PRODUCT.md`.
 
 - `server/` — Go backend: Chi router, pgx + sqlc, gorilla/websocket, Redis
   relay, Prometheus metrics. Layers: `internal/handler` → `internal/service`
-  → `pkg/db`.
+  → `pkg/db`; `server/internal/arch_test.go` fails on an import that crosses
+  them the wrong way.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
@@ -35,7 +39,8 @@ Product intent and design principles live in `PRODUCT.md`.
   `packages/core/feature-flags/`, `packages/core/modals/`,
   `packages/core/navigation/`, `packages/core/shortcuts/`. They import each
   other, not the app. Wire one before relying on it;
-  `scripts/governance.test.mjs` recomputes the list.
+  `scripts/governance.test.mjs` recomputes the list and fails after
+  2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
 - `packages/views/` — shared business screens and the navigation adapter.
 - `packages/tsconfig/`, `packages/eslint-config/` — shared config.
@@ -126,7 +131,9 @@ ports via `.env.worktree` (`make worktree-env`, `make setup-worktree`,
 and generates the file itself.
 
 CI (`.github/workflows/ci.yml`) runs Node 22, Go 1.27, pnpm 10.28 against
-`postgres:16` and `redis:7`. Playwright runs only in `make check`.
+`postgres:16` and `redis:7`, plus `pnpm audit --audit-level high`,
+`govulncheck`, a gitleaks scan, and the Playwright suite (`e2e` job: server
+binary + production Next build against the same services).
 
 ## Database and Migration Rules
 
@@ -143,14 +150,27 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
 - Every query filters by `workspace_id`; membership is decided only in
   `WorkspaceService.RequireMember`, where organization owners/admins are
-  implicit workspace admins.
+  implicit workspace admins. `server/internal/arch_test.go` fails if any
+  other file calls the membership queries.
 
 ## Coding Rules
 
 - TypeScript strict; keep types explicit. ESLint runs with `--max-warnings 0`,
   so a warning fails `pnpm lint`. Go: `gofmt`, `go vet`, `staticcheck`
   (`go tool staticcheck`, pinned in `server/go.mod`), checked errors.
-- Code comments in English. Specs and plans (`docs/superpowers/`) are in Vietnamese.
+- A `.ts`/`.tsx` file is at most 500 lines (`max-lines`, excluding blanks and
+  comments; registry primitives and tests are exempt). Past that it is two
+  modules.
+- No unused exports, files or dependencies: `pnpm knip` (`knip.json`) runs
+  in `make check`. Test-only helpers are not exported unless a test imports
+  them.
+- Coverage only goes up. Each package's vitest config carries integer
+  `thresholds` and a drop fails `pnpm test`; Go has `server/coverage.floor`,
+  checked by `scripts/test-go.sh`. Raise the floor by hand, with the change
+  that earned it — the numbers never go down.
+- Code comments in English. Specs and plans (`docs/superpowers/`) are in
+  Vietnamese and carry a `> **Trạng thái:**` line (shipped / in-progress /
+  superseded / abandoned) under the title.
 - Prefer existing patterns over new parallel abstractions; no broad refactors
   unless the task requires them.
 - No compatibility layers, dual writes or shims in internal code unless
@@ -257,6 +277,15 @@ When adding a shared screen:
   ≥ 44px on coarse pointers; the global `:focus-visible` outline is the focus
   indicator (no `outline-none` on interactive primitives); `StepperTitle`
   renders a `span`, not a heading.
+- Static accessibility and unhandled promises are lint errors
+  (`packages/eslint-config/react.js` — `jsx-a11y` recommended;
+  `packages/eslint-config/base.js` — `no-floating-promises`,
+  `no-misused-promises`). `void p` is the explicit opt-out for fire-and-forget.
+  An `eslint-disable` on a primitive carries the reason on the line above it.
+- `scripts/fec-review.sh --min high <files>` runs the Front-End Checklist
+  (`mcp.frontendchecklist.io` — it sends the file's source to that service)
+  as an advisory review; it is not a gate and its regex findings are verified
+  against the code before being acted on.
 - The semantic slots are the only tokens. `scripts/no-legacy-tokens.test.mjs`
   fails on any `--uw-*` reference or pre-port utility (`bg-canvas`,
   `text-tertiary`, `border-line`, …); `cn()` in `packages/ui/lib/utils.ts`
@@ -269,7 +298,8 @@ When adding a shared screen:
 | Shared logic, stores, endpoints, hooks | `packages/core/**/*.test.ts(x)` |
 | Shared screens, components | `packages/views/**/*.test.tsx` |
 | Primitives, tokens | `packages/ui/**/*.test.ts(x)` |
-| Repo contracts (catalog, usf leak, legacy tokens, turbo hash) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
+| Repo contracts (catalog, usf leak, legacy tokens, turbo hash, governance, ADRs, plan status) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
+| Go layering, membership gate | `server/internal/arch_test.go` |
 | End-to-end flows | `e2e/*.spec.ts` |
 | Backend | `server/**/*_test.go` (test DB via `TEST_DATABASE_URL`, Redis via `REDIS_TEST_URL`) |
 
@@ -309,7 +339,10 @@ is guaranteed to pass through. Two hooks then run unasked:
 - `commit-msg` — enforces the prefixes below.
 
 `git commit --no-verify` bypasses both; if you use it, `make check` before you
-push is not optional. `make doctor` reports whether the hooks are wired and
+push is not optional. Agents do not get that escape hatch:
+`.claude/hooks/block-no-verify.sh` (wired in `.claude/settings.json`) refuses
+the flag. There is no second ruleset for any editor — Cursor, Codex and
+Copilot read `AGENTS.md`; do not add an editor-specific rules tree beside it. `make doctor` reports whether the hooks are wired and
 whether your Node/Go/pnpm match what the repo pins (`.nvmrc`, `server/go.mod`,
 `packageManager`). `scripts/governance.test.mjs` pins the wiring itself.
 

@@ -10,6 +10,8 @@ type Routes struct {
 
 	Register       http.HandlerFunc
 	Login          http.HandlerFunc
+	ForgotPassword http.HandlerFunc
+	ResetPassword  http.HandlerFunc
 	Refresh        http.HandlerFunc
 	Logout         http.HandlerFunc
 	AuthProviders  http.HandlerFunc
@@ -34,7 +36,10 @@ type Routes struct {
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc
+	GetWorkspaceMe      http.HandlerFunc
 	ListMembers         http.HandlerFunc
+	PatchMember         http.HandlerFunc
+	DeleteMember        http.HandlerFunc
 	CreateInvitation    http.HandlerFunc
 	AcceptInvitation    http.HandlerFunc
 
@@ -48,12 +53,50 @@ type Routes struct {
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
 
-	ListMeetings  http.HandlerFunc
-	CreateMeeting http.HandlerFunc
-	GetMeeting    http.HandlerFunc
-	UpdateMeeting http.HandlerFunc
-	DeleteMeeting http.HandlerFunc
-	ListNotes     http.HandlerFunc
-	CreateNote    http.HandlerFunc
-	MeetingToken  http.HandlerFunc
+	ListMeetings         http.HandlerFunc
+	CreateMeeting        http.HandlerFunc
+	CreateInstantMeeting http.HandlerFunc
+	GetMeeting           http.HandlerFunc
+	UpdateMeeting        http.HandlerFunc
+	DeleteMeeting        http.HandlerFunc
+	StartMeeting         http.HandlerFunc
+	EndMeeting           http.HandlerFunc
+	CancelMeeting        http.HandlerFunc
+	TransferHost         http.HandlerFunc
+	ListNotes            http.HandlerFunc
+	CreateNote           http.HandlerFunc
+	MeetingToken         http.HandlerFunc
+	JoinMeeting          http.HandlerFunc
+	ListParticipants     http.HandlerFunc
+	InviteParticipant    http.HandlerFunc
+	ListInvitations      http.HandlerFunc
+	RespondInvitation    http.HandlerFunc
+	RemoveParticipant    http.HandlerFunc
+	ListInviteLinks      http.HandlerFunc
+	CreateInviteLink     http.HandlerFunc
+	RevokeInviteLink     http.HandlerFunc
+	ResolveInviteLink    http.HandlerFunc
+	ListJoinRequests     http.HandlerFunc
+	CreateJoinRequest    http.HandlerFunc
+	ApproveJoinRequest   http.HandlerFunc
+	RejectJoinRequest    http.HandlerFunc
+	CancelJoinRequest    http.HandlerFunc
+	MeetingStatistics    http.HandlerFunc
+	MeetingActivity      http.HandlerFunc
+	AppendTranscript     http.HandlerFunc
+	ListTranscript       http.HandlerFunc
+	GetMeetingSummary    http.HandlerFunc
+	CreateSummary        http.HandlerFunc
+	CreateSummaryTasks   http.HandlerFunc
+	StartRecording       http.HandlerFunc
+	StopRecording        http.HandlerFunc
+	ListRecordings       http.HandlerFunc
+	MeetingCalendar      http.HandlerFunc
+	MeetingCapabilities  http.HandlerFunc
+	LiveKitWebhook       http.HandlerFunc
+
+	LookupChatUser          http.HandlerFunc
+	MintChatVoiceToken      http.HandlerFunc
+	GetWorkspaceChatRoom    http.HandlerFunc
+	EnsureWorkspaceChatRoom http.HandlerFunc
 }

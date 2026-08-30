@@ -26,4 +26,7 @@ func TestMintToken(t *testing.T) {
 	if !ok || video["room"] != "uniwork-room1" || video["roomJoin"] != true {
 		t.Fatalf("video grant = %v", claims["video"])
 	}
+	if video["roomAdmin"] == true {
+		t.Fatal("roomAdmin must not be set")
+	}
 }

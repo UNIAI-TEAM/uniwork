@@ -16,6 +16,23 @@ export const WS_EVENT_TYPES = [
   "meeting.created",
   "meeting.updated",
   "meeting.deleted",
+  "meeting.started",
+  "meeting.ended",
+  "meeting.canceled",
+  "participant.invited",
+  "participant.removed",
+  "invitation.responded",
+  "join_request.created",
+  "join_request.approved",
+  "join_request.rejected",
+  "join_request.canceled",
+  "host.transferred",
+  "invite_link.revoked",
+  "transcript.appended",
+  "summary.created",
+  "recording.started",
+  "recording.stopped",
+  "recording.ready",
 ] as const;
 export type WSEventType = (typeof WS_EVENT_TYPES)[number];
 

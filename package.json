@@ -16,9 +16,11 @@
     "test": "turbo test --filter=!@uniwork/e2e",
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
     "brand:build": "bash scripts/brand/build.sh",
-    "ui:add": "cd packages/ui && npx shadcn@latest add"
+    "ui:add": "cd packages/ui && npx shadcn@latest add",
+    "knip": "knip"
   },
   "devDependencies": {
+    "knip": "^6.33.0",
     "turbo": "^2.5.0"
   }
 }

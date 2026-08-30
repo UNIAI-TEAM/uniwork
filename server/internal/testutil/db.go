@@ -53,7 +53,12 @@ func DB(t *testing.T) *pgxpool.Pool {
 	}
 	_, err = pool.Exec(ctx, `TRUNCATE users, organizations, organization_members,
 		workspaces, workspace_members, invitations, refresh_tokens, tasks, task_comments,
-		meetings, meeting_attendees, meeting_notes CASCADE`)
+		meetings, meeting_attendees, meeting_notes,
+		meeting_participants, meeting_invitations, meeting_access_grants,
+		meeting_invite_links, meeting_join_requests, meeting_conference_sessions,
+		meeting_attendance_sessions, meeting_audit_logs, outbox_events,
+		meeting_guests, meeting_provider_events,
+		emails, password_reset_tokens CASCADE`)
 	if err != nil {
 		t.Fatal("truncate:", err)
 	}

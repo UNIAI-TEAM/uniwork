@@ -8,5 +8,11 @@ export default function MeetingsPage() {
   const { workspace } = useWorkspace();
   const { push } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
-  return <MeetingsPageView workspaceId={workspace.id} onOpen={(id) => push(ws.meeting(id))} />;
+  return (
+    <MeetingsPageView
+      workspaceId={workspace.id}
+      onOpen={(id) => push(ws.meeting(id))}
+      onOpenRoom={(id) => push(ws.room(id))}
+    />
+  );
 }

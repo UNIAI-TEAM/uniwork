@@ -34,4 +34,16 @@ go vet ./...
 # staticcheck is pinned as a module tool (go.mod `tool` directive), so this
 # runs the same version everywhere without a separate install step.
 go tool staticcheck ./...
-go "${go_test_args[@]}" ./...
+# Coverage ratchet. server/coverage.floor holds the statement coverage the
+# suite had when the floor was last raised; a run below it fails, a run above
+# it prints the new number so the author can commit the higher floor.
+go "${go_test_args[@]}" -coverprofile=/tmp/uniwork-go-cover.out ./...
+total="$(go tool cover -func=/tmp/uniwork-go-cover.out | awk '/^total:/ {sub("%","",$NF); print $NF}')"
+floor="$(cat coverage.floor)"
+if awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t < f) }'; then
+  echo "coverage ${total}% is below the floor ${floor}% (server/coverage.floor)" >&2
+  exit 1
+fi
+if awk -v t="$total" -v f="$floor" 'BEGIN { exit !(t > f + 1) }'; then
+  echo "coverage ${total}% — raise server/coverage.floor from ${floor}"
+fi

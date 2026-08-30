@@ -1,5 +1,7 @@
 # UniWork Base Port — Pha 4 (Tầng 2 core: viết lại theo domain uniwork)
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Đưa `packages/core` lên khuôn usf ở những chỗ mã hoá domain — API endpoints qua `parseWithFallback`, types tách theo domain, paths có test nhất quán, permissions hai tầng org/workspace, auth store Zustand, realtime provider trên `ws-client.ts`, và `NavigationAdapter` để guard workspace rời `next/navigation` — **mà màn hình hiện tại vẫn chạy nguyên** (13/13 e2e là cổng của mọi task).

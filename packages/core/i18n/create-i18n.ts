@@ -11,7 +11,7 @@ export function createI18n(
   resources: Record<string, LocaleResources>,
 ): I18n {
   const instance = i18next.createInstance();
-  instance.use(initReactI18next).init({
+  void instance.use(initReactI18next).init({
     lng: locale,
     fallbackLng: "en",
     resources,

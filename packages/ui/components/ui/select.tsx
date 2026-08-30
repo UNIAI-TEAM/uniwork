@@ -11,16 +11,41 @@ type SelectProps<
   Multiple extends boolean | undefined = false,
 > = SelectPrimitive.Root.Props<Value, Multiple> & {
   items: NonNullable<SelectPrimitive.Root.Props<Value, Multiple>["items"]>
+  /** Accessible name for the default trigger: pair with `<FieldLabel htmlFor>`. */
+  id?: string
+  "aria-label"?: string
 }
 
 /**
  * Base UI renders the raw value unless Root receives an items label map.
  * Keep items required so every select has a single source for value labels.
  */
-function Select<Value, Multiple extends boolean | undefined = false>(
-  props: SelectProps<Value, Multiple>
-) {
-  return <SelectPrimitive.Root {...props} />
+function Select<Value, Multiple extends boolean | undefined = false>({
+  children,
+  id,
+  "aria-label": ariaLabel,
+  ...props
+}: SelectProps<Value, Multiple>) {
+  // Without children Base UI mounts nothing visible; a bare `<Select items />`
+  // gets the standard trigger + list so every call site renders a control.
+  const items = props.items
+  const fallback =
+    children ??
+    (Array.isArray(items) ? (
+      <>
+        <SelectTrigger id={id} aria-label={ariaLabel} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {items.map((item: { value: unknown; label: React.ReactNode }) => (
+            <SelectItem key={String(item.value)} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </>
+    ) : null)
+  return <SelectPrimitive.Root {...props}>{fallback}</SelectPrimitive.Root>
 }
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {

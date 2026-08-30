@@ -9,7 +9,7 @@ import { useDashboardGuard } from "./use-dashboard-guard";
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "A",
-  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
+  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
 };
 const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team",

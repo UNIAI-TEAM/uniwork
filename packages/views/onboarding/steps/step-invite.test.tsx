@@ -11,7 +11,7 @@ beforeEach(() => requestMock.mockReset());
 describe("StepInvite", () => {
   const ws = { id: "w1", slug: "doi-alpha", name: "Đội Alpha", organization_id: "o1", organization_slug: "unicom", organization_name: "Unicom" };
   it("finish disabled until sent; skip always available", async () => {
-    requestMock.mockResolvedValueOnce({ invitations: [{ id: "i1", email: "b@x.com", role: "member", token: "tok" }], skipped: [] });
+    requestMock.mockResolvedValueOnce({ invitations: [{ id: "i1", email: "b@x.com", role: "member" }], skipped: [] });
     const onFinish = vi.fn();
     const onSkip = vi.fn();
     render(wrap(<StepInvite workspace={ws} onFinish={onFinish} onSkip={onSkip} />));
@@ -21,8 +21,8 @@ describe("StepInvite", () => {
     fireEvent.change(input, { target: { value: "b@x.com" } });
     fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.click(screen.getByRole("button", { name: "Gửi lời mời" }));
-    await waitFor(() => expect(screen.getByText("Đã tạo 1 lời mời")).toBeInTheDocument());
-    expect(screen.getByText(/\/invite\/tok/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Đã gửi 1 lời mời")).toBeInTheDocument());
+    expect(screen.getByText("b@x.com")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hoàn tất" })).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByRole("button", { name: "Bỏ qua, mời sau" }));
     expect(onSkip).toHaveBeenCalled();

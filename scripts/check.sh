@@ -26,13 +26,21 @@ STARTED_FRONTEND=false
 EXIT_CODE=0
 
 cleanup() {
+  # `set -e` exits with the failing command's status but never touches
+  # EXIT_CODE, so a failed ensure-postgres used to end in "All checks passed".
+  local rc=$?
+  [ "$rc" -ne 0 ] && EXIT_CODE=$rc
   echo ""
   if [ "$STARTED_BACKEND" = true ] && [ -n "$BACKEND_PID" ]; then
     kill "$BACKEND_PID" 2>/dev/null && wait "$BACKEND_PID" 2>/dev/null || true
     echo "    Stopped backend (PID $BACKEND_PID)"
   fi
   if [ "$STARTED_FRONTEND" = true ] && [ -n "$FRONTEND_PID" ]; then
-    kill "$FRONTEND_PID" 2>/dev/null && wait "$FRONTEND_PID" 2>/dev/null || true
+    # pnpm exits on SIGTERM but leaves `next dev` on the port, and `wait`
+    # then never returns. Kill whatever still listens, like `make stop`.
+    kill "$FRONTEND_PID" 2>/dev/null || true
+    lsof -ti:"$FRONTEND_PORT" 2>/dev/null | xargs kill 2>/dev/null || true
+    wait "$FRONTEND_PID" 2>/dev/null || true
     echo "    Stopped frontend (PID $FRONTEND_PID)"
   fi
   echo ""
@@ -67,6 +75,9 @@ pnpm typecheck || { EXIT_CODE=1; exit 1; }
 echo ""; echo "==> [2/6] Lint (package boundaries are lint errors)..."
 pnpm lint || { EXIT_CODE=1; exit 1; }
 
+echo ""; echo "==> [2b/6] Unused exports, files, dependencies (knip)..."
+pnpm knip || { EXIT_CODE=1; exit 1; }
+
 echo ""; echo "==> [3/6] TypeScript unit tests + repo contract tests..."
 pnpm test || { EXIT_CODE=1; exit 1; }
 node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/brand-assets.test.mjs || { EXIT_CODE=1; exit 1; }
@@ -100,5 +111,24 @@ else
 fi
 
 echo ""; echo "==> [6/6] E2E tests (Playwright) against ${E2E_BASE_URL}..."
+# E2E registers many accounts from one IP; leftover uw:ratelimit:* keys from dev
+# or a prior run in the same minute can 429 the last register (verify dark).
+clear_rate_limits() {
+  local keys
+  if [ -n "${REDIS_URL:-}" ]; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'uniwork-redis-1'; then
+      keys=$(docker exec uniwork-redis-1 redis-cli --scan --pattern 'uw:ratelimit:*' 2>/dev/null || true)
+      if [ -n "$keys" ]; then
+        echo "$keys" | xargs docker exec -i uniwork-redis-1 redis-cli DEL >/dev/null 2>&1 || true
+      fi
+    elif command -v redis-cli >/dev/null 2>&1; then
+      keys=$(redis-cli -u "$REDIS_URL" --scan --pattern 'uw:ratelimit:*' 2>/dev/null || true)
+      if [ -n "$keys" ]; then
+        echo "$keys" | xargs redis-cli -u "$REDIS_URL" DEL >/dev/null 2>&1 || true
+      fi
+    fi
+  fi
+}
+clear_rate_limits
 pnpm --filter @uniwork/e2e exec playwright install chromium > /dev/null
 pnpm --filter @uniwork/e2e test || { EXIT_CODE=1; exit 1; }

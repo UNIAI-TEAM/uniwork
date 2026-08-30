@@ -42,7 +42,9 @@ export function CollectionPageHeader({ icon: Icon, title, count, description, ac
           <p className="ml-2 hidden min-w-0 truncate text-caption text-muted-foreground md:block">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center justify-end gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex shrink-0 items-center justify-end gap-2">{actions}</div>
+      ) : null}
     </PageHeader>
   );
 }

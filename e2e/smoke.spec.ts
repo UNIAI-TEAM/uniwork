@@ -24,7 +24,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await expect(page.getByLabel("Đường dẫn")).toHaveValue(`doi-e2e-${stamp}`);
   await page.getByRole("button", { name: `Tạo Đội E2E ${stamp}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
-  await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`));
+  await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`), { timeout: 15_000 });
   await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`);
 
@@ -40,17 +40,27 @@ test("register → workspace → task → meeting", async ({ page }) => {
 
   // tạo meeting
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/meetings`);
-  await page.getByRole("button", { name: "Tạo cuộc họp" }).click();
+  // Header action and the empty-state CTA share the label; either opens the dialog.
+  await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
   await page.getByLabel("Tiêu đề").fill("Họp e2e");
-  await page.getByLabel("Bắt đầu").fill("2030-01-01T10:00");
-  await page.getByLabel("Kết thúc").fill("2030-01-01T11:00");
+  // Schedule defaults (date + TimeInput segments) are prefilled; smoke only needs a title.
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
-  await expect(page.getByText("Họp e2e")).toBeVisible();
+  // Creating navigates to the detail page. 15s: under `next dev` the first
+  // visit compiles /meetings/[meetingId], which alone can take longer than
+  // the 5s default.
+  await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/, { timeout: 15_000 });
 
   // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
-  await page.getByText("Họp e2e").click();
+  await page.getByRole("button", { name: "Bắt đầu" }).click();
+  // Detail → /room lands on the pre-join screen, whose join button carries
+  // the same label; the second click is what asks the server for a token.
+  await page.getByRole("button", { name: "Vào phòng họp" }).click();
+  await expect(page.getByText("Sẵn sàng vào họp")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Vào phòng họp" }).click();
   await expect(
-    page.getByText("LiveKit chưa được cấu hình trên server").or(page.locator("[data-lk-theme]")),
+    page
+      .getByText("LiveKit chưa được cấu hình trên server")
+      .or(page.getByText("Đang chờ người chủ trì bắt đầu cuộc họp"))
+      .or(page.locator("[data-lk-theme]")),
   ).toBeVisible({ timeout: 15_000 });
 });

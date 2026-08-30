@@ -10,7 +10,7 @@ initI18n();
 
 const user = {
   id: "u1", email: "a@b.co", display_name: "A",
-  onboarded_at: null, email_verified_at: null, onboarding_questionnaire: {},
+  onboarded_at: null, email_verified_at: null, onboarding_questionnaire: {}, locale: "vi",
 };
 
 function otpInput() {

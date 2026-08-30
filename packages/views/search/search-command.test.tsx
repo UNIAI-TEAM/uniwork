@@ -17,7 +17,7 @@ const user: User = {
   display_name: "An",
   onboarded_at: "2026-08-25T00:00:00Z",
   email_verified_at: "2026-08-25T00:00:00Z",
-  onboarding_questionnaire: {},
+  onboarding_questionnaire: {}, locale: "vi",
 };
 const workspace: Workspace = {
   id: "ws1",

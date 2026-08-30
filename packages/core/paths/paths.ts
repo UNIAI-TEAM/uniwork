@@ -6,6 +6,9 @@ export const paths = {
   register: () => "/register",
   verify: () => "/verify",
   authCallback: () => "/auth/callback",
+  forgotPassword: () => "/forgot-password",
+  resetPassword: (token?: string) =>
+    token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
   /**
    * Absolute URL on the API, not a page: the browser leaves for Google from
    * here and the API sets the session cookie before sending it back to
@@ -18,6 +21,8 @@ export const paths = {
   invitations: () => "/invitations",
   workspaces: () => "/workspaces",
   invite: (token: string) => `/invite/${token}`,
+  meetingInvite: (linkId: string) => `/invite/meeting/${linkId}`,
+  meetingInviteRoom: (linkId: string) => `/invite/meeting/${linkId}/room`,
   workspace: (orgSlug: string, wsSlug: string) => {
     const base = `/${orgSlug}/${wsSlug}`;
     return {
@@ -49,6 +54,8 @@ export const GLOBAL_PREFIXES = [
   "/login",
   "/register",
   "/verify",
+  "/forgot-password",
+  "/reset-password",
   "/auth/",
   "/onboarding",
   "/invitations",

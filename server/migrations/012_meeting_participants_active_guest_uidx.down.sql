@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS uidx_meeting_participants_active_guest;

@@ -19,7 +19,7 @@ export default function LoginPage() {
       initialError={initialError}
       onSuccess={async (sess) => {
         if (sess.matrix) setMatrixSession(sess.matrix);
-        const workspaces = await api.workspaces.list();
+        const workspaces = await api.workspaces.list().catch(() => []);
         const destination = await resolveLoggedInDestination(sess.user, workspaces);
         // `next` only once every gate step is behind the user.
         push(next && destination !== "/verify" && destination !== "/onboarding" ? next : destination);

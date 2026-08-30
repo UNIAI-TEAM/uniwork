@@ -10,5 +10,11 @@ export default function MeetingRoomPage() {
   const { workspace } = useWorkspace();
   const { replace } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
-  return <MeetingRoomView meetingId={meetingId} onLeave={() => replace(ws.meeting(meetingId))} />;
+  return (
+    <MeetingRoomView
+      meetingId={meetingId}
+      workspaceId={workspace.id}
+      onLeave={() => replace(ws.meeting(meetingId))}
+    />
+  );
 }

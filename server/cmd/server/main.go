@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
@@ -19,6 +21,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/matrix"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -45,7 +48,6 @@ func main() {
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	orgSvc := service.NewOrganizationService(q)
-	wsSvc := service.NewWorkspaceService(pool, q, orgSvc)
 	var rdb *redis.Client
 	if cfg.RedisURL != "" {
 		opt, err := redis.ParseURL(cfg.RedisURL)
@@ -71,8 +73,9 @@ func main() {
 	// separate listener so the scrape endpoint never shares the public port.
 	var httpMetrics *metrics.HTTPMetrics
 	var metricsSrv *http.Server
+	var reg *metrics.Registry
 	if mcfg := metrics.ConfigFromEnv(); mcfg.Enabled() {
-		reg := metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
+		reg = metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
 		httpMetrics = reg.HTTP
 		metricsSrv = metrics.NewServer(mcfg.Addr, reg.Gatherer)
 		go func() {
@@ -114,10 +117,19 @@ func main() {
 		log.Error("mail", "err", err)
 		os.Exit(1)
 	}
+	if cfg.SMTPHost == "" && strings.EqualFold(cfg.AppEnv, "production") {
+		log.Warn("SMTP_HOST is empty in production: mail (including password reset links) is only written to the log")
+	}
 	if code := cfg.DevVerificationCode(); code != "" {
 		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
 	}
-	verification := service.NewVerificationService(q, sender, cfg.DevVerificationCode())
+	outbox := mail.NewOutbox(pool, sender, log)
+	if reg != nil {
+		outbox.Counter = reg.Emails
+	}
+	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
+	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
+	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
 	var matrixClient service.MatrixClient
 	matrixURL := cfg.MatrixHomeserverURL
 	if matrixURL != "" {
@@ -127,7 +139,41 @@ func main() {
 		log.Info("matrix registration disabled", "hint", "set MATRIX_HOMESERVER_URL to provision Synapse users on register")
 	}
 	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification, matrixClient, matrixURL)
+	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
+	var conference meetings.ConferenceProvider
+	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
+		lk := &meetings.LiveKitAdapter{
+			URL: cfg.LiveKitURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret,
+			TokenTTL: cfg.LiveKitTokenTTL, EmptyTimeout: cfg.LiveKitEmptyTimeout,
+		}
+		if cfg.LiveKitRecordingBucket != "" {
+			lk.Recording = &meetings.RecordingS3{
+				AccessKey: os.Getenv("AWS_ACCESS_KEY_ID"), Secret: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+				Region: os.Getenv("AWS_REGION"), Endpoint: os.Getenv("AWS_ENDPOINT_URL"),
+				Bucket: cfg.LiveKitRecordingBucket,
+			}
+			log.Info("meeting recording enabled", "bucket", cfg.LiveKitRecordingBucket)
+		}
+		conference = lk
+	}
+	meetingSvc := service.NewMeetingService(pool, q, wsSvc, pub, conference, service.MeetingRuntime{
+		TokenTTL: cfg.LiveKitTokenTTL, HMACKey: []byte(cfg.JWTSecret), LiveKitURL: cfg.LiveKitURL,
+		ProviderKey: cfg.MeetingProvider, EmptyTimeout: cfg.LiveKitEmptyTimeout,
+	})
+	taskSvc := service.NewTaskService(q, wsSvc, pub)
+	meetingSvc.Tasks = taskSvc
+	if cfg.AnthropicAPIKey != "" {
+		meetingSvc.AI = ai.NewClaude(cfg.AnthropicAPIKey, cfg.AnthropicModel)
+		log.Info("meeting AI summaries enabled")
+	}
+	if reg != nil {
+		meetingSvc.Metrics = reg.Meetings
+	}
 	chatSvc := service.NewChatService(q, matrixClient, wsSvc)
+	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	go meetingSvc.RunOutbox(runCtx)
+	go meetingSvc.RunAutoEnd(runCtx)
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -144,13 +190,14 @@ func main() {
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:            authSvc,
 		Verification:    verification,
+		PasswordReset:   passwordReset,
 		GoogleAuth:      service.NewGoogleAuthService(q, authSvc),
 		Google:          google,
 		Organizations:   orgSvc,
 		Workspaces:      wsSvc,
-		Onboarding:      service.NewOnboardingService(q, wsSvc, pub),
-		Tasks:           service.NewTaskService(q, wsSvc, pub),
-		Meetings:        service.NewMeetingService(q, wsSvc, pub),
+		Onboarding:      service.NewOnboardingService(q, wsSvc, pub, renderer, outbox),
+		Tasks:           taskSvc,
+		Meetings:        meetingSvc,
 		Chat:            chatSvc,
 		Hub:             hub,
 		Redis:           rdb,
@@ -171,6 +218,10 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	workerCtx, stopWorker := context.WithCancel(ctx)
+	outboxDone := make(chan struct{})
+	go func() { outbox.Run(workerCtx); close(outboxDone) }()
+
 	errCh := make(chan error, 1)
 	go func() {
 		if cfg.EnableSwagger {
@@ -201,6 +252,12 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Warn("http shutdown", "err", err)
+	}
+	stopWorker()
+	select {
+	case <-outboxDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("mail: outbox worker did not stop in time")
 	}
 	if relay != nil {
 		relay.Stop()

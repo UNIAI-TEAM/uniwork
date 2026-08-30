@@ -24,6 +24,7 @@ có DB và cổng riêng: `make worktree-env && make setup-worktree`.
 | Bạn sắp làm gì | Đọc trước |
 | --- | --- |
 | Bất cứ việc gì | [`CLAUDE.md`](CLAUDE.md) |
+| Thắc mắc "sao lại cấm X" | [`docs/adr/`](docs/adr/README.md) |
 | Đặt tên route/package/file/cột DB/type | [`docs/conventions.md`](docs/conventions.md) § 1 |
 | Thêm / sửa HTTP API (SDI, SDO, Swagger) | [`docs/api-sdi-sdo.md`](docs/api-sdi-sdo.md) |
 | Sửa `packages/core/i18n/locales/` | `docs/conventions.md` § 2 (glossary vi–en) |
@@ -54,7 +55,9 @@ typecheck → lint → unit + contract test → Go (`-race`) → Playwright.
 
 **Lúc CI chạy** (`.github/workflows/ci.yml`)
 
-Mọi thứ trừ Playwright. Playwright cần app đang chạy nên nó ở lại `make check`.
+Tất cả những gì `make check` chạy, cộng thêm `pnpm audit`, `govulncheck` và
+gitleaks. Job `e2e` tự dựng server + bản build production của web rồi chạy
+Playwright — spec đỏ trên CI là chặn merge, không phải "chạy lại ở máy tôi".
 
 ## 4. Ranh giới package là lỗi lint, không phải quy ước
 

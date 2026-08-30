@@ -16,6 +16,7 @@ type LoginSDI struct {
 // PatchMeSDI is PATCH /api/v1/me.
 type PatchMeSDI struct {
 	DisplayName *string `json:"display_name" description:"Tên hiển thị mới" example:"Nguyễn Văn An"`
+	Locale      *string `json:"locale" description:"Ngôn ngữ email: vi hoặc en" example:"vi"`
 }
 
 // UploadAvatarSDI is POST /api/v1/me/avatar (multipart).
@@ -26,6 +27,17 @@ type UploadAvatarSDI struct {
 // VerifyEmailSDI is POST /api/v1/me/email/verify.
 type VerifyEmailSDI struct {
 	Code string `json:"code" minLength:"6" description:"Mã 6 số gửi qua email" example:"123456"`
+}
+
+// ForgotPasswordSDI is POST /api/v1/auth/password/forgot.
+type ForgotPasswordSDI struct {
+	Email string `json:"email" format:"email" minLength:"1" description:"Email tài khoản; phản hồi giống nhau dù tồn tại hay không" example:"an@acme.vn"`
+}
+
+// ResetPasswordSDI is POST /api/v1/auth/password/reset.
+type ResetPasswordSDI struct {
+	Token    string `json:"token" minLength:"1" description:"Token trong link email" example:"01J8X4…"`
+	Password string `json:"password" minLength:"8" description:"Mật khẩu mới, tối thiểu 8 ký tự" example:"password123"`
 }
 
 // GoogleStartSDI is GET /api/v1/auth/google/start.

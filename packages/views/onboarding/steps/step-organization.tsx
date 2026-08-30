@@ -220,6 +220,7 @@ export function CollapsibleCreateCard({
       {/* `aria-expanded` + `aria-controls`: bấm vào đây không chỉ chọn, nó còn
           mở ra một form bên dưới. Không nói ra thì screen reader thông báo "đã
           chọn" và im lặng về phần vừa xuất hiện. */}
+      {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- deliberate, see above */}
       <button
         type="button"
         role="radio"

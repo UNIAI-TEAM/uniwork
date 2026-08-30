@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "exclude": [
+    "catalog"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/**/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@playwright/test",
+        "playwright-core"
+      ]
+    },
+    "apps/web": {},
+    "packages/*": {},
+    "e2e": {
+      "entry": [
+        "*.spec.ts"
+      ]
+    },
+    "packages/tsconfig": {
+      "ignoreUnresolved": [
+        "next"
+      ]
+    }
+  }
+}

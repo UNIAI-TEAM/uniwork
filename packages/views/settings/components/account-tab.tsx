@@ -37,7 +37,7 @@ export function AccountTab() {
 
   const saveProfile = useCallback(
     async (name: string) => {
-      const updated = await patchMe.mutateAsync(name);
+      const updated = await patchMe.mutateAsync({ display_name: name });
       if (!updated) throw new Error(t("profile.toastFailed"));
     },
     [patchMe, t],
@@ -99,6 +99,7 @@ export function AccountTab() {
               <input
                 ref={fileRef}
                 type="file"
+                aria-label={t("profile.avatar")}
                 accept="image/png,image/jpeg,image/gif,image/webp"
                 className="sr-only"
                 onChange={(e) => void onAvatarPick(e.target.files?.[0])}

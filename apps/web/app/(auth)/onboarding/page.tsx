@@ -28,8 +28,13 @@ export default function OnboardingPage() {
   return (
     <div className="h-dvh overflow-y-auto bg-background">
       <OnboardingFlow
-        onComplete={(ws) => {
+        onBeginComplete={() => {
           completing.current = true;
+        }}
+        onCompleteFailed={() => {
+          completing.current = false;
+        }}
+        onComplete={(ws) => {
           push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.root());
         }}
       />

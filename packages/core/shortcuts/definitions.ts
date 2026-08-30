@@ -94,7 +94,7 @@ function eventKey(event: KeyboardEvent): string | null {
   return key;
 }
 
-export function isShortcutChordActionable(shortcut: ShortcutChord): boolean {
+function isShortcutChordActionable(shortcut: ShortcutChord): boolean {
   return shortcut.key.length > 0 &&
     !MODIFIER_KEYS.has(shortcut.key) &&
     !NON_ACTIONABLE_KEYS.has(shortcut.key);

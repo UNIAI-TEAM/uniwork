@@ -1,0 +1,14 @@
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50020
+  use_external_ip: false
+keys:
+  devkey: secret
+logging:
+  level: info
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:8080/api/v1/integrations/livekit/webhook

@@ -15,8 +15,17 @@ import (
 
 const refreshCookie = "uniwork_refresh"
 
+// requestLocale reads the uniwork-locale cookie the frontend writes, then
+// Accept-Language; anything else means vi.
+func requestLocale(r *http.Request) string {
+	if c, err := r.Cookie("uniwork-locale"); err == nil && c.Value != "" {
+		return service.NormalizeLocale(c.Value)
+	}
+	return service.NormalizeLocale(r.Header.Get("Accept-Language"))
+}
+
 func toUserDTO(u db.User) sdo.UserDTO {
-	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, OnboardingQuestionnaire: json.RawMessage("{}")}
+	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, OnboardingQuestionnaire: json.RawMessage("{}")}
 	if u.AvatarUrl.Valid {
 		out.AvatarURL = u.AvatarUrl.String
 	}
@@ -65,7 +74,7 @@ func (h *handlers) register(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	sess, err := h.Auth.Register(r.Context(), in.Email, in.Password, in.DisplayName)
+	sess, err := h.Auth.Register(r.Context(), in.Email, in.Password, in.DisplayName, requestLocale(r))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -122,11 +131,7 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	if in.DisplayName == nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "display_name is required")
-		return
-	}
-	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), *in.DisplayName)
+	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), in.DisplayName, in.Locale)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -136,9 +141,12 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 	var ve service.ValidationError
+	var ce service.CodedError
 	switch {
 	case errors.As(err, &ve):
 		respondError(w, 400, "invalid_request", ve.Msg)
+	case errors.As(err, &ce):
+		respondError(w, ce.Status, ce.Code, ce.Msg)
 	case errors.Is(err, service.ErrNotFound):
 		respondError(w, 404, "not_found", "not found")
 	case errors.Is(err, service.ErrForbidden):
@@ -153,6 +161,8 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 400, "invalid_code", "invalid or expired code")
 	case errors.Is(err, service.ErrEmailUnverified):
 		respondError(w, 403, "email_unverified", "email address not verified")
+	case errors.Is(err, service.ErrInvalidToken):
+		respondError(w, 400, "invalid_token", "invalid or expired token")
 	default:
 		h.Log.Error("internal", "err", err)
 		respondError(w, 500, "internal", "internal error")
