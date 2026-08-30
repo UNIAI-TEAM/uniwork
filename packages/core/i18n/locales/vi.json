@@ -46,7 +46,13 @@
       "sentTitle": "Kiểm tra hộp thư",
       "sentBody": "Nếu {{email}} có tài khoản UniWork, một email kèm link đặt lại mật khẩu đã được gửi. Link có hiệu lực 60 phút.",
       "googleHint": "Đăng nhập bằng Google? Dùng nút Google ở trang đăng nhập, không cần mật khẩu.",
-      "backToLogin": "Về trang đăng nhập"
+      "backToLogin": "Về trang đăng nhập",
+      "spamHint": "Không thấy email? Kiểm tra thư mục spam.",
+      "resend": "Gửi lại link",
+      "resendIn": "Gửi lại sau {{seconds}}s",
+      "resent": "Đã gửi lại link đặt lại mật khẩu.",
+      "wrongEmail": "Nhập sai email?",
+      "editEmail": "Sửa email"
     },
     "reset": {
       "title": "Đặt mật khẩu mới",
@@ -56,8 +62,12 @@
       "mismatch": "Hai mật khẩu chưa khớp",
       "submit": "Đổi mật khẩu",
       "submitting": "Đang đổi…",
-      "invalidToken": "Link đã hết hạn hoặc đã dùng. Yêu cầu link mới.",
-      "requestNew": "Yêu cầu link mới"
+      "invalidToken": "Link đã hết hạn hoặc đã được dùng.",
+      "requestNew": "Yêu cầu link mới",
+      "hint": "Tối thiểu {{min}} ký tự",
+      "tooShort": "Mật khẩu cần ít nhất {{min}} ký tự",
+      "invalidTitle": "Link không còn hiệu lực",
+      "invalidHint": "Mỗi link chỉ dùng được một lần và hết hạn sau 60 phút."
     },
     "verify": {
       "title": "Xác thực email",

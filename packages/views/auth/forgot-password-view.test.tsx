@@ -20,6 +20,18 @@ describe("ForgotPasswordView", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.c" } });
     fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
     expect(await screen.findByText(/Nếu a@b.c có tài khoản/)).toBeInTheDocument();
+    // Resend is cooling down right after the first send; the mail may still be on its way.
+    expect(screen.getByRole("button", { name: /Gửi lại sau/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Kiểm tra thư mục spam");
+  });
+
+  it("returns to the form with the typed email when the address was wrong", async () => {
+    requestMock.mockResolvedValue({ status: "ok" });
+    render(wrapWithNav(<ForgotPasswordView />));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.c" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sửa email" }));
+    expect(screen.getByLabelText("Email")).toHaveValue("a@b.c");
   });
 
   it("shows a generic error and keeps the form on a server failure", async () => {

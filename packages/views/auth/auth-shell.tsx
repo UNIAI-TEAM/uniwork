@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@uniwork/ui/brand";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -14,6 +14,11 @@ import { BrandRail, BrandRailAside, RAIL_COLUMN, RAIL_GUTTER, RAIL_WIDTH_AUTH } 
  *
  * `<main>` because these routes render no other landmark: without it a screen
  * reader's landmark list is empty and there is nothing to skip to.
+ *
+ * When the title changes (login → verify, forgot → sent, reset → expired) the
+ * form the user was in unmounts and focus would drop to `<body>`; the heading
+ * takes it instead so the new screen is announced. First render is left alone
+ * so a field's `autoFocus` still wins.
  */
 export function AuthShell({
   title,
@@ -25,6 +30,13 @@ export function AuthShell({
   children: ReactNode;
 }) {
   const { t } = useTranslation();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const previousTitle = useRef(title);
+  useEffect(() => {
+    if (previousTitle.current === title) return;
+    previousTitle.current = title;
+    heading.current?.focus();
+  }, [title]);
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background">
       <div className="flex min-h-0 flex-1">
@@ -53,8 +65,16 @@ export function AuthShell({
               {/* Below `md` the rail is gone, so the lockup here is the only
                   place the product names itself. */}
               <Logo variant="lockup" size={26} className="mb-5 md:hidden" />
-              <h1 className="text-balance text-display-sm font-semibold text-foreground sm:text-hero-sm">{title}</h1>
-              <p className="text-pretty text-body-lg text-muted-foreground">{description}</p>
+              <h1
+                ref={heading}
+                tabIndex={-1}
+                className="text-balance text-display-sm font-semibold text-foreground sm:text-hero-sm"
+              >
+                {title}
+              </h1>
+              {/* Descriptions carry user strings (an email address) that have no
+                  break opportunity; without this a long one scrolls the phone. */}
+              <p className="text-pretty text-body-lg text-muted-foreground [overflow-wrap:anywhere]">{description}</p>
             </div>
             {children}
           </div>
