@@ -1,42 +1,43 @@
-import { runtimeConfig } from "@uniwork/core/runtime-config";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
-import { matrixUserIdForMember } from "@uniwork/core/chat/matrix-users";
-import type { useMatrixStore } from "@uniwork/core/chat/matrix-store";
 
 export type GroupMemberProfile = {
   user_id: string;
   display_name: string;
   email: string;
-  matrix_user_id: string | null;
 };
 
 export type ChatNameContextEntry = {
   user_id: string;
   display_name: string;
-  matrix_user_id?: string | null;
 };
 
-export function matrixBaseUrl(
-  session: ReturnType<typeof useMatrixStore.getState>["session"],
-): string {
-  if (session?.base_url) return session.base_url;
-  return runtimeConfig().matrixHomeserverUrl;
+export type WorkspaceMemberLike = {
+  user_id: string;
+  display_name: string;
+  email: string;
+};
+
+function displayLabelForWorkspaceMember(member: WorkspaceMemberLike): string {
+  const name = member.display_name.trim();
+  if (name) return name;
+  const local = member.email.split("@")[0]?.trim();
+  return local || member.user_id;
 }
 
-export function matrixIdForContact(
-  contact: ChatContact,
-  session: NonNullable<ReturnType<typeof useMatrixStore.getState>["session"]>,
-): string {
-  return contact.matrix_user_id ?? matrixUserIdForMember(contact.user_id, session);
-}
-
-export function memberSetChanged(previous: string[], next: string[]): boolean {
-  if (previous.length !== next.length) return true;
-  const prevKey = [...previous].map((id) => id.toUpperCase()).sort().join("\u0000");
-  const nextKey = [...next].map((id) => id.toUpperCase()).sort().join("\u0000");
-  return prevKey !== nextKey;
+function pushNameEntry(
+  entries: ChatNameContextEntry[],
+  seen: Set<string>,
+  user_id: string,
+  display_name: string,
+) {
+  if (seen.has(user_id)) return;
+  seen.add(user_id);
+  entries.push({
+    user_id,
+    display_name: display_name.trim() || user_id,
+  });
 }
 
 export function chatHeaderTitle(
@@ -62,40 +63,38 @@ export function buildChatNameContext(
   activeContact: ChatContact | null,
   activeGroup: GroupChat | null,
   groupMemberProfiles: Record<string, GroupMemberProfile>,
+  workspaceMembers: WorkspaceMemberLike[] = [],
 ): ChatNameContextEntry[] {
-  const nameContext = contacts.map((c) => ({
-    user_id: c.user_id,
-    display_name: displayLabelForChatContact(c),
-    matrix_user_id: c.matrix_user_id,
-  }));
+  const nameContext: ChatNameContextEntry[] = [];
+  const seen = new Set<string>();
+
+  for (const c of contacts) {
+    pushNameEntry(nameContext, seen, c.user_id, displayLabelForChatContact(c));
+  }
   if (activeContact) {
-    nameContext.push({
-      user_id: activeContact.user_id,
-      display_name: displayLabelForChatContact(activeContact),
-      matrix_user_id: activeContact.matrix_user_id,
-    });
+    pushNameEntry(
+      nameContext,
+      seen,
+      activeContact.user_id,
+      displayLabelForChatContact(activeContact),
+    );
   }
   if (activeGroup) {
     for (const memberId of activeGroup.member_user_ids) {
-      if (nameContext.some((entry) => entry.user_id === memberId)) continue;
+      if (seen.has(memberId)) continue;
       const profile = groupMemberProfiles[memberId];
       if (profile) {
-        nameContext.push({
-          user_id: profile.user_id,
-          display_name: profile.display_name,
-          matrix_user_id: profile.matrix_user_id,
-        });
+        pushNameEntry(nameContext, seen, profile.user_id, profile.display_name);
         continue;
       }
       const contact = contacts.find((entry) => entry.user_id === memberId);
       if (contact) {
-        nameContext.push({
-          user_id: contact.user_id,
-          display_name: displayLabelForChatContact(contact),
-          matrix_user_id: contact.matrix_user_id,
-        });
+        pushNameEntry(nameContext, seen, contact.user_id, displayLabelForChatContact(contact));
       }
     }
+  }
+  for (const member of workspaceMembers) {
+    pushNameEntry(nameContext, seen, member.user_id, displayLabelForWorkspaceMember(member));
   }
   return nameContext;
 }

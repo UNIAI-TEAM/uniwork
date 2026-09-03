@@ -95,8 +95,25 @@ type Routes struct {
 	MeetingCapabilities  http.HandlerFunc
 	LiveKitWebhook       http.HandlerFunc
 
-	LookupChatUser          http.HandlerFunc
-	MintChatVoiceToken      http.HandlerFunc
-	GetWorkspaceChatRoom    http.HandlerFunc
-	EnsureWorkspaceChatRoom http.HandlerFunc
+	LookupChatUser            http.HandlerFunc
+	GetChatBlockStatus        http.HandlerFunc
+	BlockChatUser             http.HandlerFunc
+	UnblockChatUser           http.HandlerFunc
+	MintChatVoiceToken        http.HandlerFunc
+	GetWorkspaceChatRoom      http.HandlerFunc
+	EnsureWorkspaceChatRoom   http.HandlerFunc
+	ListChatRooms             http.HandlerFunc
+	ResolveDM                 http.HandlerFunc
+	CreateChatGroup           http.HandlerFunc
+	InviteChatGroupMembers    http.HandlerFunc
+	LeaveChatRoom             http.HandlerFunc
+	ListWorkspaceChatMessages http.HandlerFunc
+	SendWorkspaceChatMessage  http.HandlerFunc
+	ListChatRoomMessages      http.HandlerFunc
+	SendChatRoomMessage       http.HandlerFunc
+	ToggleChatMessageReaction http.HandlerFunc
+	SignalChatVoiceInvite     http.HandlerFunc
+	SignalChatVoiceAccept     http.HandlerFunc
+	SignalChatVoiceHangup     http.HandlerFunc
+	SignalChatTyping          http.HandlerFunc
 }

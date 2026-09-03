@@ -10,7 +10,7 @@ vi.mock("sonner", () => ({
 }));
 
 describe("ChatComposer", () => {
-  it("renders Matrix-style toolbar and opens attach menu", async () => {
+  it("renders composer toolbar and opens attach menu", async () => {
     const onDraftChange = vi.fn();
     const onSend = vi.fn();
 

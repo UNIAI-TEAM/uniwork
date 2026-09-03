@@ -20,7 +20,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
-	"github.com/unicomhub/uniwork/server/internal/matrix"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
@@ -130,15 +129,7 @@ func main() {
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
 	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
-	var matrixClient service.MatrixClient
-	matrixURL := cfg.MatrixHomeserverURL
-	if matrixURL != "" {
-		matrixClient = matrix.New(matrixURL)
-		log.Info("matrix registration enabled", "homeserver", matrixURL)
-	} else {
-		log.Info("matrix registration disabled", "hint", "set MATRIX_HOMESERVER_URL to provision Synapse users on register")
-	}
-	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification, matrixClient, matrixURL)
+	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
@@ -169,7 +160,8 @@ func main() {
 	if reg != nil {
 		meetingSvc.Metrics = reg.Meetings
 	}
-	chatSvc := service.NewChatService(q, matrixClient, wsSvc)
+	chatSvc := service.NewChatService(q, wsSvc, pub)
+	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 	go meetingSvc.RunOutbox(runCtx)

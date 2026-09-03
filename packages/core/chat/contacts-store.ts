@@ -6,7 +6,6 @@ export interface ChatContact {
   user_id: string;
   email: string;
   display_name: string;
-  matrix_user_id: string | null;
   dm_room_id?: string | null;
 }
 
@@ -37,7 +36,6 @@ export function mergeChatContact(existing: ChatContact | undefined, incoming: Ch
     user_id: incoming.user_id,
     email: incoming.email || existing.email,
     display_name: preferDisplayName(incoming.display_name, existing.display_name, incoming.user_id),
-    matrix_user_id: incoming.matrix_user_id ?? existing.matrix_user_id,
     dm_room_id: incoming.dm_room_id ?? existing.dm_room_id,
   };
 }

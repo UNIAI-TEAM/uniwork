@@ -14,23 +14,32 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function userCacheKey(workspaceId: string, userId: string): string {
+  return `${workspaceId}:${normalizeUserId(userId)}`;
+}
+
+function emailCacheKey(workspaceId: string, email: string): string {
+  return `${workspaceId}:${normalizeEmail(email)}`;
+}
+
 function rememberLookup(lookup: ChatUserLookup | null): ChatUserLookup | null {
   if (!lookup) return null;
-  byUserId.set(normalizeUserId(lookup.user_id), lookup);
-  byEmail.set(normalizeEmail(lookup.email), lookup);
   return lookup;
 }
 
-export function peekCachedChatUserById(userId: string): ChatUserLookup | null {
-  return byUserId.get(normalizeUserId(userId)) ?? null;
+export function peekCachedChatUserById(workspaceId: string, userId: string): ChatUserLookup | null {
+  return byUserId.get(userCacheKey(workspaceId, userId)) ?? null;
 }
 
-export function peekCachedChatUserByEmail(email: string): ChatUserLookup | null {
-  return byEmail.get(normalizeEmail(email)) ?? null;
+export function peekCachedChatUserByEmail(workspaceId: string, email: string): ChatUserLookup | null {
+  return byEmail.get(emailCacheKey(workspaceId, email)) ?? null;
 }
 
-export async function lookupChatUserByIdCached(userId: string): Promise<ChatUserLookup | null> {
-  const key = normalizeUserId(userId);
+export async function lookupChatUserByIdCached(
+  workspaceId: string,
+  userId: string,
+): Promise<ChatUserLookup | null> {
+  const key = userCacheKey(workspaceId, userId);
   const cached = byUserId.get(key);
   if (cached) return cached;
 
@@ -38,8 +47,15 @@ export async function lookupChatUserByIdCached(userId: string): Promise<ChatUser
   if (inflight) return inflight;
 
   const promise = chat
-    .lookupChatUserById(key)
-    .then((result) => rememberLookup(result))
+    .lookupChatUserById(workspaceId, normalizeUserId(userId))
+    .then((result) => {
+      const lookup = rememberLookup(result);
+      if (lookup) {
+        byUserId.set(key, lookup);
+        byEmail.set(emailCacheKey(workspaceId, lookup.email), lookup);
+      }
+      return lookup;
+    })
     .finally(() => {
       inflightByUserId.delete(key);
     });
@@ -47,8 +63,11 @@ export async function lookupChatUserByIdCached(userId: string): Promise<ChatUser
   return promise;
 }
 
-export async function lookupChatUserCached(email: string): Promise<ChatUserLookup | null> {
-  const key = normalizeEmail(email);
+export async function lookupChatUserCached(
+  workspaceId: string,
+  email: string,
+): Promise<ChatUserLookup | null> {
+  const key = emailCacheKey(workspaceId, email);
   const cached = byEmail.get(key);
   if (cached) return cached;
 
@@ -56,8 +75,15 @@ export async function lookupChatUserCached(email: string): Promise<ChatUserLooku
   if (inflight) return inflight;
 
   const promise = chat
-    .lookupChatUser(email)
-    .then((result) => rememberLookup(result))
+    .lookupChatUser(workspaceId, normalizeEmail(email))
+    .then((result) => {
+      const lookup = rememberLookup(result);
+      if (lookup) {
+        byEmail.set(key, lookup);
+        byUserId.set(userCacheKey(workspaceId, lookup.user_id), lookup);
+      }
+      return lookup;
+    })
     .finally(() => {
       inflightByEmail.delete(key);
     });

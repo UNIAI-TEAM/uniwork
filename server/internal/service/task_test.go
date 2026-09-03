@@ -17,11 +17,19 @@ func (c *capturePublisher) Publish(_ context.Context, _ string, ev Event) {
 	c.events = append(c.events, ev)
 }
 
+func (c *capturePublisher) PublishToScope(_ context.Context, _, _ string, ev Event) {
+	c.events = append(c.events, ev)
+}
+
+func (c *capturePublisher) SendToUser(_ context.Context, _ string, ev Event) {
+	c.events = append(c.events, ev)
+}
+
 // fixture: user A (member), user B (ngoài), workspace của A
 func taskFixture(t *testing.T) (*TaskService, *capturePublisher, db.User, db.User, db.Workspace) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil, nil, "")
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	ctx := context.Background()

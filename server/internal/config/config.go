@@ -37,10 +37,6 @@ type Config struct {
 	// LiveKitRecordingBucket enables room recording via LiveKit Egress; the
 	// AWS_* storage settings supply credentials and endpoint.
 	LiveKitRecordingBucket string
-	// MatrixHomeserverURL is the Synapse client API base (e.g. http://127.0.0.1:8008).
-	// When set, UniWork registration also creates a Matrix account with the same
-	// password and a username derived from the UniWork user id.
-	MatrixHomeserverURL string
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
 	// surface and must not ship on a public listener by default.
@@ -114,7 +110,6 @@ func Load() (Config, error) {
 		AnthropicAPIKey:         os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:          os.Getenv("ANTHROPIC_MODEL"),
 		LiveKitRecordingBucket:  os.Getenv("LIVEKIT_RECORDING_BUCKET"),
-		MatrixHomeserverURL:     strings.TrimRight(os.Getenv("MATRIX_HOMESERVER_URL"), "/"),
 		AppEnv:                  getenv("APP_ENV", "development"),
 		devVerificationCode:     os.Getenv("DEV_VERIFICATION_CODE"),
 		APIPublicURL:            getenv("API_PUBLIC_URL", "http://localhost:8080"),

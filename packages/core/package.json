@@ -23,8 +23,6 @@
     "./chat": "./chat/hooks.ts",
     "./chat/contacts-store": "./chat/contacts-store.ts",
     "./chat/groups-store": "./chat/groups-store.ts",
-    "./chat/matrix-store": "./chat/matrix-store.ts",
-    "./chat/matrix-users": "./chat/matrix-users.ts",
     "./chat/user-lookup": "./chat/user-lookup.ts",
     "./chat/voice-call": "./chat/voice-call.ts",
     "./meetings/room-preferences": "./meetings/room-preferences.ts",

@@ -17,6 +17,14 @@ func MintToken(apiKey, apiSecret, room, identity, name string, ttl time.Duration
 	})
 }
 
+// MintChatVoiceToken issues a LiveKit JWT for native chat voice/video without data channels.
+func MintChatVoiceToken(apiKey, apiSecret, room, identity, name string, ttl time.Duration) (string, error) {
+	return mintToken(apiKey, apiSecret, IssueJoinCredentialRequest{
+		RoomName: room, Identity: identity, DisplayName: name, TTL: ttl,
+		CanSubscribe: true, CanPublish: true, CanPublishData: false,
+	})
+}
+
 func mintToken(apiKey, apiSecret string, req IssueJoinCredentialRequest) (string, error) {
 	at := auth.NewAccessToken(apiKey, apiSecret)
 	canSub, canPub, canData := req.CanSubscribe, req.CanPublish, req.CanPublishData

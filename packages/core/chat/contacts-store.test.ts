@@ -10,7 +10,6 @@ describe("mergeChatContact", () => {
     user_id: "01M14FBNCQ6BDQB5TRKJX35ESG",
     email: "long@example.com",
     display_name: "Tran Hoang Long",
-    matrix_user_id: "@01m14fbncq6bdqb5trkjx35esg:localhost",
     dm_room_id: "!room:localhost",
   };
 

@@ -10,6 +10,7 @@ import {
   SmilePlus,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Tooltip,
@@ -20,8 +21,11 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { Check } from "lucide-react";
 import type { ChatMessage } from "./chat-messages";
-import { DEFAULT_QUICK_REACTION } from "./matrix-message-actions";
-import { senderBorderClass, senderDotClass, senderNameClass } from "./sender-colors";
+import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
+import { senderNameClass } from "./sender-colors";
+
+/** Fixed gutter matching sidebar avatar column — keeps grouped bubbles aligned. */
+const INCOMING_AVATAR_SLOT_CLASS = "w-8 shrink-0";
 
 function MessageActionButton({
   label,
@@ -64,6 +68,9 @@ export function ChatMessageRow({
   replyPreview,
   onReply,
   onReact,
+  showSenderName = false,
+  compactTop = false,
+  showAvatar = true,
 }: {
   message: ChatMessage;
   senderLabel: string;
@@ -72,91 +79,130 @@ export function ChatMessageRow({
   replyPreview?: string;
   onReply: (message: ChatMessage) => void;
   onReact: (message: ChatMessage) => void;
+  showSenderName?: boolean;
+  compactTop?: boolean;
+  showAvatar?: boolean;
 }) {
   const { t } = useTranslation();
   const reactionEntries = Object.entries(message.reactions);
   const nameClass = senderNameClass(message.sender, isOwn);
-  const accentBorder = senderBorderClass(message.sender, isOwn);
+  const avatarInitial = senderLabel.trim().slice(0, 1).toUpperCase() || "?";
 
   return (
     <article
       className={cn(
-        "group relative rounded-lg border-l-[3px] px-2 py-1.5",
-        accentBorder,
-        isOwn ? "border-l-brand bg-brand/5" : "bg-surface-hover/40 hover:bg-surface-hover/70",
+        "flex w-full max-w-full",
+        compactTop ? "mt-1" : "mt-3",
+        isOwn ? "justify-end" : "justify-start gap-2",
       )}
     >
-      <div
-        className={cn(
-          "pointer-events-none absolute -top-9 z-10 flex items-center gap-0.5 rounded-lg border border-border bg-surface px-1 py-0.5 opacity-0 shadow-sm transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100",
-          isOwn ? "right-0" : "left-0",
-        )}
-      >
-        <TooltipProvider delay={300}>
-          <MessageActionButton
-            label={t("chat.action_react")}
-            onClick={() => onReact(message)}
-          >
-            <SmilePlus className="size-4" aria-hidden />
-          </MessageActionButton>
-          <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply(message)}>
-            <Reply className="size-4" aria-hidden />
-          </MessageActionButton>
-          <MessageActionButton label={t("chat.action_thread")} disabled>
-            <MessageSquareText className="size-4" aria-hidden />
-          </MessageActionButton>
-          <MessageActionButton label={t("chat.action_edit")} disabled>
-            <Pencil className="size-4" aria-hidden />
-          </MessageActionButton>
-          <MessageActionButton label={t("chat.action_pin")} disabled>
-            <Pin className="size-4" aria-hidden />
-          </MessageActionButton>
-          <MessageActionButton label={t("chat.action_more")} disabled>
-            <MoreHorizontal className="size-4" aria-hidden />
-          </MessageActionButton>
-        </TooltipProvider>
-      </div>
-
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          {!isOwn ? (
-            <span
-              className={cn("size-2 shrink-0 rounded-full", senderDotClass(message.sender))}
-              aria-hidden
+      {!isOwn ? (
+        <div className={cn(INCOMING_AVATAR_SLOT_CLASS, "flex flex-col justify-end self-stretch")}>
+          {showAvatar ? (
+            <ActorAvatar
+              name={senderLabel}
+              initials={avatarInitial}
+              size="sm"
+              className="mx-auto shrink-0"
             />
           ) : null}
-          <p className={cn("text-label font-semibold", nameClass)}>{senderLabel}</p>
-          {showReadReceipt ? (
-            <span
-              className="inline-flex text-muted-foreground"
-              aria-label={t("chat.read_receipt")}
-              title={t("chat.read_receipt")}
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          "group relative flex min-w-0 max-w-[min(100%,20rem)] flex-col gap-1",
+          isOwn ? "items-end" : "items-start",
+        )}
+      >
+        <div
+          className={cn(
+            "pointer-events-none absolute -top-9 z-10 flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 opacity-0 shadow-md transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100",
+            isOwn ? "right-0" : "left-0",
+          )}
+        >
+          <TooltipProvider delay={300}>
+            <MessageActionButton
+              label={t("chat.action_react")}
+              onClick={() => onReact(message)}
             >
-              <Check className="size-3.5" aria-hidden />
-            </span>
-          ) : null}
+              <SmilePlus className="size-4" aria-hidden />
+            </MessageActionButton>
+            <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply(message)}>
+              <Reply className="size-4" aria-hidden />
+            </MessageActionButton>
+            <MessageActionButton label={t("chat.action_thread")} disabled>
+              <MessageSquareText className="size-4" aria-hidden />
+            </MessageActionButton>
+            <MessageActionButton label={t("chat.action_edit")} disabled>
+              <Pencil className="size-4" aria-hidden />
+            </MessageActionButton>
+            <MessageActionButton label={t("chat.action_pin")} disabled>
+              <Pin className="size-4" aria-hidden />
+            </MessageActionButton>
+            <MessageActionButton label={t("chat.action_more")} disabled>
+              <MoreHorizontal className="size-4" aria-hidden />
+            </MessageActionButton>
+          </TooltipProvider>
         </div>
 
-        {replyPreview ? (
-          <p className="border-l-2 border-border pl-2 text-caption text-muted-foreground">
-            {replyPreview}
-          </p>
+        {!isOwn && showSenderName && showAvatar ? (
+          <p className={cn("px-1 text-caption font-medium", nameClass)}>{senderLabel}</p>
         ) : null}
 
-        <p className="whitespace-pre-wrap break-words text-body text-foreground">{message.body}</p>
+        <div
+          className={cn(
+            "w-fit max-w-full px-3.5 py-2",
+            isOwn
+              ? "rounded-[18px] rounded-br-[4px] bg-brand text-brand-foreground shadow-sm"
+              : "rounded-[18px] rounded-bl-[4px] bg-surface shadow-sm ring-1 ring-border/60",
+          )}
+        >
+          {replyPreview ? (
+            <p
+              className={cn(
+                "mb-1.5 border-l-2 pl-2 text-caption",
+                isOwn
+                  ? "border-brand-foreground/40 text-brand-foreground/85"
+                  : "border-brand/40 text-muted-foreground",
+              )}
+            >
+              {replyPreview}
+            </p>
+          ) : null}
+
+          <p
+            className={cn(
+              "whitespace-pre-wrap break-words text-body leading-relaxed",
+              isOwn ? "text-brand-foreground" : "text-foreground",
+            )}
+          >
+            {message.body}
+          </p>
+        </div>
 
         {reactionEntries.length > 0 ? (
-          <div className="flex flex-wrap gap-1 pt-0.5">
+          <div className={cn("flex flex-wrap gap-1 px-0.5", isOwn && "justify-end")}>
             {reactionEntries.map(([emoji, count]) => (
               <span
                 key={emoji}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-caption"
+                className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface px-1.5 py-0.5 text-caption shadow-sm"
               >
                 <span aria-hidden>{emoji}</span>
-                <span className="text-muted-foreground">{count}</span>
+                {count > 1 ? <span className="text-muted-foreground">{count}</span> : null}
               </span>
             ))}
           </div>
+        ) : null}
+
+        {showReadReceipt ? (
+          <span
+            className="inline-flex px-1 text-muted-foreground"
+            aria-label={t("chat.read_receipt")}
+            title={t("chat.read_receipt")}
+          >
+            <Check className="size-3.5" aria-hidden />
+          </span>
         ) : null}
       </div>
     </article>

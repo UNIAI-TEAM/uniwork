@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import * as auth from "../api/endpoints/auth";
-import { setMatrixSession } from "../chat/matrix-store";
 import { ApiError } from "../api/http";
 import type { SessionResponse, User } from "../types/user";
 import { useAuthStore, type SessionStatus } from "./store";
@@ -42,7 +41,6 @@ function requireSession(sess: SessionResponse | null): SessionResponse {
 
 function applyAuthSession(sess: SessionResponse): void {
   setSessionUser(sess.user);
-  if (sess.matrix) setMatrixSession(sess.matrix);
 }
 
 export function useLogin() {

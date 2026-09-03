@@ -48,7 +48,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -89,7 +89,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -114,7 +114,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -139,7 +139,7 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -164,7 +164,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -201,7 +201,7 @@ func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountPa
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -228,7 +228,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -255,7 +255,7 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -289,71 +289,7 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
-		&i.Locale,
-	)
-	return i, err
-}
-
-const updateUserAvatar = `-- name: UpdateUserAvatar :one
-UPDATE users SET avatar_url = $2, updated_at = now()
-WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, matrix_user_id, locale
-`
-
-type UpdateUserAvatarParams struct {
-	ID        string      `json:"id"`
-	AvatarUrl pgtype.Text `json:"avatar_url"`
-}
-
-func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserAvatar, arg.ID, arg.AvatarUrl)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.DisplayName,
-		&i.AvatarUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OnboardedAt,
-		&i.OnboardingQuestionnaire,
-		&i.EmailVerifiedAt,
-		&i.GoogleID,
-		&i.MatrixUserId,
-		&i.Locale,
-	)
-	return i, err
-}
-
-const updateUserPassword = `-- name: UpdateUserPassword :one
-UPDATE users SET password_hash = $2, updated_at = now()
-WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, matrix_user_id, locale
-`
-
-type UpdateUserPasswordParams struct {
-	ID           string      `json:"id"`
-	PasswordHash pgtype.Text `json:"password_hash"`
-}
-
-func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.DisplayName,
-		&i.AvatarUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OnboardedAt,
-		&i.OnboardingQuestionnaire,
-		&i.EmailVerifiedAt,
-		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -385,7 +321,71 @@ func (q *Queries) SetUserMatrixUserID(ctx context.Context, arg SetUserMatrixUser
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
+		&i.Locale,
+	)
+	return i, err
+}
+
+const updateUserAvatar = `-- name: UpdateUserAvatar :one
+UPDATE users SET avatar_url = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, matrix_user_id, locale
+`
+
+type UpdateUserAvatarParams struct {
+	ID        string      `json:"id"`
+	AvatarUrl pgtype.Text `json:"avatar_url"`
+}
+
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserAvatar, arg.ID, arg.AvatarUrl)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.MatrixUserID,
+		&i.Locale,
+	)
+	return i, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :one
+UPDATE users SET password_hash = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, matrix_user_id, locale
+`
+
+type UpdateUserPasswordParams struct {
+	ID           string      `json:"id"`
+	PasswordHash pgtype.Text `json:"password_hash"`
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err
@@ -423,7 +423,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
-		&i.MatrixUserId,
+		&i.MatrixUserID,
 		&i.Locale,
 	)
 	return i, err

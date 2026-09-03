@@ -118,6 +118,17 @@ func pathParamSDI(path string) any {
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "workspaceID,roomID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,roomID,messageID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+			MessageID   string `path:"messageID" description:"ULID tin nhắn" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "workspaceID,userID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

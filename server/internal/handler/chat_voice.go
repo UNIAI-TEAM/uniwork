@@ -21,9 +21,14 @@ func (h *handlers) mintChatVoiceToken(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	matrixRoomID := strings.TrimSpace(in.MatrixRoomID)
-	if matrixRoomID == "" || !strings.HasPrefix(matrixRoomID, "!") {
-		respondError(w, http.StatusBadRequest, "invalid_request", "matrix_room_id is required")
+	roomID := strings.TrimSpace(in.RoomID)
+	if roomID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "room_id is required")
+		return
+	}
+	callID := strings.TrimSpace(in.CallID)
+	if callID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "call_id is required")
 		return
 	}
 	userID := middleware.UserID(r.Context())
@@ -32,8 +37,12 @@ func (h *handlers) mintChatVoiceToken(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	liveKitRoom := meetings.LiveKitRoomFromMatrixID(matrixRoomID)
-	tok, err := meetings.MintToken(
+	liveKitRoom, err := h.Chat.MintVoiceTokenRoom(r.Context(), userID, roomID, callID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	tok, err := meetings.MintChatVoiceToken(
 		h.Cfg.LiveKitAPIKey,
 		h.Cfg.LiveKitAPISecret,
 		liveKitRoom,

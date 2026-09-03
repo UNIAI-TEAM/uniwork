@@ -2,33 +2,23 @@
 
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { ApiError } from "@uniwork/core/api/http";
+import { errorCode } from "@uniwork/core/api";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
-import type { useMatrixStore } from "@uniwork/core/chat/matrix-store";
-import { createClient, type MatrixClient } from "matrix-js-sdk";
+import type {
+  useCreateChatGroup,
+  useInviteChatGroupMembers,
+  useLeaveChatRoom,
+  useResolveDMRoom,
+  useSendChatRoomMessage,
+} from "@uniwork/core/chat";
 import type { ChatMessage } from "./chat-messages";
-import { sendMatrixTextReply } from "./matrix-message-actions";
-import { sendMatrixTyping } from "./matrix-dm";
-import {
-  defaultGroupName,
-  inviteMembersToGroupRoom,
-  readGroupMemberUserIds,
-  resolveGroupRoomId,
-} from "./matrix-group";
-import { leaveAndForgetRoom } from "./matrix-room-leave";
 import type { ChatSidebarTarget } from "./chat-sidebar";
-import { matrixBaseUrl, matrixIdForContact, memberSetChanged } from "./chat-page-utils";
 
 export function useChatPageActions({
   target,
   setTarget,
-  matrixSession,
-  matrixClient,
-  clientRef,
-  workspaceRoomId,
   activeRoomId,
   activeGroup,
   draft,
@@ -36,28 +26,23 @@ export function useChatPageActions({
   replyTo,
   setReplyTo,
   ensureRoom,
-  saveGroup,
-  setGroupRoomId,
-  setDmRoomId,
+  sendRoomMessage,
+  resolveDM,
+  createGroup,
+  inviteMembers,
+  leaveRoom,
   setConnectError,
   setCreateGroupOpen,
   setAddMembersOpen,
   setDmSettingsOpen,
   setGroupSettingsOpen,
-  removeGroup,
-  removeContact,
-  setLeavingConversation,
   setCreatingGroup,
   setInvitingMembers,
-  groupResolveRef,
+  setLeavingConversation,
   clearGroupMemberProfiles,
 }: {
   target: ChatSidebarTarget;
   setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
-  matrixSession: NonNullable<ReturnType<typeof useMatrixStore.getState>["session"]> | null;
-  matrixClient: MatrixClient | null;
-  clientRef: React.RefObject<MatrixClient | null>;
-  workspaceRoomId: string | null;
   activeRoomId: string | null;
   activeGroup: GroupChat | null;
   draft: string;
@@ -65,106 +50,88 @@ export function useChatPageActions({
   replyTo: ChatMessage | null;
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   ensureRoom: { mutateAsync: () => Promise<{ room_id?: string | null }> };
-  saveGroup: (group: GroupChat) => void;
-  setGroupRoomId: React.Dispatch<React.SetStateAction<string | null>>;
-  setDmRoomId: React.Dispatch<React.SetStateAction<string | null>>;
+  sendRoomMessage: ReturnType<typeof useSendChatRoomMessage>;
+  resolveDM: ReturnType<typeof useResolveDMRoom>;
+  createGroup: ReturnType<typeof useCreateChatGroup>;
+  inviteMembers: ReturnType<typeof useInviteChatGroupMembers>;
+  leaveRoom: ReturnType<typeof useLeaveChatRoom>;
   setConnectError: React.Dispatch<React.SetStateAction<string | null>>;
   setCreateGroupOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setAddMembersOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setDmSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setGroupSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  removeGroup: (groupId: string) => void;
-  removeContact: (userId: string) => void;
-  setLeavingConversation: React.Dispatch<React.SetStateAction<boolean>>;
   setCreatingGroup: React.Dispatch<React.SetStateAction<boolean>>;
   setInvitingMembers: React.Dispatch<React.SetStateAction<boolean>>;
-  groupResolveRef: React.MutableRefObject<string | null>;
+  setLeavingConversation: React.Dispatch<React.SetStateAction<boolean>>;
   clearGroupMemberProfiles: () => void;
 }) {
   const { t } = useTranslation();
 
   const provisionAndSend = useCallback(async () => {
     const text = draft.trim();
-    if (!text || !matrixSession) return;
-    let targetRoomId = activeRoomId;
-    if (target.kind === "workspace" && !targetRoomId) {
-      const created = await ensureRoom.mutateAsync();
-      if (!created.room_id) return;
-      targetRoomId = created.room_id;
-    }
-    if (!targetRoomId) return;
+    if (!text) return;
 
-    const client = clientRef.current;
-    if (client) {
-      const membership = client.getRoom(targetRoomId)?.getMyMembership();
-      if (membership === "invite") {
-        await client.joinRoom(targetRoomId);
-      }
-      await sendMatrixTyping(client, targetRoomId, false);
-      if (replyTo) {
-        await sendMatrixTextReply(client, targetRoomId, text, replyTo.id);
-        setReplyTo(null);
-      } else {
-        await client.sendTextMessage(targetRoomId, text);
-      }
-      setDraft("");
-      return;
+    let roomId = activeRoomId;
+    if (target.kind === "workspace" && !roomId) {
+      const created = await ensureRoom.mutateAsync();
+      roomId = created.room_id ?? null;
     }
-    const baseUrl = matrixBaseUrl(matrixSession);
-    if (!baseUrl) return;
-    const temp = createClient({
-      baseUrl,
-      accessToken: matrixSession.access_token,
-      userId: matrixSession.user_id,
-    });
-    if (replyTo) {
-      await sendMatrixTextReply(temp, targetRoomId, text, replyTo.id);
+    if (target.kind === "dm" && target.contact && !roomId) {
+      const room = await resolveDM.mutateAsync(target.contact.user_id);
+      roomId = room?.id ?? null;
+    }
+    if (!roomId) return;
+
+    try {
+      await sendRoomMessage.mutateAsync({
+        roomId,
+        body: text,
+        ...(replyTo ? { reply_to_message_id: replyTo.id } : {}),
+      });
       setReplyTo(null);
-    } else {
-      await temp.sendTextMessage(targetRoomId, text);
+      setDraft("");
+    } catch (err: unknown) {
+      if (errorCode(err) === "chat_user_blocked") {
+        setConnectError(t("chat.block_send_error"));
+      } else {
+        setConnectError(err instanceof Error ? err.message : "send_failed");
+      }
     }
-    setDraft("");
   }, [
     draft,
-    matrixSession,
     activeRoomId,
-    target.kind,
+    target,
     ensureRoom,
-    clientRef,
+    resolveDM,
+    sendRoomMessage,
     replyTo,
     setReplyTo,
     setDraft,
+    setConnectError,
+    t,
   ]);
 
   const handleCreateGroup = useCallback(
     (members: ChatContact[], name: string) => {
-      if (!matrixClient || !matrixSession || members.length < 2) return;
+      if (members.length < 2) return;
       setCreatingGroup(true);
       setConnectError(null);
-
-      const inviteMatrixUserIds = members.map((member) => matrixIdForContact(member, matrixSession));
       const resolvedName =
         name.trim() ||
-        defaultGroupName(
-          members.map((member) => displayLabelForChatContact(member)),
-          t("chat.new_group"),
-        );
-
-      void resolveGroupRoomId(matrixClient, {
-        name: resolvedName,
-        inviteMatrixUserIds,
-        myMatrixUserId: matrixSession.user_id,
-        workspaceRoomId,
-      })
-        .then((roomId) => {
+        members.map((member) => displayLabelForChatContact(member)).join(", ");
+      void createGroup
+        .mutateAsync({
+          name: resolvedName,
+          member_user_ids: members.map((member) => member.user_id),
+        })
+        .then((room) => {
+          if (!room) throw new Error("group_failed");
           const group: GroupChat = {
-            id: roomId,
-            name: resolvedName,
-            room_id: roomId,
-            member_user_ids: [...members.map((member) => member.user_id)].sort(),
+            id: room.id,
+            name: room.name,
+            room_id: room.id,
+            member_user_ids: room.member_user_ids,
           };
-          saveGroup(group);
-          setGroupRoomId(roomId);
           setTarget({ kind: "group", group });
           setCreateGroupOpen(false);
         })
@@ -175,37 +142,30 @@ export function useChatPageActions({
           setCreatingGroup(false);
         });
     },
-    [
-      matrixClient,
-      matrixSession,
-      workspaceRoomId,
-      saveGroup,
-      setGroupRoomId,
-      setTarget,
-      setCreateGroupOpen,
-      setConnectError,
-      setCreatingGroup,
-      t,
-    ],
+    [createGroup, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup],
   );
 
   const handleAddGroupMembers = useCallback(
     (members: ChatContact[]) => {
-      if (!matrixClient || !matrixSession || !activeGroup || members.length === 0) return;
+      if (!activeGroup || members.length === 0) return;
       setInvitingMembers(true);
       setConnectError(null);
-
-      const inviteMatrixUserIds = members.map((member) => matrixIdForContact(member, matrixSession));
-
-      void inviteMembersToGroupRoom(matrixClient, activeGroup.room_id, inviteMatrixUserIds)
-        .then(() => {
-          const memberUserIds = readGroupMemberUserIds(
-            matrixClient,
-            activeGroup.room_id,
-            matrixSession.user_id,
-          );
-          if (memberSetChanged(activeGroup.member_user_ids, memberUserIds)) {
-            saveGroup({ ...activeGroup, member_user_ids: memberUserIds });
+      void inviteMembers
+        .mutateAsync({
+          roomId: activeGroup.room_id,
+          memberUserIds: members.map((member) => member.user_id),
+        })
+        .then((room) => {
+          if (room && activeGroup) {
+            setTarget({
+              kind: "group",
+              group: {
+                id: room.id,
+                name: room.name,
+                room_id: room.id,
+                member_user_ids: room.member_user_ids,
+              },
+            });
           }
           setAddMembersOpen(false);
         })
@@ -216,32 +176,21 @@ export function useChatPageActions({
           setInvitingMembers(false);
         });
     },
-    [
-      matrixClient,
-      matrixSession,
-      activeGroup,
-      saveGroup,
-      setAddMembersOpen,
-      setConnectError,
-      setInvitingMembers,
-    ],
+    [activeGroup, inviteMembers, setTarget, setAddMembersOpen, setConnectError, setInvitingMembers],
   );
 
   const handleLeaveConversation = useCallback(
     async (roomId: string, cleanup: () => void) => {
-      if (!matrixClient || !roomId) return;
+      if (!roomId) return;
       setLeavingConversation(true);
       setConnectError(null);
       try {
-        await leaveAndForgetRoom(matrixClient, roomId);
+        await leaveRoom.mutateAsync(roomId);
         cleanup();
         setTarget({ kind: "workspace" });
         setDmSettingsOpen(false);
         setGroupSettingsOpen(false);
-        setGroupRoomId(null);
-        setDmRoomId(null);
         clearGroupMemberProfiles();
-        groupResolveRef.current = null;
       } catch (err: unknown) {
         setConnectError(err instanceof Error ? err.message : t("chat.leave_conversation_failed"));
       } finally {
@@ -249,16 +198,13 @@ export function useChatPageActions({
       }
     },
     [
-      matrixClient,
+      leaveRoom,
       setLeavingConversation,
       setConnectError,
       setTarget,
       setDmSettingsOpen,
       setGroupSettingsOpen,
-      setGroupRoomId,
-      setDmRoomId,
       clearGroupMemberProfiles,
-      groupResolveRef,
       t,
     ],
   );

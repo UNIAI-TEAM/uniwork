@@ -6,7 +6,7 @@ export type VitestPoolOptions = {
 };
 
 /** WSL mounts of Windows drives (/mnt/c, /mnt/d, …) are slow for Vitest fork workers. */
-export function isWslWindowsMount(cwd = process.cwd()): boolean {
+function isWslWindowsMount(cwd = process.cwd()): boolean {
   return process.platform === "linux" && /^\/mnt\/[a-z]\//i.test(cwd.replace(/\\/g, "/"));
 }
 

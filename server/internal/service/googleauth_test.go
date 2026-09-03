@@ -15,7 +15,7 @@ import (
 func newGoogleFixture(t *testing.T) (*GoogleAuthService, *AuthService, *db.Queries) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil, nil, "")
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	return NewGoogleAuthService(q, as), as, q
 }
 

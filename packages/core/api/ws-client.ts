@@ -49,6 +49,8 @@ export class WSClient {
   private badFrameLogged = false;
   private onReconnectCallbacks = new Set<() => void>();
   private anyHandlers = new Set<(msg: WSMessage) => void>();
+  /** Explicit scope subscriptions replayed after reconnect (workspace/user are server-side). */
+  private scopeSubscriptions = new Map<string, Set<string>>();
   private logger: Logger;
 
   constructor(
@@ -193,6 +195,12 @@ export class WSClient {
       }
     }
     this.hasConnectedBefore = true;
+    for (const [scope, ids] of this.scopeSubscriptions) {
+      if (scope === "workspace" || scope === "user") continue;
+      for (const id of ids) {
+        this.sendSubscribe(scope, id);
+      }
+    }
   }
 
   disconnect() {
@@ -212,6 +220,7 @@ export class WSClient {
     this.handlers.clear();
     this.anyHandlers.clear();
     this.onReconnectCallbacks.clear();
+    this.scopeSubscriptions.clear();
   }
 
   on(event: WSEventType, handler: EventHandler) {
@@ -242,5 +251,26 @@ export class WSClient {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
+  }
+
+  /** Subscribe to a scoped realtime room (e.g. chat:{roomId}). */
+  subscribe(scope: string, id: string) {
+    if (!scope || !id) return;
+    if (!this.scopeSubscriptions.has(scope)) {
+      this.scopeSubscriptions.set(scope, new Set());
+    }
+    this.scopeSubscriptions.get(scope)!.add(id);
+    this.sendSubscribe(scope, id);
+  }
+
+  /** Drop a scoped subscription established via subscribe(). */
+  unsubscribe(scope: string, id: string) {
+    if (!scope || !id) return;
+    this.scopeSubscriptions.get(scope)?.delete(id);
+    this.send({ type: "unsubscribe", payload: { scope, id } });
+  }
+
+  private sendSubscribe(scope: string, id: string) {
+    this.send({ type: "subscribe", payload: { scope, id } });
   }
 }

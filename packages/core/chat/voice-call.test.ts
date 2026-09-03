@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { liveKitVoiceRoomFromMatrixRoom } from "./voice-call";
+import { createVoiceCallId } from "./voice-call";
 
-describe("liveKitVoiceRoomFromMatrixRoom", () => {
-  it("sanitizes Matrix room ids for LiveKit", () => {
-    const room = liveKitVoiceRoomFromMatrixRoom("!PDBezmTDyDMTsEIAGl:localhost");
-    expect(room.startsWith("uw-voice-")).toBe(true);
-    expect(room.includes("!")).toBe(false);
-    expect(room.includes(":")).toBe(false);
-    expect(liveKitVoiceRoomFromMatrixRoom("!PDBezmTDyDMTsEIAGl:localhost")).toBe(room);
+describe("voice-call", () => {
+  it("createVoiceCallId returns a uuid", () => {
+    const id = createVoiceCallId();
+    expect(id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
   });
 });

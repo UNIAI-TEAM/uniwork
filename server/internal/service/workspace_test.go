@@ -32,7 +32,7 @@ type wsFix struct {
 func wsFixture(t *testing.T) wsFix {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil, nil, "")
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	ctx := context.Background()
 	reg := func(email, name string) db.User { return registerVerified(t, q, as, email, name) }
 	ua, ub, uc := reg("a@example.com", "A"), reg("b@example.com", "B"), reg("c@example.com", "C")

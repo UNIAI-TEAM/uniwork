@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { setMatrixSession } from "../../chat/matrix-store";
 import { SessionResponseSchema, UserSchema, type SessionResponse, type User } from "../../types/user";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -27,7 +26,6 @@ export async function login(email: string, password: string): Promise<SessionRes
     endpoint: "POST /api/v1/auth/login",
   });
   setAccessToken(sess?.access_token ?? null);
-  if (sess?.matrix) setMatrixSession(sess.matrix);
   return sess;
 }
 
@@ -45,14 +43,12 @@ export async function registerUser(
     endpoint: "POST /api/v1/auth/register",
   });
   setAccessToken(sess?.access_token ?? null);
-  if (sess?.matrix) setMatrixSession(sess.matrix);
   return sess;
 }
 
 export async function logout(): Promise<void> {
   await request("/api/v1/auth/logout", { method: "POST", skipRefresh: true }).catch(() => {});
   setAccessToken(null);
-  setMatrixSession(null);
 }
 
 export async function me(): Promise<User | null> {

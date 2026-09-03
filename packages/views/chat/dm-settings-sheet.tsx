@@ -12,6 +12,7 @@ import {
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
 import { ChatConversationToolbar } from "./group-settings-sheet";
+import { BlockConversationSection } from "./block-conversation-section";
 import { LeaveConversationSection } from "./leave-conversation-section";
 
 function initialOf(name: string): string {
@@ -26,6 +27,12 @@ export function DmSettingsSheet({
   onLeave,
   leaving,
   leaveDisabled,
+  blockedByMe,
+  blockedMe,
+  onBlock,
+  onUnblock,
+  blocking,
+  unblocking,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,6 +41,12 @@ export function DmSettingsSheet({
   onLeave: () => void | Promise<void>;
   leaving?: boolean;
   leaveDisabled?: boolean;
+  blockedByMe: boolean;
+  blockedMe: boolean;
+  onBlock: () => void | Promise<void>;
+  onUnblock: () => void | Promise<void>;
+  blocking?: boolean;
+  unblocking?: boolean;
 }) {
   const { t } = useTranslation();
   const contactLabel = displayLabelForChatContact(contact);
@@ -80,6 +93,16 @@ export function DmSettingsSheet({
             ))}
           </ul>
 
+          <BlockConversationSection
+            blockedByMe={blockedByMe}
+            blockedMe={blockedMe}
+            disabled={leaveDisabled}
+            blocking={blocking}
+            unblocking={unblocking}
+            onBlock={onBlock}
+            onUnblock={onUnblock}
+          />
+
           <LeaveConversationSection
             variant="dm"
             disabled={leaveDisabled}
@@ -108,6 +131,9 @@ export function DmChatToolbar({
 
   return (
     <ChatConversationToolbar
+      avatar={
+        <ActorAvatar name={contactLabel} initials={initialOf(contactLabel)} size="xl" />
+      }
       title={contactLabel}
       subtitle={contact.email || t("chat.dm_direct_message")}
       settingsAriaLabel={t("chat.dm_settings")}

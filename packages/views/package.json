@@ -30,7 +30,6 @@
     "@uniwork/ui": "workspace:*",
     "livekit-client": "^2.21.0",
     "lucide-react": "catalog:",
-    "matrix-js-sdk": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",

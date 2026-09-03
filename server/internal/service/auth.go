@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -26,12 +25,10 @@ type AuthService struct {
 	minter       auth.TokenMinter
 	refreshTTL   time.Duration
 	verification *VerificationService
-	matrix       MatrixClient
-	matrixBase   string
 }
 
-func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService, matrix MatrixClient, matrixHomeserverURL string) *AuthService {
-	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL, verification: verification, matrix: matrix, matrixBase: matrixHomeserverURL}
+func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
+	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL, verification: verification}
 }
 
 type Session struct {
@@ -39,7 +36,6 @@ type Session struct {
 	AccessToken      string
 	RefreshToken     string
 	RefreshExpiresAt time.Time
-	Matrix           *MatrixCredentials
 }
 
 // NormalizeLocale maps any tag to a mail locale we have templates for.
@@ -75,55 +71,6 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 		return Session{}, err
 	}
 	userID := util.NewID()
-	matrixUsername := strings.ToLower(userID)
-	if s.matrix == nil {
-		slog.Info("register: matrix skipped",
-			"user", userID, "email", email, "reason", "MATRIX_HOMESERVER_URL unset")
-	} else {
-		// Matrix localpart: lowercase ULID matches UniWork user id and stays unique.
-		slog.Info("register: provisioning matrix user",
-			"user", userID, "email", email, "matrix_username", matrixUsername)
-		reg, err := s.matrix.RegisterUser(ctx, matrixUsername, password)
-		if err != nil {
-			slog.Warn("register: matrix provisioning failed",
-				"user", userID, "email", email, "matrix_username", matrixUsername, "err", err)
-			return Session{}, fmt.Errorf("matrix registration: %w", err)
-		}
-		slog.Info("register: matrix provisioning ok",
-			"user", userID, "email", email, "matrix_username", matrixUsername, "matrix_user_id", reg.UserID)
-		u, err := s.q.CreateUser(ctx, db.CreateUserParams{
-			ID: userID, Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
-		})
-		if isUniqueViolation(err) {
-			return Session{}, ErrConflict
-		}
-		if err != nil {
-			return Session{}, err
-		}
-		u, err = s.q.SetUserMatrixUserID(ctx, db.SetUserMatrixUserIDParams{
-			ID: u.ID, MatrixUserID: pgtype.Text{String: reg.UserID, Valid: true},
-		})
-		if err != nil {
-			return Session{}, err
-		}
-		if s.verification != nil {
-			if err := s.verification.Send(ctx, u.ID); err != nil {
-				slog.Warn("send verification code after register", "user", u.ID, "err", err)
-			}
-		}
-		sess, err := s.mintSession(ctx, u)
-		if err != nil {
-			return Session{}, err
-		}
-		// Synapse returns credentials on register; a immediate login can race and fail.
-		if reg.AccessToken != "" {
-			sess.Matrix = &MatrixCredentials{
-				UserID: reg.UserID, AccessToken: reg.AccessToken, DeviceID: reg.DeviceID,
-				HomeServer: reg.HomeServer, BaseURL: s.matrixBase,
-			}
-		}
-		return sess, nil
-	}
 	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
 		ID: userID, Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
 		Locale: NormalizeLocale(locale),
@@ -134,14 +81,12 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	if err != nil {
 		return Session{}, err
 	}
-	// A failed send must not undo the registration: the verify screen has a
-	// resend button, and the session below is what lets the user reach it.
 	if s.verification != nil {
 		if err := s.verification.Send(ctx, u.ID); err != nil {
 			slog.Warn("send verification code after register", "user", u.ID, "err", err)
 		}
 	}
-	return s.newSessionWithPassword(ctx, u, password)
+	return s.mintSession(ctx, u)
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (Session, error) {
@@ -152,19 +97,10 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 	if err != nil {
 		return Session{}, err
 	}
-	// A Google-only account has no hash; it fails like a wrong password so the
-	// response does not reveal how the account was created.
 	if !u.PasswordHash.Valid || !auth.CheckPassword(u.PasswordHash.String, password) {
 		return Session{}, ErrInvalidCredentials
 	}
-	if s.matrix != nil && (!u.MatrixUserId.Valid || u.MatrixUserId.String == "") {
-		if updated, err := provisionMatrixUser(ctx, s.matrix, s.q, u, password); err != nil {
-			slog.Warn("matrix lazy provision on login failed", "user", u.ID, "err", err)
-		} else {
-			u = updated
-		}
-	}
-	return s.newSessionWithPassword(ctx, u, password)
+	return s.mintSession(ctx, u)
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {
@@ -182,7 +118,7 @@ func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, er
 	if err != nil {
 		return Session{}, err
 	}
-	return s.newSession(ctx, u)
+	return s.mintSession(ctx, u)
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
@@ -199,9 +135,6 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 
 const maxDisplayNameRunes = 100
 
-// UpdateProfile changes display name and/or mail locale; nil leaves a field
-// alone. Both inputs are validated before either write, so a bad locale
-// never lets a display-name change slip through.
 func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale *string) (db.User, error) {
 	if displayName == nil && locale == nil {
 		return db.User{}, Invalid("cần display_name hoặc locale")
@@ -230,14 +163,6 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 	return u, err
 }
 
-func ptrString(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
-
-// UpdateAvatar persists the URL storage returned for the user's new avatar.
 func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.User, error) {
 	u, err := s.q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
 		ID:        userID,
@@ -249,29 +174,8 @@ func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.
 	return u, err
 }
 
-// SessionFor mints a session for an already-authenticated user; the Google
-// sign-in uses it after it has resolved the account.
 func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error) {
-	return s.newSession(ctx, u)
-}
-
-func (s *AuthService) newSession(ctx context.Context, u db.User) (Session, error) {
-	return s.newSessionWithPassword(ctx, u, "")
-}
-
-func (s *AuthService) newSessionWithPassword(ctx context.Context, u db.User, password string) (Session, error) {
-	sess, err := s.mintSession(ctx, u)
-	if err != nil {
-		return Session{}, err
-	}
-	if s.matrix != nil && password != "" {
-		if creds, err := matrixCredentialsForUser(ctx, s.matrix, s.matrixBase, u, password); err != nil {
-			slog.Warn("matrix login after auth", "user", u.ID, "err", err)
-		} else {
-			sess.Matrix = &creds
-		}
-	}
-	return sess, nil
+	return s.mintSession(ctx, u)
 }
 
 func (s *AuthService) mintSession(ctx context.Context, u db.User) (Session, error) {
@@ -305,41 +209,9 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-func matrixCredentialsForUser(ctx context.Context, matrix MatrixClient, baseURL string, u db.User, password string) (MatrixCredentials, error) {
-	if matrix == nil {
-		return MatrixCredentials{}, ErrNotFound
+func ptrString(p *string) string {
+	if p == nil {
+		return ""
 	}
-	username := matrixLocalpart(u)
-	got, err := matrix.Login(ctx, username, password)
-	if err != nil {
-		return MatrixCredentials{}, err
-	}
-	return MatrixCredentials{
-		UserID: got.UserID, AccessToken: got.AccessToken, DeviceID: got.DeviceID,
-		HomeServer: got.HomeServer, BaseURL: baseURL,
-	}, nil
-}
-
-func matrixLocalpart(u db.User) string {
-	if u.MatrixUserId.Valid && u.MatrixUserId.String != "" {
-		id := u.MatrixUserId.String
-		if strings.HasPrefix(id, "@") {
-			if i := strings.Index(id, ":"); i > 1 {
-				return id[1:i]
-			}
-		}
-		return id
-	}
-	return strings.ToLower(u.ID)
-}
-
-func provisionMatrixUser(ctx context.Context, matrix MatrixClient, q *db.Queries, u db.User, password string) (db.User, error) {
-	username := strings.ToLower(u.ID)
-	reg, err := matrix.RegisterUser(ctx, username, password)
-	if err != nil {
-		return db.User{}, err
-	}
-	return q.SetUserMatrixUserID(ctx, db.SetUserMatrixUserIDParams{
-		ID: u.ID, MatrixUserID: pgtype.Text{String: reg.UserID, Valid: true},
-	})
+	return *p
 }

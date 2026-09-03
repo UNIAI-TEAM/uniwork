@@ -129,3 +129,30 @@ func TestSlowClientDoesNotBlockBroadcast(t *testing.T) {
 	}
 	recvOrTimeout(t, ok.send)
 }
+
+func TestPublisherDeliversToChatScopeOnly(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+	inRoom := newRegisteredClient(t, hub, "ws1", 8)
+	hub.subscribe(inRoom, ScopeChat, "room-a")
+	outRoom := newRegisteredClient(t, hub, "ws1", 8)
+
+	pub := NewPublisher(hub, slog.Default())
+	pub.PublishToScope(context.Background(), ScopeChat, "room-a", service.Event{
+		Type:    "chat.typing",
+		Payload: map[string]string{"room_id": "room-a"},
+	})
+
+	var ev service.Event
+	if err := json.Unmarshal(recvOrTimeout(t, inRoom.send), &ev); err != nil {
+		t.Fatalf("frame is not an event: %v", err)
+	}
+	if ev.Type != "chat.typing" {
+		t.Fatalf("unexpected event %+v", ev)
+	}
+	select {
+	case <-outRoom.send:
+		t.Fatal("client not subscribed to room-a received the event")
+	case <-time.After(50 * time.Millisecond):
+	}
+}

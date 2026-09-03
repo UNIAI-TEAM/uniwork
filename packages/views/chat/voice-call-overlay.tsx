@@ -1,123 +1,151 @@
 "use client";
 
-import { LiveKitRoom, RoomAudioRenderer, TrackToggle } from "@livekit/components-react";
-import { Track } from "livekit-client";
-import { PhoneOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Phone, PhoneOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { toast } from "sonner";
+import { useCallRingtone } from "./use-call-ringtone";
+import { VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-floating-panel";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+  ActiveVoiceCallSession,
+  PreConnectFloatingCall,
+} from "./voice-call-overlay-session";
+import type { VoiceCallOverlayState } from "./voice-call-overlay-types";
 
-export type VoiceCallOverlayState =
-  | { status: "idle" }
-  | {
-      status: "incoming";
-      callId: string;
-      matrixRoomId: string;
-      peerName: string;
-    }
-  | {
-      status: "active";
-      callId: string;
-      matrixRoomId: string;
-      peerName: string;
-      token: string;
-      url: string;
-      outgoing: boolean;
-    };
-
-function VoiceCallSession({
-  peerName,
-  outgoing,
-  onEnd,
-}: {
-  peerName: string;
-  outgoing: boolean;
-  onEnd: () => void;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 shadow-[var(--menu-shadow)]">
-      <RoomAudioRenderer />
-      <div className="min-w-0">
-        <p className="truncate text-body font-medium text-foreground">{peerName}</p>
-        <p className="text-caption text-muted-foreground">
-          {outgoing ? t("chat.voice_call_calling") : t("chat.voice_call_connected")}
-        </p>
-      </div>
-      <div className="flex items-center justify-end gap-2">
-        <TrackToggle
-          source={Track.Source.Microphone}
-          showIcon
-          className="inline-flex size-10 items-center justify-center rounded-lg border border-border bg-background"
-        />
-        <Button type="button" variant="destructive" size="icon" aria-label={t("chat.voice_call_end")} onClick={onEnd}>
-          <PhoneOff aria-hidden className="size-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
+export type { VoiceCallKind, VoiceCallOverlayState } from "./voice-call-overlay-types";
 
 export function VoiceCallOverlay({
   state,
   onAccept,
   onDecline,
-  onEnd,
+  onLeave,
+  onEndForAll,
+  onConnected,
 }: {
   state: VoiceCallOverlayState;
   onAccept: () => void;
   onDecline: () => void;
-  onEnd: () => void;
+  onLeave: () => void;
+  onEndForAll: () => void;
+  onConnected: () => void;
 }) {
   const { t } = useTranslation();
+  const [panelMode, setPanelMode] = useState<VoiceCallPanelMode>("expanded");
+
+  const handleConnectFailed = () => {
+    toast.error(t("chat.voice_call_connect_failed"));
+    onLeave();
+  };
+
+  const cancelPreConnect = () => {
+    if (state.status === "connecting" || state.status === "ringing") {
+      if (state.callKind === "group" && state.outgoing) {
+        onEndForAll();
+        return;
+      }
+      if (state.callKind === "dm") {
+        onEndForAll();
+        return;
+      }
+    }
+    onLeave();
+  };
+
+  useEffect(() => {
+    if (state.status === "idle") {
+      setPanelMode("expanded");
+    }
+  }, [state.status]);
+
+  const ringtoneKind =
+    state.status === "incoming" ? "incoming" : state.status === "ringing" ? "outgoing" : null;
+  useCallRingtone(ringtoneKind);
 
   if (state.status === "incoming") {
+    const statusLabel =
+      state.callKind === "group"
+        ? t("chat.voice_call_incoming_group", {
+            caller: state.callerName ?? state.peerName,
+            group: state.peerName,
+          })
+        : t("chat.voice_call_incoming_label");
     return (
-      <Dialog open onOpenChange={(open) => !open && onDecline()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("chat.voice_call_incoming_title")}</DialogTitle>
-            <DialogDescription>
-              {t("chat.voice_call_incoming_body", { name: state.peerName })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={onDecline}>
-              {t("chat.voice_call_decline")}
-            </Button>
-            <Button type="button" onClick={onAccept}>
-              {t("chat.voice_call_accept")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse>
+        <VoiceCallLabeledAction
+          label={t("chat.voice_call_decline")}
+          ariaLabel={t("chat.voice_call_decline")}
+          tone="decline"
+          onClick={onDecline}
+          icon={<PhoneOff aria-hidden className="size-5" />}
+          compact
+        />
+        <VoiceCallLabeledAction
+          label={t("chat.voice_call_accept")}
+          ariaLabel={t("chat.voice_call_accept")}
+          tone="accept"
+          onClick={onAccept}
+          icon={<Phone aria-hidden className="size-5" />}
+          compact
+        />
+      </PreConnectFloatingCall>
+    );
+  }
+
+  if (state.status === "ringing") {
+    const statusLabel =
+      state.callKind === "group"
+        ? t("chat.voice_call_group_calling")
+        : t("chat.voice_call_calling");
+    return (
+      <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse>
+        <VoiceCallLabeledAction
+          label={t("chat.voice_call_end")}
+          ariaLabel={t("chat.voice_call_end")}
+          tone="decline"
+          onClick={cancelPreConnect}
+          icon={<PhoneOff aria-hidden className="size-5" />}
+          compact
+        />
+      </PreConnectFloatingCall>
+    );
+  }
+
+  if (state.status === "connecting") {
+    const cancelLabel =
+      state.callKind === "group" && state.outgoing
+        ? t("chat.voice_call_end_for_all")
+        : state.callKind === "group"
+          ? t("chat.voice_call_leave")
+          : t("chat.voice_call_end");
+    return (
+      <PreConnectFloatingCall peerName={state.peerName} statusLabel={t("chat.voice_call_connecting")}>
+        <VoiceCallLabeledAction
+          label={cancelLabel}
+          ariaLabel={cancelLabel}
+          tone="decline"
+          onClick={cancelPreConnect}
+          icon={<PhoneOff aria-hidden className="size-5" />}
+          compact
+        />
+      </PreConnectFloatingCall>
     );
   }
 
   if (state.status !== "active") return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-28 z-50 flex justify-center px-4">
-      <div className="pointer-events-auto w-full max-w-sm">
-        <LiveKitRoom
-          serverUrl={state.url}
-          token={state.token}
-          connect
-          audio
-          video={false}
-          onDisconnected={onEnd}
-        >
-          <VoiceCallSession peerName={state.peerName} outgoing={state.outgoing} onEnd={onEnd} />
-        </LiveKitRoom>
-      </div>
-    </div>
+    <ActiveVoiceCallSession
+      peerName={state.peerName}
+      callKind={state.callKind}
+      isCaller={state.outgoing}
+      url={state.url}
+      token={state.token}
+      panelMode={panelMode}
+      onTogglePanelMode={() => setPanelMode((current) => (current === "expanded" ? "minimized" : "expanded"))}
+      onLeave={onLeave}
+      onEndForAll={onEndForAll}
+      onConnected={onConnected}
+      onConnectFailed={handleConnectFailed}
+    />
   );
 }

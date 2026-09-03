@@ -1,6 +1,5 @@
 "use client";
 import { api } from "@uniwork/core";
-import { setMatrixSession } from "@uniwork/core/chat/matrix-store";
 import { sanitizeNextUrl } from "@uniwork/core/paths";
 import { LoginView, type GoogleLoginError } from "@uniwork/views/auth/login-view";
 import { resolveLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
@@ -18,7 +17,6 @@ export default function LoginPage() {
       next={next}
       initialError={initialError}
       onSuccess={async (sess) => {
-        if (sess.matrix) setMatrixSession(sess.matrix);
         const workspaces = await api.workspaces.list().catch(() => []);
         const destination = await resolveLoggedInDestination(sess.user, workspaces);
         // `next` only once every gate step is behind the user.

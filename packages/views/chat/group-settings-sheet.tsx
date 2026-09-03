@@ -1,13 +1,11 @@
 "use client";
 
-import { Settings, Phone, UserPlus } from "lucide-react";
+import type { ReactNode } from "react";
+import { UserPlus } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { matrixLocalpart } from "@uniwork/core/chat/matrix-users";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
-import type { MatrixClient } from "matrix-js-sdk";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
@@ -16,14 +14,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-import { readGroupRoomMembers } from "./matrix-group";
 import { LeaveConversationSection } from "./leave-conversation-section";
+import { ChatConversationHeader } from "./chat-conversation-header";
 
 type MemberProfile = {
   user_id: string;
   display_name: string;
   email: string;
-  matrix_user_id: string | null;
 };
 
 function initialOf(name: string): string {
@@ -34,47 +31,47 @@ export function GroupSettingsSheet({
   open,
   onOpenChange,
   group,
-  client,
-  roomId,
-  myMatrixUserId,
+  currentUserId,
   youLabel,
   memberProfiles,
   onAddMembers,
   onLeave,
   leaving,
+  leaveDisabled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   group: GroupChat;
-  client: MatrixClient | null;
-  roomId: string | null;
-  myMatrixUserId: string;
+  currentUserId: string;
   youLabel: string;
   memberProfiles: Record<string, MemberProfile>;
   onAddMembers: () => void;
   onLeave: () => void | Promise<void>;
   leaving?: boolean;
+  leaveDisabled?: boolean;
 }) {
   const { t } = useTranslation();
 
   const members = useMemo(() => {
-    if (!client || !roomId) return [];
-    return readGroupRoomMembers(client, roomId).map((member) => {
-      const uniworkId = matrixLocalpart(member.matrixUserId).toUpperCase();
-      const isSelf = member.matrixUserId === myMatrixUserId;
-      const profile = memberProfiles[uniworkId];
-      const label = isSelf
-        ? youLabel
-        : (profile?.display_name || profile?.email || uniworkId);
-      return {
-        key: member.matrixUserId,
-        label,
-        email: isSelf ? undefined : profile?.email,
-        membership: member.membership,
-        isSelf,
-      };
-    });
-  }, [client, roomId, myMatrixUserId, youLabel, memberProfiles]);
+    const entries = [
+      {
+        key: currentUserId,
+        label: youLabel,
+        email: undefined as string | undefined,
+        isSelf: true,
+      },
+      ...group.member_user_ids.map((memberId) => {
+        const profile = memberProfiles[memberId];
+        return {
+          key: memberId,
+          label: profile?.display_name?.trim() || profile?.email || memberId,
+          email: profile?.email,
+          isSelf: false,
+        };
+      }),
+    ];
+    return entries;
+  }, [currentUserId, youLabel, group.member_user_ids, memberProfiles]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -105,9 +102,6 @@ export function GroupSettingsSheet({
                     <p className="truncate text-caption text-muted-foreground">{member.email}</p>
                   ) : null}
                 </div>
-                {member.membership === "invite" ? (
-                  <Badge variant="secondary">{t("chat.member_invited")}</Badge>
-                ) : null}
               </li>
             ))}
           </ul>
@@ -127,7 +121,7 @@ export function GroupSettingsSheet({
 
           <LeaveConversationSection
             variant="group"
-            disabled={!client || !roomId}
+            disabled={leaveDisabled}
             leaving={leaving}
             onLeave={onLeave}
           />
@@ -138,6 +132,7 @@ export function GroupSettingsSheet({
 }
 
 export function ChatConversationToolbar({
+  avatar,
   title,
   subtitle,
   settingsAriaLabel,
@@ -146,6 +141,7 @@ export function ChatConversationToolbar({
   onVoiceCall,
   voiceCallDisabled,
 }: {
+  avatar: ReactNode;
   title: string;
   subtitle: string;
   settingsAriaLabel: string;
@@ -155,35 +151,16 @@ export function ChatConversationToolbar({
   voiceCallDisabled?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
-      <div className="min-w-0">
-        <p className="truncate text-body font-medium text-foreground">{title}</p>
-        <p className="truncate text-caption text-muted-foreground">{subtitle}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {onVoiceCall ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={voiceCallAriaLabel}
-            disabled={voiceCallDisabled}
-            onClick={onVoiceCall}
-          >
-            <Phone className="size-4" aria-hidden />
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={settingsAriaLabel}
-          onClick={onOpenSettings}
-        >
-          <Settings className="size-4" aria-hidden />
-        </Button>
-      </div>
-    </div>
+    <ChatConversationHeader
+      avatar={avatar}
+      title={title}
+      subtitle={subtitle}
+      settingsAriaLabel={settingsAriaLabel}
+      onOpenSettings={onOpenSettings}
+      voiceCallAriaLabel={voiceCallAriaLabel}
+      onVoiceCall={onVoiceCall}
+      voiceCallDisabled={voiceCallDisabled}
+    />
   );
 }
 
@@ -191,19 +168,29 @@ export function GroupChatToolbar({
   title,
   memberCount,
   onOpenSettings,
+  onVoiceCall,
+  voiceCallDisabled,
 }: {
   title: string;
   memberCount: number;
   onOpenSettings: () => void;
+  onVoiceCall?: () => void;
+  voiceCallDisabled?: boolean;
 }) {
   const { t } = useTranslation();
 
   return (
     <ChatConversationToolbar
+      avatar={
+        <ActorAvatar name={title} initials={initialOf(title)} size="xl" />
+      }
       title={title}
       subtitle={t("chat.group_member_count", { count: memberCount })}
       settingsAriaLabel={t("chat.group_settings")}
       onOpenSettings={onOpenSettings}
+      voiceCallAriaLabel={t("chat.voice_call_start")}
+      onVoiceCall={onVoiceCall}
+      voiceCallDisabled={voiceCallDisabled}
     />
   );
 }

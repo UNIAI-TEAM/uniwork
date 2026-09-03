@@ -4,39 +4,37 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
-  useChatContactActions,
-  useChatContacts,
+  mergeActiveDmContact,
+  sidebarFromChatRooms,
+  unreadMapFromRooms,
+  selectLazyChatScopeRoomIds,
+  useBlockChatUser,
+  useChatBlockStatus,
+  useChatRooms,
   useChatVoiceToken,
+  useCreateChatGroup,
   useEnsureWorkspaceChatRoom,
-  useGroupChatActions,
-  useGroupChats,
-  useWorkspaceChatRoom,
+  useInviteChatGroupMembers,
+  useLeaveChatRoom,
+  useResolveDMRoom,
+  useSendChatRoomMessage,
+  useUnblockChatUser,
 } from "@uniwork/core/chat";
-import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { useMatrixStore } from "@uniwork/core/chat/matrix-store";
 import { useAuthStore } from "@uniwork/core/auth";
-import { isAdHocGroupRoom } from "./matrix-group";
-import { useMatrixTyping, useMatrixTypingSender } from "./use-matrix-typing";
-import { useMarkRoomAsRead, useMatrixUnread } from "./use-matrix-unread";
+import { useChatRoomScopes } from "@uniwork/core/realtime";
+import { runtimeConfig } from "@uniwork/core/runtime-config";
+import { useMembers } from "@uniwork/core/workspaces";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
-import { useChatMessageCount } from "./chat-message-panel";
-import { useVoiceCall } from "./use-voice-call";
-import { VoiceCallOverlay } from "./voice-call-overlay";
-import { formatTypingLabel, resolveTypingDisplayName } from "./typing-indicator";
-import {
-  buildChatNameContext,
-  chatHeaderTitle,
-  matrixBaseUrl,
-  matrixIdForContact,
-} from "./chat-page-utils";
+import { buildChatNameContext, chatHeaderTitle } from "./chat-page-utils";
 import { ChatPageContent } from "./chat-page-content";
-import { useChatMatrixClient } from "./use-chat-matrix-client";
-import { useChatRoomResolution } from "./use-chat-room-resolution";
-import { useGroupMemberProfiles } from "./use-group-member-profiles";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
+import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
+import { useNativeTyping } from "./use-native-typing";
+import { useNativeVoiceCall } from "./use-native-voice-call";
+import { VoiceCallOverlay } from "./voice-call-overlay";
 
 export function ChatPageView({
   workspaceId,
@@ -45,163 +43,139 @@ export function ChatPageView({
   workspaceId: string;
   currentUserId: string;
 }) {
-  const { t, i18n } = useTranslation();
-  const matrixSession = useMatrixStore((s) => s.session);
+  const { t } = useTranslation();
   const authReady = useAuthStore((s) => s.status === "authed");
-  const matrixEnabled = Boolean(matrixBaseUrl(matrixSession));
-  const { data: room, isFetched, isError, refetch, isFetching } = useWorkspaceChatRoom(workspaceId);
+  const { data: rooms = [], isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
+  const { data: workspaceMembers = [] } = useMembers(workspaceId);
   const ensureRoom = useEnsureWorkspaceChatRoom(workspaceId);
-  const { rememberRoom, upsertContact, removeContact } = useChatContactActions(currentUserId);
-  const { saveGroup, removeGroup, reconcileGroups } = useGroupChatActions(currentUserId);
-  const contacts = useChatContacts(currentUserId);
-  const groups = useGroupChats(currentUserId);
+  const resolveDM = useResolveDMRoom(workspaceId);
+  const resolveDMRef = useRef(resolveDM);
+  resolveDMRef.current = resolveDM;
+  const createGroup = useCreateChatGroup(workspaceId);
+  const inviteMembers = useInviteChatGroupMembers(workspaceId);
+  const leaveRoom = useLeaveChatRoom(workspaceId);
+  const sendRoomMessage = useSendChatRoomMessage(workspaceId);
+  const blockUser = useBlockChatUser(workspaceId);
+  const unblockUser = useUnblockChatUser(workspaceId);
+
+  const { workspaceRoom, contacts: roomContacts, groups } = useMemo(
+    () => sidebarFromChatRooms(rooms),
+    [rooms],
+  );
+
+  const workspaceRoomId = workspaceRoom?.id ?? ensureRoom.data?.room_id ?? null;
+  const unreadByRoomId = useMemo(() => unreadMapFromRooms(rooms), [rooms]);
+  const unreadBadgesReady = roomsLoaded;
+
   const [target, setTarget] = useState<ChatSidebarTarget>({ kind: "workspace" });
-  const [dmRoomId, setDmRoomId] = useState<string | null>(null);
-  const [groupRoomId, setGroupRoomId] = useState<string | null>(null);
+  const [resolvedDmRoomId, setResolvedDmRoomId] = useState<string | null>(null);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [dmSettingsOpen, setDmSettingsOpen] = useState(false);
   const [leavingConversation, setLeavingConversation] = useState(false);
+  const [blockingContact, setBlockingContact] = useState(false);
+  const [unblockingContact, setUnblockingContact] = useState(false);
   const [invitingMembers, setInvitingMembers] = useState(false);
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const syncedRef = useRef(false);
 
-  const handleConnectError = useCallback((message: string) => {
-    setConnectError(message || null);
-  }, []);
+  const activeContact = target.kind === "dm" ? target.contact : null;
+  const activeGroup = target.kind === "group" ? target.group : null;
+  const dmPeerUserId = activeContact?.user_id ?? null;
+  const dmContactRoomId = activeContact?.dm_room_id ?? null;
+  const { data: blockStatus } = useChatBlockStatus(
+    workspaceId,
+    dmPeerUserId ?? "",
+    target.kind === "dm" && Boolean(dmPeerUserId),
+  );
+  const dmBlocked =
+    Boolean(blockStatus?.blocked_by_me) || Boolean(blockStatus?.blocked_me);
 
-  const { matrixClient, clientRef, setWorkspaceRoomId } = useChatMatrixClient({
-    matrixSession,
-    currentUserId,
-    upsertContact,
-    saveGroup,
-    reconcileGroups,
-    onConnectError: handleConnectError,
-  });
-
-  const workspaceRoomId = room?.room_id ?? ensureRoom.data?.room_id ?? null;
+  const contacts = useMemo(
+    () => mergeActiveDmContact(roomContacts, activeContact, resolvedDmRoomId),
+    [roomContacts, activeContact, resolvedDmRoomId],
+  );
 
   useEffect(() => {
-    setWorkspaceRoomId(workspaceRoomId);
-  }, [workspaceRoomId, setWorkspaceRoomId]);
+    if (!dmPeerUserId) {
+      setResolvedDmRoomId(null);
+      return;
+    }
+    if (dmContactRoomId) {
+      setResolvedDmRoomId(dmContactRoomId);
+      return;
+    }
 
-  const activeContact = target.kind === "dm" ? target.contact : null;
-  const activeGroup = useMemo(() => {
-    if (target.kind !== "group") return null;
-    const key = target.group.room_id || target.group.id;
-    return (
-      groups.find((group) => group.id === key || group.room_id === key || group.id === target.group.id) ??
-      target.group
-    );
-  }, [target, groups]);
+    let cancelled = false;
+    void resolveDMRef.current
+      .mutateAsync(dmPeerUserId)
+      .then((room) => {
+        if (cancelled || !room?.id) return;
+        setResolvedDmRoomId(room.id);
+        setTarget((current) =>
+          current.kind === "dm" && current.contact.user_id === dmPeerUserId
+            ? { kind: "dm", contact: { ...current.contact, dm_room_id: room.id } }
+            : current,
+        );
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setConnectError(err instanceof Error ? err.message : "dm_failed");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dmPeerUserId, dmContactRoomId]);
 
   const activeRoomId =
     target.kind === "workspace"
       ? workspaceRoomId
       : target.kind === "dm"
-        ? (dmRoomId ?? activeContact?.dm_room_id ?? null)
-        : (groupRoomId ?? activeGroup?.room_id ?? null);
+        ? (resolvedDmRoomId ?? activeContact?.dm_room_id ?? null)
+        : (activeGroup?.room_id ?? null);
 
-  const selectedGroupId = target.kind === "group" ? (activeGroup?.room_id ?? target.group.id) : null;
-  const activeGroupRoomId = activeGroup?.room_id ?? null;
-
-  const { groupResolveRef } = useChatRoomResolution({
-    target,
-    setTarget,
-    contacts,
-    matrixSession,
-    matrixClient,
-    workspaceRoomId,
-    activeContact,
-    activeGroup,
-    selectedGroupId,
-    activeGroupRoomId,
-    rememberRoom,
-    saveGroup,
-    upsertContact,
-    currentUserId,
-    dmRoomId,
-    setDmRoomId,
-    groupRoomId,
-    setGroupRoomId,
-    setConnectError,
-  });
-
-  const { groupMemberProfiles, clearGroupMemberProfiles } = useGroupMemberProfiles({
-    targetKind: target.kind,
-    matrixClient,
-    matrixSession,
-    activeRoomId,
-    selectedGroupId,
-    currentUserId,
-    saveGroup,
-  });
-
-  const trackedRoomIds = useMemo(() => {
+  const voiceAllowedRoomIds = useMemo(() => {
     const ids = new Set<string>();
-    const groupRoomIds = new Set(groups.map((group) => group.room_id));
-    if (workspaceRoomId) ids.add(workspaceRoomId);
-    for (const contact of contacts) {
-      if (contact.dm_room_id && !groupRoomIds.has(contact.dm_room_id)) {
-        ids.add(contact.dm_room_id);
+    for (const room of rooms) {
+      if (room.kind === "dm" || room.kind === "group") {
+        ids.add(room.id);
       }
     }
-    for (const group of groups) {
-      if (group.room_id) ids.add(group.room_id);
-    }
-    return [...ids];
-  }, [workspaceRoomId, contacts, groups]);
+    return ids;
+  }, [rooms]);
 
-  const { counts: unreadByRoomId, badgesReady: unreadBadgesReady } = useMatrixUnread(
-    matrixClient,
-    trackedRoomIds,
-    matrixSession?.user_id ?? null,
-    activeRoomId,
+  const chatScopeRoomIds = useMemo(
+    () =>
+      selectLazyChatScopeRoomIds({
+        rooms,
+        activeRoomId: target.kind !== "workspace" ? activeRoomId : null,
+        maxSubscriptions: runtimeConfig().chatScopeSubscriptionLimit,
+      }),
+    [rooms, activeRoomId, target.kind],
   );
+  useChatRoomScopes(chatScopeRoomIds);
 
-  const roomQuerySettled = isFetched && !isFetching;
   const showLoading =
-    target.kind === "workspace"
-      ? !workspaceRoomId && (ensureRoom.isPending || !roomQuerySettled || !authReady)
-      : target.kind === "dm"
-        ? !activeRoomId
-        : !activeRoomId;
+    !authReady ||
+    (target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
+    (target.kind === "dm" && !activeRoomId && (resolveDM.isPending || !roomsLoaded)) ||
+    (target.kind === "group" && !activeRoomId);
 
-  const messageCount = useChatMessageCount(matrixClient, activeRoomId);
-  useMarkRoomAsRead(matrixClient, activeRoomId, Boolean(activeRoomId) && !showLoading, messageCount);
-
-  const chatVoiceToken = useChatVoiceToken();
-  const mintVoiceToken = useCallback(
-    async (matrixRoomId: string) => chatVoiceToken.mutateAsync(matrixRoomId),
-    [chatVoiceToken],
-  );
-  const { voiceCall, startCall, acceptCall, declineCall, hangUp, inCall } = useVoiceCall({
-    client: matrixClient,
-    myMatrixUserId: matrixSession?.user_id ?? null,
-    mintToken: mintVoiceToken,
-  });
-
-  const { handleStartVoiceCall, handleAcceptVoiceCall } = useChatVoiceHandlers({
+  const { groupMemberProfiles, clearGroupMemberProfiles } = useNativeGroupMemberProfiles({
+    workspaceId,
     targetKind: target.kind,
-    activeRoomId,
-    activeContact,
-    startCall,
-    acceptCall,
-    declineCall,
+    activeGroup,
   });
 
   const { provisionAndSend, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation } =
     useChatPageActions({
       target,
       setTarget,
-      matrixSession,
-      matrixClient,
-      clientRef,
-      workspaceRoomId,
       activeRoomId,
       activeGroup,
       draft,
@@ -209,53 +183,32 @@ export function ChatPageView({
       replyTo,
       setReplyTo,
       ensureRoom,
-      saveGroup,
-      setGroupRoomId,
-      setDmRoomId,
+      sendRoomMessage,
+      resolveDM,
+      createGroup,
+      inviteMembers,
+      leaveRoom,
       setConnectError,
       setCreateGroupOpen,
       setAddMembersOpen,
       setDmSettingsOpen,
       setGroupSettingsOpen,
-      removeGroup,
-      removeContact,
-      setLeavingConversation,
       setCreatingGroup,
       setInvitingMembers,
-      groupResolveRef,
+      setLeavingConversation,
       clearGroupMemberProfiles,
     });
 
   useEffect(() => {
-    if (!matrixSession || !authReady || syncedRef.current) return;
+    if (!authReady || syncedRef.current) return;
     syncedRef.current = true;
     void ensureRoom.mutate();
-  }, [matrixSession, authReady, ensureRoom]);
+  }, [authReady, ensureRoom]);
 
   useEffect(() => {
     if (!authReady) return;
     void refetch();
   }, [authReady, refetch]);
-
-  useEffect(() => {
-    if (!matrixClient || !matrixSession) return;
-    const activeGroupRoomIds = matrixClient
-      .getRooms()
-      .filter((room) => isAdHocGroupRoom(room, matrixSession.user_id, workspaceRoomId))
-      .map((room) => room.roomId);
-    reconcileGroups(activeGroupRoomIds);
-  }, [matrixClient, matrixSession, workspaceRoomId, reconcileGroups]);
-
-  useEffect(() => {
-    if (!matrixClient || !activeRoomId) return;
-    const membership = matrixClient.getRoom(activeRoomId)?.getMyMembership();
-    if (membership === "invite") {
-      void matrixClient.joinRoom(activeRoomId);
-    }
-  }, [matrixClient, activeRoomId]);
-
-  const typingUserIds = useMatrixTyping(matrixClient, activeRoomId, matrixSession?.user_id ?? null);
-  useMatrixTypingSender(matrixClient, activeRoomId, draft);
 
   const headerTitle = chatHeaderTitle(
     target,
@@ -264,61 +217,102 @@ export function ChatPageView({
     t("chat.title"),
     (params) => t("chat.dm_with", params),
   );
-  const nameContext = buildChatNameContext(contacts, activeContact, activeGroup, groupMemberProfiles);
-
-  if (!matrixEnabled) {
-    return (
-      <div className="flex h-full flex-col">
-        <CollectionPageHeader icon={MessageSquare} title={t("chat.title")} />
-        <CollectionPageState
-          icon={MessageSquare}
-          title={t("chat.matrix_disabled")}
-          description={t("chat.empty_description")}
-        />
-      </div>
-    );
-  }
-
-  if (!matrixSession) {
-    return (
-      <div className="flex h-full flex-col">
-        <CollectionPageHeader icon={MessageSquare} title={t("chat.title")} />
-        <CollectionPageState
-          icon={MessageSquare}
-          title={t("chat.no_matrix_session")}
-          description={t("chat.empty_description")}
-        />
-      </div>
-    );
-  }
-
-  const typingLabel = formatTypingLabel(
-    typingUserIds.map((id) => {
-      const roomMember = matrixClient?.getRoom(activeRoomId ?? "")?.getMember(id);
-      return resolveTypingDisplayName(id, nameContext, roomMember?.name);
-    }),
-    t,
-    i18n.language,
+  const nameContext = useMemo(
+    () =>
+      buildChatNameContext(
+        contacts,
+        activeContact,
+        activeGroup,
+        groupMemberProfiles,
+        workspaceMembers,
+      ),
+    [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers],
   );
 
-  const dmReaderMatrixUserId =
-    target.kind === "dm" && activeContact
-      ? matrixIdForContact(activeContact, matrixSession)
-      : null;
+  const chatVoiceToken = useChatVoiceToken();
+  const mintVoiceToken = useCallback(
+    async (roomId: string, callId: string) => chatVoiceToken.mutateAsync({ roomId, callId }),
+    [chatVoiceToken],
+  );
+  const { voiceCall, startCall, acceptCall, declineCall, leaveCall, endCallForAll, markVoiceConnected, inCall } = useNativeVoiceCall({
+    workspaceId,
+    currentUserId,
+    mintToken: mintVoiceToken,
+    allowedRoomIds: voiceAllowedRoomIds,
+  });
+  const { handleStartVoiceCall, handleAcceptVoiceCall } = useChatVoiceHandlers({
+    targetKind: target.kind,
+    activeRoomId,
+    activeContact,
+    activeGroup,
+    startCall,
+    acceptCall,
+    declineCall,
+  });
+  const typingLabel = useNativeTyping({
+    workspaceId,
+    roomId: activeRoomId,
+    currentUserId,
+    nameContext,
+    draft,
+    enabled: target.kind !== "workspace" && Boolean(activeRoomId) && !showLoading && !dmBlocked,
+  });
+
+  const handleBlockContact = useCallback(async () => {
+    if (!activeContact) return;
+    setBlockingContact(true);
+    setConnectError(null);
+    try {
+      await blockUser.mutateAsync(activeContact.user_id);
+      setTarget({ kind: "workspace" });
+      setResolvedDmRoomId(null);
+      setDmSettingsOpen(false);
+    } catch (err: unknown) {
+      setConnectError(err instanceof Error ? err.message : t("chat.block_failed"));
+    } finally {
+      setBlockingContact(false);
+    }
+  }, [activeContact, blockUser, t]);
+
+  const handleUnblockContact = useCallback(async () => {
+    if (!activeContact) return;
+    setUnblockingContact(true);
+    setConnectError(null);
+    try {
+      await unblockUser.mutateAsync(activeContact.user_id);
+    } catch (err: unknown) {
+      setConnectError(err instanceof Error ? err.message : t("chat.unblock_failed"));
+    } finally {
+      setUnblockingContact(false);
+    }
+  }, [activeContact, unblockUser, t]);
+
+  if (!authReady) {
+    return (
+      <div className="flex h-full flex-col">
+        <CollectionPageHeader icon={MessageSquare} title={t("chat.title")} />
+        <CollectionPageState
+          icon={MessageSquare}
+          title={t("chat.loading")}
+          description={t("chat.group_description")}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <CollectionPageHeader icon={MessageSquare} title={headerTitle} />
       <ChatPageContent
         target={target}
         setTarget={setTarget}
         currentUserId={currentUserId}
         headerTitle={headerTitle}
         contacts={contacts}
+        groups={groups}
         activeContact={activeContact}
         activeGroup={activeGroup}
-        matrixClient={matrixClient}
-        matrixSessionUserId={matrixSession.user_id}
+        workspaceId={workspaceId}
+        messageRefreshKey={sendRoomMessage.isSuccess ? sendRoomMessage.submittedAt : 0}
         activeRoomId={activeRoomId}
         showLoading={showLoading}
         connectError={connectError}
@@ -328,17 +322,22 @@ export function ChatPageView({
         unreadByRoomId={unreadByRoomId}
         unreadBadgesReady={unreadBadgesReady}
         nameContext={nameContext}
-        dmReaderMatrixUserId={dmReaderMatrixUserId}
         replyTo={replyTo}
         onReplyToChange={setReplyTo}
         draft={draft}
         onDraftChange={setDraft}
         onSend={() => void provisionAndSend()}
-        typingLabel={typingLabel}
         groupSettingsOpen={groupSettingsOpen}
         onGroupSettingsOpenChange={setGroupSettingsOpen}
         dmSettingsOpen={dmSettingsOpen}
         onDmSettingsOpenChange={setDmSettingsOpen}
+        dmBlocked={dmBlocked}
+        dmBlockedByMe={Boolean(blockStatus?.blocked_by_me)}
+        dmBlockedMe={Boolean(blockStatus?.blocked_me)}
+        onBlockContact={() => void handleBlockContact()}
+        onUnblockContact={() => void handleUnblockContact()}
+        blockingContact={blockingContact}
+        unblockingContact={unblockingContact}
         addMembersOpen={addMembersOpen}
         onAddMembersOpenChange={setAddMembersOpen}
         createGroupOpen={createGroupOpen}
@@ -349,25 +348,37 @@ export function ChatPageView({
         onAddGroupMembers={handleAddGroupMembers}
         leavingConversation={leavingConversation}
         onLeaveGroup={() => {
-          if (activeRoomId && activeGroup) {
-            void handleLeaveConversation(activeRoomId, () => removeGroup(activeGroup.id));
+          if (activeRoomId) {
+            void handleLeaveConversation(activeRoomId, () => {
+              setResolvedDmRoomId(null);
+            });
           }
         }}
         onLeaveDm={() => {
-          if (activeRoomId && activeContact) {
-            void handleLeaveConversation(activeRoomId, () => removeContact(activeContact.user_id));
+          if (activeRoomId) {
+            void handleLeaveConversation(activeRoomId, () => {
+              setResolvedDmRoomId(null);
+            });
           }
         }}
         groupMemberProfiles={groupMemberProfiles}
+        typingLabel={typingLabel}
         onVoiceCall={() => void handleStartVoiceCall()}
-        voiceCallDisabled={!activeRoomId || inCall || chatVoiceToken.isPending}
+        voiceCallDisabled={
+          !activeRoomId ||
+          inCall ||
+          chatVoiceToken.isPending ||
+          (target.kind === "dm" && dmBlocked)
+        }
         t={t}
       />
       <VoiceCallOverlay
         state={voiceCall}
         onAccept={() => void handleAcceptVoiceCall()}
         onDecline={() => void declineCall()}
-        onEnd={() => void hangUp()}
+        onLeave={leaveCall}
+        onEndForAll={() => void endCallForAll()}
+        onConnected={markVoiceConnected}
       />
     </div>
   );

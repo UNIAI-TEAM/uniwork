@@ -11,7 +11,7 @@ describe("runtime config", () => {
       apiUrl: "http://localhost:8080",
       wsUrl: "ws://localhost:8080",
       appUrl: "http://localhost:3000",
-      matrixHomeserverUrl: "",
+      chatScopeSubscriptionLimit: 25,
     });
   });
 

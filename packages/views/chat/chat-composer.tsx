@@ -6,6 +6,7 @@ import {
   MapPin,
   Mic,
   Paperclip,
+  Send,
   Sticker,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -42,7 +43,7 @@ function ComposerToolbarButton({
       aria-label={label}
       disabled={disabled}
       className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors",
+        "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors",
         "hover:bg-muted hover:text-foreground",
         "disabled:pointer-events-none disabled:opacity-50",
         "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
@@ -140,26 +141,25 @@ export function ChatComposer({
   };
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex shrink-0 flex-col gap-1 border-t border-border bg-surface px-3 py-3">
       {typingLabel ? (
-        <p className="px-1 text-caption text-muted-foreground" aria-live="polite">
+        <p className="px-2 text-caption text-muted-foreground" aria-live="polite">
           {typingLabel}
         </p>
       ) : null}
       <form
-        className="flex flex-col gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
-        <div className="flex items-end gap-1 rounded-lg border border-border bg-surface p-2">
-          <div className="flex shrink-0 items-center gap-0.5 pb-0.5">
+        <div className="flex items-end gap-2 rounded-full border border-border bg-muted/40 px-2 py-1.5 shadow-sm">
+          <div className="flex shrink-0 items-center">
             <div className="flex items-center justify-center pointer-coarse:min-h-11 pointer-coarse:min-w-11">
               <QuickEmojiPicker
                 onSelect={insertEmoji}
                 align="start"
-                className="size-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-5"
+                className="size-9 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-5"
               />
             </div>
             <ComposerAttachMenu disabled={disabled} onAction={handleAttachAction} align="start" />
@@ -182,10 +182,15 @@ export function ChatComposer({
             }}
           />
 
-          <div className="flex shrink-0 items-center gap-0.5 pb-0.5">
+          <div className="flex shrink-0 items-center pb-0.5">
             {canSend ? (
-              <Button type="submit" size="sm" className="shrink-0">
-                {sendLabel}
+              <Button
+                type="submit"
+                size="icon"
+                className="size-9 shrink-0 rounded-full"
+                aria-label={sendLabel}
+              >
+                <Send className="size-4" aria-hidden />
               </Button>
             ) : (
               <ComposerToolbarButton

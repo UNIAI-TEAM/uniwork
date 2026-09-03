@@ -3,7 +3,7 @@
 import { Search, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useChatContactActions, useChatContacts, useLookupChatUser } from "@uniwork/core/chat";
+import { toChatContactFromLookup, useLookupChatUser } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
@@ -27,27 +27,33 @@ function initialOf(name: string): string {
 export function AddGroupMembersDialog({
   open,
   onOpenChange,
+  workspaceId,
   group,
   currentUserId,
+  contacts,
   inviting = false,
   onInvite,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  workspaceId: string;
   group: GroupChat;
   currentUserId: string;
+  contacts: ChatContact[];
   inviting?: boolean;
   onInvite: (members: ChatContact[]) => void;
 }) {
   const { t } = useTranslation();
-  const contacts = useChatContacts(currentUserId);
-  const { addFromLookup } = useChatContactActions(currentUserId);
   const [memberQuery, setMemberQuery] = useState("");
   const [searchActive, setSearchActive] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
 
   const normalized = memberQuery.trim().toLowerCase();
-  const lookup = useLookupChatUser(normalized, open && searchActive && normalized.includes("@"));
+  const lookup = useLookupChatUser(
+    workspaceId,
+    normalized,
+    open && searchActive && normalized.includes("@"),
+  );
   const existingMemberIds = new Set(group.member_user_ids);
 
   const resetForm = () => {
@@ -71,8 +77,8 @@ export function AddGroupMembersDialog({
   };
 
   const addFromSearch = () => {
-    if (!lookup.data?.matrix_ready || !lookup.data.matrix_user_id) return;
-    addMember(addFromLookup(lookup.data));
+    if (!lookup.data) return;
+    addMember(toChatContactFromLookup(lookup.data));
   };
 
   const pickableContacts = contacts.filter(
@@ -138,16 +144,12 @@ export function AddGroupMembersDialog({
                   <p className="truncate text-body font-medium text-foreground">{lookup.data.display_name}</p>
                   <p className="truncate text-caption text-muted-foreground">{lookup.data.email}</p>
                 </div>
-                {lookup.data.matrix_ready ? (
-                  existingMemberIds.has(lookup.data.user_id) ? (
-                    <span className="text-caption text-muted-foreground">{t("chat.already_in_group")}</span>
-                  ) : (
-                    <Button type="button" size="sm" onClick={addFromSearch}>
-                      {t("chat.add_to_group")}
-                    </Button>
-                  )
+                {existingMemberIds.has(lookup.data.user_id) ? (
+                  <span className="text-caption text-muted-foreground">{t("chat.already_in_group")}</span>
                 ) : (
-                  <span className="text-caption text-muted-foreground">{t("chat.matrix_not_ready")}</span>
+                  <Button type="button" size="sm" onClick={addFromSearch}>
+                    {t("chat.add_to_group")}
+                  </Button>
                 )}
               </div>
             ) : null}

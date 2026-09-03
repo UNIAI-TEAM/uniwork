@@ -12,7 +12,7 @@ export const defaultStorage: StorageAdapter = {
   },
 };
 
-/** Matrix access tokens: tab-scoped, cleared when the browser session ends. */
+/** Tab-scoped storage: cleared when the browser session ends. */
 export const sessionStorageAdapter: StorageAdapter = {
   getItem: (k) =>
     typeof window !== "undefined" ? sessionStorage.getItem(k) : null,

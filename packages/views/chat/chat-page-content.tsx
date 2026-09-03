@@ -1,22 +1,22 @@
 "use client";
 
-import { MessageSquare } from "lucide-react";
+import { Hash, MessageSquare } from "lucide-react";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import { Button } from "@uniwork/ui/components/ui/button";
-import type { MatrixClient } from "matrix-js-sdk";
+import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { AddGroupMembersDialog } from "./add-group-members-dialog";
 import { ChatComposer } from "./chat-composer";
-import { ChatMessagePanel } from "./chat-message-panel";
 import type { ChatMessage } from "./chat-messages";
+import { ChatConversationHeader } from "./chat-conversation-header";
 import { DmChatToolbar, DmSettingsSheet } from "./dm-settings-sheet";
 import { GroupChatToolbar, GroupSettingsSheet } from "./group-settings-sheet";
-import { readGroupRoomMembers } from "./matrix-group";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import { ChatSidebar } from "./chat-sidebar";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
+import { NativeChatMessagePanel } from "./native-chat-message-panel";
 
 export function ChatPageContent({
   target,
@@ -24,10 +24,11 @@ export function ChatPageContent({
   currentUserId,
   headerTitle,
   contacts,
+  groups,
   activeContact,
   activeGroup,
-  matrixClient,
-  matrixSessionUserId,
+  workspaceId,
+  messageRefreshKey,
   activeRoomId,
   showLoading,
   connectError,
@@ -37,17 +38,22 @@ export function ChatPageContent({
   unreadByRoomId,
   unreadBadgesReady,
   nameContext,
-  dmReaderMatrixUserId,
   replyTo,
   onReplyToChange,
   draft,
   onDraftChange,
   onSend,
-  typingLabel,
   groupSettingsOpen,
   onGroupSettingsOpenChange,
   dmSettingsOpen,
   onDmSettingsOpenChange,
+  dmBlocked,
+  dmBlockedByMe,
+  dmBlockedMe,
+  onBlockContact,
+  onUnblockContact,
+  blockingContact,
+  unblockingContact,
   addMembersOpen,
   onAddMembersOpenChange,
   createGroupOpen,
@@ -60,6 +66,7 @@ export function ChatPageContent({
   onLeaveGroup,
   onLeaveDm,
   groupMemberProfiles,
+  typingLabel,
   onVoiceCall,
   voiceCallDisabled,
   t,
@@ -69,10 +76,11 @@ export function ChatPageContent({
   currentUserId: string;
   headerTitle: string;
   contacts: ChatContact[];
+  groups: GroupChat[];
   activeContact: ChatContact | null;
   activeGroup: GroupChat | null;
-  matrixClient: MatrixClient | null;
-  matrixSessionUserId: string;
+  workspaceId: string;
+  messageRefreshKey?: number;
   activeRoomId: string | null;
   showLoading: boolean;
   connectError: string | null;
@@ -82,17 +90,22 @@ export function ChatPageContent({
   unreadByRoomId: Record<string, number>;
   unreadBadgesReady: boolean;
   nameContext: ChatNameContextEntry[];
-  dmReaderMatrixUserId: string | null;
   replyTo: ChatMessage | null;
   onReplyToChange: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   draft: string;
   onDraftChange: React.Dispatch<React.SetStateAction<string>>;
   onSend: () => void;
-  typingLabel: string | null;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   dmSettingsOpen: boolean;
   onDmSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  dmBlocked: boolean;
+  dmBlockedByMe: boolean;
+  dmBlockedMe: boolean;
+  onBlockContact: () => void;
+  onUnblockContact: () => void;
+  blockingContact: boolean;
+  unblockingContact: boolean;
   addMembersOpen: boolean;
   onAddMembersOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createGroupOpen: boolean;
@@ -105,9 +118,10 @@ export function ChatPageContent({
   onLeaveGroup: () => void;
   onLeaveDm: () => void;
   groupMemberProfiles: Record<string, GroupMemberProfile>;
+  typingLabel: string | null;
   onVoiceCall: () => void;
   voiceCallDisabled: boolean;
-  t: (key: string, options?: Record<string, string>) => string;
+  t: (key: string, options?: Record<string, string | number>) => string;
 }) {
   return (
     <>
@@ -117,20 +131,21 @@ export function ChatPageContent({
             open={groupSettingsOpen}
             onOpenChange={onGroupSettingsOpenChange}
             group={activeGroup}
-            client={matrixClient}
-            roomId={activeRoomId}
-            myMatrixUserId={matrixSessionUserId}
+            currentUserId={currentUserId}
             youLabel={t("chat.you")}
             memberProfiles={groupMemberProfiles}
             onAddMembers={() => onAddMembersOpenChange(true)}
             leaving={leavingConversation}
+            leaveDisabled={!activeRoomId}
             onLeave={onLeaveGroup}
           />
           <AddGroupMembersDialog
             open={addMembersOpen}
             onOpenChange={onAddMembersOpenChange}
+            workspaceId={workspaceId}
             group={activeGroup}
             currentUserId={currentUserId}
+            contacts={contacts}
             inviting={invitingMembers}
             onInvite={onAddGroupMembers}
           />
@@ -145,104 +160,155 @@ export function ChatPageContent({
           }
           youLabel={t("chat.you")}
           leaving={leavingConversation}
-          leaveDisabled={!matrixClient || !activeRoomId}
+          leaveDisabled={!activeRoomId}
           onLeave={onLeaveDm}
+          blockedByMe={dmBlockedByMe}
+          blockedMe={dmBlockedMe}
+          onBlock={onBlockContact}
+          onUnblock={onUnblockContact}
+          blocking={blockingContact}
+          unblocking={unblockingContact}
         />
       ) : null}
-      <div className="mx-auto grid h-full min-h-0 w-full max-w-5xl flex-1 gap-4 p-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <ChatSidebar
-          currentUserId={currentUserId}
-          target={target}
-          onTargetChange={setTarget}
-          onCreateGroup={onCreateGroup}
-          creatingGroup={creatingGroup}
-          createGroupOpen={createGroupOpen}
-          onCreateGroupOpenChange={onCreateGroupOpenChange}
-          workspaceRoomId={workspaceRoomId}
-          unreadByRoomId={unreadByRoomId}
-          unreadBadgesReady={unreadBadgesReady}
-        />
 
-        <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
-          {isWorkspaceError && target.kind === "workspace" ? (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2">
-              <p className="text-caption text-muted-foreground">{t("chat.room_load_failed")}</p>
-              <Button type="button" variant="outline" size="sm" onClick={onRefetchWorkspace}>
-                {t("chat.retry")}
-              </Button>
-            </div>
-          ) : null}
-          {connectError && (target.kind === "dm" || target.kind === "group") ? (
-            <p className="rounded-md border border-border bg-surface px-3 py-2 text-caption text-muted-foreground">
-              {connectError}
-            </p>
-          ) : null}
-          {showLoading ? (
-            <CollectionPageState
-              icon={MessageSquare}
-              title={t("chat.loading")}
-              description={
-                target.kind === "workspace"
-                  ? t("chat.group_description")
-                  : target.kind === "group"
-                    ? t("chat.group_loading")
-                    : t("chat.dm_hint")
-              }
-            />
-          ) : matrixClient && activeRoomId ? (
-            <>
-              {target.kind === "group" ? (
-                <GroupChatToolbar
-                  title={headerTitle}
-                  memberCount={readGroupRoomMembers(matrixClient, activeRoomId).length}
-                  onOpenSettings={() => onGroupSettingsOpenChange(true)}
-                />
-              ) : null}
-              {target.kind === "dm" && activeContact ? (
-                <DmChatToolbar
-                  contact={
-                    contacts.find((entry) => entry.user_id === activeContact.user_id) ?? activeContact
-                  }
-                  onOpenSettings={() => onDmSettingsOpenChange(true)}
-                  onVoiceCall={onVoiceCall}
-                  voiceCallDisabled={voiceCallDisabled}
-                />
-              ) : null}
-              <ChatMessagePanel
-                client={matrixClient}
-                roomId={activeRoomId}
-                currentUserId={currentUserId}
-                myMatrixUserId={matrixSessionUserId}
-                readReceiptReaderId={dmReaderMatrixUserId}
-                nameContext={nameContext}
-                youLabel={t("chat.you")}
-                replyTo={replyTo}
-                onReplyToChange={onReplyToChange}
-                emptyLabel={
-                  target.kind === "workspace"
-                    ? t("chat.group_description")
-                    : target.kind === "group"
-                      ? t("chat.group_empty", { name: headerTitle })
-                      : t("chat.dm_empty", {
-                          name: displayLabelForChatContact(target.contact),
-                        })
-                }
-              />
-            </>
-          ) : matrixClient && target.kind === "workspace" ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface p-4">
-              <p className="text-body text-muted-foreground">{t("chat.group_description")}</p>
-            </div>
-          ) : null}
-          <ChatComposer
-            draft={draft}
-            onDraftChange={onDraftChange}
-            onSend={onSend}
-            disabled={(showLoading && !activeRoomId) || !matrixClient}
-            placeholder={t("chat.message_placeholder")}
-            sendLabel={t("chat.send")}
-            typingLabel={typingLabel}
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 px-4 pb-4 pt-2 md:px-6">
+        <div
+          className={cn(
+            "flex min-h-0 w-full flex-1 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm",
+            "lg:grid lg:grid-cols-[280px_minmax(0,1fr)]",
+          )}
+        >
+          <ChatSidebar
+            currentUserId={currentUserId}
+            workspaceId={workspaceId}
+            target={target}
+            onTargetChange={setTarget}
+            contacts={contacts}
+            groups={groups}
+            onCreateGroup={onCreateGroup}
+            creatingGroup={creatingGroup}
+            createGroupOpen={createGroupOpen}
+            onCreateGroupOpenChange={onCreateGroupOpenChange}
+            workspaceRoomId={workspaceRoomId}
+            unreadByRoomId={unreadByRoomId}
+            unreadBadgesReady={unreadBadgesReady}
+            embedded
           />
+
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15">
+            {isWorkspaceError && target.kind === "workspace" ? (
+              <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2">
+                <p className="text-caption text-muted-foreground">{t("chat.room_load_failed")}</p>
+                <Button type="button" variant="outline" size="sm" onClick={onRefetchWorkspace}>
+                  {t("chat.retry")}
+                </Button>
+              </div>
+            ) : null}
+            {connectError && (target.kind === "dm" || target.kind === "group") ? (
+              <p className="border-b border-border bg-surface px-4 py-2 text-caption text-muted-foreground">
+                {connectError}
+              </p>
+            ) : null}
+            {target.kind === "dm" && dmBlocked ? (
+              <p className="border-b border-border bg-surface px-4 py-2 text-caption text-muted-foreground">
+                {dmBlockedByMe ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}
+              </p>
+            ) : null}
+
+            {showLoading ? (
+              <div className="flex flex-1 items-center justify-center p-6">
+                <CollectionPageState
+                  icon={MessageSquare}
+                  title={t("chat.loading")}
+                  description={
+                    target.kind === "workspace"
+                      ? t("chat.group_description")
+                      : target.kind === "group"
+                        ? t("chat.group_loading")
+                        : t("chat.dm_hint")
+                  }
+                />
+              </div>
+            ) : activeRoomId ? (
+              <>
+                {target.kind === "workspace" ? (
+                  <ChatConversationHeader
+                    avatar={
+                      <span className="flex size-10 items-center justify-center rounded-full bg-brand/10 text-brand">
+                        <Hash className="size-5" aria-hidden />
+                      </span>
+                    }
+                    title={headerTitle}
+                    subtitle={t("chat.workspace_room_hint")}
+                  />
+                ) : null}
+                {target.kind === "group" && activeGroup ? (
+                  <GroupChatToolbar
+                    title={headerTitle}
+                    memberCount={activeGroup.member_user_ids.length + 1}
+                    onOpenSettings={() => onGroupSettingsOpenChange(true)}
+                    onVoiceCall={onVoiceCall}
+                    voiceCallDisabled={voiceCallDisabled}
+                  />
+                ) : null}
+                {target.kind === "dm" && activeContact ? (
+                  <DmChatToolbar
+                    contact={
+                      contacts.find((entry) => entry.user_id === activeContact.user_id) ??
+                      activeContact
+                    }
+                    onOpenSettings={() => onDmSettingsOpenChange(true)}
+                    onVoiceCall={onVoiceCall}
+                    voiceCallDisabled={voiceCallDisabled}
+                  />
+                ) : null}
+
+                <NativeChatMessagePanel
+                  workspaceId={workspaceId}
+                  roomId={activeRoomId}
+                  currentUserId={currentUserId}
+                  nameContext={nameContext}
+                  youLabel={t("chat.you")}
+                  emptyLabel={
+                    target.kind === "workspace"
+                      ? t("chat.group_description")
+                      : target.kind === "group"
+                        ? t("chat.group_empty", { name: headerTitle })
+                        : t("chat.dm_empty", {
+                            name: displayLabelForChatContact(target.contact),
+                          })
+                  }
+                  replyTo={replyTo}
+                  onReplyToChange={onReplyToChange}
+                  refreshKey={messageRefreshKey}
+                  showSenderName={target.kind === "workspace" || target.kind === "group"}
+                  embedded
+                />
+
+                <ChatComposer
+                  draft={draft}
+                  onDraftChange={onDraftChange}
+                  onSend={onSend}
+                  disabled={showLoading || !activeRoomId || dmBlocked}
+                  placeholder={
+                    dmBlocked
+                      ? t("chat.block_composer_placeholder")
+                      : t("chat.message_placeholder")
+                  }
+                  sendLabel={t("chat.send")}
+                  typingLabel={typingLabel}
+                />
+              </>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+                <span className="flex size-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <MessageSquare className="size-8" aria-hidden />
+                </span>
+                <p className="text-body font-medium text-foreground">{t("chat.contacts_title")}</p>
+                <p className="max-w-sm text-caption text-muted-foreground">{t("chat.contacts_hint")}</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

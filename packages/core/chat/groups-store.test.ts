@@ -70,7 +70,7 @@ describe("groups-store", () => {
     expect(listGroupChats(USER)).toHaveLength(0);
   });
 
-  it("dedupes legacy ulid id and matrix room id rows", () => {
+  it("dedupes legacy ulid id and native room id rows", () => {
     upsertGroupChat(USER, {
       id: "01LEGACY",
       name: "hehe",
