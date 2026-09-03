@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"net/textproto"
 	"os"
@@ -26,6 +27,11 @@ const (
 	smtpSessionTimeout = 30 * time.Second
 	defaultSMTPPort    = "25"
 )
+
+// ErrPermanent wraps a relay's 5xx rejection of the recipient (RCPT TO):
+// the mailbox does not exist or is refused, so retrying is useless. The
+// outbox marks such rows failed on the first attempt.
+var ErrPermanent = errors.New("permanent delivery failure")
 
 // SMTPConfig carries plain values; the config package reads the environment
 // and fills it, this package never touches os.Getenv.
@@ -51,7 +57,8 @@ type SMTPSender struct {
 	port        string
 	username    string
 	password    string
-	from        string
+	from        string // header From: as configured, may carry a display name
+	envelope    string // bare address for MAIL FROM
 	tlsInsecure bool
 	tlsImplicit bool
 	ehloName    string
@@ -67,6 +74,12 @@ func NewSMTP(cfg SMTPConfig) (*SMTPSender, error) {
 	from := strings.TrimSpace(cfg.From)
 	if from == "" {
 		return nil, errors.New("mail: SMTP from address is required")
+	}
+	// "UniWork <noreply@x>" is fine as a header but net/smtp wraps the
+	// whole string in <> for MAIL FROM, which relays reject with 501.
+	addr, err := mail.ParseAddress(from)
+	if err != nil {
+		return nil, fmt.Errorf("mail: invalid SMTP from address %q: %w", from, err)
 	}
 	port := strings.TrimSpace(cfg.Port)
 	if port == "" {
@@ -90,6 +103,7 @@ func NewSMTP(cfg SMTPConfig) (*SMTPSender, error) {
 		username:    cfg.Username,
 		password:    cfg.Password,
 		from:        from,
+		envelope:    addr.Address,
 		tlsInsecure: cfg.TLSInsecure,
 		tlsImplicit: resolveImplicitTLS(cfg.TLS, port),
 		ehloName:    ehloName,
@@ -172,10 +186,14 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 		return fmt.Errorf("smtp build message: %w", err)
 	}
 
-	if err = c.Mail(s.from); err != nil {
+	if err = c.Mail(s.envelope); err != nil {
 		return fmt.Errorf("smtp MAIL FROM: %w", err)
 	}
 	if err = c.Rcpt(to); err != nil {
+		var te *textproto.Error
+		if errors.As(err, &te) && te.Code >= 500 {
+			return fmt.Errorf("smtp RCPT TO <%s>: %w: %w", to, ErrPermanent, err)
+		}
 		return fmt.Errorf("smtp RCPT TO <%s>: %w", to, err)
 	}
 	w, err := c.Data()

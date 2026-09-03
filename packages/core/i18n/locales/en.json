@@ -46,7 +46,13 @@
       "sentTitle": "Check your inbox",
       "sentBody": "If {{email}} has a UniWork account, an email with a reset link is on its way. The link works for 60 minutes.",
       "googleHint": "Signed in with Google? Use the Google button on the login page — no password needed.",
-      "backToLogin": "Back to login"
+      "backToLogin": "Back to login",
+      "spamHint": "No email? Check your spam folder.",
+      "resend": "Resend link",
+      "resendIn": "Resend in {{seconds}}s",
+      "resent": "A new reset link has been sent.",
+      "wrongEmail": "Wrong email?",
+      "editEmail": "Edit email"
     },
     "reset": {
       "title": "Set a new password",
@@ -56,8 +62,12 @@
       "mismatch": "Passwords do not match",
       "submit": "Change password",
       "submitting": "Changing…",
-      "invalidToken": "This link has expired or was already used. Request a new one.",
-      "requestNew": "Request a new link"
+      "invalidToken": "This link has expired or was already used.",
+      "requestNew": "Request a new link",
+      "hint": "At least {{min}} characters",
+      "tooShort": "Password needs at least {{min}} characters",
+      "invalidTitle": "This link no longer works",
+      "invalidHint": "Each link works once and expires after 60 minutes."
     },
     "verify": {
       "title": "Verify your email",

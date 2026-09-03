@@ -17,6 +17,9 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// inviteTTL is both the invitation row's expiry and the number the mail quotes.
+const inviteTTL = 7 * 24 * time.Hour
+
 const maxInviteBatch = 50
 
 // WorkspaceView = workspace + định danh org, đủ cho FE dựng URL /{org}/{ws}.
@@ -327,7 +330,7 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 		inv, err := s.q.CreateInvitation(ctx, db.CreateInvitationParams{
 			ID: util.NewID(), WorkspaceID: workspaceID, Email: email, Role: role,
 			Token:     util.NewID() + util.NewID(),
-			ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(7 * 24 * time.Hour), Valid: true},
+			ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(inviteTTL), Valid: true},
 		})
 		if err != nil {
 			return nil, nil, err
@@ -335,7 +338,7 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 		invs = append(invs, inv)
 		msg, err := s.render.Invite(email, inviter.Locale, mail.InviteData{
 			InviterName: inviter.DisplayName, WorkspaceName: ws.Name,
-			AcceptURL: s.render.AppURL + "/invite/" + inv.Token, ExpiresInDays: 7,
+			AcceptURL: s.render.AppURL + "/invite/" + inv.Token, Expires: inviteTTL,
 		})
 		if err != nil {
 			return nil, nil, err

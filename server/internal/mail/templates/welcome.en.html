@@ -1,11 +1,13 @@
+{{define "preheader"}}{{.Data.WorkspaceName}} is ready · three things to start with{{end}}
 {{define "content"}}
-<tr><td style="font-size:20px;font-weight:700;padding-bottom:12px">Hi {{.Data.DisplayName}}, you're all set!</td></tr>
-<tr><td style="font-size:15px;line-height:1.5;padding-bottom:20px">Your workspace <strong>{{.Data.WorkspaceName}}</strong> is ready. Three things to start with:</td></tr>
-<tr><td style="font-size:15px;line-height:1.7;padding-bottom:20px">
-  1. Create your first task and assign it to someone.<br>
-  2. Invite teammates from the Members page.<br>
-  3. Schedule a meeting and take notes right in UniWork.
-</td></tr>
-<tr><td style="padding-bottom:8px"><a href="{{.Data.WorkspaceURL}}" style="display:inline-block;padding:12px 24px;background:#3C83F6;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Open workspace</a></td></tr>
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#18181b">Hi {{.Data.DisplayName}}, you're all set</h1></td></tr>
+<tr><td style="padding-bottom:20px;font-size:15px;line-height:24px;color:#52525b">Your workspace <strong style="color:#18181b;font-weight:600">{{.Data.WorkspaceName}}</strong> is ready. Three things to start with:</td></tr>
+<tr><td style="padding-bottom:12px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">1.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#52525b">Create your first task and assign it to someone.</td></tr>
+  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">2.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#52525b">Invite teammates from the Members page.</td></tr>
+  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">3.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#52525b">Schedule a meeting and take notes right in UniWork.</td></tr>
+</table></td></tr>
+<tr><td style="padding-bottom:24px">{{button .Data.WorkspaceURL "Open workspace"}}</td></tr>
+<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:12px;line-height:18px;color:#71717a">Button not working? Copy this link into your browser:<br><a href="{{.Data.WorkspaceURL}}" style="display:inline-block;padding:8px 0;color:#52525b;text-decoration:underline;word-break:break-all">{{.Data.WorkspaceURL}}</a></td></tr>
 {{end}}
 {{define "footer"}}You received this email because you just finished setting up UniWork.{{end}}

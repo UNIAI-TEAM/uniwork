@@ -1,10 +1,12 @@
 package mail
 
+import "time"
+
 type InviteData struct {
 	InviterName   string
 	WorkspaceName string
 	AcceptURL     string
-	ExpiresInDays int
+	Expires       time.Duration
 }
 
 // Invite goes to an address that may have no account, so UserID is empty

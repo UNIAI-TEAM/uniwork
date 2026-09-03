@@ -1,8 +1,10 @@
 package mail
 
+import "time"
+
 type PasswordResetData struct {
-	ResetURL         string
-	ExpiresInMinutes int
+	ResetURL string
+	Expires  time.Duration
 }
 
 // PasswordReset is the one-time reset-link mail.

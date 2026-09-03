@@ -72,7 +72,7 @@ func (s *VerificationService) Send(ctx context.Context, userID string) error {
 	if err != nil {
 		return err
 	}
-	msg, err := s.render.VerificationCode(u.Email, u.Locale, u.ID, mail.VerificationData{Code: code, ExpiresInMinutes: int(verificationCodeTTL / time.Minute)})
+	msg, err := s.render.VerificationCode(u.Email, u.Locale, u.ID, mail.VerificationData{Code: code, Expires: verificationCodeTTL})
 	if err != nil {
 		return err
 	}

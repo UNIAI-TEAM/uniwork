@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -191,5 +192,28 @@ func TestDeliverReturnsMarkEmailError(t *testing.T) {
 	cancel()
 	if err := o.deliver(canceled, q, row); err == nil {
 		t.Fatal("expected error from deliver when MarkEmailSent fails")
+	}
+}
+
+type permanentSender struct{}
+
+func (permanentSender) Send(context.Context, Message) error {
+	return fmt.Errorf("smtp RCPT TO: %w: 550 5.1.1 User unknown", ErrPermanent)
+}
+
+func TestOutboxGivesUpImmediatelyOnPermanentError(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	o := NewOutbox(pool, permanentSender{}, slog.Default())
+	ctx := context.Background()
+	if _, err := o.Enqueue(ctx, q, msg("dead@example.com")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.RunOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	row, _ := q.GetLatestEmailForRecipient(ctx, db.GetLatestEmailForRecipientParams{ToEmail: "dead@example.com", Kind: KindWelcome})
+	if row.Attempts != 1 || !row.FailedAt.Valid {
+		t.Fatalf("permanent error should fail on first attempt: %+v", row)
 	}
 }

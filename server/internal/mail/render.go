@@ -7,6 +7,7 @@ import (
 	htmltemplate "html/template"
 	"strings"
 	texttemplate "text/template"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -24,13 +25,60 @@ var (
 	textTemplates = map[string]*texttemplate.Template{}
 )
 
+// Template helpers. html/template strips HTML comments, which is exactly
+// what Outlook's conditional comments are, so anything Outlook-only goes
+// through raw or button and is inserted as trusted HTML.
+var (
+	htmlFuncs = htmltemplate.FuncMap{"raw": raw, "button": button, "expires": expires}
+	textFuncs = texttemplate.FuncMap{"expires": expires}
+)
+
 func init() {
 	for _, k := range kinds {
 		for _, l := range locales {
 			key := k + "." + l
-			htmlTemplates[key] = htmltemplate.Must(htmltemplate.ParseFS(templateFS, "templates/layout.html", "templates/"+key+".html"))
-			textTemplates[key] = texttemplate.Must(texttemplate.ParseFS(templateFS, "templates/"+key+".txt"))
+			htmlTemplates[key] = htmltemplate.Must(htmltemplate.New("mail").Funcs(htmlFuncs).ParseFS(templateFS, "templates/layout.html", "templates/"+key+".html"))
+			textTemplates[key] = texttemplate.Must(texttemplate.New("mail").Funcs(textFuncs).ParseFS(templateFS, "templates/"+key+".txt"))
 		}
+	}
+}
+
+// raw marks a template literal as HTML. Only for static markup written in
+// the template files themselves, never for data.
+func raw(s string) htmltemplate.HTML { return htmltemplate.HTML(s) }
+
+// button renders the one CTA style every mail uses: a table-cell button for
+// everyone and a VML roundrect for Outlook's Word engine, which ignores
+// padding on <a> and border-radius everywhere. href and label are escaped
+// here because the result bypasses html/template's own escaping.
+func button(href, label string) htmltemplate.HTML {
+	h := htmltemplate.HTMLEscapeString(href)
+	l := htmltemplate.HTMLEscapeString(label)
+	return htmltemplate.HTML(`<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="` + h + `" style="height:48px;v-text-anchor:middle;width:240px" arcsize="21%" stroke="f" fillcolor="#18181b"><w:anchorlock/><center style="color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600">` + l + `</center></v:roundrect><![endif]-->` +
+		`<!--[if !mso]><!--><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="background:#18181b;border-radius:10px"><a href="` + h + `" style="display:inline-block;padding:14px 24px;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px">` + l + `</a></td></tr></table><!--<![endif]-->`)
+}
+
+// expires renders a TTL the way people say it: whole days as days, whole
+// hours as hours, anything else as minutes. The service that enforces the
+// TTL passes the same Duration, so copy and behaviour cannot drift.
+func expires(d time.Duration, locale string) string {
+	vi := normalizeLocale(locale) == "vi"
+	unit := func(n int64, viWord, enWord string) string {
+		if vi {
+			return fmt.Sprintf("%d %s", n, viWord)
+		}
+		if n == 1 {
+			return fmt.Sprintf("1 %s", enWord)
+		}
+		return fmt.Sprintf("%d %ss", n, enWord)
+	}
+	switch {
+	case d >= 24*time.Hour && d%(24*time.Hour) == 0:
+		return unit(int64(d/(24*time.Hour)), "ngày", "day")
+	case d >= time.Hour && d%time.Hour == 0:
+		return unit(int64(d/time.Hour), "giờ", "hour")
+	default:
+		return unit(int64(d/time.Minute), "phút", "minute")
 	}
 }
 
@@ -44,6 +92,7 @@ type Renderer struct {
 // for links and the footer.
 type layoutData struct {
 	AppURL string
+	Locale string
 	Data   any
 }
 
@@ -61,12 +110,12 @@ func renderKind(kind, locale, appURL string, data any) (subject, html, text stri
 	if htmlTemplates[key] == nil || textTemplates[key] == nil {
 		return "", "", "", fmt.Errorf("mail: no template for %s", key)
 	}
-	ld := layoutData{AppURL: appURL, Data: data}
+	ld := layoutData{AppURL: appURL, Locale: locale, Data: data}
 	var hb, tb bytes.Buffer
 	if err := htmlTemplates[key].ExecuteTemplate(&hb, "layout", ld); err != nil {
 		return "", "", "", fmt.Errorf("render %s html: %w", key, err)
 	}
-	if err := textTemplates[key].Execute(&tb, ld); err != nil {
+	if err := textTemplates[key].ExecuteTemplate(&tb, key+".txt", ld); err != nil {
 		return "", "", "", fmt.Errorf("render %s text: %w", key, err)
 	}
 	raw := tb.String()
