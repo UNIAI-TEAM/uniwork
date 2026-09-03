@@ -28,6 +28,7 @@ export const WS_EVENT_TYPES = [
   "join_request.canceled",
   "host.transferred",
   "invite_link.revoked",
+  "conference.session_ready",
 ] as const;
 export type WSEventType = (typeof WS_EVENT_TYPES)[number];
 

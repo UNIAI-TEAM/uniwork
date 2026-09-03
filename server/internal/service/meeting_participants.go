@@ -77,9 +77,9 @@ func (s *MeetingService) Invite(ctx context.Context, actorID, meetingID, userID 
 	if err := tx.Commit(ctx); err != nil {
 		return db.MeetingParticipant{}, err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "participant.invited", Payload: map[string]string{
-		"meeting_id": m.ID, "participant_id": p.ID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "participant.invited", Payload: meetingRelatedPayload(m, map[string]string{
+		"participant_id": p.ID,
+	})})
 	return p, nil
 }
 
@@ -129,9 +129,9 @@ func (s *MeetingService) RespondInvitation(ctx context.Context, userID, meetingI
 		return db.MeetingInvitation{}, err
 	}
 	_ = s.writeAudit(ctx, s.q, m.ID, "INVITATION_RESPONDED", userID, inv.ResponseStatus, response, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "invitation.responded", Payload: map[string]string{
-		"meeting_id": m.ID, "invitation_id": invitationID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "invitation.responded", Payload: meetingRelatedPayload(m, map[string]string{
+		"invitation_id": invitationID,
+	})})
 	return up, nil
 }
 
@@ -181,8 +181,8 @@ func (s *MeetingService) RemoveParticipant(ctx context.Context, actorID, meeting
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "participant.removed", Payload: map[string]string{
-		"meeting_id": m.ID, "participant_id": participantID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "participant.removed", Payload: meetingRelatedPayload(m, map[string]string{
+		"participant_id": participantID,
+	})})
 	return nil
 }

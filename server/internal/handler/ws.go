@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -15,6 +17,15 @@ import (
 type workspaceMembership struct {
 	ws    *service.WorkspaceService
 	cache *auth.MembershipCache // nil without Redis
+}
+
+// meetingLobbyAuth adapts MeetingService for public lobby WebSocket connects.
+type meetingLobbyAuth struct {
+	ms *service.MeetingService
+}
+
+func (a meetingLobbyAuth) AllowLobbyListen(ctx context.Context, meetingID, userID, guestID string) (bool, error) {
+	return a.ms.AllowLobbyListen(ctx, meetingID, userID, guestID)
 }
 
 // IsMember answers from the Redis cache when it can. Only positive answers
@@ -50,4 +61,18 @@ func (h *handlers) ws(w http.ResponseWriter, r *http.Request) {
 		return h.Workspaces.ResolveSlugs(ctx, org, ws)
 	}
 	realtime.HandleWebSocket(h.Hub, workspaceMembership{ws: h.Workspaces, cache: h.MembershipCache}, h.Minter.Parse, resolve, w, r)
+}
+
+// GET /api/v1/meetings/{meetingID}/lobby-ws
+func (h *handlers) meetingLobbyWS(w http.ResponseWriter, r *http.Request) {
+	meetingID := chi.URLParam(r, "meetingID")
+	realtime.HandleMeetingLobbyWebSocket(
+		h.Hub,
+		meetingLobbyAuth{ms: h.Meetings},
+		h.Minter.Parse,
+		h.Meetings.GuestHMACKey(),
+		meetingID,
+		w,
+		r,
+	)
 }

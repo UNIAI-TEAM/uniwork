@@ -99,6 +99,7 @@ type InviteLinkDTO struct {
 	MaxUses    *int32 `json:"max_uses,omitempty"`
 	UsedCount  int32  `json:"used_count"`
 	RevokedAt  string `json:"revoked_at,omitempty"`
+	CreatedAt  string `json:"created_at,omitempty"`
 	Secret     string `json:"secret,omitempty"`
 }
 

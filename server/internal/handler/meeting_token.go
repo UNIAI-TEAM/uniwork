@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -27,6 +28,8 @@ func (h *handlers) meetingToken(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusForbidden, "meeting_not_started", "chưa được vào phòng")
 		return
 	}
+	w.Header().Set("Deprecation", "true")
+	w.Header().Set("Link", "</api/v1/meetings/"+chi.URLParam(r, "meetingID")+"/join>; rel=\"successor-version\"")
 	w.Header().Set("Cache-Control", "no-store")
 	respondJSON(w, 200, map[string]string{"token": dec.Credential.Token, "url": dec.Credential.ServerURL})
 }
@@ -65,8 +68,17 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	if err := h.Meetings.HandleProviderEvent(r.Context(), mapped); err != nil {
-		h.Log.Error("livekit webhook", "err", err)
+	payload, err := json.Marshal(mapped)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "internal", "internal error")
+		return
+	}
+	providerKey := h.Cfg.MeetingProvider
+	if providerKey == "" {
+		providerKey = "livekit"
+	}
+	if _, err := h.Meetings.EnqueueProviderWebhook(r.Context(), providerKey, mapped.ProviderEventID, mapped.Type, payload); err != nil {
+		h.Log.Error("livekit webhook enqueue", "err", err)
 		respondError(w, http.StatusInternalServerError, "internal", "internal error")
 		return
 	}

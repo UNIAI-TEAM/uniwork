@@ -44,10 +44,12 @@ function trackTileKey(track: TrackReferenceOrPlaceholder): string {
  */
 export function MeetingConference({
   meeting,
+  meetingTitle,
   workspaceId,
   onLeave,
 }: {
   meeting?: Meeting;
+  meetingTitle?: string;
   workspaceId?: string;
   onLeave: () => void;
 }) {
@@ -60,13 +62,14 @@ export function MeetingConference({
       { source: Track.Source.Camera, withPlaceholder: true },
       { source: Track.Source.ScreenShare, withPlaceholder: false },
     ],
-    { onlySubscribed: false },
+    { onlySubscribed: true },
   );
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-app-shell">
       <MeetingRoomHeader
         meeting={meeting}
+        meetingTitle={meetingTitle}
         workspaceId={workspaceId}
         onLeave={onLeave}
         onOpenSidebar={compact ? () => setSidebarOpen(true) : undefined}
@@ -91,7 +94,7 @@ export function MeetingConference({
           </div>
           <StartMediaButton
             label={t("meetings.allowMedia")}
-            className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground"
+            className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground"
           />
         </div>
         {!compact ? (

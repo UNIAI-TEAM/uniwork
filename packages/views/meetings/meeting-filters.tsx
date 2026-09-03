@@ -30,7 +30,7 @@ export function MeetingFilters({
               aria-pressed={active}
               onClick={() => onStatus(value)}
               className={cn(
-                "h-11 rounded-md px-2.5 text-label sm:h-8",
+                "h-11 cursor-pointer rounded-md px-2.5 text-label sm:h-8",
                 active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
               )}
             >

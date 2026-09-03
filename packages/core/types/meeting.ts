@@ -81,6 +81,7 @@ export const InviteLinkSchema = z.object({
   max_uses: z.number().optional(),
   used_count: z.number(),
   revoked_at: z.string().optional(),
+  created_at: z.string().optional(),
   secret: z.string().optional(),
 });
 export type MeetingInviteLink = z.infer<typeof InviteLinkSchema>;

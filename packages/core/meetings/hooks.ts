@@ -51,11 +51,11 @@ export function useMeetingStatistics(workspaceId: string) {
   });
 }
 
-export function useMeeting(meetingId: string) {
+export function useMeeting(meetingId: string, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: meetingKeys.detail(meetingId),
     queryFn: () => meetings.getMeeting(meetingId),
-    enabled: !!meetingId,
+    enabled: !!meetingId && (opts?.enabled ?? true),
   });
 }
 
@@ -109,6 +109,7 @@ export function useAddNote(meetingId: string) {
   });
 }
 
+/** @deprecated Prefer {@link useJoinMeeting}. */
 export function useMeetingToken() {
   return useMutation({
     mutationFn: (meetingId: string) => meetings.meetingToken(meetingId),
@@ -168,7 +169,7 @@ export function useJoinRequests(meetingId: string) {
 export function useCreateJoinRequest(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => meetings.createJoinRequest(meetingId),
+    mutationFn: (body?: { display_name?: string }) => meetings.createJoinRequest(meetingId, body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.joinRequests(meetingId) }),
   });
 }

@@ -84,4 +84,5 @@ type Routes struct {
 	MeetingStatistics    http.HandlerFunc
 	MeetingActivity      http.HandlerFunc
 	LiveKitWebhook       http.HandlerFunc
+	MeetingLobbyWS       http.HandlerFunc
 }

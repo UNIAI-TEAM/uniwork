@@ -7,15 +7,15 @@ import type { WSMessage } from "../api/ws-types";
 import { meetingKeys } from "../meetings/hooks";
 import { taskKeys } from "../tasks/hooks";
 import type { WSEventType } from "../types/events";
+import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./invalidate-scheduler";
 
 /**
  * Central WS → cache sync for one workspace.
  *
  * Every event maps to the query keys it makes stale, and the cache is then
- * refreshed FROM THE API. The frame's payload is never written into a query
- * or a store: it carries ids, and the server's reply is the only source of
- * row data — which keeps a client this server outgrew from rendering a shape
- * it does not understand.
+ * refreshed FROM THE API. Meeting detail skips invalidation when the cached
+ * version is already >= the event version. Bursts coalesce into one debounced
+ * invalidation wave per ~250ms.
  */
 function keysFor(wsId: string, type: WSEventType, payload: Record<string, string>) {
   const keys: readonly unknown[][] = [];
@@ -42,8 +42,8 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
       push(meetingKeys.list(wsId));
       push(meetingKeys.stats(wsId));
       if (payload.meeting_id) {
-        push(meetingKeys.detail(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.detail(payload.meeting_id));
       }
       break;
     }
@@ -51,10 +51,10 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
     case "participant.removed":
     case "invitation.responded": {
       if (payload.meeting_id) {
-        push(meetingKeys.detail(payload.meeting_id));
         push(meetingKeys.participants(payload.meeting_id));
         push(meetingKeys.invitations(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.detail(payload.meeting_id));
       }
       break;
     }
@@ -71,14 +71,13 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
     }
     case "invite_link.revoked": {
       if (payload.meeting_id) {
-        push(meetingKeys.detail(payload.meeting_id));
         push(meetingKeys.inviteLinks(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.detail(payload.meeting_id));
       }
       break;
     }
     default:
-      // An event this client predates. Nothing is stale that we know of.
       break;
   }
   return keys;
@@ -94,24 +93,38 @@ function allWorkspaceKeys(wsId: string) {
   ];
 }
 
+function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
+  return Array.isArray(queryKey) && queryKey[0] === "meeting" && typeof queryKey[1] === "string";
+}
+
 export function useRealtimeSync(client: WSClient | null, wsId: string): void {
   const qc = useQueryClient();
 
   useEffect(() => {
     if (!client || !wsId) return;
 
+    const scheduler = createInvalidateScheduler(qc);
+
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
       for (const queryKey of keysFor(wsId, msg.type as WSEventType, payload)) {
-        void qc.invalidateQueries({ queryKey });
+        if (
+          isMeetingDetailKey(queryKey) &&
+          payload.meeting_id &&
+          !shouldInvalidateMeetingDetail(qc, payload.meeting_id, payload.version)
+        ) {
+          continue;
+        }
+        scheduler.schedule(queryKey);
       }
     });
     const offReconnect = client.onReconnect(() => {
-      for (const queryKey of allWorkspaceKeys(wsId)) void qc.invalidateQueries({ queryKey });
+      for (const queryKey of allWorkspaceKeys(wsId)) scheduler.schedule(queryKey);
     });
     return () => {
       offAny();
       offReconnect();
+      scheduler.dispose();
     };
   }, [client, wsId, qc]);
 }

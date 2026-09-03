@@ -199,7 +199,14 @@ func (h *handlers) meetingStatistics(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, st)
+	respondJSON(w, 200, sdo.MeetingStatisticsSDO{
+		Total: st.Total, Scheduled: st.Scheduled, InProgress: st.InProgress, Ended: st.Ended,
+		Canceled: st.Canceled, Instant: st.Instant,
+		InvPending: st.InvPending, InvAccepted: st.InvAccepted, InvDeclined: st.InvDeclined, InvTentative: st.InvTentative,
+		JoinTotal: st.JoinTotal, JoinApproved: st.JoinApproved, JoinRejected: st.JoinRejected,
+		AvgApprovalSeconds: st.AvgApprovalSeconds,
+		LinksCreated:       st.LinksCreated, LinksUsed: st.LinksUsed, LinksRevoked: st.LinksRevoked, LinksExpired: st.LinksExpired,
+	})
 }
 
 func (h *handlers) meetingActivity(w http.ResponseWriter, r *http.Request) {

@@ -67,6 +67,10 @@ type JoinMeetingSDI struct {
 	DisplayName  string `json:"display_name"`
 }
 
+type CreateJoinRequestSDI struct {
+	DisplayName string `json:"display_name"`
+}
+
 type RejectJoinRequestSDI struct {
 	Reason string `json:"reason"`
 }

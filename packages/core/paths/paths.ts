@@ -22,6 +22,7 @@ export const paths = {
   workspaces: () => "/workspaces",
   invite: (token: string) => `/invite/${token}`,
   meetingInvite: (linkId: string) => `/invite/meeting/${linkId}`,
+  meetingInviteRoom: (linkId: string) => `/invite/meeting/${linkId}/room`,
   workspace: (orgSlug: string, wsSlug: string) => {
     const base = `/${orgSlug}/${wsSlug}`;
     return {

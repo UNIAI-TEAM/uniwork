@@ -8,6 +8,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -86,7 +87,8 @@ func (h *handlers) removeParticipant(w http.ResponseWriter, r *http.Request) {
 func toLinkDTO(l db.MeetingInviteLink, secret string) sdo.InviteLinkDTO {
 	d := sdo.InviteLinkDTO{
 		ID: l.ID, MeetingID: l.MeetingID, Name: l.Name, AccessMode: l.AccessMode,
-		ExpiresAt: rfc3339(l.ExpiresAt), UsedCount: l.UsedCount, Secret: secret,
+		ExpiresAt: rfc3339(l.ExpiresAt), UsedCount: l.UsedCount, CreatedAt: rfc3339(l.CreatedAt),
+		Secret: secret,
 	}
 	if l.MaxUses.Valid {
 		v := l.MaxUses.Int32
@@ -144,6 +146,12 @@ func (h *handlers) resolveInviteLink(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	if middleware.UserID(r.Context()) == "" {
+		if err := h.Meetings.EnsureGuestCookie(r.Context(), w, r, h.Cfg.SecureCookies); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+	}
 	respondJSON(w, 200, sdo.PublicInviteLinkSDO{
 		LinkID: v.LinkID, MeetingID: v.MeetingID, Title: v.Title, StartsAt: v.StartsAt.UTC().Format(time.RFC3339),
 		AccessMode: v.AccessMode, Expired: v.Expired,
@@ -167,8 +175,33 @@ func (h *handlers) listJoinRequests(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) createJoinRequest(w http.ResponseWriter, r *http.Request) {
+	var in sdi.CreateJoinRequestSDI
+	if r.ContentLength > 0 && r.Header.Get("Content-Type") != "" {
+		if !decode(w, r, &in, maxJSONBody) {
+			return
+		}
+	}
+	userID := middleware.UserID(r.Context())
+	display := in.DisplayName
+	if display == "" && userID != "" {
+		if u, err := h.Auth.Me(r.Context(), userID); err == nil {
+			display = u.DisplayName
+		}
+	}
+	guestID := ""
+	if userID == "" {
+		if err := h.Meetings.EnsureGuestCookie(r.Context(), w, r, h.Cfg.SecureCookies); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		guestID = meetings.GuestIDFromRequest(r, []byte(h.Cfg.JWTSecret))
+		if display == "" {
+			respondError(w, http.StatusBadRequest, "invalid_request", "cần tên hiển thị")
+			return
+		}
+	}
 	jr, err := h.Meetings.RequestJoin(r.Context(), service.AdmissionContext{
-		MeetingID: chi.URLParam(r, "meetingID"), UserID: middleware.UserID(r.Context()),
+		MeetingID: chi.URLParam(r, "meetingID"), UserID: userID, GuestID: guestID, DisplayName: display,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -201,7 +234,18 @@ func (h *handlers) rejectJoinRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) cancelJoinRequest(w http.ResponseWriter, r *http.Request) {
-	if err := h.Meetings.CancelJoinRequest(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "requestId")); err != nil {
+	userID := middleware.UserID(r.Context())
+	guestID := ""
+	if userID == "" {
+		guestID = meetings.GuestIDFromRequest(r, []byte(h.Cfg.JWTSecret))
+		if guestID == "" {
+			respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+			return
+		}
+	}
+	if err := h.Meetings.CancelJoinRequest(r.Context(), service.AdmissionContext{
+		UserID: userID, GuestID: guestID,
+	}, chi.URLParam(r, "requestId")); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
@@ -215,13 +259,28 @@ func (h *handlers) joinMeeting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	uName := ""
-	if u, err := h.Auth.Me(r.Context(), middleware.UserID(r.Context())); err == nil {
-		uName = u.DisplayName
+	userID := middleware.UserID(r.Context())
+	display := in.DisplayName
+	if display == "" && userID != "" {
+		if u, err := h.Auth.Me(r.Context(), userID); err == nil {
+			display = u.DisplayName
+		}
+	}
+	guestID := ""
+	if userID == "" {
+		if err := h.Meetings.EnsureGuestCookie(r.Context(), w, r, h.Cfg.SecureCookies); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		guestID = meetings.GuestIDFromRequest(r, []byte(h.Cfg.JWTSecret))
+		if guestID == "" && in.InviteLinkID == "" {
+			respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc liên kết mời")
+			return
+		}
 	}
 	dec, err := h.Meetings.Join(r.Context(), service.AdmissionContext{
-		MeetingID: chi.URLParam(r, "meetingID"), UserID: middleware.UserID(r.Context()),
-		DisplayName: uName, InviteLinkID: in.InviteLinkID, InviteSecret: in.Secret,
+		MeetingID: chi.URLParam(r, "meetingID"), UserID: userID, GuestID: guestID,
+		DisplayName: display, InviteLinkID: in.InviteLinkID, InviteSecret: in.Secret,
 	})
 	if err != nil && dec.Decision == "" {
 		h.mapServiceError(w, err)

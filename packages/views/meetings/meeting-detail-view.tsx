@@ -134,50 +134,76 @@ export function MeetingDetailView({
           </>
         }
       />
-      <div className="mx-auto w-full min-w-0 max-w-2xl flex-1 overflow-auto p-4 sm:p-6">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="text-pretty text-title font-semibold text-foreground">{meeting.title}</h1>
-          <MeetingStatusBadge status={meeting.status} />
+      <div className="mx-auto w-full min-w-0 max-w-3xl flex-1 overflow-auto p-4 sm:p-6">
+        <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h1 className="text-pretty text-title font-semibold text-foreground">{meeting.title}</h1>
+            <MeetingStatusBadge status={meeting.status} />
+          </div>
+          <p className="mt-1 text-label tabular-nums text-muted-foreground">
+            {formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone)}
+          </p>
+          {meeting.description ? (
+            <p className="mt-3 whitespace-pre-wrap break-words text-pretty text-body text-muted-foreground">
+              {meeting.description}
+            </p>
+          ) : null}
+          {myInvite ? <div className="mt-4"><MeetingRsvpBar meetingId={meetingId} invitation={myInvite} /></div> : null}
         </div>
-        <p className="mt-1 text-label tabular-nums text-muted-foreground">
-          {formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone)}
-        </p>
-        {meeting.description ? (
-          <p className="mt-3 whitespace-pre-wrap break-words text-pretty text-body text-muted-foreground">{meeting.description}</p>
-        ) : null}
-        {myInvite ? <MeetingRsvpBar meetingId={meetingId} invitation={myInvite} /> : null}
-        {canHost.allowed ? (
-          <MeetingHostPanel workspaceId={workspaceId} meeting={meeting} invitations={invitations ?? []} />
-        ) : (
-          <MeetingParticipantsSection
-            workspaceId={workspaceId}
-            meeting={meeting}
-            invitations={invitations ?? []}
-            canManage={false}
-          />
-        )}
-        <MeetingActivityTimeline workspaceId={workspaceId} meetingId={meetingId} />
-        <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">{t("meetings.notes")}</h2>
-        <ul className="space-y-2">
-          {(notes ?? []).map((n) => (
-            <li key={n.id} className="rounded-lg border border-border bg-surface p-3">
-              <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
-              <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
-            </li>
-          ))}
-        </ul>
-        <form
-          className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
-          }}
-        >
-          <Input className="min-w-0 flex-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("meetings.notes")} />
-          <Button type="submit" className="shrink-0" disabled={addNote.isPending}>
-            {t("common.save")}
-          </Button>
-        </form>
+
+        <div className="mt-6 space-y-4">
+          {canHost.allowed ? (
+            <MeetingHostPanel workspaceId={workspaceId} meeting={meeting} invitations={invitations ?? []} />
+          ) : (
+            <MeetingParticipantsSection
+              workspaceId={workspaceId}
+              meeting={meeting}
+              invitations={invitations ?? []}
+              canManage={false}
+            />
+          )}
+
+          <section className="rounded-xl border border-border bg-surface" aria-labelledby="notes-heading">
+            <div className="border-b border-border px-4 py-3">
+              <h2 id="notes-heading" className="text-label font-semibold text-foreground">
+                {t("meetings.notes")}
+              </h2>
+            </div>
+            <div className="p-4">
+              {(notes ?? []).length === 0 ? (
+                <p className="mb-3 text-label text-muted-foreground">{t("meetings.notesEmpty")}</p>
+              ) : (
+                <ul className="mb-3 space-y-2">
+                  {(notes ?? []).map((n) => (
+                    <li key={n.id} className="rounded-lg border border-border bg-surface-hover/50 p-3">
+                      <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
+                      <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form
+                className="flex min-w-0 flex-col gap-2 sm:flex-row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
+                }}
+              >
+                <Input
+                  className="min-w-0 flex-1"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder={t("meetings.notesPlaceholder")}
+                />
+                <Button type="submit" className="shrink-0" disabled={addNote.isPending}>
+                  {t("common.save")}
+                </Button>
+              </form>
+            </div>
+          </section>
+
+          <MeetingActivityTimeline workspaceId={workspaceId} meetingId={meetingId} />
+        </div>
       </div>
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>

@@ -148,5 +148,6 @@ func New(d Deps) http.Handler {
 		MeetingStatistics:    h.meetingStatistics,
 		MeetingActivity:      h.meetingActivity,
 		LiveKitWebhook:       h.livekitWebhook,
+		MeetingLobbyWS:       h.meetingLobbyWS,
 	})
 }

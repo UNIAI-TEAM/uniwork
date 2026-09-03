@@ -1,0 +1,43 @@
+# Production LiveKit cluster example (not used by local `make dev`).
+# See docs/meeting-livekit-architecture-diagrams.md for topology.
+#
+# Requirements for horizontal scale:
+# - Redis dedicated to LiveKit (separate from UniWork Redis)
+# - Multiple LiveKit nodes behind L4/L7 load balancer for signal (7880/wss)
+# - UDP port range per node for WebRTC media
+# - TURN (TLS) for restrictive networks
+#
+# Empty room timeout is set by UniWork EnsureSession (default 24h when LIVEKIT_ROOM_EMPTY_TIMEOUT=0).
+# Do not rely on LiveKit auto-close for meeting lifecycle — EndMeeting owns ENDED state.
+
+port: 7880
+
+redis:
+  address: redis-livekit:6379
+  # password: ${LIVEKIT_REDIS_PASSWORD}
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+  # node_ip: set per node in multi-node deployments
+
+keys:
+  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+
+logging:
+  level: info
+
+webhook:
+  api_key: ${LIVEKIT_API_KEY}
+  urls:
+    - https://api.example.com/api/v1/integrations/livekit/webhook
+
+turn:
+  enabled: true
+  domain: turn.example.com
+  cert_file: /etc/livekit/tls/turn.crt
+  key_file: /etc/livekit/tls/turn.key
+  tls_port: 5349
+  udp_port: 3478

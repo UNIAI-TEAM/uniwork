@@ -1,19 +1,49 @@
 import { DisconnectReason } from "livekit-client";
 import { describe, expect, it } from "vitest";
-import { shouldLeaveOnDisconnect, tokenRefreshDelayMs } from "./room-connection";
+import {
+  isLobbyWaiting,
+  lobbyRetryDelayMs,
+  mediaDisconnectKind,
+  shouldLeaveOnDisconnect,
+  shouldRefreshCredentialOnDisconnect,
+  shouldTriggerLobbyJoin,
+} from "./room-connection";
 
-describe("tokenRefreshDelayMs", () => {
-  const now = Date.parse("2026-08-28T08:00:00.000Z");
-
-  it("returns null when expires_at is missing or unparseable", () => {
-    expect(tokenRefreshDelayMs(undefined, now)).toBeNull();
-    expect(tokenRefreshDelayMs("", now)).toBeNull();
-    expect(tokenRefreshDelayMs("not-a-date", now)).toBeNull();
+describe("lobbyRetryDelayMs", () => {
+  it("uses increasing backoff steps with jitter bounded by ±20%", () => {
+    const d0 = lobbyRetryDelayMs(0);
+    expect(d0).toBeGreaterThanOrEqual(8_000);
+    expect(d0).toBeLessThanOrEqual(12_000);
+    const d3 = lobbyRetryDelayMs(3);
+    expect(d3).toBeGreaterThanOrEqual(48_000);
+    expect(d3).toBeLessThanOrEqual(72_000);
   });
+});
 
-  it("schedules 15s before expiry and never a negative delay", () => {
-    expect(tokenRefreshDelayMs("2026-08-28T08:02:00.000Z", now)).toBe(105_000);
-    expect(tokenRefreshDelayMs("2026-08-28T07:59:00.000Z", now)).toBe(0);
+describe("shouldTriggerLobbyJoin", () => {
+  it("matches meeting.started and join_request.approved for the same meeting", () => {
+    expect(
+      shouldTriggerLobbyJoin("meeting.started", { meeting_id: "m1" }, "m1"),
+    ).toBe(true);
+    expect(
+      shouldTriggerLobbyJoin("join_request.approved", { meeting_id: "m1" }, "m1"),
+    ).toBe(true);
+    expect(
+      shouldTriggerLobbyJoin("conference.session_ready", { meeting_id: "m1" }, "m1"),
+    ).toBe(true);
+    expect(
+      shouldTriggerLobbyJoin("meeting.started", { meeting_id: "m2" }, "m1"),
+    ).toBe(false);
+    expect(
+      shouldTriggerLobbyJoin("participant.removed", { meeting_id: "m1" }, "m1"),
+    ).toBe(false);
+  });
+});
+
+describe("isLobbyWaiting", () => {
+  it("includes provider-preparing state", () => {
+    expect(isLobbyWaiting("WAITING_FOR_PROVIDER")).toBe(true);
+    expect(isLobbyWaiting("ADMIT")).toBe(false);
   });
 });
 
@@ -30,5 +60,28 @@ describe("shouldLeaveOnDisconnect", () => {
     expect(shouldLeaveOnDisconnect(DisconnectReason.UNKNOWN_REASON)).toBe(false);
     expect(shouldLeaveOnDisconnect(DisconnectReason.JOIN_FAILURE)).toBe(false);
     expect(shouldLeaveOnDisconnect(DisconnectReason.SIGNAL_CLOSE)).toBe(false);
+  });
+});
+
+describe("mediaDisconnectKind", () => {
+  it("maps duplicate joins to replaced and join failures to connection", () => {
+    expect(mediaDisconnectKind(DisconnectReason.DUPLICATE_IDENTITY)).toBe("replaced");
+    expect(mediaDisconnectKind(DisconnectReason.JOIN_FAILURE)).toBe("connection");
+    expect(mediaDisconnectKind(DisconnectReason.CLIENT_INITIATED)).toBeNull();
+  });
+});
+
+describe("shouldRefreshCredentialOnDisconnect", () => {
+  it("does not refresh after join/media failures — a new token will not fix ICE", () => {
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.JOIN_FAILURE)).toBe(false);
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.USER_REJECTED)).toBe(false);
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.STATE_MISMATCH)).toBe(false);
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.DUPLICATE_IDENTITY)).toBe(false);
+  });
+
+  it("refreshes on unexpected disconnects but not when leaving the conference", () => {
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.SIGNAL_CLOSE)).toBe(true);
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.CLIENT_INITIATED)).toBe(false);
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.ROOM_CLOSED)).toBe(false);
   });
 });

@@ -57,7 +57,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		meeting_participants, meeting_invitations, meeting_access_grants,
 		meeting_invite_links, meeting_join_requests, meeting_conference_sessions,
 		meeting_attendance_sessions, meeting_audit_logs, outbox_events,
-		meeting_guests, meeting_provider_events,
+		meeting_guests, meeting_provider_events, webhook_inbox,
 		emails, password_reset_tokens CASCADE`)
 	if err != nil {
 		t.Fatal("truncate:", err)

@@ -32,8 +32,9 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
   const selected = eligible.find((m) => m.user_id === userId);
 
   return (
-    <div className="mt-4 space-y-2">
-      <div className="mt-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+    <div className="mt-3 border-t border-border pt-3">
+      <p className="mb-2 text-caption text-muted-foreground">{t("meetings.transferHost")}</p>
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <Select
             value={userId}

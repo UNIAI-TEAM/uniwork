@@ -10,11 +10,13 @@ import { formatMeetingRange, formatRemaining } from "./meeting-datetime";
 
 export function MeetingRoomHeader({
   meeting,
+  meetingTitle,
   workspaceId,
   onLeave,
   onOpenSidebar,
 }: {
   meeting?: Meeting;
+  meetingTitle?: string;
   workspaceId?: string;
   onLeave: () => void;
   onOpenSidebar?: () => void;
@@ -53,7 +55,9 @@ export function MeetingRoomHeader({
       </Button>
       <span aria-hidden className="hidden h-8 w-px shrink-0 bg-border sm:block" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-title-sm font-semibold text-foreground">{meeting?.title ?? t("meetings.title")}</p>
+        <p className="truncate text-title-sm font-semibold text-foreground">
+          {meeting?.title ?? meetingTitle ?? t("meetings.title")}
+        </p>
         {subtitle ? <p className="truncate text-caption text-muted-foreground">{subtitle}</p> : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">

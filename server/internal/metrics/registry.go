@@ -21,6 +21,7 @@ type Registry struct {
 	Gatherer prometheus.Gatherer
 	HTTP     *HTTPMetrics
 	Emails   *prometheus.CounterVec
+	Meetings *Meetings
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -40,6 +41,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 
 	if opts.Pool != nil {
 		reg.MustRegister(NewDBCollector(opts.Pool))
+		reg.MustRegister(NewMeetingLagCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
@@ -51,10 +53,14 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	}, []string{"kind", "result"})
 	reg.MustRegister(emails)
 
+	meetingMetrics := NewMeetings()
+	reg.MustRegister(meetingMetrics.Collectors()...)
+
 	return &Registry{
 		Gatherer: reg,
 		HTTP:     httpMetrics,
 		Emails:   emails,
+		Meetings: meetingMetrics,
 	}
 }
 

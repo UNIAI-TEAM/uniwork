@@ -12,7 +12,7 @@ import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
 
 const TAB_TRIGGER =
-  "rounded-lg border border-transparent px-3 py-1.5 data-active:border-input data-active:bg-muted data-active:text-foreground data-active:shadow-none";
+  "cursor-pointer rounded-lg border border-transparent px-3 py-1.5 data-active:border-input data-active:bg-muted data-active:text-foreground data-active:shadow-none";
 
 function formatChatTime(timestamp: number, locale: string): string {
   try {
