@@ -358,9 +358,7 @@ func TestEmptyDMHiddenUntilFirstMessage(t *testing.T) {
 func TestResolveDMCrossWorkspaceSameOrg(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
-	orgs := NewOrganizationService(q)
-	ws := NewWorkspaceService(testutil.DB(t), q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
-	w2View, err := ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Chat WS 2", "chat-ws-2")
+	w2View, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Chat WS 2", "chat-ws-2")
 	if err != nil {
 		t.Fatal(err)
 	}

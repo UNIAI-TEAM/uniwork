@@ -20,7 +20,7 @@ func TestSignalVoiceAndTyping(t *testing.T) {
 	if err := s.SignalTyping(ctx, ua.ID, w.ID, dm.ID); err != nil {
 		t.Fatalf("typing: %v", err)
 	}
-	if len(pub.events) != 2 || pub.events[1].Type != "chat.typing" {
+	if countEvents(pub.events, "chat.room.created") != 2 || pub.events[len(pub.events)-1].Type != "chat.typing" {
 		t.Fatalf("typing publish: %+v", pub.events)
 	}
 
