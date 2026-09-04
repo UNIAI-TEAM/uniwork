@@ -94,7 +94,12 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
         </FieldGroup>
 
         <div className="flex flex-col gap-4">
-          <Button type="submit" size="lg" className="w-full" aria-disabled={reg.isPending || undefined}>
+          <Button
+            type="submit"
+            size="lg"
+            className="h-10 w-full pointer-coarse:h-11 aria-disabled:cursor-progress aria-disabled:opacity-100"
+            aria-disabled={reg.isPending || undefined}
+          >
             {reg.isPending ? (
               <>
                 <Loader2 aria-hidden className="animate-spin" />
@@ -105,7 +110,7 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
             )}
           </Button>
           <GoogleButton />
-          <p className="text-center text-label text-muted-foreground">
+          <p className="text-center text-body text-muted-foreground">
             {t("auth.hasAccount")}{" "}
             <AppLink href={paths.login()} className={AUTH_LINK}>
               {t("auth.login")}

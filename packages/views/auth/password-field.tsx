@@ -15,6 +15,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
  */
 export function PasswordField({
   id,
+  name,
   value,
   onChange,
   autoComplete,
@@ -25,6 +26,8 @@ export function PasswordField({
   ref,
 }: {
   id: string;
+  /** Password managers key their fill off `name`, not `id`. */
+  name?: string;
   value: string;
   onChange: (value: string) => void;
   autoComplete: "current-password" | "new-password";
@@ -42,6 +45,7 @@ export function PasswordField({
       <Input
         ref={ref}
         id={id}
+        name={name}
         type={shown ? "text" : "password"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -65,7 +69,15 @@ export function PasswordField({
         aria-pressed={shown}
         aria-label={shown ? t("auth.hidePassword") : t("auth.showPassword")}
         onClick={() => setShown((v) => !v)}
-        className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+        // Centred with `inset-y-0 my-auto`, NOT `top-1/2 -translate-y-1/2`:
+        // buttonVariants presses every button down with
+        // `active:translate-y-px`, and both classes write the same
+        // `--tw-translate-y`. With the transform version the press replaced
+        // -50% with 1px, the button dropped 17px out from under the pointer,
+        // `pointerup` landed on the input and `click` never fired — the eye
+        // worked from the keyboard and in `fireEvent` tests and for nobody
+        // holding a mouse. e2e/auth-layout.spec.ts presses it with a real one.
+        className="absolute inset-y-0 right-1 my-auto text-muted-foreground"
       >
         {shown ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
       </Button>

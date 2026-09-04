@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { NavigationProvider } from "@uniwork/views/navigation";
 import type { NavigationAdapter } from "@uniwork/views/navigation";
+import { localeAdapter } from "../test/api-mock";
 import { requestMock } from "../test/request-mock";
 import { RegisterView } from "./register-view";
 
@@ -27,7 +29,9 @@ function adapter() {
 function wrap(ui: React.ReactElement, nav: NavigationAdapter = adapter()) {
   return (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
-      <NavigationProvider value={nav}>{ui}</NavigationProvider>
+      <LocaleAdapterProvider adapter={localeAdapter}>
+        <NavigationProvider value={nav}>{ui}</NavigationProvider>
+      </LocaleAdapterProvider>
     </QueryClientProvider>
   );
 }

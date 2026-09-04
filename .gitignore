@@ -34,3 +34,6 @@ server/internal/handler/data/
 .claude/settings.local.json
 
 .cursor/
+
+# Impeccable critique snapshots (local design-review archive)
+.impeccable/
