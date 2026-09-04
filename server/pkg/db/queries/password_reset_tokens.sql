@@ -1,6 +1,6 @@
 -- name: CreatePasswordResetToken :one
-INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- Chưa dùng và chưa hết hạn quyết định ở đây, caller không thể quên.

@@ -11,3 +11,15 @@ export const defaultStorage: StorageAdapter = {
     if (typeof window !== "undefined") localStorage.removeItem(k);
   },
 };
+
+/** Tab-scoped storage: cleared when the browser session ends. */
+export const sessionStorageAdapter: StorageAdapter = {
+  getItem: (k) =>
+    typeof window !== "undefined" ? sessionStorage.getItem(k) : null,
+  setItem: (k, v) => {
+    if (typeof window !== "undefined") sessionStorage.setItem(k, v);
+  },
+  removeItem: (k) => {
+    if (typeof window !== "undefined") sessionStorage.removeItem(k);
+  },
+};

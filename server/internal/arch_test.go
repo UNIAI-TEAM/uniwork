@@ -69,7 +69,8 @@ func TestMembershipDecidedInOnePlace(t *testing.T) {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		if strings.Contains(path, "pkg/db/generated") || strings.HasSuffix(path, "internal/service/workspace.go") {
+		if strings.Contains(filepath.ToSlash(path), "pkg/db/generated") ||
+			strings.HasSuffix(filepath.ToSlash(path), "internal/service/workspace.go") {
 			return nil
 		}
 		src, err := os.ReadFile(path)

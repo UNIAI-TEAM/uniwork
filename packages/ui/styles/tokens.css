@@ -91,6 +91,16 @@
   --chart-4: oklch(0.85 0.06 262);
   --chart-5: oklch(0.92 0.03 262);
 
+  /* Chat sender names: distinct hues, text-safe on --surface / --muted. */
+  --chat-sender-1: oklch(0.48 0.14 262);
+  --chat-sender-2: oklch(0.48 0.14 330);
+  --chat-sender-3: oklch(0.45 0.12 145);
+  --chat-sender-4: oklch(0.50 0.13 55);
+  --chat-sender-5: oklch(0.46 0.12 200);
+  --chat-sender-6: oklch(0.48 0.14 290);
+  --chat-sender-7: oklch(0.48 0.14 25);
+  --chat-sender-8: oklch(0.45 0.11 170);
+
   --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 1px rgb(15 23 42 / 0.03);
   --menu-shadow: 0 8px 24px rgb(15 23 42 / 0.08), 0 2px 6px rgb(15 23 42 / 0.05);
   --floating-shadow: 0 16px 40px rgb(15 23 42 / 0.14), 0 3px 10px rgb(15 23 42 / 0.08);
@@ -159,6 +169,15 @@
   --chart-4: oklch(0.85 0.06 262);
   --chart-5: oklch(0.91 0.03 262);
 
+  --chat-sender-1: oklch(0.74 0.14 262);
+  --chat-sender-2: oklch(0.74 0.14 330);
+  --chat-sender-3: oklch(0.76 0.12 145);
+  --chat-sender-4: oklch(0.78 0.13 55);
+  --chat-sender-5: oklch(0.76 0.12 200);
+  --chat-sender-6: oklch(0.74 0.14 290);
+  --chat-sender-7: oklch(0.76 0.14 25);
+  --chat-sender-8: oklch(0.76 0.11 170);
+
   --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 1px 1px rgb(0 0 0 / 0.16);
   --menu-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.25);
   --floating-shadow: 0 16px 40px rgb(0 0 0 / 0.5), 0 3px 10px rgb(0 0 0 / 0.35);
@@ -218,6 +237,14 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chat-sender-1: var(--chat-sender-1);
+  --color-chat-sender-2: var(--chat-sender-2);
+  --color-chat-sender-3: var(--chat-sender-3);
+  --color-chat-sender-4: var(--chat-sender-4);
+  --color-chat-sender-5: var(--chat-sender-5);
+  --color-chat-sender-6: var(--chat-sender-6);
+  --color-chat-sender-7: var(--chat-sender-7);
+  --color-chat-sender-8: var(--chat-sender-8);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

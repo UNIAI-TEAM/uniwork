@@ -11,8 +11,8 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func toChatMessageDTO(m db.MeetingChatMessage) sdo.ChatMessageDTO {
-	return sdo.ChatMessageDTO{
+func toMeetingChatMessageDTO(m db.MeetingChatMessage) sdo.MeetingChatMessageDTO {
+	return sdo.MeetingChatMessageDTO{
 		ID: m.ID, MeetingID: m.MeetingID, ParticipantID: m.ParticipantID.String,
 		SenderIdentity: m.SenderIdentity, SenderName: m.SenderName, Message: m.Message,
 		SentAt: rfc3339(m.SentAt),
@@ -29,7 +29,7 @@ func (h *handlers) appendChatMessage(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.ChatMessageSDO{Message: toChatMessageDTO(msg)})
+	respondJSON(w, 200, sdo.MeetingChatMessageSDO{Message: toMeetingChatMessageDTO(msg)})
 }
 
 func (h *handlers) listChatMessages(w http.ResponseWriter, r *http.Request) {
@@ -38,9 +38,9 @@ func (h *handlers) listChatMessages(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.ChatMessageDTO, 0, len(msgs))
+	out := make([]sdo.MeetingChatMessageDTO, 0, len(msgs))
 	for _, m := range msgs {
-		out = append(out, toChatMessageDTO(m))
+		out = append(out, toMeetingChatMessageDTO(m))
 	}
-	respondJSON(w, 200, sdo.ChatListSDO{Messages: out})
+	respondJSON(w, 200, sdo.MeetingChatListSDO{Messages: out})
 }

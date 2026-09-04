@@ -69,7 +69,7 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspaces (id, organization_id, slug, name, created_by)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id
 `
 
 type CreateWorkspaceParams struct {
@@ -97,6 +97,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomID,
 	)
 	return i, err
 }
@@ -159,7 +160,7 @@ func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccess
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, organization_id FROM workspaces WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id FROM workspaces WHERE id = $1
 `
 
 func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, error) {
@@ -173,12 +174,13 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomID,
 	)
 	return i, err
 }
 
 const getWorkspaceBySlugs = `-- name: GetWorkspaceBySlugs :one
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE o.slug = $1 AND w.slug = $2
 `
@@ -196,6 +198,7 @@ type GetWorkspaceBySlugsRow struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	OrganizationID   string             `json:"organization_id"`
+	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -211,6 +214,7 @@ func (q *Queries) GetWorkspaceBySlugs(ctx context.Context, arg GetWorkspaceBySlu
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomID,
 		&i.OrganizationSlug,
 		&i.OrganizationName,
 	)
@@ -239,7 +243,7 @@ func (q *Queries) GetWorkspaceMember(ctx context.Context, arg GetWorkspaceMember
 }
 
 const getWorkspaceWithOrg = `-- name: GetWorkspaceWithOrg :one
-SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, o.slug AS organization_slug, o.name AS organization_name
+SELECT w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w JOIN organizations o ON o.id = w.organization_id
 WHERE w.id = $1
 `
@@ -252,6 +256,7 @@ type GetWorkspaceWithOrgRow struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	OrganizationID   string             `json:"organization_id"`
+	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -267,6 +272,7 @@ func (q *Queries) GetWorkspaceWithOrg(ctx context.Context, id string) (GetWorksp
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomID,
 		&i.OrganizationSlug,
 		&i.OrganizationName,
 	)
@@ -380,7 +386,7 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) 
 }
 
 const listWorkspacesForUser = `-- name: ListWorkspacesForUser :many
-SELECT DISTINCT ON (w.created_at, w.id) w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, o.slug AS organization_slug, o.name AS organization_name
+SELECT DISTINCT ON (w.created_at, w.id) w.id, w.slug, w.name, w.created_by, w.created_at, w.updated_at, w.organization_id, w.matrix_room_id, o.slug AS organization_slug, o.name AS organization_name
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $1
@@ -397,6 +403,7 @@ type ListWorkspacesForUserRow struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	OrganizationID   string             `json:"organization_id"`
+	MatrixRoomID     pgtype.Text        `json:"matrix_room_id"`
 	OrganizationSlug string             `json:"organization_slug"`
 	OrganizationName string             `json:"organization_name"`
 }
@@ -419,6 +426,7 @@ func (q *Queries) ListWorkspacesForUser(ctx context.Context, userID string) ([]L
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.OrganizationID,
+			&i.MatrixRoomID,
 			&i.OrganizationSlug,
 			&i.OrganizationName,
 		); err != nil {
@@ -439,6 +447,33 @@ UPDATE invitations SET accepted_at = now() WHERE id = $1
 func (q *Queries) MarkInvitationAccepted(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, markInvitationAccepted, id)
 	return err
+}
+
+const setWorkspaceMatrixRoomID = `-- name: SetWorkspaceMatrixRoomID :one
+UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id
+`
+
+type SetWorkspaceMatrixRoomIDParams struct {
+	ID           string      `json:"id"`
+	MatrixRoomID pgtype.Text `json:"matrix_room_id"`
+}
+
+func (q *Queries) SetWorkspaceMatrixRoomID(ctx context.Context, arg SetWorkspaceMatrixRoomIDParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, setWorkspaceMatrixRoomID, arg.ID, arg.MatrixRoomID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.MatrixRoomID,
+	)
+	return i, err
 }
 
 const updateWorkspaceMemberRole = `-- name: UpdateWorkspaceMemberRole :one
@@ -469,7 +504,7 @@ func (q *Queries) UpdateWorkspaceMemberRole(ctx context.Context, arg UpdateWorks
 const updateWorkspaceName = `-- name: UpdateWorkspaceName :one
 UPDATE workspaces SET name = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, slug, name, created_by, created_at, updated_at, organization_id
+RETURNING id, slug, name, created_by, created_at, updated_at, organization_id, matrix_room_id
 `
 
 type UpdateWorkspaceNameParams struct {
@@ -488,6 +523,7 @@ func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.MatrixRoomID,
 	)
 	return i, err
 }

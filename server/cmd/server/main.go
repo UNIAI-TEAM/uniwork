@@ -162,6 +162,8 @@ func main() {
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
+	chatSvc := service.NewChatService(q, wsSvc, pub)
+	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 	go meetingSvc.RunWorkers(runCtx)
@@ -190,6 +192,7 @@ func main() {
 		Onboarding:      service.NewOnboardingService(q, wsSvc, pub, renderer, outbox),
 		Tasks:           taskSvc,
 		Meetings:        meetingSvc,
+		Chat:            chatSvc,
 		Hub:             hub,
 		Redis:           rdb,
 		FeatureFlags:    flags,

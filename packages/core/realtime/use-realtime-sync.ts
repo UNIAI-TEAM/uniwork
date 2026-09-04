@@ -1,9 +1,10 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
+import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { taskKeys } from "../tasks/hooks";
 import type { WSEventType } from "../types/events";
@@ -17,7 +18,12 @@ import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./inva
  * version is already >= the event version. Bursts coalesce into one debounced
  * invalidation wave per ~250ms.
  */
-function keysFor(wsId: string, type: WSEventType, payload: Record<string, string>) {
+function keysFor(
+  wsId: string,
+  type: WSEventType,
+  payload: Record<string, string>,
+  qc: QueryClient,
+) {
   const keys: readonly unknown[][] = [];
   const push = (k: readonly unknown[]) => (keys as unknown[][]).push([...k]);
   switch (type) {
@@ -30,6 +36,24 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
     }
     case "comment.created": {
       if (payload.task_id) push(taskKeys.comments(payload.task_id));
+      break;
+    }
+    case "chat.message.created":
+    case "chat.message.updated": {
+      push(chatKeys.rooms(wsId));
+      push(chatKeys.room(wsId));
+      if (payload.room_id) {
+        push(chatKeys.roomMessages(wsId, payload.room_id));
+        const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
+        if (wsRoom?.room_id === payload.room_id) push(chatKeys.messages(wsId));
+      }
+      break;
+    }
+    case "chat.room.created":
+    case "chat.room.updated":
+    case "chat.room.activity": {
+      push(chatKeys.rooms(wsId));
+      push(chatKeys.room(wsId));
       break;
     }
     case "meeting.created":
@@ -111,6 +135,8 @@ function keysFor(wsId: string, type: WSEventType, payload: Record<string, string
 function allWorkspaceKeys(wsId: string) {
   return [
     taskKeys.list(wsId),
+    chatKeys.rooms(wsId),
+    chatKeys.room(wsId),
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),
     meetingKeys.joinRequestsRoot,
@@ -131,7 +157,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
-      for (const queryKey of keysFor(wsId, msg.type as WSEventType, payload)) {
+      for (const queryKey of keysFor(wsId, msg.type as WSEventType, payload, qc)) {
         if (
           isMeetingDetailKey(queryKey) &&
           payload.meeting_id &&

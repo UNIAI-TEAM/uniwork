@@ -17,12 +17,15 @@ export interface RuntimeConfig {
   wsUrl: string;
   /** Public origin of this app — the host shown in URL pills. */
   appUrl: string;
+  /** Max concurrent chat:{roomId} WS subscriptions per client. */
+  chatScopeSubscriptionLimit: number;
 }
 
 const DEFAULTS: RuntimeConfig = {
   apiUrl: "http://localhost:8080",
   wsUrl: "ws://localhost:8080",
   appUrl: "http://localhost:3000",
+  chatScopeSubscriptionLimit: 25,
 };
 
 let current: RuntimeConfig = { ...DEFAULTS };

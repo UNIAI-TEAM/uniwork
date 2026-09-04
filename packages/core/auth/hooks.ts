@@ -39,11 +39,15 @@ function requireSession(sess: SessionResponse | null): SessionResponse {
   return sess;
 }
 
+function applyAuthSession(sess: SessionResponse): void {
+  setSessionUser(sess.user);
+}
+
 export function useLogin() {
   return useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) =>
       requireSession(await auth.login(email, password)),
-    onSuccess: (sess) => setSessionUser(sess.user),
+    onSuccess: applyAuthSession,
   });
 }
 
@@ -58,7 +62,7 @@ export function useRegister() {
       password: string;
       displayName: string;
     }) => requireSession(await auth.registerUser(email, password, displayName)),
-    onSuccess: (sess) => setSessionUser(sess.user),
+    onSuccess: applyAuthSession,
   });
 }
 

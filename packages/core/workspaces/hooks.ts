@@ -105,7 +105,10 @@ export function useAcceptInvite() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (token: string) => workspaces.acceptInvite(token),
-    onSuccess: () => qc.invalidateQueries({ queryKey: workspaceKeys.list() }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
+      void qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
+    },
   });
 }
 

@@ -68,6 +68,7 @@ func (s *VerificationService) Send(ctx context.Context, userID string) error {
 	_, err = s.q.CreateEmailVerificationCode(ctx, db.CreateEmailVerificationCodeParams{
 		ID: util.NewID(), UserID: userID, CodeHash: hashToken(code),
 		ExpiresAt: pgtype.Timestamptz{Time: s.now().Add(verificationCodeTTL), Valid: true},
+		CreatedAt: pgtype.Timestamptz{Time: s.now(), Valid: true},
 	})
 	if err != nil {
 		return err

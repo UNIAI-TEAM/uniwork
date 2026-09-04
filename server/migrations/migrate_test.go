@@ -115,3 +115,86 @@ func TestOrganizationsGrandfather(t *testing.T) {
 		t.Fatalf("onboarded grandfather: old=%v new=%v", oldOnboarded, newOnboarded)
 	}
 }
+
+func TestRenamedChatMigrationVersions(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+
+	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version = ANY($1)`,
+			[]string{"034_chat_core", "046_chat_core"})
+	})
+	if _, err := pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version = ANY($1)`,
+		[]string{"034_chat_core", "046_chat_core"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING`,
+		"034_chat_core"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconcileRenamedMigrations(ctx, lock); err != nil {
+		t.Fatal(err)
+	}
+	var renamed bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+		"046_chat_core").Scan(&renamed); err != nil || !renamed {
+		t.Fatalf("expected 046_chat_core after rename, got renamed=%v err=%v", renamed, err)
+	}
+	var legacy bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+		"034_chat_core").Scan(&legacy); err != nil || legacy {
+		t.Fatalf("legacy 034_chat_core should be gone, legacy=%v err=%v", legacy, err)
+	}
+}
+
+func TestRenamedChatMigrationVersionsDropsStaleOldRow(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+
+	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version = ANY($1)`,
+			[]string{"034_chat_core", "046_chat_core"})
+	})
+	for _, v := range []string{"034_chat_core", "046_chat_core"} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING`, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := reconcileRenamedMigrations(ctx, lock); err != nil {
+		t.Fatal(err)
+	}
+	var legacy bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+		"034_chat_core").Scan(&legacy); err != nil || legacy {
+		t.Fatalf("stale 034_chat_core should be removed when 046 exists, legacy=%v err=%v", legacy, err)
+	}
+}

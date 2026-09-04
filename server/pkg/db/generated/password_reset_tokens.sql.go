@@ -28,8 +28,8 @@ func (q *Queries) CountPasswordResetTokensForUserSince(ctx context.Context, arg 
 }
 
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :one
-INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING id, user_id, token_hash, expires_at, used_at, created_at
 `
 
@@ -38,6 +38,7 @@ type CreatePasswordResetTokenParams struct {
 	UserID    string             `json:"user_id"`
 	TokenHash string             `json:"token_hash"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error) {
@@ -46,6 +47,7 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 		arg.UserID,
 		arg.TokenHash,
 		arg.ExpiresAt,
+		arg.CreatedAt,
 	)
 	var i PasswordResetToken
 	err := row.Scan(

@@ -1,6 +1,6 @@
 -- name: CreateEmailVerificationCode :one
-INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- Single-use, expiry and the attempt cap are all decided here so callers

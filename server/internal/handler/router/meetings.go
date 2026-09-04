@@ -107,11 +107,11 @@ func registerMeetings(r api, h Routes) {
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
-		summary: "List persisted in-room chat messages", tags: []string{"meetings"}, sdo: sdo.ChatListSDO{}, auth: true,
+		summary: "List persisted in-room chat messages", tags: []string{"meetings"}, sdo: sdo.MeetingChatListSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message", tags: []string{"meetings"},
-		sdi: sdi.AppendChatSDI{}, sdo: sdo.ChatMessageSDO{}, auth: true,
+		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
 		summary: "Latest AI summary", tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,

@@ -78,6 +78,9 @@ func New(d Deps, h Routes) http.Handler {
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerMeetings(authed, h)
+			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
+			chatTypingLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
+			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
 		})
 	})
 	if d.Cfg.EnableSwagger {

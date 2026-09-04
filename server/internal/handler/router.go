@@ -33,6 +33,7 @@ type Deps struct {
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
 	Meetings      *service.MeetingService
+	Chat          *service.ChatService
 	Hub           *realtime.Hub
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -161,5 +162,27 @@ func New(d Deps) http.Handler {
 		MeetingCapabilities:  h.meetingCapabilities,
 		LiveKitWebhook:       h.livekitWebhook,
 		MeetingLobbyWS:       h.meetingLobbyWS,
+
+		LookupChatUser:            h.lookupChatUser,
+		GetChatBlockStatus:        h.getChatBlockStatus,
+		BlockChatUser:             h.blockChatUser,
+		UnblockChatUser:           h.unblockChatUser,
+		MintChatVoiceToken:        h.mintChatVoiceToken,
+		GetWorkspaceChatRoom:      h.getWorkspaceChatRoom,
+		EnsureWorkspaceChatRoom:   h.ensureWorkspaceChatRoom,
+		ListChatRooms:             h.listChatRooms,
+		ResolveDM:                 h.resolveDM,
+		CreateChatGroup:           h.createChatGroup,
+		InviteChatGroupMembers:    h.inviteChatGroupMembers,
+		LeaveChatRoom:             h.leaveChatRoom,
+		ListWorkspaceChatMessages: h.listWorkspaceChatMessages,
+		SendWorkspaceChatMessage:  h.sendWorkspaceChatMessage,
+		ListChatRoomMessages:      h.listChatRoomMessages,
+		SendChatRoomMessage:       h.sendChatRoomMessage,
+		ToggleChatMessageReaction: h.toggleChatMessageReaction,
+		SignalChatVoiceInvite:     h.signalChatVoiceInvite,
+		SignalChatVoiceAccept:     h.signalChatVoiceAccept,
+		SignalChatVoiceHangup:     h.signalChatVoiceHangup,
+		SignalChatTyping:          h.signalChatTyping,
 	})
 }

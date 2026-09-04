@@ -88,3 +88,8 @@ RETURNING *;
 -- name: DeleteWorkspaceMember :exec
 DELETE FROM workspace_members
 WHERE workspace_id = $1 AND user_id = $2;
+
+-- name: SetWorkspaceMatrixRoomID :one
+UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;
