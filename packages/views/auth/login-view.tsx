@@ -2,7 +2,7 @@
 import { Loader2 } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogin } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { SessionResponse } from "@uniwork/core/types";
@@ -69,7 +69,7 @@ export function LoginView({
       if (error.code === "invalid_credentials") return { owner: "pair", message: t("auth.invalidCredentials") };
       if (error.status === 429) return { owner: "form", message: t("auth.tooManyAttempts") };
       if (error.status >= 500) return { owner: "form", message: t("auth.serverError") };
-      return { owner: "form", message: t("common.error") };
+      return { owner: "form", message: apiErrorMessage(error) ?? t("common.error") };
     }
     // fetch rejects (rather than resolving with a status) only when the
     // request never got an answer: offline, DNS, a refused connection.

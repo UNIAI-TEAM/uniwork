@@ -8,6 +8,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@uniwork/ui/components/ui/field";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { EMAIL_RE, EmailChipsInput } from "./email-chips-input";
 import { InviteRow, type SentInvite } from "./invite-row";
 
@@ -40,7 +41,7 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
           setEmails([]);
           toast.success(t("workspace.inviteSent", { count: d.invitations.length }));
         },
-        onError: () => toast.error(t("common.error")),
+        onError: (err) => toastApiError(err, t("common.error")),
       },
     );
   };
@@ -51,7 +52,7 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
       { userId: m.user_id, role: next },
       {
         onSuccess: () => toast.success(t("workspace.roleUpdated")),
-        onError: () => toast.error(t("common.error")),
+        onError: (err) => toastApiError(err, t("common.error")),
       },
     );
   };
@@ -61,7 +62,7 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
     if (!window.confirm(t("workspace.removeConfirm", { name: m.display_name }))) return;
     removeMember.mutate(m.user_id, {
       onSuccess: () => toast.success(t("workspace.memberRemoved")),
-      onError: () => toast.error(t("common.error")),
+      onError: (err) => toastApiError(err, t("common.error")),
     });
   };
 

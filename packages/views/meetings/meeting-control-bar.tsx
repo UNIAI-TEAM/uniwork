@@ -7,6 +7,7 @@ import {
   Captions,
   Circle,
   Hand,
+  LayoutGrid,
   Mic,
   MicOff,
   MonitorUp,
@@ -19,6 +20,7 @@ import {
   VideoOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { useStartRecording, useStopRecording } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogTrigger } from "@uniwork/ui/components/ui/dialog";
@@ -28,64 +30,85 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MeetingAdjustViewDialog } from "./meeting-adjust-view-dialog";
 import { MeetingDevicesDialog } from "./meeting-devices-dialog";
 import { REACTIONS } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
-/** Caption under the control on wider screens; icon only on phones. */
-const CONTROL_SLOT = "flex w-11 flex-col items-center gap-1 sm:w-14";
-const CONTROL_CAPTION = "hidden text-caption text-muted-foreground sm:block";
+/** Filled destructive — overrides outline/destructive variant tints on the bar. */
+const SOLID_DESTRUCTIVE =
+  "border-destructive !bg-destructive text-brand-foreground hover:!bg-destructive/90 focus-visible:border-destructive focus-visible:ring-destructive/30";
 
-/**
- * Toggle-button pattern: the accessible name is the fixed `caption`
- * ("Mic", "Camera"), `aria-pressed` carries on/off; icon and tone echo it.
- */
-function LabeledControl({
-  caption,
+/** Idle icon chip — secondary fill in dark clears 3:1 on the muted bar. */
+const MEETING_CONTROL_ICON =
+  "size-11 shrink-0 rounded-xl border-input bg-background text-foreground hover:bg-muted hover:text-foreground dark:bg-secondary dark:hover:bg-surface-hover";
+
+const MEETING_CONTROL_BAR =
+  "pointer-events-auto flex items-center gap-2 rounded-2xl border border-surface-border bg-surface p-2 shadow-[var(--floating-shadow)] dark:border-input dark:bg-muted sm:p-2.5";
+
+function IconControl({
+  label,
   pressed,
   tone,
   onClick,
   disabled,
   children,
+  accent,
 }: {
-  caption: string;
+  label: string;
   pressed?: boolean;
-  tone?: "off" | "active";
+  tone?: "off" | "active" | "copilot";
   onClick?: MouseEventHandler<HTMLButtonElement>;
   disabled?: boolean;
   children: ReactNode;
+  accent?: boolean;
 }) {
   return (
-    <div className={CONTROL_SLOT}>
-      <Button
-        type="button"
-        size="icon-lg"
-        variant={
-          tone === "off"
-            ? "destructive"
-            : tone === "active"
-              ? "brandSubtle"
-              : pressed
-                ? "secondary"
-                : "outline"
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            size="icon-lg"
+            variant={
+              tone === "off"
+                ? "outline"
+                : tone === "active"
+                  ? "brand"
+                  : tone === "copilot"
+                    ? "default"
+                    : pressed
+                      ? "secondary"
+                      : "outline"
+            }
+            aria-label={label}
+            aria-pressed={pressed}
+            disabled={disabled}
+            onClick={onClick}
+            className={cn(
+              "size-11 shrink-0 rounded-xl",
+              tone === "off" && SOLID_DESTRUCTIVE,
+              !tone &&
+                "border-input bg-background text-foreground hover:bg-muted dark:bg-secondary dark:hover:bg-surface-hover",
+              accent && "bg-brand text-brand-foreground hover:bg-brand/90",
+            )}
+          />
         }
-        aria-label={caption}
-        aria-pressed={pressed}
-        disabled={disabled}
-        onClick={onClick}
-        className="rounded-full"
       >
         {children}
-      </Button>
-      <span aria-hidden className={CONTROL_CAPTION}>
-        {caption}
-      </span>
-    </div>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
-/** Row inside the phone "More" popover: same state, text label instead of a caption. */
 function MenuControl({
   caption,
   pressed,
@@ -114,33 +137,109 @@ function MenuControl({
   );
 }
 
-function DeviceSettingsControl() {
+function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const label = t("meetings.devices");
+
+  if (inMenu) {
+    return (
+      <MeetingDevicesDialog
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
+          <DialogTrigger
+            render={
+              <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-3" />
+            }
+          >
+            <Settings2 aria-hidden />
+            {label}
+          </DialogTrigger>
+        }
+      />
+    );
+  }
 
   return (
     <MeetingDevicesDialog
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <div className={CONTROL_SLOT}>
-          <DialogTrigger
+        <Tooltip>
+          <TooltipTrigger
             render={
-              <Button
-                type="button"
-                size="icon-lg"
-                variant="outline"
-                aria-label={t("meetings.devicesSettingsTitle")}
-                className="rounded-full"
+              <DialogTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-lg"
+                    variant="outline"
+                    aria-label={label}
+                    className={MEETING_CONTROL_ICON}
+                  />
+                }
               />
             }
           >
             <Settings2 aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent side="top">{label}</TooltipContent>
+        </Tooltip>
+      }
+    />
+  );
+}
+
+function AdjustViewControl({ inMenu = false }: { inMenu?: boolean }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const label = t("meetings.adjustView");
+
+  if (inMenu) {
+    return (
+      <MeetingAdjustViewDialog
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
+          <DialogTrigger
+            render={
+              <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-3" />
+            }
+          >
+            <LayoutGrid aria-hidden />
+            {label}
           </DialogTrigger>
-          <span aria-hidden className={CONTROL_CAPTION}>
-            {t("meetings.devices")}
-          </span>
-        </div>
+        }
+      />
+    );
+  }
+
+  return (
+    <MeetingAdjustViewDialog
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DialogTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-lg"
+                    variant="outline"
+                    aria-label={label}
+                    className={MEETING_CONTROL_ICON}
+                  />
+                }
+              />
+            }
+          >
+            <LayoutGrid aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent side="top">{label}</TooltipContent>
+        </Tooltip>
       }
     />
   );
@@ -150,40 +249,33 @@ function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
   const { t } = useTranslation();
   const { react } = useMeetingSignals();
   const [open, setOpen] = useState(false);
+  const label = t("meetings.react");
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {inMenu ? (
         <PopoverTrigger
           render={
+            <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-3" />
+          }
+        >
+          <SmilePlus aria-hidden />
+          {label}
+        </PopoverTrigger>
+      ) : (
+        <PopoverTrigger
+          render={
             <Button
               type="button"
-              variant="ghost"
-              className="h-11 w-full justify-start gap-3"
+              size="icon-lg"
+              variant="outline"
+              aria-label={label}
+              className={MEETING_CONTROL_ICON}
             />
           }
         >
           <SmilePlus aria-hidden />
-          {t("meetings.react")}
         </PopoverTrigger>
-      ) : (
-        <div className={CONTROL_SLOT}>
-          <PopoverTrigger
-            render={
-              <Button
-                type="button"
-                size="icon-lg"
-                variant="outline"
-                aria-label={t("meetings.react")}
-                className="rounded-full"
-              />
-            }
-          >
-            <SmilePlus aria-hidden />
-          </PopoverTrigger>
-          <span aria-hidden className={CONTROL_CAPTION}>
-            {t("meetings.react")}
-          </span>
-        </div>
       )}
       <PopoverContent side="top" className="flex w-auto gap-1 p-1.5">
         {REACTIONS.map((r) => (
@@ -215,6 +307,7 @@ export function MeetingControlBar({
   captionsOn = false,
   captionsAvailable = false,
   onToggleCaptions,
+  floating = false,
 }: {
   className?: string;
   onLeave: () => void;
@@ -225,6 +318,7 @@ export function MeetingControlBar({
   captionsOn?: boolean;
   captionsAvailable?: boolean;
   onToggleCaptions?: () => void;
+  floating?: boolean;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
@@ -238,34 +332,31 @@ export function MeetingControlBar({
   const recPending = startRec.isPending || stopRec.isPending;
   const showCaptions = captionsAvailable && Boolean(onToggleCaptions);
   const showRecord = canHost && recordingEnabled && Boolean(meetingId);
-  // Phones fit six 44px controls plus Leave; reactions, captions and recording move behind "More".
   const secondaryInMenu = mobile;
 
   const captionsControl = (inMenu: boolean) =>
     showCaptions ? (
       inMenu ? (
-        <MenuControl
-          caption={t("meetings.captions")}
-          pressed={captionsOn}
-          onClick={onToggleCaptions}
-        >
+        <MenuControl caption={t("meetings.captions")} pressed={captionsOn} onClick={onToggleCaptions}>
           <Captions aria-hidden />
         </MenuControl>
       ) : (
-        <LabeledControl
-          caption={t("meetings.captions")}
+        <IconControl
+          label={t("meetings.captions")}
           pressed={captionsOn}
           tone={captionsOn ? "active" : undefined}
           onClick={onToggleCaptions}
         >
           <Captions aria-hidden />
-        </LabeledControl>
+        </IconControl>
       )
     ) : null;
+
   const toggleRecording = () => {
     const m = recording ? stopRec : startRec;
-    m.mutate(undefined, { onError: () => toast.error(t("common.error")) });
+    m.mutate(undefined, { onError: (err) => toastApiError(err, t("common.error")) });
   };
+
   const recordControl = (inMenu: boolean) =>
     showRecord ? (
       inMenu ? (
@@ -278,116 +369,138 @@ export function MeetingControlBar({
           {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
         </MenuControl>
       ) : (
-        <LabeledControl
-          caption={t("meetings.record")}
+        <IconControl
+          label={t("meetings.record")}
           pressed={recording}
           tone={recording ? "off" : undefined}
           disabled={recPending}
           onClick={toggleRecording}
         >
           {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
-        </LabeledControl>
+        </IconControl>
       )
     ) : null;
 
   return (
     <footer
       className={cn(
-        "shrink-0 bg-app-shell px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-4",
+        floating
+          ? "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4"
+          : "shrink-0 bg-app-shell px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-4",
         className,
       )}
     >
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div />
-        <div className="flex min-w-0 items-end justify-center gap-1 sm:gap-2">
-          <LabeledControl
-            caption={t("meetings.mic")}
-            pressed={mic.enabled}
-            tone={mic.enabled ? undefined : "off"}
-            disabled={mic.pending}
-            onClick={() => {
-              void mic.toggle();
-            }}
-          >
-            {mic.enabled ? <Mic aria-hidden /> : <MicOff aria-hidden />}
-          </LabeledControl>
-          <LabeledControl
-            caption={t("meetings.camera")}
-            pressed={camera.enabled}
-            disabled={camera.pending}
-            onClick={() => {
-              void camera.toggle();
-            }}
-          >
-            {camera.enabled ? <Video aria-hidden /> : <VideoOff aria-hidden />}
-          </LabeledControl>
-          <DeviceSettingsControl />
-          <LabeledControl
-            caption={t("meetings.share")}
-            pressed={screen.enabled}
-            tone={screen.enabled ? "active" : undefined}
-            disabled={screen.pending}
-            onClick={() => {
-              void screen.toggle();
-            }}
-          >
-            <MonitorUp aria-hidden />
-          </LabeledControl>
-          <LabeledControl
-            caption={t("meetings.hand")}
-            pressed={handRaised}
-            tone={handRaised ? "active" : undefined}
-            onClick={toggleHand}
-          >
-            <Hand aria-hidden />
-          </LabeledControl>
-          {secondaryInMenu ? (
-            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-              <div className={CONTROL_SLOT}>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon-lg"
-                      variant="outline"
-                      aria-label={t("meetings.more")}
-                      className="rounded-full"
-                    />
-                  }
-                >
-                  <MoreHorizontal aria-hidden />
-                </PopoverTrigger>
-              </div>
-              <PopoverContent
-                side="top"
-                className="flex w-56 flex-col gap-0.5 p-1.5"
-              >
-                <ReactionsControl inMenu />
-                {captionsControl(true)}
-                {recordControl(true)}
-              </PopoverContent>
-            </Popover>
-          ) : (
-            <>
-              <ReactionsControl />
-              {captionsControl(false)}
-              {recordControl(false)}
-            </>
+      <TooltipProvider delay={300}>
+        <div
+          className={cn(
+            MEETING_CONTROL_BAR,
+            floating ? "max-w-3xl" : "w-full max-w-none border-0 bg-transparent p-0 shadow-none dark:border-0 dark:bg-transparent",
           )}
+        >
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
+            <IconControl
+              label={t("meetings.mic")}
+              pressed={mic.enabled}
+              tone={mic.enabled ? "active" : "off"}
+              disabled={mic.pending}
+              onClick={() => {
+                void mic.toggle();
+              }}
+            >
+              {mic.enabled ? <Mic aria-hidden /> : <MicOff aria-hidden />}
+            </IconControl>
+            <IconControl
+              label={t("meetings.camera")}
+              pressed={camera.enabled}
+              tone={camera.enabled ? "active" : "off"}
+              disabled={camera.pending}
+              onClick={() => {
+                void camera.toggle();
+              }}
+            >
+              {camera.enabled ? <Video aria-hidden /> : <VideoOff aria-hidden />}
+            </IconControl>
+            {!secondaryInMenu ? <DeviceSettingsControl /> : null}
+            <IconControl
+              label={t("meetings.share")}
+              pressed={screen.enabled}
+              tone={screen.enabled ? "active" : undefined}
+              disabled={screen.pending}
+              onClick={() => {
+                void screen.toggle();
+              }}
+            >
+              <MonitorUp aria-hidden />
+            </IconControl>
+            <IconControl
+              label={t("meetings.hand")}
+              pressed={handRaised}
+              tone={handRaised ? "active" : undefined}
+              onClick={toggleHand}
+            >
+              <Hand aria-hidden />
+            </IconControl>
+            {secondaryInMenu ? (
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            type="button"
+                            size="icon-lg"
+                            variant="outline"
+                            aria-label={t("meetings.more")}
+                            className={MEETING_CONTROL_ICON}
+                          />
+                        }
+                      />
+                    }
+                  >
+                    <MoreHorizontal aria-hidden />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
+                </Tooltip>
+                <PopoverContent side="top" className="flex w-56 flex-col gap-0.5 p-1.5">
+                  <DeviceSettingsControl inMenu />
+                  <ReactionsControl inMenu />
+                  <AdjustViewControl inMenu />
+                  {captionsControl(true)}
+                  {recordControl(true)}
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <>
+                <ReactionsControl />
+                <AdjustViewControl />
+                {captionsControl(false)}
+                {recordControl(false)}
+              </>
+            )}
+          </div>
+
+          <span aria-hidden className="h-8 w-px shrink-0 bg-border dark:bg-input" />
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-lg"
+                  onClick={onLeave}
+                  aria-label={t("meetings.leave")}
+                  className={cn(MEETING_CONTROL_ICON, SOLID_DESTRUCTIVE)}
+                />
+              }
+            >
+              <PhoneOff aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent side="top">{t("meetings.leave")}</TooltipContent>
+          </Tooltip>
         </div>
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={onLeave}
-            className="size-11 shrink-0 rounded-xl px-0 sm:w-auto sm:px-4"
-            aria-label={t("meetings.leave")}
-          >
-            <PhoneOff aria-hidden />
-            <span className="hidden sm:inline">{t("meetings.leave")}</span>
-          </Button>
-        </div>
-      </div>
+      </TooltipProvider>
     </footer>
   );
 }

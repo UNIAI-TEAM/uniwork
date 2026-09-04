@@ -2,7 +2,7 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogout, useResendVerification, useSession, useVerifyEmail } from "@uniwork/core/auth";
 import type { User } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -36,11 +36,11 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
   const errorMsg = invalidCode
     ? t("auth.verify.invalidCode")
     : verify.error
-      ? t("common.error")
+      ? (apiErrorMessage(verify.error) ?? t("common.error"))
       : tooSoon
         ? t("auth.verify.resendTooSoon")
         : resend.error
-          ? t("common.error")
+          ? (apiErrorMessage(resend.error) ?? t("common.error"))
           : null;
 
   const onChange = (value: string) => {

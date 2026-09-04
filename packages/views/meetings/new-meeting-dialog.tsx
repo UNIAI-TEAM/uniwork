@@ -22,6 +22,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { combineLocalIso, defaultScheduleDraft } from "./meeting-datetime";
 import { MemberMultiPicker } from "./member-multi-picker";
 import {
@@ -102,7 +103,7 @@ export function NewMeetingDialog({
                   toast.success(t("meetings.created"));
                   onCreated?.(m.id);
                 },
-                onError: () => toast.error(t("common.error")),
+                onError: (err) => toastApiError(err, t("common.error")),
               },
             );
           }}

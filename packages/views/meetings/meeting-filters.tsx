@@ -37,16 +37,20 @@ export function MeetingFilters({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
       <Input
         type="search"
         value={query}
         onChange={(e) => onQuery(e.target.value)}
         placeholder={t("meetings.searchPlaceholder")}
-        className="min-w-0 w-full"
+        className="min-w-0 w-full lg:max-w-sm"
         aria-label={t("meetings.searchPlaceholder")}
       />
-      <div role="group" aria-label={t("meetings.status")} className="flex flex-wrap gap-1">
+      <div
+        role="group"
+        aria-label={t("meetings.status")}
+        className="flex flex-wrap gap-1"
+      >
         {FILTERS.map((value) => {
           const active = status === value;
           const label = value ? t(`meetings.status_${value}`) : t("meetings.filterAll");
@@ -58,12 +62,23 @@ export function MeetingFilters({
               aria-pressed={active}
               onClick={() => onStatus(value)}
               className={cn(
-                "flex h-11 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-label transition-colors duration-100 sm:h-8",
-                active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                "flex h-11 cursor-pointer items-center gap-1.5 rounded-full px-3 text-label transition-colors duration-100 sm:h-8",
+                active
+                  ? "bg-foreground text-background"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               {label}
-              {count ? <span className="font-mono text-caption tabular-nums text-faint-foreground">{count}</span> : null}
+              {count ? (
+                <span
+                  className={cn(
+                    "font-mono text-caption tabular-nums",
+                    active ? "text-background/70" : "text-faint-foreground",
+                  )}
+                >
+                  {count}
+                </span>
+              ) : null}
             </button>
           );
         })}

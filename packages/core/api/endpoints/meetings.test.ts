@@ -188,6 +188,10 @@ describe("meetings D08b endpoints", () => {
     const summary = { id: "x", meeting_id: "m1", summary: "S", decisions: ["D"], action_items: [{ title: "T" }] };
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary }));
     expect((await getMeetingSummary("m1"))?.decisions).toEqual(["D"]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: null }));
+    expect(await getMeetingSummary("m1")).toBeNull();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "not found" } }, 404));
+    expect(await getMeetingSummary("m1")).toBeNull();
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { id: "x" } }));
     expect(await getMeetingSummary("m1")).toBeNull();
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary }));

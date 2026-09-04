@@ -8,9 +8,10 @@ import {
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
-import { Hand, MicOff, User, Volume2 } from "lucide-react";
+import { Hand, MicOff, Pin, PinOff, User, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useMeetingSignals } from "./use-meeting-signals";
@@ -59,6 +60,9 @@ export function MeetingParticipantTile({
   const { t } = useTranslation();
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
+  const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
+  const pinParticipant = useMeetingViewSessionStore((s) => s.pinParticipant);
+  const pinned = pinnedIdentity === participant.identity;
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
   const { hands, reactions } = useMeetingSignals();
@@ -66,6 +70,8 @@ export function MeetingParticipantTile({
   const reaction = reactions.filter((r) => r.identity === participant.identity).at(-1);
   const name = displayName(participant);
   const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
+  const isScreenShare =
+    track && isTrackReference(track) && track.source === Track.Source.ScreenShare;
   const showVideo = !compact && hasPlayableVideo(track);
   const isLocalCamera =
     participant.isLocal && track && isTrackReference(track) && track.source === Track.Source.Camera;
@@ -74,13 +80,35 @@ export function MeetingParticipantTile({
   return (
     <div
       className={cn(
-        "dark relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-rail",
-        compact ? "aspect-[4/3] rounded-xl ring-1 ring-border" : "h-full rounded-2xl ring-1 ring-border",
-        speaking && "ring-2 ring-success",
-        handRaised && "ring-2 ring-warning",
+        "group/tile relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted",
+        compact ? "aspect-[4/3] rounded-xl ring-1 ring-surface-border" : "h-full rounded-2xl ring-1 ring-surface-border",
+        pinned && "ring-2 ring-brand",
+        speaking && !pinned && "ring-2 ring-success",
+        handRaised && !pinned && "ring-2 ring-warning",
       )}
       data-hand-raised={handRaised || undefined}
+      data-pinned={pinned || undefined}
     >
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        aria-label={pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
+        className={cn(
+          "absolute z-10 rounded-full bg-background/80 ring-1 ring-border transition-opacity",
+          compact ? "top-1.5 left-1.5 size-6" : "top-2 left-2 size-7 sm:top-3 sm:left-3",
+          pinned
+            ? "opacity-100"
+            : "opacity-0 group-hover/tile:opacity-100 focus-visible:opacity-100",
+        )}
+        onClick={() => pinParticipant(pinned ? null : participant.identity)}
+      >
+        {pinned ? (
+          <PinOff aria-hidden className={compact ? "size-3" : "size-3.5"} />
+        ) : (
+          <Pin aria-hidden className={compact ? "size-3" : "size-3.5"} />
+        )}
+      </Button>
       {handRaised ? (
         <span
           aria-label={t("meetings.handRaised")}
@@ -105,7 +133,8 @@ export function MeetingParticipantTile({
         <VideoTrack
           trackRef={track}
           className={cn(
-            "absolute inset-0 size-full object-cover",
+            "absolute inset-0 size-full",
+            isScreenShare ? "object-contain bg-muted" : "object-cover",
             isLocalCamera && mirrorCamera && "scale-x-[-1]",
           )}
         />
@@ -113,7 +142,7 @@ export function MeetingParticipantTile({
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <span
             className={cn(
-              "flex items-center justify-center rounded-full bg-muted text-muted-foreground",
+              "flex items-center justify-center rounded-full bg-background text-foreground ring-1 ring-border",
               compact ? "size-10" : "size-16",
             )}
           >
@@ -125,7 +154,7 @@ export function MeetingParticipantTile({
         <span
           className={cn(
             "pointer-events-none absolute max-w-[calc(100%-2.5rem)] truncate rounded-full bg-background/80 px-2.5 py-0.5 text-caption text-foreground ring-1 ring-border",
-            compact ? "top-2 left-2" : "bottom-2 left-2 sm:bottom-3 sm:left-3",
+            compact ? "bottom-1.5 left-1.5" : "bottom-2 left-2 sm:bottom-3 sm:left-3",
           )}
         >
           {label}

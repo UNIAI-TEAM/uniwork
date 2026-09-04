@@ -2,6 +2,7 @@
 import { Loader2, MailCheck } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "@uniwork/core/api";
 import { useForgotPassword } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -29,7 +30,7 @@ export function ForgotPasswordView() {
     return () => clearInterval(id);
   }, [cooldown]);
 
-  const errorMsg = forgot.error ? t("common.error") : null;
+  const errorMsg = forgot.error ? (apiErrorMessage(forgot.error) ?? t("common.error")) : null;
 
   const send = (onSent: () => void) => {
     if (forgot.isPending) return;

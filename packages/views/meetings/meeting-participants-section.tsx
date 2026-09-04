@@ -1,15 +1,17 @@
 "use client";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useInviteParticipant, useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
+import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
+import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import type { Meeting } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Select } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { MeetingPanelCard } from "./meeting-panel-card";
 import { MeetingRsvpBadge } from "./meeting-status-badge";
+import { MemberMultiPicker } from "./member-multi-picker";
 import { TransferHostDialog } from "./transfer-host-dialog";
 
 export function MeetingParticipantsSection({
@@ -28,14 +30,17 @@ export function MeetingParticipantsSection({
   const { t } = useTranslation();
   const { data: participants } = useParticipants(meeting.id);
   const { data: members } = useMembers(workspaceId);
-  const invite = useInviteParticipant(meeting.id);
   const remove = useRemoveParticipant(meeting.id);
-  const [userId, setUserId] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [inviting, setInviting] = useState(false);
   const rsvpByParticipant = new Map(invitations.map((i) => [i.participant_id, i.response_status]));
   const active = (participants ?? []).filter((p) => p.status === "ACTIVE");
-  const candidates = (members ?? []).filter(
-    (m) => !active.some((p) => p.user_id === m.user_id) && m.user_id !== meeting.host_user_id,
-  );
+  const excludeUserIds = [
+    ...new Set(
+      [meeting.host_user_id, ...active.map((p) => p.user_id)].filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const hasCandidates = (members ?? []).some((m) => !excludeUserIds.includes(m.user_id));
 
   return (
     <MeetingPanelCard id="participants-heading" title={t("meetings.participants")}>
@@ -59,7 +64,7 @@ export function MeetingParticipantsSection({
                     size="sm"
                     disabled={remove.isPending}
                     onClick={() =>
-                      remove.mutate(p.id, { onError: () => toast.error(t("common.error")) })
+                      remove.mutate(p.id, { onError: (err) => toastApiError(err, t("common.error")) })
                     }
                   >
                     {t("meetings.remove")}
@@ -70,29 +75,34 @@ export function MeetingParticipantsSection({
           );
         })}
       </ul>
-      {canManage && candidates.length > 0 ? (
+      {canManage && hasCandidates ? (
         <form
-          className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center"
+          className="mt-3 flex min-w-0 flex-col gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!userId) return;
-            invite.mutate(userId, {
-              onSuccess: () => setUserId(""),
-              onError: () => toast.error(t("common.error")),
-            });
+            if (selected.length === 0) return;
+            setInviting(true);
+            void Promise.allSettled(selected.map((userId) => inviteParticipant(meeting.id, userId)))
+              .then((results) => {
+                const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+                if (failed) {
+                  toastApiError(failed.reason, t("common.error"));
+                  return;
+                }
+                toast.success(t("meetings.invitedMembers", { count: selected.length }));
+                setSelected([]);
+              })
+              .finally(() => setInviting(false));
           }}
         >
-          <div className="min-w-0 flex-1">
-            <Select
-              value={userId}
-              onValueChange={(v) => setUserId(v ?? "")}
-              items={[
-                { value: "", label: t("meetings.inviteMember") },
-                ...candidates.map((m) => ({ value: m.user_id, label: m.display_name })),
-              ]}
-            />
-          </div>
-          <Button type="submit" size="sm" className="shrink-0" disabled={invite.isPending || !userId}>
+          <MemberMultiPicker
+            workspaceId={workspaceId}
+            value={selected}
+            onChange={setSelected}
+            excludeUserIds={excludeUserIds}
+            searchable
+          />
+          <Button type="submit" size="sm" className="self-start" disabled={inviting || selected.length === 0}>
             {t("meetings.inviteMember")}
           </Button>
         </form>
