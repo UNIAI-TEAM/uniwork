@@ -155,12 +155,6 @@ not paths yet.
   query filters by it; membership still only via `RequireMember`. Guard lands
   with F-08/F-02: migration lint for the column, a query-scope scanner over
   `server/pkg/db/queries/`, a two-organization isolation matrix test.
-- ADR 0009 — a command that changes business state writes `audit_events` and
-  `outbox_events` in the same transaction; services never publish realtime
-  directly except ephemeral signals. Guard lands with F-08: arch test that
-  `server/internal/service/` does not import the realtime publisher, an
-  events-contract test listing every command, a SQL test that UPDATE/DELETE
-  on `audit_events` is refused.
 - ADR 0010 — `server/internal/ai/` and the agent runtime never write business
   tables; agent writes go proposal → human confirm → execute; `accepted` is
   human-only. Guard lands with F-09/F-10: arch test on imports from `server/internal/ai/`,
@@ -184,6 +178,36 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   `WorkspaceService.RequireMember`, where organization owners/admins are
   implicit workspace admins. `server/internal/arch_test.go` fails if any
   other file calls the membership queries.
+- `audit_events` is append-only. `REVOKE UPDATE, DELETE, TRUNCATE` plus a
+  trigger that raises on both, so the rule holds even where the app owns the
+  schema (ADR 0012). Retention never deletes; a wrong row is answered with
+  another row. `TestAuditEventsAreAppendOnly` proves it.
+
+## Audit and Events
+
+Every command that changes business state writes an `audit_events` row and its
+`outbox_events` rows in the same transaction as the change (ADR 0009, ADR 0012).
+
+- Only `server/internal/audit` writes those two tables. Services call
+  `audit.Recorder.Record(ctx, q, Entry, emit…)` with the `q` bound to their own
+  transaction; `Recorder.Emit` is the narrow path for infrastructure topics
+  (`provider.*`) that have no business command behind them.
+  `server/internal/arch_test.go` fails on a direct insert from anywhere else.
+- `server/internal/service/audit_coverage_test.go` lists every command that must
+  audit and fails in both directions — a missing command, and an action nobody
+  calls. Add the command and its row there together.
+- Domain events reach clients through the outbox, never `EventPublisher.Publish`.
+  Direct publish is only for ephemeral signals, and the bar is one sentence:
+  losing it costs nobody anything (typing, voice signalling, a transcript line
+  the next one supersedes). `docs/events/CATALOGUE.md` marks each one.
+- Event names are `<entity>.<verb>`; the version is the `event_version` column,
+  never part of the name; payloads carry ids only. The catalogue exists three
+  times — that file, `server/internal/outbox/catalogue.go`,
+  `packages/core/types/events.ts` — and `scripts/events-catalogue.test.mjs`
+  fails when they disagree.
+- Every request carries a `correlation_id` (`middleware.Correlation`), and it
+  reaches the audit row, the events and the access log. `docs/ops/RUNBOOK_OUTBOX.md`
+  is the runbook.
 
 ## Coding Rules
 

@@ -58,7 +58,32 @@ describe("useRealtimeSync", () => {
     );
   });
 
-  it("refreshes comments on comment.created", () => {
+  it("refreshes the task's activity list on task.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task.updated", payload: { task_id: "t1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    // The Activity tab reads the audit log's slice of this task, so the event
+    // that changed the task made its history stale too.
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["audit", "history", "ws1", "task", "t1"]));
+  });
+
+  it("refreshes comments on task.comment_added", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task.comment_added", payload: { task_id: "t1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["comments", "t1"]));
+  });
+
+  // comment.created was renamed to task.comment_added with the catalogue. The
+  // old name is accepted for one release so a client that reconnects mid-deploy
+  // still refreshes.
+  it("still honours the old comment.created name", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "comment.created", payload: { task_id: "t1" } });

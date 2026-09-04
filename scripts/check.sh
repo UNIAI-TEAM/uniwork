@@ -83,7 +83,7 @@ pnpm knip || { EXIT_CODE=1; exit 1; }
 
 echo ""; echo "==> [3/6] TypeScript unit tests + repo contract tests..."
 pnpm test || { EXIT_CODE=1; exit 1; }
-node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/brand-assets.test.mjs || { EXIT_CODE=1; exit 1; }
+node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/brand-assets.test.mjs scripts/events-catalogue.test.mjs || { EXIT_CODE=1; exit 1; }
 
 echo ""; echo "==> [4/6] Go tests..."
 (cd server && go run ./cmd/migrate up) || { EXIT_CODE=1; exit 1; }

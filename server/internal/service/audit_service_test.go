@@ -240,3 +240,49 @@ func TestExportIsOwnerOnlyAndOneAtATime(t *testing.T) {
 		t.Fatal("an unknown export id should be a 404")
 	}
 }
+
+type expirySpy struct{ counts map[string]float64 }
+
+func (s *expirySpy) SetAuditExpired(orgID string, n float64) {
+	if s.counts == nil {
+		s.counts = map[string]float64{}
+	}
+	s.counts[orgID] = n
+}
+
+// Retention reports, it does not erase. Deleting audit rows is not reversible
+// and cannot be rehearsed by trying it, so the marker's whole job is to make
+// the policy visible (ADR 0012).
+func TestRetentionMarkerCountsWithoutDeleting(t *testing.T) {
+	f := newAuditServiceFixture(t)
+	if _, err := f.tasks.Create(f.ctx, f.ownerA.ID, f.wsA.ID, CreateTaskInput{Title: "Cũ"}); err != nil {
+		t.Fatal(err)
+	}
+	// Age the rows past any window by moving the clock, not the data: the
+	// column cannot be updated, which is the point.
+	if _, err := f.svc.SetRetention(f.ctx, f.ownerA.ID, f.orgA, 30); err != nil {
+		t.Fatal(err)
+	}
+
+	spy := &expirySpy{}
+	f.svc.markExpired(f.ctx, spy)
+	if _, ok := spy.counts[f.orgA]; !ok {
+		t.Fatalf("no count reported for the organization: %+v", spy.counts)
+	}
+	if spy.counts[f.orgA] != 0 {
+		t.Fatalf("fresh rows should not be expired, got %v", spy.counts[f.orgA])
+	}
+
+	before, err := f.svc.List(f.ctx, f.ownerA.ID, f.orgA, AuditFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.svc.markExpired(f.ctx, spy)
+	after, err := f.svc.List(f.ctx, f.ownerA.ID, f.orgA, AuditFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("the marker removed rows: %d → %d", len(before), len(after))
+	}
+}

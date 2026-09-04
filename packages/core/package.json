@@ -19,6 +19,7 @@
     "./workspaces": "./workspaces/hooks.ts",
     "./tasks": "./tasks/hooks.ts",
     "./tasks/position": "./tasks/position.ts",
+    "./audit": "./audit/hooks.ts",
     "./meetings": "./meetings/hooks.ts",
     "./chat": "./chat/hooks.ts",
     "./chat/contacts-store": "./chat/contacts-store.ts",

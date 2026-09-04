@@ -95,6 +95,7 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 		Workspaces:    ws,
 		Onboarding:    service.NewOnboardingService(q, ws, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
 		Tasks:         service.NewTaskService(pool, q, ws),
+		Audit:         service.NewAuditService(pool, q, orgs, ws),
 		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.

@@ -184,7 +184,8 @@
         "general": "Chung",
         "workspace": "Chung",
         "members": "Thành viên",
-        "integrations": "Tích hợp"
+        "integrations": "Tích hợp",
+        "audit": "Bảo mật & Nhật ký"
       }
     },
     "save": {
@@ -221,6 +222,93 @@
     "integrations": {
       "emptyTitle": "Chưa có tích hợp",
       "emptyDescription": "Kết nối công cụ bên ngoài sẽ có ở đây khi UniWork sẵn sàng."
+    },
+    "audit": {
+      "title": "Bảo mật & Nhật ký",
+      "description": "Nhật ký bất biến của tổ chức: ai làm gì, lúc nào, từ đâu. Bản ghi không sửa và không xóa được.",
+      "empty_title": "Chưa có bản ghi nào khớp",
+      "empty_description": "Nới bộ lọc hoặc chọn khoảng thời gian rộng hơn. Mọi thao tác đổi dữ liệu đều được ghi lại từ lúc tính năng này bật.",
+      "error_title": "Không tải được nhật ký",
+      "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, gửi mã tương quan của lần thử gần nhất cho quản trị hệ thống.",
+      "forbidden_title": "Bạn không xem được nhật ký này",
+      "forbidden_description": "Chỉ chủ sở hữu và quản trị viên của tổ chức mới đọc được nhật ký.",
+      "retry": "Thử lại",
+      "load_more": "Tải thêm",
+      "filters": {
+        "legend": "Lọc nhật ký",
+        "action": "Hành động",
+        "action_placeholder": "task.updated",
+        "actor": "Người thực hiện",
+        "actor_placeholder": "ULID người dùng",
+        "resource_type": "Loại tài nguyên",
+        "resource_type_placeholder": "task",
+        "from": "Từ ngày",
+        "to": "Đến ngày",
+        "apply": "Áp dụng",
+        "clear": "Xóa lọc"
+      },
+      "table": {
+        "time": "Thời điểm",
+        "actor": "Người thực hiện",
+        "action": "Hành động",
+        "resource": "Tài nguyên",
+        "changes": "Thay đổi",
+        "no_changes": "Không có trường nào đổi",
+        "row_label": "Xem chi tiết bản ghi"
+      },
+      "actor_kind": {
+        "human": "Người",
+        "agent": "Agent",
+        "system": "Hệ thống",
+        "unknown": "Không rõ"
+      },
+      "detail": {
+        "title": "Chi tiết bản ghi",
+        "close": "Đóng",
+        "correlation": "Mã tương quan",
+        "correlation_hint": "Dùng mã này để tra toàn bộ chuỗi thao tác trong log hệ thống.",
+        "ip": "Địa chỉ IP",
+        "ip_owner_only": "Chỉ chủ sở hữu tổ chức nhìn thấy",
+        "user_agent": "Trình duyệt",
+        "workspace": "Workspace",
+        "metadata": "Ngữ cảnh",
+        "from": "Trước",
+        "to": "Sau",
+        "empty": "Không có"
+      },
+      "retention": {
+        "title": "Thời gian lưu",
+        "description": "Số ngày tổ chức giữ nhật ký. Từ 30 đến 730 ngày. Chỉ chủ sở hữu tổ chức đổi được.",
+        "label": "Số ngày",
+        "save": "Lưu",
+        "saved": "Đã lưu thời gian lưu nhật ký",
+        "owner_only": "Chỉ chủ sở hữu tổ chức đổi được thiết lập này."
+      },
+      "export": {
+        "title": "Xuất nhật ký",
+        "description": "Tạo tệp CSV hoặc JSON Lines theo khoảng thời gian. Mỗi lúc chỉ chạy được một bản xuất; link tải hết hạn sau 24 giờ.",
+        "format": "Định dạng",
+        "from": "Từ ngày",
+        "to": "Đến ngày",
+        "submit": "Tạo bản xuất",
+        "empty": "Chưa có bản xuất nào.",
+        "download": "Tải về",
+        "owner_only": "Chỉ chủ sở hữu tổ chức xuất được nhật ký.",
+        "rows_one": "{{count}} dòng",
+        "rows_other": "{{count}} dòng",
+        "status": {
+          "pending": "Đang chờ",
+          "running": "Đang chạy",
+          "done": "Xong",
+          "failed": "Lỗi",
+          "unknown": "Không rõ"
+        }
+      },
+      "activity": {
+        "title": "Hoạt động",
+        "empty": "Chưa có hoạt động nào được ghi lại.",
+        "error": "Không tải được hoạt động."
+      }
     }
   },
   "tasks": {
@@ -329,7 +417,7 @@
     "showActivity": "Xem lịch sử ({{count}})",
     "hideActivity": "Ẩn lịch sử",
     "showAllActivity": "Xem tất cả {{count}} mục",
-    "notesEmpty": "Chưa có biên bản.",
+    "notesEmpty": "Chưa có ghi chú. Ghi lại quyết định hoặc việc cần làm.",
     "notesPlaceholder": "Ghi chú trong cuộc họp…",
     "linkExpiryDays": "{{count}} ngày",
     "instantTitle": "Tiêu đề nhanh",
@@ -504,7 +592,6 @@
     "noResultsHint": "Thử từ khoá khác hoặc bỏ bộ lọc.",
     "connecting": "Đang kết nối vào phòng…",
     "addNote": "Thêm ghi chú",
-    "notesEmpty": "Chưa có ghi chú. Ghi lại quyết định hoặc việc cần làm.",
     "publicInviteExpiredHint": "Hãy xin chủ trì gửi liên kết mới.",
     "created": "Đã tạo cuộc họp",
     "linkDays_one": "{{count}} ngày",

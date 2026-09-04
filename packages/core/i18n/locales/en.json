@@ -185,7 +185,8 @@
         "general": "General",
         "workspace": "General",
         "members": "Members",
-        "integrations": "Integrations"
+        "integrations": "Integrations",
+        "audit": "Security & audit"
       }
     },
     "save": {
@@ -222,6 +223,93 @@
     "integrations": {
       "emptyTitle": "No integrations yet",
       "emptyDescription": "External tool connections will appear here when UniWork is ready."
+    },
+    "audit": {
+      "title": "Security & audit",
+      "description": "Your organization's immutable log: who did what, when, and from where. Entries cannot be edited or deleted.",
+      "empty_title": "No entries match",
+      "empty_description": "Widen the filters or pick a longer date range. Every change to data has been recorded since this feature was switched on.",
+      "error_title": "The log could not be loaded",
+      "error_description": "Try again in a few minutes. If it keeps failing, send your system administrator the correlation id of the last attempt.",
+      "forbidden_title": "You cannot read this log",
+      "forbidden_description": "Only organization owners and admins can read the audit log.",
+      "retry": "Try again",
+      "load_more": "Load more",
+      "filters": {
+        "legend": "Filter the log",
+        "action": "Action",
+        "action_placeholder": "task.updated",
+        "actor": "Actor",
+        "actor_placeholder": "User ULID",
+        "resource_type": "Resource type",
+        "resource_type_placeholder": "task",
+        "from": "From",
+        "to": "To",
+        "apply": "Apply",
+        "clear": "Clear"
+      },
+      "table": {
+        "time": "When",
+        "actor": "Actor",
+        "action": "Action",
+        "resource": "Resource",
+        "changes": "Changes",
+        "no_changes": "No fields changed",
+        "row_label": "Open entry details"
+      },
+      "actor_kind": {
+        "human": "Person",
+        "agent": "Agent",
+        "system": "System",
+        "unknown": "Unknown"
+      },
+      "detail": {
+        "title": "Entry details",
+        "close": "Close",
+        "correlation": "Correlation id",
+        "correlation_hint": "Use this id to trace the whole chain of the action in the system logs.",
+        "ip": "IP address",
+        "ip_owner_only": "Visible to the organization owner only",
+        "user_agent": "Browser",
+        "workspace": "Workspace",
+        "metadata": "Context",
+        "from": "Before",
+        "to": "After",
+        "empty": "None"
+      },
+      "retention": {
+        "title": "Retention",
+        "description": "How many days the organization keeps its log. Between 30 and 730 days. Only the organization owner can change it.",
+        "label": "Days",
+        "save": "Save",
+        "saved": "Retention saved",
+        "owner_only": "Only the organization owner can change this setting."
+      },
+      "export": {
+        "title": "Export",
+        "description": "Produce a CSV or JSON Lines file for a date range. One export runs at a time; the download link expires after 24 hours.",
+        "format": "Format",
+        "from": "From",
+        "to": "To",
+        "submit": "Create export",
+        "empty": "No exports yet.",
+        "download": "Download",
+        "owner_only": "Only the organization owner can export the log.",
+        "rows_one": "{{count}} row",
+        "rows_other": "{{count}} rows",
+        "status": {
+          "pending": "Queued",
+          "running": "Running",
+          "done": "Done",
+          "failed": "Failed",
+          "unknown": "Unknown"
+        }
+      },
+      "activity": {
+        "title": "Activity",
+        "empty": "No activity has been recorded yet.",
+        "error": "Activity could not be loaded."
+      }
     }
   },
   "tasks": {
@@ -330,7 +418,7 @@
     "showActivity": "Show history ({{count}})",
     "hideActivity": "Hide history",
     "showAllActivity": "Show all {{count}} items",
-    "notesEmpty": "No notes yet.",
+    "notesEmpty": "No notes yet. Capture decisions or follow-ups here.",
     "notesPlaceholder": "Meeting notes…",
     "linkExpiryDays": "{{count}} days",
     "instantTitle": "Quick title",
@@ -505,7 +593,6 @@
     "noResultsHint": "Try another keyword or clear the filters.",
     "connecting": "Connecting to the room…",
     "addNote": "Add a note",
-    "notesEmpty": "No notes yet. Capture decisions or follow-ups here.",
     "publicInviteExpiredHint": "Ask the host for a new link.",
     "created": "Meeting created",
     "linkDays_one": "{{count}} day",

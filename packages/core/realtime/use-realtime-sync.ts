@@ -4,6 +4,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
+import { auditKeys } from "../audit/hooks";
 import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { taskKeys } from "../tasks/hooks";
@@ -31,11 +32,19 @@ function keysFor(
     case "task.updated":
     case "task.deleted": {
       push(taskKeys.list(wsId));
-      if (payload.task_id) push(taskKeys.detail(payload.task_id));
+      if (payload.task_id) {
+        push(taskKeys.detail(payload.task_id));
+        // The task's Activity list is the audit log's slice of this task, so
+        // the same event that changed the task also made its history stale.
+        push(auditKeys.history(wsId, "task", payload.task_id));
+      }
       break;
     }
-    case "comment.created": {
-      if (payload.task_id) push(taskKeys.comments(payload.task_id));
+    case "task.comment_added": {
+      if (payload.task_id) {
+        push(taskKeys.comments(payload.task_id));
+        push(auditKeys.history(wsId, "task", payload.task_id));
+      }
       break;
     }
     case "chat.message.created":
@@ -51,7 +60,9 @@ function keysFor(
     }
     case "chat.room.created":
     case "chat.room.updated":
-    case "chat.room.activity": {
+    case "chat.room.activity":
+    case "chat.room.member_added":
+    case "chat.room.member_removed": {
       push(chatKeys.rooms(wsId));
       push(chatKeys.room(wsId));
       break;
@@ -131,6 +142,16 @@ function keysFor(
   return keys;
 }
 
+/**
+ * `comment.created` was renamed to `task.comment_added` when the catalogue
+ * landed. The old name is accepted for one release so a client that reconnects
+ * to a server mid-deploy still refreshes its comments; drop this map once both
+ * sides are past that release.
+ */
+const RENAMED_EVENTS: Record<string, WSEventType> = {
+  "comment.created": "task.comment_added",
+};
+
 /** Keys that could have gone stale while the socket was down. */
 function allWorkspaceKeys(wsId: string) {
   return [
@@ -157,7 +178,8 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
-      for (const queryKey of keysFor(wsId, msg.type as WSEventType, payload, qc)) {
+      const type = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
+      for (const queryKey of keysFor(wsId, type, payload, qc)) {
         if (
           isMeetingDetailKey(queryKey) &&
           payload.meeting_id &&

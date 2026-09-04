@@ -4,6 +4,6 @@
  * directly. Add to this list only when there is a caller.
  */
 export type { Decision, DecisionReason, PermissionContext } from "./types";
-export { canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canHostMeeting, canInviteMembers, canUpdateWorkspaceSettings } from "./rules";
+export { canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
 export { useCurrentMember, useOrgMembership } from "./use-current-member";
-export { useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";
+export { useAuditPermissions, useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";

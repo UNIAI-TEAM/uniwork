@@ -11,10 +11,11 @@ import (
 // type covers both because they answer the same question in an incident: did
 // the command land, and did anyone hear about it.
 type Outbox struct {
-	Done      prometheus.Counter
-	Retry     prometheus.Counter
-	Dead      prometheus.Counter
-	AuditRows *prometheus.CounterVec
+	Done         prometheus.Counter
+	Retry        prometheus.Counter
+	Dead         prometheus.Counter
+	AuditRows    *prometheus.CounterVec
+	AuditExpired *prometheus.GaugeVec
 }
 
 func NewOutbox() *Outbox {
@@ -35,11 +36,15 @@ func NewOutbox() *Outbox {
 			Name: "uniwork_audit_events_total",
 			Help: "Audit rows written, by action.",
 		}, []string{"action"}),
+		AuditExpired: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "uniwork_audit_events_expired",
+			Help: "Audit rows past an organization's retention window. Nothing deletes them yet; the number is what makes the policy visible.",
+		}, []string{"organization"}),
 	}
 }
 
 func (o *Outbox) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{o.Done, o.Retry, o.Dead, o.AuditRows}
+	return []prometheus.Collector{o.Done, o.Retry, o.Dead, o.AuditRows, o.AuditExpired}
 }
 
 // IncOutboxDone, IncOutboxRetry and IncOutboxDeadLetter satisfy
@@ -52,6 +57,11 @@ func (o *Outbox) IncOutboxRetry() { o.Retry.Inc() }
 func (o *Outbox) IncOutboxDeadLetter() { o.Dead.Inc() }
 
 func (o *Outbox) IncAuditEvent(action string) { o.AuditRows.WithLabelValues(action).Inc() }
+
+// SetAuditExpired satisfies service.ExpiryCounter.
+func (o *Outbox) SetAuditExpired(organizationID string, count float64) {
+	o.AuditExpired.WithLabelValues(organizationID).Set(count)
+}
 
 // outboxLagDesc is a gauge read straight from the table rather than tracked in
 // memory: the number that matters is how old the oldest undelivered row is

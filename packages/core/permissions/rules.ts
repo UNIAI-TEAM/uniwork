@@ -98,6 +98,33 @@ export function canCreateWorkspaceInOrg(ctx: PermissionContext): Decision {
   return ALLOW;
 }
 
+// ---- Audit ------------------------------------------------------------------
+
+/**
+ * Read the organization-wide audit log.
+ * Backend: AuditService.RequireOrgAdmin — owner and admin only
+ * (server/internal/service/audit_service.go).
+ */
+export function canReadAuditLog(ctx: PermissionContext): Decision {
+  if (ctx.userId === null) return deny("not_authenticated", "Sign in to continue.");
+  if (ctx.orgRole === null) return deny("not_org_member", "You are not a member of this organization.");
+  if (isAdminLike(ctx.orgRole)) return ALLOW;
+  return deny("not_admin_role", "Only organization owners and admins can read the audit log.");
+}
+
+/**
+ * Change the retention window, or ask for an export.
+ * Backend: AuditService.SetRetention and RequestExport both require
+ * `m.Role != "owner"` → 403. Shortening retention destroys evidence later and
+ * an export takes the log out of the system; neither is an admin's to do.
+ */
+export function canManageAuditSettings(ctx: PermissionContext): Decision {
+  const gate = canReadAuditLog(ctx);
+  if (!gate.allowed) return gate;
+  if (ctx.orgRole === "owner") return ALLOW;
+  return deny("not_owner_role", "Only the organization owner can change retention or export the log.");
+}
+
 // ---- Tasks ------------------------------------------------------------------
 
 /**

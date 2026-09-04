@@ -8,7 +8,9 @@ import {
   canEditComment,
   canEditTask,
   canInviteMembers,
+  canManageAuditSettings,
   canManageMembers,
+  canReadAuditLog,
   canRemoveMember,
   canUpdateWorkspaceSettings,
 } from "./rules";
@@ -77,6 +79,24 @@ describe("canCreateWorkspaceInOrg — mirrors workspace.go:44", () => {
   });
   it("denies a non-member of the organization with not_org_member", () => {
     expect(canCreateWorkspaceInOrg(ctx({ orgRole: null, wsRole: "owner" })).reason).toBe("not_org_member");
+  });
+});
+
+describe("audit rules — mirror AuditService.RequireOrgAdmin and its owner checks", () => {
+  it("lets organization owners and admins read the log", () => {
+    expect(canReadAuditLog(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canReadAuditLog(ctx({ orgRole: "admin" })).allowed).toBe(true);
+  });
+  it("denies a plain organization member with not_admin_role", () => {
+    expect(canReadAuditLog(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
+  });
+  it("denies a workspace admin who is not in the organization", () => {
+    expect(canReadAuditLog(ctx({ orgRole: null, wsRole: "admin" })).reason).toBe("not_org_member");
+  });
+  it("reserves retention and export for the owner", () => {
+    expect(canManageAuditSettings(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canManageAuditSettings(ctx({ orgRole: "admin" })).reason).toBe("not_owner_role");
+    expect(canManageAuditSettings(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
   });
 });
 

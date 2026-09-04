@@ -18,6 +18,7 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { useWorkspace } from "../layout/workspace-context";
+import { TaskActivity } from "./task-activity";
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done", "cancelled"];
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -127,6 +128,11 @@ export function TaskDetailView({
               {t("common.save")}
             </Button>
           </form>
+
+          <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">
+            {t("settings.audit.activity.title")}
+          </h2>
+          <TaskActivity workspaceId={workspaceId} taskId={taskId} />
         </div>
 
         <aside className="shrink-0 space-y-4 border-t border-border p-4 md:w-64 md:border-l md:border-t-0">

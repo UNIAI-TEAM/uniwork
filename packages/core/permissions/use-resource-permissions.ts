@@ -5,6 +5,8 @@ import type { Member } from "../types/workspace";
 import {
   canChangeMemberRole,
   canCreateWorkspaceInOrg,
+  canManageAuditSettings,
+  canReadAuditLog,
   canDeleteMeeting,
   canDeleteTask,
   canEditTask,
@@ -14,6 +16,7 @@ import {
   canUpdateWorkspaceSettings,
 } from "./rules";
 import { deny, type Decision, type PermissionContext } from "./types";
+import { useSession } from "../auth/hooks";
 import { useCurrentMember, useOrgMembership } from "./use-current-member";
 
 /** Every Decision collapses to this while memberships are still loading, so callers stay branch-free. */
@@ -24,6 +27,24 @@ const PENDING: Decision = deny("unknown", "");
  * into the pure rules. `wsId` is explicit rather than read from a provider, so
  * the hooks work outside a workspace layout too.
  */
+/**
+ * The audit screen's two gates. Both read the organization role, not the
+ * workspace one: the log spans every workspace in the organization, so a
+ * workspace admin is not automatically allowed to read other teams' activity.
+ */
+export function useAuditPermissions(orgId: string): {
+  canRead: Decision;
+  canManage: Decision;
+  isLoading: boolean;
+} {
+  const { user, status } = useSession();
+  const { role, isLoading } = useOrgMembership(orgId);
+  const loading = isLoading || status === "loading";
+  if (loading) return { canRead: PENDING, canManage: PENDING, isLoading: loading };
+  const ctx: PermissionContext = { userId: user?.id ?? null, orgRole: role, wsRole: null };
+  return { canRead: canReadAuditLog(ctx), canManage: canManageAuditSettings(ctx), isLoading: loading };
+}
+
 export function useWorkspacePermissions(wsId: string): {
   canInvite: Decision;
   canManageMembers: Decision;

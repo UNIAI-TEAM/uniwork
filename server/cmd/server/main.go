@@ -186,6 +186,9 @@ func main() {
 	go meetingSvc.RunAutoEnd(runCtx)
 	dispatcherDone := make(chan struct{})
 	go func() { dispatcher.Run(runCtx); close(dispatcherDone) }()
+	if reg != nil {
+		go auditSvc.RunRetentionMarker(runCtx, reg.Outbox)
+	}
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
