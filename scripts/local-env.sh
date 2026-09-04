@@ -11,12 +11,20 @@ REPO_ROOT="${REPO_ROOT:-$(CDPATH= cd -- "$_local_env_dir/.." && pwd)}"
 if [ "$(go env GOOS)" = "windows" ] && [ "${UNIWORK_USE_SYSTEM_GO_DIRS:-}" != "1" ]; then
   _go_scratch="${REPO_ROOT}/.go-tmp"
   _go_cache="${REPO_ROOT}/.go-cache"
-  mkdir -p "$_go_scratch" "$_go_cache"
+  mkdir -p "$_go_scratch" "$_go_cache" \
+    "$_go_scratch/playwright-browsers" \
+    "$_go_scratch/pnpm-store" \
+    "$_go_scratch/playwright-output"
   export GOTMPDIR="$_go_scratch"
   export GOCACHE="$_go_cache"
   export TMPDIR="$_go_scratch"
   export TEMP="$_go_scratch"
   export TMP="$_go_scratch"
+  # Playwright downloads Chromium to %LOCALAPPDATA% by default; pnpm store
+  # defaults to %LOCALAPPDATA%/pnpm on Windows — both land on C:.
+  export PLAYWRIGHT_BROWSERS_PATH="$_go_scratch/playwright-browsers"
+  export PLAYWRIGHT_OUTPUT_DIR="$_go_scratch/playwright-output"
+  export PNPM_STORE_DIR="$_go_scratch/pnpm-store"
 fi
 
 POSTGRES_DB="${POSTGRES_DB:-uniwork}"
@@ -46,9 +54,14 @@ NEXT_PUBLIC_WS_URL="${NEXT_PUBLIC_WS_URL:-ws://localhost:${PORT}}"
 NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-${FRONTEND_ORIGIN}}"
 LOCAL_UPLOAD_BASE_URL="${LOCAL_UPLOAD_BASE_URL:-http://localhost:${PORT}}"
 E2E_BASE_URL="${E2E_BASE_URL:-${FRONTEND_ORIGIN}}"
+# Keep the browser and the server on the same dev code unless overridden.
+E2E_VERIFICATION_CODE="${E2E_VERIFICATION_CODE:-${DEV_VERIFICATION_CODE:-123456}}"
 
 export REPO_ROOT
+if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then export PLAYWRIGHT_BROWSERS_PATH; fi
+if [ -n "${PLAYWRIGHT_OUTPUT_DIR:-}" ]; then export PLAYWRIGHT_OUTPUT_DIR; fi
+if [ -n "${PNPM_STORE_DIR:-}" ]; then export PNPM_STORE_DIR; fi
 export POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD POSTGRES_PORT
 export PORT FRONTEND_PORT FRONTEND_ORIGIN
 export DATABASE_URL TEST_DATABASE_URL REDIS_TEST_URL
-export NEXT_PUBLIC_API_URL NEXT_PUBLIC_WS_URL NEXT_PUBLIC_APP_URL LOCAL_UPLOAD_BASE_URL E2E_BASE_URL
+export NEXT_PUBLIC_API_URL NEXT_PUBLIC_WS_URL NEXT_PUBLIC_APP_URL LOCAL_UPLOAD_BASE_URL E2E_BASE_URL E2E_VERIFICATION_CODE

@@ -135,5 +135,13 @@ clear_rate_limits() {
   fi
 }
 clear_rate_limits
-pnpm --filter @uniwork/e2e exec playwright install chromium > /dev/null
-pnpm --filter @uniwork/e2e test || { EXIT_CODE=1; exit 1; }
+if ! pnpm --filter @uniwork/e2e exec playwright install chromium; then
+  echo "    ERROR: playwright install chromium failed (often ENOSPC — free disk or use D: scratch dirs in scripts/local-env.sh)" >&2
+  EXIT_CODE=1
+  exit 1
+fi
+clear_rate_limits
+if ! pnpm --filter @uniwork/e2e test; then
+  EXIT_CODE=1
+  exit 1
+fi
