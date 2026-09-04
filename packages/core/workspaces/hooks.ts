@@ -1,5 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "../auth/store";
 import * as workspaces from "../api/endpoints/workspaces";
 
 export type { InviteResult } from "../api/endpoints/workspaces";
@@ -24,9 +25,11 @@ export const workspaceKeys = {
 };
 
 export function useWorkspaces() {
+  const authed = useAuthStore((s) => s.status === "authed");
   return useQuery({
     queryKey: workspaceKeys.list(),
     queryFn: () => workspaces.list(),
+    enabled: authed,
   });
 }
 

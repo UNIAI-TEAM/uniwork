@@ -3,6 +3,7 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   addNote,
+  appendMeetingChat,
   appendTranscript,
   createJoinRequest,
   createMeeting,
@@ -17,6 +18,7 @@ import {
   joinMeeting,
   listInviteLinks,
   listMeetingActivity,
+  listMeetingChat,
   listMeetings,
   listNotes,
   listRecordings,
@@ -160,6 +162,26 @@ describe("meetings D08b endpoints", () => {
     const init = vi.mocked(fetch).mock.calls[2]![1] as RequestInit;
     expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe("http://api.test/api/v1/meetings/m1/transcript");
     expect(JSON.parse(String(init.body))).toEqual({ text: "hi", spoken_at: "2026-08-29T02:00:00Z" });
+  });
+
+  it("chat list/append", async () => {
+    const msg = {
+      id: "c1",
+      meeting_id: "m1",
+      sender_identity: "uw_participant_p1",
+      sender_name: "An",
+      message: "hi",
+      sent_at: "2026-08-29T02:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [msg] }));
+    expect(await listMeetingChat("m1")).toHaveLength(1);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ id: 1 }] }));
+    expect(await listMeetingChat("m1")).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: msg }));
+    expect((await appendMeetingChat("m1", "hi\nthere"))?.message).toBe("hi");
+    const init = vi.mocked(fetch).mock.calls[2]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe("http://api.test/api/v1/meetings/m1/chat");
+    expect(JSON.parse(String(init.body))).toEqual({ message: "hi\nthere" });
   });
 
   it("summary get/create return null on drift; tasks return ids", async () => {

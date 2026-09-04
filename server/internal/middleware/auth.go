@@ -31,6 +31,23 @@ func RequireAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 	}
 }
 
+// OptionalAuth attaches user id when a valid bearer token is present; otherwise
+// the request continues anonymously (guest flows use uw_guest cookie separately).
+func OptionalAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := r.Header.Get("Authorization")
+			token, ok := strings.CutPrefix(h, "Bearer ")
+			if ok && token != "" {
+				if uid, err := m.Parse(token); err == nil {
+					r = r.WithContext(WithUserID(r.Context(), uid))
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func writeUnauthorized(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)

@@ -61,8 +61,8 @@ const meeting = {
   workspace_id: "w1",
   title: "Standup",
   description: "agenda",
-  starts_at: "2026-08-28T02:00:00Z",
-  ends_at: "2026-08-28T02:30:00Z",
+  starts_at: "2026-09-10T02:00:00Z",
+  ends_at: "2026-09-10T02:30:00Z",
   room_name: "uw_mtg_m1",
   created_by: "u-host",
   status: "SCHEDULED",
@@ -103,13 +103,43 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
-    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} />));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sửa cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chuyển chủ trì" })).toBeInTheDocument();
+  });
+
+  it("hides start and join after the scheduled window ends", async () => {
+    const expired = {
+      ...meeting,
+      starts_at: "2026-08-28T02:00:00Z",
+      ends_at: "2026-08-28T02:30:00Z",
+    };
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      }
+      if (p.endsWith("/members")) {
+        return Promise.resolve({ members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }] });
+      }
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting: expired });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
   });
 
   it("shows three RSVP actions for a pending invitee", async () => {
@@ -135,7 +165,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
-    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} />));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByRole("button", { name: "Tham dự" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chưa chắc" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Từ chối" })).toBeInTheDocument();
@@ -167,10 +197,12 @@ describe("MeetingsPageView", () => {
     expect(await screen.findByText("Standup")).toBeInTheDocument();
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    expect(within(rows[0]!).getByText("Đã lên lịch")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("Đang diễn ra")).toBeInTheDocument();
-    expect(within(rows[0]!).getByRole("link")).toHaveAttribute("href", "/org/team/meetings/m1");
-    expect(within(rows[1]!).getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
+    const standupRow = rows.find((row) => within(row).queryByText("Standup"));
+    const retroRow = rows.find((row) => within(row).queryByText("Retro"));
+    expect(within(standupRow!).getByText("Đã lên lịch")).toBeInTheDocument();
+    expect(within(retroRow!).getByText("Đang diễn ra")).toBeInTheDocument();
+    expect(within(standupRow!).getByRole("link")).toHaveAttribute("href", "/org/team/meetings/m1");
+    expect(within(retroRow!).getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
   });
 });
 

@@ -1,11 +1,14 @@
 port: 7880
 rtc:
   tcp_port: 7881
-  port_range_start: 50000
-  port_range_end: 50020
+  # Single UDP port is more reliable on Docker Desktop (macOS/Windows) than a wide range.
+  udp_port: 7882
   use_external_ip: false
+  # Advertise localhost so the browser can reach ICE candidates from Docker.
+  node_ip: 127.0.0.1
 keys:
-  devkey: secret
+  # LiveKit v1.9+ requires secrets >= 32 chars (dev only).
+  devkey: secret_must_be_at_least_32_chars
 logging:
   level: info
 webhook:

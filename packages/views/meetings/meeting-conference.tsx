@@ -39,6 +39,7 @@ import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { MeetingRoomHeader } from "./meeting-room-header";
 import { MeetingRoomSidebar } from "./meeting-room-sidebar";
+import { MeetingScheduleBanner } from "./meeting-schedule-banner";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass } from "./conference-layout";
@@ -71,7 +72,9 @@ function ConnectionNotice() {
  * replaced by a published track (known LiveKit bug).
  */
 export function MeetingConference(props: {
+  meetingId?: string;
   meeting?: Meeting;
+  meetingTitle?: string;
   workspaceId?: string;
   onLeave: () => void;
 }) {
@@ -83,11 +86,15 @@ export function MeetingConference(props: {
 }
 
 function ConferenceStage({
+  meetingId,
   meeting,
+  meetingTitle,
   workspaceId,
   onLeave,
 }: {
+  meetingId?: string;
   meeting?: Meeting;
+  meetingTitle?: string;
   workspaceId?: string;
   onLeave: () => void;
 }) {
@@ -96,13 +103,14 @@ function ConferenceStage({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(false);
+  const resolvedMeetingId = meetingId ?? meeting?.id ?? "";
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
-  const { data: recordings } = useRecordings(meeting?.id ?? "");
+  const { data: recordings } = useRecordings(resolvedMeetingId);
   const recording = (recordings ?? []).some((r) => r.status === "ACTIVE");
   const captions = useLiveCaptions(
-    meeting?.id ?? "",
-    captionsOn && !!meeting?.id,
+    resolvedMeetingId,
+    captionsOn && !!resolvedMeetingId,
   );
   const speaking = useSpeakingParticipants();
   const tracks = useTracks(
@@ -110,7 +118,7 @@ function ConferenceStage({
       { source: Track.Source.Camera, withPlaceholder: true },
       { source: Track.Source.ScreenShare, withPlaceholder: false },
     ],
-    { onlySubscribed: false },
+    { onlySubscribed: true },
   );
   const ordered = orderTracks(
     tracks,
@@ -126,6 +134,7 @@ function ConferenceStage({
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-app-shell">
       <MeetingRoomHeader
         meeting={meeting}
+        meetingTitle={meetingTitle}
         workspaceId={workspaceId}
         onLeave={onLeave}
         onOpenSidebar={compact ? () => setSidebarOpen(true) : undefined}
@@ -133,6 +142,7 @@ function ConferenceStage({
       />
       <div className="flex min-h-0 min-w-0 flex-1 gap-3 px-3 pb-3">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-rail ring-1 ring-surface-border">
+          <MeetingScheduleBanner endsAt={meeting?.ends_at} />
           <div
             className={cn(
               "grid min-h-0 min-w-0 flex-1 auto-rows-fr gap-3 overflow-hidden p-3 sm:p-4",
@@ -187,13 +197,13 @@ function ConferenceStage({
           ) : null}
           <StartMediaButton
             label={t("meetings.allowMedia")}
-            className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground"
+            className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground"
           />
         </div>
         {!compact ? (
           <div className="hidden min-h-0 w-[20rem] shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border lg:flex">
             <MeetingRoomSidebar
-              meetingId={meeting?.id}
+              meetingId={resolvedMeetingId || undefined}
               canHost={canHost.allowed}
               className="h-full w-full"
             />
@@ -202,7 +212,7 @@ function ConferenceStage({
       </div>
       <MeetingControlBar
         onLeave={onLeave}
-        meetingId={meeting?.id}
+        meetingId={resolvedMeetingId || undefined}
         canHost={canHost.allowed}
         recordingEnabled={caps?.recording === true}
         recording={recording}
@@ -223,7 +233,7 @@ function ConferenceStage({
             </SheetHeader>
             {sidebarOpen ? (
               <MeetingRoomSidebar
-                meetingId={meeting?.id}
+                meetingId={resolvedMeetingId || undefined}
                 canHost={canHost.allowed}
                 className="h-full w-full"
               />

@@ -1,43 +1,65 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { resolveInviteLink } from "@uniwork/core/api/endpoints/meetings";
+import type { JoinDecision } from "@uniwork/core/types/meeting";
+import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
+import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
-import { inviteSecretStorageKey } from "@uniwork/views/meetings/public-invite-view";
-import { MeetingRoomView } from "@uniwork/views/meetings/room-view";
 import { useNavigation } from "@uniwork/views/navigation";
+import { MeetingRoomView } from "@uniwork/views/meetings/room-view";
+import {
+  inviteStorageKey,
+  readCachedJoinDecision,
+  readInviteJoinBody,
+} from "@uniwork/views/meetings/meeting-invite-session";
 
-/**
- * The room for someone who arrived through a public invite link and is not a
- * member of the meeting's workspace. The secret lives in sessionStorage from
- * the invite page; without it, or with a dead link, this bounces back there.
- */
+function meetingInviteLoginUrl(linkId: string): string {
+  return `${paths.login()}?next=${encodeURIComponent(paths.meetingInvite(linkId))}&reason=meeting_invite`;
+}
+
 export default function MeetingInviteRoomPage() {
   const { linkId } = useParams<{ linkId: string }>();
-  const { replace } = useNavigation();
-  const [invite, setInvite] = useState<{
-    meetingId: string;
-    secret: string;
-  } | null>(null);
+  const nav = useNavigation();
+  const authStatus = useAuthStore((s) => s.status);
+  const [meetingId, setMeetingId] = useState("");
+  const [joinBody, setJoinBody] = useState<ReturnType<typeof readInviteJoinBody>>();
+  const [initialJoinDecision, setInitialJoinDecision] = useState<JoinDecision | undefined>();
+  const [meetingTitle, setMeetingTitle] = useState("");
 
   useEffect(() => {
-    const secret = sessionStorage.getItem(inviteSecretStorageKey(linkId)) ?? "";
-    if (!secret) {
-      replace(paths.meetingInvite(linkId));
+    const mid = sessionStorage.getItem(inviteStorageKey(linkId, "meetingId")) ?? "";
+    setMeetingId(mid);
+    setJoinBody(readInviteJoinBody(linkId));
+    setInitialJoinDecision(readCachedJoinDecision(linkId));
+    setMeetingTitle(sessionStorage.getItem(inviteStorageKey(linkId, "title")) ?? "");
+  }, [linkId]);
+
+  const ready = useMemo(() => meetingId !== "" && Boolean(joinBody?.secret), [meetingId, joinBody?.secret]);
+
+  useEffect(() => {
+    if (authStatus === "loading") return;
+    if (authStatus === "anon") {
+      nav.replace(meetingInviteLoginUrl(linkId));
       return;
     }
-    void resolveInviteLink(linkId, secret).then((res) => {
-      if (!res?.meeting_id || res.expired) replace(paths.meetingInvite(linkId));
-      else setInvite({ meetingId: res.meeting_id, secret });
-    }, () => replace(paths.meetingInvite(linkId)));
-  }, [linkId, replace]);
+    if (!ready) {
+      nav.replace(`${paths.meetingInvite(linkId)}?reason=login_required`);
+    }
+  }, [authStatus, ready, nav, linkId]);
 
-  if (!invite) return null;
+  if (authStatus !== "authed" || !ready) {
+    return null;
+  }
+
   return (
-    <MeetingRoomView
-      meetingId={invite.meetingId}
-      invite={{ linkId, secret: invite.secret }}
-      onLeave={() => replace(paths.meetingInvite(linkId))}
-    />
+    <MeetingLobbyWSProvider meetingId={meetingId}>
+      <MeetingRoomView
+        meetingId={meetingId}
+        joinBody={joinBody}
+        meetingTitle={meetingTitle}
+        initialJoinDecision={initialJoinDecision}
+        onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
+      />
+    </MeetingLobbyWSProvider>
   );
 }

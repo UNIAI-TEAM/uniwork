@@ -17,11 +17,14 @@ import {
 } from "./meeting-datetime";
 import { MeetingStatusBadge } from "./meeting-status-badge";
 
+/** Newest-created first; falls back to ULID id when created_at is absent. */
+function meetingCreatedSortKey(m: Meeting): string {
+  return m.created_at ?? m.id;
+}
+
 /**
  * Rows grouped by the viewer's calendar day. Days keep the server's order
- * (upcoming ascending, then past descending); a day that holds both an
- * upcoming and an ended meeting — today — is merged into one group and its
- * rows run chronologically.
+ * (created_at descending); within a day, rows also run newest-created-first.
  */
 export function groupMeetingsByDay(
   meetings: readonly Meeting[],
@@ -35,7 +38,9 @@ export function groupMeetingsByDay(
   }
   return [...byDay].map(([day, items]) => ({
     day,
-    items: items.sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+    items: items.sort((a, b) =>
+      meetingCreatedSortKey(b).localeCompare(meetingCreatedSortKey(a)),
+    ),
   }));
 }
 

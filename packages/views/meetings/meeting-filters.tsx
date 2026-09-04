@@ -58,7 +58,7 @@ export function MeetingFilters({
               aria-pressed={active}
               onClick={() => onStatus(value)}
               className={cn(
-                "flex h-11 items-center gap-1.5 rounded-md px-2.5 text-label transition-colors duration-100 sm:h-8",
+                "flex h-11 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-label transition-colors duration-100 sm:h-8",
                 active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
               )}
             >

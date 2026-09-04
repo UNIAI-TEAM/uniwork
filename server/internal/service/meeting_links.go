@@ -103,9 +103,9 @@ func (s *MeetingService) RevokeInviteLink(ctx context.Context, userID, meetingID
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "invite_link.revoked", Payload: map[string]string{
-		"meeting_id": m.ID, "invite_link_id": linkID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "invite_link.revoked", Payload: meetingRelatedPayload(m, map[string]string{
+		"invite_link_id": linkID,
+	})})
 	return nil
 }
 

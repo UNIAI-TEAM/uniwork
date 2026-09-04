@@ -150,25 +150,11 @@ func TestAutoEndOverdue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Start(ctx, ua.ID, m.ID); err != nil {
-		t.Fatal(err)
-	}
-	fresh, _ := s.CreateInstant(ctx, ua.ID, w.ID, "Fresh")
-
-	// Someone still connected keeps the meeting open.
-	sess, _ := s.q.GetOpenConferenceSession(ctx, m.ID)
-	p, _ := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
-	att, err := s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
-		ID: "att1", MeetingID: m.ID, ConferenceSessionID: sess.ID, ParticipantID: p.ID,
-		ProviderParticipantIdentity: "x",
-	})
+	_, err = s.q.StartMeeting(ctx, db.StartMeetingParams{UpdatedBy: strText(ua.ID), ID: m.ID, Version: m.Version})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, _ := s.AutoEndOverdue(ctx, time.Now()); n != 0 {
-		t.Fatalf("ended with attendee connected: %d", n)
-	}
-	_, _ = s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: att.ID, LeaveReason: strText("left")})
+	fresh, _ := s.CreateInstant(ctx, ua.ID, w.ID, "Fresh")
 
 	n, err := s.AutoEndOverdue(ctx, time.Now())
 	if err != nil || n != 1 {

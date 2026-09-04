@@ -13,6 +13,7 @@
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
+    "./meetings/meeting-invite-session": "./meetings/meeting-invite-session.ts",
     "./meetings/*": "./meetings/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",

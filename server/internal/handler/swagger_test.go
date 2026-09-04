@@ -66,6 +66,8 @@ func TestSwaggerSpecFollowsChiRoutesAndSDI(t *testing.T) {
 			return nil
 		case route == "/api/v1/ws":
 			return nil
+		case strings.HasSuffix(route, "/lobby-ws"):
+			return nil
 		case method == http.MethodOptions:
 			return nil
 		}

@@ -210,6 +210,33 @@ SELECT * FROM meeting_audit_logs WHERE meeting_id = $1 ORDER BY occurred_at DESC
 INSERT INTO outbox_events (id, workspace_id, topic, payload, status, available_at)
 VALUES ($1, $2, $3, $4, 'PENDING', now());
 
+-- name: ReleaseStaleOutboxClaims :exec
+UPDATE outbox_events SET
+  status = 'PENDING',
+  locked_by = NULL,
+  locked_at = NULL,
+  locked_until = NULL,
+  updated_at = now()
+WHERE status = 'PROCESSING'
+  AND locked_until IS NOT NULL
+  AND locked_until < now();
+
+-- name: ClaimPendingOutbox :many
+UPDATE outbox_events SET
+  status = 'PROCESSING',
+  locked_by = sqlc.arg('locked_by'),
+  locked_at = now(),
+  locked_until = now() + make_interval(secs => sqlc.arg('lease_seconds')::double precision),
+  updated_at = now()
+WHERE id IN (
+  SELECT id FROM outbox_events
+  WHERE status = 'PENDING' AND available_at <= now()
+  ORDER BY created_at
+  LIMIT sqlc.arg('limit_n')
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
 -- name: ListPendingOutbox :many
 SELECT * FROM outbox_events
 WHERE status = 'PENDING' AND available_at <= now()
@@ -218,14 +245,82 @@ LIMIT $1
 FOR UPDATE SKIP LOCKED;
 
 -- name: MarkOutboxDone :exec
-UPDATE outbox_events SET status = 'DONE' WHERE id = $1;
+UPDATE outbox_events SET
+  status = 'DONE',
+  completed_at = now(),
+  locked_by = NULL,
+  locked_at = NULL,
+  locked_until = NULL,
+  updated_at = now()
+WHERE id = $1;
 
 -- name: MarkOutboxFailed :exec
 UPDATE outbox_events SET
   attempts = attempts + 1,
   last_error = $2,
-  available_at = now() + interval '5 seconds' * (attempts + 1),
-  status = CASE WHEN attempts + 1 >= 20 THEN 'FAILED' ELSE 'PENDING' END
+  available_at = $3,
+  status = $4,
+  locked_by = NULL,
+  locked_at = NULL,
+  locked_until = NULL,
+  updated_at = now()
+WHERE id = $1;
+
+-- name: CloseOpenAttendanceForConference :exec
+UPDATE meeting_attendance_sessions SET
+  left_at = now(),
+  leave_reason = $2
+WHERE conference_session_id = $1 AND left_at IS NULL;
+
+-- name: CloseOpenAttendanceForMeeting :exec
+UPDATE meeting_attendance_sessions SET
+  left_at = now(),
+  leave_reason = $2
+WHERE meeting_id = $1 AND left_at IS NULL;
+
+-- name: ListEndedMeetingsWithOpenAttendance :many
+SELECT DISTINCT m.id FROM meetings m
+JOIN meeting_attendance_sessions a ON a.meeting_id = m.id
+WHERE m.status IN ('ENDED', 'CANCELED') AND a.left_at IS NULL
+LIMIT $1;
+
+-- name: InsertWebhookInbox :execrows
+INSERT INTO webhook_inbox (id, provider, provider_event_id, event_type, payload, status, next_attempt_at)
+VALUES ($1, $2, $3, $4, $5, 'PENDING', now())
+ON CONFLICT (provider, provider_event_id) DO NOTHING;
+
+-- name: ClaimPendingWebhookInbox :many
+UPDATE webhook_inbox SET
+  status = 'PROCESSING',
+  next_attempt_at = now() + make_interval(secs => sqlc.arg('lease_seconds')::double precision)
+WHERE id IN (
+  SELECT id FROM webhook_inbox
+  WHERE status = 'PENDING' AND next_attempt_at <= now()
+  ORDER BY received_at
+  LIMIT sqlc.arg('limit_n')
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
+
+-- name: ReleaseStaleWebhookInbox :exec
+UPDATE webhook_inbox SET
+  status = 'PENDING',
+  next_attempt_at = now()
+WHERE status = 'PROCESSING' AND next_attempt_at < now();
+
+-- name: MarkWebhookInboxDone :exec
+UPDATE webhook_inbox SET
+  status = 'DONE',
+  processed_at = now(),
+  last_error = NULL
+WHERE id = $1;
+
+-- name: MarkWebhookInboxFailed :exec
+UPDATE webhook_inbox SET
+  attempt_count = attempt_count + 1,
+  last_error = $2,
+  next_attempt_at = $3,
+  status = $4
 WHERE id = $1;
 
 -- name: CreateMeetingGuest :one
@@ -243,7 +338,32 @@ ON CONFLICT DO NOTHING;
 INSERT INTO meeting_attendance_sessions (
   id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, provider_event_id
 ) VALUES ($1, $2, $3, $4, $5, now(), $6)
+ON CONFLICT (participant_id) WHERE left_at IS NULL DO UPDATE SET
+  provider_event_id = COALESCE(meeting_attendance_sessions.provider_event_id, EXCLUDED.provider_event_id)
 RETURNING *;
+
+-- name: OutboxOldestPendingAgeSeconds :one
+SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at))), 0)::float8 AS age_seconds
+FROM outbox_events
+WHERE status IN ('PENDING', 'PROCESSING');
+
+-- name: WebhookInboxOldestPendingAgeSeconds :one
+SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(received_at))), 0)::float8 AS age_seconds
+FROM webhook_inbox
+WHERE status IN ('PENDING', 'PROCESSING');
+
+-- name: ListInProgressMeetingsWithIdleSession :many
+SELECT m.id FROM meetings m
+WHERE m.status = 'IN_PROGRESS'
+  AND EXISTS (
+    SELECT 1 FROM meeting_conference_sessions s
+    WHERE s.meeting_id = m.id AND s.status = 'IDLE' AND s.ended_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM meeting_conference_sessions s2
+    WHERE s2.meeting_id = m.id AND s2.status IN ('PENDING', 'READY', 'ACTIVE')
+  )
+LIMIT $1;
 
 -- name: GetOpenAttendance :one
 SELECT * FROM meeting_attendance_sessions

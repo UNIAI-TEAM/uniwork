@@ -5,7 +5,7 @@
 # Then in .env:
 #   LIVEKIT_URL=ws://localhost:7880
 #   LIVEKIT_API_KEY=devkey
-#   LIVEKIT_API_SECRET=secret
+#   LIVEKIT_API_SECRET=secret_must_be_at_least_32_chars
 # Restart the API (`make start`).
 name: uniwork-livekit
 services:
@@ -16,6 +16,6 @@ services:
     ports:
       - "7880:7880"
       - "7881:7881"
-      - "50000-50020:50000-50020/udp"
+      - "7882:7882/udp"
     volumes:
       - ./livekit.dev.yaml:/etc/livekit.yaml:ro

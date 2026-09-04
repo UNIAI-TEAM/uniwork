@@ -1,10 +1,10 @@
 "use client";
-import { useState, type FormEvent } from "react";
-import { useChat, useParticipants } from "@livekit/components-react";
-import { Hand, MicOff, Send } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useParticipants } from "@livekit/components-react";
+import { Hand, Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
+import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import {
   Tabs,
   TabsContent,
@@ -12,13 +12,14 @@ import {
   TabsTrigger,
 } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
-import { groupChatMessages, type MeetingChatItem } from "./meeting-chat";
+import { groupChatMessages } from "./meeting-chat";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { useMeetingSignals } from "./use-meeting-signals";
+import { useMeetingRoomChat } from "./use-meeting-room-chat";
 
 const TAB_TRIGGER =
-  "rounded-lg border border-transparent px-3 py-1.5 data-active:border-input data-active:bg-muted data-active:text-foreground data-active:shadow-none";
+  "cursor-pointer rounded-lg border border-transparent px-3 py-1.5 data-active:border-input data-active:bg-muted data-active:text-foreground data-active:shadow-none";
 
 function formatChatTime(timestamp: number, locale: string): string {
   try {
@@ -44,6 +45,10 @@ export function MeetingRoomSidebar({
   const { t, i18n } = useTranslation();
   const participants = useParticipants();
   const { hands, requestMute } = useMeetingSignals();
+  const { items, send, isSending } = useMeetingRoomChat(meetingId);
+  const [draft, setDraft] = useState("");
+  const listRef = useRef<HTMLOListElement>(null);
+
   // Raised hands float to the top, in the order they were raised.
   const ordered = [
     ...hands
@@ -51,25 +56,29 @@ export function MeetingRoomSidebar({
       .filter((p) => p !== undefined),
     ...participants.filter((p) => !hands.includes(p.identity)),
   ];
-  const { chatMessages, send, isSending } = useChat();
-  const [draft, setDraft] = useState("");
 
-  const items: MeetingChatItem[] = chatMessages.map((msg) => ({
-    id: `${msg.from?.identity ?? "x"}-${msg.timestamp}-${msg.message}`,
-    fromIdentity: msg.from?.identity ?? "",
-    fromName: msg.from?.name || msg.from?.identity || "",
-    isLocal: Boolean(msg.from?.isLocal),
-    message: msg.message,
-    timestamp: msg.timestamp,
-  }));
   const groups = groupChatMessages(items);
   const lastIncoming = [...items].reverse().find((m) => !m.isLocal);
 
-  function onSend(e: FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTop = list.scrollHeight;
+  }, [items.length, groups.length]);
+
+  async function onSend(e?: FormEvent) {
+    e?.preventDefault();
     const body = draft.trim();
     if (!body || isSending) return;
-    void send(body).then(() => setDraft(""));
+    await send(body);
+    setDraft("");
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void onSend();
+    }
   }
 
   return (
@@ -106,22 +115,14 @@ export function MeetingRoomSidebar({
           ) : null}
           <ul className="grid grid-cols-2 gap-2">
             {ordered.map((p) => (
-              <li key={p.identity} className="relative">
-                <MeetingParticipantTile participant={p} compact />
-                {canHost && !p.isLocal ? (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    aria-label={t("meetings.muteParticipant", {
-                      name: p.name || p.identity,
-                    })}
-                    className="absolute bottom-1.5 left-1.5 size-7 rounded-full"
-                    onClick={() => requestMute(p.identity)}
-                  >
-                    <MicOff aria-hidden className="size-3.5" />
-                  </Button>
-                ) : null}
+              <li key={p.identity}>
+                <MeetingParticipantTile
+                  participant={p}
+                  compact
+                  onHostMuteRequest={
+                    canHost && !p.isLocal ? () => requestMute(p.identity) : undefined
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -136,7 +137,10 @@ export function MeetingRoomSidebar({
               ? `${lastIncoming.fromName}: ${lastIncoming.message}`
               : ""}
           </p>
-          <ol className="min-h-0 w-full flex-1 space-y-4 overflow-y-auto">
+          <ol
+            ref={listRef}
+            className="min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain"
+          >
             {groups.length === 0 ? (
               <li className="text-caption text-muted-foreground">
                 {t("meetings.chatEmpty")}
@@ -146,13 +150,13 @@ export function MeetingRoomSidebar({
                 <li
                   key={`${group.fromIdentity}-${group.items[0]?.id ?? ""}`}
                   className={cn(
-                    "w-full space-y-1.5",
-                    group.isLocal && "flex flex-col items-end",
+                    "flex w-full flex-col gap-1.5",
+                    group.isLocal ? "items-end" : "items-start",
                   )}
                 >
                   <div
                     className={cn(
-                      "flex min-w-0 items-center gap-1.5",
+                      "flex max-w-full items-center gap-1.5 px-0.5",
                       group.isLocal && "flex-row-reverse",
                     )}
                   >
@@ -171,30 +175,39 @@ export function MeetingRoomSidebar({
                       )}
                     </span>
                   </div>
-                  {group.items.map((msg) => (
-                    <p
-                      key={msg.id}
-                      className={cn(
-                        "max-w-[85%] rounded-2xl px-3 py-1.5 text-pretty text-body wrap-break-word",
-                        group.isLocal
-                          ? "bg-brand text-brand-foreground"
-                          : "border border-border bg-muted text-foreground",
-                      )}
-                    >
-                      {msg.message}
-                    </p>
-                  ))}
+                  <div
+                    className={cn(
+                      "flex w-full flex-col gap-1",
+                      group.isLocal ? "items-end" : "items-start",
+                    )}
+                  >
+                    {group.items.map((msg) => (
+                      <p
+                        key={msg.id}
+                        className={cn(
+                          "w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-pretty text-body wrap-break-word shadow-sm",
+                          group.isLocal
+                            ? "rounded-br-md bg-brand text-brand-foreground"
+                            : "rounded-bl-md border border-border/80 bg-muted/80 text-foreground",
+                        )}
+                      >
+                        {msg.message}
+                      </p>
+                    ))}
+                  </div>
                 </li>
               ))
             )}
           </ol>
-          <form className="relative mt-3 w-full" onSubmit={onSend}>
-            <Input
+          <form className="relative mt-3 w-full shrink-0" onSubmit={onSend}>
+            <Textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={1}
               placeholder={t("meetings.chatPlaceholder")}
               aria-label={t("meetings.chat")}
-              className="h-10 w-full rounded-full bg-surface pr-11"
+              className="field-sizing-content max-h-32 min-h-10 resize-none rounded-2xl bg-surface py-2.5 pr-11"
             />
             <Button
               type="submit"
@@ -202,7 +215,7 @@ export function MeetingRoomSidebar({
               variant="ghost"
               disabled={isSending || !draft.trim()}
               aria-label={t("meetings.send")}
-              className="absolute top-1/2 right-1 size-8 -translate-y-1/2 rounded-full"
+              className="absolute top-1.5 right-1.5 size-8 rounded-full"
             >
               <Send aria-hidden className="size-4" />
             </Button>

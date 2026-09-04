@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -38,6 +39,7 @@ func (s *MeetingService) Join(ctx context.Context, in AdmissionContext) (Admissi
 	if err != nil {
 		return AdmissionDecision{}, err
 	}
+	defer s.recordJoinDecision(dec.Decision)
 	if dec.Decision != DecisionAdmit {
 		return dec, nil
 	}
@@ -51,10 +53,20 @@ func (s *MeetingService) Join(ctx context.Context, in AdmissionContext) (Admissi
 	if err != nil {
 		return AdmissionDecision{}, err
 	}
+	if !conferenceSessionReady(sess) {
+		return AdmissionDecision{
+			Decision:            DecisionWaitingForProvider,
+			Reason:              "PROVIDER_NOT_READY",
+			Meeting:             dec.Meeting,
+			Participant:         dec.Participant,
+			ConferenceSessionID: sess.ID,
+		}, nil
+	}
+	perms := meetings.MediaPermissionsForRole(dec.Participant.Role)
 	cred, err := s.provider.IssueJoinCredential(ctx, meetings.IssueJoinCredentialRequest{
 		RoomName: sess.ProviderRoomName, Identity: meetings.IdentityForParticipant(dec.Participant.ID),
 		DisplayName: dec.Participant.DisplayNameSnapshot, TTL: s.rt.TokenTTL,
-		CanSubscribe: true, CanPublish: true, CanPublishData: true,
+		CanSubscribe: perms.CanSubscribe, CanPublish: perms.CanPublish, CanPublishData: perms.CanPublishData,
 	})
 	if err != nil {
 		return AdmissionDecision{}, coded(http.StatusServiceUnavailable, "provider_unavailable", "không cấp được thông tin vào phòng")
@@ -85,6 +97,9 @@ func (s *MeetingService) Evaluate(ctx context.Context, in AdmissionContext) (Adm
 	}
 	if m.Status == MeetingCanceled {
 		return AdmissionDecision{Decision: DecisionDeny, Reason: "MEETING_CANCELED", Meeting: m}, coded(http.StatusForbidden, "meeting_canceled", "cuộc họp đã bị huỷ")
+	}
+	if meetingPastScheduledEnd(m, time.Now().UTC()) {
+		return AdmissionDecision{Decision: DecisionDeny, Reason: "MEETING_PAST_SCHEDULED_END", Meeting: m}, errMeetingPastScheduledEnd()
 	}
 
 	if in.InviteLinkID != "" {
@@ -126,6 +141,18 @@ func (s *MeetingService) decisionForStatus(m db.Meeting, p db.MeetingParticipant
 	return AdmissionDecision{Decision: DecisionAdmit, Meeting: m, Participant: p}, nil
 }
 
+func conferenceSessionReady(sess db.MeetingConferenceSession) bool {
+	if sess.ProviderSyncStatus != "SYNCED" {
+		return false
+	}
+	switch sess.Status {
+	case "READY", "ACTIVE":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *MeetingService) lookupPrincipal(ctx context.Context, meetingID string, in AdmissionContext) (db.MeetingParticipant, error) {
 	if in.UserID != "" {
 		return s.q.GetUserParticipantAnyStatus(ctx, db.GetUserParticipantAnyStatusParams{MeetingID: meetingID, UserID: strText(in.UserID)})
@@ -163,9 +190,9 @@ func (s *MeetingService) evaluateInviteLink(ctx context.Context, m db.Meeting, i
 		if err := tx.Commit(ctx); err != nil {
 			return AdmissionDecision{}, err
 		}
-		s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.created", Payload: map[string]string{
-			"meeting_id": m.ID, "join_request_id": jr.ID,
-		}})
+		s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.created", Payload: meetingRelatedPayload(m, map[string]string{
+			"join_request_id": jr.ID,
+		})})
 		return AdmissionDecision{Decision: DecisionWaitingApproval, Reason: "JOIN_REQUEST_PENDING", Meeting: m, JoinRequestID: jr.ID}, nil
 	}
 	if errors.Is(perr, pgx.ErrNoRows) {
@@ -243,9 +270,9 @@ func (s *MeetingService) ensureJoinRequest(ctx context.Context, m db.Meeting, in
 	if err := tx.Commit(ctx); err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.created", Payload: map[string]string{
-		"meeting_id": m.ID, "join_request_id": jr.ID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.created", Payload: meetingRelatedPayload(m, map[string]string{
+		"join_request_id": jr.ID,
+	})})
 	return jr, nil
 }
 
@@ -294,6 +321,9 @@ func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (
 	}
 	if !m.AllowJoinRequest {
 		return db.MeetingJoinRequest{}, ErrForbidden
+	}
+	if meetingPastScheduledEnd(m, time.Now().UTC()) {
+		return db.MeetingJoinRequest{}, errMeetingPastScheduledEnd()
 	}
 	return s.ensureJoinRequest(ctx, m, in)
 }
@@ -378,9 +408,9 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.approved", Payload: map[string]string{
-		"meeting_id": m.ID, "join_request_id": requestID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.approved", Payload: meetingRelatedPayload(m, map[string]string{
+		"join_request_id": requestID,
+	})})
 	return nil
 }
 
@@ -406,13 +436,13 @@ func (s *MeetingService) RejectJoinRequest(ctx context.Context, actorID, request
 		return err
 	}
 	_ = s.writeAudit(ctx, s.q, m.ID, "JOIN_REQUEST_REJECTED", actorID, JoinPending, JoinRejected, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.rejected", Payload: map[string]string{
-		"meeting_id": m.ID, "join_request_id": requestID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.rejected", Payload: meetingRelatedPayload(m, map[string]string{
+		"join_request_id": requestID,
+	})})
 	return nil
 }
 
-func (s *MeetingService) CancelJoinRequest(ctx context.Context, actorID, requestID string) error {
+func (s *MeetingService) CancelJoinRequest(ctx context.Context, in AdmissionContext, requestID string) error {
 	jr, err := s.q.GetJoinRequest(ctx, requestID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -420,17 +450,28 @@ func (s *MeetingService) CancelJoinRequest(ctx context.Context, actorID, request
 	if err != nil {
 		return err
 	}
-	if jr.RequesterUserID.Valid && jr.RequesterUserID.String != actorID {
+	if jr.RequesterUserID.Valid {
+		if in.UserID == "" || jr.RequesterUserID.String != in.UserID {
+			return ErrForbidden
+		}
+	} else if jr.RequesterGuestID.Valid {
+		if in.GuestID == "" || jr.RequesterGuestID.String != in.GuestID {
+			return ErrForbidden
+		}
+	} else {
 		return ErrForbidden
 	}
 	_, err = s.q.CancelJoinRequest(ctx, requestID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return coded(http.StatusConflict, "join_request_already_decided", "yêu cầu đã được xử lý")
 	}
+	if err != nil {
+		return err
+	}
 	m, _ := s.q.GetMeeting(ctx, jr.MeetingID)
-	_ = s.writeAudit(ctx, s.q, jr.MeetingID, "JOIN_REQUEST_CANCELED", actorID, JoinPending, JoinCanceled, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.canceled", Payload: map[string]string{
-		"meeting_id": jr.MeetingID, "join_request_id": requestID,
-	}})
-	return err
+	_ = s.writeAudit(ctx, s.q, jr.MeetingID, "JOIN_REQUEST_CANCELED", actorID(in), JoinPending, JoinCanceled, "{}")
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.canceled", Payload: meetingRelatedPayload(m, map[string]string{
+		"join_request_id": requestID,
+	})})
+	return nil
 }

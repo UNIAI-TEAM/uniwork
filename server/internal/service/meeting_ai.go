@@ -18,27 +18,18 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// MeetingMetrics counts lifecycle and AI outcomes; nil disables counting.
-type MeetingMetrics interface {
-	Inc(event string)
-}
-
 const (
 	RecordingActive     = "ACTIVE"
 	RecordingProcessing = "PROCESSING"
 	RecordingComplete   = "COMPLETE"
 	RecordingFailed     = "FAILED"
 
-	// autoEndGrace is how long after ends_at an IN_PROGRESS meeting with no
-	// one connected is left alone before the worker ends it.
-	autoEndGrace = 2 * time.Hour
-
 	transcriptLimit = 5000
 )
 
 func (s *MeetingService) count(event string) {
-	if s.Metrics != nil {
-		s.Metrics.Inc(event)
+	if s.metrics != nil {
+		s.metrics.Inc(event)
 	}
 }
 
@@ -299,10 +290,10 @@ func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev Pro
 
 // ---- Auto end ----------------------------------------------------------------
 
-// AutoEndOverdue ends IN_PROGRESS meetings whose planned end is more than
-// autoEndGrace ago and that have nobody connected. Returns how many ended.
+// AutoEndOverdue ends IN_PROGRESS meetings whose planned end (ends_at) has
+// passed. Returns how many ended.
 func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int, error) {
-	rows, err := s.q.ListOverdueInProgressMeetings(ctx, pgtype.Timestamptz{Time: now.Add(-autoEndGrace), Valid: true})
+	rows, err := s.q.ListOverdueInProgressMeetings(ctx, pgtype.Timestamptz{Time: now, Valid: true})
 	if err != nil {
 		return 0, err
 	}
@@ -317,7 +308,7 @@ func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int
 }
 
 func (s *MeetingService) RunAutoEnd(ctx context.Context) {
-	t := time.NewTicker(time.Minute)
+	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	for {
 		select {

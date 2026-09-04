@@ -124,6 +124,17 @@ type MeetingAuditLog struct {
 	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
 }
 
+type MeetingChatMessage struct {
+	ID             string             `json:"id"`
+	MeetingID      string             `json:"meeting_id"`
+	ParticipantID  pgtype.Text        `json:"participant_id"`
+	SenderIdentity string             `json:"sender_identity"`
+	SenderName     string             `json:"sender_name"`
+	Message        string             `json:"message"`
+	SentAt         pgtype.Timestamptz `json:"sent_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type MeetingConferenceSession struct {
 	ID                 string             `json:"id"`
 	MeetingID          string             `json:"meeting_id"`
@@ -278,6 +289,11 @@ type OutboxEvent struct {
 	LastError   pgtype.Text        `json:"last_error"`
 	AvailableAt pgtype.Timestamptz `json:"available_at"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	LockedBy    pgtype.Text        `json:"locked_by"`
+	LockedAt    pgtype.Timestamptz `json:"locked_at"`
+	LockedUntil pgtype.Timestamptz `json:"locked_until"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type PasswordResetToken struct {
@@ -335,6 +351,20 @@ type User struct {
 	EmailVerifiedAt         pgtype.Timestamptz `json:"email_verified_at"`
 	GoogleID                pgtype.Text        `json:"google_id"`
 	Locale                  string             `json:"locale"`
+}
+
+type WebhookInbox struct {
+	ID              string             `json:"id"`
+	Provider        string             `json:"provider"`
+	ProviderEventID string             `json:"provider_event_id"`
+	EventType       string             `json:"event_type"`
+	Payload         string             `json:"payload"`
+	Status          string             `json:"status"`
+	AttemptCount    int32              `json:"attempt_count"`
+	NextAttemptAt   pgtype.Timestamptz `json:"next_attempt_at"`
+	ReceivedAt      pgtype.Timestamptz `json:"received_at"`
+	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
+	LastError       pgtype.Text        `json:"last_error"`
 }
 
 type Workspace struct {

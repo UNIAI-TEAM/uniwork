@@ -1,23 +1,26 @@
 "use client";
 import { LiveKitRoom } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  isJoinAdmitted,
-  useJoinMeeting,
-  useMeeting,
-} from "@uniwork/core/meetings";
+import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
+import type { JoinDecision } from "@uniwork/core/types/meeting";
+import { isJoinAdmitted, useJoinMeeting, useMeeting, useStartMeeting } from "@uniwork/core/meetings";
+import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
 import { MeetingLobby } from "./meeting-lobby";
 import { MeetingPreJoin, type PreJoinChoice } from "./meeting-prejoin";
+import { useMeetingScheduleDeadline } from "./use-meeting-schedule-deadline";
 import {
+  mediaDisconnectKind,
   shouldLeaveOnDisconnect,
-  tokenRefreshDelayMs,
+  shouldRefreshCredentialOnDisconnect,
+  type MediaDisconnectKind,
 } from "./room-connection";
+import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 
 function MeetingRoomShell({
   children,
@@ -39,85 +42,88 @@ function MeetingRoomShell({
 export function MeetingRoomView({
   meetingId,
   workspaceId,
+  joinBody,
+  guestMode,
+  meetingTitle,
+  initialJoinDecision,
   invite,
   onLeave,
 }: {
   meetingId: string;
   workspaceId?: string;
+  joinBody?: JoinMeetingBody;
+  /** Public invite flow: skip workspace-scoped APIs that require a member session. */
+  guestMode?: boolean;
+  meetingTitle?: string;
+  initialJoinDecision?: JoinDecision;
   /** Public-link credentials for someone outside the workspace; every join carries them. */
   invite?: { linkId: string; secret: string };
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
   const join = useJoinMeeting();
-  const inviteLinkId = invite?.linkId;
-  const inviteSecret = invite?.secret;
-  const { data: meeting } = useMeeting(meetingId);
-  useWorkspaceEvents(workspaceId ?? meeting?.workspace_id ?? "");
-  const [choice, setChoice] = useState<PreJoinChoice | null>(null);
+  const { data: meeting } = useMeeting(meetingId, { enabled: !guestMode });
+  const resolvedWorkspaceId = guestMode ? (workspaceId ?? "") : (workspaceId ?? meeting?.workspace_id ?? "");
+  const start = useStartMeeting(resolvedWorkspaceId);
+  const { canHost } = useMeetingPermissions(guestMode ? null : (meeting ?? null), resolvedWorkspaceId);
+  useWorkspaceEvents(guestMode ? "" : resolvedWorkspaceId);
+  const joinOnce = useRef(false);
+  const admittedRef = useRef(false);
+  const credentialRefreshAttempts = useRef(0);
+  const [mediaErrorKind, setMediaErrorKind] = useState<MediaDisconnectKind | null>(null);
+  const [choice, setChoice] = useState<PreJoinChoice | null>(() =>
+    isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null,
+  );
   const mutateJoin = join.mutate;
+  const joinArgs = useMemo(() => {
+    const base = joinBody ? { meetingId, ...joinBody } : { meetingId };
+    if (invite) {
+      return { ...base, invite_link_id: invite.linkId, secret: invite.secret };
+    }
+    return base;
+  }, [meetingId, joinBody, invite]);
 
-  // Admission is requested only after the user leaves the pre-join screen.
-  useEffect(() => {
-    if (choice)
-      mutateJoin({
-        meetingId,
-        invite_link_id: inviteLinkId,
-        secret: inviteSecret,
-      });
-  }, [choice, mutateJoin, meetingId, inviteLinkId, inviteSecret]);
+  const retryJoin = useCallback(() => {
+    setMediaErrorKind(null);
+    mutateJoin(joinArgs);
+  }, [mutateJoin, joinArgs]);
 
-  const expiresAt = join.data?.expires_at;
-  const admittedNow = isJoinAdmitted(join.data);
-
-  useEffect(() => {
-    if (!admittedNow) return;
-    const delay = tokenRefreshDelayMs(expiresAt);
-    if (delay == null) return;
-    const id = window.setTimeout(
-      () =>
-        mutateJoin({
-          meetingId,
-          invite_link_id: inviteLinkId,
-          secret: inviteSecret,
-        }),
-      delay,
-    );
-    return () => window.clearTimeout(id);
-  }, [
-    admittedNow,
-    expiresAt,
-    meetingId,
-    mutateJoin,
-    inviteLinkId,
-    inviteSecret,
-  ]);
+  const handleStartMeeting = useCallback(() => {
+    start.mutate(meetingId, { onSuccess: () => retryJoin() });
+  }, [start, meetingId, retryJoin]);
 
   useEffect(() => {
-    if (admittedNow || join.error) return;
-    if (!join.data) return;
-    const id = window.setInterval(
-      () =>
-        mutateJoin({
-          meetingId,
-          invite_link_id: inviteLinkId,
-          secret: inviteSecret,
-        }),
-      4000,
-    );
-    return () => window.clearInterval(id);
-  }, [
-    admittedNow,
-    join.data,
-    join.error,
-    meetingId,
-    mutateJoin,
-    inviteLinkId,
-    inviteSecret,
-  ]);
+    if (!choice) return;
+    if (joinOnce.current) return;
+    joinOnce.current = true;
+    if (isJoinAdmitted(initialJoinDecision)) return;
+    retryJoin();
+  }, [choice, retryJoin, initialJoinDecision]);
 
-  const decision = join.data;
+  const decision = join.data ?? initialJoinDecision;
   const admitted = isJoinAdmitted(decision);
+  admittedRef.current = admitted;
+
+  // LiveKit JWT refresh happens only after an unexpected disconnect (onDisconnected
+  // → retryJoin). Proactive refresh while connected forced room.connect() again,
+  // closed DATA_TRACK_LOSSY, and wiped ephemeral chat — see meeting-ui-implementation-plan §11.
+  useLobbyJoinRetry({
+    meetingId,
+    decision: decision?.decision,
+    admitted,
+    hasJoinError: Boolean(join.error),
+    onRetry: retryJoin,
+  });
+
+  useMeetingScheduleDeadline({
+    endsAt: meeting?.ends_at,
+    status: meeting?.status,
+    admitted,
+    isHost: canHost.allowed,
+    meetingId,
+    workspaceId: resolvedWorkspaceId || undefined,
+    onLeave,
+  });
 
   if (!choice) {
     return (
@@ -138,10 +144,13 @@ export function MeetingRoomView({
       <MeetingRoomShell>
         <MeetingLobby
           meetingId={meetingId}
-          title={meeting?.title}
+          title={meeting?.title ?? meetingTitle}
           decision={decision?.decision}
           error={join.error}
-          allowJoinRequest={meeting?.allow_join_request}
+          allowJoinRequest={guestMode ? undefined : meeting?.allow_join_request}
+          canStart={canHost.allowed}
+          starting={start.isPending}
+          onStart={handleStartMeeting}
           onLeave={onLeave}
         />
       </MeetingRoomShell>
@@ -160,17 +169,48 @@ export function MeetingRoomView({
               <Skeleton key={i} className="aspect-video rounded-2xl bg-rail" />
             ))}
           </div>
-          {meeting?.title ? (
+          {(meeting?.title ?? meetingTitle) ? (
             <p className="max-w-md truncate text-title-sm font-semibold text-foreground">
-              {meeting.title}
+              {meeting?.title ?? meetingTitle}
             </p>
           ) : null}
           <p className="text-body text-muted-foreground">
-            {t("meetings.connecting")}
+            {join.isPending ? t("meetings.joining") : t("meetings.connecting")}
           </p>
           <Button variant="outline" onClick={onLeave}>
             {t("meetings.leave")}
           </Button>
+        </div>
+      </MeetingRoomShell>
+    );
+  }
+
+  if (mediaErrorKind) {
+    const replaced = mediaErrorKind === "replaced";
+    return (
+      <MeetingRoomShell>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="max-w-md text-pretty text-body text-foreground">
+            {t(replaced ? "meetings.sessionReplaced" : "meetings.connectionFailed")}
+          </p>
+          <p className="max-w-md text-pretty text-caption text-muted-foreground">
+            {t(replaced ? "meetings.sessionReplacedHint" : "meetings.connectionFailedHint")}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {!replaced ? (
+              <Button
+                onClick={() => {
+                  credentialRefreshAttempts.current = 0;
+                  retryJoin();
+                }}
+              >
+                {t("common.retry")}
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={onLeave}>
+              {t("meetings.leave")}
+            </Button>
+          </div>
         </div>
       </MeetingRoomShell>
     );
@@ -197,13 +237,40 @@ export function MeetingRoomView({
               : true
             : false
         }
+        options={{
+          adaptiveStream: true,
+          dynacast: true,
+        }}
+        onError={() => {
+          setMediaErrorKind((kind) => kind ?? "connection");
+        }}
         onDisconnected={(reason) => {
-          if (shouldLeaveOnDisconnect(reason)) onLeave();
+          const kind = mediaDisconnectKind(reason);
+          if (kind === "replaced") {
+            setMediaErrorKind("replaced");
+            return;
+          }
+          if (shouldLeaveOnDisconnect(reason)) {
+            onLeave();
+            return;
+          }
+          if (!admittedRef.current || !shouldRefreshCredentialOnDisconnect(reason)) {
+            setMediaErrorKind("connection");
+            return;
+          }
+          if (credentialRefreshAttempts.current >= 2) {
+            setMediaErrorKind("connection");
+            return;
+          }
+          credentialRefreshAttempts.current += 1;
+          retryJoin();
         }}
       >
         <MeetingConference
+          meetingId={meetingId}
           meeting={meeting ?? undefined}
-          workspaceId={workspaceId}
+          meetingTitle={meetingTitle}
+          workspaceId={guestMode ? undefined : workspaceId}
           onLeave={onLeave}
         />
       </LiveKitRoom>

@@ -25,5 +25,5 @@ test("quên mật khẩu → link trong mail → mật khẩu mới đăng nhậ
   await page.getByLabel("Mật khẩu mới").fill("newpassword1");
   await page.getByLabel("Nhập lại mật khẩu").fill("newpassword1");
   await page.getByRole("button", { name: "Đổi mật khẩu" }).click();
-  await expect(page.getByText("Link đã hết hạn hoặc đã dùng")).toBeVisible();
+  await expect(page.getByText("Link đã hết hạn hoặc đã được dùng.")).toBeVisible();
 });

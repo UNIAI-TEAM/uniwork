@@ -73,19 +73,21 @@ export function MeetingScheduleFields({
           required
         />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field className="min-w-0">
           <FieldLabel>{t("meetings.startsAt")}</FieldLabel>
           <TimeInput
+            className="w-full max-w-full"
             value={start}
             onChange={moveStart}
             hourLabel={t("meetings.startHour")}
             minuteLabel={t("meetings.startMinute")}
           />
         </Field>
-        <Field data-invalid={invalid || undefined}>
+        <Field className="min-w-0" data-invalid={invalid || undefined}>
           <FieldLabel>{t("meetings.endsAt")}</FieldLabel>
           <TimeInput
+            className="w-full max-w-full"
             value={end}
             onChange={onEnd}
             hourMin={startHour}

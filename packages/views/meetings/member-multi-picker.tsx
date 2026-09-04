@@ -19,7 +19,7 @@ export function MemberMultiPicker({
   const options = (members ?? []).filter((m) => !excludeUserIds.includes(m.user_id));
 
   return (
-    <ul className="max-h-48 space-y-1 overflow-auto rounded-lg border border-border bg-surface p-2">
+    <ul className="max-h-36 min-w-0 space-y-1 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface p-2">
       {options.length === 0 ? (
         <li className="px-2 py-1.5 text-label text-muted-foreground">{t("meetings.noOtherMembers")}</li>
       ) : (
