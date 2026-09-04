@@ -6,6 +6,11 @@
  * Purely presentational: it paints to a canvas and reads no product state, so
  * it lives with the primitives. It honours `prefers-reduced-motion` by
  * painting one static frame instead of animating.
+ *
+ * The dots take the canvas's own `color` by default, so the hue comes from a
+ * token on the host (`className="text-brand"`) rather than a palette value
+ * baked into this file — the ReUI original shipped `indigo-400`, which is
+ * neither this product's brand hue nor a token.
  */
 
 import { useEffect, useRef } from "react"
@@ -21,8 +26,17 @@ interface DotSphereProps {
   dotRadiusMax?: number
   speed?: number
   bgColor?: string
+  /** Any CSS colour; `currentColor` (default) resolves the canvas's computed `color`. */
   dotColor?: string
+  /** Multiplies every dot's alpha; the tone of the field without touching its hue. */
+  dotAlpha?: number
   followMouse?: boolean
+  /**
+   * `false` paints the first frame and stops, exactly as `prefers-reduced-motion`
+   * does, so a surface that wants the texture without a perpetual rAF loop
+   * (a sign-in page) does not have to ask the OS's permission for it.
+   */
+  animate?: boolean
 }
 
 interface SpherePath {
@@ -56,8 +70,6 @@ interface DotSphereState {
   color: string
   opacity: number
 }
-
-const DOT_SPHERE_COLOR = "rgba(129, 140, 248, 0.5)"
 
 const SPHERE_PATHS: readonly [SpherePath, ...SpherePath[]] = [
   {
@@ -147,8 +159,10 @@ export function DotSphere({
   dotRadiusMax = 3,
   speed = 0.18,
   bgColor = "oklch(0.145 0 0)",
-  dotColor = DOT_SPHERE_COLOR,
+  dotColor = "currentColor",
+  dotAlpha = 1,
   followMouse = false,
+  animate = true,
 }: DotSphereProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const stateRef = useRef({
@@ -175,9 +189,12 @@ export function DotSphere({
     const canvasElement = canvas
     const context = ctx
     const state = stateRef.current
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches
+    // Canvas fill styles do not understand `currentColor`; the computed style does.
+    const resolvedDotColor =
+      dotColor === "currentColor" ? getComputedStyle(canvasElement).color : dotColor
+    const prefersReducedMotion =
+      !animate ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
     state.spheres = createSpheres()
 
@@ -205,7 +222,7 @@ export function DotSphere({
           dotRadiusMax: 0,
           dotScale: profile.dot,
           speed: speed * profile.speed,
-          color: dotColor,
+          color: resolvedDotColor,
           opacity: 0,
         }
       })
@@ -263,6 +280,11 @@ export function DotSphere({
         sphere.dotRadiusMax = dotRadiusMax * sphere.dotScale
         updateSpherePosition(sphere)
       })
+      // Assigning `canvas.width` wipes the bitmap. The animated loop repaints
+      // on its next frame; a still canvas (reduced motion, `animate={false}`)
+      // has no next frame, and the ResizeObserver's first callback arrives
+      // right after the initial paint — leaving it blank for good.
+      drawDots()
     }
 
     function getDistance(
@@ -309,7 +331,7 @@ export function DotSphere({
               const radius = getRadius(alpha, sphere.dotRadiusMax)
 
               context.save()
-              context.globalAlpha = alpha * sphere.opacity
+              context.globalAlpha = alpha * sphere.opacity * dotAlpha
               context.beginPath()
               context.fillStyle = sphere.color
               context.arc(x, y, radius, 0, 2 * Math.PI, false)
@@ -394,7 +416,9 @@ export function DotSphere({
     speed,
     bgColor,
     dotColor,
+    dotAlpha,
     followMouse,
+    animate,
   ])
 
   return (
