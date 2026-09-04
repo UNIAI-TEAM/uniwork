@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useCallRingtone } from "./use-call-ringtone";
+import { useCallRingtone, type CallRingtoneKind } from "./use-call-ringtone";
 
 class FakeOscillator {
   connect = vi.fn();
@@ -44,9 +44,12 @@ describe("useCallRingtone", () => {
   });
 
   it("clears audio when kind becomes null", () => {
-    const { rerender } = renderHook(({ kind }) => useCallRingtone(kind), {
-      initialProps: { kind: "outgoing" as const },
-    });
+    const { rerender } = renderHook(
+      ({ kind }: { kind: CallRingtoneKind | null }) => useCallRingtone(kind),
+      {
+        initialProps: { kind: "outgoing" },
+      },
+    );
 
     rerender({ kind: null });
     vi.advanceTimersByTime(2_500);
