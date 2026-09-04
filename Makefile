@@ -193,3 +193,29 @@ clean: ## Remove build caches, generated binaries and temp files
 	rm -rf .turbo apps/*/.turbo packages/*/.turbo
 	rm -rf apps/*/*.tsbuildinfo packages/*/*.tsbuildinfo
 	@echo "✓ Clean complete."
+
+##@ UniAI (docs/engineering/UNIAI_TRACKING.md)
+
+issue-mine: ## My open UniAI issues in the UniWork project
+	@scripts/uniai.sh mine
+
+issue-start: ## Take an issue: assign me, in_progress, branch feature/KEY-slug from develop (KEY=UNI-123 [KIND=fix])
+	@scripts/uniai.sh start "$(KEY)" "$(or $(KIND),feature)"
+
+issue-sub: ## Create a sub-issue under PARENT (PARENT=UNI-123 TITLE="…")
+	@scripts/uniai.sh sub "$(PARENT)" "$(TITLE)"
+
+issue-note: ## Comment on an issue (KEY=UNI-123 MSG="…")
+	@scripts/uniai.sh note "$(KEY)" "$(MSG)"
+
+issue-block: ## Mark an issue blocked with a reason (KEY=UNI-123 MSG="…")
+	@scripts/uniai.sh block "$(KEY)" "$(MSG)"
+
+issue-pr: ## Push the current branch, open the PR titled "KEY: …", set in_review (KEY=UNI-123)
+	@scripts/uniai.sh pr "$(KEY)"
+
+issue-done: ## After merge: set done and record the merged sha (KEY=UNI-123)
+	@scripts/uniai.sh done "$(KEY)"
+
+issue-new: ## Create a backlog issue in the UniWork project (TITLE="…")
+	@scripts/uniai.sh new "$(TITLE)"
