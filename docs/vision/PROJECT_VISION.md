@@ -269,7 +269,7 @@ F = Foundation, C = Collaboration, A = Agent (xem lộ trình mục 8). Đối c
 - Không dữ liệu giả ở bất kỳ màn hình nào; empty state nói rõ bước tiếp theo.
 - Vi/En ngang hàng, kiểm tra thiếu khóa i18n trong CI; ngôn ngữ khác gắn beta.
 - Tương tác điều hướng cảm nhận dưới 200 ms; spinner là trạng thái lỗi, dùng skeleton.
-- Mobile PWA ngang hàng cho luồng cốt lõi; mục tiêu chạm ≥ 44 px.
+- Mobile là ứng dụng Expo / React Native độc lập (ADR 0011), iOS trước, ngang hàng ngữ nghĩa với web cho luồng cốt lõi; mục tiêu chạm ≥ 44 px; không phải PWA.
 
 ### 6.8 API-first và hệ sinh thái
 
@@ -331,7 +331,7 @@ OpenTelemetry → Prometheus / Grafana / Loki (hoặc dịch vụ quản lý tư
 | V4 | **Sự kiện domain qua outbox** trong cùng transaction; realtime chỉ phát id để client refetch | Không mất sự kiện, cache là nguồn thật, kế thừa mô hình đã đo tải |
 | V5 | **AI là bounded context có gateway**: provider registry, model router, prompt registry, tool authorization, usage metering, audit | Đổi nhà cung cấp bằng cấu hình; chi phí đo được theo tenant; on-prem dùng local model |
 | V6 | **Agent là actor hạng nhất**: bảng actor phân biệt human / agent, mọi bản ghi có `actor_id` + `actor_kind`, mọi hành động ghi của agent qua đề xuất → xác nhận → thực thi trừ khi policy cho phép tự động ở mức rủi ro thấp | Trực tiếp hiện thực định vị sản phẩm |
-| V7 | **Frontend headless**: `core` không biết Next.js; `views` tái sử dụng cho host thứ hai | Đã có trong `uniwork`, giữ |
+| V7 | **Frontend headless**: `core` không biết Next.js; `views` tái sử dụng cho host web/desktop. **Mobile là app Expo riêng**, chỉ dùng type + pure function từ `core` (ADR 0011) | Đã có trong `uniwork`; mobile theo kiến trúc `usf` |
 | V8 | **Một codebase, ba tier triển khai**; cấu hình bằng biến môi trường và adapter, không nhánh mã | Điều kiện của phân khúc 2 và 3 |
 | V9 | **OpenAPI là hợp đồng**; SDK và test contract sinh từ đó | API-first, chống drift |
 | V10 | **Feature flag** phía server theo tenant | Trunk-based, phát hành dần, pilot có kiểm soát |
@@ -358,7 +358,7 @@ Tiêu chí thoát:
 
 ### Giai đoạn C — Collaboration (tháng 4 đến 6): "Pilot khách hàng có kiểm soát"
 
-Phạm vi: Document cộng tác, Chat, Calendar, Meeting intelligence (transcript, tóm tắt, biến họp thành việc có người duyệt), Billing thật (cổng nội địa + Stripe), Quota, tenant export/delete, trang status, tài liệu người dùng, PWA mobile cho luồng cốt lõi.
+Phạm vi: Document cộng tác, Chat, Calendar, Meeting intelligence (transcript, tóm tắt, biến họp thành việc có người duyệt), Billing thật (cổng nội địa + Stripe), Quota, tenant export/delete, trang status, tài liệu người dùng, ứng dụng mobile iOS (Expo) cho luồng cốt lõi theo kiến trúc `usf`.
 
 Tiêu chí thoát:
 - 5 tenant pilot bên ngoài dùng thật ≥ 30 ngày, NPS thu thập, ≥ 3 tenant tiếp tục sau pilot.
@@ -387,7 +387,7 @@ Tiêu chí thoát:
 
 ### Sau tháng 12 (không cam kết)
 
-Ngôn ngữ my/km/lo rời beta, marketplace agent, host desktop/mobile native, tách microservice đầu tiên nếu có nhu cầu (ứng viên: AI gateway, media processing).
+Ngôn ngữ my/km/lo rời beta, marketplace agent, Android và host desktop, tách microservice đầu tiên nếu có nhu cầu (ứng viên: AI gateway, media processing).
 
 ---
 
@@ -465,7 +465,7 @@ Giả định: (1) đội có tối thiểu 4 kỹ sư full-stack, 1 thiết k�
 | G6 Nút "coming soon" | Cấm bởi DoD |
 | G7 Ghi hình = 0 | Giai đoạn F với LiveKit Egress |
 | G8 Không đo được chi phí AI | Gateway metering từ giai đoạn F |
-| G9 Push/PWA chưa chứng minh | Giai đoạn C |
+| G9 Push/PWA chưa chứng minh | Giai đoạn C: push APNs/web push trong F-07; mobile là app Expo (C-08), không PWA |
 | G14 Không có observability | OpenTelemetry từ giai đoạn F, tiêu chí thoát |
 
 ## Phụ lục C. Thuật ngữ

@@ -71,7 +71,7 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | C-05 | Quota UI cho org admin, cảnh báo ngưỡng | Tenant & Subscription | CHƯA | spec F-02 | P1 |
 | C-06 | Tenant export / delete (Nghị định 13/2023) | Audit & Compliance | CHƯA | phần retention/export của spec F-08 | P0 |
 | C-07 | Trang status + changelog công khai | Ops | CHƯA | `(cần viết)` | P1 |
-| C-08 | PWA mobile cho luồng cốt lõi (5 tab) | Cross-cutting | CHƯA | `(cần viết)` mobile-pwa-design; tham chiếu IA V2 bản cũ | P1 |
+| C-08 | Ứng dụng mobile iOS (Expo + React Native) theo kiến trúc `usf`: app độc lập `apps/mobile`, chỉ dùng type + pure function từ `packages/core`, parity ngữ nghĩa với web, CI riêng, phát hành EAS; 5 tab Home · Chat · Work · Meet · More | Mobile | CHƯA | `2026-09-04-mobile-app-design.md` (đề xuất); ADR 0011 | P1 |
 | C-09 | Tài liệu người dùng + onboarding trong app | Cross-cutting | CHƯA | `(cần viết)` | P1 |
 | C-10 | Pentest bên thứ ba, đóng High/Critical | Security | CHƯA | checklist ASVS L2 | P0 |
 | C-11 | Work Graph foundation: bảng quan hệ giữa đối tượng công việc, từ vựng quan hệ có kiểm soát, nguồn gốc (người / AI suy ra), API đọc lân cận depth-1 | Work Graph | CHƯA | `(cần viết)` work-graph-design; kế thừa work_nodes/work_edges bản cũ | P1 |
@@ -117,8 +117,8 @@ có lịch.
 ## Nằm ngoài phạm vi (Vision §5.3)
 
 Email Hub nội bộ trong DB (email thật là A-10); AI Market dạng marketplace mở; Decision Hub như
-module riêng (Decision record là C-12); Blog/CMS; desktop native; microservice trước khi có nhu
-cầu đo được.
+module riêng (Decision record là C-12); Blog/CMS; PWA như chiến lược mobile (mobile là app Expo,
+C-08); desktop native; microservice trước khi có nhu cầu đo được.
 
 ## Thứ tự làm trong Giai đoạn F (đề xuất)
 

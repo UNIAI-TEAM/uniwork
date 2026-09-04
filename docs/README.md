@@ -19,7 +19,7 @@
 | Tài liệu | Trả lời câu hỏi |
 | --- | --- |
 | [`../CLAUDE.md`](../CLAUDE.md) | Luật kỹ thuật, mỗi luật có test/lint giữ |
-| [`adr/README.md`](adr/README.md) | Vì sao có từng luật; ADR 0007–0010 (chấp nhận 2026-09-04) định hình Giai đoạn F |
+| [`adr/README.md`](adr/README.md) | Vì sao có từng luật; ADR 0007–0011 (chấp nhận 2026-09-04) định hình Giai đoạn F và mobile |
 | [`conventions.md`](conventions.md) | Đặt tên, glossary vi–en, giọng văn tiếng Việt |
 | [`api-sdi-sdo.md`](api-sdi-sdo.md) | Viết HTTP API và Swagger |
 | [`engineering/FEATURE_WORKFLOW.md`](engineering/FEATURE_WORKFLOW.md) | Một tính năng đi từ roadmap đến release như thế nào |
