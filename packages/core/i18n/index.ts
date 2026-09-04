@@ -25,6 +25,7 @@ export function initI18n() {
       fallbackLng: "vi",
       resources: withContent({ vi, en }),
       interpolation: { escapeValue: false },
+      compatibilityJSON: "v4",
     });
   }
   return i18next;

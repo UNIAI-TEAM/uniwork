@@ -15,9 +15,9 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Select } from "@uniwork/ui/components/ui/select";
-import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
+import { MeetingPanelCard } from "./meeting-panel-card";
 
 export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: string; meeting: Meeting }) {
   const { t } = useTranslation();
@@ -33,9 +33,8 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
   const selected = eligible.find((m) => m.user_id === userId);
 
   return (
-    <div className="mt-6">
-      <Field>
-        <FieldLabel htmlFor="transfer-host">{t("meetings.transferHostTo")}</FieldLabel>
+    <>
+      <MeetingPanelCard id="transfer-host-heading" title={t("meetings.transferHostTo")}>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <Select
@@ -52,7 +51,7 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
             {t("meetings.transferHost")}
           </Button>
         </div>
-      </Field>
+      </MeetingPanelCard>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -71,7 +70,7 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
                     setOpen(false);
                     setUserId("");
                   },
-                  onError: () => toast.error(t("common.error")),
+                  onError: (err) => toastApiError(err, t("common.error")),
                 })
               }
             >
@@ -80,6 +79,6 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

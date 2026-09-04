@@ -20,6 +20,9 @@ describe("meeting signals", () => {
     expect(decodeSignal(new TextEncoder().encode("not json"))).toBeNull();
     expect(decodeSignal(new TextEncoder().encode('{"kind":"hand","value":"yes"}'))).toBeNull();
     expect(decodeSignal(new TextEncoder().encode('{"kind":"reaction","value":"' + "x".repeat(20) + '"}'))).toBeNull();
+    expect(decodeSignal(new TextEncoder().encode("null"))).toBeNull();
+    expect(decodeSignal(new TextEncoder().encode('{"kind":"mute_request","target":1}'))).toBeNull();
+    expect(decodeSignal(new TextEncoder().encode('{"kind":"unknown"}'))).toBeNull();
   });
 
   it("keeps hands in raise order and lowers them", () => {
@@ -39,6 +42,13 @@ describe("meeting signals", () => {
     expect(expireReactions(s, 1000 + REACTION_TTL_MS - 1)).toBe(s);
     s = expireReactions(s, 1000 + REACTION_TTL_MS);
     expect(s.reactions).toHaveLength(0);
+  });
+
+  it("drops stale reactions when a new one arrives", () => {
+    let s = reduceSignal(initialSignalsState, "a", { kind: "reaction", value: "👍" }, 1000);
+    s = reduceSignal(s, "b", { kind: "reaction", value: "❤️" }, 1000 + REACTION_TTL_MS + 1);
+    expect(s.reactions).toHaveLength(1);
+    expect(s.reactions[0]?.value).toBe("❤️");
   });
 
   it("mute_request does not change shared state", () => {

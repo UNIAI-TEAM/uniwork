@@ -20,6 +20,7 @@ import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { combineLocalIso, MEETING_TIMEZONES, splitIsoLocal } from "./meeting-datetime";
 
 function meetingDraft(meeting: Meeting) {
@@ -94,7 +95,7 @@ export function MeetingEditDialog({
                   setOpen(false);
                   toast.success(t("meetings.saveChanges"));
                 },
-                onError: () => toast.error(t("common.error")),
+                onError: (err) => toastApiError(err, t("common.error")),
               },
             );
           }}

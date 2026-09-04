@@ -4,13 +4,15 @@
 
 ```text
 Roadmap ──▶ Spec (brainstorm) ──▶ Plan ──▶ Implement ──▶ make check ──▶ PR + DoD ──▶ Release (flag) ──▶ Roadmap = CÓ
+   UniAI:  issue todo ─────────────── sub-issue ── in_progress ──────────────── in_review ─────────────── done
 ```
 
 ## Bước 1 — Chọn việc từ Roadmap
 
 Chỉ lấy tính năng có trong `docs/roadmap/FEATURE_ROADMAP.md`, theo thứ tự ưu tiên của
-giai đoạn hiện tại. Việc không có trong roadmap thì thêm vào roadmap trước (PR riêng,
-một dòng), không code trước.
+giai đoạn hiện tại. Mỗi dòng roadmap là một issue UniAI (`UNI-nnn`); nhận việc bằng
+`make issue-start KEY=UNI-nnn` (xem `docs/engineering/UNIAI_TRACKING.md`). Việc không có
+trong roadmap thì thêm vào roadmap và tạo issue trước (`make issue-new`), không code trước.
 
 ## Bước 2 — Spec thiết kế
 
@@ -36,11 +38,12 @@ một dòng), không code trước.
   commit message mẫu.
 - Plan chia theo lát cắt dọc chạy được (migration → query → service → handler → core
   endpoint → hook → view → test → E2E), không theo tầng.
+- Mỗi task lớn của plan là một sub-issue trên UniAI: `make issue-sub PARENT=UNI-nnn TITLE="…"`.
 
 ## Bước 4 — Implement
 
-- Nhánh: `feature/<ten>` từ `develop`; worktree riêng nếu chạy song song
-  (`make worktree-env`).
+- Nhánh: `feature/UNI-nnn-<ten>` từ `develop`, tạo bằng `make issue-start`; worktree
+  riêng nếu chạy song song (`make worktree-env`). Kẹt thì `make issue-block`.
 - Thực thi plan bằng `superpowers:subagent-driven-development` hoặc
   `superpowers:executing-plans`; TDD theo `superpowers:test-driven-development`.
 - Không refactor ngoài phạm vi plan. Phát hiện nợ thì ghi vào plan, mở issue, không sửa
@@ -54,6 +57,7 @@ một dòng), không code trước.
 
 ## Bước 6 — PR và review
 
+- Mở PR bằng `make issue-pr KEY=UNI-nnn` (tiêu đề `UNI-nnn: …`, issue → `in_review`).
 - Mô tả PR chứa checklist `docs/engineering/DEFINITION_OF_DONE.md` đã tick.
 - PR nhỏ, một mục đích; Conventional Commits.
 - Review dùng `superpowers:requesting-code-review`; nhận review dùng
@@ -66,7 +70,8 @@ một dòng), không code trước.
 
 - Merge vào `develop` → staging tự động. Bật flag cho org UNICOM trước; theo dõi
   metric/log 48 giờ; rồi bật rộng.
-- Cập nhật `FEATURE_ROADMAP.md` (`CÓ` + ngày), plan → `shipped`, spec → `Đã triển khai`.
+- Sau merge: `make issue-done KEY=UNI-nnn`; cập nhật `FEATURE_ROADMAP.md` (`CÓ` + ngày),
+  plan → `shipped`, spec → `Đã triển khai`.
 - Thay đổi người dùng thấy được → một dòng changelog.
 
 ## Khi nào viết ADR

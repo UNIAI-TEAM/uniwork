@@ -20,6 +20,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { defaultInviteLinkLabel } from "./invite-link-display";
 
 const DEFAULT_DAYS = "7";
@@ -142,7 +143,7 @@ export function CreateInviteLinkDialog({
                       if (ok) toast.success(t("meetings.linkCopied"));
                     });
                   },
-                  onError: () => toast.error(t("common.error")),
+                  onError: (err) => toastApiError(err, t("common.error")),
                 },
               );
             }}

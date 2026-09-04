@@ -9,6 +9,7 @@ import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { useNavigation } from "../navigation";
 import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
 import { MeetingLobby } from "./meeting-lobby";
@@ -115,7 +116,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           }
           setLobbyDecision(d.decision);
         },
-        onError: () => toast.error(t("common.error")),
+        onError: (err) => toastApiError(err, t("common.error")),
       },
     );
   }, [enterRoom, joinBody, joinPending, meetingId, mutateJoin, t]);

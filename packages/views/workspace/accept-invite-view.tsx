@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
 import type { Workspace } from "@uniwork/core/types";
 import { useAcceptInvite } from "@uniwork/core/workspaces";
@@ -32,6 +33,8 @@ export function AcceptInviteView({
   }, [status, token, accept, onAccepted, onAnon]);
 
   return (
-    <p className="p-8 text-muted-foreground">{accept.error ? t("common.error") : t("common.loading")}</p>
+    <p className="p-8 text-muted-foreground">
+      {accept.error ? (apiErrorMessage(accept.error) ?? t("common.error")) : t("common.loading")}
+    </p>
   );
 }

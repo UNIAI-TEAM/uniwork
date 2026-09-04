@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Adds a `Refs: UNI-nnn` trailer taken from the branch name, so every commit on
+# an issue branch links back to UniAI without anyone typing the key.
+# Rules: docs/engineering/UNIAI_TRACKING.md § 3. Never rejects a commit.
+set -euo pipefail
+
+msg_file="$1"; source="${2:-}"
+
+# Merges, squashes and rebases carry their own message; leave them alone.
+case "$source" in merge|squash|commit) exit 0 ;; esac
+
+branch="$(git branch --show-current 2>/dev/null || true)"
+key="$(printf '%s' "$branch" | grep -oE 'UNI-[0-9]+' | head -n1 || true)"
+[ -n "$key" ] || exit 0
+
+grep -qE "^Refs: $key\b" "$msg_file" && exit 0
+
+# Append after the message, keeping any comment lines git added at the end.
+python3 - "$msg_file" "$key" <<'PY'
+import sys
+path, key = sys.argv[1], sys.argv[2]
+lines = open(path, encoding="utf-8").read().split("\n")
+body, comments = [], []
+for i, l in enumerate(lines):
+    if l.startswith("#"):
+        body, comments = lines[:i], lines[i:]
+        break
+else:
+    body = lines
+while body and body[-1].strip() == "":
+    body.pop()
+body += ["", f"Refs: {key}", ""]
+open(path, "w", encoding="utf-8").write("\n".join(body + comments))
+PY

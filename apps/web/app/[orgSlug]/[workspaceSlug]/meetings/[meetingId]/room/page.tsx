@@ -14,6 +14,8 @@ export default function MeetingRoomPage() {
     <MeetingRoomView
       meetingId={meetingId}
       workspaceId={workspace.id}
+      meetingsHref={ws.meetings()}
+      workspaceLabel={workspace.name}
       onLeave={() => replace(ws.meeting(meetingId))}
     />
   );

@@ -29,7 +29,7 @@ import {
   type MeetingParticipant,
   type MeetingStatistics,
 } from "../../types/meeting";
-import { request, requestText } from "../http";
+import { ApiError, request, requestText } from "../http";
 import { parseWithFallback } from "../schema";
 
 export type { MeetingInvitation, MeetingInviteLink } from "../../types/meeting";
@@ -345,7 +345,7 @@ export async function listMeetingActivity(meetingId: string): Promise<MeetingAct
 // ---- D08b: capabilities, transcript, AI summary, recording, calendar ----------
 
 const TranscriptResponse = z.object({ segments: z.array(TranscriptSegmentSchema) });
-const SummaryResponse = z.object({ summary: MeetingSummarySchema });
+const SummaryResponse = z.object({ summary: MeetingSummarySchema.nullable() });
 const RecordingsResponse = z.object({ recordings: z.array(RecordingSchema) });
 const RecordingResponse = z.object({ recording: RecordingSchema });
 const TaskIDsResponse = z.object({ task_ids: z.array(z.string()) });
@@ -384,8 +384,16 @@ export async function appendMeetingChat(meetingId: string, message: string): Pro
 }
 
 export async function getMeetingSummary(meetingId: string): Promise<MeetingSummary | null> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`);
-  return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "getMeetingSummary" }).summary;
+  try {
+    const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`);
+    return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "getMeetingSummary" }).summary;
+  } catch (err) {
+    // Older servers returned 404 when no summary existed yet.
+    if (err instanceof ApiError && err.status === 404 && err.code === "not_found") {
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function createMeetingSummary(meetingId: string, locale: string): Promise<MeetingSummary | null> {

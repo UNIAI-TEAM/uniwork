@@ -56,6 +56,7 @@ Chép checklist này vào phần mô tả PR.
 - [ ] Spec trong `docs/superpowers/specs/` ở trạng thái **Đã duyệt**; plan trong `docs/superpowers/plans/` có dòng `> **Trạng thái:**` cập nhật thành `shipped`.
 - [ ] Mọi "không bao giờ" / "chỉ được" mới có ADR trong `docs/adr/` và dòng luật trong `CLAUDE.md` kèm tên test giữ luật.
 - [ ] `docs/roadmap/FEATURE_ROADMAP.md` cập nhật trạng thái.
+- [ ] Issue UniAI: PR có `UNI-nnn`, issue ở `in_review` khi mở PR, bình luận có PR URL và lệnh đã chạy thật; sau merge `make issue-done`.
 - [ ] Nếu có thành phần nền (worker, cron, tích hợp ngoài): runbook trong `docs/ops/`.
 - [ ] Commit theo Conventional Commits; PR nhỏ, một mục đích.
 

@@ -60,7 +60,7 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("%+v", sum)
 	}
 	latest, err := s.Summary(ctx, ua.ID, m.ID)
-	if err != nil || latest.ID != sum.ID {
+	if err != nil || latest == nil || latest.ID != sum.ID {
 		t.Fatalf("%+v %v", latest, err)
 	}
 	// Non-host member cannot summarize; can read.
@@ -68,8 +68,19 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if _, err := s.Summarize(ctx, ub.ID, m.ID, "vi"); err == nil {
 		t.Fatal("member summarized")
 	}
-	if _, err := s.Summary(ctx, ub.ID, m.ID); err != nil {
+	got, err := s.Summary(ctx, ub.ID, m.ID)
+	if err != nil || got == nil || got.ID != sum.ID {
+		t.Fatalf("%+v %v", got, err)
+	}
+
+	// No summary row yet → nil, not an error.
+	m2, err := s.CreateInstant(ctx, ua.ID, w.ID, "Empty")
+	if err != nil {
 		t.Fatal(err)
+	}
+	empty, err := s.Summary(ctx, ua.ID, m2.ID)
+	if err != nil || empty != nil {
+		t.Fatalf("expected nil summary, got %+v %v", empty, err)
 	}
 
 	tasks, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, []SummaryTaskItem{{Title: "Gửi báo cáo"}, {Title: "Book phòng", AssigneeID: &ub.ID}})

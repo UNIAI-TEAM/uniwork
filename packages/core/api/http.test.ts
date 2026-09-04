@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, request } from "./http";
+import { ApiError, apiErrorMessage, request } from "./http";
 import { setAccessToken } from "./session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 
@@ -49,6 +49,14 @@ describe("request", () => {
     vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "not_found", message: "m" } }, 404));
     await expect(request("/api/v1/x")).rejects.toMatchObject({ code: "not_found", status: 404 });
     expect(() => new ApiError("x", "c", 1)).not.toThrow();
+  });
+
+  it("extracts the server message from ApiError", () => {
+    expect(apiErrorMessage(new ApiError("thao tác không hợp lệ", "invalid_meeting_state", 409))).toBe(
+      "thao tác không hợp lệ",
+    );
+    expect(apiErrorMessage(new Error("network down"))).toBe("network down");
+    expect(apiErrorMessage("nope")).toBeUndefined();
   });
 
   it("returns undefined for an empty 204", async () => {

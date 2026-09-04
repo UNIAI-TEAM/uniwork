@@ -9,7 +9,7 @@
 // Hooks import from ./endpoints; nothing outside this directory calls
 // `request` directly, so the compiler is what keeps every response behind a
 // schema.
-export { ApiError, correlationIdOf, errorCode, refreshSession } from "./http";
+export { ApiError, apiErrorMessage, correlationIdOf, errorCode, refreshSession } from "./http";
 export type { RequestOpts } from "./http";
 export { parseWithFallback, setSchemaLogger } from "./schema";
 export type { ParseOptions } from "./schema";

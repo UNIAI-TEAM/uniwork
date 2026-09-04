@@ -402,6 +402,27 @@ Copilot read `AGENTS.md`; do not add an editor-specific rules tree beside it. `m
 whether your Node/Go/pnpm match what the repo pins (`.nvmrc`, `server/go.mod`,
 `packageManager`). `scripts/governance.test.mjs` pins the wiring itself.
 
+## Project Tracking (UniAI)
+
+Work state lives in UniAI (workspace `uni2026`, project UniWork), reached
+through the `uniai` CLI; the repo holds code and docs. The full rules are
+`docs/engineering/UNIAI_TRACKING.md`. The ones enforced here:
+
+- No issue, no code. A PR into `develop`/`main` must name its issue
+  (`UNI-nnn`) in the title or body — `.github/workflows/uniai-link.yml`
+  fails otherwise (label `no-issue` downgrades it to a warning).
+- Branches carry the key: `feature/UNI-423-<slug>`; `make issue-start
+  KEY=UNI-423` creates them and moves the issue to `in_progress`.
+- Commits on an issue branch get a `Refs: UNI-nnn` trailer from
+  `.githooks/prepare-commit-msg`; do not type or strip it.
+- `make issue-pr` opens the PR as `UNI-nnn: <title>` and sets `in_review`;
+  `make issue-done` runs after merge. Only a human sets `done`.
+- Agents open a session with `uniai issue get UNI-nnn --output json`, leave
+  a `[agent]` comment on every stop, and never create issues beyond
+  sub-issues of the one they hold.
+- `scripts/governance.test.mjs` checks that the script, hook, workflow and
+  Makefile targets behind these rules exist.
+
 ## Commits
 
 Conventional prefixes: `feat(scope)`, `fix(scope)`, `refactor(scope)`,

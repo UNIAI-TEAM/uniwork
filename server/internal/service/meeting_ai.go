@@ -84,15 +84,18 @@ func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID strin
 
 // ---- AI summary --------------------------------------------------------------
 
-func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) (db.MeetingSummary, error) {
+func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) (*db.MeetingSummary, error) {
 	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
-		return db.MeetingSummary{}, err
+		return nil, err
 	}
 	sum, err := s.q.GetLatestMeetingSummary(ctx, meetingID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return db.MeetingSummary{}, ErrNotFound
+		return nil, nil
 	}
-	return sum, err
+	if err != nil {
+		return nil, err
+	}
+	return &sum, nil
 }
 
 func (s *MeetingService) AIEnabled() bool { return s.AI != nil }

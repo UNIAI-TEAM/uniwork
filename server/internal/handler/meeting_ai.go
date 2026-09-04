@@ -77,7 +77,12 @@ func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: toSummaryDTO(s)})
+	out := sdo.MeetingSummarySDO{}
+	if s != nil {
+		dto := toSummaryDTO(*s)
+		out.Summary = &dto
+	}
+	respondJSON(w, 200, out)
 }
 
 func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +99,8 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: toSummaryDTO(s)})
+	dto := toSummaryDTO(s)
+	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto})
 }
 
 func (h *handlers) createSummaryTasks(w http.ResponseWriter, r *http.Request) {

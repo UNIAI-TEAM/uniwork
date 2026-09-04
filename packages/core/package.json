@@ -27,6 +27,7 @@
     "./chat/user-lookup": "./chat/user-lookup.ts",
     "./chat/voice-call": "./chat/voice-call.ts",
     "./meetings/room-preferences": "./meetings/room-preferences.ts",
+    "./meetings/view-session": "./meetings/view-session.ts",
     "./realtime": "./realtime/index.ts",
     "./paths": "./paths/index.ts",
     "./organizations": "./organizations/hooks.ts",

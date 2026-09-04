@@ -6,6 +6,7 @@ import type { Workspace } from "@uniwork/core/types";
 import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 
 /** Danh sách lời mời đang chờ của user; chấp nhận từng cái hoặc tất cả. */
 export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspace) => void; onEmpty: () => void }) {
@@ -22,15 +23,15 @@ export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspac
       onSuccess: (workspace) => {
         if (workspace) onJoined(workspace);
       },
-      onError: () => toast.error(t("common.error")),
+      onError: (err) => toastApiError(err, t("common.error")),
     });
   const joinAll = async () => {
     let last: Workspace | null = null;
     for (const i of invites) {
       try {
         last = (await accept.mutateAsync(i.token)) ?? last;
-      } catch {
-        toast.error(t("common.error"));
+      } catch (err) {
+        toastApiError(err, t("common.error"));
       }
     }
     if (last) onJoined(last);

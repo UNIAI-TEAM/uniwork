@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isLobbyWaiting,
   lobbyRetryDelayMs,
+  lobbyWsTriggerJitterMs,
   mediaDisconnectKind,
   shouldLeaveOnDisconnect,
   shouldRefreshCredentialOnDisconnect,
@@ -69,11 +70,19 @@ describe("shouldLeaveOnDisconnect", () => {
   });
 });
 
+describe("lobbyWsTriggerJitterMs", () => {
+  it("returns a bounded random delay", () => {
+    expect(lobbyWsTriggerJitterMs(100)).toBeGreaterThanOrEqual(0);
+    expect(lobbyWsTriggerJitterMs(100)).toBeLessThanOrEqual(100);
+  });
+});
+
 describe("mediaDisconnectKind", () => {
   it("maps duplicate joins to replaced and join failures to connection", () => {
     expect(mediaDisconnectKind(DisconnectReason.DUPLICATE_IDENTITY)).toBe("replaced");
     expect(mediaDisconnectKind(DisconnectReason.JOIN_FAILURE)).toBe("connection");
     expect(mediaDisconnectKind(DisconnectReason.CLIENT_INITIATED)).toBeNull();
+    expect(mediaDisconnectKind(undefined)).toBeNull();
   });
 });
 
@@ -87,6 +96,8 @@ describe("shouldRefreshCredentialOnDisconnect", () => {
 
   it("refreshes on unexpected disconnects but not when leaving the conference", () => {
     expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.SIGNAL_CLOSE)).toBe(true);
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.UNKNOWN_REASON)).toBe(true);
+    expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.SERVER_SHUTDOWN)).toBe(true);
     expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.CLIENT_INITIATED)).toBe(false);
     expect(shouldRefreshCredentialOnDisconnect(DisconnectReason.ROOM_CLOSED)).toBe(false);
   });

@@ -7,6 +7,7 @@ import { inviteLinkStatus, useInviteLinks, useRevokeInviteLink } from "@uniwork/
 import type { MeetingInviteLink } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
 import { inviteLinkDisplayName, inviteLinkMetaParts } from "./invite-link-display";
 import { MeetingPanelCard } from "./meeting-panel-card";
@@ -96,7 +97,7 @@ export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) 
                   link={link}
                   language={i18n.language}
                   revoking={revoke.isPending}
-                  onRevoke={() => revoke.mutate(link.id, { onError: () => toast.error(t("common.error")) })}
+                  onRevoke={() => revoke.mutate(link.id, { onError: (err) => toastApiError(err, t("common.error")) })}
                 />
               ))}
             </ul>
@@ -135,7 +136,7 @@ export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) 
                     link={link}
                     language={i18n.language}
                     revoking={revoke.isPending}
-                    onRevoke={() => revoke.mutate(link.id, { onError: () => toast.error(t("common.error")) })}
+                    onRevoke={() => revoke.mutate(link.id, { onError: (err) => toastApiError(err, t("common.error")) })}
                   />
                 ))}
               </ul>

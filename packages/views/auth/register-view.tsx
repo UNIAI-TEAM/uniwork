@@ -2,7 +2,7 @@
 import { Loader2 } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useRegister } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { SessionResponse } from "@uniwork/core/types";
@@ -31,7 +31,7 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
   // wired to that field. Anything else is a form-level failure: guessing which
   // input caused it would point the user at the wrong box.
   const emailTaken = reg.error instanceof ApiError && reg.error.code === "conflict";
-  const errorMsg = emailTaken ? t("auth.emailTaken") : reg.error ? t("common.error") : null;
+  const errorMsg = emailTaken ? t("auth.emailTaken") : reg.error ? (apiErrorMessage(reg.error) ?? t("common.error")) : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -46,6 +46,23 @@ export function correlationIdOf(err: unknown): string | undefined {
   return err instanceof ApiError ? err.correlationId : undefined;
 }
 
+/**
+ * Human-readable message from a failed API call. Prefers the server's sentence
+ * when the transport wrapped it in ApiError; otherwise falls back to a generic
+ * Error's message.
+ */
+export function apiErrorMessage(err: unknown): string | undefined {
+  if (err instanceof ApiError) {
+    const message = err.message.trim();
+    if (message) return message;
+  }
+  if (err instanceof Error) {
+    const message = err.message.trim();
+    if (message) return message;
+  }
+  return undefined;
+}
+
 export interface RequestOpts {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;

@@ -84,7 +84,7 @@ test("pnpm install wires core.hooksPath at .githooks", () => {
 });
 
 test("both hooks exist and are executable", () => {
-  for (const hook of ["pre-commit", "commit-msg"]) {
+  for (const hook of ["pre-commit", "commit-msg", "prepare-commit-msg"]) {
     const p = path.join(root, ".githooks", hook);
     assert.ok(fs.existsSync(p), `.githooks/${hook} is missing`);
     // Git will not run a hook without the execute bit, and it says nothing when
@@ -287,5 +287,19 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
       `packages/core still has unreachable modules after ${ORPHANS_DEADLINE}: ` +
       `${orphans.join(", ")}. Wire them or delete them.`,
     );
+  }
+});
+
+test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
+  // docs/engineering/UNIAI_TRACKING.md says every PR names a UNI-nnn issue and
+  // every issue-branch commit carries a Refs trailer. Those claims rest on
+  // three files; if any goes missing the doc keeps promising what nothing does.
+  assert.ok(isExecutable("scripts/uniai.sh"), "scripts/uniai.sh is not executable");
+  assert.ok(fs.existsSync(path.join(root, ".github/workflows/uniai-link.yml")), "uniai-link workflow is missing");
+  assert.match(read(".github/workflows/uniai-link.yml"), /UNI-\[0-9\]\+/, "uniai-link must grep for UNI-nnn");
+  assert.match(read(".githooks/prepare-commit-msg"), /Refs: /, "prepare-commit-msg must add the Refs trailer");
+  assert.match(read("CLAUDE.md"), /\n## Project Tracking \(UniAI\)\n/, "CLAUDE.md needs a Project Tracking (UniAI) section");
+  for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {
+    assert.match(read("Makefile"), new RegExp(`^${t}:`, "m"), `Makefile target ${t} is missing`);
   }
 });
