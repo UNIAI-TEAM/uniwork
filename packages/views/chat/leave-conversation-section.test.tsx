@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
@@ -18,7 +18,8 @@ describe("LeaveConversationSection", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Rời cuộc trò chuyện" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Rời cuộc trò chuyện" })[1]!);
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rời cuộc trò chuyện" }));
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 

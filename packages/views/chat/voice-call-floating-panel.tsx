@@ -14,7 +14,7 @@ export function voiceCallInitialOf(name: string): string {
   if (!trimmed) return "?";
   const parts = trimmed.split(/\s+/);
   if (parts.length >= 2) {
-    return `${parts[0]!.charAt(0)}${parts[1]!.charAt(0)}`.toUpperCase();
+    return `${parts[0]!.charAt(0)}${parts[parts.length - 1]!.charAt(0)}`.toUpperCase();
   }
   return trimmed.charAt(0).toUpperCase();
 }
