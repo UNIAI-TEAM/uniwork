@@ -22,6 +22,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0008](0008-cach-ly-tenant-o-tang-service.md) | Cách ly tenant ở tầng service; `organization_id` trên mọi bảng nghiệp vụ |
 | [0009](0009-audit-va-outbox-cung-transaction.md) | Audit + outbox trong cùng transaction cho mọi command |
 | [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) | AI không ghi nghiệp vụ trực tiếp: đề xuất → xác nhận → thực thi |
+| [0011](0011-mobile-la-app-expo-doc-lap.md) | Mobile là app Expo / React Native độc lập, không PWA, không tái dùng `views` |
 
 ## Bản nháp
 

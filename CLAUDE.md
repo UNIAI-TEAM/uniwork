@@ -49,8 +49,11 @@ Product intent and design principles live in `PRODUCT.md`.
 Shared packages export raw `.ts` / `.tsx`, compiled by the consuming app.
 Dependency direction is `views -> core + ui`; `core` and `ui` stay independent.
 Web is the only host today; the adapters (`NavigationAdapter`,
-`StorageAdapter`, `CoreProvider`) exist so a desktop or mobile host can be
-added without rewriting `views`.
+`StorageAdapter`, `CoreProvider`) exist so a desktop host can be added
+without rewriting `views`. Mobile is not a host of `views`: it will be a
+separate Expo / React Native app under apps/mobile that imports only types
+and pure functions from `packages/core/` (ADR 0011, mirrors the sibling
+`usf` repo); its rules land in its own CLAUDE.md when the app exists.
 
 ## State Rules
 
