@@ -13,6 +13,7 @@ type Meetings struct {
 	OutboxRetry      prometheus.Counter
 	OutboxDeadLetter prometheus.Counter
 	ProviderDesync   prometheus.Counter
+	lifecycle        *prometheus.CounterVec
 }
 
 func NewMeetings() *Meetings {
@@ -53,6 +54,16 @@ func NewMeetings() *Meetings {
 			Name: "uniwork_meeting_provider_desync_total",
 			Help: "IN_PROGRESS meetings whose LiveKit room is IDLE (control-plane mismatch).",
 		}),
+		lifecycle: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_meetings_total",
+			Help: "Meeting lifecycle and AI outcomes by event (started, ended, auto_ended, summary_ok, summary_error).",
+		}, []string{"event"}),
+	}
+}
+
+func (m *Meetings) Inc(event string) {
+	if m != nil && m.lifecycle != nil && event != "" {
+		m.lifecycle.WithLabelValues(event).Inc()
 	}
 }
 
@@ -124,5 +135,6 @@ func (m *Meetings) Collectors() []prometheus.Collector {
 		m.OutboxRetry,
 		m.OutboxDeadLetter,
 		m.ProviderDesync,
+		m.lifecycle,
 	}
 }

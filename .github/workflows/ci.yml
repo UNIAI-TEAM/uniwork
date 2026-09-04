@@ -1,4 +1,4 @@
-# Four jobs. `changes` decides whether the frontend half has anything to do;
+# Four jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
 # the two frontend jobs are split so the jsdom test suite and the Next build
 # do not starve each other on a 4-vCPU runner; `backend` runs Go against real
 # Postgres and Redis services. Playwright is not run here — it is the local
@@ -117,6 +117,9 @@ jobs:
       - name: Build, typecheck, lint
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         run: pnpm exec turbo build typecheck lint
+      - name: Known vulnerabilities (high+)
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: pnpm audit --audit-level high
 
   frontend-test:
     needs: changes
@@ -220,3 +223,112 @@ jobs:
         run: cd server && go run ./cmd/migrate up
       - name: gofmt, vet, staticcheck, test (-race)
         run: bash scripts/test-go.sh --race
+      - name: govulncheck
+        # Reachability-based: only a vulnerability in a code path we call fails the job.
+        run: cd server && go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+  # The Playwright specs CLAUDE.md calls a regression contract. Same shape as
+  # scripts/check.sh step 5–6: real Postgres + Redis, the server binary, a
+  # production Next build, then the suite against localhost. LiveKit and
+  # SMTP stay unset — the specs are written for that (mail goes to the
+  # `emails` outbox table, meetings run without a provider).
+  e2e:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: uniwork
+          POSTGRES_USER: uniwork
+          POSTGRES_PASSWORD: uniwork
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uniwork -d uniwork"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-e2e-secret
+      PORT: "8080"
+      FRONTEND_ORIGIN: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:8080
+      APP_ENV: development
+      DEV_VERIFICATION_CODE: "123456"
+      STORAGE_BACKEND: local
+      LOCAL_UPLOAD_DIR: /tmp/uniwork-uploads
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_WS_URL: ws://localhost:8080
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      E2E_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+      - run: pnpm install --frozen-lockfile
+      - name: Migrate and start the server
+        run: |
+          cd server
+          go run ./cmd/migrate up
+          go build -o bin/server ./cmd/server
+          nohup bin/server > /tmp/server.log 2>&1 &
+      - name: Build and start the web app
+        run: |
+          pnpm --filter @uniwork/web build
+          # PORT above is the Go server's; `next start` reads the same variable.
+          PORT=3000 nohup pnpm --filter @uniwork/web start > /tmp/web.log 2>&1 &
+      - name: Wait for both
+        run: |
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/healthz && break; sleep 1; done
+          for i in $(seq 1 90); do curl -sf http://localhost:3000 > /dev/null && break; sleep 1; done
+          curl -sf http://localhost:8080/healthz && curl -sf http://localhost:3000 > /dev/null
+      - run: pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium
+      - run: pnpm --filter @uniwork/e2e test
+      - if: failure()
+        run: tail -n 100 /tmp/server.log /tmp/web.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: |
+            e2e/test-results/
+            /tmp/server.log
+            /tmp/web.log
+          if-no-files-found: ignore
+
+  # Secrets by content, not by filename: the pre-commit hook refuses `.env`,
+  # this catches a token pasted into a test fixture or a yaml.
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The binary, not gitleaks-action: the action demands a paid license
+      # for organization repositories; the CLI is MIT and does the same scan.
+      - run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git --no-banner --redact --exit-code 1 .

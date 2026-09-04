@@ -7,5 +7,23 @@ export default defineConfig({
   // have to mount. `setup.ts` unmounts between cases — without it Testing
   // Library keeps every previous render in the same document and any
   // `getByTestId` finds several matches.
-  test: { environment: "jsdom", setupFiles: ["./test/setup.ts"] },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./test/setup.ts"],
+    // 5s tripped under `make check`: three suites run in parallel with v8
+    // coverage on. A test that needs more than this is a real problem.
+    testTimeout: 30_000,
+    // Ratchet: integer floors one point under what the suite covered when
+    // this landed (v8 numbers jitter by a few tenths between runs). A drop
+    // fails `pnpm test`; raise the floor by hand with the change that earned
+    // it. Not `autoUpdate`: it writes the exact decimal and the next run
+    // fails on jitter.
+    coverage: {
+      provider: "v8",
+      include: ["**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}", "test/**", "**/*.config.*"],
+      reporter: ["text-summary"],
+      thresholds: { statements: 55, branches: 50, functions: 42, lines: 56 },
+    },
+  },
 });

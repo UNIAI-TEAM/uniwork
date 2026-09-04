@@ -52,6 +52,8 @@ function PaginationLink({
       className={cn(className)}
       nativeButton={false}
       render={
+        // Content arrives through {...props}; the rule cannot see it.
+        // eslint-disable-next-line jsx-a11y/anchor-has-content
         <a
           aria-current={isActive ? "page" : undefined}
           data-slot="pagination-link"

@@ -203,13 +203,14 @@ export function TimeInput({
   return (
     <div
       data-slot="time-input"
+      role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           hourRef.current?.focus();
         }
       }}
       className={cn(
-        "flex h-8 items-center gap-1 rounded-lg border border-input bg-transparent px-2.5 text-body transition-colors",
+        "flex h-8 items-center gap-1 rounded-lg border border-input bg-transparent px-2.5 text-body transition-colors pointer-coarse:min-h-11",
         "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
         "dark:bg-input/30",
         disabled && "pointer-events-none cursor-not-allowed opacity-50",

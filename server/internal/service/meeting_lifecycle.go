@@ -86,6 +86,9 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	if m.Status != MeetingScheduled {
 		return db.Meeting{}, errInvalidState()
 	}
+	if meetingPastScheduledEnd(m, time.Now().UTC()) {
+		return db.Meeting{}, errMeetingPastScheduledEnd()
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.Meeting{}, err
@@ -120,6 +123,7 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
+	s.count("started")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.started", Payload: meetingEventPayload(started)})
 	s.ensureProviderSession(ctx, sess)
 	return started, nil
@@ -140,25 +144,33 @@ func (s *MeetingService) End(ctx context.Context, userID, meetingID string) (db.
 	if err != nil {
 		return db.Meeting{}, err
 	}
+	return s.endMeeting(ctx, m, userID, "MEETING_ENDED")
+}
+
+// endMeeting is the IN_PROGRESS → ENDED transition shared by End (host) and
+// AutoEndOverdue (system). eventType names the audit row.
+func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, eventType string) (db.Meeting, error) {
 	if m.Status != MeetingInProgress {
 		return db.Meeting{}, errInvalidState()
 	}
+	// Best effort: a recording that fails to stop must not keep the meeting open.
+	_, _ = s.stopActiveRecording(ctx, m, actorID)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.Meeting{}, err
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	ended, err := q.EndMeeting(ctx, db.EndMeetingParams{UpdatedBy: strText(userID), ID: m.ID, Version: m.Version})
+	ended, err := q.EndMeeting(ctx, db.EndMeetingParams{UpdatedBy: strText(actorID), ID: m.ID, Version: m.Version})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.Meeting{}, errInvalidState()
 	}
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	_ = q.RevokeGrantsForMeeting(ctx, db.RevokeGrantsForMeetingParams{MeetingID: m.ID, RevokedBy: strText(userID), RevokeReason: strText("meeting_ended")})
+	_ = q.RevokeGrantsForMeeting(ctx, db.RevokeGrantsForMeetingParams{MeetingID: m.ID, RevokedBy: strText(actorID), RevokeReason: strText("meeting_ended")})
 	_ = q.ExpirePendingJoinRequests(ctx, m.ID)
-	if err := s.writeAudit(ctx, q, m.ID, "MEETING_ENDED", userID, MeetingInProgress, MeetingEnded, "{}"); err != nil {
+	if err := s.writeAudit(ctx, q, m.ID, eventType, actorID, MeetingInProgress, MeetingEnded, "{}"); err != nil {
 		return db.Meeting{}, err
 	}
 	sess, serr := q.GetOpenConferenceSession(ctx, m.ID)
@@ -167,11 +179,12 @@ func (s *MeetingService) End(ctx context.Context, userID, meetingID string) (db.
 		_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.end_session", map[string]string{
 			"meeting_id": m.ID, "room_name": sess.ProviderRoomName, "session_id": sess.ID,
 		})
-		_ = s.writeAudit(ctx, q, m.ID, "CONFERENCE_SESSION_ENDED", userID, sess.Status, "ENDED", "{}")
+		_ = s.writeAudit(ctx, q, m.ID, "CONFERENCE_SESSION_ENDED", actorID, sess.Status, "ENDED", "{}")
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
+	s.count("ended")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.ended", Payload: meetingEventPayload(ended)})
 	return ended, nil
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/livekit/protocol/auth"
+	"github.com/livekit/protocol/livekit"
 	"github.com/livekit/protocol/webhook"
 
 	"github.com/unicomhub/uniwork/server/internal/middleware"
@@ -64,6 +65,18 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 		mapped.Type = "conference.participant_left"
 	case "participant_connection_aborted":
 		mapped.Type = "conference.participant_connection_aborted"
+	case "egress_ended":
+		info := ev.GetEgressInfo()
+		if info == nil {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		mapped.Type = "conference.recording_ended"
+		mapped.RecordingID = info.GetEgressId()
+		mapped.RecordingFailed = info.GetStatus() != livekit.EgressStatus_EGRESS_COMPLETE
+		if files := info.GetFileResults(); len(files) > 0 {
+			mapped.RecordingURL = files[0].GetLocation()
+		}
 	default:
 		w.WriteHeader(http.StatusOK)
 		return

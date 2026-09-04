@@ -4,7 +4,7 @@ import {
   resolveMeetingBackgroundImagePath,
 } from "@uniwork/core/meetings/room-preferences";
 
-export type { MeetingBackgroundPreset };
-export { MEETING_BACKGROUND_IMAGE_PATHS, resolveMeetingBackgroundImagePath };
+;
+export {  resolveMeetingBackgroundImagePath };
 
 export const MEETING_BACKGROUND_BLUR_RADIUS = 12;

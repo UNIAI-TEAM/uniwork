@@ -67,12 +67,69 @@ func TestRateLimit_BlocksOverLimit(t *testing.T) {
 		t.Fatalf("expected 429, got %d", rec.Code)
 	}
 
-	var body map[string]string
+	// The standard error envelope, so the client reads code "rate_limited"
+	// instead of falling back to "internal".
+	var body struct {
+		Error struct{ Code, Message string } `json:"error"`
+	}
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body["error"] != "too many requests" {
-		t.Fatalf("unexpected error message: %q", body["error"])
+	if body.Error.Code != "rate_limited" || body.Error.Message != "too many requests" {
+		t.Fatalf("unexpected error body: %+v", body.Error)
+	}
+}
+
+func TestRateLimit_SkipsPreflight(t *testing.T) {
+	// A CORS preflight is the browser asking whether it may send the real
+	// request. Counting it halves every budget for browser clients and
+	// counts nothing for curl.
+	rdb := newRedisTestClient(t)
+	handler := RateLimit(rdb, 1, time.Minute, nil)(okHandler)
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodOptions, "/auth/register", nil)
+		req.RemoteAddr = "10.0.0.7:9000"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("preflight %d: expected 200, got %d", i+1, rec.Code)
+		}
+	}
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", nil)
+	req.RemoteAddr = "10.0.0.7:9000"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first real request after preflights: expected 200, got %d", rec.Code)
+	}
+}
+
+func TestRateLimit_StackedLimitersCountSeparately(t *testing.T) {
+	// The router stacks a global limiter over a per-route credential
+	// limiter. Sharing one counter made every credential request cost two,
+	// so the documented 60/min was 30 — and 20 for a browser, with the
+	// preflight above.
+	rdb := newRedisTestClient(t)
+	outer := RateLimit(rdb, 5, time.Minute, nil)
+	inner := RateLimit(rdb, 2, time.Minute, nil)
+	handler := outer(inner(okHandler))
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+		req.RemoteAddr = "10.0.0.8:9000"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d: expected 200, got %d", i+1, rec.Code)
+		}
+	}
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+	req.RemoteAddr = "10.0.0.8:9000"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("request 3: expected 429, got %d", rec.Code)
 	}
 }
 
@@ -211,7 +268,7 @@ func TestRateLimit_LuaScript_SetsTTL(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	key := rateLimitKey("/auth/send-code", "10.0.99.1")
+	key := rateLimitKey(10, "/auth/send-code", "10.0.99.1")
 	ttl, err := rdb.TTL(req.Context(), key).Result()
 	if err != nil {
 		t.Fatalf("TTL: %v", err)

@@ -26,7 +26,7 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 	return sdo.MeetingDTO{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Description: m.Description,
 		StartsAt: rfc3339(m.StartsAt), EndsAt: rfc3339(m.EndsAt),
-		RoomName: m.RoomName, CreatedBy: m.CreatedBy, Status: m.Status, MeetingType: m.MeetingType,
+		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
 		HostUserID: m.HostUserID, Timezone: m.Timezone, AllowJoinRequest: m.AllowJoinRequest,
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
 		Version: m.Version,

@@ -150,6 +150,7 @@ export function SlugFields({
           // prefix has to land in the field for that to be true, so the frame
           // forwards the tap the way the email chips frame does.
           data-slot="slug-pill"
+          role="presentation"
           onClick={() => document.getElementById(`${idPrefix}-slug`)?.focus()}
           className={
             "flex h-10 items-center rounded-lg border bg-muted transition-colors focus-within:border-ring pointer-coarse:h-11 " +

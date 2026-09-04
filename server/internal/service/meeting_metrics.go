@@ -11,4 +11,5 @@ type MeetingMetrics interface {
 	IncOutboxRetry()
 	IncOutboxDeadLetter()
 	IncProviderDesync()
+	Inc(event string)
 }

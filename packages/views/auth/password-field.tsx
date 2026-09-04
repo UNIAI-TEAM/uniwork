@@ -1,6 +1,6 @@
 "use client";
 import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -22,6 +22,7 @@ export function PasswordField({
   invalid,
   describedBy,
   autoFocus,
+  ref,
 }: {
   id: string;
   value: string;
@@ -31,12 +32,15 @@ export function PasswordField({
   invalid?: boolean;
   describedBy?: string;
   autoFocus?: boolean;
+  /** Lets the form move focus here after a submit-time error. */
+  ref?: Ref<HTMLInputElement>;
 }) {
   const { t } = useTranslation();
   const [shown, setShown] = useState(false);
   return (
     <div className="relative">
       <Input
+        ref={ref}
         id={id}
         type={shown ? "text" : "password"}
         value={value}

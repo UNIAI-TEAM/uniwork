@@ -43,7 +43,7 @@ describe("workspace-aware storage", () => {
     storage.setItem("draft", "data");
     expect(adapter.setItem).toHaveBeenCalledWith("draft:acme", "data");
 
-    storage.getItem("draft");
+    void storage.getItem("draft");
     expect(adapter.getItem).toHaveBeenCalledWith("draft:acme");
   });
 

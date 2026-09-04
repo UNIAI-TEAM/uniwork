@@ -8,6 +8,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { MeetingPanelCard } from "./meeting-panel-card";
+import { meetingLocale } from "./meeting-datetime";
 
 const VISIBLE_ACTIVITY_LIMIT = 5;
 
@@ -20,7 +21,7 @@ export function MeetingActivityTimeline({
   meetingId: string;
   defaultOpen?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: items } = useMeetingActivity(meetingId);
   const { data: members } = useMembers(workspaceId);
   const [open, setOpen] = useState(defaultOpen);
@@ -67,7 +68,7 @@ export function MeetingActivityTimeline({
                         </div>
                       ) : null}
                       <div className="text-caption tabular-nums text-muted-foreground">
-                        {new Date(item.occurred_at).toLocaleString("vi-VN", {
+                        {new Date(item.occurred_at).toLocaleString(meetingLocale(i18n.language), {
                           dateStyle: "short",
                           timeStyle: "short",
                         })}

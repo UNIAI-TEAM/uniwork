@@ -40,7 +40,8 @@ test("register → workspace → task → meeting", async ({ page }) => {
 
   // tạo meeting
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/meetings`);
-  await page.getByRole("button", { name: "Tạo cuộc họp" }).click();
+  // Header action and the empty-state CTA share the label; either opens the dialog.
+  await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
   await page.getByLabel("Tiêu đề").fill("Họp e2e");
   // Schedule defaults (date + TimeInput segments) are prefilled; smoke only needs a title.
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
@@ -49,6 +50,10 @@ test("register → workspace → task → meeting", async ({ page }) => {
 
   // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
   await page.getByRole("button", { name: "Bắt đầu" }).click();
+  // Detail → /room lands on the pre-join screen, whose join button carries
+  // the same label; the second click is what asks the server for a token.
+  await page.getByRole("button", { name: "Vào phòng họp" }).click();
+  await expect(page.getByText("Sẵn sàng vào họp")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Vào phòng họp" }).click();
   await expect(
     page

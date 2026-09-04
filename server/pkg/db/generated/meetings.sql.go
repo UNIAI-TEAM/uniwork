@@ -368,7 +368,7 @@ func (q *Queries) ListMeetingNotes(ctx context.Context, meetingID string) ([]Lis
 }
 
 const listMeetingsByWorkspace = `-- name: ListMeetingsByWorkspace :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id FROM meetings WHERE workspace_id = $1 ORDER BY starts_at DESC
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID string) ([]Meeting, error) {
@@ -428,7 +428,8 @@ WHERE workspace_id = $1
   AND ($8::timestamptz IS NULL OR starts_at <= $8)
 ORDER BY
   CASE WHEN $9 = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
-  starts_at DESC
+  created_at DESC,
+  id DESC
 LIMIT $11 OFFSET $10
 `
 

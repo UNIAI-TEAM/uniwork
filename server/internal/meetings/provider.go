@@ -15,6 +15,8 @@ type ConferenceProvider interface {
 	RemoveParticipant(ctx context.Context, req RemoveProviderParticipantRequest) error
 	UpdateParticipant(ctx context.Context, req UpdateProviderParticipantRequest) error
 	EndSession(ctx context.Context, req EndProviderSessionRequest) error
+	StartRecording(ctx context.Context, req StartRecordingRequest) (RecordingRef, error)
+	StopRecording(ctx context.Context, req StopRecordingRequest) error
 }
 
 type ConferenceCapabilities struct {
@@ -68,6 +70,22 @@ type UpdateProviderParticipantRequest struct {
 
 type EndProviderSessionRequest struct {
 	RoomName string
+}
+
+// StartRecordingRequest asks the provider to record the whole room.
+// FilePrefix is the object key prefix (no extension); the provider appends
+// its own file name.
+type StartRecordingRequest struct {
+	RoomName   string
+	FilePrefix string
+}
+
+type RecordingRef struct {
+	RecordingID string
+}
+
+type StopRecordingRequest struct {
+	RecordingID string
 }
 
 func RoomNameForMeeting(meetingID string) string {

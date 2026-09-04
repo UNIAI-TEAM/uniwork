@@ -30,8 +30,18 @@ const { chromium } = require(require.resolve("playwright-core", { paths: [path.d
 const read = (name) => readFileSync(path.join(SVG, name), "utf8");
 const sha = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 
-/** [file, [{ out, size, source, transparent }]] */
+/** [file, [{ out, size | width+height, source, transparent }]] */
 const PNGS = [
+  // Transactional mail header. Mail clients drop inline SVG, so the lockup
+  // ships as a hosted PNG at 2x of its 137x32 display size; transparent so it
+  // sits on the mail's own ground.
+  {
+    out: path.join(PUBLIC, "brand", "email-lockup.png"),
+    source: "lockup-horizontal.svg",
+    width: 274,
+    height: 64,
+    transparent: true,
+  },
   { out: path.join(APP, "apple-icon.png"), source: "app-icon.svg", size: 180 },
   { out: path.join(PUBLIC, "icon-192.png"), source: "app-icon.svg", size: 192 },
   { out: path.join(PUBLIC, "icon-512.png"), source: "app-icon.svg", size: 512 },
@@ -108,11 +118,16 @@ const compact = read("mark-compact.svg");
 writeFileSync(path.join(APP, "icon.svg"), compact);
 written.push(["app/icon.svg", compact.length]);
 
-for (const { out, source, size } of PNGS) {
-  const data = await shot(page, read(source), size, size, false);
+for (const { out, source, size, width = size, height = size, transparent = false } of PNGS) {
+  const data = await shot(page, read(source), width, height, transparent);
+  mkdirSync(path.dirname(out), { recursive: true });
   writeFileSync(out, data);
   written.push([path.relative(ROOT, out), data.length]);
-  lock.assets[path.relative(ROOT, out)] = { source, size, sha: sha(read(source)) };
+  lock.assets[path.relative(ROOT, out)] = {
+    source,
+    size: size ?? `${width}x${height}`,
+    sha: sha(read(source)),
+  };
 }
 
 const icoPngs = [];

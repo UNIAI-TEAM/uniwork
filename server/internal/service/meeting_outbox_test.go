@@ -66,6 +66,7 @@ func TestJoinWaitsForProviderSync(t *testing.T) {
 	})
 	fp := s.provider.(*meetings.FakeProvider)
 	fp.EnsureErr = errors.New("provider down")
+	ensureBeforeJoin := fp.EnsureCalls
 	dec, err := s.Join(ctx, AdmissionContext{MeetingID: m.ID, UserID: ub.ID})
 	if err != nil {
 		t.Fatal(err)
@@ -73,8 +74,8 @@ func TestJoinWaitsForProviderSync(t *testing.T) {
 	if dec.Decision != DecisionWaitingForProvider {
 		t.Fatalf("decision = %q", dec.Decision)
 	}
-	if fp.EnsureCalls != 0 {
-		t.Fatalf("EnsureCalls = %d, want 0 (join must not call provider)", fp.EnsureCalls)
+	if fp.EnsureCalls != ensureBeforeJoin {
+		t.Fatalf("EnsureCalls = %d, want %d (join must not call provider)", fp.EnsureCalls, ensureBeforeJoin)
 	}
 }
 
@@ -119,6 +120,9 @@ func TestOutboxRetryBackoffDeadLetter(t *testing.T) {
 	s.provider = nil
 	for range int(outboxMaxAttempts) {
 		_ = s.q.ReleaseStaleOutboxClaims(ctx)
+		if _, err := s.pool.Exec(ctx, `UPDATE outbox_events SET available_at = now() WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
 		_ = s.ProcessOutbox(ctx, 1)
 	}
 	var status string

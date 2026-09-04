@@ -19,7 +19,7 @@ export default function ResetPasswordPage() {
     <ResetPasswordView
       token={token}
       onSuccess={async (sess) => {
-        push(await resolveLoggedInDestination(sess.user, await api.workspaces.list()));
+        push(await resolveLoggedInDestination(sess.user, await api.workspaces.list().catch(() => [])));
       }}
     />
   );

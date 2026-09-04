@@ -9,6 +9,7 @@ export function lobbyMessage(t: (key: string) => string, decision: string | unde
     if (error.code === "livekit_not_configured") return t("meetings.notConfigured");
     if (error.code === "meeting_not_started") return t("meetings.waitingForHost");
     if (error.code === "meeting_ended") return t("meetings.endedCannotJoin");
+    if (error.code === "meeting_past_scheduled_end") return t("meetings.pastScheduledEnd");
     if (error.code === "meeting_canceled") return t("meetings.canceledCannotJoin");
     if (error.code === "unauthorized" || error.code === "access_grant_not_found") {
       return t("meetings.loginRequired");
@@ -34,6 +35,7 @@ export function lobbyMessage(t: (key: string) => string, decision: string | unde
 
 export function MeetingLobby({
   meetingId,
+  title,
   decision,
   error,
   allowJoinRequest,
@@ -43,6 +45,7 @@ export function MeetingLobby({
   onLeave,
 }: {
   meetingId: string;
+  title?: string;
   decision: string | undefined;
   error: unknown;
   allowJoinRequest?: boolean;
@@ -60,7 +63,8 @@ export function MeetingLobby({
   const showStart = Boolean(canStart && waitingForHost && onStart);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden p-6 text-center">
+    <div role="status" className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden p-6 text-center">
+      {title ? <p className="line-clamp-2 max-w-md text-pretty text-title-sm font-semibold text-foreground">{title}</p> : null}
       <p className="max-w-md text-pretty text-body text-muted-foreground">{lobbyMessage(t, decision, error)}</p>
       {waitingApproval ? <p className="text-label text-muted-foreground">{t("meetings.requestSent")}</p> : null}
       {showStart ? (

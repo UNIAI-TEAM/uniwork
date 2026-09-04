@@ -1,6 +1,6 @@
 import type { MeetingInviteLink } from "@uniwork/core/types/meeting";
 
-export function inviteLinkLocale(language: string): string {
+function inviteLinkLocale(language: string): string {
   return language.startsWith("vi") ? "vi-VN" : "en-US";
 }
 
@@ -27,7 +27,7 @@ const GENERIC_INVITE_LINK_NAMES = new Set([
   "meetings.linkDefaultName",
 ]);
 
-export function isGenericInviteLinkName(name: string): boolean {
+function isGenericInviteLinkName(name: string): boolean {
   const trimmed = name.trim();
   if (trimmed.length === 0) return true;
   if (GENERIC_INVITE_LINK_NAMES.has(trimmed)) return true;
@@ -58,7 +58,7 @@ type InviteLinkMetaLabels = {
   accessApproval: string;
 };
 
-export function inviteLinkMetaLabels(language: string): InviteLinkMetaLabels {
+function inviteLinkMetaLabels(language: string): InviteLinkMetaLabels {
   const isVi = language.startsWith("vi");
   return {
     created: (time) => (isVi ? `Tạo ${time}` : `Created ${time}`),

@@ -5,7 +5,11 @@ import { useTranslation } from "react-i18next";
 import { VideoOff } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 
-export type CameraPreviewStatus = "idle" | "loading" | "live" | "denied" | "error";
+export type CameraPreviewStatus =
+  "idle" | "loading" | "live" | "denied" | "nocamera" | "timeout" | "error";
+
+/** How long the permission prompt may stay unanswered before we stop saying "starting". */
+const PERMISSION_TIMEOUT_MS = 8000;
 
 function previewStatusMessage(
   status: CameraPreviewStatus,
@@ -14,10 +18,12 @@ function previewStatusMessage(
   switch (status) {
     case "denied":
       return t("meetings.devicePreviewPermissionDismissed");
+    case "nocamera":
+      return t("meetings.devicePreviewNoCamera");
+    case "timeout":
+      return t("meetings.devicePreviewTimeout");
     case "error":
       return t("meetings.devicePreviewError");
-    case "loading":
-      return t("common.loading");
     default:
       return null;
   }
@@ -27,15 +33,21 @@ export function MeetingCameraPreview({
   deviceId,
   active,
   className,
+  onStatusChange,
 }: {
   deviceId?: string;
   active: boolean;
   className?: string;
+  onStatusChange?: (status: CameraPreviewStatus) => void;
 }) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<CameraPreviewStatus>("idle");
+
+  useEffect(() => {
+    onStatusChange?.(status);
+  }, [status, onStatusChange]);
 
   useEffect(() => {
     if (!active) {
@@ -52,14 +64,38 @@ export function MeetingCameraPreview({
     const start = async () => {
       try {
         streamRef.current?.getTracks().forEach((track) => track.stop());
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: deviceId ? { deviceId: { exact: deviceId } } : true,
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
+        // Without a camera getUserMedia can hang or fail slowly; say so up front.
+        const devices = await navigator.mediaDevices
+          .enumerateDevices()
+          .catch(() => []);
+        if (!devices.some((d) => d.kind === "videoinput")) {
+          if (!cancelled) setStatus("nocamera");
           return;
         }
+        // A permission prompt left unanswered would otherwise keep us "starting" forever.
+        let timedOut = false;
+        const request = navigator.mediaDevices
+          .getUserMedia({
+            video: deviceId ? { deviceId: { exact: deviceId } } : true,
+            audio: false,
+          })
+          .then((s) => {
+            if (timedOut || cancelled)
+              s.getTracks().forEach((track) => track.stop());
+            return s;
+          });
+        const stream = await Promise.race([
+          request,
+          new Promise<never>((_, reject) =>
+            window.setTimeout(() => {
+              timedOut = true;
+              reject(
+                new DOMException("camera permission pending", "TimeoutError"),
+              );
+            }, PERMISSION_TIMEOUT_MS),
+          ),
+        ]);
+        if (cancelled) return;
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -69,7 +105,12 @@ export function MeetingCameraPreview({
       } catch (error) {
         if (cancelled) return;
         const name = error instanceof DOMException ? error.name : "";
-        setStatus(name === "NotAllowedError" || name === "PermissionDeniedError" ? "denied" : "error");
+        if (name === "NotAllowedError" || name === "PermissionDeniedError")
+          setStatus("denied");
+        else if (name === "TimeoutError") setStatus("timeout");
+        else if (name === "NotFoundError" || name === "OverconstrainedError")
+          setStatus("nocamera");
+        else setStatus("error");
       }
     };
 
@@ -88,12 +129,13 @@ export function MeetingCameraPreview({
   return (
     <div
       className={cn(
-        "relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-rail ring-1 ring-border",
+        "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-rail ring-1 ring-border",
         className,
       )}
     >
       <video
         ref={videoRef}
+        aria-label={t("meetings.devicePreviewTitle")}
         muted
         playsInline
         autoPlay
@@ -107,16 +149,17 @@ export function MeetingCameraPreview({
           <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <VideoOff aria-hidden className="size-6" />
           </span>
-          <p className="text-body text-foreground">{t("meetings.devicePreviewEmpty")}</p>
+          <p className="text-body text-foreground">
+            {status === "loading"
+              ? t("meetings.devicePreviewStarting")
+              : t("meetings.devicePreviewEmpty")}
+          </p>
           {statusMessage ? (
-            <p className="text-caption text-muted-foreground">{statusMessage}</p>
+            <p className="text-caption text-muted-foreground">
+              {statusMessage}
+            </p>
           ) : null}
         </div>
-      ) : null}
-      {status === "live" ? (
-        <span className="absolute top-3 left-3 rounded-full bg-background/80 px-2.5 py-0.5 text-caption text-foreground ring-1 ring-border">
-          {t("meetings.deviceDefaultCamera")}
-        </span>
       ) : null}
     </div>
   );

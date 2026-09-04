@@ -35,6 +35,12 @@ type Config struct {
 	MeetingOutboxBatch        int32
 	MeetingWebhookBatch       int32
 	MeetingWebhookConcurrency int
+	// AnthropicAPIKey enables AI meeting summaries; empty turns the feature off.
+	AnthropicAPIKey string
+	AnthropicModel  string
+	// LiveKitRecordingBucket enables room recording via LiveKit Egress; the
+	// AWS_* storage settings supply credentials and endpoint.
+	LiveKitRecordingBucket string
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
 	// surface and must not ship on a public listener by default.
@@ -109,6 +115,9 @@ func Load() (Config, error) {
 		MeetingOutboxBatch:        parseInt32(os.Getenv("MEETING_OUTBOX_BATCH"), 50),
 		MeetingWebhookBatch:       parseInt32(os.Getenv("MEETING_WEBHOOK_BATCH"), 50),
 		MeetingWebhookConcurrency: int(parseInt32(os.Getenv("MEETING_WEBHOOK_CONCURRENCY"), 8)),
+		AnthropicAPIKey:           os.Getenv("ANTHROPIC_API_KEY"),
+		AnthropicModel:            os.Getenv("ANTHROPIC_MODEL"),
+		LiveKitRecordingBucket:    os.Getenv("LIVEKIT_RECORDING_BUCKET"),
 		AppEnv:                    getenv("APP_ENV", "development"),
 		devVerificationCode:       os.Getenv("DEV_VERIFICATION_CODE"),
 		APIPublicURL:              getenv("API_PUBLIC_URL", "http://localhost:8080"),

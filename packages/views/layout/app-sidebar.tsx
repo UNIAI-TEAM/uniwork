@@ -167,8 +167,11 @@ export function AppSidebar() {
                     variant="destructive"
                     onClick={async () => {
                       dismissSheet();
-                      await logout();
-                      replace(paths.login());
+                      try {
+                        await logout();
+                      } finally {
+                        replace(paths.login());
+                      }
                     }}
                   >
                     <LogOut aria-hidden />

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -96,6 +97,9 @@ func (s *MeetingService) Evaluate(ctx context.Context, in AdmissionContext) (Adm
 	}
 	if m.Status == MeetingCanceled {
 		return AdmissionDecision{Decision: DecisionDeny, Reason: "MEETING_CANCELED", Meeting: m}, coded(http.StatusForbidden, "meeting_canceled", "cuộc họp đã bị huỷ")
+	}
+	if meetingPastScheduledEnd(m, time.Now().UTC()) {
+		return AdmissionDecision{Decision: DecisionDeny, Reason: "MEETING_PAST_SCHEDULED_END", Meeting: m}, errMeetingPastScheduledEnd()
 	}
 
 	if in.InviteLinkID != "" {
@@ -317,6 +321,9 @@ func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (
 	}
 	if !m.AllowJoinRequest {
 		return db.MeetingJoinRequest{}, ErrForbidden
+	}
+	if meetingPastScheduledEnd(m, time.Now().UTC()) {
+		return db.MeetingJoinRequest{}, errMeetingPastScheduledEnd()
 	}
 	return s.ensureJoinRequest(ctx, m, in)
 }

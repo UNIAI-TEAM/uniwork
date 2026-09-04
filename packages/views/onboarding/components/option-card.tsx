@@ -80,6 +80,9 @@ export function RadioCardGroup({
   };
 
   return (
+    // Arrow keys bubble up from the native radios inside; the group itself
+    // never needs focus.
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus
     <div ref={ref} role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className={className}>
       {children}
     </div>

@@ -16,8 +16,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "@uniwork/core": "workspace:*",
-    "@uniwork/views": "workspace:*",
-    "@tanstack/react-query": "catalog:"
+    "@uniwork/views": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",

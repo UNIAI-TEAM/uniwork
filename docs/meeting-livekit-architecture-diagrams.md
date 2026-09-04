@@ -871,7 +871,7 @@ Thêm vào `.env`:
 ```env
 LIVEKIT_URL=ws://localhost:7880
 LIVEKIT_API_KEY=devkey
-LIVEKIT_API_SECRET=secret
+LIVEKIT_API_SECRET=secret_must_be_at_least_32_chars
 MEETING_PROVIDER=livekit
 LIVEKIT_TOKEN_TTL=30m
 # Worker tuning (optional — defaults: 1s tick, batch 50, webhook ×8)

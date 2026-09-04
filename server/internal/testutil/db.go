@@ -24,7 +24,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
-		url = "postgres://uniwork:uniwork@localhost:5433/uniwork_test?sslmode=disable"
+		url = "postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable"
 	}
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, url)
@@ -58,6 +58,8 @@ func DB(t *testing.T) *pgxpool.Pool {
 		meeting_invite_links, meeting_join_requests, meeting_conference_sessions,
 		meeting_attendance_sessions, meeting_audit_logs, outbox_events,
 		meeting_guests, meeting_provider_events, webhook_inbox,
+		meeting_transcript_segments, meeting_summaries, meeting_recordings,
+		meeting_chat_messages,
 		emails, password_reset_tokens CASCADE`)
 	if err != nil {
 		t.Fatal("truncate:", err)

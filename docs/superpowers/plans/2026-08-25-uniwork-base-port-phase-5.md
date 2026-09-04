@@ -1,5 +1,7 @@
 # UniWork Base Port — Pha 5 (Dựng lại FE theo 5 lát dọc)
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Đưa `packages/views` + `apps/web` lên đúng khuôn usf trên base đã port: shell dùng primitive `sidebar` + `NavigationAdapter`, mọi màn hình dùng slot token ngữ nghĩa, không còn `useRouter` trong page, không còn `window.location`, và cuối cùng **xoá lớp `--uw-*`**. 13/13 e2e là cổng của mọi task; 5 spec onboarding là hợp đồng hồi quy (sửa component, không sửa spec).

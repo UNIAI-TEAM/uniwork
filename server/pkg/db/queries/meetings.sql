@@ -9,7 +9,7 @@ INSERT INTO meetings (
 RETURNING *;
 
 -- name: ListMeetingsByWorkspace :many
-SELECT * FROM meetings WHERE workspace_id = $1 ORDER BY starts_at DESC;
+SELECT * FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC;
 
 -- name: ListMeetingsByWorkspaceFiltered :many
 SELECT * FROM meetings
@@ -23,7 +23,8 @@ WHERE workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('to_at')::timestamptz IS NULL OR starts_at <= sqlc.narg('to_at'))
 ORDER BY
   CASE WHEN sqlc.arg('sort') = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
-  starts_at DESC
+  created_at DESC,
+  id DESC
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 
 -- name: CountMeetingsByWorkspaceFiltered :one

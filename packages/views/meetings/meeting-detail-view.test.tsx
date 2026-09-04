@@ -61,8 +61,8 @@ const meeting = {
   workspace_id: "w1",
   title: "Standup",
   description: "agenda",
-  starts_at: "2026-08-28T02:00:00Z",
-  ends_at: "2026-08-28T02:30:00Z",
+  starts_at: "2026-09-10T02:00:00Z",
+  ends_at: "2026-09-10T02:30:00Z",
   room_name: "uw_mtg_m1",
   created_by: "u-host",
   status: "SCHEDULED",
@@ -110,6 +110,36 @@ describe("MeetingDetailView", () => {
     expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sửa cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chuyển chủ trì" })).toBeInTheDocument();
+  });
+
+  it("hides start and join after the scheduled window ends", async () => {
+    const expired = {
+      ...meeting,
+      starts_at: "2026-08-28T02:00:00Z",
+      ends_at: "2026-08-28T02:30:00Z",
+    };
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      }
+      if (p.endsWith("/members")) {
+        return Promise.resolve({ members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }] });
+      }
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting: expired });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
   });
 
   it("shows three RSVP actions for a pending invitee", async () => {
@@ -165,16 +195,33 @@ describe("MeetingsPageView", () => {
     });
     render(shell(<MeetingsPageView workspaceId="w1" onOpen={() => {}} onOpenRoom={() => {}} />));
     expect(await screen.findByText("Standup")).toBeInTheDocument();
-    const table = screen.getByRole("table");
-    expect(within(table).getByText("Đã lên lịch")).toBeInTheDocument();
-    expect(within(table).getByText("Đang diễn ra")).toBeInTheDocument();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    const standupRow = rows.find((row) => within(row).queryByText("Standup"));
+    const retroRow = rows.find((row) => within(row).queryByText("Retro"));
+    expect(within(standupRow!).getByText("Đã lên lịch")).toBeInTheDocument();
+    expect(within(retroRow!).getByText("Đang diễn ra")).toBeInTheDocument();
+    expect(within(standupRow!).getByRole("link")).toHaveAttribute("href", "/org/team/meetings/m1");
+    expect(within(retroRow!).getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
   });
 });
 
 describe("MeetingRoomView", () => {
+  it("shows the pre-join screen first and requests admission only after joining", async () => {
+    requestMock.mockResolvedValue({ decision: "ADMIT", participant_token: "tok", server_url: "wss://lk.test" });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    expect(screen.getByTestId("meeting-prejoin")).toBeInTheDocument();
+    expect(requestMock.mock.calls.some((c) => String(c[0]).endsWith("/join"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Camera", pressed: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
+    await screen.findByTestId("livekit-room");
+    expect(lastLiveKitMedia).toEqual({ video: false, audio: true });
+  });
+
   it("shows waiting-for-host and does not mount LiveKit when admission does not admit", async () => {
     requestMock.mockResolvedValue({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
     render(shell(<MeetingRoomView meetingId="m1" onLeave={() => {}} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await waitFor(() => expect(screen.getByText("Đang chờ người chủ trì bắt đầu cuộc họp")).toBeInTheDocument());
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Rời phòng" }));
@@ -188,9 +235,10 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     expect(await screen.findByTestId("livekit-room")).toBeInTheDocument();
     expect(screen.getByTestId("meeting-stage")).toHaveClass("fixed", "inset-0", "overflow-hidden");
-    expect(lastLiveKitMedia).toEqual({ video: false, audio: false });
+    expect(lastLiveKitMedia).toEqual({ video: true, audio: true });
   });
 
   it("does not leave the page when LiveKit fails to connect", async () => {
@@ -202,6 +250,7 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={onLeave} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     lastDisconnected?.(DisconnectReason.JOIN_FAILURE);
     expect(onLeave).not.toHaveBeenCalled();
@@ -216,6 +265,7 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={onLeave} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     lastDisconnected?.(DisconnectReason.CLIENT_INITIATED);
     expect(onLeave).not.toHaveBeenCalled();
@@ -230,6 +280,7 @@ describe("MeetingRoomView", () => {
       meeting_status: "IN_PROGRESS",
     });
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={onLeave} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     lastDisconnected?.(DisconnectReason.ROOM_CLOSED);
     expect(onLeave).toHaveBeenCalledTimes(1);

@@ -29,6 +29,12 @@ export const WS_EVENT_TYPES = [
   "host.transferred",
   "invite_link.revoked",
   "conference.session_ready",
+  "transcript.appended",
+  "chat.message",
+  "summary.created",
+  "recording.started",
+  "recording.stopped",
+  "recording.ready",
 ] as const;
 export type WSEventType = (typeof WS_EVENT_TYPES)[number];
 

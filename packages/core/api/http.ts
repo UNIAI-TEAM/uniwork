@@ -88,6 +88,20 @@ export async function request(path: string, opts: RequestOpts = {}): Promise<unk
   return res.json();
 }
 
+/**
+ * Like `request` but returns the body as text — for non-JSON downloads
+ * (an .ics file) that still need the bearer token.
+ */
+export async function requestText(path: string): Promise<string> {
+  let res = await rawFetch(path, {});
+  if (res.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed) res = await rawFetch(path, {});
+  }
+  if (!res.ok) throw new ApiError(res.statusText, "internal", res.status);
+  return res.text();
+}
+
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,
 // several requests hitting 401 together) would have the second one present an
 // already-revoked cookie → 401 → a spurious logout. Single-flight: every

@@ -296,6 +296,7 @@ type fakeServerOptions struct {
 	starttls     bool   // advertise STARTTLS and upgrade on request
 	implicitTLS  bool   // wrap the socket in TLS before the greeting
 	eightBitMIME bool   // advertise 8BITMIME
+	rejectRcpt   bool   // RCPT TO answers 550 5.1.1
 }
 
 type fakeSession struct {
@@ -464,7 +465,11 @@ func (s *fakeServer) handle(conn net.Conn) {
 			_ = tp.PrintfLine("250 OK")
 		case verb == "RCPT":
 			s.record(sess, func() { sess.rcpt = line })
-			_ = tp.PrintfLine("250 OK")
+			if s.opts.rejectRcpt {
+				_ = tp.PrintfLine("550 5.1.1 User unknown")
+			} else {
+				_ = tp.PrintfLine("250 OK")
+			}
 		case verb == "DATA":
 			if err := tp.PrintfLine("354 End data with <CR><LF>.<CR><LF>"); err != nil {
 				return
@@ -829,5 +834,35 @@ func TestNew_SMTPModeWhenHostSet(t *testing.T) {
 func TestNew_SMTPModeRequiresFrom(t *testing.T) {
 	if _, err := New(SMTPConfig{Host: "smtp.example.com"}, nil); err == nil {
 		t.Fatal("expected error when From is missing in SMTP mode")
+	}
+}
+
+func TestSMTPSender_Send_DisplayNameFromUsesBareEnvelope(t *testing.T) {
+	srv := startFakeServer(t, fakeServerOptions{})
+	s := newTestSender(t, srv, func(c *SMTPConfig) { c.From = "UniWork <noreply@example.com>" })
+	if err := s.Send(context.Background(), Message{To: "to@example.com", Subject: "s", Text: "t"}); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	sess := srv.sessions()[0]
+	if sess.from != "MAIL FROM:<noreply@example.com>" {
+		t.Errorf("MAIL FROM = %q, want bare address", sess.from)
+	}
+	if !strings.Contains(sess.data, "From: UniWork <noreply@example.com>\n") {
+		t.Errorf("From header should keep the display name:\n%s", sess.data)
+	}
+}
+
+func TestNewSMTP_RejectsMalformedFrom(t *testing.T) {
+	if _, err := NewSMTP(SMTPConfig{Host: "smtp.example.com", From: "not an address"}); err == nil {
+		t.Fatal("expected error for malformed From")
+	}
+}
+
+func TestSMTPSender_Send_RcptRejectedIsPermanent(t *testing.T) {
+	srv := startFakeServer(t, fakeServerOptions{rejectRcpt: true})
+	s := newTestSender(t, srv, nil)
+	err := s.Send(context.Background(), Message{To: "nobody@example.com", Subject: "s", Text: "t"})
+	if !errors.Is(err, ErrPermanent) {
+		t.Fatalf("550 on RCPT should wrap ErrPermanent, got %v", err)
 	}
 }

@@ -8,10 +8,12 @@ import {
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
-import { MicOff, User, Volume2 } from "lucide-react";
+import { Hand, MicOff, User, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useMeetingSignals } from "./use-meeting-signals";
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -45,17 +47,23 @@ export function MeetingParticipantTile({
   track,
   compact = false,
   expanded = false,
+  onHostMuteRequest,
 }: {
   participant: Participant;
   track?: TrackReferenceOrPlaceholder;
   compact?: boolean;
   expanded?: boolean;
+  /** Host asks this remote participant to mute; shown instead of a duplicate status badge. */
+  onHostMuteRequest?: () => void;
 }) {
   const { t } = useTranslation();
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
+  const { hands, reactions } = useMeetingSignals();
+  const handRaised = hands.includes(participant.identity);
+  const reaction = reactions.filter((r) => r.identity === participant.identity).at(-1);
   const name = displayName(participant);
   const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
   const showVideo = !compact && hasPlayableVideo(track);
@@ -69,8 +77,30 @@ export function MeetingParticipantTile({
         "dark relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-rail",
         compact ? "aspect-[4/3] rounded-xl ring-1 ring-border" : "h-full rounded-2xl ring-1 ring-border",
         speaking && "ring-2 ring-success",
+        handRaised && "ring-2 ring-warning",
       )}
+      data-hand-raised={handRaised || undefined}
     >
+      {handRaised ? (
+        <span
+          aria-label={t("meetings.handRaised")}
+          className={cn(
+            "absolute z-10 flex items-center justify-center rounded-full bg-warning text-background",
+            compact ? "top-2 right-2 size-6" : "top-2 right-2 size-8 sm:top-3 sm:right-3",
+          )}
+        >
+          <Hand aria-hidden className={compact ? "size-3.5" : "size-4"} />
+        </span>
+      ) : null}
+      {reaction ? (
+        <span
+          key={reaction.id}
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-1/3 z-10 animate-reaction-pop text-center text-display"
+        >
+          {reaction.value}
+        </span>
+      ) : null}
       {showVideo && isTrackReference(track) ? (
         <VideoTrack
           trackRef={track}
@@ -103,11 +133,25 @@ export function MeetingParticipantTile({
       ) : null}
       <span
         className={cn(
-          "pointer-events-none absolute",
+          "absolute",
           compact ? "right-2 bottom-2" : "right-2 bottom-2 sm:right-3 sm:bottom-3",
+          !(onHostMuteRequest && !micMuted) && "pointer-events-none",
         )}
       >
-        <MicBadge muted={micMuted} speaking={speaking} />
+        {onHostMuteRequest && !micMuted ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            aria-label={t("meetings.muteParticipant", { name })}
+            className="size-6 rounded-full"
+            onClick={onHostMuteRequest}
+          >
+            <MicOff aria-hidden className="size-3.5" />
+          </Button>
+        ) : (
+          <MicBadge muted={micMuted} speaking={speaking} />
+        )}
       </span>
     </div>
   );

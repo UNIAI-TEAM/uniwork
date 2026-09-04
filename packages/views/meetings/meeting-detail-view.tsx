@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Ban, Pencil, PhoneOff, Play, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
+  canEnterScheduledMeeting,
   useAddNote,
   useCancelMeeting,
   useEndMeeting,
@@ -33,11 +34,12 @@ import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
-import { formatMeetingRange } from "./meeting-datetime";
+import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingHostPanel } from "./host-panel";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 import { MeetingRsvpBar } from "./meeting-rsvp-bar";
+import { MeetingCalendarButton, MeetingSummaryPanel } from "./meeting-summary-panel";
 import { MeetingStatusBadge } from "./meeting-status-badge";
 
 export function MeetingDetailView({
@@ -51,7 +53,7 @@ export function MeetingDetailView({
   onJoin: () => void;
   onDeleted: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { workspace, user } = useWorkspace();
   useWorkspaceEvents(workspaceId);
   const { data: meeting } = useMeeting(meetingId);
@@ -83,6 +85,7 @@ export function MeetingDetailView({
   const scheduled = meeting.status === "SCHEDULED" || !meeting.status;
   const inProgress = meeting.status === "IN_PROGRESS";
   const closed = meeting.status === "ENDED" || meeting.status === "CANCELED";
+  const canEnter = canEnterScheduledMeeting(meeting);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -91,7 +94,7 @@ export function MeetingDetailView({
         leaf={meeting.title}
         actions={
           <>
-            {canHost.allowed && scheduled ? (
+            {canHost.allowed && scheduled && canEnter ? (
               <CollectionPageHeaderAction
                 icon={Play}
                 label={t("meetings.start")}
@@ -107,7 +110,7 @@ export function MeetingDetailView({
                 trigger={<CollectionPageHeaderAction icon={Pencil} label={t("meetings.edit")} />}
               />
             ) : null}
-            {closed ? null : (
+            {closed || !canEnter ? null : (
               <CollectionPageHeaderAction
                 icon={Video}
                 label={canHost.allowed && pendingJoins > 0 ? `${t("meetings.join")} (${pendingJoins})` : t("meetings.join")}
@@ -141,14 +144,22 @@ export function MeetingDetailView({
             <MeetingStatusBadge status={meeting.status} />
           </div>
           <p className="mt-1 text-label tabular-nums text-muted-foreground">
-            {formatMeetingRange(meeting.starts_at, meeting.ends_at, meeting.timezone)}
+            {formatMeetingRange(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language))}
           </p>
           {meeting.description ? (
             <p className="mt-3 whitespace-pre-wrap break-words text-pretty text-body text-muted-foreground">
               {meeting.description}
             </p>
           ) : null}
+          {!canEnter && !closed ? (
+            <p className="mt-3 text-body text-destructive">{t("meetings.pastScheduledEndHint")}</p>
+          ) : null}
           {myInvite ? <div className="mt-4"><MeetingRsvpBar meetingId={meetingId} invitation={myInvite} /></div> : null}
+          {meeting.status !== "CANCELED" ? (
+            <div className="mt-4">
+              <MeetingCalendarButton meetingId={meetingId} />
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-6 space-y-4">
@@ -203,6 +214,10 @@ export function MeetingDetailView({
           </section>
 
           <MeetingActivityTimeline workspaceId={workspaceId} meetingId={meetingId} />
+
+          {inProgress || meeting.status === "ENDED" ? (
+            <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
+          ) : null}
         </div>
       </div>
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>

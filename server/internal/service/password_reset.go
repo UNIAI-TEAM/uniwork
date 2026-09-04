@@ -68,7 +68,7 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 	}
 	token := util.NewID() + util.NewID()
 	msg, err := s.render.PasswordReset(u.Email, u.Locale, u.ID, mail.PasswordResetData{
-		ResetURL: s.render.AppURL + "/reset-password?token=" + token, ExpiresInMinutes: int(passwordResetTTL / time.Minute),
+		ResetURL: s.render.AppURL + "/reset-password?token=" + token, Expires: passwordResetTTL,
 	})
 	if err != nil {
 		return err

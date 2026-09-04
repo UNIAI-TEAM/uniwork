@@ -74,3 +74,31 @@ type CreateJoinRequestSDI struct {
 type RejectJoinRequestSDI struct {
 	Reason string `json:"reason"`
 }
+
+// AppendTranscriptSDI is POST /api/v1/meetings/{meetingID}/transcript.
+type AppendTranscriptSDI struct {
+	Text     string    `json:"text" minLength:"1" description:"Một câu đã nhận dạng xong" example:"Chốt ship vào thứ Sáu."`
+	SpokenAt time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now" example:"2026-08-29T02:00:00Z"`
+}
+
+// CreateSummarySDI is POST /api/v1/meetings/{meetingID}/summary.
+type CreateSummarySDI struct {
+	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en" example:"vi"`
+}
+
+type SummaryTaskItemSDI struct {
+	Title       string  `json:"title" minLength:"1" example:"Gửi báo cáo sprint"`
+	Description string  `json:"description"`
+	AssigneeID  *string `json:"assignee_id"`
+	DueDate     *string `json:"due_date" description:"YYYY-MM-DD" example:"2026-09-05"`
+}
+
+// SummaryTasksSDI is POST /api/v1/meetings/{meetingID}/summary/tasks.
+type SummaryTasksSDI struct {
+	Items []SummaryTaskItemSDI `json:"items"`
+}
+
+// AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
+type AppendChatSDI struct {
+	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`
+}

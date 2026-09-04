@@ -5,8 +5,20 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
 import { useCreateInstantMeeting } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+} from "@uniwork/ui/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { toast } from "sonner";
 import { MemberMultiPicker } from "./member-multi-picker";
@@ -29,7 +41,15 @@ export function InstantMeetingDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger ?? <Button size="sm" variant="outline">{t("meetings.instant")}</Button>} />
+      <DialogTrigger
+        render={
+          trigger ?? (
+            <Button size="sm" variant="outline">
+              {t("meetings.instant")}
+            </Button>
+          )
+        }
+      />
       <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto">
         <DialogTitle>{t("meetings.instant")}</DialogTitle>
         <form
@@ -45,8 +65,11 @@ export function InstantMeetingDialog({
                 setOpen(false);
                 onStarted(m.id);
                 if (attendees.length) {
-                  const results = await Promise.allSettled(attendees.map((id) => inviteParticipant(m.id, id)));
-                  if (results.some((r) => r.status === "rejected")) toast.error(t("common.error"));
+                  const results = await Promise.allSettled(
+                    attendees.map((id) => inviteParticipant(m.id, id)),
+                  );
+                  if (results.some((r) => r.status === "rejected"))
+                    toast.error(t("common.error"));
                 }
               },
               onError: () => toast.error(t("common.error")),
@@ -55,8 +78,15 @@ export function InstantMeetingDialog({
         >
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="instant-title">{t("meetings.instantTitle")}</FieldLabel>
-              <Input id="instant-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+              <FieldLabel htmlFor="instant-title">
+                {t("meetings.instantTitle")}
+              </FieldLabel>
+              <Input
+                id="instant-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                autoFocus
+              />
               <FieldDescription>{t("meetings.instantHint")}</FieldDescription>
             </Field>
             <Field>
@@ -69,9 +99,14 @@ export function InstantMeetingDialog({
               />
             </Field>
           </FieldGroup>
-          <Button type="submit" disabled={instant.isPending}>
-            {t("meetings.instant")}
-          </Button>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="ghost" />}>
+              {t("common.cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={instant.isPending}>
+              {t("meetings.instant")}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

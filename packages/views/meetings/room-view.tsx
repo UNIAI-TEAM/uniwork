@@ -9,8 +9,11 @@ import { isJoinAdmitted, useJoinMeeting, useMeeting, useStartMeeting } from "@un
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
 import { MeetingLobby } from "./meeting-lobby";
+import { MeetingPreJoin, type PreJoinChoice } from "./meeting-prejoin";
+import { useMeetingScheduleDeadline } from "./use-meeting-schedule-deadline";
 import {
   mediaDisconnectKind,
   shouldLeaveOnDisconnect,
@@ -43,6 +46,7 @@ export function MeetingRoomView({
   guestMode,
   meetingTitle,
   initialJoinDecision,
+  invite,
   onLeave,
 }: {
   meetingId: string;
@@ -52,6 +56,8 @@ export function MeetingRoomView({
   guestMode?: boolean;
   meetingTitle?: string;
   initialJoinDecision?: JoinDecision;
+  /** Public-link credentials for someone outside the workspace; every join carries them. */
+  invite?: { linkId: string; secret: string };
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
@@ -65,11 +71,17 @@ export function MeetingRoomView({
   const admittedRef = useRef(false);
   const credentialRefreshAttempts = useRef(0);
   const [mediaErrorKind, setMediaErrorKind] = useState<MediaDisconnectKind | null>(null);
-  const mutateJoin = join.mutate;
-  const joinArgs = useMemo(
-    () => (joinBody ? { meetingId, ...joinBody } : { meetingId }),
-    [meetingId, joinBody],
+  const [choice, setChoice] = useState<PreJoinChoice | null>(() =>
+    isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null,
   );
+  const mutateJoin = join.mutate;
+  const joinArgs = useMemo(() => {
+    const base = joinBody ? { meetingId, ...joinBody } : { meetingId };
+    if (invite) {
+      return { ...base, invite_link_id: invite.linkId, secret: invite.secret };
+    }
+    return base;
+  }, [meetingId, joinBody, invite]);
 
   const retryJoin = useCallback(() => {
     setMediaErrorKind(null);
@@ -81,16 +93,20 @@ export function MeetingRoomView({
   }, [start, meetingId, retryJoin]);
 
   useEffect(() => {
+    if (!choice) return;
     if (joinOnce.current) return;
     joinOnce.current = true;
     if (isJoinAdmitted(initialJoinDecision)) return;
     retryJoin();
-  }, [retryJoin, initialJoinDecision]);
+  }, [choice, retryJoin, initialJoinDecision]);
 
   const decision = join.data ?? initialJoinDecision;
   const admitted = isJoinAdmitted(decision);
   admittedRef.current = admitted;
 
+  // LiveKit JWT refresh happens only after an unexpected disconnect (onDisconnected
+  // → retryJoin). Proactive refresh while connected forced room.connect() again,
+  // closed DATA_TRACK_LOSSY, and wiped ephemeral chat — see meeting-ui-implementation-plan §11.
   useLobbyJoinRetry({
     meetingId,
     decision: decision?.decision,
@@ -99,6 +115,28 @@ export function MeetingRoomView({
     onRetry: retryJoin,
   });
 
+  useMeetingScheduleDeadline({
+    endsAt: meeting?.ends_at,
+    status: meeting?.status,
+    admitted,
+    isHost: canHost.allowed,
+    meetingId,
+    workspaceId: resolvedWorkspaceId || undefined,
+    onLeave,
+  });
+
+  if (!choice) {
+    return (
+      <MeetingRoomShell testId="meeting-prejoin">
+        <MeetingPreJoin
+          meeting={meeting ?? undefined}
+          onJoin={setChoice}
+          onLeave={onLeave}
+        />
+      </MeetingRoomShell>
+    );
+  }
+
   // A later re-join (token refresh) must not eject an admitted session on a
   // transient error — join.error would otherwise unmount LiveKit.
   if (!admitted && (join.error || decision)) {
@@ -106,6 +144,7 @@ export function MeetingRoomView({
       <MeetingRoomShell>
         <MeetingLobby
           meetingId={meetingId}
+          title={meeting?.title ?? meetingTitle}
           decision={decision?.decision}
           error={join.error}
           allowJoinRequest={guestMode ? undefined : meeting?.allow_join_request}
@@ -121,9 +160,22 @@ export function MeetingRoomView({
   if (!admitted || !decision?.server_url || !decision.participant_token) {
     return (
       <MeetingRoomShell>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 p-6">
+        <div
+          role="status"
+          className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 p-6 text-center"
+        >
+          <div aria-hidden className="grid w-full max-w-md grid-cols-2 gap-3">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="aspect-video rounded-2xl bg-rail" />
+            ))}
+          </div>
+          {(meeting?.title ?? meetingTitle) ? (
+            <p className="max-w-md truncate text-title-sm font-semibold text-foreground">
+              {meeting?.title ?? meetingTitle}
+            </p>
+          ) : null}
           <p className="text-body text-muted-foreground">
-            {join.isPending ? t("meetings.joining") : t("common.loading")}
+            {join.isPending ? t("meetings.joining") : t("meetings.connecting")}
           </p>
           <Button variant="outline" onClick={onLeave}>
             {t("meetings.leave")}
@@ -171,8 +223,20 @@ export function MeetingRoomView({
         serverUrl={decision.server_url}
         token={decision.participant_token}
         connect
-        video={false}
-        audio={false}
+        video={
+          choice.video
+            ? choice.videoDeviceId
+              ? { deviceId: choice.videoDeviceId }
+              : true
+            : false
+        }
+        audio={
+          choice.audio
+            ? choice.audioDeviceId
+              ? { deviceId: choice.audioDeviceId }
+              : true
+            : false
+        }
         options={{
           adaptiveStream: true,
           dynacast: true,
@@ -203,6 +267,7 @@ export function MeetingRoomView({
         }}
       >
         <MeetingConference
+          meetingId={meetingId}
           meeting={meeting ?? undefined}
           meetingTitle={meetingTitle}
           workspaceId={guestMode ? undefined : workspaceId}

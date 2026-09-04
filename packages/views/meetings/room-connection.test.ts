@@ -45,6 +45,12 @@ describe("isLobbyWaiting", () => {
     expect(isLobbyWaiting("WAITING_FOR_PROVIDER")).toBe(true);
     expect(isLobbyWaiting("ADMIT")).toBe(false);
   });
+
+  it("includes host and approval wait states", () => {
+    expect(isLobbyWaiting("WAITING_FOR_HOST")).toBe(true);
+    expect(isLobbyWaiting("WAITING_APPROVAL")).toBe(true);
+    expect(isLobbyWaiting(undefined)).toBe(false);
+  });
 });
 
 describe("shouldLeaveOnDisconnect", () => {

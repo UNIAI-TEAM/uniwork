@@ -99,6 +99,7 @@ export function AccountTab() {
               <input
                 ref={fileRef}
                 type="file"
+                aria-label={t("profile.avatar")}
                 accept="image/png,image/jpeg,image/gif,image/webp"
                 className="sr-only"
                 onChange={(e) => void onAvatarPick(e.target.files?.[0])}

@@ -42,6 +42,14 @@ type LiveKitAdapter struct {
 	TokenTTL               time.Duration
 	EmptyTimeout           time.Duration
 	roomClient             *lksdk.RoomServiceClient
+	// Recording is nil when no S3 bucket is configured; recording is then
+	// reported as unavailable instead of failing at start time.
+	Recording *RecordingS3
+}
+
+// RecordingS3 is where LiveKit Egress uploads room composite recordings.
+type RecordingS3 struct {
+	AccessKey, Secret, Region, Endpoint, Bucket string
 }
 
 func (a *LiveKitAdapter) Key() string { return "livekit" }
@@ -49,7 +57,7 @@ func (a *LiveKitAdapter) Key() string { return "livekit" }
 func (a *LiveKitAdapter) Capabilities(context.Context) ConferenceCapabilities {
 	return ConferenceCapabilities{
 		TokenizedJoin: true, RemoveParticipant: true, UpdateParticipantPermissions: true,
-		Webhooks: true, DataChannel: true,
+		Webhooks: true, DataChannel: true, Recording: a.Recording != nil && a.Recording.Bucket != "",
 	}
 }
 
@@ -122,5 +130,36 @@ func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProvid
 
 func (a *LiveKitAdapter) EndSession(ctx context.Context, req EndProviderSessionRequest) error {
 	_, err := a.client().DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: req.RoomName})
+	return err
+}
+
+func (a *LiveKitAdapter) egress() *lksdk.EgressClient {
+	return lksdk.NewEgressClient(a.URL, a.APIKey, a.APISecret)
+}
+
+func (a *LiveKitAdapter) StartRecording(ctx context.Context, req StartRecordingRequest) (RecordingRef, error) {
+	if a.Recording == nil || a.Recording.Bucket == "" {
+		return RecordingRef{}, fmt.Errorf("livekit recording: no S3 bucket configured")
+	}
+	info, err := a.egress().StartRoomCompositeEgress(ctx, &livekit.RoomCompositeEgressRequest{
+		RoomName: req.RoomName,
+		Layout:   "speaker",
+		FileOutputs: []*livekit.EncodedFileOutput{{
+			FileType: livekit.EncodedFileType_MP4,
+			Filepath: req.FilePrefix + "-{time}.mp4",
+			Output: &livekit.EncodedFileOutput_S3{S3: &livekit.S3Upload{
+				AccessKey: a.Recording.AccessKey, Secret: a.Recording.Secret, Region: a.Recording.Region,
+				Endpoint: a.Recording.Endpoint, Bucket: a.Recording.Bucket, ForcePathStyle: a.Recording.Endpoint != "",
+			}},
+		}},
+	})
+	if err != nil {
+		return RecordingRef{}, fmt.Errorf("livekit start recording: %w", err)
+	}
+	return RecordingRef{RecordingID: info.EgressId}, nil
+}
+
+func (a *LiveKitAdapter) StopRecording(ctx context.Context, req StopRecordingRequest) error {
+	_, err := a.egress().StopEgress(ctx, &livekit.StopEgressRequest{EgressId: req.RecordingID})
 	return err
 }

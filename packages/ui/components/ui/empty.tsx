@@ -57,6 +57,8 @@ function EmptyMedia({
 
 function EmptyTitle({ className, ...props }: React.ComponentProps<"h2">) {
   return (
+    // Content arrives through {...props}; the rule cannot see it.
+    // eslint-disable-next-line jsx-a11y/heading-has-content
     <h2
       data-slot="empty-title"
       className={cn(

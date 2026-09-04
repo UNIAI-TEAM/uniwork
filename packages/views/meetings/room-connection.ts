@@ -1,16 +1,16 @@
 import { DisconnectReason } from "livekit-client";
 
 /** Backoff steps for lobby join when WebSocket is unavailable (not a fixed 4s poll). */
-export const LOBBY_RETRY_DELAYS_MS = [10_000, 20_000, 30_000, 60_000] as const;
+const LOBBY_RETRY_DELAYS_MS = [10_000, 20_000, 30_000, 60_000] as const;
 
-export const LOBBY_JOIN_WS_EVENTS = [
+const LOBBY_JOIN_WS_EVENTS = [
   "meeting.started",
   "join_request.approved",
   "conference.session_ready",
 ] as const;
 
 /** Max random delay before a WS-triggered lobby join retry (spreads burst load). */
-export const LOBBY_WS_TRIGGER_JITTER_MS = 3_000;
+const LOBBY_WS_TRIGGER_JITTER_MS = 3_000;
 
 /** Random delay in [0, maxMs] for WS-driven join retries. */
 export function lobbyWsTriggerJitterMs(maxMs: number = LOBBY_WS_TRIGGER_JITTER_MS): number {

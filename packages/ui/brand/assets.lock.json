@@ -14,6 +14,11 @@
     "wordmark.svg": "de450ca979a78472"
   },
   "assets": {
+    "apps/web/public/brand/email-lockup.png": {
+      "source": "lockup-horizontal.svg",
+      "size": "274x64",
+      "sha": "abfc357842956699"
+    },
     "apps/web/app/apple-icon.png": {
       "source": "app-icon.svg",
       "size": 180,

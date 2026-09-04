@@ -83,6 +83,18 @@ type Routes struct {
 	CancelJoinRequest    http.HandlerFunc
 	MeetingStatistics    http.HandlerFunc
 	MeetingActivity      http.HandlerFunc
+	AppendTranscript     http.HandlerFunc
+	ListTranscript       http.HandlerFunc
+	AppendChatMessage    http.HandlerFunc
+	ListChatMessages     http.HandlerFunc
+	GetMeetingSummary    http.HandlerFunc
+	CreateSummary        http.HandlerFunc
+	CreateSummaryTasks   http.HandlerFunc
+	StartRecording       http.HandlerFunc
+	StopRecording        http.HandlerFunc
+	ListRecordings       http.HandlerFunc
+	MeetingCalendar      http.HandlerFunc
+	MeetingCapabilities  http.HandlerFunc
 	LiveKitWebhook       http.HandlerFunc
 	MeetingLobbyWS       http.HandlerFunc
 }

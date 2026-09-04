@@ -1,5 +1,7 @@
 # Workspace Permissions Foundation Implementation Plan
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Expose effective workspace role to the FE and add remove-member / change-role APIs + UI so admin surfaces match the Go gates (including implicit org admin).

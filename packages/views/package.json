@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "lint": "eslint . --max-warnings 0"
   },
   "exports": {
@@ -21,7 +21,6 @@
     "./navigation": "./navigation/index.ts"
   },
   "dependencies": {
-    "@base-ui/react": "^1.3.0",
     "@dnd-kit/core": "^6.3.1",
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
@@ -43,6 +42,7 @@
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitejs/plugin-react": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "^9.32.0",
     "eslint-plugin-i18next": "catalog:",
     "jsdom": "catalog:",
