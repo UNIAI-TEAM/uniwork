@@ -12,8 +12,15 @@ FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-http://localhost:${FRONTEND_PORT}}"
 
 DATABASE_URL="${DATABASE_URL:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable}"
 # Go tests truncate every table, so they get their own database on the same
-# server rather than the one the app is using.
-TEST_DATABASE_URL="${TEST_DATABASE_URL:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}_test?sslmode=disable}"
+# server as DATABASE_URL. Always derive the URL: a stale TEST_DATABASE_URL in
+# .env (e.g. port 5433 from the optional postgres-test service) makes testutil
+# skip the whole suite when ensure-postgres only starts postgres on POSTGRES_PORT.
+_db_host=localhost
+if [[ "${DATABASE_URL}" =~ @([^:/]+) ]]; then
+  _db_host="${BASH_REMATCH[1]}"
+fi
+_test_db="${POSTGRES_DB}_test"
+TEST_DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${_db_host}:${POSTGRES_PORT}/${_test_db}?sslmode=disable"
 REDIS_TEST_URL="${REDIS_TEST_URL:-redis://localhost:6379/15}"
 
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:${PORT}}"

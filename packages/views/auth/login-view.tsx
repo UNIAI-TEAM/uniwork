@@ -21,15 +21,19 @@ export const AUTH_LINK =
 /** Errors the Google callback can carry back on the login URL. */
 export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
 
+export type LoginReason = "meeting_invite";
+
 export function LoginView({
   onSuccess,
   next,
   initialError,
+  reason,
 }: {
   onSuccess: (sess: SessionResponse) => void;
   /** Same-origin path to return to after any sign-in; forwarded to Google too. */
   next?: string | null;
   initialError?: GoogleLoginError | null;
+  reason?: LoginReason | null;
 }) {
   const { t } = useTranslation();
   const login = useLogin();
@@ -51,6 +55,7 @@ export function LoginView({
     initialError && !login.isPending && !login.isSuccess && !login.error
       ? t(`auth.google.${initialError.replace("google_", "")}`)
       : null;
+  const reasonMessage = reason === "meeting_invite" ? t("auth.meetingInviteReason") : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +72,11 @@ export function LoginView({
           the next keystroke. Both fields stay `required` so assistive tech
           still announces them as such. */}
       <form className="flex flex-col gap-6" onSubmit={submit} noValidate>
+        {reasonMessage ? (
+          <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-pretty text-body text-foreground">
+            {reasonMessage}
+          </p>
+        ) : null}
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="login-email">{t("auth.email")}</FieldLabel>

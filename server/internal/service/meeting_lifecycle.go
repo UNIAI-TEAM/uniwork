@@ -72,8 +72,8 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
-	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.created", Payload: map[string]string{"meeting_id": id}})
-	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.started", Payload: map[string]string{"meeting_id": id}})
+	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.created", Payload: meetingEventPayload(m)})
+	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.started", Payload: meetingEventPayload(started)})
 	s.ensureProviderSession(ctx, sess)
 	return started, nil
 }
@@ -85,6 +85,9 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	}
 	if m.Status != MeetingScheduled {
 		return db.Meeting{}, errInvalidState()
+	}
+	if meetingPastScheduledEnd(m, time.Now().UTC()) {
+		return db.Meeting{}, errMeetingPastScheduledEnd()
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -121,7 +124,7 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 		return db.Meeting{}, err
 	}
 	s.count("started")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.started", Payload: map[string]string{"meeting_id": m.ID}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.started", Payload: meetingEventPayload(started)})
 	s.ensureProviderSession(ctx, sess)
 	return started, nil
 }
@@ -133,16 +136,7 @@ func (s *MeetingService) ensureProviderSession(ctx context.Context, sess db.Meet
 	ref, err := s.provider.EnsureSession(ctx, meetings.EnsureSessionRequest{
 		MeetingID: sess.MeetingID, RoomName: sess.ProviderRoomName, EmptyTimeout: s.rt.EmptyTimeout,
 	})
-	sync := "SYNCED"
-	sid := strText(ref.RoomSID)
-	st := strText("READY")
-	if err != nil {
-		sync = "FAILED"
-		st = pgtype.Text{}
-	}
-	_, _ = s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
-		ID: sess.ID, Status: st, ProviderSyncStatus: strText(sync), ProviderRoomSid: sid,
-	})
+	s.recordConferenceEnsure(ctx, sess.ID, ref, err)
 }
 
 func (s *MeetingService) End(ctx context.Context, userID, meetingID string) (db.Meeting, error) {
@@ -191,7 +185,7 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		return db.Meeting{}, err
 	}
 	s.count("ended")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.ended", Payload: map[string]string{"meeting_id": m.ID}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.ended", Payload: meetingEventPayload(ended)})
 	return ended, nil
 }
 
@@ -209,7 +203,7 @@ func (s *MeetingService) Cancel(ctx context.Context, userID, meetingID, reason s
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	_, err = q.CancelMeeting(ctx, db.CancelMeetingParams{
+	canceled, err := q.CancelMeeting(ctx, db.CancelMeetingParams{
 		CanceledBy: strText(userID), CancelReason: strText(reason), ID: m.ID, Version: m.Version,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -223,15 +217,17 @@ func (s *MeetingService) Cancel(ctx context.Context, userID, meetingID, reason s
 		return err
 	}
 	if sess, serr := q.GetOpenConferenceSession(ctx, m.ID); serr == nil {
+		_, _ = q.EndConferenceSession(ctx, sess.ID)
 		_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.end_session", map[string]string{
-			"meeting_id": m.ID, "room_name": sess.ProviderRoomName,
+			"meeting_id": m.ID, "room_name": sess.ProviderRoomName, "session_id": sess.ID,
 		})
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.canceled", Payload: map[string]string{"meeting_id": m.ID}})
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.deleted", Payload: map[string]string{"meeting_id": m.ID}})
+	canceledPayload := meetingEventPayload(canceled)
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.canceled", Payload: canceledPayload})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.deleted", Payload: canceledPayload})
 	return nil
 }
 
@@ -264,8 +260,8 @@ func (s *MeetingService) TransferHost(ctx context.Context, userID, meetingID, ne
 	}
 	payload, _ := json.Marshal(map[string]string{"old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID})
 	_ = s.writeAudit(ctx, s.q, m.ID, "HOST_TRANSFERRED", userID, m.HostUserID, newHostUserID, string(payload))
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "host.transferred", Payload: map[string]string{
-		"meeting_id": m.ID, "old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID,
-	}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "host.transferred", Payload: meetingRelatedPayload(up, map[string]string{
+		"old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID,
+	})})
 	return up, nil
 }

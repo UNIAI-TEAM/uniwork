@@ -150,6 +150,8 @@ func New(d Deps) http.Handler {
 		MeetingActivity:      h.meetingActivity,
 		AppendTranscript:     h.appendTranscript,
 		ListTranscript:       h.listTranscript,
+		AppendChatMessage:    h.appendChatMessage,
+		ListChatMessages:     h.listChatMessages,
 		GetMeetingSummary:    h.getMeetingSummary,
 		CreateSummary:        h.createSummary,
 		CreateSummaryTasks:   h.createSummaryTasks,
@@ -159,6 +161,7 @@ func New(d Deps) http.Handler {
 		MeetingCalendar:      h.meetingCalendar,
 		MeetingCapabilities:  h.meetingCapabilities,
 		LiveKitWebhook:       h.livekitWebhook,
+		MeetingLobbyWS:       h.meetingLobbyWS,
 
 		LookupChatUser:            h.lookupChatUser,
 		GetChatBlockStatus:        h.getChatBlockStatus,

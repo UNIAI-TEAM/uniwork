@@ -41,8 +41,4 @@ RETURNING *;
 SELECT m.* FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
-  AND NOT EXISTS (
-    SELECT 1 FROM meeting_attendance_sessions a
-    WHERE a.meeting_id = m.id AND a.left_at IS NULL
-  )
 LIMIT 50;

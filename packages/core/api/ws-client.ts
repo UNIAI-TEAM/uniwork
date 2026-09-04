@@ -43,6 +43,8 @@ export class WSClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
   private hasConnectedBefore = false;
+  /** Set after auth_ack; cleared when the socket closes. Used by lobby join fallback. */
+  private authenticated = false;
   // One-shot per connection. A non-conforming frame can repeat hundreds of
   // times per session, so we log the first drop and suppress the rest. Reset
   // on each connect() so a fresh connection logs once again.
@@ -72,8 +74,14 @@ export class WSClient {
     this.workspaceSlug = workspaceSlug;
   }
 
+  /** True when the current socket received auth_ack and is still open. */
+  isAuthenticated(): boolean {
+    return this.authenticated && this.ws?.readyState === WebSocket.OPEN;
+  }
+
   connect() {
     this.badFrameLogged = false;
+    this.authenticated = false;
     const url = new URL(this.baseUrl);
     // Token is never sent as a URL query parameter — it would be logged by
     // proxies, CDNs, and browser history.  In cookie mode the HttpOnly cookie
@@ -97,8 +105,6 @@ export class WSClient {
         );
         return;
       }
-
-      this.onAuthenticated();
     };
 
     this.ws.onmessage = (event) => {
@@ -148,6 +154,7 @@ export class WSClient {
     };
 
     this.ws.onclose = () => {
+      this.authenticated = false;
       this.scheduleReconnect();
     };
 
@@ -182,6 +189,7 @@ export class WSClient {
   }
 
   private onAuthenticated() {
+    this.authenticated = true;
     this.logger.info("connected");
     const recoveredConnection = this.hasConnectedBefore || this.reconnectAttempt > 0;
     this.reconnectAttempt = 0;

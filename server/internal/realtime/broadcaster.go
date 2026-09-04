@@ -8,6 +8,7 @@ const (
 	ScopeUser      = "user"
 	ScopeTask      = "task"
 	ScopeChat      = "chat"
+	ScopeMeeting   = "meeting"
 )
 
 // Broadcaster is the abstraction every realtime event producer should depend

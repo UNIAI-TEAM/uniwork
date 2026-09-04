@@ -15,6 +15,7 @@ export default function MeetingDetailPage() {
       workspaceId={workspace.id}
       meetingId={meetingId}
       onJoin={() => push(ws.room(meetingId))}
+      onDeleted={() => push(ws.meetings())}
     />
   );
 }

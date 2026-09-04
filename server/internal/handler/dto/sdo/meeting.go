@@ -18,6 +18,7 @@ type MeetingDTO struct {
 	EndsAt           string `json:"ends_at" example:"2026-08-28T02:30:00Z"`
 	RoomName         string `json:"room_name" description:"Tên phòng opaque (legacy)" example:"uw_mtg_01J8X4MTGN1P2Q3R4S5T6U7V"`
 	CreatedBy        string `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedAt        string `json:"created_at" example:"2026-08-28T02:00:00Z"`
 	Status           string `json:"status" example:"SCHEDULED"`
 	MeetingType      string `json:"meeting_type" example:"SCHEDULED"`
 	HostUserID       string `json:"host_user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
@@ -99,6 +100,7 @@ type InviteLinkDTO struct {
 	MaxUses    *int32 `json:"max_uses,omitempty"`
 	UsedCount  int32  `json:"used_count"`
 	RevokedAt  string `json:"revoked_at,omitempty"`
+	CreatedAt  string `json:"created_at,omitempty"`
 	Secret     string `json:"secret,omitempty"`
 }
 
@@ -180,6 +182,24 @@ type TranscriptSegmentSDO struct {
 
 type TranscriptListSDO struct {
 	Segments []TranscriptSegmentDTO `json:"segments"`
+}
+
+type MeetingChatMessageDTO struct {
+	ID             string `json:"id"`
+	MeetingID      string `json:"meeting_id"`
+	ParticipantID  string `json:"participant_id"`
+	SenderIdentity string `json:"sender_identity"`
+	SenderName     string `json:"sender_name"`
+	Message        string `json:"message"`
+	SentAt         string `json:"sent_at" example:"2026-08-29T02:00:00Z"`
+}
+
+type MeetingChatMessageSDO struct {
+	Message MeetingChatMessageDTO `json:"message"`
+}
+
+type MeetingChatListSDO struct {
+	Messages []MeetingChatMessageDTO `json:"messages"`
 }
 
 type SummaryActionItemDTO struct {

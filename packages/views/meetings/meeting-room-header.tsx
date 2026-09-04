@@ -12,18 +12,21 @@ import {
   formatRemaining,
   meetingLocale,
 } from "./meeting-datetime";
+import { isPastScheduledEnd } from "@uniwork/core/meetings";
 
 /** The countdown turns red only when the end is this close. */
 const URGENT_MS = 5 * 60_000;
 
 export function MeetingRoomHeader({
   meeting,
+  meetingTitle,
   workspaceId,
   onLeave,
   onOpenSidebar,
   recording = false,
 }: {
   meeting?: Meeting;
+  meetingTitle?: string;
   workspaceId?: string;
   onLeave: () => void;
   onOpenSidebar?: () => void;
@@ -44,8 +47,10 @@ export function MeetingRoomHeader({
   const remaining = meeting?.ends_at
     ? formatRemaining(meeting.ends_at, now)
     : null;
+  const pastScheduledEnd = Boolean(meeting?.ends_at && isPastScheduledEnd(meeting.ends_at, now));
   const urgent =
     Boolean(meeting?.ends_at) &&
+    !pastScheduledEnd &&
     Date.parse(meeting!.ends_at) - now <= URGENT_MS;
   const subtitle = meeting
     ? meeting.description.trim() ||
@@ -77,7 +82,7 @@ export function MeetingRoomHeader({
       />
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-title-sm font-semibold text-foreground">
-          {meeting?.title ?? t("meetings.title")}
+          {meeting?.title ?? meetingTitle ?? t("meetings.title")}
         </h1>
         {subtitle ? (
           <p className="truncate text-caption text-muted-foreground">
@@ -102,16 +107,20 @@ export function MeetingRoomHeader({
           <p
             className={cn(
               "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption tabular-nums",
-              urgent
+              pastScheduledEnd || urgent
                 ? "border-destructive/30 bg-destructive/10 text-destructive"
                 : "border-border text-muted-foreground",
             )}
           >
             <Clock aria-hidden className="size-3.5 shrink-0" />
             <span className="hidden sm:inline">
-              {t("meetings.endsIn", { time: remaining })}
+              {pastScheduledEnd
+                ? t("meetings.pastScheduledEnd")
+                : t("meetings.endsIn", { time: remaining })}
             </span>
-            <span className="sm:hidden">{remaining}</span>
+            <span className="sm:hidden">
+              {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : remaining}
+            </span>
           </p>
         ) : null}
         {showHostActions && scheduled && meeting ? (

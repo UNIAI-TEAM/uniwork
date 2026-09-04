@@ -44,7 +44,7 @@ docker compose -f docker-compose.livekit.yml up
 ```
 
 Set `LIVEKIT_URL=ws://localhost:7880`, `LIVEKIT_API_KEY=devkey`,
-`LIVEKIT_API_SECRET=secret` (see `livekit.dev.yaml`). Join tokens expire after
+`LIVEKIT_API_SECRET=secret_must_be_at_least_32_chars` (see `livekit.dev.yaml`). Join tokens expire after
 `LIVEKIT_TOKEN_TTL` (default 2m); the web client calls `POST /meetings/{id}/join`
 again on reconnect. A LiveKit JWT minted before a RemoveParticipant remains
 valid until that TTL — UniWork still revokes access grants immediately.

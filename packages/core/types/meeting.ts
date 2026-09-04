@@ -9,6 +9,7 @@ export const MeetingSchema = z.object({
   ends_at: z.string(),
   room_name: z.string(),
   created_by: z.string(),
+  created_at: z.string().optional(),
   status: z.string().optional(),
   meeting_type: z.string().optional(),
   host_user_id: z.string().optional(),
@@ -81,6 +82,7 @@ export const InviteLinkSchema = z.object({
   max_uses: z.number().optional(),
   used_count: z.number(),
   revoked_at: z.string().optional(),
+  created_at: z.string().optional(),
   secret: z.string().optional(),
 });
 export type MeetingInviteLink = z.infer<typeof InviteLinkSchema>;
@@ -126,6 +128,17 @@ export const TranscriptSegmentSchema = z.object({
   spoken_at: z.string(),
 });
 export type MeetingTranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
+
+export const ChatMessageSchema = z.object({
+  id: z.string(),
+  meeting_id: z.string(),
+  participant_id: z.string().optional(),
+  sender_identity: z.string().optional(),
+  sender_name: z.string().optional(),
+  message: z.string(),
+  sent_at: z.string(),
+});
+export type MeetingChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export const SummaryActionItemSchema = z.object({
   title: z.string(),

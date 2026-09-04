@@ -58,45 +58,70 @@ const (
 	JoinCanceled = "CANCELED"
 	JoinExpired  = "EXPIRED"
 
-	DecisionAdmit           = "ADMIT"
-	DecisionWaitingForHost  = "WAITING_FOR_HOST"
-	DecisionWaitingApproval = "WAITING_APPROVAL"
-	DecisionDeny            = "DENY"
+	DecisionAdmit              = "ADMIT"
+	DecisionWaitingForHost     = "WAITING_FOR_HOST"
+	DecisionWaitingApproval    = "WAITING_APPROVAL"
+	DecisionWaitingForProvider = "WAITING_FOR_PROVIDER"
+	DecisionDeny               = "DENY"
 )
 
 type MeetingRuntime struct {
-	TokenTTL     time.Duration
-	HMACKey      []byte
-	LiveKitURL   string
-	EmptyTimeout time.Duration
-	ProviderKey  string
+	TokenTTL           time.Duration
+	HMACKey            []byte
+	LiveKitURL         string
+	EmptyTimeout       time.Duration
+	ProviderKey        string
+	WorkerTick         time.Duration
+	OutboxBatch        int32
+	WebhookBatch       int32
+	WebhookConcurrency int
 }
 
 type MeetingService struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	ws       *WorkspaceService
-	pub      EventPublisher
-	provider meetings.ConferenceProvider
-	rt       MeetingRuntime
-	// AI, Tasks and Metrics are optional collaborators set by main after
-	// construction; nil means the feature reports itself as unavailable.
-	AI      ai.Summarizer
-	Tasks   *TaskService
-	Metrics MeetingMetrics
+	pool         *pgxpool.Pool
+	q            *db.Queries
+	ws           *WorkspaceService
+	pub          EventPublisher
+	provider     meetings.ConferenceProvider
+	rt           MeetingRuntime
+	outboxNodeID string
+	metrics      MeetingMetrics
+	// AI and Tasks are optional collaborators set by main after construction;
+	// nil means the feature reports itself as unavailable.
+	AI    ai.Summarizer
+	Tasks *TaskService
+}
+
+func (s *MeetingService) SetMeetingMetrics(m MeetingMetrics) {
+	s.metrics = m
 }
 
 func NewMeetingService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, pub EventPublisher, provider meetings.ConferenceProvider, rt MeetingRuntime) *MeetingService {
 	if rt.TokenTTL <= 0 {
-		rt.TokenTTL = 2 * time.Minute
+		rt.TokenTTL = 30 * time.Minute
 	}
 	if rt.ProviderKey == "" {
 		rt.ProviderKey = "livekit"
 	}
-	if rt.EmptyTimeout <= 0 {
-		rt.EmptyTimeout = 5 * time.Minute
+	if rt.WorkerTick <= 0 {
+		rt.WorkerTick = time.Second
 	}
-	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt}
+	if rt.OutboxBatch <= 0 {
+		rt.OutboxBatch = 50
+	}
+	if rt.WebhookBatch <= 0 {
+		rt.WebhookBatch = 50
+	}
+	if rt.WebhookConcurrency <= 0 {
+		rt.WebhookConcurrency = 8
+	}
+	nodeID := util.NewID()
+	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID}
+}
+
+// GuestHMACKey exposes the guest cookie signing key for lobby WebSocket auth.
+func (s *MeetingService) GuestHMACKey() []byte {
+	return s.rt.HMACKey
 }
 
 func strText(s string) pgtype.Text {
@@ -247,7 +272,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
-	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.created", Payload: map[string]string{"meeting_id": id}})
+	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.created", Payload: meetingEventPayload(m)})
 	return m, nil
 }
 
@@ -304,7 +329,7 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 		return db.Meeting{}, Invalid("thời gian kết thúc phải sau thời gian bắt đầu")
 	}
 	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.updated", Payload: map[string]string{"meeting_id": m.ID}})
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.updated", Payload: meetingEventPayload(up)})
 	return up, nil
 }
 

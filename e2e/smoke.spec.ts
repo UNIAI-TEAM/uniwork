@@ -45,10 +45,8 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByLabel("Tiêu đề").fill("Họp e2e");
   // Schedule defaults (date + TimeInput segments) are prefilled; smoke only needs a title.
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
-  // Creating navigates to the detail page. 15s: under `next dev` the first
-  // visit compiles /meetings/[meetingId], which alone can take longer than
-  // the 5s default.
-  await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/, { timeout: 15_000 });
+  await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/meetings/[0-9A-Z]+`), { timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "Họp e2e" })).toBeVisible();
 
   // mở phòng: chấp nhận 1 trong 2 trạng thái (LiveKit cấu hình hoặc chưa)
   await page.getByRole("button", { name: "Bắt đầu" }).click();

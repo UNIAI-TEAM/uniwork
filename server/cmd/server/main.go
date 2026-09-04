@@ -150,6 +150,8 @@ func main() {
 	meetingSvc := service.NewMeetingService(pool, q, wsSvc, pub, conference, service.MeetingRuntime{
 		TokenTTL: cfg.LiveKitTokenTTL, HMACKey: []byte(cfg.JWTSecret), LiveKitURL: cfg.LiveKitURL,
 		ProviderKey: cfg.MeetingProvider, EmptyTimeout: cfg.LiveKitEmptyTimeout,
+		WorkerTick: cfg.MeetingWorkerTick, OutboxBatch: cfg.MeetingOutboxBatch,
+		WebhookBatch: cfg.MeetingWebhookBatch, WebhookConcurrency: int(cfg.MeetingWebhookConcurrency),
 	})
 	taskSvc := service.NewTaskService(q, wsSvc, pub)
 	meetingSvc.Tasks = taskSvc
@@ -157,14 +159,14 @@ func main() {
 		meetingSvc.AI = ai.NewClaude(cfg.AnthropicAPIKey, cfg.AnthropicModel)
 		log.Info("meeting AI summaries enabled")
 	}
-	if reg != nil {
-		meetingSvc.Metrics = reg.Meetings
+	if reg != nil && reg.Meetings != nil {
+		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
 	chatSvc := service.NewChatService(q, wsSvc, pub)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
-	go meetingSvc.RunOutbox(runCtx)
+	go meetingSvc.RunWorkers(runCtx)
 	go meetingSvc.RunAutoEnd(runCtx)
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.

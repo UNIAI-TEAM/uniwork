@@ -6,11 +6,13 @@
   "workspaces": {
     ".": {
       "entry": [
-        "scripts/**/*.mjs"
+        "scripts/**/*.mjs",
+        "scripts/load/*.k6.js"
       ],
       "ignoreDependencies": [
         "@playwright/test",
-        "playwright-core"
+        "playwright-core",
+        "k6"
       ]
     },
     "apps/web": {},

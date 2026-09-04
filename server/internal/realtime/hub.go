@@ -955,6 +955,17 @@ func (c *Client) handleSubscribe(scope, id string) {
 			}
 		}
 		c.hub.subscribe(c, scope, id)
+	case ScopeMeeting:
+		M.SubscribeDeniedTotal(scope).Add(1)
+		c.sendJSON(map[string]any{
+			"type": "subscribe_error",
+			"payload": map[string]string{
+				"scope": scope,
+				"id":    id,
+				"error": "forbidden",
+			},
+		})
+		return
 	default:
 		M.SubscribeDeniedTotal(scope).Add(1)
 		c.sendJSON(map[string]any{

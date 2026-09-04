@@ -13,10 +13,12 @@ import {
   ParticipantSchema,
   RecordingSchema,
   TranscriptSegmentSchema,
+  ChatMessageSchema,
   type JoinDecision,
   type Meeting,
   type MeetingActivityItem,
   type MeetingCapabilities,
+  type MeetingChatMessage,
   type MeetingRecording,
   type MeetingSummary,
   type MeetingTranscriptSegment,
@@ -156,6 +158,7 @@ export async function addNote(meetingId: string, body: string): Promise<void> {
 }
 
 /**
+ * @deprecated Use {@link joinMeeting} instead. POST /token remains for legacy clients.
  * The room token is the one response that cannot degrade: without it there
  * is no call to join. null tells the room view to show its error state.
  */
@@ -205,8 +208,14 @@ export async function listJoinRequests(meetingId: string): Promise<MeetingJoinRe
   }).join_requests;
 }
 
-export async function createJoinRequest(meetingId: string): Promise<MeetingJoinRequest | null> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/join-requests`, { method: "POST" });
+export async function createJoinRequest(
+  meetingId: string,
+  body?: { display_name?: string },
+): Promise<MeetingJoinRequest | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/join-requests`, {
+    method: "POST",
+    body: body ?? {},
+  });
   return parseWithFallback<{ join_request: MeetingJoinRequest } | null>(raw, JoinRequestResponse, null, {
     endpoint: "POST /api/v1/meetings/{id}/join-requests",
   })?.join_request ?? null;
@@ -356,6 +365,22 @@ export async function appendTranscript(meetingId: string, text: string, spokenAt
     method: "POST",
     body: { text, spoken_at: spokenAt ?? new Date().toISOString() },
   });
+}
+
+const ChatResponse = z.object({ messages: z.array(ChatMessageSchema) });
+const ChatMessageResponse = z.object({ message: ChatMessageSchema });
+
+export async function listMeetingChat(meetingId: string): Promise<MeetingChatMessage[]> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/chat`);
+  return parseWithFallback(raw, ChatResponse, { messages: [] }, { endpoint: "listMeetingChat" }).messages;
+}
+
+export async function appendMeetingChat(meetingId: string, message: string): Promise<MeetingChatMessage | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/chat`, {
+    method: "POST",
+    body: { message },
+  });
+  return parseWithFallback(raw, ChatMessageResponse, { message: null }, { endpoint: "appendMeetingChat" }).message;
 }
 
 export async function getMeetingSummary(meetingId: string): Promise<MeetingSummary | null> {

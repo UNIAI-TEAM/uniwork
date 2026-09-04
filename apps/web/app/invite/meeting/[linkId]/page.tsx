@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { inviteSecretStorageKey, MeetingPublicInviteView } from "@uniwork/views/meetings/public-invite-view";
+import { MeetingPublicInviteView } from "@uniwork/views/meetings/public-invite-view";
+import { inviteStorageKey } from "@uniwork/views/meetings/meeting-invite-session";
 
 export default function MeetingInvitePage() {
   const { linkId } = useParams<{ linkId: string }>();
@@ -9,11 +10,11 @@ export default function MeetingInvitePage() {
   useEffect(() => {
     const fromHash = window.location.hash.replace(/^#secret=/, "");
     if (fromHash) {
-      sessionStorage.setItem(inviteSecretStorageKey(linkId), fromHash);
+      sessionStorage.setItem(inviteStorageKey(linkId, "secret"), fromHash);
       setSecret(fromHash);
       return;
     }
-    setSecret(sessionStorage.getItem(inviteSecretStorageKey(linkId)) ?? "");
+    setSecret(sessionStorage.getItem(inviteStorageKey(linkId, "secret")) ?? "");
   }, [linkId]);
   if (secret === null) return null;
   return <MeetingPublicInviteView linkId={linkId} secret={secret} />;

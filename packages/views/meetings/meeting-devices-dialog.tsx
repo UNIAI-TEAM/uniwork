@@ -89,7 +89,7 @@ function BackgroundOption({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "relative flex w-24 shrink-0 flex-col gap-1.5 rounded-xl p-1 text-left transition-[box-shadow,ring-color]",
+        "relative flex w-24 shrink-0 cursor-pointer flex-col gap-1.5 rounded-xl p-1 text-left transition-[box-shadow,ring-color]",
         selected ? "ring-2 ring-brand" : "ring-1 ring-border hover:ring-border",
       )}
     >

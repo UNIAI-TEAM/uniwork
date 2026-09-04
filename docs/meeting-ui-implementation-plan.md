@@ -8,7 +8,9 @@ Tài liệu này ghi hiện trạng đã khảo sát và phạm vi Must have. Sp
 
 Skeleton đã có: list upcoming/past, dialog 3 trường, chi tiết + host panel thô, phòng `VideoConference` sau `POST /join`, trang public resolve link.
 
-Thiếu so với UR-MTG-01…11: form lên lịch đủ field, badge trạng thái/RSVP, sửa cuộc họp, quản lý link, xin vào phía requester, xác nhận chuyển chủ trì, timeline, thống kê/lọc/phân trang, poll lobby, `useWorkspaceEvents` trên detail/room.
+Thiếu so với UR-MTG-01…11: form lên lịch đủ field, badge trạng thái/RSVP, sửa cuộc họp, quản lý link, xin vào phía requester, xác nhận chuyển chủ trì, timeline, thống kê/lọc/phân trang, `useWorkspaceEvents` trên detail/room.
+
+**Đã có (scale upgrade):** lobby WS-driven (`use-lobby-join-retry`, jitter 0–3s, không poll 4s), guest cookie + public invite room (`/invite/meeting/{linkId}/room` + `MeetingLobbyWSProvider` → `lobby-ws`), WS `conference.session_ready` + `version` + debounce invalidate.
 
 Stack giữ nguyên: Next.js App Router, TanStack Query, sonner, Lucide, shadcn/Base UI, i18n `t()`. Không có `PageContainer`, TanStack Form, nuqs, Storybook.
 
@@ -27,7 +29,7 @@ Stack giữ nguyên: Next.js App Router, TanStack Query, sonner, Lucide, shadcn/
 1. Danh sách — `/{org}/{ws}/meetings`
 2. Chi tiết — `/{org}/{ws}/meetings/{id}`
 3. Phòng — `/{org}/{ws}/meetings/{id}/room`
-4. Public invite — `/invite/meeting/{linkId}#secret=`
+4. Public invite — `/invite/meeting/{linkId}#secret=` (+ room `/invite/meeting/{linkId}/room` cho guest)
 5. Dialog: lên lịch, họp ngay, sửa, tạo link, xác nhận huỷ/kết thúc/chuyển chủ trì
 
 ## 4. Sơ đồ điều hướng
@@ -42,7 +44,7 @@ flowchart LR
   list -->|hop ngay| room
   detail -->|vao phong| room
   room -->|roi| detail
-  public -->|da dang nhap| room
+  public -->|guest join ADMIT| room
   public -->|chua dang nhap| login[Login]
 ```
 
@@ -51,7 +53,7 @@ flowchart LR
 - Lên lịch: title, description, ngày, giờ bắt đầu/kết thúc, timezone (`Asia/Ho_Chi_Minh`), attendees, `allow_join_request`. Chủ trì = người tạo.
 - Họp ngay: title + attendees → instant → invite → vào room.
 - RSVP: PENDING / ACCEPTED / DECLINED / TENTATIVE.
-- Vào phòng: `POST /join`. ADMIT → LiveKit. WAITING_* → lobby + poll 4s. DENY → không token.
+- Vào phòng: `POST /join`. ADMIT → LiveKit. WAITING_* (kể cả `WAITING_FOR_PROVIDER`) → lobby + retry qua WS (`meeting.started`, `join_request.approved`), fallback backoff. DENY → không token.
 - Link mời: name, expiry, AUTO_ADMIT | REQUEST_APPROVAL, max_uses. Secret chỉ lúc tạo. Trạng thái derive: active / expired / revoked / limit_reached.
 - Xin vào: requester `POST join-requests`. Host duyệt/từ chối, badge số PENDING, không popup.
 - Chuyển chủ trì: AlertDialog, chỉ USER ACTIVE là member.
@@ -78,11 +80,11 @@ Dùng đủ route Control Plane: list+filter+total, create (đủ body), instant
 
 ## 10. Realtime
 
-`useWorkspaceEvents` trên list, detail, room. Invalidate list/detail/participants/invitations/joinRequests/inviteLinks/activity/stats. Payload id-only, không ghi cache từ frame.
+`useWorkspaceEvents` trên list, detail, room. Invalidate list/detail/participants/invitations/joinRequests/inviteLinks/activity/stats. Payload gồm `meeting_id` + `version`; debounce 250ms; không ghi cache từ frame.
 
 ## 11. LiveKit connection
 
-`POST /join` → chỉ `LiveKitRoom` khi ADMIT + token + url. Re-join trước `expires_at`. Giữ `VideoConference`, overlay host dock. Không RoomAdmin.
+`POST /join` → chỉ `LiveKitRoom` khi ADMIT + token + url. Re-join chỉ khi LiveKit disconnect bất thường (TTL mặc định 30 phút, không timer proactive). `adaptiveStream`, `dynacast`, `onlySubscribed: true`. Giữ `VideoConference`, overlay host dock. Không RoomAdmin.
 
 ## 12. Responsive
 
@@ -114,8 +116,8 @@ Endpoint malformed; `inviteLinkStatus`; `isJoinAdmitted`; realtime keys; list ba
 
 ## 19. Rủi ro
 
-VideoConference lệch token — wrapper tối thiểu. TTL 2 phút — phải re-join. Dual approve — disable nút. Instant invite sau create có thể fail từng người — toast.
+VideoConference lệch token — wrapper tối thiểu. TTL 30 phút — re-join khi disconnect bất thường. Dual approve — disable nút. Instant invite sau create có thể fail từng người — toast.
 
 ## 20. Must / Should / Backlog
 
-Must: đủ UR-MTG-01…11 trừ field backend không hỗ trợ (project, host lúc tạo, in-room). Should: theme LiveKit sâu, tên actor trên timeline. Backlog: calendar, recording, transcript, AI, guest cookie, recurring, nuqs.
+Must: đủ UR-MTG-01…11 trừ field backend không hỗ trợ (project, host lúc tạo, in-room). Should: theme LiveKit sâu, tên actor trên timeline. Backlog: calendar, recording, transcript, AI, recurring, nuqs. *(Guest cookie + public room đã có — xem `meeting-livekit-architecture-diagrams.md`.)*

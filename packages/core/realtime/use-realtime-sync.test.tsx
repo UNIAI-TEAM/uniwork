@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
@@ -42,35 +42,59 @@ const keysCalled = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
 
 describe("useRealtimeSync", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("refreshes the task list and the task on task.updated", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "task.updated", payload: { task_id: "t1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([JSON.stringify(["tasks", "ws1"]), JSON.stringify(["task", "t1"])]),
     );
   });
 
   it("refreshes comments on comment.created", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "comment.created", payload: { task_id: "t1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["comments", "t1"]));
   });
 
   it("refreshes the meeting list on meeting.* events", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "meeting.created", payload: {} });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["meetings", "ws1"]));
   });
 
   it("refreshes join requests on join_request.created", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "join_request.created", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-join-requests", "m1"]));
   });
 
   it("refreshes invite-link list on invite_link.revoked", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "invite_link.revoked", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-invite-links", "m1"]));
   });
 
@@ -81,14 +105,22 @@ describe("useRealtimeSync", () => {
   });
 
   it("never writes the payload anywhere — the cache is refreshed from the API", () => {
+    vi.useFakeTimers();
     const { qc, client } = setup();
     client.emit({ type: "task.updated", payload: { task_id: "t1", title: "smuggled" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(qc.getQueryData(["task", "t1"])).toBeUndefined();
   });
 
   it("refreshes only the affected room on chat.message.created", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "chat.message.created", payload: { room_id: "dm1", message_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([
         JSON.stringify(["chat", "rooms", "ws1"]),
@@ -100,6 +132,7 @@ describe("useRealtimeSync", () => {
   });
 
   it("refreshes workspace messages when the event targets the workspace room", () => {
+    vi.useFakeTimers();
     const qc = new QueryClient();
     qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
@@ -108,18 +141,29 @@ describe("useRealtimeSync", () => {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "ws-room", message_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "messages", "ws1"]));
   });
 
   it("refreshes the room list on chat.room.activity", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "rooms", "ws1"]));
   });
 
   it("invalidates workspace keys after a reconnect without every message list", () => {
+    vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.reconnect();
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([
         JSON.stringify(["tasks", "ws1"]),

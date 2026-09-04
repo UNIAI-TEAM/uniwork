@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -54,10 +56,6 @@ func registerMeetings(r api, h Routes) {
 		summary: "Mint LiveKit token (deprecated; uses admission)", tags: []string{"meetings"},
 		sdo: sdo.MeetingTokenSDO{}, auth: true,
 	})
-	r.Post("/meetings/{meetingID}/join", h.JoinMeeting, apiOp{
-		summary: "Evaluate admission and issue join credential", tags: []string{"meetings"},
-		sdi: sdi.JoinMeetingSDI{}, sdo: sdo.JoinDecisionSDO{}, auth: true,
-	})
 	r.Get("/meetings/{meetingID}/participants", h.ListParticipants, apiOp{
 		summary: "List participants", tags: []string{"meetings"}, sdo: sdo.ParticipantListSDO{}, auth: true,
 	})
@@ -87,18 +85,12 @@ func registerMeetings(r api, h Routes) {
 	r.Get("/meetings/{meetingID}/join-requests", h.ListJoinRequests, apiOp{
 		summary: "List join requests", tags: []string{"meetings"}, sdo: sdo.JoinRequestListSDO{}, auth: true,
 	})
-	r.Post("/meetings/{meetingID}/join-requests", h.CreateJoinRequest, apiOp{
-		summary: "Request to join", tags: []string{"meetings"}, sdo: sdo.JoinRequestListSDO{}, auth: true,
-	})
 	r.Post("/meeting-join-requests/{requestId}/approve", h.ApproveJoinRequest, apiOp{
 		summary: "Approve join request", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Post("/meeting-join-requests/{requestId}/reject", h.RejectJoinRequest, apiOp{
 		summary: "Reject join request", tags: []string{"meetings"},
 		sdi: sdi.RejectJoinRequestSDI{}, sdo: sdo.StatusSDO{}, auth: true,
-	})
-	r.Post("/meeting-join-requests/{requestId}/cancel", h.CancelJoinRequest, apiOp{
-		summary: "Cancel own join request", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/activity", h.MeetingActivity, apiOp{
 		summary: "Audit activity", tags: []string{"meetings"}, sdo: sdo.ActivityListSDO{}, auth: true,
@@ -113,6 +105,13 @@ func registerMeetings(r api, h Routes) {
 	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
+		summary: "List persisted in-room chat messages", tags: []string{"meetings"}, sdo: sdo.MeetingChatListSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
+		summary: "Send an in-room chat message", tags: []string{"meetings"},
+		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
 		summary: "Latest AI summary", tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
@@ -139,11 +138,23 @@ func registerMeetings(r api, h Routes) {
 	})
 }
 
-func registerPublicMeetings(r api, h Routes) {
-	r.Post("/public/meeting-invite-links/resolve", h.ResolveInviteLink, apiOp{
+func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWSLimit func(http.Handler) http.Handler) {
+	r.With(credentialLimit).Post("/public/meeting-invite-links/resolve", h.ResolveInviteLink, apiOp{
 		summary: "Resolve invite link", tags: []string{"meetings"},
 		sdi: sdi.ResolveInviteLinkSDI{}, sdo: sdo.PublicInviteLinkSDO{},
 	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/join", h.JoinMeeting, apiOp{
+		summary: "Evaluate admission and issue join credential", tags: []string{"meetings"},
+		sdi: sdi.JoinMeetingSDI{}, sdo: sdo.JoinDecisionSDO{},
+	})
+	r.With(credentialLimit).Post("/meetings/{meetingID}/join-requests", h.CreateJoinRequest, apiOp{
+		summary: "Request to join (member or guest)", tags: []string{"meetings"},
+		sdi: sdi.CreateJoinRequestSDI{}, sdo: sdo.JoinRequestListSDO{},
+	})
+	r.With(credentialLimit).Post("/meeting-join-requests/{requestId}/cancel", h.CancelJoinRequest, apiOp{
+		summary: "Cancel own join request (member or guest)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{},
+	})
+	r.With(lobbyWSLimit).Get("/meetings/{meetingID}/lobby-ws", h.MeetingLobbyWS, apiOp{})
 	r.Post("/integrations/livekit/webhook", h.LiveKitWebhook, apiOp{
 		summary: "LiveKit webhook (signature required)", tags: []string{"integrations"},
 		sdo: sdo.StatusSDO{},

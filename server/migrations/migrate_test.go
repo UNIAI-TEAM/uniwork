@@ -12,7 +12,7 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
-		url = "postgres://uniwork:uniwork@localhost:5433/uniwork_test?sslmode=disable"
+		url = "postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable"
 	}
 	pool, err := pgxpool.New(context.Background(), url)
 	if err != nil {

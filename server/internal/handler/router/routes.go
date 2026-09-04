@@ -85,6 +85,8 @@ type Routes struct {
 	MeetingActivity      http.HandlerFunc
 	AppendTranscript     http.HandlerFunc
 	ListTranscript       http.HandlerFunc
+	AppendChatMessage    http.HandlerFunc
+	ListChatMessages     http.HandlerFunc
 	GetMeetingSummary    http.HandlerFunc
 	CreateSummary        http.HandlerFunc
 	CreateSummaryTasks   http.HandlerFunc
@@ -94,6 +96,7 @@ type Routes struct {
 	MeetingCalendar      http.HandlerFunc
 	MeetingCapabilities  http.HandlerFunc
 	LiveKitWebhook       http.HandlerFunc
+	MeetingLobbyWS       http.HandlerFunc
 
 	LookupChatUser            http.HandlerFunc
 	GetChatBlockStatus        http.HandlerFunc

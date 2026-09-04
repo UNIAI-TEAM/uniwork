@@ -11,6 +11,7 @@ import { Track } from "livekit-client";
 import { Hand, MicOff, User, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useMeetingSignals } from "./use-meeting-signals";
 
@@ -46,11 +47,14 @@ export function MeetingParticipantTile({
   track,
   compact = false,
   expanded = false,
+  onHostMuteRequest,
 }: {
   participant: Participant;
   track?: TrackReferenceOrPlaceholder;
   compact?: boolean;
   expanded?: boolean;
+  /** Host asks this remote participant to mute; shown instead of a duplicate status badge. */
+  onHostMuteRequest?: () => void;
 }) {
   const { t } = useTranslation();
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
@@ -129,11 +133,25 @@ export function MeetingParticipantTile({
       ) : null}
       <span
         className={cn(
-          "pointer-events-none absolute",
+          "absolute",
           compact ? "right-2 bottom-2" : "right-2 bottom-2 sm:right-3 sm:bottom-3",
+          !(onHostMuteRequest && !micMuted) && "pointer-events-none",
         )}
       >
-        <MicBadge muted={micMuted} speaking={speaking} />
+        {onHostMuteRequest && !micMuted ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            aria-label={t("meetings.muteParticipant", { name })}
+            className="size-6 rounded-full"
+            onClick={onHostMuteRequest}
+          >
+            <MicOff aria-hidden className="size-3.5" />
+          </Button>
+        ) : (
+          <MicBadge muted={micMuted} speaking={speaking} />
+        )}
       </span>
     </div>
   );

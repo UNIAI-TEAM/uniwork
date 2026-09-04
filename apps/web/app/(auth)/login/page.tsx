@@ -12,10 +12,12 @@ export default function LoginPage() {
   const next = sanitizeNextUrl(searchParams.get("next"));
   const rawError = searchParams.get("error");
   const initialError = rawError && GOOGLE_ERRORS.has(rawError) ? (rawError as GoogleLoginError) : null;
+  const reason = searchParams.get("reason") === "meeting_invite" ? ("meeting_invite" as const) : null;
   return (
     <LoginView
       next={next}
       initialError={initialError}
+      reason={reason}
       onSuccess={async (sess) => {
         const workspaces = await api.workspaces.list().catch(() => []);
         const destination = await resolveLoggedInDestination(sess.user, workspaces);

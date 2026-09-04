@@ -52,6 +52,8 @@ func New(d Deps, h Routes) http.Handler {
 		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, proxies))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
+	joinLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
+	lobbyWSLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
@@ -65,8 +67,8 @@ func New(d Deps, h Routes) http.Handler {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAuth(v1, h, credentialLimit)
 		v1.Group(func(pub api) {
-			pub = pub.With(credentialLimit)
-			registerPublicMeetings(pub, h)
+			pub.Use(mw.OptionalAuth(d.Minter))
+			registerPublicMeetings(pub, h, credentialLimit, joinLimit, lobbyWSLimit)
 		})
 		v1.Group(func(authed api) {
 			authed.Use(mw.RequireAuth(d.Minter))

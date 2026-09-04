@@ -39,6 +39,115 @@ func (q *Queries) CancelJoinRequest(ctx context.Context, id string) (MeetingJoin
 	return i, err
 }
 
+const claimPendingOutbox = `-- name: ClaimPendingOutbox :many
+UPDATE outbox_events SET
+  status = 'PROCESSING',
+  locked_by = $1,
+  locked_at = now(),
+  locked_until = now() + make_interval(secs => $2::double precision),
+  updated_at = now()
+WHERE id IN (
+  SELECT id FROM outbox_events
+  WHERE status = 'PENDING' AND available_at <= now()
+  ORDER BY created_at
+  LIMIT $3
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at
+`
+
+type ClaimPendingOutboxParams struct {
+	LockedBy     pgtype.Text `json:"locked_by"`
+	LeaseSeconds float64     `json:"lease_seconds"`
+	LimitN       int32       `json:"limit_n"`
+}
+
+func (q *Queries) ClaimPendingOutbox(ctx context.Context, arg ClaimPendingOutboxParams) ([]OutboxEvent, error) {
+	rows, err := q.db.Query(ctx, claimPendingOutbox, arg.LockedBy, arg.LeaseSeconds, arg.LimitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutboxEvent{}
+	for rows.Next() {
+		var i OutboxEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Topic,
+			&i.Payload,
+			&i.Status,
+			&i.Attempts,
+			&i.LastError,
+			&i.AvailableAt,
+			&i.CreatedAt,
+			&i.LockedBy,
+			&i.LockedAt,
+			&i.LockedUntil,
+			&i.CompletedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const claimPendingWebhookInbox = `-- name: ClaimPendingWebhookInbox :many
+UPDATE webhook_inbox SET
+  status = 'PROCESSING',
+  next_attempt_at = now() + make_interval(secs => $1::double precision)
+WHERE id IN (
+  SELECT id FROM webhook_inbox
+  WHERE status = 'PENDING' AND next_attempt_at <= now()
+  ORDER BY received_at
+  LIMIT $2
+  FOR UPDATE SKIP LOCKED
+)
+RETURNING id, provider, provider_event_id, event_type, payload, status, attempt_count, next_attempt_at, received_at, processed_at, last_error
+`
+
+type ClaimPendingWebhookInboxParams struct {
+	LeaseSeconds float64 `json:"lease_seconds"`
+	LimitN       int32   `json:"limit_n"`
+}
+
+func (q *Queries) ClaimPendingWebhookInbox(ctx context.Context, arg ClaimPendingWebhookInboxParams) ([]WebhookInbox, error) {
+	rows, err := q.db.Query(ctx, claimPendingWebhookInbox, arg.LeaseSeconds, arg.LimitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WebhookInbox{}
+	for rows.Next() {
+		var i WebhookInbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.ProviderEventID,
+			&i.EventType,
+			&i.Payload,
+			&i.Status,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
+			&i.ReceivedAt,
+			&i.ProcessedAt,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const closeAttendanceSession = `-- name: CloseAttendanceSession :one
 UPDATE meeting_attendance_sessions SET
   left_at = now(),
@@ -67,6 +176,40 @@ func (q *Queries) CloseAttendanceSession(ctx context.Context, arg CloseAttendanc
 		&i.ProviderEventID,
 	)
 	return i, err
+}
+
+const closeOpenAttendanceForConference = `-- name: CloseOpenAttendanceForConference :exec
+UPDATE meeting_attendance_sessions SET
+  left_at = now(),
+  leave_reason = $2
+WHERE conference_session_id = $1 AND left_at IS NULL
+`
+
+type CloseOpenAttendanceForConferenceParams struct {
+	ConferenceSessionID string      `json:"conference_session_id"`
+	LeaveReason         pgtype.Text `json:"leave_reason"`
+}
+
+func (q *Queries) CloseOpenAttendanceForConference(ctx context.Context, arg CloseOpenAttendanceForConferenceParams) error {
+	_, err := q.db.Exec(ctx, closeOpenAttendanceForConference, arg.ConferenceSessionID, arg.LeaveReason)
+	return err
+}
+
+const closeOpenAttendanceForMeeting = `-- name: CloseOpenAttendanceForMeeting :exec
+UPDATE meeting_attendance_sessions SET
+  left_at = now(),
+  leave_reason = $2
+WHERE meeting_id = $1 AND left_at IS NULL
+`
+
+type CloseOpenAttendanceForMeetingParams struct {
+	MeetingID   string      `json:"meeting_id"`
+	LeaveReason pgtype.Text `json:"leave_reason"`
+}
+
+func (q *Queries) CloseOpenAttendanceForMeeting(ctx context.Context, arg CloseOpenAttendanceForMeetingParams) error {
+	_, err := q.db.Exec(ctx, closeOpenAttendanceForMeeting, arg.MeetingID, arg.LeaveReason)
+	return err
 }
 
 const consumeInviteLinkUse = `-- name: ConsumeInviteLinkUse :one
@@ -926,6 +1069,34 @@ func (q *Queries) InsertProviderEvent(ctx context.Context, arg InsertProviderEve
 	return result.RowsAffected(), nil
 }
 
+const insertWebhookInbox = `-- name: InsertWebhookInbox :execrows
+INSERT INTO webhook_inbox (id, provider, provider_event_id, event_type, payload, status, next_attempt_at)
+VALUES ($1, $2, $3, $4, $5, 'PENDING', now())
+ON CONFLICT (provider, provider_event_id) DO NOTHING
+`
+
+type InsertWebhookInboxParams struct {
+	ID              string `json:"id"`
+	Provider        string `json:"provider"`
+	ProviderEventID string `json:"provider_event_id"`
+	EventType       string `json:"event_type"`
+	Payload         string `json:"payload"`
+}
+
+func (q *Queries) InsertWebhookInbox(ctx context.Context, arg InsertWebhookInboxParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertWebhookInbox,
+		arg.ID,
+		arg.Provider,
+		arg.ProviderEventID,
+		arg.EventType,
+		arg.Payload,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const invitationResponseBreakdown = `-- name: InvitationResponseBreakdown :one
 SELECT
   count(*) FILTER (WHERE response_status = 'PENDING')::bigint AS pending,
@@ -1049,6 +1220,67 @@ func (q *Queries) ListActiveGrantsForParticipant(ctx context.Context, participan
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEndedMeetingsWithOpenAttendance = `-- name: ListEndedMeetingsWithOpenAttendance :many
+SELECT DISTINCT m.id FROM meetings m
+JOIN meeting_attendance_sessions a ON a.meeting_id = m.id
+WHERE m.status IN ('ENDED', 'CANCELED') AND a.left_at IS NULL
+LIMIT $1
+`
+
+func (q *Queries) ListEndedMeetingsWithOpenAttendance(ctx context.Context, limit int32) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEndedMeetingsWithOpenAttendance, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInProgressMeetingsWithIdleSession = `-- name: ListInProgressMeetingsWithIdleSession :many
+SELECT m.id FROM meetings m
+WHERE m.status = 'IN_PROGRESS'
+  AND EXISTS (
+    SELECT 1 FROM meeting_conference_sessions s
+    WHERE s.meeting_id = m.id AND s.status = 'IDLE' AND s.ended_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM meeting_conference_sessions s2
+    WHERE s2.meeting_id = m.id AND s2.status IN ('PENDING', 'READY', 'ACTIVE')
+  )
+LIMIT $1
+`
+
+func (q *Queries) ListInProgressMeetingsWithIdleSession(ctx context.Context, limit int32) ([]string, error) {
+	rows, err := q.db.Query(ctx, listInProgressMeetingsWithIdleSession, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1288,7 +1520,7 @@ func (q *Queries) ListPendingJoinRequests(ctx context.Context, meetingID string)
 }
 
 const listPendingOutbox = `-- name: ListPendingOutbox :many
-SELECT id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at FROM outbox_events
+SELECT id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at FROM outbox_events
 WHERE status = 'PENDING' AND available_at <= now()
 ORDER BY created_at
 LIMIT $1
@@ -1314,6 +1546,11 @@ func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxE
 			&i.LastError,
 			&i.AvailableAt,
 			&i.CreatedAt,
+			&i.LockedBy,
+			&i.LockedAt,
+			&i.LockedUntil,
+			&i.CompletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1326,7 +1563,14 @@ func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxE
 }
 
 const markOutboxDone = `-- name: MarkOutboxDone :exec
-UPDATE outbox_events SET status = 'DONE' WHERE id = $1
+UPDATE outbox_events SET
+  status = 'DONE',
+  completed_at = now(),
+  locked_by = NULL,
+  locked_at = NULL,
+  locked_until = NULL,
+  updated_at = now()
+WHERE id = $1
 `
 
 func (q *Queries) MarkOutboxDone(ctx context.Context, id string) error {
@@ -1338,18 +1582,68 @@ const markOutboxFailed = `-- name: MarkOutboxFailed :exec
 UPDATE outbox_events SET
   attempts = attempts + 1,
   last_error = $2,
-  available_at = now() + interval '5 seconds' * (attempts + 1),
-  status = CASE WHEN attempts + 1 >= 20 THEN 'FAILED' ELSE 'PENDING' END
+  available_at = $3,
+  status = $4,
+  locked_by = NULL,
+  locked_at = NULL,
+  locked_until = NULL,
+  updated_at = now()
 WHERE id = $1
 `
 
 type MarkOutboxFailedParams struct {
-	ID        string      `json:"id"`
-	LastError pgtype.Text `json:"last_error"`
+	ID          string             `json:"id"`
+	LastError   pgtype.Text        `json:"last_error"`
+	AvailableAt pgtype.Timestamptz `json:"available_at"`
+	Status      string             `json:"status"`
 }
 
 func (q *Queries) MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error {
-	_, err := q.db.Exec(ctx, markOutboxFailed, arg.ID, arg.LastError)
+	_, err := q.db.Exec(ctx, markOutboxFailed,
+		arg.ID,
+		arg.LastError,
+		arg.AvailableAt,
+		arg.Status,
+	)
+	return err
+}
+
+const markWebhookInboxDone = `-- name: MarkWebhookInboxDone :exec
+UPDATE webhook_inbox SET
+  status = 'DONE',
+  processed_at = now(),
+  last_error = NULL
+WHERE id = $1
+`
+
+func (q *Queries) MarkWebhookInboxDone(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, markWebhookInboxDone, id)
+	return err
+}
+
+const markWebhookInboxFailed = `-- name: MarkWebhookInboxFailed :exec
+UPDATE webhook_inbox SET
+  attempt_count = attempt_count + 1,
+  last_error = $2,
+  next_attempt_at = $3,
+  status = $4
+WHERE id = $1
+`
+
+type MarkWebhookInboxFailedParams struct {
+	ID            string             `json:"id"`
+	LastError     pgtype.Text        `json:"last_error"`
+	NextAttemptAt pgtype.Timestamptz `json:"next_attempt_at"`
+	Status        string             `json:"status"`
+}
+
+func (q *Queries) MarkWebhookInboxFailed(ctx context.Context, arg MarkWebhookInboxFailedParams) error {
+	_, err := q.db.Exec(ctx, markWebhookInboxFailed,
+		arg.ID,
+		arg.LastError,
+		arg.NextAttemptAt,
+		arg.Status,
+	)
 	return err
 }
 
@@ -1390,6 +1684,8 @@ const openAttendanceSession = `-- name: OpenAttendanceSession :one
 INSERT INTO meeting_attendance_sessions (
   id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, provider_event_id
 ) VALUES ($1, $2, $3, $4, $5, now(), $6)
+ON CONFLICT (participant_id) WHERE left_at IS NULL DO UPDATE SET
+  provider_event_id = COALESCE(meeting_attendance_sessions.provider_event_id, EXCLUDED.provider_event_id)
 RETURNING id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, left_at, leave_reason, provider_event_id
 `
 
@@ -1424,6 +1720,48 @@ func (q *Queries) OpenAttendanceSession(ctx context.Context, arg OpenAttendanceS
 		&i.ProviderEventID,
 	)
 	return i, err
+}
+
+const outboxOldestPendingAgeSeconds = `-- name: OutboxOldestPendingAgeSeconds :one
+SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at))), 0)::float8 AS age_seconds
+FROM outbox_events
+WHERE status IN ('PENDING', 'PROCESSING')
+`
+
+func (q *Queries) OutboxOldestPendingAgeSeconds(ctx context.Context) (float64, error) {
+	row := q.db.QueryRow(ctx, outboxOldestPendingAgeSeconds)
+	var age_seconds float64
+	err := row.Scan(&age_seconds)
+	return age_seconds, err
+}
+
+const releaseStaleOutboxClaims = `-- name: ReleaseStaleOutboxClaims :exec
+UPDATE outbox_events SET
+  status = 'PENDING',
+  locked_by = NULL,
+  locked_at = NULL,
+  locked_until = NULL,
+  updated_at = now()
+WHERE status = 'PROCESSING'
+  AND locked_until IS NOT NULL
+  AND locked_until < now()
+`
+
+func (q *Queries) ReleaseStaleOutboxClaims(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, releaseStaleOutboxClaims)
+	return err
+}
+
+const releaseStaleWebhookInbox = `-- name: ReleaseStaleWebhookInbox :exec
+UPDATE webhook_inbox SET
+  status = 'PENDING',
+  next_attempt_at = now()
+WHERE status = 'PROCESSING' AND next_attempt_at < now()
+`
+
+func (q *Queries) ReleaseStaleWebhookInbox(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, releaseStaleWebhookInbox)
+	return err
 }
 
 const removeMeetingParticipant = `-- name: RemoveMeetingParticipant :one
@@ -1634,4 +1972,17 @@ func (q *Queries) UpdateInvitationResponse(ctx context.Context, arg UpdateInvita
 		&i.LastNotifiedAt,
 	)
 	return i, err
+}
+
+const webhookInboxOldestPendingAgeSeconds = `-- name: WebhookInboxOldestPendingAgeSeconds :one
+SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(received_at))), 0)::float8 AS age_seconds
+FROM webhook_inbox
+WHERE status IN ('PENDING', 'PROCESSING')
+`
+
+func (q *Queries) WebhookInboxOldestPendingAgeSeconds(ctx context.Context) (float64, error) {
+	row := q.db.QueryRow(ctx, webhookInboxOldestPendingAgeSeconds)
+	var age_seconds float64
+	err := row.Scan(&age_seconds)
+	return age_seconds, err
 }

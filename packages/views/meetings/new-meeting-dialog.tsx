@@ -74,10 +74,10 @@ export function NewMeetingDialog({
       <DialogTrigger
         render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>}
       />
-      <DialogContent className="flex max-h-[min(90dvh,40rem)] flex-col sm:max-w-lg">
-        <DialogTitle>{t("meetings.new")}</DialogTitle>
+      <DialogContent className="flex max-h-[min(90dvh,44rem)] flex-col overflow-hidden sm:max-w-md">
+        <DialogTitle className="shrink-0">{t("meetings.new")}</DialogTitle>
         <form
-          className="flex min-h-0 flex-1 flex-col gap-4"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onSubmit={(e) => {
             e.preventDefault();
             if (!scheduleValid(start, end)) return;
@@ -107,7 +107,7 @@ export function NewMeetingDialog({
             );
           }}
         >
-          <FieldGroup className="min-h-0 flex-1 overflow-y-auto">
+          <FieldGroup className="min-h-0 flex-1 gap-4 overflow-x-hidden overflow-y-auto overscroll-contain">
             <Field>
               <FieldLabel htmlFor="m-title">
                 {t("meetings.meetingTitle")}
@@ -126,9 +126,10 @@ export function NewMeetingDialog({
               </FieldLabel>
               <Textarea
                 id="m-desc"
+                className="field-sizing-fixed max-h-24 resize-none"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={3}
+                rows={2}
               />
             </Field>
             <MeetingScheduleFields
@@ -161,7 +162,7 @@ export function NewMeetingDialog({
               />
             </label>
           </FieldGroup>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <DialogClose render={<Button type="button" variant="ghost" />}>
               {t("common.cancel")}
             </DialogClose>

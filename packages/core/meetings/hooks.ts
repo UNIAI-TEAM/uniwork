@@ -13,6 +13,7 @@ export type {
 } from "../api/endpoints/meetings";
 export { activityLabelKey, inviteLinkStatus, isJoinAdmitted } from "./status";
 export type { InviteLinkUiStatus } from "./status";
+export { canEnterScheduledMeeting, isPastScheduledEnd, msUntilScheduledEnd, SCHEDULE_WARN_1_MIN_MS, SCHEDULE_WARN_5_MIN_MS } from "./schedule";
 
 const JOIN_REQUESTS_ROOT = ["meeting-join-requests"] as const;
 
@@ -29,6 +30,7 @@ export const meetingKeys = {
   activity: (meetingId: string) => ["meeting-activity", meetingId] as const,
   capabilities: (wsId: string) => ["meeting-capabilities", wsId] as const,
   transcript: (meetingId: string) => ["meeting-transcript", meetingId] as const,
+  chat: (meetingId: string) => ["meeting-chat", meetingId] as const,
   summary: (meetingId: string) => ["meeting-summary", meetingId] as const,
   recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
 };
@@ -63,11 +65,11 @@ export function useMeetingStatistics(workspaceId: string) {
   });
 }
 
-export function useMeeting(meetingId: string) {
+export function useMeeting(meetingId: string, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: meetingKeys.detail(meetingId),
     queryFn: () => meetings.getMeeting(meetingId),
-    enabled: !!meetingId,
+    enabled: !!meetingId && (opts?.enabled ?? true),
   });
 }
 
@@ -121,6 +123,7 @@ export function useAddNote(meetingId: string) {
   });
 }
 
+/** @deprecated Prefer {@link useJoinMeeting}. */
 export function useMeetingToken() {
   return useMutation({
     mutationFn: (meetingId: string) => meetings.meetingToken(meetingId),
@@ -180,7 +183,7 @@ export function useJoinRequests(meetingId: string) {
 export function useCreateJoinRequest(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => meetings.createJoinRequest(meetingId),
+    mutationFn: (body?: { display_name?: string }) => meetings.createJoinRequest(meetingId, body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.joinRequests(meetingId) }),
   });
 }
@@ -337,6 +340,23 @@ export function useAppendTranscript(meetingId: string) {
     mutationFn: (args: { text: string; spokenAt?: string }) =>
       meetings.appendTranscript(meetingId, args.text, args.spokenAt),
     onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.transcript(meetingId) }),
+  });
+}
+
+export function useMeetingChat(meetingId: string, enabled = true) {
+  return useQuery({
+    queryKey: meetingKeys.chat(meetingId),
+    queryFn: () => meetings.listMeetingChat(meetingId),
+    enabled: !!meetingId && enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAppendMeetingChat(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (message: string) => meetings.appendMeetingChat(meetingId, message),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.chat(meetingId) }),
   });
 }
 

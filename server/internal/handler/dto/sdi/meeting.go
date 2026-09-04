@@ -67,6 +67,10 @@ type JoinMeetingSDI struct {
 	DisplayName  string `json:"display_name"`
 }
 
+type CreateJoinRequestSDI struct {
+	DisplayName string `json:"display_name"`
+}
+
 type RejectJoinRequestSDI struct {
 	Reason string `json:"reason"`
 }
@@ -92,4 +96,9 @@ type SummaryTaskItemSDI struct {
 // SummaryTasksSDI is POST /api/v1/meetings/{meetingID}/summary/tasks.
 type SummaryTasksSDI struct {
 	Items []SummaryTaskItemSDI `json:"items"`
+}
+
+// AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
+type AppendChatSDI struct {
+	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`
 }
