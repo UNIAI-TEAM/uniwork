@@ -72,6 +72,17 @@ test("AGENTS.md is CLAUDE.md, not a shorter copy of it", () => {
   assert.ok(agentsMdMatchesClaude(), "AGENTS.md must resolve to CLAUDE.md content");
 });
 
+test("no editor-specific rules tree is tracked beside AGENTS.md", () => {
+  // CLAUDE.md § Local Gates: Cursor, Codex and Copilot read AGENTS.md; a second
+  // ruleset beside it drifts silently. .cursor/ came back once as 825 tracked
+  // files under a .gitignore entry that already excluded it (`git add -f`).
+  const tracked = execFileSync("git", ["ls-files", "--", ".cursor", ".cursorrules", ".wsl-*.sh"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+  assert.equal(tracked, "", `tracked editor/personal files:\n${tracked}`);
+});
+
 test("pnpm install wires core.hooksPath at .githooks", () => {
   // Git hooks are not cloned. Without this line in `prepare`, .githooks/ is a
   // directory of shell scripts nobody runs, and every gate below it is theatre.
