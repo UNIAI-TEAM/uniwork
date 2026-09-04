@@ -13,7 +13,7 @@ func TestQuestionnaireAndComplete(t *testing.T) {
 	f := wsFixture(t)
 	ctx := context.Background()
 	out := &fakeOutbox{}
-	s := NewOnboardingService(f.q, f.ws, NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, out)
+	s := NewOnboardingService(f.q, f.ws, mail.Renderer{AppURL: "http://localhost:3000"}, out)
 
 	u, err := s.PatchQuestionnaire(ctx, f.ua.ID, json.RawMessage(`{"version":1,"role":"engineer","use_case":["team_tasks","other"],"use_case_other":"khác"}`))
 	if err != nil || !strings.Contains(string(u.OnboardingQuestionnaire), `"engineer"`) {
@@ -70,7 +70,7 @@ func TestQuestionnaireAndComplete(t *testing.T) {
 func TestSeedWelcomeTask(t *testing.T) {
 	f := wsFixture(t)
 	ctx := context.Background()
-	s := NewOnboardingService(f.q, f.ws, NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	s := NewOnboardingService(f.q, f.ws, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
 
 	task, created, err := s.SeedWelcomeTask(ctx, f.ua.ID, w.ID)

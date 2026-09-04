@@ -17,7 +17,7 @@ import (
 func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	s, ua, ub, w := meetingFixture(t)
 	ctx := context.Background()
-	s.Tasks = NewTaskService(s.q, s.ws, NopPublisher{})
+	s.Tasks = NewTaskService(s.pool, s.q, s.ws)
 	fake := &ai.Fake{Result: ai.MeetingSummary{
 		Summary: "Đã chốt.", Decisions: []string{"Ship thứ Sáu"},
 		ActionItems: []ai.ActionItem{{Title: "Gửi báo cáo", Owner: "B"}},

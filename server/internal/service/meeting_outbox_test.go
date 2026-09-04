@@ -10,9 +10,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/meetings"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// meetingDispatcher builds the shared outbox dispatcher with only the meeting
+// provider consumer registered — the same wiring main uses, minus the
+// consumers these tests do not exercise.
+func meetingDispatcher(s *MeetingService) *outbox.Dispatcher {
+	d := outbox.New(s.pool, s.q, outbox.Options{})
+	d.Register(s.ProviderConsumer())
+	return d
+}
+
+// enqueueProvider writes a provider.* row the way MeetingService does.
+func enqueueProvider(t *testing.T, s *MeetingService, id, workspaceID, topic, payload string) {
+	t.Helper()
+	if err := s.q.InsertDomainOutboxEvent(context.Background(), db.InsertDomainOutboxEventParams{
+		ID: id, WorkspaceID: strText(workspaceID), Topic: topic, Payload: payload, EventVersion: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestOutboxClaimAndComplete(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
@@ -25,12 +45,8 @@ func TestOutboxClaimAndComplete(t *testing.T) {
 	payload, _ := json.Marshal(map[string]string{
 		"meeting_id": m.ID, "session_id": "sess-test", "room_name": meetings.RoomNameForMeeting(m.ID),
 	})
-	if err := s.q.InsertOutboxEvent(ctx, db.InsertOutboxEventParams{
-		ID: util.NewID(), WorkspaceID: w.ID, Topic: "provider.ensure_session", Payload: string(payload),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.ProcessOutbox(ctx, 10); err != nil {
+	enqueueProvider(t, s, util.NewID(), w.ID, "provider.ensure_session", string(payload))
+	if err := meetingDispatcher(s).Process(ctx, 10); err != nil {
 		t.Fatal(err)
 	}
 	row, err := s.q.ListPendingOutbox(ctx, 10)
@@ -111,19 +127,15 @@ func TestOutboxRetryBackoffDeadLetter(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
 	id := util.NewID()
-	if err := s.q.InsertOutboxEvent(ctx, db.InsertOutboxEventParams{
-		ID: id, WorkspaceID: w.ID, Topic: "provider.end_session",
-		Payload: `{"room_name":"uw_mtg_missing"}`,
-	}); err != nil {
-		t.Fatal(err)
-	}
+	enqueueProvider(t, s, id, w.ID, "provider.end_session", `{"room_name":"uw_mtg_missing"}`)
 	s.provider = nil
-	for range int(outboxMaxAttempts) {
+	d := meetingDispatcher(s)
+	for range int(outbox.MaxAttempts) {
 		_ = s.q.ReleaseStaleOutboxClaims(ctx)
 		if _, err := s.pool.Exec(ctx, `UPDATE outbox_events SET available_at = now() WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
-		_ = s.ProcessOutbox(ctx, 1)
+		_ = d.Process(ctx, 1)
 	}
 	var status string
 	var attempts int32
@@ -151,16 +163,15 @@ func TestOutboxConcurrentClaim(t *testing.T) {
 		payload, _ := json.Marshal(map[string]string{
 			"meeting_id": m.ID, "session_id": util.NewID(), "room_name": room,
 		})
-		if err := s.q.InsertOutboxEvent(ctx, db.InsertOutboxEventParams{
-			ID: util.NewID(), WorkspaceID: w.ID, Topic: "provider.ensure_session", Payload: string(payload),
-		}); err != nil {
-			t.Fatal(err)
-		}
+		enqueueProvider(t, s, util.NewID(), w.ID, "provider.ensure_session", string(payload))
 	}
 	done := make(chan error, 2)
 	for range 2 {
+		// Two dispatchers stand in for two API nodes: each claims with its own
+		// node id, so the FOR UPDATE SKIP LOCKED claim is what keeps them apart.
+		d := meetingDispatcher(s)
 		go func() {
-			done <- s.ProcessOutbox(ctx, 2)
+			done <- d.Process(ctx, 2)
 		}()
 	}
 	for range 2 {

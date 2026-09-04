@@ -46,7 +46,7 @@ func main() {
 	defer pool.Close()
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
-	orgSvc := service.NewOrganizationService(q)
+	orgSvc := service.NewOrganizationService(pool, q)
 	var rdb *redis.Client
 	if cfg.RedisURL != "" {
 		opt, err := redis.ParseURL(cfg.RedisURL)
@@ -153,7 +153,7 @@ func main() {
 		WorkerTick: cfg.MeetingWorkerTick, OutboxBatch: cfg.MeetingOutboxBatch,
 		WebhookBatch: cfg.MeetingWebhookBatch, WebhookConcurrency: int(cfg.MeetingWebhookConcurrency),
 	})
-	taskSvc := service.NewTaskService(q, wsSvc, pub)
+	taskSvc := service.NewTaskService(pool, q, wsSvc)
 	meetingSvc.Tasks = taskSvc
 	if cfg.AnthropicAPIKey != "" {
 		meetingSvc.AI = ai.NewClaude(cfg.AnthropicAPIKey, cfg.AnthropicModel)
@@ -189,7 +189,7 @@ func main() {
 		Google:          google,
 		Organizations:   orgSvc,
 		Workspaces:      wsSvc,
-		Onboarding:      service.NewOnboardingService(q, wsSvc, pub, renderer, outbox),
+		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, outbox),
 		Tasks:           taskSvc,
 		Meetings:        meetingSvc,
 		Chat:            chatSvc,

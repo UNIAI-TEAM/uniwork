@@ -9,6 +9,8 @@ import (
 	"time"
 
 	chimw "github.com/go-chi/chi/v5/middleware"
+
+	"github.com/unicomhub/uniwork/server/internal/audit"
 )
 
 // webhookTriggerIDKeyType is unexported so foreign packages cannot collide on
@@ -142,6 +144,11 @@ func RequestLogger(next http.Handler) http.Handler {
 		}
 		if rid := chimw.GetReqID(r.Context()); rid != "" {
 			attrs = append(attrs, "request_id", rid)
+		}
+		// One id per user action, shared by the audit row and every event it
+		// produces — the field support greps on to reconstruct a chain.
+		if cid := audit.CorrelationID(r.Context()); cid != "" {
+			attrs = append(attrs, "correlation_id", cid)
 		}
 		if uid := r.Header.Get("X-User-ID"); uid != "" {
 			attrs = append(attrs, "user_id", uid)

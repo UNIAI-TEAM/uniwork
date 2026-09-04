@@ -78,7 +78,7 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	orgs := service.NewOrganizationService(q)
+	orgs := service.NewOrganizationService(pool, q)
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
 	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
 	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
@@ -93,8 +93,8 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 		Google:        google,
 		Organizations: orgs,
 		Workspaces:    ws,
-		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
-		Tasks:         service.NewTaskService(q, ws, service.NopPublisher{}),
+		Onboarding:    service.NewOnboardingService(q, ws, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
+		Tasks:         service.NewTaskService(pool, q, ws),
 		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.

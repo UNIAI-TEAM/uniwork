@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
@@ -23,10 +25,17 @@ func countEvents(events []Event, typ string) int {
 }
 
 func chatFixture(t *testing.T) (*ChatService, *capturePublisher, *db.Queries, db.User, db.User, db.Workspace) {
+	s, pub, q, ua, ub, w, _ := chatFixtureWithPool(t)
+	return s, pub, q, ua, ub, w
+}
+
+// chatFixtureWithPool is chatFixture plus the pool, for the tests that build a
+// second service of their own.
+func chatFixtureWithPool(t *testing.T) (*ChatService, *capturePublisher, *db.Queries, db.User, db.User, db.Workspace, *pgxpool.Pool) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	orgs := NewOrganizationService(q)
+	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	ctx := context.Background()
 	ua := registerVerified(t, q, as, "chat-a@example.com", "A")
@@ -34,7 +43,7 @@ func chatFixture(t *testing.T) (*ChatService, *capturePublisher, *db.Queries, db
 	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-chat")
 	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Chat WS", "chat-ws")
 	pub := &capturePublisher{}
-	return NewChatService(q, ws, pub), pub, q, ua, ub, v.Workspace
+	return NewChatService(q, ws, pub), pub, q, ua, ub, v.Workspace, pool
 }
 
 func TestWorkspaceChatRoomAndMessages(t *testing.T) {
@@ -660,9 +669,9 @@ func TestVoiceCallStrangerCannotJoin(t *testing.T) {
 }
 
 func TestLookupUserDifferentOrg(t *testing.T) {
-	s, _, q, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
-	orgs := NewOrganizationService(q)
+	orgs := NewOrganizationService(pool, q)
 	otherOrg, err := orgs.Create(ctx, ub.ID, "Other Org", "other-org")
 	if err != nil {
 		t.Fatal(err)

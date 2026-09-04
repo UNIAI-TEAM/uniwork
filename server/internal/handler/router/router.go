@@ -39,7 +39,11 @@ func New(d Deps, h Routes) http.Handler {
 	// bucket with one header). Each consumer that needs the client address —
 	// the rate limiter, the WebSocket origin check — applies TRUSTED_PROXIES
 	// itself. handler/router_test.go pins this.
+	proxies := mw.ParseTrustedProxies(d.Cfg.TrustedProxies)
 	r.Use(chimw.RequestID)
+	// Correlation before the logger so every access-log line carries the id
+	// the audit rows of that request will carry.
+	r.Use(mw.Correlation(proxies))
 	r.Use(mw.ClientMetadata)
 	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
@@ -47,7 +51,6 @@ func New(d Deps, h Routes) http.Handler {
 	if d.HTTPMetrics != nil {
 		r.Use(d.HTTPMetrics.Middleware)
 	}
-	proxies := mw.ParseTrustedProxies(d.Cfg.TrustedProxies)
 	if d.Redis != nil {
 		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, proxies))
 	}
@@ -57,7 +60,8 @@ func New(d Deps, h Routes) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader},
+		ExposedHeaders:   []string{mw.CorrelationHeader},
 		AllowCredentials: true,
 	}))
 	cat := &apiCatalog{}

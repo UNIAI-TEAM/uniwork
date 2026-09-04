@@ -36,7 +36,7 @@ func wsFixture(t *testing.T) wsFix {
 	ctx := context.Background()
 	reg := func(email, name string) db.User { return registerVerified(t, q, as, email, name) }
 	ua, ub, uc := reg("a@example.com", "A"), reg("b@example.com", "B"), reg("c@example.com", "C")
-	orgs := NewOrganizationService(q)
+	orgs := NewOrganizationService(pool, q)
 	org, err := orgs.Create(ctx, ua.ID, "Unicom", "unicom")
 	if err != nil {
 		t.Fatal(err)

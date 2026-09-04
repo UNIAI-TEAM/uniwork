@@ -1,0 +1,52 @@
+package audit
+
+// The action vocabulary. Every command that changes business state writes one
+// of these; server/internal/service/audit_coverage_test.go fails when a name
+// here has no command behind it, or when a command listed there writes nothing.
+//
+// Actions read `<entity>.<verb>`, verb in the past. They are not the same
+// vocabulary as outbox topics: an action names what a person did, a topic
+// names what other parts of the system must react to. Many pairs happen to
+// share a name; that is a coincidence worth keeping, not a rule to enforce.
+const (
+	ActionOrganizationCreated = "organization.created"
+	ActionOrganizationUpdated = "organization.updated"
+
+	ActionMemberInvited     = "member.invited"
+	ActionMemberJoined      = "member.joined"
+	ActionMemberRoleChanged = "member.role_changed"
+	ActionMemberRemoved     = "member.removed"
+
+	ActionWorkspaceCreated = "workspace.created"
+	ActionWorkspaceUpdated = "workspace.updated"
+
+	ActionWorkspaceMemberAdded       = "workspace_member.added"
+	ActionWorkspaceMemberRoleChanged = "workspace_member.role_changed"
+	ActionWorkspaceMemberRemoved     = "workspace_member.removed"
+
+	ActionTaskCreated      = "task.created"
+	ActionTaskUpdated      = "task.updated"
+	ActionTaskDeleted      = "task.deleted"
+	ActionTaskCommentAdded = "task.comment_added"
+
+	ActionAuthLoginSucceeded         = "auth.login_succeeded"
+	ActionAuthLoginFailed            = "auth.login_failed"
+	ActionAuthPasswordResetRequested = "auth.password_reset_requested"
+	ActionAuthPasswordChanged        = "auth.password_changed"
+	ActionAuthSessionRevoked         = "auth.session_revoked"
+
+	ActionChatRoomCreated       = "chat.room.created"
+	ActionChatRoomMemberAdded   = "chat.room.member_added"
+	ActionChatRoomMemberRemoved = "chat.room.member_removed"
+	ActionChatMessageDeleted    = "chat.message.deleted"
+
+	ActionAuditExportRequested = "audit.export_requested"
+	ActionAuditRetentionSet    = "audit.retention_set"
+)
+
+// NoOrganization is the organization_id used for credential events. Logging in
+// has no organization context — the user may belong to none, one or several —
+// so auth rows are scoped to a sentinel and are visible to platform admins
+// only. An org admin sees membership through the member.* actions instead
+// (OPEN_QUESTIONS A1).
+const NoOrganization = ""

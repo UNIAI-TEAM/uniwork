@@ -53,7 +53,7 @@ WHERE id IN (
   LIMIT $3
   FOR UPDATE SKIP LOCKED
 )
-RETURNING id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at
+RETURNING id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at, organization_id, event_version, correlation_id, actor_kind, actor_id, done_at, dead_at
 `
 
 type ClaimPendingOutboxParams struct {
@@ -86,6 +86,13 @@ func (q *Queries) ClaimPendingOutbox(ctx context.Context, arg ClaimPendingOutbox
 			&i.LockedUntil,
 			&i.CompletedAt,
 			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.EventVersion,
+			&i.CorrelationID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.DoneAt,
+			&i.DeadAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1027,28 +1034,6 @@ func (q *Queries) InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) 
 	return err
 }
 
-const insertOutboxEvent = `-- name: InsertOutboxEvent :exec
-INSERT INTO outbox_events (id, workspace_id, topic, payload, status, available_at)
-VALUES ($1, $2, $3, $4, 'PENDING', now())
-`
-
-type InsertOutboxEventParams struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-	Topic       string `json:"topic"`
-	Payload     string `json:"payload"`
-}
-
-func (q *Queries) InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) error {
-	_, err := q.db.Exec(ctx, insertOutboxEvent,
-		arg.ID,
-		arg.WorkspaceID,
-		arg.Topic,
-		arg.Payload,
-	)
-	return err
-}
-
 const insertProviderEvent = `-- name: InsertProviderEvent :execrows
 INSERT INTO meeting_provider_events (id, provider_key, provider_event_id)
 VALUES ($1, $2, $3)
@@ -1520,7 +1505,7 @@ func (q *Queries) ListPendingJoinRequests(ctx context.Context, meetingID string)
 }
 
 const listPendingOutbox = `-- name: ListPendingOutbox :many
-SELECT id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at FROM outbox_events
+SELECT id, workspace_id, topic, payload, status, attempts, last_error, available_at, created_at, locked_by, locked_at, locked_until, completed_at, updated_at, organization_id, event_version, correlation_id, actor_kind, actor_id, done_at, dead_at FROM outbox_events
 WHERE status = 'PENDING' AND available_at <= now()
 ORDER BY created_at
 LIMIT $1
@@ -1551,6 +1536,13 @@ func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxE
 			&i.LockedUntil,
 			&i.CompletedAt,
 			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.EventVersion,
+			&i.CorrelationID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.DoneAt,
+			&i.DeadAt,
 		); err != nil {
 			return nil, err
 		}

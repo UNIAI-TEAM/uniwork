@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -16,23 +15,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-const (
-	outboxBatchSize    int32 = 20
-	outboxLeaseSeconds int32 = 120
-	outboxMaxAttempts  int32 = 10
-	outboxWorkerTick         = 2 * time.Second
-)
-
-var outboxBackoff = []time.Duration{
-	2 * time.Second,
-	4 * time.Second,
-	8 * time.Second,
-	16 * time.Second,
-	30 * time.Second,
-	time.Minute,
-	2 * time.Minute,
-	5 * time.Minute,
-}
+const outboxWorkerTick = 2 * time.Second
 
 type ProviderNeutralEvent struct {
 	Type            string
@@ -113,80 +96,6 @@ func (s *MeetingService) sessionByRoom(ctx context.Context, room string) (db.Mee
 	// Room names are uw_mtg_{meetingID}; meeting id is the suffix.
 	id := strings.TrimPrefix(room, "uw_mtg_")
 	return s.q.GetOpenConferenceSession(ctx, id)
-}
-
-func (s *MeetingService) ProcessOutbox(ctx context.Context, limit int32) error {
-	if s.pool == nil {
-		return nil
-	}
-	if limit <= 0 {
-		limit = s.rt.OutboxBatch
-	}
-	if limit <= 0 {
-		limit = outboxBatchSize
-	}
-	_ = s.q.ReleaseStaleOutboxClaims(ctx)
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	rows, err := q.ClaimPendingOutbox(ctx, db.ClaimPendingOutboxParams{
-		LockedBy: strText(s.outboxNodeID), LeaseSeconds: float64(outboxLeaseSeconds), LimitN: limit,
-	})
-	if err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-
-	for _, row := range rows {
-		if err := s.applyOutbox(ctx, row); err != nil {
-			s.markOutboxFailed(ctx, row, err)
-			continue
-		}
-		_ = s.q.MarkOutboxDone(ctx, row.ID)
-		if s.metrics != nil {
-			s.metrics.IncOutboxDone()
-		}
-	}
-	return nil
-}
-
-func (s *MeetingService) markOutboxFailed(ctx context.Context, row db.OutboxEvent, err error) {
-	nextAt, status := outboxRetrySchedule(row.Attempts + 1)
-	if s.metrics != nil {
-		if status == "DEAD_LETTER" {
-			s.metrics.IncOutboxDeadLetter()
-		} else {
-			s.metrics.IncOutboxRetry()
-		}
-	}
-	_ = s.q.MarkOutboxFailed(ctx, db.MarkOutboxFailedParams{
-		ID: row.ID, LastError: strText(err.Error()),
-		AvailableAt: pgtype.Timestamptz{Time: nextAt, Valid: true},
-		Status:      status,
-	})
-}
-
-func outboxRetrySchedule(nextAttempt int32) (time.Time, string) {
-	status := "PENDING"
-	if nextAttempt >= outboxMaxAttempts {
-		status = "DEAD_LETTER"
-	}
-	idx := int(nextAttempt - 1)
-	if idx < 0 {
-		idx = 0
-	}
-	if idx >= len(outboxBackoff) {
-		idx = len(outboxBackoff) - 1
-	}
-	base := outboxBackoff[idx]
-	jitter := time.Duration(float64(base) * 0.2 * (rand.Float64()*2 - 1))
-	return time.Now().UTC().Add(base + jitter), status
 }
 
 func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) error {

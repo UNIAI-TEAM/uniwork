@@ -206,10 +206,6 @@ INSERT INTO meeting_audit_logs (
 -- name: ListMeetingAuditLogs :many
 SELECT * FROM meeting_audit_logs WHERE meeting_id = $1 ORDER BY occurred_at DESC LIMIT $2 OFFSET $3;
 
--- name: InsertOutboxEvent :exec
-INSERT INTO outbox_events (id, workspace_id, topic, payload, status, available_at)
-VALUES ($1, $2, $3, $4, 'PENDING', now());
-
 -- name: ReleaseStaleOutboxClaims :exec
 UPDATE outbox_events SET
   status = 'PENDING',

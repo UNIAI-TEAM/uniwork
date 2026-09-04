@@ -8,6 +8,50 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AuditEvent struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	ActorKind      string             `json:"actor_kind"`
+	ActorID        string             `json:"actor_id"`
+	Action         string             `json:"action"`
+	ResourceType   string             `json:"resource_type"`
+	ResourceID     string             `json:"resource_id"`
+	Changes        string             `json:"changes"`
+	Metadata       string             `json:"metadata"`
+	CorrelationID  string             `json:"correlation_id"`
+	RequestID      pgtype.Text        `json:"request_id"`
+	IpAddress      pgtype.Text        `json:"ip_address"`
+	UserAgent      pgtype.Text        `json:"user_agent"`
+	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+}
+
+type AuditExport struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	RequestedBy     string             `json:"requested_by"`
+	RequestedByKind string             `json:"requested_by_kind"`
+	Format          string             `json:"format"`
+	FromAt          pgtype.Timestamptz `json:"from_at"`
+	ToAt            pgtype.Timestamptz `json:"to_at"`
+	RowCount        int32              `json:"row_count"`
+	ObjectKey       pgtype.Text        `json:"object_key"`
+	Error           pgtype.Text        `json:"error"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	FailedAt        pgtype.Timestamptz `json:"failed_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+}
+
+type AuditRetentionPolicy struct {
+	OrganizationID string             `json:"organization_id"`
+	RetainDays     int32              `json:"retain_days"`
+	UpdatedBy      string             `json:"updated_by"`
+	UpdatedByKind  string             `json:"updated_by_kind"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ChatBlock struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -330,20 +374,27 @@ type OrganizationMember struct {
 }
 
 type OutboxEvent struct {
-	ID          string             `json:"id"`
-	WorkspaceID string             `json:"workspace_id"`
-	Topic       string             `json:"topic"`
-	Payload     string             `json:"payload"`
-	Status      string             `json:"status"`
-	Attempts    int32              `json:"attempts"`
-	LastError   pgtype.Text        `json:"last_error"`
-	AvailableAt pgtype.Timestamptz `json:"available_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	LockedBy    pgtype.Text        `json:"locked_by"`
-	LockedAt    pgtype.Timestamptz `json:"locked_at"`
-	LockedUntil pgtype.Timestamptz `json:"locked_until"`
-	CompletedAt pgtype.Timestamptz `json:"completed_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID             string             `json:"id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	Topic          string             `json:"topic"`
+	Payload        string             `json:"payload"`
+	Status         string             `json:"status"`
+	Attempts       int32              `json:"attempts"`
+	LastError      pgtype.Text        `json:"last_error"`
+	AvailableAt    pgtype.Timestamptz `json:"available_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LockedBy       pgtype.Text        `json:"locked_by"`
+	LockedAt       pgtype.Timestamptz `json:"locked_at"`
+	LockedUntil    pgtype.Timestamptz `json:"locked_until"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	OrganizationID pgtype.Text        `json:"organization_id"`
+	EventVersion   int32              `json:"event_version"`
+	CorrelationID  pgtype.Text        `json:"correlation_id"`
+	ActorKind      pgtype.Text        `json:"actor_kind"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	DoneAt         pgtype.Timestamptz `json:"done_at"`
+	DeadAt         pgtype.Timestamptz `json:"dead_at"`
 }
 
 type PasswordResetToken struct {
@@ -400,8 +451,8 @@ type User struct {
 	OnboardingQuestionnaire []byte             `json:"onboarding_questionnaire"`
 	EmailVerifiedAt         pgtype.Timestamptz `json:"email_verified_at"`
 	GoogleID                pgtype.Text        `json:"google_id"`
-	MatrixUserID            pgtype.Text        `json:"matrix_user_id"`
 	Locale                  string             `json:"locale"`
+	MatrixUserID            pgtype.Text        `json:"matrix_user_id"`
 }
 
 type WebhookInbox struct {

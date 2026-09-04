@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -172,13 +172,13 @@ func (s *MeetingService) writeAudit(ctx context.Context, q *db.Queries, meetingI
 	})
 }
 
-func (s *MeetingService) enqueue(ctx context.Context, q *db.Queries, workspaceID, topic string, payload any) error {
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return q.InsertOutboxEvent(ctx, db.InsertOutboxEventParams{
-		ID: util.NewID(), WorkspaceID: workspaceID, Topic: topic, Payload: string(b),
+// enqueue writes one provider.* row on the outbox inside the caller's
+// transaction. These are infrastructure instructions to the conference
+// provider, not business commands, so they go through Emit and carry no audit
+// row — the meeting command that caused them wrote one already.
+func (s *MeetingService) enqueue(ctx context.Context, q *db.Queries, workspaceID, topic string, payload map[string]string) error {
+	return auditRecorder.Emit(ctx, q, audit.System("meeting"), audit.Event{
+		Topic: topic, Payload: payload, WorkspaceID: workspaceID,
 	})
 }
 

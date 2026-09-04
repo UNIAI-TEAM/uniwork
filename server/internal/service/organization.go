@@ -6,17 +6,20 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 type OrganizationService struct {
-	q *db.Queries
+	pool *pgxpool.Pool
+	q    *db.Queries
 }
 
-func NewOrganizationService(q *db.Queries) *OrganizationService {
-	return &OrganizationService{q: q}
+func NewOrganizationService(pool *pgxpool.Pool, q *db.Queries) *OrganizationService {
+	return &OrganizationService{pool: pool, q: q}
 }
 
 func (s *OrganizationService) Create(ctx context.Context, userID, name, slug string) (db.Organization, error) {
@@ -30,7 +33,14 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	if err := requireVerifiedEmail(ctx, s.q, userID); err != nil {
 		return db.Organization{}, err
 	}
-	o, err := s.q.CreateOrganization(ctx, db.CreateOrganizationParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.Organization{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	o, err := q.CreateOrganization(ctx, db.CreateOrganizationParams{
 		ID: util.NewID(), Slug: slug, Name: name, CreatedBy: userID,
 	})
 	if isUniqueViolation(err) {
@@ -39,9 +49,38 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	if err != nil {
 		return db.Organization{}, err
 	}
-	if err := s.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+	if err := q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
 		OrganizationID: o.ID, UserID: userID, Role: "owner",
 	}); err != nil {
+		return db.Organization{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: o.ID,
+		Actor:          audit.User(userID),
+		Action:         audit.ActionOrganizationCreated,
+		ResourceType:   "organization", ResourceID: o.ID,
+		Changes: audit.Diff(nil, map[string]any{"name": o.Name, "slug": o.Slug}),
+	}, audit.Event{
+		Topic:   "organization.created",
+		Payload: map[string]string{"organization_id": o.ID, "user_id": userID},
+	}); err != nil {
+		return db.Organization{}, err
+	}
+	// The founder is an owner from this moment; record the membership as its
+	// own action so the member.* timeline is complete from row one.
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: o.ID,
+		Actor:          audit.User(userID),
+		Action:         audit.ActionMemberJoined,
+		ResourceType:   "organization_member", ResourceID: userID,
+		Changes: audit.Diff(nil, map[string]any{"role": "owner"}),
+	}, audit.Event{
+		Topic:   "member.joined",
+		Payload: map[string]string{"organization_id": o.ID, "user_id": userID},
+	}); err != nil {
+		return db.Organization{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return db.Organization{}, err
 	}
 	return o, nil

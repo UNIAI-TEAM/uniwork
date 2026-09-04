@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
@@ -55,6 +57,7 @@ type verificationFixture struct {
 	verify *VerificationService
 	out    *fakeOutbox
 	q      *db.Queries
+	pool   *pgxpool.Pool
 }
 
 func newVerificationFixture(t *testing.T, devCode string) verificationFixture {
@@ -63,7 +66,7 @@ func newVerificationFixture(t *testing.T, devCode string) verificationFixture {
 	out := &fakeOutbox{}
 	verify := NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, out, devCode)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return verificationFixture{auth: NewAuthService(q, m, time.Hour, verify), verify: verify, out: out, q: q}
+	return verificationFixture{auth: NewAuthService(q, m, time.Hour, verify), verify: verify, out: out, q: q, pool: pool}
 }
 
 func (f verificationFixture) registered(t *testing.T) db.User {
@@ -200,17 +203,17 @@ func TestUnverifiedUserCannotCompleteOnboardingOrCreateOrganization(t *testing.T
 	f := newVerificationFixture(t, "")
 	ctx := context.Background()
 	u := f.registered(t)
-	onboarding := NewOnboardingService(f.q, NewWorkspaceService(nil, f.q, NewOrganizationService(f.q), mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{}), NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	onboarding := NewOnboardingService(f.q, NewWorkspaceService(f.pool, f.q, NewOrganizationService(f.pool, f.q), mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{}), mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	if _, err := onboarding.Complete(ctx, u.ID, "invite_skipped", ""); err != ErrEmailUnverified {
 		t.Fatalf("complete onboarding: want ErrEmailUnverified, got %v", err)
 	}
-	if _, err := NewOrganizationService(f.q).Create(ctx, u.ID, "Org", "org"); err != ErrEmailUnverified {
+	if _, err := NewOrganizationService(f.pool, f.q).Create(ctx, u.ID, "Org", "org"); err != ErrEmailUnverified {
 		t.Fatalf("create organization: want ErrEmailUnverified, got %v", err)
 	}
 	if _, err := f.verify.Confirm(ctx, u.ID, codeFrom(t, f.out.last(t))); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewOrganizationService(f.q).Create(ctx, u.ID, "Org", "org"); err != nil {
+	if _, err := NewOrganizationService(f.pool, f.q).Create(ctx, u.ID, "Org", "org"); err != nil {
 		t.Fatalf("create organization after verify: %v", err)
 	}
 }
