@@ -50,11 +50,11 @@ export function useChatPageActions({
   replyTo: ChatMessage | null;
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   ensureRoom: { mutateAsync: () => Promise<{ room_id?: string | null }> };
-  sendRoomMessage: ReturnType<typeof useSendChatRoomMessage>;
-  resolveDM: ReturnType<typeof useResolveDMRoom>;
-  createGroup: ReturnType<typeof useCreateChatGroup>;
-  inviteMembers: ReturnType<typeof useInviteChatGroupMembers>;
-  leaveRoom: ReturnType<typeof useLeaveChatRoom>;
+  sendRoomMessage: Pick<ReturnType<typeof useSendChatRoomMessage>, "mutateAsync">;
+  resolveDM: Pick<ReturnType<typeof useResolveDMRoom>, "mutateAsync">;
+  createGroup: Pick<ReturnType<typeof useCreateChatGroup>, "mutateAsync">;
+  inviteMembers: Pick<ReturnType<typeof useInviteChatGroupMembers>, "mutateAsync">;
+  leaveRoom: Pick<ReturnType<typeof useLeaveChatRoom>, "mutateAsync">;
   setConnectError: React.Dispatch<React.SetStateAction<string | null>>;
   setCreateGroupOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setAddMembersOpen: React.Dispatch<React.SetStateAction<boolean>>;

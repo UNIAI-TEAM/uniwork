@@ -21,7 +21,7 @@ function routeTemplates(dir: string): string[] {
       const p = join(d, name);
       if (statSync(p).isDirectory()) walk(p);
       else if (name === "page.tsx") {
-        const rel = relative(APP_DIR, d);
+        const rel = relative(APP_DIR, d).replace(/\\/g, "/");
         const segs = rel
           .split("/")
           .filter((s) => s && !s.startsWith("(")) // route groups are invisible

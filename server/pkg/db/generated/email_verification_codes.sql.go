@@ -12,8 +12,8 @@ import (
 )
 
 const createEmailVerificationCode = `-- name: CreateEmailVerificationCode :one
-INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING id, user_id, code_hash, expires_at, used_at, attempts, created_at
 `
 
@@ -22,6 +22,7 @@ type CreateEmailVerificationCodeParams struct {
 	UserID    string             `json:"user_id"`
 	CodeHash  string             `json:"code_hash"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) CreateEmailVerificationCode(ctx context.Context, arg CreateEmailVerificationCodeParams) (EmailVerificationCode, error) {
@@ -30,6 +31,7 @@ func (q *Queries) CreateEmailVerificationCode(ctx context.Context, arg CreateEma
 		arg.UserID,
 		arg.CodeHash,
 		arg.ExpiresAt,
+		arg.CreatedAt,
 	)
 	var i EmailVerificationCode
 	err := row.Scan(

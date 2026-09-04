@@ -87,6 +87,7 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 	if _, err := qtx.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
 		ID: util.NewID(), UserID: u.ID, TokenHash: hashToken(token),
 		ExpiresAt: pgtype.Timestamptz{Time: s.now().Add(passwordResetTTL), Valid: true},
+		CreatedAt: pgtype.Timestamptz{Time: s.now(), Valid: true},
 	}); err != nil {
 		return err
 	}

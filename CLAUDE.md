@@ -33,12 +33,12 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Seven modules came
+  Zustand stores, realtime sync, permissions, paths, i18n. Eight modules came
   over with the port and no host reaches them yet: `packages/core/analytics/`,
   `packages/core/constants/`, `packages/core/diagnostics/`,
-  `packages/core/feature-flags/`, `packages/core/modals/`,
-  `packages/core/navigation/`, `packages/core/shortcuts/`. They import each
-  other, not the app. Wire one before relying on it;
+  `packages/core/drafts/`, `packages/core/feature-flags/`,
+  `packages/core/modals/`, `packages/core/navigation/`, `packages/core/shortcuts/`.
+  They import each other, not the app. Wire one before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
   2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.

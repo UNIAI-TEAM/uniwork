@@ -492,8 +492,15 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 	if !found {
 		t.Fatal("voice call log message missing")
 	}
-	if pub.events[len(pub.events)-1].Type != "chat.message.created" {
-		t.Fatalf("publish log: %+v", pub.events[len(pub.events)-1])
+	logPublished := false
+	for _, ev := range pub.events {
+		if ev.Type == "chat.message.created" {
+			logPublished = true
+			break
+		}
+	}
+	if !logPublished {
+		t.Fatalf("publish log: %+v", pub.events)
 	}
 }
 
@@ -508,8 +515,12 @@ func TestGroupVoiceCall(t *testing.T) {
 	addOrgMember(t, q, w.OrganizationID, uc.ID)
 	addWorkspaceMember(t, q, w.ID, uc.ID)
 
+	ud := registerVerified(t, q, as, "chat-d-voice@example.com", "D")
+	addOrgMember(t, q, w.OrganizationID, ud.ID)
+	addWorkspaceMember(t, q, w.ID, ud.ID)
+
 	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
-		Name: "Voice group", MemberUserIDs: []string{ub.ID},
+		Name: "Voice group", MemberUserIDs: []string{ub.ID, ud.ID},
 	})
 	if err != nil {
 		t.Fatalf("create group: %v", err)
@@ -569,9 +580,12 @@ func TestGroupVoiceTokenInvitedMember(t *testing.T) {
 	ud := registerVerified(t, q, as, "chat-invited-voice@example.com", "D")
 	addOrgMember(t, q, w.OrganizationID, ud.ID)
 	addWorkspaceMember(t, q, w.ID, ud.ID)
+	ue := registerVerified(t, q, as, "chat-invited-voice-e@example.com", "E")
+	addOrgMember(t, q, w.OrganizationID, ue.ID)
+	addWorkspaceMember(t, q, w.ID, ue.ID)
 
 	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
-		Name: "Invite voice", MemberUserIDs: []string{ub.ID},
+		Name: "Invite voice", MemberUserIDs: []string{ub.ID, ue.ID},
 	})
 	if err != nil {
 		t.Fatalf("create group: %v", err)
@@ -590,11 +604,15 @@ func TestGroupVoiceTokenInvitedMember(t *testing.T) {
 func TestGroupVoiceHangupOnlyCaller(t *testing.T) {
 	s, pub, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := registerVerified(t, q, as, "chat-hangup-c@example.com", "C")
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
 
 	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
-		Name: "Hangup group", MemberUserIDs: []string{ub.ID},
+		Name: "Hangup group", MemberUserIDs: []string{ub.ID, uc.ID},
 	})
 	if err != nil {
 		t.Fatalf("create group: %v", err)

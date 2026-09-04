@@ -30,6 +30,18 @@ E2E_BASE_URL ?= $(FRONTEND_ORIGIN)
 
 export
 
+# Windows: Go build cache defaults to %LOCALAPPDATA% on C:. Redirect into the
+# repo when the system drive is tight (scripts/local-env.sh does the same).
+ifeq ($(shell go env GOOS 2>/dev/null),windows)
+ifneq ($(UNIWORK_USE_SYSTEM_GO_DIRS),1)
+export GOTMPDIR := $(CURDIR)/.go-tmp
+export GOCACHE := $(CURDIR)/.go-cache
+export TEMP := $(CURDIR)/.go-tmp
+export TMP := $(CURDIR)/.go-tmp
+$(shell mkdir -p $(CURDIR)/.go-tmp $(CURDIR)/.go-cache)
+endif
+endif
+
 COMPOSE := docker compose
 
 define REQUIRE_ENV
