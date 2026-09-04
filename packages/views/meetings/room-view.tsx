@@ -271,6 +271,7 @@ export function MeetingRoomView({
           meeting={meeting ?? undefined}
           meetingTitle={meetingTitle}
           workspaceId={guestMode ? undefined : workspaceId}
+          guestMode={guestMode}
           onLeave={onLeave}
         />
       </LiveKitRoom>

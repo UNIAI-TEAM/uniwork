@@ -50,7 +50,7 @@ export function groupChatMessages(items: MeetingChatItem[]): MeetingChatGroup[] 
   }, []);
 }
 
-function persistedToItem(msg: PersistedChatMessage, localIdentity: string): MeetingChatItem {
+function toChatItem(msg: PersistedChatMessage, localIdentity: string): MeetingChatItem {
   const fromIdentity = msg.sender_identity ?? "";
   return {
     id: msg.id,
@@ -62,12 +62,51 @@ function persistedToItem(msg: PersistedChatMessage, localIdentity: string): Meet
   };
 }
 
-function isNearDuplicate(a: MeetingChatItem, b: MeetingChatItem): boolean {
-  return (
-    a.fromIdentity === b.fromIdentity &&
-    a.message === b.message &&
-    Math.abs(a.timestamp - b.timestamp) < 10_000
+/** Drop duplicate rows by id and near-identical sends (double POST guard). */
+export function dedupePersistedChatMessages(
+  messages: PersistedChatMessage[],
+): PersistedChatMessage[] {
+  const byId = new Map<string, PersistedChatMessage>();
+  for (const msg of messages) {
+    if (msg.id && !byId.has(msg.id)) byId.set(msg.id, msg);
+  }
+  const sorted = [...byId.values()].sort(
+    (a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at) || a.id.localeCompare(b.id),
   );
+  const byFingerprint = new Map<string, PersistedChatMessage>();
+  for (const msg of sorted) {
+    const ts = Date.parse(msg.sent_at) || 0;
+    const bucket = Math.floor(ts / 2000);
+    const key = `${msg.sender_identity ?? ""}\0${msg.message}\0${bucket}`;
+    if (!byFingerprint.has(key)) byFingerprint.set(key, msg);
+  }
+  return [...byFingerprint.values()].sort(
+    (a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at) || a.id.localeCompare(b.id),
+  );
+}
+
+/** Map Postgres chat rows to UI items (single source of truth for in-room chat). */
+export function toChatItems(
+  persisted: PersistedChatMessage[],
+  localIdentity: string,
+): MeetingChatItem[] {
+  return dedupePersistedChatMessages(persisted)
+    .map((msg) => toChatItem(msg, localIdentity))
+    .sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
+}
+
+/** Map ephemeral LiveKit messages for offline / guest fallback. */
+export function toEphemeralChatItems(live: LiveChatMessage[]): MeetingChatItem[] {
+  return live
+    .map((msg) => ({
+      id: msg.id,
+      fromIdentity: msg.fromIdentity,
+      fromName: msg.fromName,
+      isLocal: msg.isLocal,
+      message: msg.message,
+      timestamp: msg.timestamp,
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
 }
 
 /** Accumulate LiveKit chat across reconnects (useChat clears on disconnect). */
@@ -83,17 +122,4 @@ export function mergeLiveChatArchive(
     map.set(msg.id, msg);
   }
   return [...map.values()].sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
-}
-
-/** Merge API history with ephemeral LiveKit messages, newest last. */
-export function mergeChatMessages(
-  persisted: PersistedChatMessage[],
-  live: LiveChatMessage[],
-  localIdentity: string,
-): MeetingChatItem[] {
-  const fromApi = persisted.map((msg) => persistedToItem(msg, localIdentity));
-  const extras = live.filter(
-    (msg) => !fromApi.some((saved) => saved.id === msg.id || isNearDuplicate(saved, msg)),
-  );
-  return [...fromApi, ...extras].sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
 }

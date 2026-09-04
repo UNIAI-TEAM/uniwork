@@ -2,7 +2,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
 import { taskKeys } from "../tasks/hooks";
-import type { Meeting } from "../types/meeting";
+import type { Meeting, MeetingChatMessage } from "../types/meeting";
 
 export type {
   CreateMeetingBody,
@@ -343,12 +343,25 @@ export function useAppendTranscript(meetingId: string) {
   });
 }
 
+export function upsertMeetingChatMessage(
+  prev: MeetingChatMessage[] | undefined,
+  saved: MeetingChatMessage,
+): MeetingChatMessage[] {
+  const list = prev ?? [];
+  if (list.some((m) => m.id === saved.id)) return list;
+  return [...list, saved].sort(
+    (a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at) || a.id.localeCompare(b.id),
+  );
+}
+
 export function useMeetingChat(meetingId: string, enabled = true) {
   return useQuery({
     queryKey: meetingKeys.chat(meetingId),
     queryFn: () => meetings.listMeetingChat(meetingId),
     enabled: !!meetingId && enabled,
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
   });
 }
 
@@ -356,7 +369,15 @@ export function useAppendMeetingChat(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (message: string) => meetings.appendMeetingChat(meetingId, message),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.chat(meetingId) }),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: meetingKeys.chat(meetingId) });
+    },
+    onSuccess: async () => {
+      await qc.fetchQuery({
+        queryKey: meetingKeys.chat(meetingId),
+        queryFn: () => meetings.listMeetingChat(meetingId),
+      });
+    },
   });
 }
 

@@ -2,8 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { createLocalVideoTrack, type LocalVideoTrack } from "livekit-client";
 import { VideoOff } from "lucide-react";
+import type { MeetingBackgroundPreset } from "@uniwork/core/meetings/room-preferences";
 import { cn } from "@uniwork/ui/lib/utils";
+import {
+  applyMeetingBackgroundProcessor,
+  meetingBackgroundActive,
+  supportsBackgroundProcessors,
+} from "./meeting-background-processor";
 
 export type CameraPreviewStatus =
   "idle" | "loading" | "live" | "denied" | "nocamera" | "timeout" | "error";
@@ -29,20 +36,47 @@ function previewStatusMessage(
   }
 }
 
+function mapCaptureError(error: unknown): CameraPreviewStatus {
+  const name = error instanceof DOMException ? error.name : "";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") return "denied";
+  if (name === "TimeoutError") return "timeout";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "nocamera";
+  return "error";
+}
+
+function stopPreviewTrack(track: LocalVideoTrack | null, video: HTMLVideoElement | null) {
+  if (track && video) {
+    track.detach(video);
+  } else {
+    track?.detach();
+  }
+  track?.stop();
+}
+
 export function MeetingCameraPreview({
   deviceId,
   active,
   className,
   onStatusChange,
+  background = "none",
+  customBackgroundDataUrl = null,
+  mirrorCamera = false,
 }: {
   deviceId?: string;
   active: boolean;
   className?: string;
   onStatusChange?: (status: CameraPreviewStatus) => void;
+  background?: MeetingBackgroundPreset;
+  customBackgroundDataUrl?: string | null;
+  mirrorCamera?: boolean;
 }) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const trackRef = useRef<LocalVideoTrack | null>(null);
+  const processorRef = useRef<ReturnType<typeof import("@livekit/track-processors").BackgroundBlur> | null>(
+    null,
+  );
   const [status, setStatus] = useState<CameraPreviewStatus>("idle");
 
   useEffect(() => {
@@ -50,10 +84,15 @@ export function MeetingCameraPreview({
   }, [status, onStatusChange]);
 
   useEffect(() => {
+    const video = videoRef.current;
+
     if (!active) {
+      stopPreviewTrack(trackRef.current, video);
+      trackRef.current = null;
+      processorRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
-      if (videoRef.current) videoRef.current.srcObject = null;
+      if (video) video.srcObject = null;
       setStatus("idle");
       return;
     }
@@ -61,56 +100,88 @@ export function MeetingCameraPreview({
     let cancelled = false;
     setStatus("loading");
 
+    const startWithBackground = async () => {
+      const videoTrack = await createLocalVideoTrack({
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+      });
+      if (cancelled) {
+        videoTrack.stop();
+        return;
+      }
+      await applyMeetingBackgroundProcessor(
+        videoTrack,
+        processorRef,
+        background,
+        customBackgroundDataUrl,
+      );
+      if (cancelled) {
+        videoTrack.stop();
+        return;
+      }
+      trackRef.current = videoTrack;
+      if (video) {
+        videoTrack.attach(video);
+        await video.play().catch(() => undefined);
+      }
+      setStatus("live");
+    };
+
+    const startWithMediaStream = async () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      if (!devices.some((d) => d.kind === "videoinput")) {
+        if (!cancelled) setStatus("nocamera");
+        return;
+      }
+      let timedOut = false;
+      const request = navigator.mediaDevices
+        .getUserMedia({
+          video: deviceId ? { deviceId: { exact: deviceId } } : true,
+          audio: false,
+        })
+        .then((stream) => {
+          if (timedOut || cancelled) {
+            stream.getTracks().forEach((track) => track.stop());
+          }
+          return stream;
+        });
+      const stream = await Promise.race([
+        request,
+        new Promise<never>((_, reject) =>
+          window.setTimeout(() => {
+            timedOut = true;
+            reject(new DOMException("camera permission pending", "TimeoutError"));
+          }, PERMISSION_TIMEOUT_MS),
+        ),
+      ]);
+      if (cancelled) return;
+      streamRef.current = stream;
+      if (video) {
+        video.srcObject = stream;
+        await video.play().catch(() => undefined);
+      }
+      setStatus("live");
+    };
+
     const start = async () => {
       try {
+        stopPreviewTrack(trackRef.current, video);
+        trackRef.current = null;
+        processorRef.current = null;
         streamRef.current?.getTracks().forEach((track) => track.stop());
-        // Without a camera getUserMedia can hang or fail slowly; say so up front.
-        const devices = await navigator.mediaDevices
-          .enumerateDevices()
-          .catch(() => []);
-        if (!devices.some((d) => d.kind === "videoinput")) {
-          if (!cancelled) setStatus("nocamera");
-          return;
+        streamRef.current = null;
+        if (video) video.srcObject = null;
+
+        const useBackground =
+          meetingBackgroundActive(background) && supportsBackgroundProcessors();
+        if (useBackground) {
+          await startWithBackground();
+        } else {
+          await startWithMediaStream();
         }
-        // A permission prompt left unanswered would otherwise keep us "starting" forever.
-        let timedOut = false;
-        const request = navigator.mediaDevices
-          .getUserMedia({
-            video: deviceId ? { deviceId: { exact: deviceId } } : true,
-            audio: false,
-          })
-          .then((s) => {
-            if (timedOut || cancelled)
-              s.getTracks().forEach((track) => track.stop());
-            return s;
-          });
-        const stream = await Promise.race([
-          request,
-          new Promise<never>((_, reject) =>
-            window.setTimeout(() => {
-              timedOut = true;
-              reject(
-                new DOMException("camera permission pending", "TimeoutError"),
-              );
-            }, PERMISSION_TIMEOUT_MS),
-          ),
-        ]);
-        if (cancelled) return;
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => undefined);
-        }
-        setStatus("live");
       } catch (error) {
         if (cancelled) return;
-        const name = error instanceof DOMException ? error.name : "";
-        if (name === "NotAllowedError" || name === "PermissionDeniedError")
-          setStatus("denied");
-        else if (name === "TimeoutError") setStatus("timeout");
-        else if (name === "NotFoundError" || name === "OverconstrainedError")
-          setStatus("nocamera");
-        else setStatus("error");
+        setStatus(mapCaptureError(error));
       }
     };
 
@@ -118,10 +189,13 @@ export function MeetingCameraPreview({
 
     return () => {
       cancelled = true;
+      stopPreviewTrack(trackRef.current, video);
+      trackRef.current = null;
+      processorRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
-  }, [active, deviceId]);
+  }, [active, deviceId, background, customBackgroundDataUrl]);
 
   const statusMessage = previewStatusMessage(status, t);
   const showPlaceholder = status !== "live";
@@ -141,6 +215,7 @@ export function MeetingCameraPreview({
         autoPlay
         className={cn(
           "absolute inset-0 size-full object-cover",
+          mirrorCamera && "scale-x-[-1]",
           showPlaceholder && "opacity-0",
         )}
       />
@@ -155,9 +230,7 @@ export function MeetingCameraPreview({
               : t("meetings.devicePreviewEmpty")}
           </p>
           {statusMessage ? (
-            <p className="text-caption text-muted-foreground">
-              {statusMessage}
-            </p>
+            <p className="text-caption text-muted-foreground">{statusMessage}</p>
           ) : null}
         </div>
       ) : null}
