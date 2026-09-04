@@ -42,7 +42,9 @@ hoặc một lệnh đứng cạnh — biết luật nào chặn mình sẽ nhan
 
 ## 3. Cái gì sẽ chặn bạn
 
-Ba tầng, từ nhanh tới chậm:
+Ba tầng, từ nhanh tới chậm. Mức siết của cả ba theo một từ trong file `GATE_LEVEL`
+(`fast` / `standard` / `strict`, xem [`docs/engineering/GATE_LEVELS.md`](docs/engineering/GATE_LEVELS.md));
+`make gate` cho biết mức hiện tại. Mô tả dưới đây là mức `standard`.
 
 **Lúc commit** (`.githooks/`, tự nối qua `pnpm install`)
 

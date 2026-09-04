@@ -21,12 +21,13 @@ Issue: UNI-___ <!-- bắt buộc; workflow uniai-link chặn PR thiếu mã. mak
 ## Definition of Done
 
 <!-- docs/engineering/DEFINITION_OF_DONE.md. Máy đã giữ phần còn lại (CI đỏ = chưa xong).
-     Ô không áp dụng: tick và ghi "n/a — lý do" một dòng. -->
+     Ô không áp dụng: tick và ghi "n/a — lý do" một dòng.
+     GATE_LEVEL=fast: chỉ bốn ô [fast] bắt buộc; các ô khác tick "n/a — fast" là đủ. -->
 
-- [ ] **Issue và phạm vi** — issue ở `in_review`; PR không rộng hơn issue
-- [ ] **Kiểm chứng thật** — mục trên ghi lệnh đã chạy; CI xanh trước khi merge
-- [ ] **Test đi trước hành vi** — test ở đúng package, fail nếu revert code
-- [ ] **Cách ly tenant** — query mới lọc tenant qua `RequireMember`; có test org B bị 403/404
+- [ ] **Issue và phạm vi** `[fast]` — issue ở `in_review`; PR không rộng hơn issue
+- [ ] **Kiểm chứng thật** `[fast]` — mục trên ghi lệnh đã chạy; CI xanh trước khi merge
+- [ ] **Test đi trước hành vi** `[fast]` — test ở đúng package, fail nếu revert code
+- [ ] **Cách ly tenant** `[fast]` — query mới lọc tenant qua `RequireMember`; có test org B bị 403/404
 - [ ] **Quyền hai phía** — rule Go có mirror trong `permissions/rules.ts`
 - [ ] **Giao diện dùng được** — sáng/tối, bàn phím, không mock, empty state có bước tiếp
 - [ ] **Agent là actor** — attribution, `created_by_kind`, đề xuất → xác nhận

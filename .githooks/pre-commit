@@ -16,6 +16,8 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
+# shellcheck disable=SC1091
+. scripts/gate-level.sh
 
 # ACMRT, not ACMR: a typechange (file -> symlink) is exactly the shape a
 # .env smuggled in as a link would take, and it is how AGENTS.md became one.
@@ -49,6 +51,12 @@ if [ -n "$go_files" ]; then
 fi
 
 # --- TypeScript: lint + typecheck, scoped to the touched workspaces ----------
+# GATE_LEVEL=fast skips this step: CI still runs lint and typecheck on the PR,
+# and the .env and gofmt checks above are the ones that cannot wait.
+if [ "$GATE_LEVEL" = fast ]; then
+  echo "→ GATE_LEVEL=fast: lint + typecheck left to CI (docs/engineering/GATE_LEVELS.md)"
+  dirs=""
+else
 # Whole-package tasks rather than per-file eslint: the flat config lives in each
 # package and resolves from its own directory, and turbo caches the result, so
 # scoping by package is both correct and fast.
@@ -56,6 +64,7 @@ dirs="$(printf '%s\n' "$files" \
   | grep -E '^(apps/[^/]+|packages/[^/]+|e2e)/' \
   | sed -E 's#^(apps/[^/]+|packages/[^/]+|e2e)/.*#\1#' \
   | sort -u || true)"
+fi
 if [ -n "$dirs" ]; then
   filters=""
   for d in $dirs; do
