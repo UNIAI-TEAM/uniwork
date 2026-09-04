@@ -32,6 +32,7 @@ type Deps struct {
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
+	Audit         *service.AuditService
 	Meetings      *service.MeetingService
 	Chat          *service.ChatService
 	Hub           *realtime.Hub
@@ -110,13 +111,22 @@ func New(d Deps) http.Handler {
 
 		SeedWelcomeTask: h.seedWelcomeTask,
 
-		ListTasks:     h.listTasks,
-		CreateTask:    h.createTask,
-		GetTask:       h.getTask,
-		UpdateTask:    h.updateTask,
-		DeleteTask:    h.deleteTask,
-		ListComments:  h.listComments,
-		CreateComment: h.createComment,
+		ListTasks:    h.listTasks,
+		CreateTask:   h.createTask,
+		GetTask:      h.getTask,
+		UpdateTask:   h.updateTask,
+		DeleteTask:   h.deleteTask,
+		ListComments: h.listComments,
+
+		ListAuditEvents:     h.listAuditEvents,
+		GetAuditEvent:       h.getAuditEvent,
+		ListResourceHistory: h.listResourceHistory,
+		GetAuditRetention:   h.getAuditRetention,
+		SetAuditRetention:   h.setAuditRetention,
+		ListAuditExports:    h.listAuditExports,
+		CreateAuditExport:   h.createAuditExport,
+		GetAuditExport:      h.getAuditExport,
+		CreateComment:       h.createComment,
 
 		ListMeetings:         h.listMeetings,
 		CreateMeeting:        h.createMeeting,

@@ -22,6 +22,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -122,15 +123,15 @@ func main() {
 	if code := cfg.DevVerificationCode(); code != "" {
 		log.Warn("DEV_VERIFICATION_CODE is set: any user can verify with it", "app_env", cfg.AppEnv)
 	}
-	outbox := mail.NewOutbox(pool, sender, log)
+	mailOutbox := mail.NewOutbox(pool, sender, log)
 	if reg != nil {
-		outbox.Counter = reg.Emails
+		mailOutbox.Counter = reg.Emails
 	}
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
-	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
-	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
+	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, mailOutbox)
+	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
-	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
+	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
 		lk := &meetings.LiveKitAdapter{
@@ -164,10 +165,27 @@ func main() {
 	}
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
+	auditSvc := service.NewAuditService(pool, q, orgSvc, wsSvc)
+	// One dispatcher drains outbox_events for the whole process. Registering a
+	// consumer is the only thing a new bounded context has to do to receive
+	// domain events; nothing here knows what produced them.
+	dispatcher := outbox.New(pool, q, outbox.Options{
+		Batch: cfg.MeetingOutboxBatch, Tick: cfg.MeetingWorkerTick, Log: log,
+	})
+	dispatcher.Register(meetingSvc.ProviderConsumer())
+	dispatcher.Register(outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc))
+	dispatcher.Register(service.NewAuditExportConsumer(q, store))
+	dispatcher.Register(outbox.WebhookConsumer{})
+	if reg != nil {
+		dispatcher.SetMetrics(reg.Outbox)
+		service.SetAuditCounter(reg.Outbox)
+	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 	go meetingSvc.RunWorkers(runCtx)
 	go meetingSvc.RunAutoEnd(runCtx)
+	dispatcherDone := make(chan struct{})
+	go func() { dispatcher.Run(runCtx); close(dispatcherDone) }()
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -189,8 +207,9 @@ func main() {
 		Google:          google,
 		Organizations:   orgSvc,
 		Workspaces:      wsSvc,
-		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, outbox),
+		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,
+		Audit:           auditSvc,
 		Meetings:        meetingSvc,
 		Chat:            chatSvc,
 		Hub:             hub,
@@ -214,7 +233,7 @@ func main() {
 	}
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	outboxDone := make(chan struct{})
-	go func() { outbox.Run(workerCtx); close(outboxDone) }()
+	go func() { mailOutbox.Run(workerCtx); close(outboxDone) }()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -252,6 +271,14 @@ func main() {
 	case <-outboxDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("mail: outbox worker did not stop in time")
+	}
+	// The event dispatcher stops before the relay it publishes through, so a
+	// consumer is never handed a broadcaster that is already shutting down.
+	runCancel()
+	select {
+	case <-dispatcherDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("outbox: dispatcher did not stop in time")
 	}
 	if relay != nil {
 		relay.Stop()

@@ -53,6 +53,15 @@ type Routes struct {
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
 
+	ListAuditEvents     http.HandlerFunc
+	GetAuditEvent       http.HandlerFunc
+	ListResourceHistory http.HandlerFunc
+	GetAuditRetention   http.HandlerFunc
+	SetAuditRetention   http.HandlerFunc
+	ListAuditExports    http.HandlerFunc
+	CreateAuditExport   http.HandlerFunc
+	GetAuditExport      http.HandlerFunc
+
 	ListMeetings         http.HandlerFunc
 	CreateMeeting        http.HandlerFunc
 	CreateInstantMeeting http.HandlerFunc

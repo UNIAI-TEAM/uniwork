@@ -22,6 +22,7 @@ type Registry struct {
 	HTTP     *HTTPMetrics
 	Emails   *prometheus.CounterVec
 	Meetings *Meetings
+	Outbox   *Outbox
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -42,6 +43,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	if opts.Pool != nil {
 		reg.MustRegister(NewDBCollector(opts.Pool))
 		reg.MustRegister(NewMeetingLagCollector(opts.Pool))
+		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
@@ -56,11 +58,15 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	meetingMetrics := NewMeetings()
 	reg.MustRegister(meetingMetrics.Collectors()...)
 
+	outboxMetrics := NewOutbox()
+	reg.MustRegister(outboxMetrics.Collectors()...)
+
 	return &Registry{
 		Gatherer: reg,
 		HTTP:     httpMetrics,
 		Emails:   emails,
 		Meetings: meetingMetrics,
+		Outbox:   outboxMetrics,
 	}
 }
 

@@ -165,6 +165,26 @@ func pathParamSDI(path string) any {
 		return struct {
 			RequestId string `path:"requestId" description:"ULID join request" example:"01J8X4JREQN1P2Q3R4S5"`
 		}{}
+	case "orgID":
+		return struct {
+			OrgID string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+		}{}
+	case "orgID,eventID":
+		return struct {
+			OrgID   string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			EventID string `path:"eventID" description:"ULID bản ghi nhật ký" example:"01J8X4AUDIT0N1P2Q3R4S5T6"`
+		}{}
+	case "orgID,exportID":
+		return struct {
+			OrgID    string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			ExportID string `path:"exportID" description:"ULID bản xuất nhật ký" example:"01J8X4EXPORT0N1P2Q3R4S5T"`
+		}{}
+	case "workspaceID,resourceType,resourceID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task hoặc meeting" example:"task"`
+			ResourceID   string `path:"resourceID" description:"ULID tài nguyên" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+		}{}
 	case "token":
 		return struct {
 			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`

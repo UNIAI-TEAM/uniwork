@@ -106,6 +106,10 @@ func New(pool *pgxpool.Pool, q *db.Queries, opts Options) *Dispatcher {
 	}
 }
 
+// SetMetrics attaches the counters. Called once from main; the dispatcher
+// works without them.
+func (d *Dispatcher) SetMetrics(m Metrics) { d.metrics = m }
+
 // Register subscribes a consumer to each topic it declares.
 func (d *Dispatcher) Register(c Consumer) {
 	for _, topic := range c.Topics() {
