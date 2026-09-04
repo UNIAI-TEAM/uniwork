@@ -11,6 +11,7 @@ import {
   splitTracksBySource,
   tileGridClass,
   trackHasVideo,
+  trackTileKey,
 } from "./conference-layout";
 
 function track(
@@ -97,6 +98,23 @@ describe("conference layout", () => {
     expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual(["b", "a", "c"]);
   });
 
+  it("pages extra screen shares in the strip after the first share", () => {
+    const tracks = [
+      track("share-a", Track.Source.ScreenShare),
+      track("share-b", Track.Source.ScreenShare),
+      track("cam-a"),
+      track("cam-b"),
+    ];
+    const stage = resolveConferenceStage(tracks, {
+      layout: "auto",
+      maxTiles: 6,
+      page: 0,
+    });
+    expect(stage.primary).toHaveLength(1);
+    expect(stage.primary[0]?.participant.identity).toBe("share-a");
+    expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual(["share-b", "cam-a", "cam-b"]);
+  });
+
   it("resolves spotlight and tiled layouts", () => {
     const tracks = Array.from({ length: 8 }, (_, i) => track(String(i)));
     const spotlight = resolveConferenceStage(tracks, {
@@ -117,5 +135,68 @@ describe("conference layout", () => {
     expect(tiled.layoutMode).toBe("grid");
     expect(tiled.primary).toHaveLength(4);
     expect(tiled.thumbnails).toHaveLength(0);
+  });
+
+  it("resolves sidebar and auto grid layouts without screen share", () => {
+    const tracks = Array.from({ length: 10 }, (_, i) => track(String(i)));
+    const sidebar = resolveConferenceStage(tracks, {
+      layout: "sidebar",
+      maxTiles: 5,
+      page: 0,
+      speakingIdentities: ["2"],
+    });
+    expect(sidebar.layoutMode).toBe("sidebar");
+    expect(sidebar.primary[0]?.participant.identity).toBe("2");
+    expect(sidebar.thumbnails).toHaveLength(4);
+
+    const auto = resolveConferenceStage(tracks, {
+      layout: "auto",
+      maxTiles: 6,
+      page: 0,
+    });
+    expect(auto.layoutMode).toBe("grid");
+    expect(auto.primary.length).toBeGreaterThan(0);
+    expect(auto.gridClass).toContain("grid-cols");
+  });
+
+  it("builds stable track keys", () => {
+    const t = track("alice");
+    expect(trackTileKey(t)).toBe(`alice:${String(Track.Source.Camera)}`);
+  });
+
+  it("respects hidden participants and hide-without-video in tiled layout", () => {
+    const tracks = [track("a"), track("b", Track.Source.Camera, false), track("c")];
+    const stage = resolveConferenceStage(tracks, {
+      layout: "tiled",
+      maxTiles: 6,
+      page: 0,
+      hiddenIdentities: ["c"],
+      hideWithoutVideo: true,
+    });
+    expect(stage.primary.map((t) => t.participant.identity)).toEqual(["a"]);
+  });
+
+  it("pages spotlight thumbnails beyond the first strip", () => {
+    const tracks = Array.from({ length: 12 }, (_, i) => track(String(i)));
+    const page1 = resolveConferenceStage(tracks, {
+      layout: "spotlight",
+      maxTiles: 6,
+      page: 1,
+    });
+    expect(page1.page).toBe(1);
+    expect(page1.primary).toHaveLength(1);
+    expect(page1.thumbnails.length).toBeGreaterThan(0);
+  });
+
+  it("keeps screen shares visible even when hide-without-video is enabled", () => {
+    const tracks = [track("cam-off", Track.Source.Camera, false), track("share", Track.Source.ScreenShare)];
+    const stage = resolveConferenceStage(tracks, {
+      layout: "auto",
+      maxTiles: 6,
+      page: 0,
+      hideWithoutVideo: true,
+    });
+    expect(stage.primary[0]?.source).toBe(Track.Source.ScreenShare);
+    expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual([]);
   });
 });

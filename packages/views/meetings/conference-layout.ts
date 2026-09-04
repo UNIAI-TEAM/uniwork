@@ -3,10 +3,10 @@ import { Track } from "livekit-client";
 import type { MeetingViewLayout } from "@uniwork/core/meetings/room-preferences";
 
 const TILES_PER_PAGE = 9;
-export const PRIMARY_GRID_TILES = 6;
-export const THUMBNAIL_STRIP_TILES = 5;
+const PRIMARY_GRID_TILES = 6;
+const THUMBNAIL_STRIP_TILES = 5;
 
-export type StageLayoutMode = "grid" | "spotlight" | "sidebar";
+type StageLayoutMode = "grid" | "spotlight" | "sidebar";
 
 export type ConferenceStage = {
   primary: TrackReferenceOrPlaceholder[];
@@ -126,7 +126,7 @@ export function paginate<T>(
 }
 
 /** Screen share fills the stage; cameras (and extra shares) sit in the side strip. */
-export function resolvePresentationStage(
+function resolvePresentationStage(
   screenShares: readonly TrackReferenceOrPlaceholder[],
   orderedCameras: readonly TrackReferenceOrPlaceholder[],
   page: number,
