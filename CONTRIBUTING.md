@@ -30,6 +30,11 @@ có DB và cổng riêng: `make worktree-env && make setup-worktree`.
 | Sửa `packages/core/i18n/locales/` | `docs/conventions.md` § 2 (glossary vi–en) |
 | Viết chữ tiếng Việt lên UI | `docs/conventions.md` § 3 (giọng văn) |
 | Hiểu vì sao sản phẩm tồn tại | [`PRODUCT.md`](PRODUCT.md) |
+| Hiểu vì sao xây lại và đích đến | [`docs/vision/PROJECT_VISION.md`](docs/vision/PROJECT_VISION.md) |
+| Chọn việc gì làm tiếp, spec nào bám theo | [`docs/roadmap/FEATURE_ROADMAP.md`](docs/roadmap/FEATURE_ROADMAP.md) |
+| Xem bản cũ (Lovable) làm gì | [`docs/roadmap/LEGACY_REFERENCE_MAP.md`](docs/roadmap/LEGACY_REFERENCE_MAP.md) |
+| Đi từ roadmap đến release | [`docs/engineering/FEATURE_WORKFLOW.md`](docs/engineering/FEATURE_WORKFLOW.md) |
+| Biết khi nào được gọi là xong | [`docs/engineering/DEFINITION_OF_DONE.md`](docs/engineering/DEFINITION_OF_DONE.md) |
 
 Đừng đọc lướt CLAUDE.md. Mỗi luật trong đó đều có tên một test, một lint rule
 hoặc một lệnh đứng cạnh — biết luật nào chặn mình sẽ nhanh hơn là để CI nói.
