@@ -1,8 +1,8 @@
-# Four jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
+# Five jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
 # the two frontend jobs are split so the jsdom test suite and the Next build
 # do not starve each other on a 4-vCPU runner; `backend` runs Go against real
-# Postgres and Redis services. Playwright is not run here — it is the local
-# `make check` gate — because the e2e suite needs a running app and a browser.
+# Postgres and Redis services; `e2e` builds the server and a production Next
+# app against the same services and runs the Playwright suite.
 #
 # turbo.json lists this file in globalDependencies: the toolchain versions
 # pinned below are part of every task hash, so bumping Node can never replay
