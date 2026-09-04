@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { toastApiError } from "../../toast-api-error";
 import { useWorkspacePermissions } from "@uniwork/core/permissions";
 import { usePatchWorkspace } from "@uniwork/core/workspaces";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -45,7 +46,7 @@ export function WorkspaceTab() {
     savedValue: workspace.name,
     onSave: saveName,
     onSuccess: () => toast.success(t("workspace.toastUpdated"), { id: "settings-auto-save" }),
-    onError: () => toast.error(t("save.error")),
+    onError: (err) => toastApiError(err, t("save.error")),
     enabled: canEdit && name.trim().length > 0,
     isEqual: namesEqual,
   });

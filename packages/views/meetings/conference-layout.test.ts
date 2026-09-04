@@ -1,17 +1,37 @@
 import { describe, expect, it } from "vitest";
 import type { TrackReferenceOrPlaceholder } from "@livekit/components-react";
 import { Track } from "livekit-client";
-import { orderTracks, paginate, tileGridClass } from "./conference-layout";
+import {
+  conferenceStagePage,
+  filterVisibleTracks,
+  orderTracks,
+  paginate,
+  primaryGridClass,
+  resolveConferenceStage,
+  splitTracksBySource,
+  tileGridClass,
+  trackHasVideo,
+} from "./conference-layout";
 
-function track(identity: string, source: Track.Source = Track.Source.Camera): TrackReferenceOrPlaceholder {
-  return { participant: { identity }, source } as unknown as TrackReferenceOrPlaceholder;
+function track(
+  identity: string,
+  source: Track.Source = Track.Source.Camera,
+  withVideo = true,
+): TrackReferenceOrPlaceholder {
+  return {
+    participant: { identity },
+    source,
+    publication: withVideo ? { track: {}, isMuted: false } : { track: undefined, isMuted: true },
+  } as unknown as TrackReferenceOrPlaceholder;
 }
 
 describe("conference layout", () => {
-  it("puts screen share first, speakers next, keeps the rest stable", () => {
+  it("puts pinned participant and screen share first, speakers next", () => {
     const tracks = [track("a"), track("b"), track("c"), track("d", Track.Source.ScreenShare), track("e")];
-    const ordered = orderTracks(tracks, ["c", "e"]).map((t) => `${t.participant.identity}:${t.source}`);
-    expect(ordered).toEqual(["d:screen_share", "c:camera", "e:camera", "a:camera", "b:camera"]);
+    const ordered = orderTracks(tracks, ["c", "e"], "b").map(
+      (t) => `${t.participant.identity}:${t.source}`,
+    );
+    expect(ordered).toEqual(["b:camera", "d:screen_share", "c:camera", "e:camera", "a:camera"]);
     expect(orderTracks(tracks, []).map((t) => t.participant.identity)).toEqual(["d", "a", "b", "c", "e"]);
   });
 
@@ -26,5 +46,76 @@ describe("conference layout", () => {
   it("never exceeds three columns", () => {
     expect(tileGridClass(1)).toBe("grid-cols-1");
     expect(tileGridClass(9)).toBe("grid-cols-3");
+    expect(primaryGridClass(6)).toBe("grid-cols-2 lg:grid-cols-3");
+  });
+
+  it("splits cameras from screen shares", () => {
+    const tracks = [track("a"), track("b", Track.Source.ScreenShare)];
+    expect(splitTracksBySource(tracks)).toEqual({
+      cameras: [track("a")],
+      screenShares: [track("b", Track.Source.ScreenShare)],
+    });
+  });
+
+  it("pages primary grid and thumbnail strip together", () => {
+    const cameras = Array.from({ length: 14 }, (_, i) => track(String(i)));
+    const first = conferenceStagePage(cameras, 0);
+    expect(first.primary).toHaveLength(6);
+    expect(first.thumbnails).toHaveLength(5);
+    expect(first.overflow).toBe(3);
+    expect(first.pages).toBe(2);
+  });
+
+  it("filters hidden participants and camera tiles without video", () => {
+    const tracks = [track("a"), track("b", Track.Source.Camera, false), track("c")];
+    expect(filterVisibleTracks(tracks, ["a"], false).map((t) => t.participant.identity)).toEqual([
+      "b",
+      "c",
+    ]);
+    expect(filterVisibleTracks(tracks, [], true).map((t) => t.participant.identity)).toEqual(["a", "c"]);
+    expect(trackHasVideo(track("a"))).toBe(true);
+    expect(trackHasVideo(track("b", Track.Source.Camera, false))).toBe(false);
+  });
+
+  it("promotes screen share to the primary stage with cameras in the side strip", () => {
+    const tracks = [
+      track("a"),
+      track("b"),
+      track("c"),
+      track("presenter", Track.Source.ScreenShare),
+    ];
+    const stage = resolveConferenceStage(tracks, {
+      layout: "auto",
+      maxTiles: 6,
+      page: 0,
+      pinnedIdentity: "b",
+    });
+    expect(stage.layoutMode).toBe("sidebar");
+    expect(stage.primary).toHaveLength(1);
+    expect(stage.primary[0]?.source).toBe(Track.Source.ScreenShare);
+    expect(stage.primary[0]?.participant.identity).toBe("presenter");
+    expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual(["b", "a", "c"]);
+  });
+
+  it("resolves spotlight and tiled layouts", () => {
+    const tracks = Array.from({ length: 8 }, (_, i) => track(String(i)));
+    const spotlight = resolveConferenceStage(tracks, {
+      layout: "spotlight",
+      maxTiles: 6,
+      page: 0,
+      speakingIdentities: ["3"],
+    });
+    expect(spotlight.layoutMode).toBe("spotlight");
+    expect(spotlight.primary).toHaveLength(1);
+    expect(spotlight.primary[0]?.participant.identity).toBe("3");
+
+    const tiled = resolveConferenceStage(tracks, {
+      layout: "tiled",
+      maxTiles: 4,
+      page: 0,
+    });
+    expect(tiled.layoutMode).toBe("grid");
+    expect(tiled.primary).toHaveLength(4);
+    expect(tiled.thumbnails).toHaveLength(0);
   });
 });

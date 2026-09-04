@@ -220,7 +220,7 @@ type MeetingSummaryDTO struct {
 }
 
 type MeetingSummarySDO struct {
-	Summary MeetingSummaryDTO `json:"summary"`
+	Summary *MeetingSummaryDTO `json:"summary"`
 }
 
 type TaskIDListSDO struct {

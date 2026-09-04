@@ -16,6 +16,7 @@ export function createI18n(
     fallbackLng: "en",
     resources,
     interpolation: { escapeValue: false },
+    compatibilityJSON: "v4",
     initAsync: false,
     react: { useSuspense: false },
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tileGridClass } from "./meeting-conference";
+import { primaryGridClass, tileGridClass } from "./meeting-conference";
 
 describe("tileGridClass", () => {
   it("uses a single column for one participant", () => {
@@ -18,5 +18,11 @@ describe("tileGridClass", () => {
 
   it("adds a third column from lg when the room is crowded", () => {
     expect(tileGridClass(5)).toBe("grid-cols-2 lg:grid-cols-3");
+  });
+});
+
+describe("primaryGridClass", () => {
+  it("uses three columns for six participants on large screens", () => {
+    expect(primaryGridClass(6)).toBe("grid-cols-2 lg:grid-cols-3");
   });
 });

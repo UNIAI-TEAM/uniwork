@@ -39,7 +39,7 @@ describe("ForgotPasswordView", () => {
     render(wrapWithNav(<ForgotPasswordView />));
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.c" } });
     fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
-    expect(await screen.findByText("Có lỗi xảy ra")).toBeInTheDocument();
+    expect(await screen.findByText("boom")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
   });
 });

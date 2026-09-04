@@ -30,6 +30,7 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
@@ -37,6 +38,7 @@ import { MeetingActivityTimeline } from "./meeting-activity-timeline";
 import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingHostPanel } from "./host-panel";
+import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 import { MeetingRsvpBar } from "./meeting-rsvp-bar";
 import { MeetingCalendarButton, MeetingSummaryPanel } from "./meeting-summary-panel";
@@ -86,6 +88,69 @@ export function MeetingDetailView({
   const inProgress = meeting.status === "IN_PROGRESS";
   const closed = meeting.status === "ENDED" || meeting.status === "CANCELED";
   const canEnter = canEnterScheduledMeeting(meeting);
+  const showSummary = inProgress || meeting.status === "ENDED";
+  const highlightJoinRequests = canHost.allowed && pendingJoins > 0;
+
+  const notesSection = (
+    <section className="rounded-xl border border-border bg-surface" aria-labelledby="notes-heading">
+      <div className="border-b border-border px-4 py-3">
+        <h2 id="notes-heading" className="text-label font-semibold text-foreground">
+          {t("meetings.notes")}
+        </h2>
+      </div>
+      <div className="p-4">
+        {(notes ?? []).length === 0 ? (
+          <p className="mb-3 text-label text-muted-foreground">{t("meetings.notesEmpty")}</p>
+        ) : (
+          <ul className="mb-3 space-y-2">
+            {(notes ?? []).map((n) => (
+              <li key={n.id} className="rounded-lg border border-border bg-surface-hover/50 p-3">
+                <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
+                <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          className="flex min-w-0 flex-col gap-2 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
+          }}
+        >
+          <Input
+            className="min-w-0 flex-1"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t("meetings.notesPlaceholder")}
+          />
+          <Button type="submit" className="shrink-0" disabled={addNote.isPending}>
+            {t("common.save")}
+          </Button>
+        </form>
+      </div>
+    </section>
+  );
+
+  const summarySection = showSummary ? (
+    <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
+  ) : null;
+
+  const peopleSection = canHost.allowed ? (
+    <MeetingHostPanel
+      workspaceId={workspaceId}
+      meeting={meeting}
+      invitations={invitations ?? []}
+      showJoinRequests={!highlightJoinRequests}
+    />
+  ) : (
+    <MeetingParticipantsSection
+      workspaceId={workspaceId}
+      meeting={meeting}
+      invitations={invitations ?? []}
+      canManage={false}
+    />
+  );
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -100,7 +165,7 @@ export function MeetingDetailView({
                 label={t("meetings.start")}
                 variant="outline"
                 disabled={start.isPending}
-                onClick={() => start.mutate(meetingId, { onError: () => toast.error(t("common.error")) })}
+                onClick={() => start.mutate(meetingId, { onError: (err) => toastApiError(err, t("common.error")) })}
               />
             ) : null}
             {canHost.allowed && (scheduled || inProgress) ? (
@@ -137,87 +202,39 @@ export function MeetingDetailView({
           </>
         }
       />
-      <div className="mx-auto w-full min-w-0 max-w-3xl flex-1 overflow-auto p-4 sm:p-6">
+      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
         <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h1 className="text-pretty text-title font-semibold text-foreground">{meeting.title}</h1>
-            <MeetingStatusBadge status={meeting.status} />
-          </div>
-          <p className="mt-1 text-label tabular-nums text-muted-foreground">
-            {formatMeetingRange(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language))}
-          </p>
-          {meeting.description ? (
-            <p className="mt-3 whitespace-pre-wrap break-words text-pretty text-body text-muted-foreground">
-              {meeting.description}
-            </p>
-          ) : null}
-          {!canEnter && !closed ? (
-            <p className="mt-3 text-body text-destructive">{t("meetings.pastScheduledEndHint")}</p>
-          ) : null}
-          {myInvite ? <div className="mt-4"><MeetingRsvpBar meetingId={meetingId} invitation={myInvite} /></div> : null}
-          {meeting.status !== "CANCELED" ? (
-            <div className="mt-4">
-              <MeetingCalendarButton meetingId={meetingId} />
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h1 className="text-pretty text-title font-semibold text-foreground">{meeting.title}</h1>
+                <MeetingStatusBadge status={meeting.status} />
+              </div>
+              <p className="mt-1 text-label tabular-nums text-muted-foreground">
+                {formatMeetingRange(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language))}
+              </p>
+              {meeting.description ? (
+                <p className="mt-3 max-w-3xl whitespace-pre-wrap break-words text-pretty text-body text-muted-foreground">
+                  {meeting.description}
+                </p>
+              ) : null}
+              {!canEnter && !closed ? (
+                <p className="mt-3 text-body text-destructive">{t("meetings.pastScheduledEndHint")}</p>
+              ) : null}
             </div>
-          ) : null}
+            <div className="flex shrink-0 flex-col gap-3 lg:items-end">
+              {myInvite ? <MeetingRsvpBar meetingId={meetingId} invitation={myInvite} /> : null}
+              {meeting.status !== "CANCELED" ? <MeetingCalendarButton meetingId={meetingId} /> : null}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-6 space-y-4">
-          {canHost.allowed ? (
-            <MeetingHostPanel workspaceId={workspaceId} meeting={meeting} invitations={invitations ?? []} />
-          ) : (
-            <MeetingParticipantsSection
-              workspaceId={workspaceId}
-              meeting={meeting}
-              invitations={invitations ?? []}
-              canManage={false}
-            />
-          )}
-
-          <section className="rounded-xl border border-border bg-surface" aria-labelledby="notes-heading">
-            <div className="border-b border-border px-4 py-3">
-              <h2 id="notes-heading" className="text-label font-semibold text-foreground">
-                {t("meetings.notes")}
-              </h2>
-            </div>
-            <div className="p-4">
-              {(notes ?? []).length === 0 ? (
-                <p className="mb-3 text-label text-muted-foreground">{t("meetings.notesEmpty")}</p>
-              ) : (
-                <ul className="mb-3 space-y-2">
-                  {(notes ?? []).map((n) => (
-                    <li key={n.id} className="rounded-lg border border-border bg-surface-hover/50 p-3">
-                      <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
-                      <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form
-                className="flex min-w-0 flex-col gap-2 sm:flex-row"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
-                }}
-              >
-                <Input
-                  className="min-w-0 flex-1"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder={t("meetings.notesPlaceholder")}
-                />
-                <Button type="submit" className="shrink-0" disabled={addNote.isPending}>
-                  {t("common.save")}
-                </Button>
-              </form>
-            </div>
-          </section>
-
+        <div className="mt-6 flex min-w-0 flex-col gap-6">
+          {highlightJoinRequests ? <MeetingJoinRequestsPanel meetingId={meetingId} compact /> : null}
+          {peopleSection}
+          {notesSection}
+          {summarySection}
           <MeetingActivityTimeline workspaceId={workspaceId} meetingId={meetingId} />
-
-          {inProgress || meeting.status === "ENDED" ? (
-            <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
-          ) : null}
         </div>
       </div>
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
@@ -237,11 +254,11 @@ export function MeetingDetailView({
               disabled={end.isPending || cancel.isPending}
               onClick={() => {
                 if (confirm === "end") {
-                  end.mutate(meetingId, { onError: () => toast.error(t("common.error")) });
+                  end.mutate(meetingId, { onError: (err) => toastApiError(err, t("common.error")) });
                 } else {
                   cancel.mutate(meetingId, {
                     onSuccess: onDeleted,
-                    onError: () => toast.error(t("common.error")),
+                    onError: (err) => toastApiError(err, t("common.error")),
                   });
                 }
                 setConfirm(null);

@@ -2,7 +2,7 @@
 import { Loader2 } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogin } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { SessionResponse } from "@uniwork/core/types";
@@ -49,7 +49,7 @@ export function LoginView({
     login.error instanceof ApiError && login.error.code === "invalid_credentials"
       ? t("auth.invalidCredentials")
       : login.error
-        ? t("common.error")
+        ? (apiErrorMessage(login.error) ?? t("common.error"))
         : null;
   const googleError =
     initialError && !login.isPending && !login.isSuccess && !login.error

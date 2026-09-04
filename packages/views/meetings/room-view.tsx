@@ -48,6 +48,8 @@ export function MeetingRoomView({
   initialJoinDecision,
   invite,
   onLeave,
+  meetingsHref,
+  workspaceLabel,
 }: {
   meetingId: string;
   workspaceId?: string;
@@ -59,6 +61,8 @@ export function MeetingRoomView({
   /** Public-link credentials for someone outside the workspace; every join carries them. */
   invite?: { linkId: string; secret: string };
   onLeave: () => void;
+  meetingsHref?: string;
+  workspaceLabel?: string;
 }) {
   const { t } = useTranslation();
   const join = useJoinMeeting();
@@ -271,6 +275,8 @@ export function MeetingRoomView({
           meeting={meeting ?? undefined}
           meetingTitle={meetingTitle}
           workspaceId={guestMode ? undefined : workspaceId}
+          meetingsHref={guestMode ? undefined : meetingsHref}
+          workspaceLabel={guestMode ? undefined : workspaceLabel}
           guestMode={guestMode}
           onLeave={onLeave}
         />

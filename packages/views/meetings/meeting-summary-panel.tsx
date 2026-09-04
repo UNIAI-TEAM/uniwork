@@ -3,7 +3,8 @@ import { useState } from "react";
 import { CalendarPlus, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { errorCode } from "@uniwork/core/api/http";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
+import { toastApiError } from "../toast-api-error";
 import { meetingLocale } from "./meeting-datetime";
 import {
   useCreateMeetingSummary,
@@ -40,7 +41,7 @@ export function MeetingCalendarButton({ meetingId }: { meetingId: string }) {
       onClick={() =>
         cal.mutate(meetingId, {
           onSuccess: (ics) => downloadText(`meeting-${meetingId}.ics`, ics),
-          onError: () => toast.error(t("common.error")),
+          onError: (err) => toastApiError(err, t("common.error")),
         })
       }
     >
@@ -89,7 +90,7 @@ export function MeetingSummaryPanel({
             ? t("meetings.summaryNothing")
             : code === "ai_not_configured"
               ? t("meetings.aiUnavailable")
-              : t("common.error"),
+              : apiErrorMessage(err) ?? t("common.error"),
         );
       },
     });
@@ -103,12 +104,12 @@ export function MeetingSummaryPanel({
         toast.success(t("meetings.tasksCreated", { count: ids.length }));
         setPicked(new Set());
       },
-      onError: () => toast.error(t("common.error")),
+      onError: (err) => toastApiError(err, t("common.error")),
     });
   }
 
   return (
-    <section className="mt-6 space-y-4" data-testid="meeting-summary-panel">
+    <section className="space-y-4" data-testid="meeting-summary-panel">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-body font-semibold text-foreground">
           <Sparkles aria-hidden className="size-4 text-brand" />
