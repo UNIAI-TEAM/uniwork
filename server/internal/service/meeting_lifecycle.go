@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -69,11 +70,12 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	}); err != nil {
 		return db.Meeting{}, err
 	}
+	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeInstant, "title": m.Title}))
+	s.record(ctx, q, started, audit.User(userID), "meeting.started", nil,
+		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{"status": MeetingInProgress}))
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
-	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.created", Payload: meetingEventPayload(m)})
-	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.started", Payload: meetingEventPayload(started)})
 	s.ensureProviderSession(ctx, sess)
 	return started, nil
 }
@@ -120,11 +122,12 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	}); err != nil {
 		return db.Meeting{}, err
 	}
+	s.record(ctx, q, started, audit.User(userID), "meeting.started", nil,
+		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{"status": MeetingInProgress}))
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
 	s.count("started")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.started", Payload: meetingEventPayload(started)})
 	s.ensureProviderSession(ctx, sess)
 	return started, nil
 }
@@ -150,6 +153,12 @@ func (s *MeetingService) End(ctx context.Context, userID, meetingID string) (db.
 // endMeeting is the IN_PROGRESS → ENDED transition shared by End (host) and
 // AutoEndOverdue (system). eventType names the audit row.
 func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, eventType string) (db.Meeting, error) {
+	// AutoEndOverdue passes no actor: the scheduler ended the meeting, and the
+	// audit row says so rather than blaming the last host.
+	actor := audit.User(actorID)
+	if actorID == "" {
+		actor = audit.System("meeting-auto-end")
+	}
 	if m.Status != MeetingInProgress {
 		return db.Meeting{}, errInvalidState()
 	}
@@ -181,11 +190,12 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		})
 		_ = s.writeAudit(ctx, q, m.ID, "CONFERENCE_SESSION_ENDED", actorID, sess.Status, "ENDED", "{}")
 	}
+	s.record(ctx, q, ended, actor, "meeting.ended", nil,
+		audit.Diff(map[string]any{"status": MeetingInProgress}, map[string]any{"status": MeetingEnded}))
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
 	s.count("ended")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.ended", Payload: meetingEventPayload(ended)})
 	return ended, nil
 }
 
@@ -222,12 +232,14 @@ func (s *MeetingService) Cancel(ctx context.Context, userID, meetingID, reason s
 			"meeting_id": m.ID, "room_name": sess.ProviderRoomName, "session_id": sess.ID,
 		})
 	}
+	// Two topics for one command: the list view treats a cancellation as a
+	// removal, and both names are in the catalogue the client switches on.
+	changes := audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{"status": MeetingCanceled})
+	s.record(ctx, q, canceled, audit.User(userID), "meeting.canceled", nil, changes)
+	s.record(ctx, q, canceled, audit.User(userID), "meeting.deleted", nil, changes)
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	canceledPayload := meetingEventPayload(canceled)
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.canceled", Payload: canceledPayload})
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.deleted", Payload: canceledPayload})
 	return nil
 }
 
@@ -260,8 +272,8 @@ func (s *MeetingService) TransferHost(ctx context.Context, userID, meetingID, ne
 	}
 	payload, _ := json.Marshal(map[string]string{"old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID})
 	_ = s.writeAudit(ctx, s.q, m.ID, "HOST_TRANSFERRED", userID, m.HostUserID, newHostUserID, string(payload))
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "host.transferred", Payload: meetingRelatedPayload(up, map[string]string{
-		"old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID,
-	})})
+	s.record(ctx, s.q, up, audit.User(userID), "host.transferred",
+		meetingRelatedPayload(up, map[string]string{"old_host_user_id": m.HostUserID, "new_host_user_id": newHostUserID}),
+		audit.Diff(map[string]any{"host_user_id": m.HostUserID}, map[string]any{"host_user_id": newHostUserID}))
 	return up, nil
 }

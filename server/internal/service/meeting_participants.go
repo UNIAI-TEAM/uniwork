@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -74,12 +75,11 @@ func (s *MeetingService) Invite(ctx context.Context, actorID, meetingID, userID 
 	if err != nil {
 		return db.MeetingParticipant{}, err
 	}
+	s.record(ctx, s.q.WithTx(tx), m, audit.User(actorID), "participant.invited",
+		meetingRelatedPayload(m, map[string]string{"participant_id": p.ID}), nil)
 	if err := tx.Commit(ctx); err != nil {
 		return db.MeetingParticipant{}, err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "participant.invited", Payload: meetingRelatedPayload(m, map[string]string{
-		"participant_id": p.ID,
-	})})
 	return p, nil
 }
 
@@ -129,9 +129,9 @@ func (s *MeetingService) RespondInvitation(ctx context.Context, userID, meetingI
 		return db.MeetingInvitation{}, err
 	}
 	_ = s.writeAudit(ctx, s.q, m.ID, "INVITATION_RESPONDED", userID, inv.ResponseStatus, response, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "invitation.responded", Payload: meetingRelatedPayload(m, map[string]string{
-		"invitation_id": invitationID,
-	})})
+	s.record(ctx, s.q, m, audit.User(userID), "invitation.responded",
+		meetingRelatedPayload(m, map[string]string{"invitation_id": invitationID}),
+		audit.Diff(map[string]any{"response": inv.ResponseStatus}, map[string]any{"response": response}))
 	return up, nil
 }
 
@@ -178,11 +178,10 @@ func (s *MeetingService) RemoveParticipant(ctx context.Context, actorID, meeting
 	_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.remove_participant", map[string]string{
 		"meeting_id": m.ID, "room_name": room, "identity": meetings.IdentityForParticipant(participantID),
 	})
+	s.record(ctx, q, m, audit.User(actorID), "participant.removed",
+		meetingRelatedPayload(m, map[string]string{"participant_id": participantID}), nil)
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "participant.removed", Payload: meetingRelatedPayload(m, map[string]string{
-		"participant_id": participantID,
-	})})
 	return nil
 }

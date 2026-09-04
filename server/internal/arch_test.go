@@ -86,3 +86,35 @@ func TestMembershipDecidedInOnePlace(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Audit rows and domain events are written in exactly one place. The rule
+// "every command writes audit and outbox in the same transaction" (ADR 0009)
+// is only worth stating if it cannot be worked around, and the way it gets
+// worked around is a service reaching for the insert directly — at which point
+// nothing decides the correlation id, the actor kind or the event version.
+//
+// internal/audit is the only caller; everything else goes through
+// audit.Recorder.Record or, for infrastructure topics, Recorder.Emit.
+func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
+	writes := regexp.MustCompile(`\.(InsertAuditEvent|InsertDomainOutboxEvent)\(`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") || strings.Contains(slash, "internal/audit/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if writes.Match(src) {
+			t.Errorf("%s writes audit_events or outbox_events directly; go through internal/audit", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
