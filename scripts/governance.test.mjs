@@ -162,6 +162,17 @@ test("the docs a newcomer is pointed at exist", () => {
   }
 });
 
+test("the PR template ticks exactly the DoD items the DoD page lists", () => {
+  // DEFINITION_OF_DONE.md explains each item and how to check it; the PR
+  // template is where it is actually ticked. Two lists drift the moment one
+  // is edited alone, and the one people read is the template.
+  const labels = (text, re) => [...text.matchAll(re)].map((m) => m[1]).sort();
+  const page = labels(read("docs/engineering/DEFINITION_OF_DONE.md"), /^\d+\. \*\*([^*]+)\*\*/gm);
+  const template = labels(read(".github/pull_request_template.md"), /^- \[ \] \*\*([^*]+)\*\*/gm);
+  assert.ok(page.length >= 8 && page.length <= 12, `DoD has ${page.length} items; keep it around ten`);
+  assert.deepEqual(template, page, "PR template and DEFINITION_OF_DONE.md list different DoD items");
+});
+
 test("every ADR is numbered once and carries a status", () => {
   // docs/adr/ is where the "why" behind a CLAUDE.md "never" lives. An ADR
   // without a status is a draft nobody closed; two with the same number is a
