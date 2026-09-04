@@ -2,58 +2,21 @@
 
 import { useEffect, useRef } from "react";
 import { useRoomContext } from "@livekit/components-react";
-import {
-  BackgroundBlur,
-  VirtualBackground,
-  supportsBackgroundProcessors,
-} from "@livekit/track-processors";
-import { RoomEvent, Track, type LocalVideoTrack } from "livekit-client";
+import { RoomEvent, Track } from "livekit-client";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import {
-  MEETING_BACKGROUND_BLUR_RADIUS,
-  resolveMeetingBackgroundImagePath,
-} from "./meeting-background";
-
-type BackgroundProcessorPipeline = ReturnType<typeof BackgroundBlur>;
-
-function createBackgroundProcessor(
-  background: ReturnType<typeof useMeetingRoomPreferencesStore.getState>["background"],
-  customBackgroundDataUrl: string | null,
-): BackgroundProcessorPipeline | null {
-  if (background === "blur") {
-    return BackgroundBlur(MEETING_BACKGROUND_BLUR_RADIUS);
-  }
-  const imagePath = resolveMeetingBackgroundImagePath(background, customBackgroundDataUrl);
-  if (imagePath) {
-    return VirtualBackground(imagePath);
-  }
-  return null;
-}
-
-async function syncBackgroundProcessor(
-  track: LocalVideoTrack,
-  processorRef: { current: BackgroundProcessorPipeline | null },
-  background: ReturnType<typeof useMeetingRoomPreferencesStore.getState>["background"],
-  customBackgroundDataUrl: string | null,
-) {
-  const next = createBackgroundProcessor(background, customBackgroundDataUrl);
-  if (!next) {
-    await track.stopProcessor();
-    processorRef.current = null;
-    return;
-  }
-
-  await track.stopProcessor().catch(() => undefined);
-  processorRef.current = next;
-  await track.setProcessor(next);
-}
+  applyMeetingBackgroundProcessor,
+  supportsBackgroundProcessors,
+} from "./meeting-background-processor";
 
 /** Keeps the local camera track background effect in sync with room preferences. */
 export function MeetingCameraBackgroundSync() {
   const room = useRoomContext();
   const background = useMeetingRoomPreferencesStore((s) => s.background);
   const customBackgroundDataUrl = useMeetingRoomPreferencesStore((s) => s.customBackgroundDataUrl);
-  const processorRef = useRef<BackgroundProcessorPipeline | null>(null);
+  const processorRef = useRef<ReturnType<typeof import("@livekit/track-processors").BackgroundBlur> | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!supportsBackgroundProcessors()) return;
@@ -62,11 +25,16 @@ export function MeetingCameraBackgroundSync() {
       const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
       const track = pub?.videoTrack;
       if (!track) return;
-      await syncBackgroundProcessor(track, processorRef, background, customBackgroundDataUrl);
+      await applyMeetingBackgroundProcessor(
+        track,
+        processorRef,
+        background,
+        customBackgroundDataUrl,
+      );
     };
 
-    const onTrackChange = () => void applyToCamera();
-    onTrackChange();
+    const onTrackChange = () => void applyToCamera().catch(() => undefined);
+    void onTrackChange();
     room.on(RoomEvent.LocalTrackPublished, onTrackChange);
     room.on(RoomEvent.LocalTrackUnpublished, onTrackChange);
 

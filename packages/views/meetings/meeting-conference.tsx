@@ -76,6 +76,8 @@ export function MeetingConference(props: {
   meeting?: Meeting;
   meetingTitle?: string;
   workspaceId?: string;
+  /** Skip persisted chat APIs; use LiveKit-only ephemeral chat. */
+  guestMode?: boolean;
   onLeave: () => void;
 }) {
   return (
@@ -90,12 +92,14 @@ function ConferenceStage({
   meeting,
   meetingTitle,
   workspaceId,
+  guestMode,
   onLeave,
 }: {
   meetingId?: string;
   meeting?: Meeting;
   meetingTitle?: string;
   workspaceId?: string;
+  guestMode?: boolean;
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
@@ -205,6 +209,7 @@ function ConferenceStage({
             <MeetingRoomSidebar
               meetingId={resolvedMeetingId || undefined}
               canHost={canHost.allowed}
+              guestMode={guestMode}
               className="h-full w-full"
             />
           </div>
@@ -235,6 +240,7 @@ function ConferenceStage({
               <MeetingRoomSidebar
                 meetingId={resolvedMeetingId || undefined}
                 canHost={canHost.allowed}
+                guestMode={guestMode}
                 className="h-full w-full"
               />
             ) : null}
