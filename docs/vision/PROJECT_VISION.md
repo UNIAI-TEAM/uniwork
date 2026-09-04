@@ -174,24 +174,27 @@ Mô hình hiện tại (bảng `plans`, `entitlements`, `quota`) là đúng hư�
 | 4 | Workspace (không gian, thẻ, cài đặt) | F | Tenant khác Workspace, giữ nguyên |
 | 5 | Project & Task (board, list, comment, attachment, view cá nhân) | F | Đã có trong `uniwork` |
 | 6 | Meeting (lịch, phòng LiveKit, ghi hình, transcript, tóm tắt, biến họp thành việc) | F + C | Đã có phòng video; intelligence là giai đoạn C |
-| 7 | Document (soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập) | C | Bỏ "Email Hub" nội bộ; thay bằng tích hợp email thật ở giai đoạn sau |
+| 7 | Document (soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập) | C | Bỏ "Email Hub" nội bộ; email thật là tích hợp, xem mục 18 |
 | 8 | Chat & Collaboration (kênh, DM, mention, thread) | C | Realtime qua relay đã có |
 | 9 | Notification (in-app, push, email digest, tùy chọn) | F | Foundation vì mọi context khác phát sự kiện vào đây |
 | 10 | Calendar (lịch cá nhân, lịch nhóm, ICS) | C | |
 | 11 | AI Platform (gateway, model router, policy, tool registry, usage metering, agent runtime) | F + A | Trái tim của định vị. Gateway ở F; agent nhận task ở A |
 | 12 | Workflow & Automation (trigger, step, run, agent step) | A | |
-| 13 | Knowledge & Search (wiki, tìm kiếm toàn cục, RAG có quyền) | A | Search V2 và work graph kế thừa khái niệm |
+| 13 | Knowledge & Memory (wiki, Decision record, tìm kiếm toàn cục, RAG có quyền, lịch sử thực thi) | C + A | "Organizational Memory" của key points: tri thức, quyết định, lịch sử không phụ thuộc trí nhớ cá nhân. Decision record sinh từ tóm tắt họp và task, gắn vào Work Graph; Search V2 kế thừa khái niệm |
 | 14 | Reporting & Insights (home brief, dashboard, work economics) | A | Không hero KPI; số liệu inline |
 | 15 | Audit & Compliance (audit bất biến, export, retention, trace) | F | Kế thừa correlation id, audit trigger |
 | 16 | Platform Admin (console, tenant ops, backup, feature flag) | F (tối thiểu) | Không xây admin trace 4.387 dòng lần nữa |
+| 17 | Work Graph (quan hệ giữa Task, Meeting, Document, Decision, People, Chat với bộ từ vựng quan hệ có kiểm soát và nguồn gốc quan hệ) | C | Xuyên suốt: là nguồn cấp context cho AI Context Engine và là nền của Organizational Memory. Bảng quan hệ dùng chung, không nằm trong module nào |
+| 18 | Email integration (Gmail, Microsoft Graph: đọc, gửi, thread gắn vào Work Graph) | A | Thay cho Email Hub nội bộ; không lưu hộp thư riêng |
 
-F = Foundation, C = Collaboration, A = Agent (xem lộ trình mục 8).
+F = Foundation, C = Collaboration, A = Agent (xem lộ trình mục 8). Đối chiếu với 11 key point của sản phẩm: `docs/vision/KEY_POINTS.md`.
 
 ### 5.3 Ngoài phạm vi (cho đến khi có quyết định mới)
 
-- Email Hub dạng "email nội bộ trong DB". Nếu cần email, tích hợp IMAP/SMTP hoặc Google/Microsoft thật.
+- Email Hub dạng "email nội bộ trong DB". Email thật là tích hợp với Gmail / Microsoft Graph (mục 18 trong §5.2), không phải hộp thư riêng.
 - AI Market / chợ tuyển dụng agent theo hình thức marketplace mở. Giữ khái niệm "catalog agent" nội bộ.
-- Decision Hub, Blog/CMS công khai, ứng dụng desktop native. Các adapter cho host thứ hai được giữ trong kiến trúc.
+- Decision Hub như một module riêng. Quyết định vẫn là thực thể Decision record hạng nhất trong Knowledge & Memory (mục 13), không phải hub.
+- Blog/CMS công khai, ứng dụng desktop native. Các adapter cho host thứ hai được giữ trong kiến trúc.
 - Bất kỳ microservice nào trước khi có nhu cầu vận hành đo được (kế thừa Blueprint §25.16).
 
 ---

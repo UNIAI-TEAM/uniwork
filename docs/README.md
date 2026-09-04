@@ -9,6 +9,7 @@
 | --- | --- |
 | [`../PRODUCT.md`](../PRODUCT.md) | Sản phẩm này cho ai, nguyên tắc thiết kế và agent |
 | [`vision/PROJECT_VISION.md`](vision/PROJECT_VISION.md) | Vì sao xây lại, tầm nhìn, thanh chất lượng "chuẩn thế giới", lộ trình 4 giai đoạn |
+| [`vision/KEY_POINTS.md`](vision/KEY_POINTS.md) | 11 key point sản phẩm và chỗ hiện thực từng điểm trong roadmap |
 | [`roadmap/FEATURE_ROADMAP.md`](roadmap/FEATURE_ROADMAP.md) | Danh sách tính năng, trạng thái thật, spec để bám theo, thứ tự làm |
 | [`roadmap/LEGACY_REFERENCE_MAP.md`](roadmap/LEGACY_REFERENCE_MAP.md) | Xem hành vi bản cũ ở đâu, và cái gì không được mang sang |
 | [`roadmap/OPEN_QUESTIONS.md`](roadmap/OPEN_QUESTIONS.md) | Câu hỏi chờ chủ sở hữu sản phẩm quyết trước khi duyệt spec |
