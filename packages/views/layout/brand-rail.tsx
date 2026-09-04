@@ -9,10 +9,20 @@ import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
  * screen — it owns the panel, the dot field and the header/footer slots, and
  * nothing about what fills them.
  *
- * Structurally follows the ReUI onboarding-3 block: an inset panel
- * with `.dark` scoping token overrides for this subtree only, `bg-background`
- * for the fill, and DotSphere as a decorative layer — not a hand-mixed
- * `--rail` colour that drifts from the token sheet.
+ * Structurally follows the ReUI onboarding-3 block: an inset panel with
+ * `.dark` scoping token overrides for this subtree only, and the dot field as
+ * a texture. The fill is `bg-rail`, the one token that is dark in BOTH themes
+ * and one notch above the dark page: with `bg-background` the rail measured
+ * 1.00:1 against the dark page and survived only as a 1px ring.
+ *
+ * The dot field is a still frame. It used to run a requestAnimationFrame loop
+ * for as long as the page was open; PRODUCT.md keeps motion for explaining a
+ * change, and a sign-in form has none to explain. The canvas paints no
+ * background of its own so the token shows through, and its dots take
+ * `text-brand` — the brand hue in this subtree's dark value — instead of the
+ * indigo the block shipped with. The mask fades the field out across the
+ * middle band, where both screens put their text (the tagline, the stepper):
+ * dots inside the counters of a serif glyph read as dirt, not texture.
  */
 export function BrandRail({
   header,
@@ -44,11 +54,14 @@ export function BrandRail({
   return (
     <div
       className={
-        "dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl bg-background px-5 pb-5 text-foreground ring-1 ring-border" +
+        "dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl bg-rail px-5 pb-5 text-foreground ring-1 ring-border" +
         (className ? " " + className : "")
       }
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-background">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 text-brand [mask-image:linear-gradient(to_bottom,black_28%,transparent_40%,transparent_60%,black_72%)]"
+      >
         {showSphere && (
           <DotSphere
             dotGap={19}
@@ -56,7 +69,9 @@ export function BrandRail({
             sphereCount={5}
             sphereRadius="20%"
             dotRadiusMax={1.9}
-            speed={0.4}
+            dotAlpha={0.55}
+            bgColor="transparent"
+            animate={false}
           />
         )}
       </div>

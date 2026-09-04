@@ -7,6 +7,7 @@ const (
 	ScopeWorkspace = "workspace"
 	ScopeUser      = "user"
 	ScopeTask      = "task"
+	ScopeChat      = "chat"
 	ScopeMeeting   = "meeting"
 )
 

@@ -1,18 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { verifyEmail } from "./auth-nav";
+import { register, verifyEmail } from "./auth-nav";
 
 // Meeting lifecycle without LiveKit: tạo → bắt đầu → panel tóm tắt AI hiện
 // (kèm trạng thái AI tắt) → tải .ics → kết thúc → ENDED. Yêu cầu `make dev`.
 const stamp = Date.now();
-const email = `e2e-mtg-${stamp}@example.com`;
 
 test("meeting: create → start → summary panel → ics → end", async ({ page }) => {
-  await page.goto("/register");
-  await page.getByLabel("Tên hiển thị").fill("E2E Meet");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng ký" }).click();
-  await expect(page).toHaveURL(/\/verify$/);
+  await register(page, "E2E Meet", stamp);
   await verifyEmail(page);
   await page.getByRole("button", { name: /Bắt đầu/ }).click();
   await page.getByRole("button", { name: "Bỏ qua" }).click();

@@ -7,6 +7,57 @@ import { execFileSync } from "node:child_process";
 const root = path.resolve(import.meta.dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
+/** Mode Git records for a tracked path (`undefined` when not in the index). */
+function gitIndexMode(relPath) {
+  const line = execFileSync("git", ["ls-files", "-s", "--", relPath], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+  if (!line) return undefined;
+  return Number.parseInt(line.split(/\s+/)[0], 8);
+}
+
+function gitSymlinkTarget(relPath) {
+  return execFileSync("git", ["show", `HEAD:${relPath}`], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+}
+
+function agentsMdIsSymlink() {
+  const agents = path.join(root, "AGENTS.md");
+  if (fs.lstatSync(agents).isSymbolicLink()) {
+    return fs.readlinkSync(agents) === "CLAUDE.md";
+  }
+  // Windows often materializes symlinks as plain files when core.symlinks=false.
+  if (process.platform === "win32" && gitIndexMode("AGENTS.md") === 0o120000) {
+    return gitSymlinkTarget("AGENTS.md") === "CLAUDE.md";
+  }
+  return false;
+}
+
+function agentsMdMatchesClaude() {
+  const agents = path.join(root, "AGENTS.md");
+  if (fs.lstatSync(agents).isSymbolicLink()) {
+    return read("AGENTS.md") === read("CLAUDE.md");
+  }
+  if (process.platform === "win32" && gitIndexMode("AGENTS.md") === 0o120000) {
+    return gitSymlinkTarget("AGENTS.md") === "CLAUDE.md";
+  }
+  return read("AGENTS.md") === read("CLAUDE.md");
+}
+
+function isExecutable(relPath) {
+  const abs = path.join(root, relPath);
+  if (fs.statSync(abs).mode & 0o111) return true;
+  // NTFS has no Unix execute bit; Git stores the mode in the index instead.
+  if (process.platform === "win32") {
+    const mode = gitIndexMode(relPath);
+    return mode !== undefined && (mode & 0o111) !== 0;
+  }
+  return false;
+}
+
 // A governance rule fails in a way no other test notices: nothing breaks, the
 // rule simply stops applying and everyone keeps reading the document that says
 // it does. These assertions are the only thing standing between "we have rules"
@@ -17,10 +68,8 @@ test("AGENTS.md is CLAUDE.md, not a shorter copy of it", () => {
   // 56-line pointer saying "see CLAUDE.md", every agent arriving that way
   // missed the API-compatibility, backend-HTTP, testing and verification rules
   // entirely. A symlink is the only version of this that cannot drift.
-  const stat = fs.lstatSync(path.join(root, "AGENTS.md"));
-  assert.ok(stat.isSymbolicLink(), "AGENTS.md must be a symlink to CLAUDE.md");
-  assert.equal(fs.readlinkSync(path.join(root, "AGENTS.md")), "CLAUDE.md");
-  assert.equal(read("AGENTS.md"), read("CLAUDE.md"));
+  assert.ok(agentsMdIsSymlink(), "AGENTS.md must be a symlink to CLAUDE.md");
+  assert.ok(agentsMdMatchesClaude(), "AGENTS.md must resolve to CLAUDE.md content");
 });
 
 test("pnpm install wires core.hooksPath at .githooks", () => {
@@ -40,7 +89,7 @@ test("both hooks exist and are executable", () => {
     assert.ok(fs.existsSync(p), `.githooks/${hook} is missing`);
     // Git will not run a hook without the execute bit, and it says nothing when
     // it skips one — the commit just succeeds.
-    assert.ok(fs.statSync(p).mode & 0o111, `.githooks/${hook} is not executable`);
+    assert.ok(isExecutable(`.githooks/${hook}`), `.githooks/${hook} is not executable`);
   }
 });
 
@@ -185,12 +234,12 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
       rel = path.relative(CORE, path.resolve(path.dirname(from), spec));
       if (rel.startsWith("..")) return null;
     } else return null;
-    return rel ? rel.split("/")[0] : "__barrel__";
+    return rel ? rel.split(/[/\\]/)[0] : "__barrel__";
   };
 
   const edges = new Map(modules.map((m) => [m, new Set()]));
   for (const f of walk(CORE)) {
-    const owner = path.relative(CORE, f).split("/")[0];
+    const owner = path.relative(CORE, f).split(/[/\\]/)[0];
     if (!edges.has(owner)) continue;
     for (const spec of specifiers(f)) {
       const t = target(spec, f);

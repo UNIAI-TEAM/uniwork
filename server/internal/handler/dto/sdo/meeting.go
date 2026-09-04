@@ -184,7 +184,7 @@ type TranscriptListSDO struct {
 	Segments []TranscriptSegmentDTO `json:"segments"`
 }
 
-type ChatMessageDTO struct {
+type MeetingChatMessageDTO struct {
 	ID             string `json:"id"`
 	MeetingID      string `json:"meeting_id"`
 	ParticipantID  string `json:"participant_id"`
@@ -194,12 +194,12 @@ type ChatMessageDTO struct {
 	SentAt         string `json:"sent_at" example:"2026-08-29T02:00:00Z"`
 }
 
-type ChatMessageSDO struct {
-	Message ChatMessageDTO `json:"message"`
+type MeetingChatMessageSDO struct {
+	Message MeetingChatMessageDTO `json:"message"`
 }
 
-type ChatListSDO struct {
-	Messages []ChatMessageDTO `json:"messages"`
+type MeetingChatListSDO struct {
+	Messages []MeetingChatMessageDTO `json:"messages"`
 }
 
 type SummaryActionItemDTO struct {

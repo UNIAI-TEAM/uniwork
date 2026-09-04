@@ -49,8 +49,11 @@ Product intent and design principles live in `PRODUCT.md`.
 Shared packages export raw `.ts` / `.tsx`, compiled by the consuming app.
 Dependency direction is `views -> core + ui`; `core` and `ui` stay independent.
 Web is the only host today; the adapters (`NavigationAdapter`,
-`StorageAdapter`, `CoreProvider`) exist so a desktop or mobile host can be
-added without rewriting `views`.
+`StorageAdapter`, `CoreProvider`) exist so a desktop host can be added
+without rewriting `views`. Mobile is not a host of `views`: it will be a
+separate Expo / React Native app under apps/mobile that imports only types
+and pure functions from `packages/core/` (ADR 0011, mirrors the sibling
+`usf` repo); its rules land in its own CLAUDE.md when the app exists.
 
 ## State Rules
 
@@ -134,6 +137,35 @@ CI (`.github/workflows/ci.yml`) runs Node 22, Go 1.27, pnpm 10.28 against
 `postgres:16` and `redis:7`, plus `pnpm audit --audit-level high`,
 `govulncheck`, a gitleaks scan, and the Playwright suite (`e2e` job: server
 binary + production Next build against the same services).
+
+## Accepted Decisions Awaiting Enforcement
+
+ADR 0007–0010 (`docs/adr/`) were accepted on 2026-09-04 and shape every
+Phase F feature, but their guard tests do not exist yet. Until the named test
+lands, reviewers hold the rule by hand via `docs/engineering/DEFINITION_OF_DONE.md`;
+when it lands, move the rule into the section above it belongs to and name the
+test there. Planned guards are written without backticks on purpose: they are
+not paths yet.
+
+- ADR 0007 — every business table pairs `created_by` with `created_by_kind`
+  (`human` | `agent` | `system`); services take an Actor{ID, Kind} value.
+  Guard lands with F-10: migration lint for the `_kind` pair, arch test that
+  only `server/internal/service/` constructs an Actor.
+- ADR 0008 — every business table carries `organization_id NOT NULL`; every
+  query filters by it; membership still only via `RequireMember`. Guard lands
+  with F-08/F-02: migration lint for the column, a query-scope scanner over
+  `server/pkg/db/queries/`, a two-organization isolation matrix test.
+- ADR 0009 — a command that changes business state writes `audit_events` and
+  `outbox_events` in the same transaction; services never publish realtime
+  directly except ephemeral signals. Guard lands with F-08: arch test that
+  `server/internal/service/` does not import the realtime publisher, an
+  events-contract test listing every command, a SQL test that UPDATE/DELETE
+  on `audit_events` is refused.
+- ADR 0010 — `server/internal/ai/` and the agent runtime never write business
+  tables; agent writes go proposal → human confirm → execute; `accepted` is
+  human-only. Guard lands with F-09/F-10: arch test on imports from `server/internal/ai/`,
+  a lifecycle test that the runtime cannot set `accepted`, a tool-registry test
+  that every tool has undo or is not auto-executable.
 
 ## Database and Migration Rules
 

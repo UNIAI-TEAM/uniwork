@@ -1,6 +1,6 @@
 # Tasks Phase 0 — Skeleton (Multica Issues parity) Implementation Plan
 
-> **Trạng thái:** shipped
+> **Trạng thái:** superseded — bởi `docs/superpowers/specs/2026-09-04-tasks-complete-design.md` (2026-09-04): mã vẫn ở mức 4 status, chưa có `task_statuses`/`identifier`; phần còn lại làm trong F-05.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

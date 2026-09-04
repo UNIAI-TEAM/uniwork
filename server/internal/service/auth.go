@@ -70,8 +70,9 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	if err != nil {
 		return Session{}, err
 	}
+	userID := util.NewID()
 	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
-		ID: util.NewID(), Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
+		ID: userID, Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
 		Locale: NormalizeLocale(locale),
 	})
 	if isUniqueViolation(err) {
@@ -80,14 +81,12 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 	if err != nil {
 		return Session{}, err
 	}
-	// A failed send must not undo the registration: the verify screen has a
-	// resend button, and the session below is what lets the user reach it.
 	if s.verification != nil {
 		if err := s.verification.Send(ctx, u.ID); err != nil {
 			slog.Warn("send verification code after register", "user", u.ID, "err", err)
 		}
 	}
-	return s.newSession(ctx, u)
+	return s.mintSession(ctx, u)
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (Session, error) {
@@ -98,12 +97,10 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 	if err != nil {
 		return Session{}, err
 	}
-	// A Google-only account has no hash; it fails like a wrong password so the
-	// response does not reveal how the account was created.
 	if !u.PasswordHash.Valid || !auth.CheckPassword(u.PasswordHash.String, password) {
 		return Session{}, ErrInvalidCredentials
 	}
-	return s.newSession(ctx, u)
+	return s.mintSession(ctx, u)
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {
@@ -121,7 +118,7 @@ func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, er
 	if err != nil {
 		return Session{}, err
 	}
-	return s.newSession(ctx, u)
+	return s.mintSession(ctx, u)
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
@@ -138,9 +135,6 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 
 const maxDisplayNameRunes = 100
 
-// UpdateProfile changes display name and/or mail locale; nil leaves a field
-// alone. Both inputs are validated before either write, so a bad locale
-// never lets a display-name change slip through.
 func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale *string) (db.User, error) {
 	if displayName == nil && locale == nil {
 		return db.User{}, Invalid("cần display_name hoặc locale")
@@ -169,14 +163,6 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 	return u, err
 }
 
-func ptrString(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
-
-// UpdateAvatar persists the URL storage returned for the user's new avatar.
 func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.User, error) {
 	u, err := s.q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
 		ID:        userID,
@@ -188,13 +174,11 @@ func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.
 	return u, err
 }
 
-// SessionFor mints a session for an already-authenticated user; the Google
-// sign-in uses it after it has resolved the account.
 func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error) {
-	return s.newSession(ctx, u)
+	return s.mintSession(ctx, u)
 }
 
-func (s *AuthService) newSession(ctx context.Context, u db.User) (Session, error) {
+func (s *AuthService) mintSession(ctx context.Context, u db.User) (Session, error) {
 	access, err := s.minter.Mint(u.ID)
 	if err != nil {
 		return Session{}, err
@@ -223,4 +207,11 @@ func hashToken(raw string) string {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func ptrString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

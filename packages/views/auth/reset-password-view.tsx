@@ -62,7 +62,7 @@ export function ResetPasswordView({
             <AppLink href={paths.forgotPassword()} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
               {t("auth.reset.requestNew")}
             </AppLink>
-            <p className="text-center text-label text-muted-foreground">
+            <p className="text-center text-body text-muted-foreground">
               <AppLink href={paths.login()} className={AUTH_LINK}>
                 {t("auth.forgot.backToLogin")}
               </AppLink>

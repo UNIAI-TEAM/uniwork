@@ -115,10 +115,12 @@ func TestVerificationResendGate(t *testing.T) {
 	f := newVerificationFixture(t, "")
 	ctx := context.Background()
 	u := f.registered(t)
+	base := time.Now()
+	f.verify.now = func() time.Time { return base }
 	if err := f.verify.Send(ctx, u.ID); err != ErrRateLimited {
 		t.Fatalf("second send within 60s: want ErrRateLimited, got %v", err)
 	}
-	f.verify.now = func() time.Time { return time.Now().Add(61 * time.Second) }
+	f.verify.now = func() time.Time { return base.Add(61 * time.Second) }
 	if err := f.verify.Send(ctx, u.ID); err != nil {
 		t.Fatalf("send after gap: %v", err)
 	}

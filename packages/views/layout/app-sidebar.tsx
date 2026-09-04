@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { CalendarDays, ChevronsUpDown, LogOut, Settings, SquareCheckBig, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronsUpDown, LogOut, MessageSquare, Settings, SquareCheckBig, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
@@ -36,7 +36,7 @@ import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.tasks" | "nav.meetings";
+  key: "nav.tasks" | "nav.meetings" | "nav.chat";
   href: string;
   icon: LucideIcon;
 }
@@ -67,6 +67,7 @@ export function AppSidebar() {
   const items: NavItem[] = [
     { key: "nav.tasks", href: ws.tasks(), icon: SquareCheckBig },
     { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },
+    { key: "nav.chat", href: ws.chat(), icon: MessageSquare },
   ];
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");

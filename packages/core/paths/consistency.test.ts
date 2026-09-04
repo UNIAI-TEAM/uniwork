@@ -21,7 +21,7 @@ function routeTemplates(dir: string): string[] {
       const p = join(d, name);
       if (statSync(p).isDirectory()) walk(p);
       else if (name === "page.tsx") {
-        const rel = relative(APP_DIR, d);
+        const rel = relative(APP_DIR, d).replace(/\\/g, "/");
         const segs = rel
           .split("/")
           .filter((s) => s && !s.startsWith("(")) // route groups are invisible
@@ -56,7 +56,7 @@ function builderTemplates(): string[] {
     paths.meetingInviteRoom(ID),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.members(), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.members(), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p

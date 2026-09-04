@@ -18,3 +18,16 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0004](0004-khong-realip.md) | Không middleware `RealIP`; mỗi consumer tự áp `TRUSTED_PROXIES` |
 | [0005](0005-turbo-cache-inputs.md) | Task hash-only `cache-inputs` trong turbo |
 | [0006](0006-mot-bo-luat-cho-moi-agent.md) | Một bộ luật cho người và mọi agent |
+| [0007](0007-actor-kind-agent-la-actor-hang-nhat.md) | Agent là actor hạng nhất; mọi bản ghi có `actor_kind` |
+| [0008](0008-cach-ly-tenant-o-tang-service.md) | Cách ly tenant ở tầng service; `organization_id` trên mọi bảng nghiệp vụ |
+| [0009](0009-audit-va-outbox-cung-transaction.md) | Audit + outbox trong cùng transaction cho mọi command |
+| [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) | AI không ghi nghiệp vụ trực tiếp: đề xuất → xác nhận → thực thi |
+| [0011](0011-mobile-la-app-expo-doc-lap.md) | Mobile là app Expo / React Native độc lập, không PWA, không tái dùng `views` |
+
+## Bản nháp
+
+`drafts/` chứa quyết định đang đề xuất (`**Trạng thái:** proposed`), chưa có hiệu lực và
+không được governance test đếm. Khi chấp nhận: chuyển ra thư mục này, đổi trạng thái
+`accepted`, thêm vào bảng trên, thêm luật vào `CLAUDE.md` kèm tên test giữ luật.
+
+(Hiện không có bản nháp.)

@@ -74,7 +74,7 @@ export function ForgotPasswordView() {
                 t("auth.forgot.resend")
               )}
             </Button>
-            <p className="text-center text-label text-muted-foreground">{t("auth.forgot.googleHint")}</p>
+            <p className="text-center text-body text-muted-foreground">{t("auth.forgot.googleHint")}</p>
             <p className="flex flex-wrap items-center justify-center gap-x-1 text-label text-muted-foreground">
               {t("auth.forgot.wrongEmail")}
               {/* Button primitive for the 44px coarse-pointer floor, same as verify. */}
@@ -92,7 +92,7 @@ export function ForgotPasswordView() {
                 {t("auth.forgot.editEmail")}
               </Button>
             </p>
-            <p className="text-center text-label text-muted-foreground">
+            <p className="text-center text-body text-muted-foreground">
               <AppLink href={paths.login()} className={AUTH_LINK}>
                 {t("auth.forgot.backToLogin")}
               </AppLink>
@@ -153,7 +153,7 @@ export function ForgotPasswordView() {
               t("auth.forgot.submit")
             )}
           </Button>
-          <p className="text-center text-label text-muted-foreground">
+          <p className="text-center text-body text-muted-foreground">
             <AppLink href={paths.login()} className={AUTH_LINK}>
               {t("auth.forgot.backToLogin")}
             </AppLink>
