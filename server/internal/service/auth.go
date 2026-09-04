@@ -14,21 +14,45 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 type AuthService struct {
+	pool         *pgxpool.Pool
 	q            *db.Queries
 	minter       auth.TokenMinter
 	refreshTTL   time.Duration
 	verification *VerificationService
 }
 
-func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
-	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL, verification: verification}
+func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
+	return &AuthService{pool: pool, q: q, minter: minter, refreshTTL: refreshTTL, verification: verification}
+}
+
+// recordAuth writes a credential event. These rows carry audit.NoOrganization:
+// signing in happens before any organization context exists, and a user may
+// belong to none or several (OPEN_QUESTIONS A1). They emit no outbox event —
+// nothing in the product reacts to a login, and a topic with no consumer is
+// noise on a shared queue.
+//
+// A failure to write the audit row must not fail the request it describes: the
+// person still logged in, and a log that can refuse a login is a worse
+// availability risk than a gap in the log. It is logged instead.
+func (s *AuthService) recordAuth(ctx context.Context, action, userID string, meta map[string]any) {
+	if err := auditRecorder.Record(ctx, s.q, audit.Entry{
+		OrganizationID: audit.NoOrganization,
+		Actor:          audit.User(userID),
+		Action:         action,
+		ResourceType:   "user", ResourceID: userID,
+		Metadata: meta,
+	}); err != nil {
+		slog.Warn("audit: credential event not recorded", "action", action, "err", err)
+	}
 }
 
 type Session struct {
@@ -98,9 +122,15 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 		return Session{}, err
 	}
 	if !u.PasswordHash.Valid || !auth.CheckPassword(u.PasswordHash.String, password) {
+		s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, map[string]any{"reason": "bad_password"})
 		return Session{}, ErrInvalidCredentials
 	}
-	return s.mintSession(ctx, u)
+	sess, err := s.mintSession(ctx, u)
+	if err != nil {
+		return Session{}, err
+	}
+	s.recordAuth(ctx, audit.ActionAuthLoginSucceeded, u.ID, nil)
+	return sess, nil
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {
@@ -122,7 +152,17 @@ func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, er
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
-	return s.q.RevokeRefreshToken(ctx, hashToken(rawToken))
+	hash := hashToken(rawToken)
+	// Read the owner before revoking so the audit row names a user rather than
+	// a token hash nobody can resolve afterwards.
+	rt, err := s.q.GetRefreshTokenByHash(ctx, hash)
+	if err := s.q.RevokeRefreshToken(ctx, hash); err != nil {
+		return err
+	}
+	if err == nil {
+		s.recordAuth(ctx, audit.ActionAuthSessionRevoked, rt.UserID, nil)
+	}
+	return nil
 }
 
 func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {

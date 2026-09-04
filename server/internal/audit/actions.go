@@ -38,11 +38,15 @@ const (
 	ActionChatRoomCreated       = "chat.room.created"
 	ActionChatRoomMemberAdded   = "chat.room.member_added"
 	ActionChatRoomMemberRemoved = "chat.room.member_removed"
-	ActionChatMessageDeleted    = "chat.message.deleted"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditRetentionSet    = "audit.retention_set"
 )
+
+// Chat message create and update are deliberately not audited: the volume is
+// large and chat_messages already holds the history (OPEN_QUESTIONS A4). A
+// chat.message.deleted action belongs here the day a delete command exists;
+// listing it before then would be a promise the coverage test cannot check.
 
 // NoOrganization is the organization_id used for credential events. Logging in
 // has no organization context — the user may belong to none, one or several —

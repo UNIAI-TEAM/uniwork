@@ -7,7 +7,7 @@ import (
 )
 
 func TestSignalVoiceAndTyping(t *testing.T) {
-	s, pub, q, ua, ub, w := chatFixture(t)
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
@@ -16,6 +16,7 @@ func TestSignalVoiceAndTyping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	deliverChatEvents(t, pool, q, s, pub)
 
 	if err := s.SignalTyping(ctx, ua.ID, w.ID, dm.ID); err != nil {
 		t.Fatalf("typing: %v", err)
@@ -47,7 +48,7 @@ func TestSignalVoiceAndTyping(t *testing.T) {
 }
 
 func TestSignalTypingThrottled(t *testing.T) {
-	s, pub, q, ua, ub, w := chatFixture(t)
+	s, pub, q, ua, ub, w, _ := chatFixtureWithPool(t)
 	ctx := context.Background()
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)

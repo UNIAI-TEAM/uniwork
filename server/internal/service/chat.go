@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -21,13 +22,21 @@ const (
 )
 
 type ChatService struct {
-	q   *db.Queries
-	ws  *WorkspaceService
-	pub EventPublisher
+	pool *pgxpool.Pool
+	q    *db.Queries
+	ws   *WorkspaceService
+	pub  EventPublisher
 }
 
-func NewChatService(q *db.Queries, ws *WorkspaceService, pub EventPublisher) *ChatService {
-	return &ChatService{q: q, ws: ws, pub: pub}
+func NewChatService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, pub EventPublisher) *ChatService {
+	return &ChatService{pool: pool, q: q, ws: ws, pub: pub}
+}
+
+// RoomMemberIDs answers outbox.MemberResolver so room membership events reach
+// each member's own connections, including the one just added who is not
+// subscribed to the room yet.
+func (s *ChatService) RoomMemberIDs(ctx context.Context, roomID string) ([]string, error) {
+	return s.q.ListChatRoomMemberUserIDs(ctx, roomID)
 }
 
 type WorkspaceChat struct {
@@ -134,16 +143,27 @@ func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, roomID, work
 }
 
 func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID, userID, role string) error {
-	_, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+	return s.ensureRoomMemberTx(ctx, s.q, roomID, workspaceID, userID, role)
+}
+
+// ensureRoomMemberTx reports whether it added the row, so a caller inside a
+// transaction can audit exactly the members it actually added.
+func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) error {
+	_, err := s.addRoomMember(ctx, q, roomID, workspaceID, userID, role)
+	return err
+}
+
+func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) (bool, error) {
+	_, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	if err == nil {
-		return nil
+		return false, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return err
+		return false, err
 	}
-	_, err = s.q.InsertChatRoomMember(ctx, db.InsertChatRoomMemberParams{
+	_, err = q.InsertChatRoomMember(ctx, db.InsertChatRoomMemberParams{
 		ID:          util.NewID(),
 		RoomID:      roomID,
 		WorkspaceID: workspaceID,
@@ -151,7 +171,7 @@ func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID,
 		Role:        role,
 		Status:      "active",
 	})
-	return err
+	return err == nil, err
 }
 
 func (s *ChatService) authorizeWorkspaceRoom(ctx context.Context, userID, workspaceID string) (db.ChatRoom, error) {

@@ -129,7 +129,7 @@ func main() {
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, outbox)
 	verification := service.NewVerificationService(q, renderer, outbox, cfg.DevVerificationCode())
-	authSvc := service.NewAuthService(q, minter, cfg.RefreshTokenTTL, verification)
+	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, outbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
@@ -162,7 +162,7 @@ func main() {
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
-	chatSvc := service.NewChatService(q, wsSvc, pub)
+	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()

@@ -81,7 +81,7 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 	orgs := service.NewOrganizationService(pool, q)
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
 	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
-	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
+	authSvc := service.NewAuthService(pool, q, minter, time.Hour, verification)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),

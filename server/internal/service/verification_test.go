@@ -66,7 +66,7 @@ func newVerificationFixture(t *testing.T, devCode string) verificationFixture {
 	out := &fakeOutbox{}
 	verify := NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, out, devCode)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return verificationFixture{auth: NewAuthService(q, m, time.Hour, verify), verify: verify, out: out, q: q, pool: pool}
+	return verificationFixture{auth: NewAuthService(pool, q, m, time.Hour, verify), verify: verify, out: out, q: q, pool: pool}
 }
 
 func (f verificationFixture) registered(t *testing.T) db.User {

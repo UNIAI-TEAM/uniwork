@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -94,6 +95,14 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 	if _, err := s.out.Enqueue(ctx, qtx, msg); err != nil {
 		return err
 	}
+	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+		OrganizationID: audit.NoOrganization,
+		Actor:          audit.User(u.ID),
+		Action:         audit.ActionAuthPasswordResetRequested,
+		ResourceType:   "user", ResourceID: u.ID,
+	}); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
@@ -136,6 +145,27 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 		return Session{}, ErrInvalidToken
 	}
 	if err := qtx.RevokeAllRefreshTokensForUser(ctx, t.UserID); err != nil {
+		return Session{}, err
+	}
+	// One command, two audited facts: the password changed and every existing
+	// session died with it. A reader of the log should not have to know that
+	// the second follows from the first.
+	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+		OrganizationID: audit.NoOrganization,
+		Actor:          audit.User(t.UserID),
+		Action:         audit.ActionAuthPasswordChanged,
+		ResourceType:   "user", ResourceID: t.UserID,
+		Metadata: map[string]any{"via": "reset_token"},
+	}); err != nil {
+		return Session{}, err
+	}
+	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+		OrganizationID: audit.NoOrganization,
+		Actor:          audit.User(t.UserID),
+		Action:         audit.ActionAuthSessionRevoked,
+		ResourceType:   "user", ResourceID: t.UserID,
+		Metadata: map[string]any{"scope": "all", "reason": "password_reset"},
+	}); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

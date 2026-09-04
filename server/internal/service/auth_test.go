@@ -16,7 +16,7 @@ func newAuthService(t *testing.T) *AuthService {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return NewAuthService(q, m, time.Hour, nil)
+	return NewAuthService(pool, q, m, time.Hour, nil)
 }
 
 func TestRegisterLoginRefresh(t *testing.T) {

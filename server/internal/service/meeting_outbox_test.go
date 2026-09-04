@@ -24,6 +24,16 @@ func meetingDispatcher(s *MeetingService) *outbox.Dispatcher {
 	return d
 }
 
+// drainOutbox clears the rows the fixture itself produced — creating an
+// organization and a workspace are audited commands now, so they leave events
+// behind that would otherwise be claimed ahead of what a test enqueues.
+func drainOutbox(t *testing.T, s *MeetingService) {
+	t.Helper()
+	if err := meetingDispatcher(s).Process(context.Background(), 500); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // enqueueProvider writes a provider.* row the way MeetingService does.
 func enqueueProvider(t *testing.T, s *MeetingService, id, workspaceID, topic, payload string) {
 	t.Helper()
@@ -126,6 +136,7 @@ func TestJoinDoesNotReEnsureIdleSession(t *testing.T) {
 func TestOutboxRetryBackoffDeadLetter(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
+	drainOutbox(t, s)
 	id := util.NewID()
 	enqueueProvider(t, s, id, w.ID, "provider.end_session", `{"room_name":"uw_mtg_missing"}`)
 	s.provider = nil
@@ -158,6 +169,7 @@ func TestOutboxConcurrentClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	drainOutbox(t, s)
 	room := meetings.RoomNameForMeeting(m.ID)
 	for i := 0; i < 4; i++ {
 		payload, _ := json.Marshal(map[string]string{

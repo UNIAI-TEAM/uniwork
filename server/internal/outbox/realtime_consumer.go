@@ -15,16 +15,31 @@ type Publisher interface {
 	PublishUser(ctx context.Context, userID, topic string, payload map[string]string)
 }
 
+// MemberResolver answers "who is in this chat room". ScopeRoom events are
+// delivered to each member's own connections, and only the chat service knows
+// the membership.
+type MemberResolver interface {
+	RoomMemberIDs(ctx context.Context, roomID string) ([]string, error)
+}
+
 // RealtimeConsumer is the one path from a domain event to a connected client.
 // Before this existed, services published straight to the hub after commit,
 // and a process that died in between lost the event with no way to notice.
 type RealtimeConsumer struct {
-	pub Publisher
+	pub     Publisher
+	members MemberResolver
 }
 
 // NewRealtimeConsumer returns a consumer publishing to pub.
 func NewRealtimeConsumer(pub Publisher) *RealtimeConsumer {
 	return &RealtimeConsumer{pub: pub}
+}
+
+// WithMembers attaches the resolver ScopeRoom events need. Without it those
+// events are dropped rather than delivered to the wrong audience.
+func (c *RealtimeConsumer) WithMembers(m MemberResolver) *RealtimeConsumer {
+	c.members = m
+	return c
 }
 
 // Name identifies the consumer in errors and logs.
@@ -70,6 +85,18 @@ func (c *RealtimeConsumer) Handle(ctx context.Context, ev Row) error {
 			return nil
 		}
 		c.pub.PublishScope(ctx, "chat", payload["room_id"], ev.Topic, payload)
+	case ScopeRoom:
+		roomID := payload["room_id"]
+		if roomID == "" || c.members == nil {
+			return nil
+		}
+		ids, err := c.members.RoomMemberIDs(ctx, roomID)
+		if err != nil {
+			return fmt.Errorf("realtime: members of %s: %w", roomID, err)
+		}
+		for _, userID := range ids {
+			c.pub.PublishUser(ctx, userID, ev.Topic, payload)
+		}
 	}
 	return nil
 }

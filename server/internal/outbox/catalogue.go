@@ -18,8 +18,14 @@ const (
 	ScopeWorkspace Scope = "workspace"
 	// ScopeUser goes to one user's own connections, on every device.
 	ScopeUser Scope = "user"
-	// ScopeChat is a DM/group room scope, narrower than the workspace.
+	// ScopeChat is a DM/group room scope, narrower than the workspace: the
+	// client must already be subscribed to the room to receive it.
 	ScopeChat Scope = "chat"
+	// ScopeRoom fans out to each member's own user scope, resolved at delivery
+	// time. Room membership events need this: a member who has just been added
+	// to a room is not subscribed to it yet, so ScopeChat would deliver the
+	// event to everyone except the person it is about.
+	ScopeRoom Scope = "room"
 	// ScopeNone is infrastructure work with no client to notify.
 	ScopeNone Scope = ""
 )
@@ -66,7 +72,9 @@ var catalogue = []EventDef{
 
 	// Chat room administration. Message create/update stay ephemeral-fast on
 	// the chat scope; only room membership changes are durable events.
-	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.room.member_added", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},

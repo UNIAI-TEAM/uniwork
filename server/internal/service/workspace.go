@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -58,7 +59,14 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	if err := ValidateSlug(slug); err != nil {
 		return WorkspaceView{}, err
 	}
-	w, err := s.q.CreateWorkspace(ctx, db.CreateWorkspaceParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	w, err := q.CreateWorkspace(ctx, db.CreateWorkspaceParams{
 		ID: util.NewID(), OrganizationID: orgID, Slug: slug, Name: name, CreatedBy: userID,
 	})
 	if isUniqueViolation(err) {
@@ -67,7 +75,32 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	if err != nil {
 		return WorkspaceView{}, err
 	}
-	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: userID, Role: "owner"}); err != nil {
+	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: userID, Role: "owner"}); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: orgID, WorkspaceID: w.ID,
+		Actor:        audit.User(userID),
+		Action:       audit.ActionWorkspaceCreated,
+		ResourceType: "workspace", ResourceID: w.ID,
+		Changes: audit.Diff(nil, map[string]any{"name": w.Name, "slug": w.Slug}),
+	}, audit.Event{Topic: "workspace.created", Payload: map[string]string{
+		"workspace_id": w.ID, "organization_id": orgID,
+	}}); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: orgID, WorkspaceID: w.ID,
+		Actor:        audit.User(userID),
+		Action:       audit.ActionWorkspaceMemberAdded,
+		ResourceType: "workspace_member", ResourceID: userID,
+		Changes: audit.Diff(nil, map[string]any{"role": "owner"}),
+	}, audit.Event{Topic: "member.joined", Payload: map[string]string{
+		"organization_id": orgID, "workspace_id": w.ID, "user_id": userID,
+	}}); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return WorkspaceView{}, err
 	}
 	return s.GetView(ctx, userID, w.ID)
@@ -167,10 +200,39 @@ func (s *WorkspaceService) Update(ctx context.Context, userID, workspaceID strin
 	if utf8.RuneCountInString(name) > maxWorkspaceNameRunes {
 		return WorkspaceView{}, Invalid("tên workspace quá dài")
 	}
-	if _, err := s.q.UpdateWorkspaceName(ctx, db.UpdateWorkspaceNameParams{ID: workspaceID, Name: name}); err != nil {
+	before, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WorkspaceView{}, ErrNotFound
+	}
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	if _, err := q.UpdateWorkspaceName(ctx, db.UpdateWorkspaceNameParams{ID: workspaceID, Name: name}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return WorkspaceView{}, ErrNotFound
 		}
+		return WorkspaceView{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: before.OrganizationID, WorkspaceID: workspaceID,
+		Actor:        audit.User(userID),
+		Action:       audit.ActionWorkspaceUpdated,
+		ResourceType: "workspace", ResourceID: workspaceID,
+		Changes: audit.Diff(map[string]any{"name": before.Name}, map[string]any{"name": name}),
+	}, audit.Event{Topic: "workspace.updated", Payload: map[string]string{
+		"workspace_id": workspaceID, "organization_id": before.OrganizationID,
+	}}); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return WorkspaceView{}, err
 	}
 	return s.GetView(ctx, userID, workspaceID)
@@ -244,9 +306,39 @@ func (s *WorkspaceService) UpdateMemberRole(ctx context.Context, actorID, worksp
 	if target.Role == "owner" {
 		return db.WorkspaceMember{}, ErrForbidden
 	}
-	return s.q.UpdateWorkspaceMemberRole(ctx, db.UpdateWorkspaceMemberRoleParams{
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return db.WorkspaceMember{}, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.WorkspaceMember{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	updated, err := q.UpdateWorkspaceMemberRole(ctx, db.UpdateWorkspaceMemberRoleParams{
 		WorkspaceID: workspaceID, UserID: targetUserID, Role: role,
 	})
+	if err != nil {
+		return db.WorkspaceMember{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Actor:        audit.User(actorID),
+		Action:       audit.ActionWorkspaceMemberRoleChanged,
+		ResourceType: "workspace_member", ResourceID: targetUserID,
+		Changes: audit.Diff(map[string]any{"role": target.Role}, map[string]any{"role": role}),
+	}, audit.Event{Topic: "member.role_changed", Payload: map[string]string{
+		"organization_id": ws.OrganizationID, "workspace_id": workspaceID, "user_id": targetUserID,
+	}}); err != nil {
+		return db.WorkspaceMember{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.WorkspaceMember{}, err
+	}
+	return updated, nil
 }
 
 // RemoveMember deletes an explicit workspace_members row. Explicit owners cannot
@@ -272,9 +364,35 @@ func (s *WorkspaceService) RemoveMember(ctx context.Context, actorID, workspaceI
 	if actorID != targetUserID && !adminLikeRole(actor.Role) {
 		return ErrForbidden
 	}
-	return s.q.DeleteWorkspaceMember(ctx, db.DeleteWorkspaceMemberParams{
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	if err := q.DeleteWorkspaceMember(ctx, db.DeleteWorkspaceMemberParams{
 		WorkspaceID: workspaceID, UserID: targetUserID,
-	})
+	}); err != nil {
+		return err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Actor:        audit.User(actorID),
+		Action:       audit.ActionWorkspaceMemberRemoved,
+		ResourceType: "workspace_member", ResourceID: targetUserID,
+		Metadata: map[string]any{"role": target.Role, "self_service": actorID == targetUserID},
+	}, audit.Event{Topic: "member.removed", Payload: map[string]string{
+		"organization_id": ws.OrganizationID, "workspace_id": workspaceID, "user_id": targetUserID,
+	}}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // InviteMany: dedupe + lowercase; email sai hoặc đã là thành viên → skipped.
@@ -317,6 +435,16 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 	seen := map[string]bool{}
 	var invs []db.Invitation
 	var skipped []string
+
+	// One transaction for the whole batch: an invitation whose mail was never
+	// queued, or whose audit row is missing, is worse than the batch failing.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
 	for _, raw := range emails {
 		email := strings.ToLower(strings.TrimSpace(raw))
 		if email == "" || seen[email] {
@@ -327,7 +455,7 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 			skipped = append(skipped, email)
 			continue
 		}
-		inv, err := s.q.CreateInvitation(ctx, db.CreateInvitationParams{
+		inv, err := q.CreateInvitation(ctx, db.CreateInvitationParams{
 			ID: util.NewID(), WorkspaceID: workspaceID, Email: email, Role: role,
 			Token:     util.NewID() + util.NewID(),
 			ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(inviteTTL), Valid: true},
@@ -343,9 +471,26 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 		if err != nil {
 			return nil, nil, err
 		}
-		if _, err := s.out.Enqueue(ctx, s.q, msg); err != nil {
+		if _, err := s.out.Enqueue(ctx, q, msg); err != nil {
 			return nil, nil, err
 		}
+		// The invitee has no user id yet, so the audited resource is the
+		// invitation row; the email lives there and stays out of a table that
+		// can never be edited.
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+			Actor:        audit.User(userID),
+			Action:       audit.ActionMemberInvited,
+			ResourceType: "invitation", ResourceID: inv.ID,
+			Changes: audit.Diff(nil, map[string]any{"role": role}),
+		}, audit.Event{Topic: "member.invited", Payload: map[string]string{
+			"organization_id": ws.OrganizationID, "workspace_id": workspaceID, "invitation_id": inv.ID,
+		}}); err != nil {
+			return nil, nil, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, err
 	}
 	if len(invs) > 0 {
 		s.out.Kick()
@@ -392,6 +537,18 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 		return WorkspaceView{}, err
 	}
 	if _, err := qtx.MarkUserOnboarded(ctx, userID); err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+		Actor:        audit.User(userID),
+		Action:       audit.ActionMemberJoined,
+		ResourceType: "workspace_member", ResourceID: userID,
+		Changes:  audit.Diff(nil, map[string]any{"role": inv.Role}),
+		Metadata: map[string]any{"invitation_id": inv.ID},
+	}, audit.Event{Topic: "member.joined", Payload: map[string]string{
+		"organization_id": w.OrganizationID, "workspace_id": w.ID, "user_id": userID,
+	}}); err != nil {
 		return WorkspaceView{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
