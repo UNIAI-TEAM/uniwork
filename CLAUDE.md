@@ -151,9 +151,9 @@ not paths yet.
   (`human` | `agent` | `system`); services take an Actor{ID, Kind} value.
   Guard lands with F-10: migration lint for the `_kind` pair, arch test that
   only `server/internal/service/` constructs an Actor.
-- ADR 0008 — every business table carries `organization_id NOT NULL`; every
-  query filters by it; membership still only via `RequireMember`. Guard lands
-  with F-08/F-02: migration lint for the column, a query-scope scanner over
+- ADR 0008 — every query filters by `organization_id`; membership still only
+  via `RequireMember`. The column rule itself is enforced (see Database and
+  Migration Rules). Still to land with F-08/F-02: a query-scope scanner over
   `server/pkg/db/queries/`, a two-organization isolation matrix test.
 - ADR 0010 — `server/internal/ai/` and the agent runtime never write business
   tables; agent writes go proposal → human confirm → execute; `accepted` is
@@ -174,6 +174,13 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   (`server/migrations/embed.go`) applies files outside a transaction for
   exactly this reason.
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
+- Every business table created after migration `065` declares
+  `organization_id TEXT NOT NULL` (ADR 0008); identity and infrastructure
+  tables are exempted by name, with a reason, in `tenantExemptTables`. The
+  older tables still missing the column are listed in `tenantBackfillDebt`
+  and the list only shrinks — a backfill migration removes its table there.
+  `TestNewTablesCarryOrganizationID` and
+  `TestTablesWithoutOrganizationIDAreTheKnownDebt` hold both.
 - Every query filters by `workspace_id`; membership is decided only in
   `WorkspaceService.RequireMember`, where organization owners/admins are
   implicit workspace admins. `server/internal/arch_test.go` fails if any
