@@ -74,6 +74,8 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | C-08 | PWA mobile cho luồng cốt lõi (5 tab) | Cross-cutting | CHƯA | `(cần viết)` mobile-pwa-design; tham chiếu IA V2 bản cũ | P1 |
 | C-09 | Tài liệu người dùng + onboarding trong app | Cross-cutting | CHƯA | `(cần viết)` | P1 |
 | C-10 | Pentest bên thứ ba, đóng High/Critical | Security | CHƯA | checklist ASVS L2 | P0 |
+| C-11 | Work Graph foundation: bảng quan hệ giữa đối tượng công việc, từ vựng quan hệ có kiểm soát, nguồn gốc (người / AI suy ra), API đọc lân cận depth-1 | Work Graph | CHƯA | `(cần viết)` work-graph-design; kế thừa work_nodes/work_edges bản cũ | P1 |
+| C-12 | Decision record: thực thể quyết định hạng nhất sinh từ tóm tắt họp (`meeting_summaries.decisions`) và từ task, gắn Work Graph, có người xác nhận | Knowledge & Memory | CHƯA | `(cần viết)` decision-records-design | P1 |
 
 **Tiêu chí thoát**: 5 tenant pilot ≥ 30 ngày, ≥ 3 tiếp tục; 1 hóa đơn thật; ≥ 20 cuộc họp
 có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability ≥ 99,9% trong 60 ngày.
@@ -87,12 +89,13 @@ có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability �
 | A-01 | Agent runtime: nhận task → run → deliverable + evidence → proposal → người duyệt; hoàn tác | AI Platform | `2026-09-04-agent-actor-model-design.md` (phần runtime) | P0 |
 | A-02 | Tool registry + policy rủi ro; hành động tự động chỉ ở mức thấp | AI Platform | spec F-09 | P0 |
 | A-03 | Workflow & Automation: trigger, step, run, agent step | Workflow | `(cần viết)` | P1 |
-| A-04 | Knowledge (wiki) + Search toàn cục + RAG có quyền | Knowledge & Search | `(cần viết)`; tham chiếu Universal Search V2 bản cũ | P1 |
+| A-04 | Knowledge (wiki) + Search toàn cục + RAG có quyền, đọc Work Graph và Decision record | Knowledge & Memory | `(cần viết)`; tham chiếu Universal Search V2 bản cũ; phụ thuộc C-11, C-12 | P1 |
 | A-05 | Insights: home brief, dashboard inline, work economics (rate có phiên bản, cohort) | Reporting | `(cần viết)`; kế thừa WE-1/2/3 bản cũ | P1 |
 | A-06 | SSO SAML, SCIM chuẩn bị | Identity | `(cần viết)` | P1 |
 | A-07 | Webhook ký HMAC + SDK TypeScript sinh từ OpenAPI | API | `(cần viết)` | P1 |
 | A-08 | Self-serve: đăng ký, chọn gói, thanh toán, nâng cấp | Tenant & Subscription | spec F-02 | P0 |
-| A-09 | Work Products (bán công việc hoàn thành) — chỉ khi cohort PROVEN | AI Platform | `(cần viết)`; kế thừa SWP-1 bản cũ | P2 |
+| A-09 | Work Products (bán công việc hoàn thành) — chỉ khi cohort PROVEN; lớp mỏng trên `work_contracts` đã có từ A-01 | AI Platform | `(cần viết)`; kế thừa SWP-1 bản cũ | P2 |
+| A-10 | Email integration: Gmail / Microsoft Graph đọc + gửi, thread gắn Work Graph, không lưu hộp thư riêng | Email integration | `(cần viết)` email-integration-design; phụ thuộc C-11 | P1 |
 
 **Tiêu chí thoát**: ≥ 200 lượt agent thật, chấp nhận ≥ 60%, 0 sự cố agent ghi không qua
 xác nhận; chi phí AI theo tenant đo được; ≥ 30 tenant trả phí, churn < 5%; SOC 2 Type I
@@ -113,8 +116,9 @@ có lịch.
 
 ## Nằm ngoài phạm vi (Vision §5.3)
 
-Email Hub nội bộ trong DB; AI Market dạng marketplace mở; Decision Hub; Blog/CMS;
-desktop native; microservice trước khi có nhu cầu đo được.
+Email Hub nội bộ trong DB (email thật là A-10); AI Market dạng marketplace mở; Decision Hub như
+module riêng (Decision record là C-12); Blog/CMS; desktop native; microservice trước khi có nhu
+cầu đo được.
 
 ## Thứ tự làm trong Giai đoạn F (đề xuất)
 

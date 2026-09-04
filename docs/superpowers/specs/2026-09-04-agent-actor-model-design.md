@@ -1,7 +1,7 @@
 # UniWork — Agent là actor hạng nhất (Agent Actor Model, đợt F + A)
 
 **Ngày:** 2026-09-04  
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
+**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421); bổ sung 4.3 work contract, 5.2b vòng sửa, `agents.skills` ngày 2026-09-04 sau đối chiếu key points. Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
 **Spec liên quan:** `2026-09-04-ai-platform-gateway-design.md` (tiền đề), `2026-08-27-workspace-permissions-design.md`, `2026-08-27-tasks-multica-parity-design.md`, `2026-08-24-uniwork-platform-design.md`  
 **Tham chiếu:** PRODUCT.md § Agent Principles; bản cũ `unidigiwork`: `docs/architecture/ADR_AI_ACTION_PROPOSE_CONFIRM_EXECUTE.md`, `docs/ai/AI_ACTION_GOVERNANCE_V1.md`, `docs/ai/WEE2_AI_WORKER_GOVERNANCE.md`, `src/domain/work-execution/plan-schema.ts`, `src/domain/ai-governance/contracts.ts`, `docs/architecture/work-execution/*`
 
@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS agents (
   owner_user_id TEXT NOT NULL,              -- người chịu trách nhiệm
   autonomy_policy TEXT NOT NULL DEFAULT '{}',-- JSON {low:'auto'|'approve', medium:'approve', high:'approve', critical:'deny'}
   allowed_tools TEXT NOT NULL DEFAULT '[]', -- JSON tên tool ⊆ registry
+  skills TEXT NOT NULL DEFAULT '[]',        -- JSON [{code, level}] hồ sơ kỹ năng (AI Workforce): gợi ý agent khi giao task, chọn prompt/template theo skill; enum code trong `agents/skills.go`
   budget_tokens_per_run INTEGER NOT NULL DEFAULT 60000,
   created_by TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -110,6 +111,9 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   task_id TEXT NOT NULL,
   parent_run_id TEXT,
   requested_by TEXT NOT NULL,               -- người assign / yêu cầu sửa
+  work_contract_id TEXT,                    -- hợp đồng công việc có phiên bản (xem 4.3); NULL = task tự do
+  work_contract_version INTEGER,
+  revision_no INTEGER NOT NULL DEFAULT 0,   -- 0 = bản đầu; run con tăng 1 (xem 5.2b)
   status TEXT NOT NULL DEFAULT 'queued',    -- queued | running | waiting_review | accepted | rejected | failed | cancelled
   reason_code TEXT,                         -- budget_exceeded | tool_not_allowed | provider_error | evaluation_failed | ...
   instructions TEXT NOT NULL DEFAULT '',    -- yêu cầu sửa từ người (run con)
@@ -187,6 +191,39 @@ CREATE TABLE IF NOT EXISTS activity_events (  -- feed chung người + agent (đ
 
 Index: `agent_runs(workspace_id, status, created_at DESC)`, `agent_runs(task_id, created_at DESC)`, `agent_action_proposals(run_id)`, `agent_action_proposals(workspace_id, status)`, `activity_events(workspace_id, created_at DESC)`, `activity_events(target_kind, target_id, created_at DESC)`.
 
+### 4.3 Work contract (nền cho Work Product / Sell Work)
+
+Mỗi loại công việc AI nhận là một **hợp đồng có phiên bản**, kế thừa SWP-1 của bản cũ
+(`work_units`). Hợp đồng đã dùng cho run được nghiệm thu là bất biến; đổi thì tăng version.
+
+```sql
+CREATE TABLE IF NOT EXISTS work_contracts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,            -- '' = hợp đồng hệ thống dùng chung
+  code TEXT NOT NULL,                       -- 'WPI' weekly project intelligence, 'MTE' meeting→execution, ...
+  version INTEGER NOT NULL DEFAULT 1,
+  title TEXT NOT NULL,
+  input_schema TEXT NOT NULL DEFAULT '{}',  -- JSON schema đầu vào (vd. meeting_id)
+  context_scope TEXT NOT NULL DEFAULT '[]', -- JSON nguồn context cho phép (task, meeting, doc, work_graph depth)
+  executor_skills TEXT NOT NULL DEFAULT '[]',-- JSON skill code agent phải có
+  allowed_actions TEXT NOT NULL DEFAULT '[]',-- JSON ⊆ action_type enum đóng
+  deliverable_template TEXT NOT NULL,       -- mã template deliverable
+  acceptance_criteria TEXT NOT NULL DEFAULT '[]', -- JSON tiêu chí nghiệm thu, dùng ở EVALUATE
+  quality_threshold NUMERIC NOT NULL DEFAULT 0.7,
+  review_policy TEXT NOT NULL DEFAULT 'human_required', -- human_required | auto_low_risk
+  sla_seconds INTEGER,
+  status TEXT NOT NULL DEFAULT 'active',    -- draft | active | retired
+  created_by TEXT NOT NULL,
+  created_by_kind TEXT NOT NULL DEFAULT 'human',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- unique (organization_id, code, version)
+```
+
+`agent_runs.work_contract_id/version` cố định hợp đồng tại thời điểm chạy. Đợt A chỉ cần
+2 hợp đồng hệ thống (task tự do `GENERIC`, họp thành việc `MTE`); A-09 thêm cohort, định
+giá và catalog bán, không đổi bảng này.
+
 ## 5. Quy tắc nghiệp vụ
 
 ### 5.1 Membership & quyền
@@ -207,6 +244,19 @@ Index: `agent_runs(workspace_id, status, created_at DESC)`, `agent_runs(task_id,
 | queued / running | cancelled | người, hoặc hệ thống khi agent paused/budget |
 
 Test `TestAgentCannotAccept`: gọi `RunService.Transition(..., actorKind=agent, to=accepted)` ⇒ `ErrForbidden`. Test `TestWorkerTerminalStates`: worker chỉ có thể ghi `waiting_review|failed`.
+
+### 5.2b Vòng sửa (revision cycle)
+
+Kế thừa "revision" trong Quality & Evidence. Người duyệt chọn **Yêu cầu sửa** kèm nội dung
+phản hồi (bắt buộc, ≥ 10 ký tự):
+
+1. Run hiện tại → `rejected(reason=changes_requested)`; deliverable cũ giữ nguyên làm phiên bản `revision_no`.
+2. Tạo run con: `parent_run_id` = run cũ, `revision_no` + 1, cùng `work_contract_id/version`, `requested_by` = người yêu cầu sửa.
+3. Ngữ cảnh run con = ngữ cảnh gốc + deliverable cũ + citations cũ + phản hồi (bọc `<untrusted>` như mọi nội dung người dùng); PLAN phải nêu rõ thay đổi so với bản trước.
+4. Tối đa `AGENT_MAX_REVISIONS` (mặc định 3) vòng; vượt ⇒ run con `failed(reason=max_revisions)` và task nhận comment hệ thống đề nghị người tự làm hoặc đổi agent.
+5. Deliverable có `revision_no`; UI task detail hiện lịch sử phiên bản và diff tóm tắt; audit `agent_run.revision_requested`, `agent_run.revised`.
+
+Test `TestRevisionChain`: 3 vòng sửa liên tiếp giữ nguyên contract, `revision_no` tăng đúng, vòng 4 ⇒ `failed(max_revisions)`; deliverable cũ không bị ghi đè.
 
 ### 5.3 Action type (enum đóng) & rủi ro
 
@@ -310,7 +360,9 @@ Coverage floor tăng cùng đợt; `pnpm knip` sạch; vi/en đủ khóa.
 | `plan-schema.ts` enum đóng 4 action | Kế thừa 4 action, đổi tên snake_case, bỏ `create_email_draft` (không có email) → thay `add_comment` |
 | WEE-2: worker ∩ user ∩ run, hai cổng, fail-closed, `governance` jsonb | Kế thừa |
 | WEE-2 `SUGGEST→PREPARE→EXECUTE_WITH_APPROVAL→AUTO_EXECUTE` | Rút gọn `approve|auto|deny` theo mức rủi ro |
-| WEE-3 quality evidence, cohort | Giữ `quality_score` + citations; cohort/work products để đợt sau (Reporting) |
+| WEE-3 quality evidence, cohort | Giữ `quality_score` + citations; cohort để A-09 (Reporting) |
+| SWP-1 `work_units` (hợp đồng có phiên bản: input, context, executor, action, deliverable, acceptance, quality, review, SLA) | Kế thừa thành `work_contracts` (4.3) ngay từ A-01; A-09 chỉ thêm cohort/định giá |
+| AI Workforce: role, skills, allowed tools, permission scope, execution policy | `agents.skills` + `allowed_tools` + `autonomy_policy` + phạm vi run (5.1) |
 | `ai_workers`, `ai_task_executions`, `ai_action_proposals` (Supabase) | Không port; thiết kế lại trên `organizations/workspaces` |
 | `ai_worker.policy_evaluated` audit event | Thành `activity_events` + `proposal.governance` |
 
