@@ -94,3 +94,11 @@ else
   echo "✗ Fix the items above before running make setup."
   exit 1
 fi
+
+# --- UniAI / GitHub CLI (project tracking, docs/engineering/UNIAI_TRACKING.md) ---
+if command -v uniai >/dev/null 2>&1; then
+  if uniai auth status >/dev/null 2>&1; then ok uniai "logged in"; else warn uniai "installed but not logged in — run: uniai login"; fi
+else
+  warn uniai "not installed — issue tracking commands (make issue-*) will not work"
+fi
+if command -v gh >/dev/null 2>&1; then ok gh "$(gh --version | head -n1 | awk '{print $3}')"; else warn gh "not installed — make issue-pr needs it"; fi

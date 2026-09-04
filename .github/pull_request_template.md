@@ -1,3 +1,7 @@
+## UniAI
+
+Issue: UNI-___ <!-- bắt buộc; workflow uniai-link chặn PR thiếu mã. make issue-pr KEY=UNI-123 điền sẵn. -->
+
 ## Thay đổi gì
 
 <!-- Một đoạn: thay đổi này làm gì, và tại sao. Phần "tại sao" quan trọng hơn. -->

@@ -35,6 +35,7 @@ có DB và cổng riêng: `make worktree-env && make setup-worktree`.
 | Xem bản cũ (Lovable) làm gì | [`docs/roadmap/LEGACY_REFERENCE_MAP.md`](docs/roadmap/LEGACY_REFERENCE_MAP.md) |
 | Đi từ roadmap đến release | [`docs/engineering/FEATURE_WORKFLOW.md`](docs/engineering/FEATURE_WORKFLOW.md) |
 | Biết khi nào được gọi là xong | [`docs/engineering/DEFINITION_OF_DONE.md`](docs/engineering/DEFINITION_OF_DONE.md) |
+| Nhận việc, mở PR, đóng việc trên UniAI | [`docs/engineering/UNIAI_TRACKING.md`](docs/engineering/UNIAI_TRACKING.md) (`make issue-start`, `make issue-pr`, `make issue-done`) |
 
 Đừng đọc lướt CLAUDE.md. Mỗi luật trong đó đều có tên một test, một lint rule
 hoặc một lệnh đứng cạnh — biết luật nào chặn mình sẽ nhanh hơn là để CI nói.
