@@ -162,6 +162,29 @@ test("the docs a newcomer is pointed at exist", () => {
   }
 });
 
+test("GATE_LEVEL is one word and every gate that claims to read it does", () => {
+  // docs/engineering/GATE_LEVELS.md lists which files loosen with the level.
+  // A reader that stops reading the file keeps enforcing one level forever
+  // while the doc says otherwise; a fourth word in the file would resolve to
+  // strict everywhere and nobody would notice why.
+  const level = read("GATE_LEVEL").trim();
+  assert.ok(["fast", "standard", "strict"].includes(level), `GATE_LEVEL is "${level}"; expected fast | standard | strict`);
+  for (const f of [".githooks/pre-commit", "scripts/check.sh", ".github/workflows/ci.yml",
+                   ".github/workflows/uniai-link.yml", "docs/engineering/DEFINITION_OF_DONE.md",
+                   "docs/engineering/FEATURE_WORKFLOW.md"]) {
+    assert.match(read(f), /GATE_LEVEL/, `${f} is listed in GATE_LEVELS.md as a reader but never mentions GATE_LEVEL`);
+    assert.ok(read("docs/engineering/GATE_LEVELS.md").includes(`\`${f}\``), `GATE_LEVELS.md does not list ${f}`);
+  }
+  assert.match(read("CLAUDE.md"), /\n## Gate Level\n/, "CLAUDE.md needs a Gate Level section");
+  for (const w of ["fast", "standard", "strict"]) {
+    assert.ok(read("CLAUDE.md").split("\n## Gate Level\n")[1].split("\n## ")[0].includes(`\`${w}\``), `CLAUDE.md § Gate Level does not name ${w}`);
+  }
+  // The four [fast] items are the floor; they are the same in both files.
+  const fast = (t) => [...t.matchAll(/\*\*([^*]+)\*\* `\[fast\]`/g)].map((m) => m[1]).sort();
+  assert.equal(fast(read("docs/engineering/DEFINITION_OF_DONE.md")).length, 4, "DoD marks exactly four [fast] items");
+  assert.deepEqual(fast(read(".github/pull_request_template.md")), fast(read("docs/engineering/DEFINITION_OF_DONE.md")));
+});
+
 test("the PR template ticks exactly the DoD items the DoD page lists", () => {
   // DEFINITION_OF_DONE.md explains each item and how to check it; the PR
   // template is where it is actually ticked. Two lists drift the moment one

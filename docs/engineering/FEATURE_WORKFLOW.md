@@ -16,6 +16,9 @@ trong roadmap thì thêm vào roadmap và tạo issue trước (`make issue-new`
 
 ## Bước 2 — Spec thiết kế
 
+> Ở `GATE_LEVEL=fast` bước 2 và 3 là khuyến nghị: issue có mô tả phạm vi là đủ để
+> code. Từ `standard` trở lên chúng bắt buộc (`docs/engineering/GATE_LEVELS.md`).
+
 - Vị trí: `docs/superpowers/specs/YYYY-MM-DD-<ten>-design.md`, tiếng Việt.
 - Cách viết: dùng skill `superpowers:brainstorming` với chủ sở hữu sản phẩm; spec sinh
   từ Vision (`(đề xuất)` trong roadmap) là điểm xuất phát, không phải kết quả.

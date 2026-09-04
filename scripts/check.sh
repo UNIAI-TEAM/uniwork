@@ -21,6 +21,8 @@ set -a
 set +a
 # shellcheck disable=SC1091
 . scripts/local-env.sh
+# shellcheck disable=SC1091
+. scripts/gate-level.sh
 
 BACKEND_PID=""
 FRONTEND_PID=""
@@ -88,6 +90,11 @@ node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/
 echo ""; echo "==> [4/6] Go tests..."
 (cd server && go run ./cmd/migrate up) || { EXIT_CODE=1; exit 1; }
 bash scripts/test-go.sh --race || { EXIT_CODE=1; exit 1; }
+
+if [ "$GATE_LEVEL" = fast ]; then
+  echo ""; echo "==> [5/6] GATE_LEVEL=fast: E2E skipped here; CI runs it on push to develop. Force with: make check-full"
+  exit 0
+fi
 
 echo ""; echo "==> [5/6] Starting services for E2E (only if not already running)..."
 check_log_dir="${UNIWORK_CHECK_LOG_DIR:-${REPO_ROOT}/.go-tmp}"

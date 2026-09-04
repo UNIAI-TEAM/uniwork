@@ -31,8 +31,16 @@ jobs:
       pull-requests: read
     outputs:
       frontend: ${{ steps.decide.outputs.frontend }}
+      gate: ${{ steps.gate.outputs.level }}
     steps:
       - uses: actions/checkout@v4
+      # docs/engineering/GATE_LEVELS.md — an unknown word resolves to strict.
+      - id: gate
+        run: |
+          level="$(tr -d '[:space:]' < GATE_LEVEL 2>/dev/null || true)"
+          case "$level" in fast|standard|strict) ;; *) level=strict ;; esac
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+          echo "GATE_LEVEL=$level"
       - id: filter
         uses: dorny/paths-filter@v3
         with:
@@ -53,6 +61,7 @@ jobs:
               # job that checks the ruleset.
               - 'CLAUDE.md'
               - 'AGENTS.md'
+              - 'GATE_LEVEL'
               - '.githooks/**'
       - id: decide
         # Always run on push (main/develop); on a PR only when frontend paths changed.
@@ -232,9 +241,11 @@ jobs:
   # production Next build, then the suite against localhost. LiveKit and
   # SMTP stay unset — the specs are written for that (mail goes to the
   # `emails` outbox table, meetings run without a provider).
+  # At GATE_LEVEL=fast the suite runs on push to develop/main only; a PR gets
+  # lint, typecheck, unit and Go. Above fast it runs on every PR too.
   e2e:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' && (needs.changes.outputs.gate != 'fast' || github.event_name != 'pull_request') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:

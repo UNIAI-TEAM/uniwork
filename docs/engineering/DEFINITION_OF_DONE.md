@@ -1,6 +1,6 @@
 # Definition of Done — một PR của UniWork
 
-> **Trạng thái:** shipped · **Nguồn:** `docs/vision/PROJECT_VISION.md` §6.9, rút xuống những ô một reviewer kiểm được thật trong 15 phút.
+> **Trạng thái:** shipped · **Nguồn:** `docs/vision/PROJECT_VISION.md` §6.9, rút xuống những ô một reviewer kiểm được thật trong 15 phút. Mức áp dụng theo `GATE_LEVEL`.
 
 Hai tầng. Tầng một máy giữ, reviewer không tick. Tầng hai là mười ô trong mẫu PR;
 mỗi ô có cách kiểm, và ô "không áp dụng" ghi lý do một dòng. Thiếu là chặn merge.
@@ -28,19 +28,21 @@ mỗi ô có cách kiểm, và ô "không áp dụng" ghi lý do một dòng. Th
 
 ## Tầng 2 — mười ô reviewer tick
 
-Cách kiểm đứng cạnh từng ô. Không có cách kiểm thì ô đó không thuộc DoD.
+Cách kiểm đứng cạnh từng ô. Không có cách kiểm thì ô đó không thuộc DoD. Ô đánh dấu
+`[fast]` áp dụng ở mọi mức `GATE_LEVEL`; các ô còn lại từ `standard` trở lên
+(`docs/engineering/GATE_LEVELS.md`). Ở `strict`, thêm một review từ CODEOWNERS.
 
-1. **Issue và phạm vi** — issue `UNI-nnn` ở `in_review`; mô tả PR nói *tại sao*, và
+1. **Issue và phạm vi** `[fast]` — issue `UNI-nnn` ở `in_review`; mô tả PR nói *tại sao*, và
    mục "Đã cố ý bỏ ra ngoài" có nội dung hoặc ghi "không có". *Kiểm:* mở issue, đọc
    mô tả; phạm vi PR không rộng hơn issue.
-2. **Kiểm chứng thật** — mục Kiểm chứng ghi lệnh đã chạy và kết quả; bước bỏ qua nêu
+2. **Kiểm chứng thật** `[fast]` — mục Kiểm chứng ghi lệnh đã chạy và kết quả; bước bỏ qua nêu
    tên và lý do. *Kiểm:* lệnh nêu ra tồn tại trong `make help` / `package.json`; CI
    xanh trước khi merge; không tuyên bố "make check xanh" khi CI đỏ.
-3. **Test đi trước hành vi** — thay đổi hành vi có test ở đúng package (bảng trong
+3. **Test đi trước hành vi** `[fast]` — thay đổi hành vi có test ở đúng package (bảng trong
    `CLAUDE.md` § Testing): service/handler Go, endpoint có schema + case
    malformed-response, view có test trạng thái rỗng/lỗi/có dữ liệu, E2E cho luồng vàng
    nếu có UI. *Kiểm:* diff có file test cạnh file đổi; test đó fail nếu revert code.
-4. **Cách ly tenant** — query mới nhận `organization_id`/`workspace_id` từ
+4. **Cách ly tenant** `[fast]` — query mới nhận `organization_id`/`workspace_id` từ
    `RequireMember`, không từ body; có test actor org B nhận 403/404 (đến khi ma trận
    cách ly ADR 0008 có, đây là kiểm tay). *Kiểm:* đọc `WHERE` của query mới trong
    `server/pkg/db/queries/`; tìm test tên có "forbidden"/"other org".

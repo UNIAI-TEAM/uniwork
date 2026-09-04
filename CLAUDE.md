@@ -116,7 +116,9 @@ If logic would be needed by a second host, extract it now:
 ```bash
 make dev              # bootstrap this checkout and start everything
 make start            # app processes (migrates first); make stop leaves Postgres/Redis up
-make check            # typecheck → lint → unit + contract tests → Go tests → E2E
+make check            # typecheck → lint → unit + contract tests → Go tests → E2E (E2E above GATE_LEVEL=fast)
+make check-full       # the same at strict, E2E included, whatever GATE_LEVEL says
+make gate             # current gate level and what it changes
 make test-go          # Go: gofmt, vet, staticcheck, go test -race (ensures the test DB first)
 make e2e              # Playwright against E2E_BASE_URL (app must be running)
 make migrate-up       # apply migrations to this checkout's database
@@ -389,6 +391,18 @@ if you skipped a check, say so. After changing a root provider
 (`apps/web/app/providers.tsx`), run e2e twice — the first run can land while
 Next is still recompiling.
 
+## Gate Level
+
+The process gates tighten or loosen with one word in `GATE_LEVEL` at the repo
+root: `fast`, `standard` or `strict`; anything else reads as `strict`.
+`docs/engineering/GATE_LEVELS.md` is the table of what each level changes and
+when to move. What it does not change: everything under Database and
+Migration Rules, Audit and Events, secrets scanning, coverage floors and the
+`commit-msg` hook — those are data safety, not process. Change the level with
+a PR that edits the file and says why in the commit body; `make gate` shows
+the current one. `scripts/governance.test.mjs` checks the file, the readers
+and this section agree.
+
 ## Local Gates
 
 `pnpm install` points `core.hooksPath` at `.githooks/` (the root `prepare`
@@ -396,7 +410,8 @@ script) — git hooks are not cloned, so this is the only moment every checkout
 is guaranteed to pass through. Two hooks then run unasked:
 
 - `pre-commit` — refuses any `.env` file, runs `gofmt` on staged Go files, and
-  runs `turbo lint typecheck` for the workspaces the commit touches. Seconds,
+  above `GATE_LEVEL=fast` runs `turbo lint typecheck` for the workspaces the
+  commit touches. Seconds,
   not minutes: it is not `make check`, it only stops a commit that cannot
   compile or that breaks a package boundary.
 - `commit-msg` — enforces the prefixes below.
@@ -417,7 +432,8 @@ through the `uniai` CLI; the repo holds code and docs. The full rules are
 
 - No issue, no code. A PR into `develop`/`main` must name its issue
   (`UNI-nnn`) in the title or body — `.github/workflows/uniai-link.yml`
-  fails otherwise (label `no-issue` downgrades it to a warning).
+  fails otherwise at `standard` (label `no-issue` downgrades it to a
+  warning), warns at `fast`, fails regardless of label at `strict`.
 - Branches carry the key: `feature/UNI-423-<slug>`; `make issue-start
   KEY=UNI-423` creates them and moves the issue to `in_progress`.
 - Commits on an issue branch get a `Refs: UNI-nnn` trailer from
