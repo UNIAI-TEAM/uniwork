@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
-import { buildChatNameContext } from "./chat-page-utils";
+import { buildChatNameContext, chatHeaderTitle } from "./chat-page-utils";
 
 const contact = (user_id: string, display_name: string, email: string): ChatContact => ({
   user_id,
@@ -66,5 +66,27 @@ describe("buildChatNameContext", () => {
     );
 
     expect(context).toEqual([{ user_id: "u3", display_name: "Bob" }]);
+  });
+});
+
+describe("chatHeaderTitle", () => {
+  it("returns workspace title for workspace target", () => {
+    expect(
+      chatHeaderTitle({ kind: "workspace" }, [], [], "General", ({ name }) => name),
+    ).toBe("General");
+  });
+
+  it("returns group name from sidebar list when available", () => {
+    const group: GroupChat = { id: "g1", name: "Team", room_id: "r1", member_user_ids: [] };
+    expect(
+      chatHeaderTitle({ kind: "group", group }, [], [group], "General", ({ name }) => name),
+    ).toBe("Team");
+  });
+
+  it("formats dm header with contact label", () => {
+    const dm = contact("u1", "Long", "long@example.com");
+    expect(
+      chatHeaderTitle({ kind: "dm", contact: dm }, [dm], [], "General", ({ name }) => `Chat with ${name}`),
+    ).toBe("Chat with Long");
   });
 });
