@@ -12,6 +12,7 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 . "$SCRIPT_DIR/local-env.sh"
 
 cover_out="${UNIWORK_GO_COVER_OUT:-${REPO_ROOT}/.go-tmp/cover.out}"
+mkdir -p "$(dirname "$cover_out")"
 
 usage() { echo "usage: $0 [--race]" >&2; }
 

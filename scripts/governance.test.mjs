@@ -234,12 +234,12 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
       rel = path.relative(CORE, path.resolve(path.dirname(from), spec));
       if (rel.startsWith("..")) return null;
     } else return null;
-    return rel ? rel.split("/")[0] : "__barrel__";
+    return rel ? rel.split(/[/\\]/)[0] : "__barrel__";
   };
 
   const edges = new Map(modules.map((m) => [m, new Set()]));
   for (const f of walk(CORE)) {
-    const owner = path.relative(CORE, f).split("/")[0];
+    const owner = path.relative(CORE, f).split(/[/\\]/)[0];
     if (!edges.has(owner)) continue;
     for (const spec of specifiers(f)) {
       const t = target(spec, f);
