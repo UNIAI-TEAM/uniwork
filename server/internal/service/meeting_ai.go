@@ -182,7 +182,7 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 		} else {
 			desc = desc + "\n\n" + origin
 		}
-		t, err := s.Tasks.Create(ctx, userID, m.WorkspaceID, CreateTaskInput{
+		t, err := s.Tasks.Create(ctx, Human(userID), m.WorkspaceID, CreateTaskInput{
 			Title: it.Title, Description: desc, AssigneeID: it.AssigneeID, DueDate: it.DueDate,
 		})
 		if err != nil {

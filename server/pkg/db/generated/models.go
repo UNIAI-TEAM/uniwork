@@ -8,6 +8,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Agent struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	Name               string             `json:"name"`
+	Handle             string             `json:"handle"`
+	Description        string             `json:"description"`
+	AvatarUrl          pgtype.Text        `json:"avatar_url"`
+	Status             string             `json:"status"`
+	OwnerUserID        string             `json:"owner_user_id"`
+	AutonomyPolicy     string             `json:"autonomy_policy"`
+	AllowedTools       string             `json:"allowed_tools"`
+	Skills             string             `json:"skills"`
+	BudgetTokensPerRun int32              `json:"budget_tokens_per_run"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedByKind      string             `json:"created_by_kind"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	ArchivedAt         pgtype.Timestamptz `json:"archived_at"`
+}
+
 type AuditEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -72,6 +92,7 @@ type ChatMessage struct {
 	EditedAt         pgtype.Timestamptz `json:"edited_at"`
 	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	SenderKind       string             `json:"sender_kind"`
 }
 
 type ChatRoom struct {
@@ -165,6 +186,7 @@ type Meeting struct {
 	CanceledAt           pgtype.Timestamptz `json:"canceled_at"`
 	CancelReason         pgtype.Text        `json:"cancel_reason"`
 	ProjectID            pgtype.Text        `json:"project_id"`
+	CreatedByKind        string             `json:"created_by_kind"`
 }
 
 type MeetingAccessGrant struct {
@@ -416,27 +438,31 @@ type RefreshToken struct {
 }
 
 type Task struct {
-	ID          string             `json:"id"`
-	WorkspaceID string             `json:"workspace_id"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	Status      string             `json:"status"`
-	Priority    string             `json:"priority"`
-	AssigneeID  pgtype.Text        `json:"assignee_id"`
-	DueDate     pgtype.Date        `json:"due_date"`
-	Position    float64            `json:"position"`
-	CreatedBy   string             `json:"created_by"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	Kind        string             `json:"kind"`
+	ID            string             `json:"id"`
+	WorkspaceID   string             `json:"workspace_id"`
+	Title         string             `json:"title"`
+	Description   string             `json:"description"`
+	Status        string             `json:"status"`
+	Priority      string             `json:"priority"`
+	AssigneeID    pgtype.Text        `json:"assignee_id"`
+	DueDate       pgtype.Date        `json:"due_date"`
+	Position      float64            `json:"position"`
+	CreatedBy     string             `json:"created_by"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	Kind          string             `json:"kind"`
+	CreatedByKind string             `json:"created_by_kind"`
+	AssigneeKind  string             `json:"assignee_kind"`
 }
 
 type TaskComment struct {
-	ID        string             `json:"id"`
-	TaskID    string             `json:"task_id"`
-	AuthorID  string             `json:"author_id"`
-	Body      string             `json:"body"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID         string             `json:"id"`
+	TaskID     string             `json:"task_id"`
+	AuthorID   string             `json:"author_id"`
+	Body       string             `json:"body"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	AuthorKind string             `json:"author_kind"`
+	Origin     pgtype.Text        `json:"origin"`
 }
 
 type User struct {
@@ -478,6 +504,16 @@ type Workspace struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	OrganizationID string             `json:"organization_id"`
 	MatrixRoomID   pgtype.Text        `json:"matrix_room_id"`
+}
+
+type WorkspaceAgentMember struct {
+	WorkspaceID    string             `json:"workspace_id"`
+	AgentID        string             `json:"agent_id"`
+	OrganizationID string             `json:"organization_id"`
+	Role           string             `json:"role"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type WorkspaceMember struct {

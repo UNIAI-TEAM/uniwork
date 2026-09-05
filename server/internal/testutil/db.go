@@ -62,7 +62,8 @@ func DB(t *testing.T) *pgxpool.Pool {
 		meeting_chat_messages,
 		chat_messages, chat_room_members, chat_blocks, chat_rooms,
 		emails, password_reset_tokens, email_verification_codes,
-		audit_events, audit_retention_policies, audit_exports CASCADE`)
+		audit_events, audit_retention_policies, audit_exports,
+		agents, workspace_agent_members CASCADE`)
 	if err != nil {
 		t.Fatal("truncate:", err)
 	}

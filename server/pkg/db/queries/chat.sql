@@ -57,9 +57,9 @@ LIMIT sqlc.arg(msg_limit);
 
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, reply_to_message_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id
 ) VALUES (
-  $1, $2, $3, $4, 'text', $5, $6
+  $1, $2, $3, $4, $5, 'text', $6, $7
 ) RETURNING *;
 
 -- name: CreateChatVoiceCallLog :one

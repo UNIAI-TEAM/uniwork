@@ -94,7 +94,7 @@ func TestAuditIsolation(t *testing.T) {
 		t.Fatalf("org admin cannot read the log: %v", err)
 	}
 
-	task, err := f.tasks.Create(f.ctx, f.ownerA.ID, f.wsA.ID, CreateTaskInput{Title: "Riêng tư"})
+	task, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Riêng tư"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestOnlyTheOwnerSeesTheIPAddress(t *testing.T) {
 	ctx := audit.WithRequest(f.ctx, audit.RequestInfo{
 		CorrelationID: "corr-ip-check", IP: "203.0.113.7", UserAgent: "test-agent",
 	})
-	if _, err := f.tasks.Create(ctx, f.ownerA.ID, f.wsA.ID, CreateTaskInput{Title: "Có IP"}); err != nil {
+	if _, err := f.tasks.Create(ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Có IP"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -157,7 +157,7 @@ func TestOnlyTheOwnerSeesTheIPAddress(t *testing.T) {
 func TestAuditFilterAndCursor(t *testing.T) {
 	f := newAuditServiceFixture(t)
 	for i := range 3 {
-		if _, err := f.tasks.Create(f.ctx, f.ownerA.ID, f.wsA.ID, CreateTaskInput{Title: "Việc"}); err != nil {
+		if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc"}); err != nil {
 			t.Fatalf("create %d: %v", i, err)
 		}
 	}
@@ -255,7 +255,7 @@ func (s *expirySpy) SetAuditExpired(orgID string, n float64) {
 // the policy visible (ADR 0012).
 func TestRetentionMarkerCountsWithoutDeleting(t *testing.T) {
 	f := newAuditServiceFixture(t)
-	if _, err := f.tasks.Create(f.ctx, f.ownerA.ID, f.wsA.ID, CreateTaskInput{Title: "Cũ"}); err != nil {
+	if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Cũ"}); err != nil {
 		t.Fatal(err)
 	}
 	// Age the rows past any window by moving the clock, not the data: the

@@ -12,21 +12,23 @@ import (
 )
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (id, workspace_id, title, description, priority, assignee_id, due_date, position, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind
+INSERT INTO tasks (id, workspace_id, title, description, priority, assignee_id, assignee_kind, due_date, position, created_by, created_by_kind)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind
 `
 
 type CreateTaskParams struct {
-	ID          string      `json:"id"`
-	WorkspaceID string      `json:"workspace_id"`
-	Title       string      `json:"title"`
-	Description string      `json:"description"`
-	Priority    string      `json:"priority"`
-	AssigneeID  pgtype.Text `json:"assignee_id"`
-	DueDate     pgtype.Date `json:"due_date"`
-	Position    float64     `json:"position"`
-	CreatedBy   string      `json:"created_by"`
+	ID            string      `json:"id"`
+	WorkspaceID   string      `json:"workspace_id"`
+	Title         string      `json:"title"`
+	Description   string      `json:"description"`
+	Priority      string      `json:"priority"`
+	AssigneeID    pgtype.Text `json:"assignee_id"`
+	AssigneeKind  string      `json:"assignee_kind"`
+	DueDate       pgtype.Date `json:"due_date"`
+	Position      float64     `json:"position"`
+	CreatedBy     string      `json:"created_by"`
+	CreatedByKind string      `json:"created_by_kind"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -37,9 +39,11 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.Description,
 		arg.Priority,
 		arg.AssigneeID,
+		arg.AssigneeKind,
 		arg.DueDate,
 		arg.Position,
 		arg.CreatedBy,
+		arg.CreatedByKind,
 	)
 	var i Task
 	err := row.Scan(
@@ -56,21 +60,25 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
 	)
 	return i, err
 }
 
 const createTaskComment = `-- name: CreateTaskComment :one
-INSERT INTO task_comments (id, task_id, author_id, body)
-VALUES ($1, $2, $3, $4)
-RETURNING id, task_id, author_id, body, created_at
+INSERT INTO task_comments (id, task_id, author_id, author_kind, body, origin)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, task_id, author_id, body, created_at, author_kind, origin
 `
 
 type CreateTaskCommentParams struct {
-	ID       string `json:"id"`
-	TaskID   string `json:"task_id"`
-	AuthorID string `json:"author_id"`
-	Body     string `json:"body"`
+	ID         string      `json:"id"`
+	TaskID     string      `json:"task_id"`
+	AuthorID   string      `json:"author_id"`
+	AuthorKind string      `json:"author_kind"`
+	Body       string      `json:"body"`
+	Origin     pgtype.Text `json:"origin"`
 }
 
 func (q *Queries) CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (TaskComment, error) {
@@ -78,7 +86,9 @@ func (q *Queries) CreateTaskComment(ctx context.Context, arg CreateTaskCommentPa
 		arg.ID,
 		arg.TaskID,
 		arg.AuthorID,
+		arg.AuthorKind,
 		arg.Body,
+		arg.Origin,
 	)
 	var i TaskComment
 	err := row.Scan(
@@ -87,6 +97,8 @@ func (q *Queries) CreateTaskComment(ctx context.Context, arg CreateTaskCommentPa
 		&i.AuthorID,
 		&i.Body,
 		&i.CreatedAt,
+		&i.AuthorKind,
+		&i.Origin,
 	)
 	return i, err
 }
@@ -94,7 +106,7 @@ func (q *Queries) CreateTaskComment(ctx context.Context, arg CreateTaskCommentPa
 const createWelcomeTask = `-- name: CreateWelcomeTask :one
 INSERT INTO tasks (id, workspace_id, title, description, status, priority, assignee_id, position, created_by, kind)
 VALUES ($1, $2, $3, $4, 'in_progress', 'high', $5, $6, $5, 'welcome')
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind
 `
 
 type CreateWelcomeTaskParams struct {
@@ -130,6 +142,8 @@ func (q *Queries) CreateWelcomeTask(ctx context.Context, arg CreateWelcomeTaskPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
 	)
 	return i, err
 }
@@ -144,7 +158,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) error {
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind FROM tasks WHERE id = $1
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind FROM tasks WHERE id = $1
 `
 
 func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
@@ -164,12 +178,14 @@ func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
 	)
 	return i, err
 }
 
 const getWelcomeTask = `-- name: GetWelcomeTask :one
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind FROM tasks WHERE workspace_id = $1 AND created_by = $2 AND kind = 'welcome'
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind FROM tasks WHERE workspace_id = $1 AND created_by = $2 AND kind = 'welcome'
 `
 
 type GetWelcomeTaskParams struct {
@@ -194,13 +210,19 @@ func (q *Queries) GetWelcomeTask(ctx context.Context, arg GetWelcomeTaskParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
 	)
 	return i, err
 }
 
 const listTaskComments = `-- name: ListTaskComments :many
-SELECT c.id, c.task_id, c.author_id, c.body, c.created_at, u.display_name, u.avatar_url
-FROM task_comments c JOIN users u ON u.id = c.author_id
+SELECT c.id, c.task_id, c.author_id, c.author_kind, c.body, c.created_at,
+       COALESCE(u.display_name, a.name, '')::text AS display_name,
+       COALESCE(u.avatar_url, a.avatar_url) AS avatar_url
+FROM task_comments c
+LEFT JOIN users u ON c.author_kind = 'human' AND u.id = c.author_id
+LEFT JOIN agents a ON c.author_kind = 'agent' AND a.id = c.author_id
 WHERE c.task_id = $1 ORDER BY c.created_at
 `
 
@@ -208,6 +230,7 @@ type ListTaskCommentsRow struct {
 	ID          string             `json:"id"`
 	TaskID      string             `json:"task_id"`
 	AuthorID    string             `json:"author_id"`
+	AuthorKind  string             `json:"author_kind"`
 	Body        string             `json:"body"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	DisplayName string             `json:"display_name"`
@@ -227,6 +250,7 @@ func (q *Queries) ListTaskComments(ctx context.Context, taskID string) ([]ListTa
 			&i.ID,
 			&i.TaskID,
 			&i.AuthorID,
+			&i.AuthorKind,
 			&i.Body,
 			&i.CreatedAt,
 			&i.DisplayName,
@@ -243,7 +267,7 @@ func (q *Queries) ListTaskComments(ctx context.Context, taskID string) ([]ListTa
 }
 
 const listTasksByWorkspace = `-- name: ListTasksByWorkspace :many
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind FROM tasks WHERE workspace_id = $1 ORDER BY status, position, created_at
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind FROM tasks WHERE workspace_id = $1 ORDER BY status, position, created_at
 `
 
 func (q *Queries) ListTasksByWorkspace(ctx context.Context, workspaceID string) ([]Task, error) {
@@ -269,6 +293,8 @@ func (q *Queries) ListTasksByWorkspace(ctx context.Context, workspaceID string) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
 		); err != nil {
 			return nil, err
 		}
@@ -297,16 +323,17 @@ func (q *Queries) MaxTaskPosition(ctx context.Context, arg MaxTaskPositionParams
 }
 
 const setTaskAssignee = `-- name: SetTaskAssignee :one
-UPDATE tasks SET assignee_id = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind
+UPDATE tasks SET assignee_id = $2, assignee_kind = $3, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind
 `
 
 type SetTaskAssigneeParams struct {
-	ID         string      `json:"id"`
-	AssigneeID pgtype.Text `json:"assignee_id"`
+	ID           string      `json:"id"`
+	AssigneeID   pgtype.Text `json:"assignee_id"`
+	AssigneeKind string      `json:"assignee_kind"`
 }
 
 func (q *Queries) SetTaskAssignee(ctx context.Context, arg SetTaskAssigneeParams) (Task, error) {
-	row := q.db.QueryRow(ctx, setTaskAssignee, arg.ID, arg.AssigneeID)
+	row := q.db.QueryRow(ctx, setTaskAssignee, arg.ID, arg.AssigneeID, arg.AssigneeKind)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -322,12 +349,14 @@ func (q *Queries) SetTaskAssignee(ctx context.Context, arg SetTaskAssigneeParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
 	)
 	return i, err
 }
 
 const setTaskDueDate = `-- name: SetTaskDueDate :one
-UPDATE tasks SET due_date = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind
+UPDATE tasks SET due_date = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind
 `
 
 type SetTaskDueDateParams struct {
@@ -352,6 +381,8 @@ func (q *Queries) SetTaskDueDate(ctx context.Context, arg SetTaskDueDateParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
 	)
 	return i, err
 }
@@ -365,7 +396,7 @@ UPDATE tasks SET
   position    = COALESCE($5, position),
   updated_at  = now()
 WHERE id = $6
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind
 `
 
 type UpdateTaskParams struct {
@@ -401,6 +432,8 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
 	)
 	return i, err
 }

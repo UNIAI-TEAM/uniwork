@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -33,23 +34,48 @@ func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService) *Ta
 }
 
 type CreateTaskInput struct {
-	Title       string
-	Description string
-	Priority    string
-	AssigneeID  *string
-	DueDate     *string
+	Title        string
+	Description  string
+	Priority     string
+	AssigneeID   *string
+	AssigneeKind string // "" or human | agent (ADR 0007)
+	DueDate      *string
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate con trỏ
 // kép — con trỏ tới nil = xóa giá trị.
 type UpdateTaskInput struct {
-	Title       *string
-	Description *string
-	Status      *string
-	Priority    *string
-	Position    *float64
-	AssigneeID  **string
-	DueDate     **string
+	Title        *string
+	Description  *string
+	Status       *string
+	Priority     *string
+	Position     *float64
+	AssigneeID   **string
+	AssigneeKind string // read only when AssigneeID is set; "" means human
+	DueDate      **string
+}
+
+// assigneeKind validates the assignee pair: a human assignee is any id (the
+// old behaviour), an agent assignee must be a member of the task's workspace.
+func (s *TaskService) assigneeKind(ctx context.Context, workspaceID string, assigneeID *string, kind string) (string, error) {
+	if kind == "" {
+		kind = string(audit.KindHuman)
+	}
+	switch audit.Kind(kind) {
+	case audit.KindHuman:
+	case audit.KindAgent:
+		if assigneeID != nil {
+			if _, err := s.ws.RequireAgentMember(ctx, workspaceID, *assigneeID); err != nil {
+				return "", coded(http.StatusUnprocessableEntity, "agent_not_member", "agent không phải thành viên workspace")
+			}
+		}
+	default:
+		return "", Invalid("assignee_kind không hợp lệ")
+	}
+	if assigneeID == nil {
+		kind = string(audit.KindHuman)
+	}
+	return kind, nil
 }
 
 func optText(s *string) pgtype.Text {
@@ -72,12 +98,13 @@ func optFloat(f *float64) pgtype.Float8 {
 // makes the set a reviewer reads rather than infers.
 func taskAuditFields(t db.Task) map[string]any {
 	return map[string]any{
-		"title":       t.Title,
-		"status":      t.Status,
-		"priority":    t.Priority,
-		"assignee_id": audit.Text(t.AssigneeID.Valid, t.AssigneeID.String),
-		"due_date":    dateOrNil(t.DueDate),
-		"position":    t.Position,
+		"title":         t.Title,
+		"status":        t.Status,
+		"priority":      t.Priority,
+		"assignee_id":   audit.Text(t.AssigneeID.Valid, t.AssigneeID.String),
+		"assignee_kind": t.AssigneeKind,
+		"due_date":      dateOrNil(t.DueDate),
+		"position":      t.Position,
 	}
 }
 
@@ -88,8 +115,8 @@ func dateOrNil(d pgtype.Date) any {
 	return d.Time.Format("2006-01-02")
 }
 
-func (s *TaskService) Create(ctx context.Context, userID, workspaceID string, in CreateTaskInput) (db.Task, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID string, in CreateTaskInput) (db.Task, error) {
+	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return db.Task{}, err
 	}
 	if strings.TrimSpace(in.Title) == "" {
@@ -102,6 +129,10 @@ func (s *TaskService) Create(ctx context.Context, userID, workspaceID string, in
 		return db.Task{}, Invalid("priority không hợp lệ")
 	}
 	due, err := parseDate(in.DueDate)
+	if err != nil {
+		return db.Task{}, err
+	}
+	assigneeKind, err := s.assigneeKind(ctx, workspaceID, in.AssigneeID, in.AssigneeKind)
 	if err != nil {
 		return db.Task{}, err
 	}
@@ -124,15 +155,15 @@ func (s *TaskService) Create(ctx context.Context, userID, workspaceID string, in
 	task, err := q.CreateTask(ctx, db.CreateTaskParams{
 		ID: util.NewID(), WorkspaceID: workspaceID,
 		Title: strings.TrimSpace(in.Title), Description: in.Description,
-		Priority: in.Priority, AssigneeID: optText(in.AssigneeID), DueDate: due,
-		Position: maxPos + 1024, CreatedBy: userID,
+		Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind, DueDate: due,
+		Position: maxPos + 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 	})
 	if err != nil {
 		return db.Task{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-		Actor:        audit.User(userID),
+		Actor:        actor,
 		Action:       audit.ActionTaskCreated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(nil, taskAuditFields(task)),
@@ -157,6 +188,10 @@ func (s *TaskService) List(ctx context.Context, userID, workspaceID string) ([]d
 // authorize loads the task then checks membership on the task's own
 // workspace — the client-supplied workspace id is never trusted.
 func (s *TaskService) authorize(ctx context.Context, userID, taskID string) (db.Task, error) {
+	return s.authorizeActor(ctx, Human(userID), taskID)
+}
+
+func (s *TaskService) authorizeActor(ctx context.Context, actor Actor, taskID string) (db.Task, error) {
 	task, err := s.q.GetTask(ctx, taskID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.Task{}, ErrNotFound
@@ -164,7 +199,7 @@ func (s *TaskService) authorize(ctx context.Context, userID, taskID string) (db.
 	if err != nil {
 		return db.Task{}, err
 	}
-	if _, err := s.ws.RequireMember(ctx, task.WorkspaceID, userID); err != nil {
+	if err := s.ws.requireActorMember(ctx, task.WorkspaceID, actor); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
@@ -174,8 +209,8 @@ func (s *TaskService) Get(ctx context.Context, userID, taskID string) (db.Task, 
 	return s.authorize(ctx, userID, taskID)
 }
 
-func (s *TaskService) Update(ctx context.Context, userID, taskID string, in UpdateTaskInput) (db.Task, error) {
-	before, err := s.authorize(ctx, userID, taskID)
+func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in UpdateTaskInput) (db.Task, error) {
+	before, err := s.authorizeActor(ctx, actor, taskID)
 	if err != nil {
 		return db.Task{}, err
 	}
@@ -208,7 +243,11 @@ func (s *TaskService) Update(ctx context.Context, userID, taskID string, in Upda
 		return db.Task{}, err
 	}
 	if in.AssigneeID != nil {
-		task, err = q.SetTaskAssignee(ctx, db.SetTaskAssigneeParams{ID: taskID, AssigneeID: optText(*in.AssigneeID)})
+		kind, kerr := s.assigneeKind(ctx, before.WorkspaceID, *in.AssigneeID, in.AssigneeKind)
+		if kerr != nil {
+			return db.Task{}, kerr
+		}
+		task, err = q.SetTaskAssignee(ctx, db.SetTaskAssigneeParams{ID: taskID, AssigneeID: optText(*in.AssigneeID), AssigneeKind: kind})
 		if err != nil {
 			return db.Task{}, err
 		}
@@ -225,7 +264,7 @@ func (s *TaskService) Update(ctx context.Context, userID, taskID string, in Upda
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor:        audit.User(userID),
+		Actor:        actor,
 		Action:       audit.ActionTaskUpdated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(taskAuditFields(before), taskAuditFields(task)),
@@ -276,8 +315,10 @@ func (s *TaskService) Delete(ctx context.Context, userID, taskID string) error {
 	return tx.Commit(ctx)
 }
 
-func (s *TaskService) AddComment(ctx context.Context, userID, taskID, body string) (db.TaskComment, error) {
-	task, err := s.authorize(ctx, userID, taskID)
+// AddComment records the author's kind so the client can draw the badge; origin
+// ("agent_run:<id>") arrives with A-01 and stays NULL until then.
+func (s *TaskService) AddComment(ctx context.Context, actor Actor, taskID, body string) (db.TaskComment, error) {
+	task, err := s.authorizeActor(ctx, actor, taskID)
 	if err != nil {
 		return db.TaskComment{}, err
 	}
@@ -297,7 +338,7 @@ func (s *TaskService) AddComment(ctx context.Context, userID, taskID, body strin
 	q := s.q.WithTx(tx)
 
 	c, err := q.CreateTaskComment(ctx, db.CreateTaskCommentParams{
-		ID: util.NewID(), TaskID: taskID, AuthorID: userID, Body: body,
+		ID: util.NewID(), TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
 	})
 	if err != nil {
 		return db.TaskComment{}, err
@@ -306,7 +347,7 @@ func (s *TaskService) AddComment(ctx context.Context, userID, taskID, body strin
 	// in task_comments, and audit_events cannot be edited if it must be removed.
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor:        audit.User(userID),
+		Actor:        actor,
 		Action:       audit.ActionTaskCommentAdded,
 		ResourceType: "task", ResourceID: taskID,
 		Metadata: map[string]any{"comment_id": c.ID},

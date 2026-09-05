@@ -80,6 +80,12 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	}); err != nil {
 		return db.Organization{}, err
 	}
+	// Every organization starts with its built-in agent (OPEN_QUESTIONS AG6);
+	// the founder is its owner and can rename it.
+	if _, err := createAgent(ctx, q, o.ID, "UNI", DefaultAgentHandle,
+		"Đồng nghiệp AI mặc định của tổ chức", nil, userID, audit.System("organization.created")); err != nil {
+		return db.Organization{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Organization{}, err
 	}

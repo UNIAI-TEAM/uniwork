@@ -80,6 +80,7 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | - | outbox |
 | `workspace.created` | 1 | `workspace_id`, `organization_id` | workspace | outbox |
 | `workspace.updated` | 1 | `workspace_id`, `organization_id` | workspace | outbox |
+| `workspace_agent.added` | 1 | `workspace_id`, `agent_id` | workspace | outbox |
 
 ## Sự kiện không nằm ở đây
 

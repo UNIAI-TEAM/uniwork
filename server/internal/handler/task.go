@@ -52,9 +52,9 @@ func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	t, err := h.Tasks.Create(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"),
+	t, err := h.Tasks.Create(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
 		service.CreateTaskInput{Title: in.Title, Description: in.Description, Priority: in.Priority,
-			AssigneeID: in.AssigneeID, DueDate: in.DueDate})
+			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, DueDate: in.DueDate})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -83,7 +83,7 @@ func (h *handlers) updateTask(w http.ResponseWriter, r *http.Request) {
 		respondError(w, 400, "invalid_request", err.Error())
 		return
 	}
-	t, err := h.Tasks.Update(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "taskID"), in)
+	t, err := h.Tasks.Update(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"), in)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -113,7 +113,7 @@ func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	c, err := h.Tasks.AddComment(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "taskID"), in.Body)
+	c, err := h.Tasks.AddComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"), in.Body)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -146,6 +146,11 @@ func parseTaskPatch(raw map[string]json.RawMessage) (service.UpdateTaskInput, er
 	}
 	if in.Priority, err = str("priority"); err != nil {
 		return in, err
+	}
+	if kind, kerr := str("assignee_kind"); kerr != nil {
+		return in, kerr
+	} else if kind != nil {
+		in.AssigneeKind = *kind
 	}
 	if v, ok := raw["position"]; ok {
 		var f float64

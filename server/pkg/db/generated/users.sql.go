@@ -170,6 +170,36 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 	return i, err
 }
 
+const getUsersByIDs = `-- name: GetUsersByIDs :many
+SELECT id, display_name, avatar_url FROM users WHERE id = ANY($1::text[])
+`
+
+type GetUsersByIDsRow struct {
+	ID          string      `json:"id"`
+	DisplayName string      `json:"display_name"`
+	AvatarUrl   pgtype.Text `json:"avatar_url"`
+}
+
+func (q *Queries) GetUsersByIDs(ctx context.Context, ids []string) ([]GetUsersByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUsersByIDsRow{}
+	for rows.Next() {
+		var i GetUsersByIDsRow
+		if err := rows.Scan(&i.ID, &i.DisplayName, &i.AvatarUrl); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const linkGoogleAccount = `-- name: LinkGoogleAccount :one
 UPDATE users SET
   google_id = $2,

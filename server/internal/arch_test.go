@@ -64,7 +64,7 @@ func TestLayering(t *testing.T) {
 // (CLAUDE.md § Database and Migration Rules). The two sqlc queries that read
 // workspace_members for a decision may only be called from that file.
 func TestMembershipDecidedInOnePlace(t *testing.T) {
-	decision := regexp.MustCompile(`\.(GetWorkspaceMember|GetWorkspaceAccess)\(`)
+	decision := regexp.MustCompile(`\.(GetWorkspaceMember|GetWorkspaceAccess|GetWorkspaceAgentMember)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -79,6 +79,34 @@ func TestMembershipDecidedInOnePlace(t *testing.T) {
 		}
 		if decision.Match(src) {
 			t.Errorf("%s reads workspace_members directly; go through WorkspaceService.RequireMember", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An actor's kind is decided by the service layer (ADR 0007). A handler only
+// ever holds a signed-in person, so the only constructor it may call is
+// service.Human; building an agent or system actor anywhere else would let a
+// request claim to be an agent. Tests are exempt: they set up both kinds.
+func TestActorConstructedOnlyInService(t *testing.T) {
+	construct := regexp.MustCompile(`audit\.(Actor\{|System\(|KindAgent|KindSystem)`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "internal/service/") || strings.Contains(slash, "internal/audit/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if construct.Match(src) {
+			t.Errorf("%s constructs an actor kind directly; only internal/service decides who an actor is", path)
 		}
 		return nil
 	})

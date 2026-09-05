@@ -100,6 +100,18 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	}}); err != nil {
 		return WorkspaceView{}, err
 	}
+	// The organization's active agents join every new workspace so a task can
+	// be handed to UNI from the first day (OPEN_QUESTIONS AG6). Admins can
+	// pause an agent to stop this.
+	agents, err := q.ListActiveAgentsInOrg(ctx, orgID)
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+	for _, a := range agents {
+		if err := addAgentToWorkspace(ctx, q, w, a.ID, audit.System("workspace.created")); err != nil {
+			return WorkspaceView{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return WorkspaceView{}, err
 	}
@@ -173,6 +185,31 @@ func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userI
 		return db.WorkspaceMember{}, err
 	}
 	return db.WorkspaceMember{WorkspaceID: workspaceID, UserID: userID, Role: role}, nil
+}
+
+// RequireAgentMember is the agent counterpart of RequireMember: an agent is
+// in a workspace only through its own workspace_agent_members row, never
+// implicitly through the organization.
+func (s *WorkspaceService) RequireAgentMember(ctx context.Context, workspaceID, agentID string) (db.WorkspaceAgentMember, error) {
+	m, err := s.q.GetWorkspaceAgentMember(ctx, db.GetWorkspaceAgentMemberParams{WorkspaceID: workspaceID, AgentID: agentID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.WorkspaceAgentMember{}, ErrForbidden
+	}
+	return m, err
+}
+
+// requireActorMember routes a command's actor to the right membership gate.
+func (s *WorkspaceService) requireActorMember(ctx context.Context, workspaceID string, actor Actor) error {
+	switch actor.Kind {
+	case audit.KindHuman:
+		_, err := s.RequireMember(ctx, workspaceID, actor.ID)
+		return err
+	case audit.KindAgent:
+		_, err := s.RequireAgentMember(ctx, workspaceID, actor.ID)
+		return err
+	default:
+		return ErrForbidden
+	}
 }
 
 type UpdateWorkspaceInput struct {

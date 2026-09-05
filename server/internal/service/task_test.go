@@ -72,7 +72,7 @@ func TestTaskCRUD(t *testing.T) {
 	s, events, ua, ub, w := taskFixture(t)
 	ctx := context.Background()
 
-	task, err := s.Create(ctx, ua.ID, w.ID, CreateTaskInput{Title: "Việc 1", Priority: "high"})
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Việc 1", Priority: "high"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestTaskCRUD(t *testing.T) {
 		t.Fatalf("defaults: %+v", task)
 	}
 	// non-member bị chặn
-	if _, err := s.Create(ctx, ub.ID, w.ID, CreateTaskInput{Title: "X"}); err != ErrForbidden {
+	if _, err := s.Create(ctx, Human(ub.ID), w.ID, CreateTaskInput{Title: "X"}); err != ErrForbidden {
 		t.Fatalf("non-member create: %v", err)
 	}
 	if _, err := s.Get(ctx, ub.ID, task.ID); err != ErrForbidden {
@@ -89,23 +89,23 @@ func TestTaskCRUD(t *testing.T) {
 
 	// update status + position
 	st, pos := "in_progress", 10.5
-	up, err := s.Update(ctx, ua.ID, task.ID, UpdateTaskInput{Status: &st, Position: &pos})
+	up, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{Status: &st, Position: &pos})
 	if err != nil || up.Status != "in_progress" || up.Position != 10.5 {
 		t.Fatalf("update: %v %+v", err, up)
 	}
 	bad := "not-a-status"
-	if _, err := s.Update(ctx, ua.ID, task.ID, UpdateTaskInput{Status: &bad}); err == nil {
+	if _, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{Status: &bad}); err == nil {
 		t.Fatal("invalid status accepted")
 	}
 
 	// assignee set và clear qua con trỏ kép
 	aid := &ua.ID
-	set, err := s.Update(ctx, ua.ID, task.ID, UpdateTaskInput{AssigneeID: &aid})
+	set, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{AssigneeID: &aid})
 	if err != nil || !set.AssigneeID.Valid || set.AssigneeID.String != ua.ID {
 		t.Fatalf("set assignee: %v %+v", err, set.AssigneeID)
 	}
 	var nilStr *string
-	cleared, err := s.Update(ctx, ua.ID, task.ID, UpdateTaskInput{AssigneeID: &nilStr})
+	cleared, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{AssigneeID: &nilStr})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,13 +116,13 @@ func TestTaskCRUD(t *testing.T) {
 	// due date set và clear
 	dd := "2026-09-01"
 	ddp := &dd
-	withDue, err := s.Update(ctx, ua.ID, task.ID, UpdateTaskInput{DueDate: &ddp})
+	withDue, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{DueDate: &ddp})
 	if err != nil || !withDue.DueDate.Valid {
 		t.Fatalf("set due: %v", err)
 	}
 
 	// comments
-	if _, err := s.AddComment(ctx, ua.ID, task.ID, "chú thích"); err != nil {
+	if _, err := s.AddComment(ctx, Human(ua.ID), task.ID, "chú thích"); err != nil {
 		t.Fatal(err)
 	}
 	cs, err := s.Comments(ctx, ua.ID, task.ID)
