@@ -24,6 +24,10 @@ const (
 	ActionWorkspaceMemberRoleChanged = "workspace_member.role_changed"
 	ActionWorkspaceMemberRemoved     = "workspace_member.removed"
 
+	ActionAgentCreated        = "agent.created"
+	ActionAgentUpdated        = "agent.updated"
+	ActionWorkspaceAgentAdded = "workspace_agent.added"
+
 	ActionTaskCreated      = "task.created"
 	ActionTaskUpdated      = "task.updated"
 	ActionTaskDeleted      = "task.deleted"

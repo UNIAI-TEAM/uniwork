@@ -60,6 +60,9 @@ var catalogue = []EventDef{
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
+	// Agents (ADR 0007): the picker in a workspace refreshes when one joins.
+	{Topic: "workspace_agent.added", Version: 1, Payload: []string{"workspace_id", "agent_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+
 	// Organization and workspace membership
 	{Topic: "organization.created", Version: 1, Payload: []string{"organization_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "organization.updated", Version: 1, Payload: []string{"organization_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},

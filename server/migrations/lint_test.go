@@ -317,6 +317,32 @@ func createdTables(sql string) map[string]string {
 	return out
 }
 
+// --- ADR 0007: created_by always travels with created_by_kind ---------------
+//
+// Attribution is a pair: who, and what kind of actor. A table that records
+// only the id cannot tell a person from an agent, and the UI has no honest way
+// to draw the badge. Tables created after the actor-kind migration must
+// declare both columns together.
+const maxPreActorKindMigrationPrefix = 65
+
+var (
+	createdByPattern     = regexp.MustCompile(`(?i)\bcreated_by\s+TEXT\b`)
+	createdByKindPattern = regexp.MustCompile(`(?i)\bcreated_by_kind\s+TEXT\b`)
+)
+
+func TestActorKindOnEveryCreatedBy(t *testing.T) {
+	for _, name := range newMigrationUpFiles(t) {
+		if migrationPrefix(t, name) <= maxPreActorKindMigrationPrefix {
+			continue
+		}
+		for table, body := range createdTables(stripSQLComments(readMigration(t, name))) {
+			if createdByPattern.MatchString(body) && !createdByKindPattern.MatchString(body) {
+				t.Errorf("%s creates %s with created_by but no created_by_kind (ADR 0007); attribution is the pair", name, table)
+			}
+		}
+	}
+}
+
 func migrationPrefix(t *testing.T, name string) int {
 	t.Helper()
 	m := migrationPrefixPattern.FindStringSubmatch(name)

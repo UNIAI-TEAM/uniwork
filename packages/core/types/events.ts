@@ -60,6 +60,7 @@ export const WS_EVENT_TYPES = [
   "transcript.appended",
   "workspace.created",
   "workspace.updated",
+  "workspace_agent.added",
 ] as const;
 export type WSEventType = (typeof WS_EVENT_TYPES)[number];
 

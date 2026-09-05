@@ -32,6 +32,20 @@ export function canInviteMembers(ctx: PermissionContext): Decision {
   return deny("not_admin_role", "Only workspace owners and admins can invite members.");
 }
 
+/**
+ * Create or edit the organization's agents.
+ * Backend: AgentService.Create / Update — `!adminLikeRole(m.Role)` on the
+ * organization membership → 403 (server/internal/service/agent.go;
+ * OPEN_QUESTIONS AG2). Update also allows the agent's owner_user_id, which
+ * this rule cannot see and so does not mirror — the button stays admin-only.
+ */
+export function canManageAgents(ctx: PermissionContext): Decision {
+  if (ctx.userId === null) return deny("not_authenticated", "Sign in to continue.");
+  if (ctx.orgRole === null) return deny("not_member", "You are not a member of this organization.");
+  if (isAdminLike(ctx.orgRole)) return ALLOW;
+  return deny("not_admin_role", "Only organization owners and admins can manage agents.");
+}
+
 /** Same gate as inviting today; kept separate so the two can diverge without a rename. */
 export function canManageMembers(ctx: PermissionContext): Decision {
   return canInviteMembers(ctx);

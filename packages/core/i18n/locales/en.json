@@ -338,6 +338,9 @@
     "priority_high": "High",
     "priority_urgent": "Urgent"
   },
+  "agents": {
+    "badge": "Agent"
+  },
   "meetings": {
     "title": "Meetings",
     "new": "New meeting",

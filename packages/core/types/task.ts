@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ActorSchema } from "./actor";
 
 // The closed vocabularies the UI reasons about. Used to type requests and
 // UI state; response schemas below deliberately do NOT use them.
@@ -29,10 +30,15 @@ export const TaskSchema = z.object({
   status: z.string(),
   priority: z.string(),
   assignee_id: z.string().optional(),
+  // The assignee pair (ADR 0007). `assignee` is the server-resolved actor;
+  // the UI reads its `kind` for the badge and never guesses from the id.
+  assignee_kind: z.string().optional().default("human"),
+  assignee: ActorSchema.optional(),
   due_date: z.string().optional(),
   position: z.number(),
   kind: z.string().optional().default("normal"),
   created_by: z.string(),
+  created_by_kind: z.string().optional().default("human"),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -48,6 +54,8 @@ export const TaskCommentSchema = z.object({
   id: z.string(),
   task_id: z.string(),
   author_id: z.string(),
+  author_kind: z.string().optional().default("human"),
+  author: ActorSchema.optional(),
   body: z.string(),
   display_name: z.string().optional(),
 });

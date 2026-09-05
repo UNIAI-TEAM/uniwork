@@ -34,7 +34,7 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 		ID: id, WorkspaceID: workspaceID, Title: title, Description: "",
 		StartsAt: pgtype.Timestamptz{Time: now, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
-		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID,
+		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeInstant,
 		HostUserID: userID, Timezone: "UTC", AllowJoinRequest: true,
 	})

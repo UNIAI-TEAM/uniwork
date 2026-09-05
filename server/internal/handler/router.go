@@ -32,6 +32,8 @@ type Deps struct {
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
+	Agents        *service.AgentService
+	Actors        *service.ActorService
 	Audit         *service.AuditService
 	Meetings      *service.MeetingService
 	Chat          *service.ChatService
@@ -117,6 +119,12 @@ func New(d Deps) http.Handler {
 		UpdateTask:   h.updateTask,
 		DeleteTask:   h.deleteTask,
 		ListComments: h.listComments,
+
+		ListOrgAgents:       h.listOrgAgents,
+		CreateOrgAgent:      h.createOrgAgent,
+		PatchAgent:          h.patchAgent,
+		ListWorkspaceAgents: h.listWorkspaceAgents,
+		AddWorkspaceAgent:   h.addWorkspaceAgent,
 
 		ListAuditEvents:     h.listAuditEvents,
 		GetAuditEvent:       h.getAuditEvent,

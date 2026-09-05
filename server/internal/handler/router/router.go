@@ -79,6 +79,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerMe(authed, h, credentialLimit)
 			registerOrganizations(authed, h)
 			registerWorkspaces(authed, h)
+			registerAgents(authed, h)
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
 			registerAudit(authed, h)

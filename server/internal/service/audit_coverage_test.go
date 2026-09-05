@@ -65,15 +65,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionTaskCreated: func(t *testing.T, f *auditFixture) { f.newTask(t) },
+		// The default agent is seeded with the organization; a second one goes
+		// through the command proper.
+		audit.ActionAgentCreated: func(t *testing.T, f *auditFixture) { f.build(t) },
+		audit.ActionAgentUpdated: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			name := "UNI đổi tên"
+			if _, err := f.agents.Update(f.ctx, f.owner.ID, f.defaultAgent(t).ID, UpdateAgentInput{Name: &name}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionWorkspaceAgentAdded: func(t *testing.T, f *auditFixture) { f.build(t) },
 		audit.ActionTaskUpdated: func(t *testing.T, f *auditFixture) {
 			task := f.newTask(t)
 			status := "in_progress"
-			if _, err := f.tasks.Update(f.ctx, f.owner.ID, task.ID, UpdateTaskInput{Status: &status}); err != nil {
+			if _, err := f.tasks.Update(f.ctx, Human(f.owner.ID), task.ID, UpdateTaskInput{Status: &status}); err != nil {
 				t.Fatal(err)
 			}
 		},
 		audit.ActionTaskCommentAdded: func(t *testing.T, f *auditFixture) {
-			if _, err := f.tasks.AddComment(f.ctx, f.owner.ID, f.newTask(t).ID, "ghi chú"); err != nil {
+			task := f.newTask(t) // build the fixture before reading f.owner
+			if _, err := f.tasks.AddComment(f.ctx, Human(f.owner.ID), task.ID, "ghi chú"); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -191,6 +203,7 @@ type auditFixture struct {
 	orgs   *OrganizationService
 	ws     *WorkspaceService
 	tasks  *TaskService
+	agents *AgentService
 	chat   *ChatService
 	reset  *PasswordResetService
 	owner  db.User
@@ -214,9 +227,10 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
 		auth: auth, orgs: orgs, ws: ws,
-		tasks: NewTaskService(pool, q, ws),
-		chat:  NewChatService(pool, q, ws, NopPublisher{}),
-		reset: NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
+		tasks:  NewTaskService(pool, q, ws),
+		agents: NewAgentService(pool, q, orgs, ws),
+		chat:   NewChatService(pool, q, ws, NopPublisher{}),
+		reset:  NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
 	}
 }
 
@@ -252,10 +266,20 @@ func (f *auditFixture) addMember(t *testing.T) {
 	addWorkspaceMember(t, f.q, f.workspace.ID, f.member.ID)
 }
 
+func (f *auditFixture) defaultAgent(t *testing.T) db.Agent {
+	t.Helper()
+	f.build(t)
+	agents, err := f.agents.List(f.ctx, f.owner.ID, f.orgID)
+	if err != nil || len(agents) == 0 {
+		t.Fatalf("default agent missing: %v", err)
+	}
+	return agents[0]
+}
+
 func (f *auditFixture) newTask(t *testing.T) db.Task {
 	t.Helper()
 	w := f.build(t)
-	task, err := f.tasks.Create(f.ctx, f.owner.ID, w.ID, CreateTaskInput{Title: "Việc kiểm toán"})
+	task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "Việc kiểm toán"})
 	if err != nil {
 		t.Fatal(err)
 	}

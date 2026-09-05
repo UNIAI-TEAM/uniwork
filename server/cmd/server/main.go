@@ -156,6 +156,8 @@ func main() {
 	})
 	taskSvc := service.NewTaskService(pool, q, wsSvc)
 	meetingSvc.Tasks = taskSvc
+	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
+	actorSvc := service.NewActorService(q)
 	if cfg.AnthropicAPIKey != "" {
 		meetingSvc.AI = ai.NewClaude(cfg.AnthropicAPIKey, cfg.AnthropicModel)
 		log.Info("meeting AI summaries enabled")
@@ -212,6 +214,8 @@ func main() {
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,
+		Agents:          agentSvc,
+		Actors:          actorSvc,
 		Audit:           auditSvc,
 		Meetings:        meetingSvc,
 		Chat:            chatSvc,

@@ -165,6 +165,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			RequestId string `path:"requestId" description:"ULID join request" example:"01J8X4JREQN1P2Q3R4S5"`
 		}{}
+	case "agentID":
+		return struct {
+			AgentID string `path:"agentID" description:"ULID agent" example:"01J8X4AGENT0N1P2Q3R4S5T6"`
+		}{}
 	case "orgID":
 		return struct {
 			OrgID string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`

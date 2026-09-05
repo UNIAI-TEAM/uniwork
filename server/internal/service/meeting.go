@@ -248,7 +248,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 		Title: strings.TrimSpace(in.Title), Description: in.Description,
 		StartsAt: pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: in.EndsAt, Valid: true},
-		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID,
+		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeScheduled,
 		HostUserID: userID, Timezone: tz, AllowJoinRequest: allow,
 		ProjectID: strText(in.ProjectID),

@@ -13,10 +13,10 @@ import (
 
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, reply_to_message_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id
 ) VALUES (
-  $1, $2, $3, $4, 'text', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at
+  $1, $2, $3, $4, $5, 'text', $6, $7
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind
 `
 
 type CreateChatMessageParams struct {
@@ -24,6 +24,7 @@ type CreateChatMessageParams struct {
 	RoomID           string      `json:"room_id"`
 	WorkspaceID      string      `json:"workspace_id"`
 	SenderID         string      `json:"sender_id"`
+	SenderKind       string      `json:"sender_kind"`
 	Body             string      `json:"body"`
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 }
@@ -34,6 +35,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		arg.RoomID,
 		arg.WorkspaceID,
 		arg.SenderID,
+		arg.SenderKind,
 		arg.Body,
 		arg.ReplyToMessageID,
 	)
@@ -50,6 +52,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 	)
 	return i, err
 }
@@ -105,7 +108,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'voice_call_log', '', $5
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind
 `
 
 type CreateChatVoiceCallLogParams struct {
@@ -137,6 +140,7 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 	)
 	return i, err
 }
@@ -173,7 +177,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 }
 
 const getChatMessageInRoom = `-- name: GetChatMessageInRoom :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
 `
 
@@ -198,6 +202,7 @@ func (q *Queries) GetChatMessageInRoom(ctx context.Context, arg GetChatMessageIn
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 	)
 	return i, err
 }
@@ -535,7 +540,7 @@ const updateChatMessageMetadata = `-- name: UpdateChatMessageMetadata :one
 UPDATE chat_messages
 SET metadata = $4
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind
 `
 
 type UpdateChatMessageMetadataParams struct {
@@ -565,6 +570,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 	)
 	return i, err
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useTranslation } from "react-i18next";
 import { useTasks } from "@uniwork/core/tasks";
-import { useMembers } from "@uniwork/core/workspaces";
+import { AgentBadge } from "../agents/agent-badge";
 
 export function ListView({
   workspaceId,
@@ -12,9 +12,6 @@ export function ListView({
 }) {
   const { t } = useTranslation();
   const { data: tasks } = useTasks(workspaceId);
-  const { data: members } = useMembers(workspaceId);
-  const nameOf = (id?: string) =>
-    members?.find((m) => m.user_id === id)?.display_name ?? t("tasks.unassigned");
 
   return (
     <div className="overflow-auto p-4">
@@ -43,7 +40,10 @@ export function ListView({
               </td>
               <td className="py-2 pr-4 text-muted-foreground">{t(`tasks.status_${task.status}`)}</td>
               <td className="py-2 pr-4 text-muted-foreground">{t(`tasks.priority_${task.priority}`)}</td>
-              <td className="py-2 pr-4 text-muted-foreground">{nameOf(task.assignee_id)}</td>
+              <td className="py-2 pr-4 text-muted-foreground">
+                {task.assignee?.display_name ?? t("tasks.unassigned")}
+                {task.assignee?.kind === "agent" && <AgentBadge className="ml-2" />}
+              </td>
               <td className="py-2 text-muted-foreground">{task.due_date ?? ""}</td>
             </tr>
           ))}

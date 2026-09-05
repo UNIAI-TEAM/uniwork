@@ -48,7 +48,7 @@ func TestAuditExportWritesCSVWithABOM(t *testing.T) {
 	store := newMemStorage()
 	consumer := NewAuditExportConsumer(f.q, store)
 
-	if _, err := f.tasks.Create(f.ctx, f.ownerA.ID, f.wsA.ID, CreateTaskInput{Title: "Việc có dấu"}); err != nil {
+	if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc có dấu"}); err != nil {
 		t.Fatal(err)
 	}
 	exp, err := f.svc.RequestExport(f.ctx, f.ownerA.ID, f.orgA, "csv",
@@ -110,7 +110,7 @@ func TestAuditExportJSONLinesIsOnePerLine(t *testing.T) {
 	store := newMemStorage()
 	consumer := NewAuditExportConsumer(f.q, store)
 	for range 2 {
-		if _, err := f.tasks.Create(f.ctx, f.ownerA.ID, f.wsA.ID, CreateTaskInput{Title: "Việc"}); err != nil {
+		if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc"}); err != nil {
 			t.Fatal(err)
 		}
 	}
