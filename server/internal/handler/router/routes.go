@@ -53,6 +53,12 @@ type Routes struct {
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
 
+	ListOrgAgents       http.HandlerFunc
+	CreateOrgAgent      http.HandlerFunc
+	PatchAgent          http.HandlerFunc
+	ListWorkspaceAgents http.HandlerFunc
+	AddWorkspaceAgent   http.HandlerFunc
+
 	ListAuditEvents     http.HandlerFunc
 	GetAuditEvent       http.HandlerFunc
 	ListResourceHistory http.HandlerFunc

@@ -1,7 +1,7 @@
 # UniWork — Agent là actor hạng nhất (Agent Actor Model, đợt F + A)
 
 **Ngày:** 2026-09-04  
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421); bổ sung 4.3 work contract, 5.2b vòng sửa, `agents.skills` ngày 2026-09-04 sau đối chiếu key points. Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
+**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421); **đợt F đã triển khai** (2026-09-06, UNI-424, plan `2026-09-06-agent-actor-schema.md` — AG1 chốt bảng `workspace_agent_members` thay cho `member_kind` ở §4.1); đợt A chờ A-01; bổ sung 4.3 work contract, 5.2b vòng sửa, `agents.skills` ngày 2026-09-04 sau đối chiếu key points. Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
 **Spec liên quan:** `2026-09-04-ai-platform-gateway-design.md` (tiền đề), `2026-08-27-workspace-permissions-design.md`, `2026-08-27-tasks-multica-parity-design.md`, `2026-08-24-uniwork-platform-design.md`  
 **Tham chiếu:** PRODUCT.md § Agent Principles; bản cũ `unidigiwork`: `docs/architecture/ADR_AI_ACTION_PROPOSE_CONFIRM_EXECUTE.md`, `docs/ai/AI_ACTION_GOVERNANCE_V1.md`, `docs/ai/WEE2_AI_WORKER_GOVERNANCE.md`, `src/domain/work-execution/plan-schema.ts`, `src/domain/ai-governance/contracts.ts`, `docs/architecture/work-execution/*`
 

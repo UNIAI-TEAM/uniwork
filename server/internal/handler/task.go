@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
@@ -18,8 +19,8 @@ import (
 func toTaskDTO(t db.Task) sdo.TaskDTO {
 	out := sdo.TaskDTO{
 		ID: t.ID, WorkspaceID: t.WorkspaceID, Title: t.Title, Description: t.Description,
-		Status: t.Status, Priority: t.Priority,
-		Position: t.Position, Kind: t.Kind, CreatedBy: t.CreatedBy,
+		Status: t.Status, Priority: t.Priority, AssigneeKind: t.AssigneeKind,
+		Position: t.Position, Kind: t.Kind, CreatedBy: t.CreatedBy, CreatedByKind: t.CreatedByKind,
 		CreatedAt: t.CreatedAt.Time.Format(time.RFC3339),
 		UpdatedAt: t.UpdatedAt.Time.Format(time.RFC3339),
 	}
@@ -34,15 +35,52 @@ func toTaskDTO(t db.Task) sdo.TaskDTO {
 	return out
 }
 
+// taskDTOs maps rows and resolves every assignee in one batch, so a board of
+// 200 tasks costs two lookups, not 200.
+func (h *handlers) taskDTOs(r *http.Request, ts []db.Task) ([]sdo.TaskDTO, error) {
+	out := make([]sdo.TaskDTO, 0, len(ts))
+	refs := make([]service.ActorRef, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, toTaskDTO(t))
+		if t.AssigneeID.Valid {
+			refs = append(refs, service.ActorRef{Kind: audit.Kind(t.AssigneeKind), ID: t.AssigneeID.String})
+		}
+	}
+	actors, err := h.Actors.Resolve(r.Context(), refs)
+	if err != nil {
+		return nil, err
+	}
+	for i, t := range ts {
+		if !t.AssigneeID.Valid {
+			continue
+		}
+		if a, ok := actors[service.ActorRef{Kind: audit.Kind(t.AssigneeKind), ID: t.AssigneeID.String}]; ok {
+			dto := toActorDTO(a)
+			out[i].Assignee = &dto
+		}
+	}
+	return out, nil
+}
+
+func (h *handlers) respondTask(w http.ResponseWriter, r *http.Request, status int, t db.Task) {
+	dtos, err := h.taskDTOs(r, []db.Task{t})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, status, map[string]any{"task": dtos[0]})
+}
+
 func (h *handlers) listTasks(w http.ResponseWriter, r *http.Request) {
 	ts, err := h.Tasks.List(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.TaskDTO, 0, len(ts))
-	for _, t := range ts {
-		out = append(out, toTaskDTO(t))
+	out, err := h.taskDTOs(r, ts)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
 	}
 	respondJSON(w, 200, map[string]any{"tasks": out})
 }
@@ -59,7 +97,7 @@ func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"task": toTaskDTO(t)})
+	h.respondTask(w, r, 200, t)
 }
 
 func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +106,7 @@ func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"task": toTaskDTO(t)})
+	h.respondTask(w, r, 200, t)
 }
 
 // PATCH body: field vắng mặt = không đổi; assignee_id/due_date gửi null = xóa.
@@ -88,7 +126,7 @@ func (h *handlers) updateTask(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"task": toTaskDTO(t)})
+	h.respondTask(w, r, 200, t)
 }
 
 func (h *handlers) deleteTask(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +143,20 @@ func (h *handlers) listComments(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"comments": cs})
+	out := make([]sdo.CommentDTO, 0, len(cs))
+	for _, c := range cs {
+		dto := sdo.CommentDTO{
+			ID: c.ID, TaskID: c.TaskID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind, Body: c.Body,
+			CreatedAt: c.CreatedAt.Time.Format(time.RFC3339), DisplayName: c.DisplayName,
+			Author: sdo.ActorDTO{ID: c.AuthorID, Kind: c.AuthorKind, DisplayName: c.DisplayName},
+		}
+		if c.AvatarUrl.Valid {
+			dto.AvatarURL = c.AvatarUrl.String
+			dto.Author.AvatarURL = c.AvatarUrl.String
+		}
+		out = append(out, dto)
+	}
+	respondJSON(w, 200, map[string]any{"comments": out})
 }
 
 func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {

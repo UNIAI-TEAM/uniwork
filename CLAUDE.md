@@ -142,17 +142,13 @@ binary + production Next build against the same services).
 
 ## Accepted Decisions Awaiting Enforcement
 
-ADR 0007–0010 (`docs/adr/`) were accepted on 2026-09-04 and shape every
+ADR 0008 and 0010 (`docs/adr/`) were accepted on 2026-09-04 and shape every
 Phase F feature, but their guard tests do not exist yet. Until the named test
 lands, reviewers hold the rule by hand via `docs/engineering/DEFINITION_OF_DONE.md`;
 when it lands, move the rule into the section above it belongs to and name the
 test there. Planned guards are written without backticks on purpose: they are
 not paths yet.
 
-- ADR 0007 — every business table pairs `created_by` with `created_by_kind`
-  (`human` | `agent` | `system`); services take an Actor{ID, Kind} value.
-  Guard lands with F-10: migration lint for the `_kind` pair, arch test that
-  only `server/internal/service/` constructs an Actor.
 - ADR 0008 — every query filters by `organization_id`; membership still only
   via `RequireMember`. The column rule itself is enforced (see Database and
   Migration Rules). Still to land with F-08/F-02: a query-scope scanner over
@@ -176,6 +172,14 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   (`server/migrations/embed.go`) applies files outside a transaction for
   exactly this reason.
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
+- Attribution is a pair (ADR 0007): a table created after migration `065`
+  that has `created_by` also has `created_by_kind` (`human` | `agent` |
+  `system`), and `tasks`, `task_comments`, `meetings`, `chat_messages` carry
+  their `_kind` beside the id. Commands that record a kind take a
+  `service.Actor`; handlers only ever build one with `service.Human`, and
+  agents join a workspace through `workspace_agent_members`
+  (`RequireAgentMember`, same file as `RequireMember`). `TestActorKindOnEveryCreatedBy`
+  (migration lint) and `TestActorConstructedOnlyInService` (arch test) hold it.
 - Every business table created after migration `065` declares
   `organization_id TEXT NOT NULL` (ADR 0008); identity and infrastructure
   tables are exempted by name, with a reason, in `tenantExemptTables`. The

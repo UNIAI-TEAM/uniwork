@@ -4,6 +4,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
+import { agentKeys } from "../agents/hooks";
 import { auditKeys } from "../audit/hooks";
 import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
@@ -45,6 +46,10 @@ function keysFor(
         push(taskKeys.comments(payload.task_id));
         push(auditKeys.history(wsId, "task", payload.task_id));
       }
+      break;
+    }
+    case "workspace_agent.added": {
+      push(agentKeys.workspace(wsId));
       break;
     }
     case "chat.message.created":

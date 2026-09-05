@@ -8,6 +8,7 @@ import {
   canEditComment,
   canEditTask,
   canInviteMembers,
+  canManageAgents,
   canManageAuditSettings,
   canManageMembers,
   canReadAuditLog,
@@ -21,6 +22,18 @@ const ctx = (over: Partial<PermissionContext>): PermissionContext => ({
   orgRole: null,
   wsRole: null,
   ...over,
+});
+
+describe("canManageAgents — mirrors AgentService.Create/Update (agent.go)", () => {
+  it("allows organization owners and admins", () => {
+    expect(canManageAgents(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canManageAgents(ctx({ orgRole: "admin" })).allowed).toBe(true);
+  });
+  it("denies organization members, non-members and signed-out users", () => {
+    expect(canManageAgents(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
+    expect(canManageAgents(ctx({ orgRole: null })).reason).toBe("not_member");
+    expect(canManageAgents(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
+  });
 });
 
 describe("canInviteMembers — mirrors workspace.go:136", () => {
