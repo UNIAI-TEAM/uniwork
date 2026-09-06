@@ -1,0 +1,11 @@
+Subject: What's new in UniWork today
+
+Hi {{.Data.DisplayName}}, notifications you have not seen in the last 24 hours:
+{{range .Data.Groups}}
+{{if .Workspace}}[{{.Workspace}}]{{end}}
+{{range .Items}}- {{.Title}}{{if gt .Count 1}} ({{.Count}} changes){{end}}
+  {{.URL}}
+{{end}}{{end}}{{if gt .Data.More 0}}
+and {{.Data.More}} more
+{{end}}
+Turn this email off in Settings › Notifications: {{.Data.SettingsURL}}

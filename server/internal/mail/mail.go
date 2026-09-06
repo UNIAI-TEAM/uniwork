@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	KindVerificationCode = "verification_code"
-	KindPasswordReset    = "password_reset"
-	KindWorkspaceInvite  = "workspace_invite"
-	KindWelcome          = "welcome"
+	KindVerificationCode   = "verification_code"
+	KindPasswordReset      = "password_reset"
+	KindWorkspaceInvite    = "workspace_invite"
+	KindWelcome            = "welcome"
+	KindNotificationDigest = "notification_digest"
 )
 
 type Message struct {

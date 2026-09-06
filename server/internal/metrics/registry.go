@@ -18,11 +18,12 @@ type RegistryOptions struct {
 }
 
 type Registry struct {
-	Gatherer prometheus.Gatherer
-	HTTP     *HTTPMetrics
-	Emails   *prometheus.CounterVec
-	Meetings *Meetings
-	Outbox   *Outbox
+	Gatherer      prometheus.Gatherer
+	HTTP          *HTTPMetrics
+	Emails        *prometheus.CounterVec
+	Meetings      *Meetings
+	Outbox        *Outbox
+	Notifications *Notifications
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -61,12 +62,16 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	outboxMetrics := NewOutbox()
 	reg.MustRegister(outboxMetrics.Collectors()...)
 
+	notificationMetrics := NewNotifications()
+	reg.MustRegister(notificationMetrics.Collectors()...)
+
 	return &Registry{
-		Gatherer: reg,
-		HTTP:     httpMetrics,
-		Emails:   emails,
-		Meetings: meetingMetrics,
-		Outbox:   outboxMetrics,
+		Gatherer:      reg,
+		HTTP:          httpMetrics,
+		Emails:        emails,
+		Meetings:      meetingMetrics,
+		Outbox:        outboxMetrics,
+		Notifications: notificationMetrics,
 	}
 }
 
