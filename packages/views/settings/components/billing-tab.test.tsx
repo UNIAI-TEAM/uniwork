@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -38,7 +38,8 @@ const entitlements = [
 ];
 const plans = [
   { id: "p1", code: "starter", name: "Starter", price_amount: 0, features: [] },
-  { id: "p2", code: "team", name: "Team", price_amount: 500000, features: [] },
+  { id: "p2", code: "team", name: "Team", price_amount: 500000, billing_period: "month", features: [{ feature_key: "members.max", enabled: true, quota_limit: 50 }] },
+  { id: "p3", code: "team_free", name: "Team Free", price_amount: 0, features: [] },
 ];
 
 /** `role` is what the organizations list reports — the only thing the gate reads. */
@@ -70,24 +71,37 @@ describe("BillingTab", () => {
     requestMock.mockReset();
   });
 
-  it("shows the owner the plan, its status, usage against limits and the plan picker", async () => {
+  it("shows the owner the plan, price, usage with what is left, and plan cards", async () => {
     mockApi("owner");
     renderTab();
-    expect(await screen.findByText("Starter")).toBeInTheDocument();
+    expect(await screen.findAllByText("Starter")).not.toHaveLength(0);
     expect(screen.getByText("Đang hiệu lực")).toBeInTheDocument();
-    expect(screen.getByText("12 / 50")).toBeInTheDocument();
+    expect(screen.getByText("12 / 50 thành viên")).toBeInTheDocument();
+    expect(screen.getByText("Còn 38")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Thành viên tổ chức" })).toHaveAttribute("aria-valuenow", "24");
     expect(screen.getByText("Tắt")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText("Đổi gói")).not.toBeDisabled());
-    expect(screen.getByRole("option", { name: "Team (trả phí)" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Starter/ })).toBeNull();
+    // Plan cards: the current one is marked, the paid one goes to checkout.
+    await screen.findByTestId("plan-card-team");
+    expect(screen.getAllByText("Gói hiện tại").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Thanh toán" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Ngừng gói cuối kỳ" })).toBeInTheDocument();
   });
 
-  it("marks a past_due subscription and lets an admin look without the picker", async () => {
+  it("asks before switching to a free plan", async () => {
+    mockApi("owner");
+    renderTab();
+    await screen.findByTestId("plan-card-team_free");
+    fireEvent.click(screen.getByRole("button", { name: "Chọn gói này" }));
+    expect(await screen.findByText("Đổi sang gói Team Free?")).toBeInTheDocument();
+  });
+
+  it("marks a past_due subscription and lets an admin look without the plan picker", async () => {
     mockApi("admin", { ...subscription, status: "past_due", current_period_end: "2026-10-06T00:00:00Z" });
     renderTab();
     expect(await screen.findByText("Quá hạn thanh toán")).toBeInTheDocument();
     expect(screen.getByText("Chỉ chủ sở hữu tổ chức đổi được gói.")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Đổi gói")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Chọn gói này" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ngừng gói cuối kỳ" })).toBeNull();
   });
 
   it("tells a plain member why billing is not theirs", async () => {
