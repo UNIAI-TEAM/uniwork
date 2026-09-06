@@ -343,13 +343,15 @@
         "action": "Action",
         "action_placeholder": "task.updated",
         "actor": "Actor",
-        "actor_placeholder": "User ULID",
+        "actor_placeholder": "Pick or paste a user id",
         "resource_type": "Resource type",
         "resource_type_placeholder": "task",
         "from": "From",
         "to": "To",
         "apply": "Apply",
-        "clear": "Clear"
+        "clear": "Clear",
+        "any": "All",
+        "active": "Filters active"
       },
       "table": {
         "time": "When",
@@ -358,7 +360,9 @@
         "resource": "Resource",
         "changes": "Changes",
         "no_changes": "No fields changed",
-        "row_label": "Open entry details"
+        "row_label": "Open entry details",
+        "more_fields_one": "+{{count}} field",
+        "more_fields_other": "+{{count}} fields"
       },
       "actor_kind": {
         "human": "Person",
@@ -378,7 +382,9 @@
         "metadata": "Context",
         "from": "Before",
         "to": "After",
-        "empty": "None"
+        "empty": "None",
+        "copy": "Copy",
+        "copied": "Copied"
       },
       "retention": {
         "title": "Retention",
@@ -386,7 +392,9 @@
         "label": "Days",
         "save": "Save",
         "saved": "Retention saved",
-        "owner_only": "Only the organization owner can change this setting."
+        "owner_only": "Only the organization owner can change this setting.",
+        "unit": "days",
+        "hint": "Between 30 and 730 days. Expired entries leave the screen; nothing is deleted."
       },
       "export": {
         "title": "Export",
@@ -406,13 +414,65 @@
           "done": "Done",
           "failed": "Failed",
           "unknown": "Unknown"
-        }
+        },
+        "queued": "Export queued. You will be notified when the file is ready.",
+        "one_at_a_time": "An export is running. Wait for it to finish before starting another.",
+        "hint": "The download link expires after 24 hours.",
+        "expires": "Expires",
+        "format_jsonl": "JSON Lines"
       },
       "activity": {
         "title": "Activity",
         "empty": "No activity has been recorded yet.",
         "error": "Activity could not be loaded."
-      }
+      },
+      "actions": {
+        "auth.login_succeeded": "Signed in",
+        "auth.login_failed": "Sign-in failed",
+        "auth.password_changed": "Password changed",
+        "auth.password_reset_requested": "Password reset requested",
+        "auth.session_revoked": "Session revoked",
+        "organization.created": "Organization created",
+        "organization.updated": "Organization updated",
+        "member.invited": "Member invited",
+        "member.joined": "Member joined",
+        "member.removed": "Member removed",
+        "member.role_changed": "Member role changed",
+        "workspace.created": "Workspace created",
+        "workspace.updated": "Workspace updated",
+        "workspace_member.added": "Added to workspace",
+        "workspace_member.removed": "Removed from workspace",
+        "workspace_member.role_changed": "Workspace role changed",
+        "workspace_agent.added": "Agent added to workspace",
+        "agent.created": "Agent created",
+        "agent.updated": "Agent updated",
+        "task.created": "Task created",
+        "task.updated": "Task updated",
+        "task.deleted": "Task deleted",
+        "task.comment_added": "Comment added",
+        "subscription.changed": "Subscription changed",
+        "audit.retention_set": "Retention changed",
+        "audit.export_requested": "Export requested",
+        "webhook.deliver": "Webhook delivered"
+      },
+      "resources": {
+        "task": "Task",
+        "workspace": "Workspace",
+        "organization": "Organization",
+        "agent": "Agent",
+        "subscription": "Subscription",
+        "audit": "Audit log",
+        "webhook": "Webhook",
+        "task_comment": "Comment",
+        "workspace_member": "Workspace member",
+        "workspace_agent_member": "Workspace agent",
+        "organization_member": "Organization member",
+        "invitation": "Invitation",
+        "user": "User",
+        "session": "Session"
+      },
+      "loading": "Loading…",
+      "empty_fresh_description": "Every change to data will appear here as soon as it happens."
     }
   },
   "tasks": {
@@ -762,7 +822,6 @@
     "progressCompleted": "Completed {{done}} / {{total}} tasks",
     "liveRecordingRunning": "Live recording in progress",
     "summaryUpdated": "Updated {{time}}",
-    "notes": "Notes",
     "summaryTab": "Summary",
     "transcriptTab": "Transcript",
     "actionsTab": "Actions",

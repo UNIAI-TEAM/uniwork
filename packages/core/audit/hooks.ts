@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as audit from "../api/endpoints/audit";
 import type { AuditQuery } from "../api/endpoints/audit";
 
@@ -21,11 +21,19 @@ export const auditKeys = {
     ["audit", "history", wsId, resourceType, resourceId] as const,
 };
 
+/**
+ * The log as pages the reader scrolls through. "Load more" appends the next
+ * page under the ones already on screen; a filter change keeps the previous
+ * rows visible until the new first page lands, so the table never blanks.
+ */
 export function useAuditEvents(orgId: string, query: AuditQuery = {}) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: auditKeys.list(orgId, query),
-    queryFn: () => audit.listAuditEvents(orgId, query),
+    queryFn: ({ pageParam }) => audit.listAuditEvents(orgId, { ...query, before: pageParam }),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.nextBefore || undefined,
     enabled: !!orgId,
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -342,13 +342,15 @@
         "action": "Hành động",
         "action_placeholder": "task.updated",
         "actor": "Người thực hiện",
-        "actor_placeholder": "ULID người dùng",
+        "actor_placeholder": "Chọn hoặc dán mã người dùng",
         "resource_type": "Loại tài nguyên",
         "resource_type_placeholder": "task",
         "from": "Từ ngày",
         "to": "Đến ngày",
         "apply": "Áp dụng",
-        "clear": "Xóa lọc"
+        "clear": "Xóa lọc",
+        "any": "Tất cả",
+        "active": "Đang lọc"
       },
       "table": {
         "time": "Thời điểm",
@@ -357,7 +359,9 @@
         "resource": "Tài nguyên",
         "changes": "Thay đổi",
         "no_changes": "Không có trường nào đổi",
-        "row_label": "Xem chi tiết bản ghi"
+        "row_label": "Xem chi tiết bản ghi",
+        "more_fields_one": "+{{count}} trường",
+        "more_fields_other": "+{{count}} trường"
       },
       "actor_kind": {
         "human": "Người",
@@ -377,7 +381,9 @@
         "metadata": "Ngữ cảnh",
         "from": "Trước",
         "to": "Sau",
-        "empty": "Không có"
+        "empty": "Không có",
+        "copy": "Sao chép",
+        "copied": "Đã sao chép"
       },
       "retention": {
         "title": "Thời gian lưu",
@@ -385,7 +391,9 @@
         "label": "Số ngày",
         "save": "Lưu",
         "saved": "Đã lưu thời gian lưu nhật ký",
-        "owner_only": "Chỉ chủ sở hữu tổ chức đổi được thiết lập này."
+        "owner_only": "Chỉ chủ sở hữu tổ chức đổi được thiết lập này.",
+        "unit": "ngày",
+        "hint": "Từ 30 đến 730 ngày. Hết hạn chỉ ẩn khỏi màn hình, không xóa."
       },
       "export": {
         "title": "Xuất nhật ký",
@@ -405,13 +413,65 @@
           "done": "Xong",
           "failed": "Lỗi",
           "unknown": "Không rõ"
-        }
+        },
+        "queued": "Đã xếp hàng bản xuất. Bạn sẽ được báo khi tệp sẵn sàng.",
+        "one_at_a_time": "Một bản xuất đang chạy. Chờ xong rồi tạo bản mới.",
+        "hint": "Link tải hết hạn sau 24 giờ.",
+        "expires": "Hết hạn",
+        "format_jsonl": "JSON Lines"
       },
       "activity": {
         "title": "Hoạt động",
         "empty": "Chưa có hoạt động nào được ghi lại.",
         "error": "Không tải được hoạt động."
-      }
+      },
+      "actions": {
+        "auth.login_succeeded": "Đăng nhập thành công",
+        "auth.login_failed": "Đăng nhập thất bại",
+        "auth.password_changed": "Đổi mật khẩu",
+        "auth.password_reset_requested": "Yêu cầu đặt lại mật khẩu",
+        "auth.session_revoked": "Thu hồi phiên",
+        "organization.created": "Tạo tổ chức",
+        "organization.updated": "Cập nhật tổ chức",
+        "member.invited": "Mời thành viên",
+        "member.joined": "Thành viên tham gia",
+        "member.removed": "Gỡ thành viên",
+        "member.role_changed": "Đổi vai trò thành viên",
+        "workspace.created": "Tạo workspace",
+        "workspace.updated": "Cập nhật workspace",
+        "workspace_member.added": "Thêm vào workspace",
+        "workspace_member.removed": "Gỡ khỏi workspace",
+        "workspace_member.role_changed": "Đổi vai trò trong workspace",
+        "workspace_agent.added": "Thêm agent vào workspace",
+        "agent.created": "Tạo agent",
+        "agent.updated": "Cập nhật agent",
+        "task.created": "Tạo task",
+        "task.updated": "Cập nhật task",
+        "task.deleted": "Xóa task",
+        "task.comment_added": "Bình luận task",
+        "subscription.changed": "Đổi gói dịch vụ",
+        "audit.retention_set": "Đổi thời gian lưu nhật ký",
+        "audit.export_requested": "Yêu cầu xuất nhật ký",
+        "webhook.deliver": "Gửi webhook"
+      },
+      "resources": {
+        "task": "Task",
+        "workspace": "Workspace",
+        "organization": "Tổ chức",
+        "agent": "Agent",
+        "subscription": "Gói dịch vụ",
+        "audit": "Nhật ký",
+        "webhook": "Webhook",
+        "task_comment": "Bình luận",
+        "workspace_member": "Thành viên workspace",
+        "workspace_agent_member": "Agent trong workspace",
+        "organization_member": "Thành viên tổ chức",
+        "invitation": "Lời mời",
+        "user": "Người dùng",
+        "session": "Phiên đăng nhập"
+      },
+      "loading": "Đang tải…",
+      "empty_fresh_description": "Mọi thao tác đổi dữ liệu sẽ xuất hiện ở đây ngay khi diễn ra."
     }
   },
   "tasks": {
@@ -455,7 +515,7 @@
     "endsAt": "Kết thúc",
     "join": "Vào phòng họp",
     "leave": "Rời phòng",
-    "notes": "Biên bản",
+    "notes": "Ghi chú",
     "notConfigured": "LiveKit chưa được cấu hình trên server",
     "start": "Bắt đầu",
     "end": "Kết thúc họp",
@@ -761,7 +821,6 @@
     "progressCompleted": "Hoàn thành {{done}} / {{total}} việc",
     "liveRecordingRunning": "Đang ghi hình trực tiếp",
     "summaryUpdated": "Cập nhật {{time}}",
-    "notes": "Ghi chú",
     "summaryTab": "Tóm tắt",
     "transcriptTab": "Transcript",
     "actionsTab": "Việc cần làm",

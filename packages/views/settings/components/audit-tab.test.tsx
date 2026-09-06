@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -8,6 +8,10 @@ import { WorkspaceProvider } from "../../layout/workspace-context";
 import { AuditTab } from "./audit-tab";
 
 initI18n();
+
+// The tab renders after two round trips (organizations → audit) and, under
+// the full suite with coverage, the default 1s wait is not enough.
+configure({ asyncUtilTimeout: 8_000 });
 
 const user: User = {
   id: "u1",
@@ -56,7 +60,15 @@ function mockApi(role: string, overrides: Record<string, unknown> = {}) {
     if (path.includes("/audit/exports")) return Promise.resolve({ exports: [] });
     if (path.includes("/audit")) {
       if ("events" in overrides) return Promise.resolve(overrides.events);
-      return Promise.resolve({ events: [auditEvent], next_before: "" });
+      if (path.includes("before=")) {
+        return Promise.resolve({ events: [{ ...auditEvent, id: "a2", action: "task.deleted" }], next_before: "" });
+      }
+      return Promise.resolve({ events: [auditEvent], next_before: "cursor-1" });
+    }
+    if (path.endsWith("/members")) {
+      return Promise.resolve({
+        members: [{ workspace_id: "ws1", user_id: "u1", role: "member", email: "a@b.c", display_name: "An" }],
+      });
     }
     if (path === "/api/v1/orgs") {
       return Promise.resolve({ organizations: [{ id: "o1", slug: "acme", name: "Acme", role }] });
@@ -82,19 +94,41 @@ describe("AuditTab", () => {
     requestMock.mockReset();
   });
 
-  it("shows the log to an organization admin", async () => {
+  it("shows the log to an organization admin in words, not identifiers", async () => {
     mockApi("admin");
     renderTab();
-    expect(await screen.findByText("task.updated")).toBeInTheDocument();
-    // The change summary names the field that moved, not the whole row.
+    // The change summary shows the field and both sides of the move.
+    expect(await screen.findByText("todo")).toBeInTheDocument();
     expect(screen.getByText("status")).toBeInTheDocument();
+    expect(screen.getAllByText("Cập nhật task").length).toBeGreaterThan(1);
+    // The actor is a name when the workspace knows them, never a bare ULID.
+    expect(await screen.findByTitle("u1")).toHaveTextContent("An");
+    expect(screen.getByText("done")).toBeInTheDocument();
+  });
+
+  it("appends the next page under the first instead of replacing it", async () => {
+    mockApi("admin");
+    renderTab();
+    await screen.findByText("todo");
+    fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
+    await waitFor(() => expect(screen.getAllByText("Xóa task")).toHaveLength(2));
+    expect(screen.getAllByText("Cập nhật task")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
+  });
+
+  it("opens the entry details from the row", async () => {
+    mockApi("owner");
+    renderTab();
+    const [row] = await screen.findAllByRole("button", { name: /Xem chi tiết bản ghi/ });
+    fireEvent.click(row!);
+    expect(await screen.findByText("corr1")).toBeInTheDocument();
   });
 
   it("tells a plain member why the log is not theirs, instead of showing an empty table", async () => {
     mockApi("member");
     renderTab();
     expect(await screen.findByText("Bạn không xem được nhật ký này")).toBeInTheDocument();
-    expect(screen.queryByText("task.updated")).toBeNull();
+    expect(screen.queryByText("todo")).toBeNull();
   });
 
   it("offers the next step when nothing matches instead of rendering rows nobody asked for", async () => {
@@ -106,16 +140,21 @@ describe("AuditTab", () => {
   it("reserves retention and export for the owner", async () => {
     mockApi("admin");
     renderTab();
-    await screen.findByText("task.updated");
+    await screen.findByText("todo");
     expect(screen.getByLabelText("Số ngày")).toBeDisabled();
-    expect(screen.getAllByText("Chỉ chủ sở hữu tổ chức đổi được thiết lập này.").length).toBeGreaterThan(0);
+    expect(screen.getByText("Chỉ chủ sở hữu tổ chức đổi được thiết lập này.")).toBeInTheDocument();
+    expect(screen.getByText("Chỉ chủ sở hữu tổ chức xuất được nhật ký.")).toBeInTheDocument();
   });
 
   it("lets the owner edit retention", async () => {
     mockApi("owner");
     renderTab();
-    await screen.findByText("task.updated");
+    await screen.findByText("todo");
     await waitFor(() => expect(screen.getByLabelText("Số ngày")).not.toBeDisabled());
+    // Nothing to save until the number actually changes.
+    expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Số ngày"), { target: { value: "120" } });
+    expect(screen.getByRole("button", { name: "Lưu" })).not.toBeDisabled();
   });
 
   it("says the log could not be loaded rather than blanking the screen", async () => {
