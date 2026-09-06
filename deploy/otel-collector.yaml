@@ -1,0 +1,31 @@
+# OpenTelemetry Collector for the `observability` compose profile. The API
+# exports OTLP/gRPC spans here when OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  # Prints every span to the collector's stdout: `docker compose logs otel-collector`.
+  debug:
+    verbosity: normal
+  # ponytail: no trace backend yet; uncomment one and add it to the pipeline.
+  # otlp/tempo:
+  #   endpoint: tempo:4317
+  #   tls: { insecure: true }
+  # otlp/jaeger:
+  #   endpoint: jaeger:4317
+  #   tls: { insecure: true }
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
