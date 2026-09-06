@@ -14,7 +14,7 @@ import (
 const createGoogleUser = `-- name: CreateGoogleUser :one
 INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at, locale)
 VALUES ($1, $2, $3, $4, $5, now(), $6)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type CreateGoogleUserParams struct {
@@ -51,6 +51,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -58,7 +59,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, password_hash, display_name, locale)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type CreateUserParams struct {
@@ -93,12 +94,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -119,12 +121,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role FROM users WHERE google_id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone FROM users WHERE google_id = $1
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error) {
@@ -145,12 +148,13 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -171,6 +175,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -212,7 +217,7 @@ UPDATE users SET
   avatar_url = COALESCE(avatar_url, $3),
   updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type LinkGoogleAccountParams struct {
@@ -239,6 +244,7 @@ func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountPa
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -246,7 +252,7 @@ func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountPa
 const markEmailVerified = `-- name: MarkEmailVerified :one
 UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error) {
@@ -267,6 +273,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -274,7 +281,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 const markUserOnboarded = `-- name: MarkUserOnboarded :one
 UPDATE users SET onboarded_at = COALESCE(onboarded_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error) {
@@ -295,6 +302,7 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -304,7 +312,7 @@ UPDATE users SET
   onboarding_questionnaire = COALESCE($1, onboarding_questionnaire),
   updated_at = now()
 WHERE id = $2
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type PatchUserOnboardingParams struct {
@@ -330,6 +338,7 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -337,7 +346,7 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 const setUserMatrixUserID = `-- name: SetUserMatrixUserID :one
 UPDATE users SET matrix_user_id = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type SetUserMatrixUserIDParams struct {
@@ -363,6 +372,7 @@ func (q *Queries) SetUserMatrixUserID(ctx context.Context, arg SetUserMatrixUser
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -370,7 +380,7 @@ func (q *Queries) SetUserMatrixUserID(ctx context.Context, arg SetUserMatrixUser
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
 UPDATE users SET avatar_url = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type UpdateUserAvatarParams struct {
@@ -396,6 +406,7 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -403,7 +414,7 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET password_hash = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type UpdateUserPasswordParams struct {
@@ -429,6 +440,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }
@@ -437,21 +449,28 @@ const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users SET
   display_name = COALESCE($1, display_name),
   locale       = COALESCE($2, locale),
+  timezone     = COALESCE($3, timezone),
   updated_at   = now()
-WHERE id = $3
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role
+WHERE id = $4
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone
 `
 
 type UpdateUserProfileParams struct {
 	DisplayName pgtype.Text `json:"display_name"`
 	Locale      pgtype.Text `json:"locale"`
+	Timezone    pgtype.Text `json:"timezone"`
 	ID          string      `json:"id"`
 }
 
 // Nil arguments keep the current value, so one statement serves both
 // PATCH /me shapes and the two fields commit together.
 func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserProfile, arg.DisplayName, arg.Locale, arg.ID)
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.DisplayName,
+		arg.Locale,
+		arg.Timezone,
+		arg.ID,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -468,6 +487,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.Locale,
 		&i.MatrixUserID,
 		&i.PlatformRole,
+		&i.Timezone,
 	)
 	return i, err
 }

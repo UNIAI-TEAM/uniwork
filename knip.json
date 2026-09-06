@@ -15,7 +15,11 @@
         "k6"
       ]
     },
-    "apps/web": {},
+    "apps/web": {
+      "ignore": [
+        "public/sw.js"
+      ]
+    },
     "packages/*": {},
     "e2e": {
       "entry": [

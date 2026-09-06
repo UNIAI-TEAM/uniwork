@@ -133,6 +133,7 @@
     "ownerLocked": "The workspace owner cannot be changed or removed this way"
   },
   "nav": {
+    "inbox": "Inbox",
     "tasks": "Tasks",
     "meetings": "Meetings",
     "chat": "Chat",
@@ -175,11 +176,40 @@
     }
   },
   "settings": {
+    "notifications": {
+      "title": "Notifications",
+      "description": "Choose what reaches your inbox, what is pushed to the browser, and what goes into the morning email.",
+      "push_section": "Push notifications",
+      "push_description": "Enabled per browser. Only the title and a link are sent.",
+      "push_this_browser": "Receive push notifications in this browser",
+      "push_denied": "The browser is blocking notifications. Allow them in the site settings and try again.",
+      "matrix_section": "By kind",
+      "matrix_description": "In-app is always the record; push and email are ways of delivering the same notification.",
+      "kind": "Kind",
+      "channel_in_app": "In-app",
+      "channel_push": "Push",
+      "channel_email": "Email",
+      "digest_hint": "One email a day at 08:00 in your time zone, only when something is unread.",
+      "toast_saved": "Saved",
+      "error": "Could not save, try again",
+      "kinds": {
+        "task_assigned": "Assigned a task",
+        "task_status_changed": "Task status changed",
+        "task_commented": "New comment",
+        "mentioned": "Mentioned",
+        "meeting_invited": "Invited to a meeting",
+        "meeting_starting": "Meeting starting soon",
+        "member_added": "Added to a workspace",
+        "role_changed": "Role changed",
+        "audit_export_ready": "Audit export ready"
+      }
+    },
     "page": {
       "title": "Settings",
       "my_account": "Account",
       "workspace_fallback": "Workspace",
       "tabs": {
+        "notifications": "Notifications",
         "profile": "Profile",
         "preferences": "Preferences",
         "general": "General",
@@ -206,6 +236,8 @@
       "toastFailed": "Could not update profile"
     },
     "preferences": {
+      "timezone": "Time zone",
+      "toastError": "Could not save, try again",
       "section": "General",
       "theme": "Theme",
       "themeLight": "Light",
@@ -1146,5 +1178,46 @@
     "pagination_previous": "Previous page",
     "plain_text": "Plain text",
     "toggle_sidebar": "Toggle sidebar"
+  },
+  "notifications": {
+    "title": "Inbox",
+    "filter": "Filter",
+    "filter_all": "All",
+    "filter_unread": "Unread",
+    "mark_all_read": "Mark all as read",
+    "group_unread": "Unread",
+    "group_earlier": "Earlier",
+    "merged_other_one": "and {{count}} more change",
+    "merged_other_other": "and {{count}} more changes",
+    "deleted": "deleted",
+    "unread_dot": "Unread",
+    "unread_elsewhere": "Unread notifications in another workspace",
+    "mark_read": "Mark as read",
+    "mark_unread": "Mark as unread",
+    "archive": "Archive",
+    "view_all": "See all",
+    "bell": "Notifications",
+    "bell_unread_one": "{{count}} unread notification",
+    "bell_unread_other": "{{count}} unread notifications",
+    "empty_title": "No notifications yet",
+    "empty_unread_title": "Nothing unread",
+    "empty_description": "You will hear when you are assigned a task, mentioned, or invited to a meeting.",
+    "empty_settings": "Notification settings",
+    "error_title": "Could not load the inbox",
+    "error": "Something went wrong, try again",
+    "keys_move": "move",
+    "keys_read": "read / unread",
+    "keys_archive": "archive",
+    "kind": {
+      "task_assigned": "{{actor}} assigned you “{{task}}”",
+      "task_status_changed": "{{actor}} moved “{{task}}” to {{status}}",
+      "task_commented": "{{actor}} commented on “{{task}}”",
+      "mentioned": "{{actor}} mentioned you in “{{task}}”",
+      "meeting_invited": "{{actor}} invited you to “{{meeting}}”",
+      "meeting_starting": "“{{meeting}}” starts in {{minutes}} minutes",
+      "member_added": "{{actor}} added you to workspace {{workspace}}",
+      "role_changed": "{{actor}} changed your role to {{role}}",
+      "audit_export_ready": "Your audit export is ready"
+    }
   }
 }

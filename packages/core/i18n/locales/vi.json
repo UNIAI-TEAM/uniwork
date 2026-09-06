@@ -132,6 +132,7 @@
     "ownerLocked": "Không thể đổi hoặc xóa chủ sở hữu workspace"
   },
   "nav": {
+    "inbox": "Hộp việc",
     "tasks": "Công việc",
     "meetings": "Cuộc họp",
     "chat": "Trò chuyện",
@@ -174,11 +175,40 @@
     }
   },
   "settings": {
+    "notifications": {
+      "title": "Thông báo",
+      "description": "Chọn việc gì đến hộp việc, việc gì đẩy tới trình duyệt, việc gì gom vào email mỗi sáng.",
+      "push_section": "Thông báo đẩy",
+      "push_description": "Bật trên từng trình duyệt. Chỉ tiêu đề và liên kết được gửi đi.",
+      "push_this_browser": "Nhận thông báo đẩy trên trình duyệt này",
+      "push_denied": "Trình duyệt đang chặn thông báo. Cho phép trong cài đặt trang rồi thử lại.",
+      "matrix_section": "Theo loại",
+      "matrix_description": "Trong ứng dụng luôn là bản gốc; đẩy và email là cách giao cùng một thông báo.",
+      "kind": "Loại",
+      "channel_in_app": "Trong ứng dụng",
+      "channel_push": "Đẩy",
+      "channel_email": "Email",
+      "digest_hint": "Email gom một lần mỗi ngày lúc 08:00 theo múi giờ của bạn, chỉ khi có thông báo chưa xem.",
+      "toast_saved": "Đã lưu",
+      "error": "Chưa lưu được, thử lại",
+      "kinds": {
+        "task_assigned": "Được giao việc",
+        "task_status_changed": "Việc đổi trạng thái",
+        "task_commented": "Bình luận mới",
+        "mentioned": "Được nhắc đến",
+        "meeting_invited": "Được mời họp",
+        "meeting_starting": "Họp sắp bắt đầu",
+        "member_added": "Được thêm vào workspace",
+        "role_changed": "Vai trò thay đổi",
+        "audit_export_ready": "Bản xuất nhật ký sẵn sàng"
+      }
+    },
     "page": {
       "title": "Cài đặt",
       "my_account": "Tài khoản",
       "workspace_fallback": "Workspace",
       "tabs": {
+        "notifications": "Thông báo",
         "profile": "Hồ sơ",
         "preferences": "Tùy chọn",
         "general": "Chung",
@@ -205,6 +235,8 @@
       "toastFailed": "Không cập nhật được hồ sơ"
     },
     "preferences": {
+      "timezone": "Múi giờ",
+      "toastError": "Chưa lưu được, thử lại",
       "section": "Chung",
       "theme": "Giao diện",
       "themeLight": "Sáng",
@@ -1142,5 +1174,46 @@
     "pagination_previous": "Trang trước",
     "plain_text": "Văn bản thuần",
     "toggle_sidebar": "Ẩn/hiện thanh bên"
+  },
+  "notifications": {
+    "title": "Hộp việc",
+    "filter": "Lọc",
+    "filter_all": "Tất cả",
+    "filter_unread": "Chưa đọc",
+    "mark_all_read": "Đánh dấu tất cả đã đọc",
+    "group_unread": "Chưa đọc",
+    "group_earlier": "Trước đó",
+    "merged_other_one": "và {{count}} thay đổi khác",
+    "merged_other_other": "và {{count}} thay đổi khác",
+    "deleted": "đã xóa",
+    "unread_dot": "Chưa đọc",
+    "unread_elsewhere": "Có thông báo chưa đọc ở workspace khác",
+    "mark_read": "Đánh dấu đã đọc",
+    "mark_unread": "Đánh dấu chưa đọc",
+    "archive": "Lưu trữ",
+    "view_all": "Xem tất cả",
+    "bell": "Thông báo",
+    "bell_unread_one": "{{count}} thông báo chưa đọc",
+    "bell_unread_other": "{{count}} thông báo chưa đọc",
+    "empty_title": "Chưa có thông báo",
+    "empty_unread_title": "Không còn gì chưa đọc",
+    "empty_description": "Bạn sẽ nhận khi được giao việc, được nhắc đến hoặc được mời họp.",
+    "empty_settings": "Cài đặt thông báo",
+    "error_title": "Không tải được hộp việc",
+    "error": "Có lỗi xảy ra, thử lại",
+    "keys_move": "di chuyển",
+    "keys_read": "đã đọc / chưa đọc",
+    "keys_archive": "lưu trữ",
+    "kind": {
+      "task_assigned": "{{actor}} đã giao bạn việc “{{task}}”",
+      "task_status_changed": "{{actor}} chuyển “{{task}}” sang {{status}}",
+      "task_commented": "{{actor}} đã bình luận trong “{{task}}”",
+      "mentioned": "{{actor}} đã nhắc đến bạn trong “{{task}}”",
+      "meeting_invited": "{{actor}} đã mời bạn họp “{{meeting}}”",
+      "meeting_starting": "“{{meeting}}” bắt đầu sau {{minutes}} phút",
+      "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
+      "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
+      "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng"
+    }
   }
 }

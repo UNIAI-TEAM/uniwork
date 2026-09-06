@@ -1,0 +1,12 @@
+{{define "preheader"}}What is waiting for you in UniWork{{end}}
+{{define "content"}}
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#18181b">Hi {{.Data.DisplayName}}, here is what's new</h1></td></tr>
+<tr><td style="padding-bottom:20px;font-size:15px;line-height:24px;color:#52525b">Notifications you have not seen in the last 24 hours:</td></tr>
+{{range .Data.Groups}}
+{{if .Workspace}}<tr><td style="padding:8px 0 4px;font-size:13px;line-height:18px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.04em">{{.Workspace}}</td></tr>{{end}}
+{{range .Items}}<tr><td style="padding:0 0 10px;font-size:15px;line-height:24px;color:#18181b"><a href="{{.URL}}" style="color:#18181b;text-decoration:underline">{{.Title}}</a>{{if gt .Count 1}} <span style="color:#71717a">· {{.Count}} changes</span>{{end}}</td></tr>
+{{end}}{{end}}
+{{if gt .Data.More 0}}<tr><td style="padding:4px 0 16px;font-size:14px;line-height:22px;color:#71717a">and {{.Data.More}} more</td></tr>{{end}}
+<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:12px;line-height:18px;color:#71717a">Don't want this email? Turn it off in <a href="{{.Data.SettingsURL}}" style="color:#52525b;text-decoration:underline">Settings › Notifications</a>.</td></tr>
+{{end}}
+{{define "footer"}}At most one email a day, only when something is unread.{{end}}

@@ -161,6 +161,9 @@ fails on drift. One flat namespace, keys nested by section:
 | member | **thành viên** | Member | `workspace.members = "Thành viên"` |
 | invitation | **lời mời** / **mời** | Invitation / Invite | `workspace.invite = "Mời thành viên"` |
 | comment | **bình luận** | Comment | |
+| inbox (the notification screen) | **hộp việc** | Inbox | `nav.inbox = "Hộp việc"`; route stays `/inbox` (OPEN_QUESTIONS N5) |
+| notification | **thông báo** | Notification | `notifications.*`; one row in the inbox is a "thông báo" |
+| mention (@someone) | **nhắc** / **nhắc đến** | Mention | `notifications.kind.mentioned = "… đã nhắc đến bạn …"` |
 | note (meeting) | **ghi chú** | Note | |
 | onboarding | **onboarding** | Onboarding | section name stays English |
 

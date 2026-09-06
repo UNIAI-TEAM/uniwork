@@ -70,6 +70,21 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["audit", "history", "ws1", "task", "t1"]));
   });
 
+  it("refreshes the inbox lists and the badge on notification.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "notification.created", payload: { notification_id: "n1", user_id: "u1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["notifications", "list"]),
+        JSON.stringify(["notifications", "unread-count"]),
+      ]),
+    );
+  });
+
   it("refreshes comments on task.comment_added", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

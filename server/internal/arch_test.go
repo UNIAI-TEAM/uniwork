@@ -98,7 +98,11 @@ func TestActorConstructedOnlyInService(t *testing.T) {
 			return err
 		}
 		slash := filepath.ToSlash(path)
-		if strings.Contains(slash, "internal/service/") || strings.Contains(slash, "internal/audit/") {
+		// internal/notification is a worker on the service tier: it reads
+		// committed events and its jobs act as "system" (F-07). No request
+		// reaches it, which is what the rule protects against.
+		if strings.Contains(slash, "internal/service/") || strings.Contains(slash, "internal/audit/") ||
+			strings.Contains(slash, "internal/notification/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
@@ -170,6 +174,33 @@ func TestBillingQueriesStayInBillingServices(t *testing.T) {
 		}
 		if billing.Match(src) {
 			t.Errorf("%s touches plans/subscriptions/usage directly; go through EntitlementService or BillingService", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Notification preferences are read in one place (spec F-07 §8.1 #9): the
+// consumer decides the channel and the service exposes the matrix. A second
+// reader would re-implement the defaults and drift from them.
+func TestNotificationPreferencesReadInOnePlace(t *testing.T) {
+	prefs := regexp.MustCompile(`\.(ListNotificationPreferences|ListNotificationPreferencesByUsers|UpsertNotificationPreference)\(`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") || strings.Contains(slash, "internal/notification/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if prefs.Match(src) {
+			t.Errorf("%s touches notification_preferences directly; go through internal/notification", path)
 		}
 		return nil
 	})

@@ -33,6 +33,7 @@ export const paths = {
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
+      inbox: () => `${base}/inbox`,
       members: () => `${base}/members`,
       settings: () => `${base}/settings`,
     };

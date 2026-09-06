@@ -56,7 +56,7 @@ function builderTemplates(): string[] {
     paths.meetingInviteRoom(ID),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.members(), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.inbox(), ws.members(), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p

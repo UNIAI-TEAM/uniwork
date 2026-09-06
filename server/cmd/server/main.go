@@ -23,6 +23,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
+	"github.com/unicomhub/uniwork/server/internal/notification"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -180,14 +181,34 @@ func main() {
 	dispatcher.Register(outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc))
 	dispatcher.Register(service.NewAuditExportConsumer(q, store))
 	dispatcher.Register(outbox.WebhookConsumer{})
+	// Notifications are the first bounded context fed purely by the outbox:
+	// the consumer turns committed events into inbox rows, the push consumer
+	// delivers notification.push, and two jobs (digest, reminder) run beside
+	// them. VAPID keys missing means push is off, not broken.
+	notifConsumer := notification.NewConsumer(pool, q, wsSvc)
+	var pushSender notification.PushSender
+	if cfg.PushEnabled() {
+		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
+		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
+	}
+	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
+	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
+	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
+	dispatcher.Register(notifConsumer)
+	dispatcher.Register(pushConsumer)
 	if reg != nil {
 		dispatcher.SetMetrics(reg.Outbox)
 		service.SetAuditCounter(reg.Outbox)
+		notifConsumer.SetMetrics(reg.Notifications)
+		pushConsumer.SetMetrics(reg.Notifications)
+		digest.SetMetrics(reg.Notifications)
 	}
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 	go meetingSvc.RunWorkers(runCtx)
 	go meetingSvc.RunAutoEnd(runCtx)
+	go digest.Run(runCtx)
+	go notification.NewMeetingReminder(notifConsumer).Run(runCtx)
 	dispatcherDone := make(chan struct{})
 	go func() { dispatcher.Run(runCtx); close(dispatcherDone) }()
 	if reg != nil {
@@ -220,6 +241,7 @@ func main() {
 		Actors:          actorSvc,
 		Audit:           auditSvc,
 		Billing:         billingSvc,
+		Notifications:   notifSvc,
 		Meetings:        meetingSvc,
 		Chat:            chatSvc,
 		Hub:             hub,

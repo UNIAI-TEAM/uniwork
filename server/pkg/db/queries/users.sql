@@ -54,6 +54,7 @@ RETURNING *;
 UPDATE users SET
   display_name = COALESCE(sqlc.narg('display_name'), display_name),
   locale       = COALESCE(sqlc.narg('locale'), locale),
+  timezone     = COALESCE(sqlc.narg('timezone'), timezone),
   updated_at   = now()
 WHERE id = sqlc.arg('id')
 RETURNING *;

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { appHost } from "@uniwork/core/config";
 import type { Workspace } from "@uniwork/core/types";
@@ -13,14 +13,18 @@ export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspac
   const { t } = useTranslation();
   const { data: invites, isFetched } = useMyInvitations();
   const accept = useAcceptInvite();
+  // Once a join succeeded the list empties by design; onEmpty must not
+  // override the navigation onJoined already started.
+  const joined = useRef(false);
   useEffect(() => {
-    if (isFetched && invites && invites.length === 0) onEmpty();
+    if (!joined.current && isFetched && invites && invites.length === 0) onEmpty();
   }, [isFetched, invites, onEmpty]);
   if (!invites?.length) return null;
 
   const join = (token: string) =>
     accept.mutate(token, {
       onSuccess: (workspace) => {
+        joined.current = true;
         if (workspace) onJoined(workspace);
       },
       onError: (err) => toastApiError(err, t("common.error")),
@@ -34,7 +38,10 @@ export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspac
         toastApiError(err, t("common.error"));
       }
     }
-    if (last) onJoined(last);
+    if (last) {
+      joined.current = true;
+      onJoined(last);
+    }
   };
 
   return (

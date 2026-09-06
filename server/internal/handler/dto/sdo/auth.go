@@ -18,6 +18,7 @@ type UserDTO struct {
 	Email                   string          `json:"email" format:"email" example:"an@acme.vn"`
 	DisplayName             string          `json:"display_name" example:"Nguyễn Văn An"`
 	Locale                  string          `json:"locale" description:"Ngôn ngữ email của người dùng" example:"vi"`
+	Timezone                string          `json:"timezone" description:"Múi giờ IANA, dùng cho email digest" example:"Asia/Ho_Chi_Minh"`
 	AvatarURL               string          `json:"avatar_url,omitempty" description:"URL avatar công khai khi đã tải lên" example:"https://cdn.example.com/avatars/an.png"`
 	OnboardedAt             *string         `json:"onboarded_at" description:"Thời điểm hoàn thành onboarding (RFC3339); null nếu chưa xong" example:"2026-08-01T09:00:00Z"`
 	EmailVerifiedAt         *string         `json:"email_verified_at" description:"Thời điểm xác nhận email (RFC3339); null nếu chưa xác nhận" example:"2026-08-01T09:00:00Z"`

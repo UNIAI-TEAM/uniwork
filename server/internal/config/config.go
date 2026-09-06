@@ -65,6 +65,18 @@ type Config struct {
 	SMTPTLSInsecure    bool
 	SMTPEHLOName       string
 	MailFrom           string
+	// VAPID keys enable Web Push (F-07). Both empty turns push off: the push
+	// consumer acknowledges rows without sending and the client hides the
+	// option. VAPID_SUBJECT is a mailto: or https origin the push service can
+	// contact about abuse; it defaults to the frontend origin.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	VAPIDSubject    string
+}
+
+// PushEnabled: both VAPID keys present.
+func (c Config) PushEnabled() bool {
+	return c.VAPIDPublicKey != "" && c.VAPIDPrivateKey != ""
 }
 
 // DevVerificationCode is the code accepted in place of a mailed one. Empty
@@ -133,6 +145,12 @@ func Load() (Config, error) {
 		SMTPTLSInsecure:           strings.EqualFold(os.Getenv("SMTP_TLS_INSECURE"), "true"),
 		SMTPEHLOName:              os.Getenv("SMTP_EHLO_NAME"),
 		MailFrom:                  getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
+		VAPIDPublicKey:            os.Getenv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey:           os.Getenv("VAPID_PRIVATE_KEY"),
+		VAPIDSubject:              os.Getenv("VAPID_SUBJECT"),
+	}
+	if c.VAPIDSubject == "" {
+		c.VAPIDSubject = c.FrontendOrigin
 	}
 	if c.DatabaseURL == "" {
 		return c, fmt.Errorf("DATABASE_URL is required")

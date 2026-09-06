@@ -22,6 +22,17 @@ vi.mock("@uniwork/core/api/http", async (orig) => {
 // jsdom không có canvas: DotSphere đã tự thoát khi getContext trả null.
 HTMLCanvasElement.prototype.getContext = (() => null) as never;
 
+// jsdom has no PointerEvent; Base UI builds one when a Switch or Toggle is
+// clicked. A MouseEvent subclass is enough for the handlers to run.
+if (typeof (globalThis as { PointerEvent?: unknown }).PointerEvent === "undefined") {
+  class PE extends MouseEvent {
+    pointerId = 1;
+    pointerType = "mouse";
+    isPrimary = true;
+  }
+  (globalThis as unknown as { PointerEvent: typeof PE }).PointerEvent = PE;
+}
+
 // jsdom không có ResizeObserver (useScrollFade dùng).
 class RO {
   observe() {}

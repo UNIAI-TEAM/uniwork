@@ -88,3 +88,11 @@ SELECT * FROM audit_exports
 WHERE organization_id = $1
 ORDER BY created_at DESC
 LIMIT $2;
+
+-- name: GetAuditEventByCorrelation :one
+-- The notification consumer asks "which fields moved" here rather than
+-- having the task service say so in its payload (OPEN_QUESTIONS N1).
+SELECT * FROM audit_events
+WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
+ORDER BY occurred_at DESC
+LIMIT 1;

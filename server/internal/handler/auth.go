@@ -25,7 +25,7 @@ func requestLocale(r *http.Request) string {
 }
 
 func toUserDTO(u db.User) sdo.UserDTO {
-	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, OnboardingQuestionnaire: json.RawMessage("{}")}
+	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, Timezone: u.Timezone, OnboardingQuestionnaire: json.RawMessage("{}")}
 	if u.AvatarUrl.Valid {
 		out.AvatarURL = u.AvatarUrl.String
 	}
@@ -121,7 +121,7 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), in.DisplayName, in.Locale)
+	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), in.DisplayName, in.Locale, in.Timezone)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

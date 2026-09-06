@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef } from "react";
-import { CalendarDays, ChevronsUpDown, LogOut, MessageSquare, Settings, SquareCheckBig, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronsUpDown, Inbox, LogOut, MessageSquare, Settings, SquareCheckBig, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { useScrollFade } from "@uniwork/ui/hooks/use-scroll-fade";
@@ -24,6 +25,7 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -36,9 +38,10 @@ import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.tasks" | "nav.meetings" | "nav.chat";
+  key: "nav.inbox" | "nav.tasks" | "nav.meetings" | "nav.chat";
   href: string;
   icon: LucideIcon;
+  badge?: number;
 }
 
 const navButtonClass =
@@ -63,8 +66,11 @@ export function AppSidebar() {
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
+  const unread = useUnreadCount();
+  const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
 
   const items: NavItem[] = [
+    { key: "nav.inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
     { key: "nav.tasks", href: ws.tasks(), icon: SquareCheckBig },
     { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },
     { key: "nav.chat", href: ws.chat(), icon: MessageSquare },
@@ -96,7 +102,7 @@ export function AppSidebar() {
           <SidebarGroup className="group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {items.map(({ key, href, icon: Icon }) => {
+                {items.map(({ key, href, icon: Icon, badge }) => {
                   const active = isActive(href);
                   return (
                     <SidebarMenuItem key={href}>
@@ -114,6 +120,11 @@ export function AppSidebar() {
                       >
                         <Icon aria-hidden />
                         <span>{t(key)}</span>
+                        {badge ? (
+                          <SidebarMenuBadge aria-label={t("notifications.bell_unread", { count: badge })}>
+                            {badge > 99 ? "99+" : badge}
+                          </SidebarMenuBadge>
+                        ) : null}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );

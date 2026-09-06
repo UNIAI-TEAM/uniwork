@@ -223,6 +223,9 @@ var tenantExemptTables = map[string]string{
 	"plans":                    "the global plan catalogue, shared by every tenant (F-02)",
 	"features":                 "the entitlement vocabulary, shared by every tenant (F-02)",
 	"plan_features":            "catalogue rows, keyed by plan (F-02)",
+	"notification_preferences": "per-user setting, above every organization (F-07)",
+	"push_subscriptions":       "per-user browser credential, above every organization (F-07)",
+	"notification_deliveries":  "consumer idempotency ledger keyed by outbox event (F-07)",
 }
 
 // Business tables created before ADR 0008 that still lack organization_id.
