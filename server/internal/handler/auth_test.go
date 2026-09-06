@@ -8,11 +8,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -95,6 +97,15 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
 	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
 	authSvc := service.NewAuthService(pool, q, minter, time.Hour, verification)
+	tasks := service.NewTaskService(pool, q, ws)
+	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")})
+	chatSvc := service.NewChatService(pool, q, ws, service.NopPublisher{})
+	// AI_PROVIDER=fake in the test env turns the gateway on with the
+	// deterministic provider; unset leaves it disabled, as in production
+	// without a key.
+	aiProvider, aiOpts := ai.FromEnv(os.Getenv)
+	gateway := service.NewAIGateway(pool, q, aiProvider, aiOpts)
+	meetingSvc.AI = gateway
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
@@ -107,16 +118,17 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Organizations: orgs,
 		Workspaces:    ws,
 		Onboarding:    service.NewOnboardingService(q, ws, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
-		Tasks:         service.NewTaskService(pool, q, ws),
+		Tasks:         tasks,
 		Agents:        service.NewAgentService(pool, q, orgs, ws),
 		Actors:        service.NewActorService(q),
 		Audit:         service.NewAuditService(pool, q, orgs, ws),
 		Billing:       service.NewBillingService(pool, q, orgs, nil),
-		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
+		Meetings:      meetingSvc,
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.
 		Storage:       storage.NewLocalStorageFromEnv(),
 		Notifications: notification.NewService(q, notification.PushConfig{}),
+		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
 	}
 	return d, pool
 }

@@ -64,6 +64,14 @@ type Routes struct {
 	SubscribePush              http.HandlerFunc
 	UnsubscribePush            http.HandlerFunc
 
+	AiCapabilities       http.HandlerFunc
+	AskUni               http.HandlerFunc
+	ListAiConversations  http.HandlerFunc
+	ListAiMessages       http.HandlerFunc
+	DeleteAiConversation http.HandlerFunc
+	WorkspaceAiUsage     http.HandlerFunc
+	OrganizationAiUsage  http.HandlerFunc
+
 	ListPlans          http.HandlerFunc
 	GetSubscription    http.HandlerFunc
 	ChangePlan         http.HandlerFunc

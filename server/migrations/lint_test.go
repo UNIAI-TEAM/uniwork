@@ -226,6 +226,7 @@ var tenantExemptTables = map[string]string{
 	"notification_preferences": "per-user setting, above every organization (F-07)",
 	"push_subscriptions":       "per-user browser credential, above every organization (F-07)",
 	"notification_deliveries":  "consumer idempotency ledger keyed by outbox event (F-07)",
+	"ai_model_rates":           "global model price list, shared by every tenant (F-09)",
 }
 
 // Business tables created before ADR 0008 that still lack organization_id.

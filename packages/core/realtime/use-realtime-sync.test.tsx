@@ -85,6 +85,21 @@ describe("useRealtimeSync", () => {
     );
   });
 
+  it("refreshes AI usage and the quota line on ai.usage.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "ai.usage.updated", payload: { organization_id: "o1", workspace_id: "ws1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["ai", "usage"]),
+        JSON.stringify(["ai", "capabilities", "ws1"]),
+      ]),
+    );
+  });
+
   it("refreshes comments on task.comment_added", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

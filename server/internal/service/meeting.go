@@ -89,7 +89,7 @@ type MeetingService struct {
 	metrics      MeetingMetrics
 	// AI and Tasks are optional collaborators set by main after construction;
 	// nil means the feature reports itself as unavailable.
-	AI    ai.Summarizer
+	AI    *ai.Gateway
 	Tasks *TaskService
 	// ent is the entitlement gate (F-02); built here so it can never be nil.
 	ent *EntitlementService

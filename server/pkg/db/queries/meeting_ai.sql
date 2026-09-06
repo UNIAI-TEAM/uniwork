@@ -7,8 +7,8 @@ RETURNING *;
 SELECT * FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at ASC, id ASC LIMIT $2;
 
 -- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetLatestMeetingSummary :one

@@ -98,10 +98,11 @@ func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) 
 	return &sum, nil
 }
 
-func (s *MeetingService) AIEnabled() bool { return s.AI != nil }
+func (s *MeetingService) AIEnabled() bool { return s.AI.Enabled() }
 
-// Summarize gathers transcript + notes, asks the Summarizer, and stores the
-// result. Any host/admin may re-run it; the latest row wins.
+// Summarize gathers transcript + notes, asks the gateway (capability
+// meeting_summarization) and stores the result with the usage row that paid
+// for it. Any host/admin may re-run it; the latest row wins.
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
@@ -110,7 +111,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if err := s.requireFeature(ctx, m, FeatureMeetingAISummary); err != nil {
 		return db.MeetingSummary{}, err
 	}
-	if s.AI == nil {
+	if !s.AI.Enabled() {
 		return db.MeetingSummary{}, coded(http.StatusServiceUnavailable, "ai_not_configured", "AI chưa được cấu hình trên server")
 	}
 	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
@@ -127,14 +128,32 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if len(segs) == 0 && len(notes) == 0 {
 		return db.MeetingSummary{}, coded(http.StatusConflict, "nothing_to_summarize", "chưa có transcript hay ghi chú nào để tóm tắt")
 	}
-	in := ai.SummarizeInput{Title: m.Title, Agenda: m.Description, Locale: locale}
+	orgID, err := s.organizationOf(ctx, m)
+	if err != nil {
+		return db.MeetingSummary{}, err
+	}
+	transcript := make([]ai.TranscriptLine, 0, len(segs))
 	for _, sg := range segs {
-		in.Transcript = append(in.Transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
+		transcript = append(transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
 	}
+	noteBodies := make([]string, 0, len(notes))
 	for _, n := range notes {
-		in.Notes = append(in.Notes, n.Body)
+		noteBodies = append(noteBodies, n.Body)
 	}
-	res, err := s.AI.SummarizeMeeting(ctx, in)
+	resp, err := s.AI.Complete(ctx, ai.Request{
+		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
+		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
+		Vars: map[string]any{"title": m.Title, "agenda": m.Description, "locale": locale, "transcript": transcript, "notes": noteBodies},
+	})
+	if err != nil {
+		s.count("summary_error")
+		var aiErr *ai.Error
+		if errors.As(err, &aiErr) {
+			return db.MeetingSummary{}, coded(aiErr.Status, aiErr.Code, aiErr.Msg)
+		}
+		return db.MeetingSummary{}, coded(http.StatusBadGateway, "ai_failed", "không tạo được tóm tắt: "+err.Error())
+	}
+	res, err := ai.ParseSummaryJSON(resp.Text)
 	if err != nil {
 		s.count("summary_error")
 		return db.MeetingSummary{}, coded(http.StatusBadGateway, "ai_failed", "không tạo được tóm tắt: "+err.Error())
@@ -143,7 +162,8 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	items, _ := json.Marshal(res.ActionItems)
 	row, err := s.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: meetingID, Summary: res.Summary,
-		Decisions: string(decisions), ActionItems: string(items), Model: res.Model, CreatedBy: userID,
+		Decisions: string(decisions), ActionItems: string(items), Model: resp.Model, CreatedBy: userID,
+		UsageEventID: strText(resp.UsageEventID),
 	})
 	if err != nil {
 		return db.MeetingSummary{}, err

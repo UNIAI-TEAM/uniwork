@@ -26,7 +26,13 @@ Các quyết định sau là cố ý và có test giữ chúng; nếu bạn cho 
   `X-Forwarded-For`. Mỗi nơi cần địa chỉ client tự áp dụng `TRUSTED_PROXIES`
   (`server/internal/handler/router_test.go`).
 - Rate limit chỉ tồn tại khi có Redis, và fail-open khi Redis lỗi — đây là đánh
-  đổi có chủ ý giữa khả dụng và chống lạm dụng.
+  đổi có chủ ý giữa khả dụng và chống lạm dụng. Ngoại lệ duy nhất: Ask UNI
+  (20 lượt/phút/người) fail-closed khi Redis lỗi vì mỗi lượt tốn tiền thật
+  (OPEN_QUESTIONS G5); không có Redis (dev) thì không giới hạn.
+- Mọi lượt gọi LLM đi qua `ai.Gateway`: chỉ `internal/ai/provider` nói chuyện với
+  nhà cung cấp; ngữ cảnh đọc bằng quyền người hỏi qua service; nội dung
+  workspace bọc `<untrusted>`; không log prompt/nguồn/câu trả lời
+  (`docs/ops/RUNBOOK_AI.md`).
 - Không có foreign key ở tầng DB; quan hệ và dọn dẹp phụ thuộc nằm trong service
   code, trong transaction.
 - Id là ULID dạng chuỗi mờ; handler không tiết lộ id có tồn tại hay không cho

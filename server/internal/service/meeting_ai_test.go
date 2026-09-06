@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -18,9 +19,11 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	s, ua, ub, w := meetingFixture(t)
 	ctx := context.Background()
 	s.Tasks = NewTaskService(s.pool, s.q, s.ws)
-	fake := &ai.Fake{Result: ai.MeetingSummary{
-		Summary: "Đã chốt.", Decisions: []string{"Ship thứ Sáu"},
-		ActionItems: []ai.ActionItem{{Title: "Gửi báo cáo", Owner: "B"}},
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{
+			Text:  `{"summary":"Đã chốt.","decisions":["Ship thứ Sáu"],"action_items":[{"title":"Gửi báo cáo","owner":"B"}]}`,
+			Model: "fake", InputTokens: 30, OutputTokens: 20,
+		}
 	}}
 	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "AI")
 	if err != nil {
@@ -48,16 +51,20 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !errors.As(err, &ce) || ce.Code != "ai_not_configured" {
 		t.Fatalf("expected ai_not_configured, got %v", err)
 	}
-	s.AI = fake
+	s.AI = ai.NewGateway(s.q, fake, NewAIQuota(s.ent), nil, ai.Options{})
 	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fake.Calls != 1 || fake.Last.Title != "AI" || len(fake.Last.Transcript) != 1 {
-		t.Fatalf("summarizer input: %+v", fake.Last)
+	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
+	if fake.Calls != 1 || !strings.Contains(prompt, "Meeting title: AI") || !strings.Contains(prompt, "A: Chốt ship vào thứ Sáu") || !strings.Contains(prompt, "Output language: Vietnamese") {
+		t.Fatalf("gateway prompt: %s", prompt)
 	}
-	if sum.Summary != "Đã chốt." || !strings.Contains(sum.ActionItems, "Gửi báo cáo") || sum.Model != "fake" {
+	if sum.Summary != "Đã chốt." || !strings.Contains(sum.ActionItems, "Gửi báo cáo") || sum.Model != "fake" || !sum.UsageEventID.Valid {
 		t.Fatalf("%+v", sum)
+	}
+	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.Status != "succeeded" || ev.Capability != "meeting_summarization" || ev.InputTokens != 30 {
+		t.Fatalf("usage row: %+v %v", ev, err)
 	}
 	latest, err := s.Summary(ctx, ua.ID, m.ID)
 	if err != nil || latest == nil || latest.ID != sum.ID {
@@ -104,8 +111,8 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if _, err := s.Summarize(ctx, ua.ID, m.ID, "en"); err != nil {
 		t.Fatal(err)
 	}
-	if fake.Last.Locale != "en" {
-		t.Fatalf("locale not forwarded: %q", fake.Last.Locale)
+	if !strings.Contains(fake.Last.Messages[len(fake.Last.Messages)-1].Content, "Output language: English") {
+		t.Fatalf("locale not forwarded")
 	}
 }
 

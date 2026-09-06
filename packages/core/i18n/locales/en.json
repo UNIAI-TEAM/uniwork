@@ -152,7 +152,8 @@
     "language": "Language",
     "collapseSidebar": "Collapse sidebar",
     "shortcutMac": "⌘K",
-    "shortcutOther": "Ctrl+K"
+    "shortcutOther": "Ctrl+K",
+    "askUni": "Ask UNI ({{shortcut}})"
   },
   "search": {
     "title": "Search",
@@ -219,7 +220,8 @@
         "members": "Members",
         "integrations": "Integrations",
         "billing": "Billing",
-        "audit": "Security & audit"
+        "audit": "Security & audit",
+        "ai": "AI"
       }
     },
     "save": {
@@ -475,6 +477,50 @@
       },
       "loading": "Loading…",
       "empty_fresh_description": "Every change to data will appear here as soon as it happens."
+    },
+    "ai": {
+      "title": "AI",
+      "description": "AI calls made from this workspace.",
+      "disabled": "AI is not configured on this server.",
+      "quota_line": "The organization has used {{used}} / {{limit}} tokens this month.",
+      "quota_unbounded": "The organization has used {{used}} tokens this month.",
+      "forbidden_title": "Workspace owners and admins only",
+      "forbidden_description": "AI usage belongs to workspace administration.",
+      "error_title": "Could not load AI usage.",
+      "empty_title": "No AI calls yet",
+      "empty_description": "Open Ask UNI (⌘J) or summarize a meeting and the numbers will show here.",
+      "window": "Last {{days}} days",
+      "totals": {
+        "calls": "Calls",
+        "input": "Tokens in",
+        "output": "Tokens out",
+        "cost": "Cost (USD)"
+      },
+      "sparkline_label": "Tokens per day",
+      "by_capability": "By capability",
+      "columns": {
+        "capability": "Capability",
+        "actor": "Caller",
+        "calls": "Calls",
+        "tokens": "Tokens",
+        "cost": "Cost",
+        "day": "Day"
+      },
+      "capability": {
+        "copilot_answer": "Ask UNI",
+        "meeting_summarization": "Meeting summary",
+        "context_extraction": "Context extraction",
+        "agent_planning": "Agent planning",
+        "agent_generation": "Agent generation",
+        "agent_evaluation": "Agent evaluation",
+        "embedding": "Embedding"
+      },
+      "actor": {
+        "human": "Human",
+        "agent": "Agent",
+        "system": "System"
+      },
+      "tokens_by_day": "Tokens by day"
     }
   },
   "tasks": {
@@ -1280,5 +1326,40 @@
       "role_changed": "{{actor}} changed your role to {{role}}",
       "audit_export_ready": "Your audit export is ready"
     }
+  },
+  "ai": {
+    "title": "Ask UNI",
+    "description": "UNI only answers from data you can see in this workspace, with sources.",
+    "empty_title": "What do you want to know about the team's work?",
+    "empty_description": "For example: \"which tasks are overdue?\", \"what did this week's meeting cover?\". UNI reads tasks, meetings, chats you are in, and the member list.",
+    "placeholder": "Ask UNI…",
+    "ask": "Ask",
+    "asking": "UNI is reading the data…",
+    "new_conversation": "New conversation",
+    "conversations": "Recent conversations",
+    "untitled": "(untitled)",
+    "delete_conversation": "Delete conversation",
+    "sources": "Sources",
+    "you": "You",
+    "uni": "UNI",
+    "usage_tokens": "{{in}} tokens in · {{out}} tokens out",
+    "errors": {
+      "ai_quota_exceeded": "The organization has used its AI token quota for this month.",
+      "ai_rate_limited": "You are asking too fast; try again in a minute.",
+      "ai_disabled": "AI is not configured on this server.",
+      "ai_context_forbidden": "You do not have access to this data.",
+      "ai_output_invalid": "UNI answered in an unexpected format; please ask again.",
+      "ai_provider_error": "The AI provider did not respond; try again later.",
+      "default": "Could not ask right now; try again later."
+    },
+    "close": "Close",
+    "delete_confirm_title": "Delete this conversation?",
+    "delete_confirm_description": "Every question and answer in it is deleted for good.",
+    "delete_cancel": "Keep it",
+    "delete_confirm": "Delete",
+    "hint_send": "send",
+    "hint_newline": "new line",
+    "key_enter": "Enter",
+    "key_shift": "Shift"
   }
 }

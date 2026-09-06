@@ -29,6 +29,7 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 
 | Topic | v | Payload | Phạm vi | Cách gửi |
 | --- | --- | --- | --- | --- |
+| `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | workspace | outbox |
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | user | outbox |
 | `chat.message` | 1 | `meeting_id` | workspace | ephemeral |

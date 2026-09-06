@@ -14,6 +14,7 @@ import { z } from "zod";
  * catalogue but not here: nothing on the client listens for them.
  */
 export const WS_EVENT_TYPES = [
+  "ai.usage.updated",
   "audit.exported",
   "chat.message",
   "chat.message.created",
