@@ -16,6 +16,7 @@
     "./meetings/meeting-invite-session": "./meetings/meeting-invite-session.ts",
     "./meetings/*": "./meetings/*.tsx",
     "./chat/*": "./chat/*.tsx",
+    "./ai/*": "./ai/*.tsx",
     "./notifications/*": "./notifications/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",

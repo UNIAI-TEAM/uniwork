@@ -151,7 +151,8 @@
     "language": "Ngôn ngữ",
     "collapseSidebar": "Thu gọn thanh bên",
     "shortcutMac": "⌘K",
-    "shortcutOther": "Ctrl+K"
+    "shortcutOther": "Ctrl+K",
+    "askUni": "Hỏi UNI ({{shortcut}})"
   },
   "search": {
     "title": "Tìm kiếm",
@@ -218,7 +219,8 @@
         "members": "Thành viên",
         "integrations": "Tích hợp",
         "billing": "Thanh toán",
-        "audit": "Bảo mật & Nhật ký"
+        "audit": "Bảo mật & Nhật ký",
+        "ai": "AI"
       }
     },
     "save": {
@@ -474,6 +476,48 @@
       },
       "loading": "Đang tải…",
       "empty_fresh_description": "Mọi thao tác đổi dữ liệu sẽ xuất hiện ở đây ngay khi diễn ra."
+    },
+    "ai": {
+      "title": "AI",
+      "description": "Lượt gọi AI của workspace này.",
+      "disabled": "AI chưa được cấu hình trên server.",
+      "quota_line": "Tổ chức đã dùng {{used}} / {{limit}} token trong tháng.",
+      "quota_unbounded": "Tổ chức đã dùng {{used}} token trong tháng.",
+      "forbidden_title": "Chỉ owner/admin workspace xem được",
+      "forbidden_description": "Số liệu AI thuộc về quản trị workspace.",
+      "error_title": "Không tải được số liệu AI.",
+      "empty_title": "Chưa có lượt gọi AI nào",
+      "empty_description": "Mở Hỏi UNI (⌘J) hoặc tóm tắt một cuộc họp, số liệu sẽ hiện ở đây.",
+      "window": "{{days}} ngày qua",
+      "totals": {
+        "calls": "Lượt gọi",
+        "input": "Token vào",
+        "output": "Token ra",
+        "cost": "Chi phí (USD)"
+      },
+      "sparkline_label": "Token mỗi ngày",
+      "by_capability": "Theo tính năng",
+      "columns": {
+        "capability": "Tính năng",
+        "actor": "Người gọi",
+        "calls": "Lượt",
+        "tokens": "Token",
+        "cost": "Chi phí"
+      },
+      "capability": {
+        "copilot_answer": "Hỏi UNI",
+        "meeting_summarization": "Tóm tắt họp",
+        "context_extraction": "Rút gọn ngữ cảnh",
+        "agent_planning": "Agent lập kế hoạch",
+        "agent_generation": "Agent thực hiện",
+        "agent_evaluation": "Agent đánh giá",
+        "embedding": "Embedding"
+      },
+      "actor": {
+        "human": "Người",
+        "agent": "Agent",
+        "system": "Hệ thống"
+      }
     }
   },
   "tasks": {
@@ -1275,6 +1319,32 @@
       "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
       "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
       "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng"
+    }
+  },
+  "ai": {
+    "title": "Hỏi UNI",
+    "description": "UNI chỉ trả lời từ dữ liệu bạn được xem trong workspace này, kèm nguồn.",
+    "empty_title": "Bạn muốn biết gì về công việc của đội?",
+    "empty_description": "Ví dụ: \"task nào quá hạn?\", \"cuộc họp tuần này bàn gì?\". UNI đọc task, cuộc họp, chat bạn tham gia và danh sách thành viên.",
+    "placeholder": "Hỏi UNI…",
+    "ask": "Hỏi",
+    "asking": "UNI đang đọc dữ liệu…",
+    "new_conversation": "Hội thoại mới",
+    "conversations": "Hội thoại gần đây",
+    "untitled": "(chưa có tiêu đề)",
+    "delete_conversation": "Xóa hội thoại",
+    "sources": "Nguồn",
+    "you": "Bạn",
+    "uni": "UNI",
+    "usage_tokens": "{{in}} token vào · {{out}} token ra",
+    "errors": {
+      "ai_quota_exceeded": "Tổ chức đã hết hạn mức token AI của tháng.",
+      "ai_rate_limited": "Bạn hỏi quá nhanh, thử lại sau một phút.",
+      "ai_disabled": "AI chưa được cấu hình trên server.",
+      "ai_context_forbidden": "Bạn không có quyền xem dữ liệu này.",
+      "ai_output_invalid": "UNI trả lời không đúng định dạng, hãy hỏi lại.",
+      "ai_provider_error": "Nhà cung cấp AI không trả lời được, thử lại sau.",
+      "default": "Không hỏi được lúc này, thử lại sau."
     }
   }
 }

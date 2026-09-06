@@ -22,6 +22,8 @@ import {
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { AskUniButton } from "../ai/ask-uni-button";
+import { AskUniPanel } from "../ai/ask-uni-panel";
 import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
@@ -42,6 +44,7 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
     <>
       <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
       <SearchCommand onCreateTask={() => setCreateOpen(true)} />
+      <AskUniPanel />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
     </>
   );
@@ -117,6 +120,7 @@ export function WorkspaceTopBar({
     >
       <SidebarTrigger size="icon" />
       <div className="flex-1" />
+      <AskUniButton />
       <NotificationBell />
       <IconTooltipButton label={createLabel} onClick={() => onCreateOpenChange(true)}>
         <Plus aria-hidden className="size-4" />

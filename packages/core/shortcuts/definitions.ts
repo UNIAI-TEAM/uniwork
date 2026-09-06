@@ -65,7 +65,7 @@ const primary = (key: string) =>
  * about the thing you are typing.
  */
 export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
-  { id: "ai.askUni", category: "general", defaultShortcut: primary("j"), allowInEditable: true },
+  { id: "ai.askUni", category: "general", defaultShortcut: primary("J"), allowInEditable: true },
 ];
 
 export const SHORTCUT_ACTION_BY_ID = Object.fromEntries(
