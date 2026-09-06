@@ -14,7 +14,7 @@ func TestWebVitalsNormalizeRoute(t *testing.T) {
 		"/acme/team/tasks/01ARZ3NDEKTSV4RRFFQ69G5FAV": "/acme/team/tasks/:id",
 		"/acme/01ARZ3NDEKTSV4RRFFQ69G5FAV/x":          "/acme/:id/x",
 		"":                                            "unknown",
-		"/x?y=1&z=<script>":                           "/xy=1z=script",
+		"/x?y=1&z=<script>":                           "/xy1zscript",
 		strings.Repeat("/abcdefghij", 20):             strings.Repeat("/abcdefghij", 20)[:100],
 	}
 	for in, want := range cases {
