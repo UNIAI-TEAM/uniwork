@@ -92,3 +92,58 @@ func TestAdminRoutesGuardedByPlatformRole(t *testing.T) {
 		t.Fatalf("platform role rows: %+v", n)
 	}
 }
+
+// Overrides written from the console reach GET /config for the targeted
+// organization only, and user-scoped overrides need an expiry.
+func TestFlagOverridesReachPublicConfig(t *testing.T) {
+	d, _ := newTestDeps(t, nil, discardOutbox{})
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	w := buildAuditWorld(t, srv)
+	if _, err := d.Admin.SetPlatformRole(context.Background(), service.CLIActor, "audit@example.com", "admin", "test fixture grant"); err != nil {
+		t.Fatal(err)
+	}
+	res, out := doJSON(t, srv, "GET", "/api/v1/config?organization_id="+w.orgID, "", nil)
+	if res.StatusCode != 200 || out["flags"].(map[string]any)["agents_assignee"] != false || out["rum_sample_rate"] == nil {
+		t.Fatalf("config before: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/admin/flags", w.token, nil)
+	if res.StatusCode != 200 || len(out["flags"].([]any)) != 5 {
+		t.Fatalf("catalogue: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "PUT", "/api/v1/admin/flags/agents_assignee/overrides", w.token,
+		map[string]any{"scope_type": "user", "scope_id": "u1", "enabled": true, "reason": "missing expiry must fail"})
+	if res.StatusCode != 400 {
+		t.Fatalf("user override without expiry: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "PUT", "/api/v1/admin/flags/nope/overrides", w.token,
+		map[string]any{"scope_type": "global", "enabled": true, "reason": "unknown key must fail"})
+	if res.StatusCode != 404 {
+		t.Fatalf("unknown flag: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "PUT", "/api/v1/admin/flags/agents_assignee/overrides", w.token,
+		map[string]any{"scope_type": "organization", "scope_id": w.orgID, "enabled": true, "reason": "pilot for the audit org"})
+	if res.StatusCode != 200 || len(out["overrides"].([]any)) != 1 {
+		t.Fatalf("set override: %d %v", res.StatusCode, out)
+	}
+	// In production the flag.updated consumer drops the cache; no dispatcher runs here.
+	testFlagOverrides.Invalidate()
+	res, out = doJSON(t, srv, "GET", "/api/v1/config?organization_id="+w.orgID, "", nil)
+	if res.StatusCode != 200 || out["flags"].(map[string]any)["agents_assignee"] != true {
+		t.Fatalf("config for org: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/config", "", nil)
+	if out["flags"].(map[string]any)["agents_assignee"] != false {
+		t.Fatalf("config without org leaked the override: %v", out)
+	}
+	res, out = doJSON(t, srv, "DELETE", "/api/v1/admin/flags/agents_assignee/overrides", w.token,
+		map[string]any{"scope_type": "organization", "scope_id": w.orgID, "reason": "pilot finished, back to default"})
+	if res.StatusCode != 200 || len(out["overrides"].([]any)) != 0 {
+		t.Fatalf("delete override: %d %v", res.StatusCode, out)
+	}
+	res, _ = doJSON(t, srv, "DELETE", "/api/v1/admin/flags/agents_assignee/overrides", w.token,
+		map[string]any{"scope_type": "organization", "scope_id": w.orgID, "reason": "deleting twice is not found"})
+	if res.StatusCode != 404 {
+		t.Fatalf("delete missing: %d", res.StatusCode)
+	}
+}

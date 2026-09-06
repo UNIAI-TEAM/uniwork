@@ -20,6 +20,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/billing"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/handler"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -92,7 +93,9 @@ func main() {
 	}
 	// Flags come from FEATURE_FLAGS_FILE when set; absent, every lookup returns
 	// its default and the service is nil.
-	flags, err := featureflag.NewServiceFromEnv(featureflag.WithLogger(log))
+	// Flags: organization/user overrides from the database first, then the
+	// FEATURE_FLAGS_FILE rules and FF_* env kill switches (F-11 §7).
+	flags, flagOverrides, err := featureflags.NewService(q, log)
 	if err != nil {
 		log.Error("feature flags", "err", err)
 		os.Exit(1)
@@ -232,6 +235,7 @@ func main() {
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	dispatcher.Register(notifConsumer)
+	dispatcher.Register(featureflags.NewInvalidator(flagOverrides))
 	dispatcher.Register(pushConsumer)
 	if reg != nil {
 		dispatcher.SetMetrics(reg.Outbox)

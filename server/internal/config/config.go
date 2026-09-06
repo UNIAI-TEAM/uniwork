@@ -72,6 +72,11 @@ type Config struct {
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
 	VAPIDSubject    string
+	// RUMSampleRate is the share of web sessions that report web-vitals to
+	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
+	RUMSampleRate float64
+	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
+	AdminRateLimitPerMin int
 }
 
 // PushEnabled: both VAPID keys present.
@@ -148,6 +153,8 @@ func Load() (Config, error) {
 		VAPIDPublicKey:            os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey:           os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:              os.Getenv("VAPID_SUBJECT"),
+		RUMSampleRate:             parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
+		AdminRateLimitPerMin:      int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 	}
 	if c.VAPIDSubject == "" {
 		c.VAPIDSubject = c.FrontendOrigin
@@ -190,6 +197,17 @@ func parseDuration(raw string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+func parseRatio(raw string, fallback float64) float64 {
+	if raw == "" {
+		return fallback
+	}
+	var f float64
+	if _, err := fmt.Sscanf(raw, "%g", &f); err != nil || f < 0 || f > 1 {
+		return fallback
+	}
+	return f
 }
 
 func parseInt32(raw string, fallback int32) int32 {

@@ -9,6 +9,7 @@ type Routes struct {
 	Ready  http.HandlerFunc
 	WS     http.HandlerFunc
 
+	Config                     http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc
 	AdminGetOrganization       http.HandlerFunc

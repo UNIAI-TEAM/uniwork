@@ -89,6 +89,7 @@ func New(d Deps) http.Handler {
 		Health: h.health,
 		Ready:  h.ready,
 
+		Config:                     h.config,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,

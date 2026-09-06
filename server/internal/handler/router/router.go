@@ -80,6 +80,7 @@ func New(d Deps, h Routes) http.Handler {
 		v1.Group(func(pub api) {
 			pub.Use(mw.OptionalAuth(d.Minter))
 			registerPublicMeetings(pub, h, credentialLimit, joinLimit, lobbyWSLimit)
+			registerConfig(pub, h)
 		})
 		v1.Group(func(authed api) {
 			authed.Use(mw.RequireAuth(d.Minter))
@@ -98,7 +99,7 @@ func New(d Deps, h Routes) http.Handler {
 			chatTypingLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
 			if d.PlatformRoles != nil {
-				adminLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
+				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)
 				registerAdmin(authed, h, adminLimit,
 					mw.RequirePlatformRole(d.PlatformRoles, "support"),
 					mw.RequirePlatformRole(d.PlatformRoles, "admin"))

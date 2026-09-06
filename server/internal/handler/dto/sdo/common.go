@@ -30,3 +30,10 @@ type ReadinessSDO struct {
 type StatusSDO struct {
 	Status string `json:"status" description:"Kết quả của yêu cầu" example:"ok"`
 }
+
+// ConfigSDO is GET /api/v1/config: what the web client needs before it has
+// a session — public feature flags and the RUM sampling rate.
+type ConfigSDO struct {
+	Flags         map[string]bool `json:"flags" description:"Flag public theo ngữ cảnh người gọi" example:"{\"rum_sampling\":true}"`
+	RumSampleRate float64         `json:"rum_sample_rate" description:"Tỷ lệ phiên gửi web-vitals, 0..1" example:"0.2"`
+}

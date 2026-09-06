@@ -5,15 +5,18 @@ import (
 	"testing"
 )
 
-func TestNoServiceYieldsNoPublicFlags(t *testing.T) {
-	// A deployment without a flag file has no service; the public endpoint must
-	// still answer with a map, not a nil or a panic.
+func TestNoServiceYieldsCatalogueDefaults(t *testing.T) {
+	// A deployment without a flag file or database has no service; the public
+	// endpoint still answers every public flag at its catalogue default.
 	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
 	if flags == nil {
-		t.Fatal("expected an empty map, got nil")
+		t.Fatal("expected a map, got nil")
 	}
-	if len(flags) != 0 {
-		t.Fatalf("expected no public flags without a service, got %v", flags)
+	for _, f := range Catalogue() {
+		got, published := flags[f.Key]
+		if published != f.Public || (published && got != f.Default) {
+			t.Fatalf("%s: published=%v value=%v, want public=%v default=%v", f.Key, published, got, f.Public, f.Default)
+		}
 	}
 }
 

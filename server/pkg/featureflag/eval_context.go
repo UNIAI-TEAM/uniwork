@@ -18,6 +18,10 @@ type EvalContext struct {
 	// request. Useful for workspace-scoped rollouts.
 	WorkspaceID string
 
+	// OrganizationID is the tenant; the DB override provider resolves
+	// organization-scoped overrides with it (F-11 §7).
+	OrganizationID string
+
 	// Attributes holds any other targeting attributes the caller wants
 	// to expose to rules, for example "country", "plan", or "client".
 	// Keys are case-sensitive.
@@ -41,6 +45,11 @@ func (ec EvalContext) Lookup(name string) (string, bool) {
 	case "workspace_id":
 		if ec.WorkspaceID != "" {
 			return ec.WorkspaceID, true
+		}
+		return "", false
+	case "organization_id":
+		if ec.OrganizationID != "" {
+			return ec.OrganizationID, true
 		}
 		return "", false
 	}

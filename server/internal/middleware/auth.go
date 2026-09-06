@@ -8,6 +8,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 type ctxKey int
@@ -60,8 +61,12 @@ func writeUnauthorized(w http.ResponseWriter, msg string) {
 	_, _ = w.Write([]byte(`{"error":{"code":"unauthorized","message":"` + msg + `"}}`))
 }
 
+// WithUserID also seeds the flag EvalContext with the user, so a service
+// asking for a user-scoped override needs nothing more; organization targeting
+// adds OrganizationID itself where it knows the tenant.
 func WithUserID(ctx context.Context, uid string) context.Context {
-	return context.WithValue(ctx, userIDKey, uid)
+	ctx = context.WithValue(ctx, userIDKey, uid)
+	return featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: uid})
 }
 
 func UserID(ctx context.Context) string {

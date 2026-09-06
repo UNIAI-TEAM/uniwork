@@ -28,8 +28,6 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionMemberRemoved:        "no organization member removal command exists yet",
 	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
 	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
-	audit.ActionFlagOverrideSet:      "flag overrides land with plan F1 of F-11",
-	audit.ActionFlagOverrideDeleted:  "flag overrides land with plan F1 of F-11",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -101,6 +99,15 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if _, err := f.admin.SetPlatformRole(f.ctx, CLIActor, f.third.Email, "", "left the support team"); err != nil {
 				t.Fatal(err)
 			}
+		},
+		audit.ActionFlagOverrideSet: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			f.override(t, true)
+		},
+		audit.ActionFlagOverrideDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			f.override(t, true)
+			f.override(t, false)
 		},
 		audit.ActionSubscriptionChanged: func(t *testing.T, f *auditFixture) {
 			f.build(t)
@@ -268,6 +275,21 @@ func newAuditFixture(t *testing.T) *auditFixture {
 		chat:    NewChatService(pool, q, ws, NopPublisher{}),
 		reset:   NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
 		admin:   NewAdminService(pool, q, NewBillingService(pool, q, orgs, nil), NewEntitlementService(pool, q)),
+	}
+}
+
+// override sets (or deletes) the organization override of agents_assignee.
+func (f *auditFixture) override(t *testing.T, set bool) {
+	t.Helper()
+	in := FlagOverrideInput{ScopeType: "organization", ScopeID: f.orgID, Enabled: true, Reason: "audit coverage fixture"}
+	var err error
+	if set {
+		_, err = f.admin.SetFlagOverride(f.ctx, f.third.ID, "agents_assignee", in)
+	} else {
+		_, err = f.admin.DeleteFlagOverride(f.ctx, f.third.ID, "agents_assignee", in.ScopeType, in.ScopeID, in.Reason)
+	}
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

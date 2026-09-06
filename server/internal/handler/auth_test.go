@@ -17,6 +17,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	meetingspkg "github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/notification"
@@ -88,6 +89,10 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 // newTestDeps builds every service on a fresh test database and returns the
 // pool too, for tests that need to drive a background consumer or seed rows
 // the HTTP surface deliberately cannot create.
+// testFlagOverrides is the DB provider of the last newTestDeps, so a test can
+// drop its cache the way the flag.updated consumer does in production.
+var testFlagOverrides *featureflags.DBProvider
+
 func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps, *pgxpool.Pool) {
 	t.Helper()
 	pool := testutil.DB(t)
@@ -108,6 +113,11 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	meetingSvc.AI = gateway
 	billingSvc := service.NewBillingService(pool, q, orgs, nil)
 	readiness := service.NewReadiness(pool, nil)
+	flags, flagOverrides, err := featureflags.NewService(q, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testFlagOverrides = flagOverrides
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetSystemSources(readiness, nil, nil)
 	d := Deps{
@@ -128,6 +138,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Audit:         service.NewAuditService(pool, q, orgs, ws),
 		Billing:       billingSvc,
 		Admin:         adminSvc,
+		FeatureFlags:  flags,
 		Readiness:     readiness,
 		Meetings:      meetingSvc,
 		Hub:           realtime.NewHub(),
