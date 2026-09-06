@@ -7,6 +7,7 @@ import {
   type DayButton,
   type Locale,
 } from "react-day-picker"
+import { vi } from "react-day-picker/locale"
 
 import { cn } from "@uniwork/ui/lib/utils"
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button"
@@ -18,14 +19,19 @@ function Calendar({
   showOutsideDays = true,
   captionLayout = "label",
   buttonVariant = "ghost",
-  locale,
+  locale: localeProp,
+  lang,
   formatters,
   components,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
+  /** BCP 47 tag ("vi", "en"); picks the day-picker locale when `locale` is not given. */
+  lang?: string
 }) {
   const defaultClassNames = getDefaultClassNames()
+  const locale: Partial<Locale> | undefined =
+    localeProp ?? (lang?.toLowerCase().startsWith("vi") ? vi : undefined)
 
   return (
     <DayPicker
