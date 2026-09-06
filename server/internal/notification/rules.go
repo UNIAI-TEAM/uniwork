@@ -363,8 +363,12 @@ func ruleAuditExported(ctx context.Context, e env, ev outbox.Row, p map[string]s
 	if p["user_id"] == "" || p["export_id"] == "" {
 		return nil, nil
 	}
-	r := newRecipients(ctx, e, ev, "")
-	r.seen = map[string]bool{} // the requester is the actor of the export; they still want to hear it finished
-	r.order = []string{p["user_id"]}
-	return r.drafts(p["organization_id"], KindAuditExportReady, "export:"+p["export_id"], "audit_export", p["export_id"], map[string]string{}), nil
+	// The requester is also the actor of the export; the "skip the actor"
+	// rule does not apply because finishing is the news they asked for.
+	return []Draft{{
+		UserID: p["user_id"], OrganizationID: p["organization_id"],
+		Kind: KindAuditExportReady, GroupKey: "export:" + p["export_id"],
+		ResourceType: "audit_export", ResourceID: p["export_id"],
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
+	}}, nil
 }

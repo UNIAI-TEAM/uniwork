@@ -14,8 +14,8 @@ export type { ListNotificationsQuery, NotificationPage } from "../api/endpoints/
 export const notificationKeys = {
   all: ["notifications"] as const,
   lists: () => ["notifications", "list"] as const,
-  list: (workspaceId: string | undefined, unreadOnly: boolean) =>
-    ["notifications", "list", workspaceId ?? "", unreadOnly] as const,
+  list: (workspaceId: string | undefined, unreadOnly: boolean, limit = 50) =>
+    ["notifications", "list", workspaceId ?? "", unreadOnly, limit] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
   prefs: () => ["notifications", "prefs"] as const,
   pushConfig: () => ["notifications", "push-config"] as const,
@@ -23,7 +23,7 @@ export const notificationKeys = {
 
 export function useNotifications(opts: { workspaceId?: string; unreadOnly?: boolean; limit?: number } = {}) {
   return useQuery({
-    queryKey: notificationKeys.list(opts.workspaceId, !!opts.unreadOnly),
+    queryKey: notificationKeys.list(opts.workspaceId, !!opts.unreadOnly, opts.limit),
     queryFn: () => api.listNotifications(opts),
   });
 }

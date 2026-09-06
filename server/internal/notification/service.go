@@ -2,7 +2,6 @@ package notification
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -228,9 +227,6 @@ func (s *Service) UnsubscribePush(ctx context.Context, userID, endpoint string) 
 	return err
 }
 
-// ErrNotFound re-exported for callers that only import this package.
-var ErrNotFound = service.ErrNotFound
-
 func optTime(t pgtype.Timestamptz) string {
 	if !t.Valid {
 		return ""
@@ -240,5 +236,3 @@ func optTime(t pgtype.Timestamptz) string {
 
 // OptTime formats a nullable timestamp for SDOs; "" when NULL.
 func OptTime(t pgtype.Timestamptz) string { return optTime(t) }
-
-var _ = errors.Is
