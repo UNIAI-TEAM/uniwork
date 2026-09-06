@@ -1,7 +1,7 @@
 # UniWork — Gói, thuê bao, entitlement và quota theo tổ chức
 
 **Ngày:** 2026-09-04
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
+**Trạng thái:** Đã triển khai — đợt F (2026-09-06, UNI-425): schema, `EntitlementService`, 4 điểm gate, `BillingService` đổi gói tay, tab Thanh toán; plan `docs/superpowers/plans/2026-09-06-tenant-subscription-entitlement.md`. Còn lại: webhook/invoice/checkout thật (C-04), cảnh báo ngưỡng (C-05), admin plan API (F-11). Duyệt 2026-09-04 (quangpd — UNI-421); câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
 **Spec liên quan:** `2026-08-24-uniwork-platform-design.md`, `2026-08-25-onboarding-organizations-design.md`, `2026-08-27-workspace-permissions-design.md`, `2026-09-04-organization-people-directory-design.md`
 **Tham chiếu:** Vision §4.2 (mô hình kinh doanh), §5.2 (#2 Tenant & Subscription), §6.9 (DoD); bản cũ `unidigiwork` Blueprint §18, `src/contracts/billing/plan.ts`, `src/lib/api/billing.functions.ts`, `admin-plans.functions.ts`, `tests/integration/02_quota_gate.sql`
 

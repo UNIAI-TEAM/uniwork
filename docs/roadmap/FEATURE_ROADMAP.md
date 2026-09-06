@@ -40,7 +40,7 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | ID | Tính năng | Bounded context | Trạng thái | Việc còn phải làm | Spec | Ưu tiên |
 | --- | --- | --- | --- | --- | --- | --- |
 | F-01 | Identity: MFA TOTP, OIDC Microsoft, quản lý phiên/thiết bị, xóa tài khoản | Identity & Access | MỘT PHẦN | Thêm MFA, provider OIDC thứ hai, danh sách phiên + thu hồi, luồng xóa tài khoản | `(cần viết)` identity-hardening | P1 |
-| F-02 | Gói, subscription, entitlement, quota | Tenant & Subscription | CHƯA | Toàn bộ theo spec; `entitlements.can(feature)` ở Go, không hard-code tên gói | `2026-09-04-tenant-subscription-entitlement-design.md` | P0 |
+| F-02 | Gói, subscription, entitlement, quota | Tenant & Subscription | CÓ (2026-09-06, UNI-425; billing thật ở C-04, cảnh báo ngưỡng ở C-05) | Toàn bộ theo spec; `entitlements.can(feature)` ở Go, không hard-code tên gói | `2026-09-04-tenant-subscription-entitlement-design.md` | P0 |
 | F-03 | Hồ sơ người dùng, phòng ban, danh bạ /people, quản trị thành viên org, transfer ownership | Organization & People | MỘT PHẦN | Hồ sơ đầy đủ, phòng ban, danh bạ + CSV, transfer/deactivate | `2026-09-04-organization-people-directory-design.md` | P1 |
 | F-04 | Workspace: nhãn/tags, lưu trữ, transfer ownership, xóa workspace | Workspace | MỘT PHẦN | Các mục "ngoài phạm vi" của spec quyền 2026-08-27 | `2026-08-27-workspace-permissions-design.md` + follow-up `(cần viết)` | P2 |
 | F-05 | Task hoàn chỉnh: project, label, attachment, subtask, activity, saved view, My Work, row_version, idempotency | Project & Task | MỘT PHẦN | Theo spec; đây là lát cắt dọc chuẩn cho mọi feature khác | `2026-09-04-tasks-complete-design.md` | P0 |

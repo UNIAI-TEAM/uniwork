@@ -16,7 +16,7 @@ mkdir -p "$(dirname "$cover_out")"
 
 usage() { echo "usage: $0 [--race]" >&2; }
 
-go_test_args=(test -count=1)
+go_test_args=(test -count=1 -timeout 30m)
 race_requested=false
 case "$#" in
   0) ;;

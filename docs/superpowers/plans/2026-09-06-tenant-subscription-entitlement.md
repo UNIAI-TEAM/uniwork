@@ -1,6 +1,6 @@
 # F-02 · Gói, subscription, entitlement, quota (chưa billing thật) — Plan triển khai
 
-> **Trạng thái:** in-progress
+> **Trạng thái:** shipped
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -37,6 +37,7 @@
 | 13 | `GET /plans` public | Đăng ký sau `RequireAuth` — trang Pricing ngoài phạm vi, không có client ẩn danh |
 | 14 | `useEntitlements()` mirror công thức | Không mirror: server trả entitlement hiệu lực + usage trong `GET /orgs/{org}/billing`; FE đọc thẳng. Thêm hook khi có nút đầu tiên cần ẩn/hiện theo gói |
 | 15 | `ErrorSDO.fields` | Thêm `Fields map[string]any json:"fields,omitempty"` vào `ErrorDetail` và `CodedError`; tương thích ngược |
+| 16 | `go test` timeout | `scripts/test-go.sh` thêm `-timeout 30m`: test DB khóa advisory theo từng test nên các gói chờ nhau; dưới `-race` trên máy dev gói `service` (111 test) vượt 10 phút mặc định. Không đổi gì về nội dung kiểm |
 
 ## File map
 
@@ -76,50 +77,50 @@
 ## Tasks
 
 ### Task 1 — Migration + lint (`feat(db): billing catalogue, subscriptions, usage, invoices`)
-- [ ] `069`–`081` + down; seed `starter` `is_default`, 8 feature với `meter_mode`; backfill subscription `manual` cho mọi org
-- [ ] `lint_test.go`: exempt `plans`, `features`, `plan_features` (catalogue toàn hệ thống, không thuộc tenant)
-- [ ] `testutil/db.go` TRUNCATE thêm 7 bảng
-- [ ] Test backfill: sau migrate, mọi org có đúng 1 subscription sống (`entitlement_test.go`)
+- [x] `069`–`081` + down; seed `starter` `is_default`, 8 feature với `meter_mode`; backfill subscription `manual` cho mọi org
+- [x] `lint_test.go`: exempt `plans`, `features`, `plan_features` (catalogue toàn hệ thống, không thuộc tenant)
+- [x] `testutil/db.go` TRUNCATE thêm 7 bảng
+- [x] Test backfill: sau migrate, mọi org có đúng 1 subscription sống (`entitlement_test.go`)
 
 ### Task 2 — Query + EntitlementService (`feat(billing): EntitlementService with fail-closed gate`)
-- [ ] `billing.sql`: plans/features/plan_features/subscriptions; `usage.sql`: usage_events, usage_counters (upsert có điều kiện `total + delta <= limit`)
-- [ ] `errors.go`: `ErrEntitlementRequired`, `ErrQuotaExceeded`, `ErrSubscriptionInactive`, `CodedError.Fields`; `mapServiceError` + `ErrorDetail.Fields`
-- [ ] `entitlement.go`: `effective()` (override > plan > fail-closed; inactive ⇒ 0 trừ GRACE `members.max`; `past_due` + 7 ngày), `Can`, `CheckQuota`, `Consume`, `Snapshot`
-- [ ] `arch_test.go`: query billing chỉ trong `entitlement.go`/`billing.go`
-- [ ] Test: bảng `effective()`; `Can` flag tắt; `CheckQuota` NULL/0; race 20 goroutine limit 10 ⇒ đúng 10; idempotency trùng ⇒ no-op
+- [x] `billing.sql`: plans/features/plan_features/subscriptions; `usage.sql`: usage_events, usage_counters (upsert có điều kiện `total + delta <= limit`)
+- [x] `errors.go`: `ErrEntitlementRequired`, `ErrQuotaExceeded`, `ErrSubscriptionInactive`, `CodedError.Fields`; `mapServiceError` + `ErrorDetail.Fields`
+- [x] `entitlement.go`: `effective()` (override > plan > fail-closed; inactive ⇒ 0 trừ GRACE `members.max`; `past_due` + 7 ngày), `Can`, `CheckQuota`, `Consume`, `Snapshot`
+- [x] `arch_test.go`: query billing chỉ trong `entitlement.go`/`billing.go`
+- [x] Test: bảng `effective()`; `Can` flag tắt; `CheckQuota` NULL/0; race 20 goroutine limit 10 ⇒ đúng 10; idempotency trùng ⇒ no-op
 
 ### Task 3 — Gate 4 điểm (`feat(billing): quota gates on members, workspaces, meeting minutes, recording and AI summary`)
-- [ ] `AcceptInvite`: nếu chưa là org member ⇒ `Consume(members.max, +1)` trong tx
-- [ ] `CreateInOrg`: `Consume(workspaces.max, +1)` trong tx
-- [ ] `meeting_queries.go`: đóng phiên tham dự ⇒ `RecordUsage(meeting.participant_minutes, ceil)`, idempotency `attendance:<id>`
-- [ ] `StartRecording` ⇒ `Can(meeting.recording)`; `Summarize` ⇒ `Can(meeting.ai_summary)`
-- [ ] Test: workspace thứ N+1 ⇒ `quota_exceeded`; `AcceptInvite` vượt ⇒ lỗi và không có dòng `organization_members`
+- [x] `AcceptInvite`: nếu chưa là org member ⇒ `Consume(members.max, +1)` trong tx
+- [x] `CreateInOrg`: `Consume(workspaces.max, +1)` trong tx
+- [x] `meeting_queries.go`: đóng phiên tham dự ⇒ `RecordUsage(meeting.participant_minutes, ceil)`, idempotency `attendance:<id>`
+- [x] `StartRecording` ⇒ `Can(meeting.recording)`; `Summarize` ⇒ `Can(meeting.ai_summary)`
+- [x] Test: workspace thứ N+1 ⇒ `quota_exceeded`; `AcceptInvite` vượt ⇒ lỗi và không có dòng `organization_members`
 
 ### Task 4 — BillingService + sự kiện (`feat(billing): BillingService change plan, cancel, resume; subscription.changed`)
-- [ ] `internal/billing/provider.go`; config `BILLING_PROVIDER`
-- [ ] `billing.go`: `Current`, `ChangePlan` (owner: gói manual giá NULL/0; platform admin: bất kỳ; `row_version` ⇒ 409; B4 ⇒ `quota_exceeded`), `Cancel`, `Resume`, `Checkout`
-- [ ] Audit `subscription.changed`; outbox `subscription.changed`, `quota.threshold` vào catalogue ba nơi; `audit_coverage_test.go`
-- [ ] Test: version sai ⇒ 409; owner gói trả phí ⇒ `checkout_required`; outbox có dòng cùng tx; org khác ⇒ 403
+- [x] `internal/billing/provider.go`; config `BILLING_PROVIDER`
+- [x] `billing.go`: `Current`, `ChangePlan` (owner: gói manual giá NULL/0; platform admin: bất kỳ; `row_version` ⇒ 409; B4 ⇒ `quota_exceeded`), `Cancel`, `Resume`, `Checkout`
+- [x] Audit `subscription.changed`; outbox `subscription.changed`, `quota.threshold` vào catalogue ba nơi; `audit_coverage_test.go`
+- [x] Test: version sai ⇒ 409; owner gói trả phí ⇒ `checkout_required`; outbox có dòng cùng tx; org khác ⇒ 403
 
 ### Task 5 — HTTP (`feat(api): billing endpoints`)
-- [ ] Routes: `GET /plans`, `GET /orgs/{org}/billing`, `PATCH /orgs/{org}/billing/plan`, `POST /orgs/{org}/billing/{cancel,resume,checkout}`; SDI/SDO; `main.go` wiring
-- [ ] `swagger_test` xanh; handler test đổi gói qua HTTP
+- [x] Routes: `GET /plans`, `GET /orgs/{org}/billing`, `PATCH /orgs/{org}/billing/plan`, `POST /orgs/{org}/billing/{cancel,resume,checkout}`; SDI/SDO; `main.go` wiring
+- [x] `swagger_test` xanh; handler test đổi gói qua HTTP
 
 ### Task 6 — Core (`feat(core): billing types, endpoints, hooks, permission mirror`)
-- [ ] `types/billing.ts`; `endpoints/billing.ts` 6 hàm + malformed test
-- [ ] `billing/hooks.ts`: `billingKeys`, `usePlans`, `useSubscription`, `useChangePlan`, `useCancelSubscription`, `useResumeSubscription`, `useCreateCheckout`
-- [ ] `permissions`: `canManageBilling` (owner), `canViewBilling` (admin-like) + test; `useBillingPermissions`
-- [ ] realtime: `subscription.changed`, `quota.threshold` ⇒ invalidate `billingKeys.current`
+- [x] `types/billing.ts`; `endpoints/billing.ts` 6 hàm + malformed test
+- [x] `billing/hooks.ts`: `billingKeys`, `usePlans`, `useSubscription`, `useChangePlan`, `useCancelSubscription`, `useResumeSubscription`, `useCreateCheckout`
+- [x] `permissions`: `canManageBilling` (owner), `canViewBilling` (admin-like) + test; `useBillingPermissions`
+- [x] realtime: `subscription.changed`, `quota.threshold` ⇒ invalidate `billingKeys.current`
 
 ### Task 7 — Views (`feat(views): billing tab in settings`)
-- [ ] `billing-tab.tsx`: gói hiện tại + trạng thái, usage list, đổi gói (manual ⇒ `changePlan`, trả phí ⇒ `createCheckout`), hủy/khôi phục; không có quyền ⇒ state thông báo
-- [ ] `settings-page.tsx` thêm tab `billing`; i18n vi/en
-- [ ] Test view: active / past_due / không có quyền
+- [x] `billing-tab.tsx`: gói hiện tại + trạng thái, usage list, đổi gói (manual ⇒ `changePlan`, trả phí ⇒ `createCheckout`), hủy/khôi phục; không có quyền ⇒ state thông báo
+- [x] `settings-page.tsx` thêm tab `billing`; i18n vi/en
+- [x] Test view: active / past_due / không có quyền
 
 ### Task 8 — Guard + docs đóng vòng (`docs: F-02 shipped`)
-- [ ] `scripts/no-plan-literal.test.mjs`
-- [ ] Roadmap F-02 `CÓ (2026-09-06)`; spec header; plan → `shipped`
-- [ ] `make check` xanh; `[agent]` comment trên UNI-425
+- [x] `scripts/no-plan-literal.test.mjs`
+- [x] Roadmap F-02 `CÓ (2026-09-06)`; spec header; plan → `shipped`
+- [x] `make check` xanh; `[agent]` comment trên UNI-425
 
 ## Đã cố ý bỏ ra ngoài
 
