@@ -2,7 +2,7 @@
 # Resolves the process gate level. Sourced by the pre-commit hook and
 # scripts/check.sh; CI reads the file directly. Rules: docs/engineering/GATE_LEVELS.md.
 #
-#   fast      — build phase: cheap hooks, no e2e on PRs, issue key is a warning
+#   fast      — build phase: cheap hooks, no e2e on PRs; a missing issue key still fails
 #   standard  — the default ruleset as CLAUDE.md documents it
 #   strict    — standard plus everything runs everywhere, no warnings
 #

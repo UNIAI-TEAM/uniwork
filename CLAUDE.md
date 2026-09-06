@@ -436,8 +436,8 @@ through the `uniai` CLI; the repo holds code and docs. The full rules are
 
 - No issue, no code. A PR into `develop`/`main` must name its issue
   (`UNI-nnn`) in the title or body — `.github/workflows/uniai-link.yml`
-  fails otherwise at `standard` (label `no-issue` downgrades it to a
-  warning), warns at `fast`, fails regardless of label at `strict`.
+  fails otherwise at every level (label `no-issue` downgrades it to a
+  warning at `fast`/`standard`; at `strict` it fails regardless of label).
 - Branches carry the key: `feature/UNI-423-<slug>`; `make issue-start
   KEY=UNI-423` creates them and moves the issue to `in_progress`.
 - Commits on an issue branch get a `Refs: UNI-nnn` trailer from

@@ -26,7 +26,7 @@ Ghi đè cho một lần chạy bằng biến môi trường: `GATE_LEVEL=strict
 | Hook `pre-commit` | chỉ chặn `.env` + `gofmt` | thêm lint + typecheck workspace chạm tới | như standard | `.githooks/pre-commit` |
 | `make check` | dừng sau Go tests, không E2E | đủ 6 bước gồm E2E | như standard | `scripts/check.sh` |
 | Job `e2e` trên CI | chỉ khi push vào `develop`/`main` | mọi PR và push | như standard | `.github/workflows/ci.yml` |
-| PR thiếu `UNI-nnn` | cảnh báo | fail, trừ nhãn `no-issue` | fail, nhãn không cứu | `.github/workflows/uniai-link.yml` |
+| PR thiếu `UNI-nnn` | fail, trừ nhãn `no-issue` | fail, trừ nhãn `no-issue` | fail, nhãn không cứu | `.github/workflows/uniai-link.yml` |
 | Ô DoD reviewer tick | 4 ô đánh dấu `fast` | đủ 10 ô | 10 ô, và review từ CODEOWNERS | `docs/engineering/DEFINITION_OF_DONE.md` |
 | Spec + plan trước khi code | khuyến nghị; issue là đủ | bắt buộc (DoD ô 10) | bắt buộc | `docs/engineering/FEATURE_WORKFLOW.md` |
 

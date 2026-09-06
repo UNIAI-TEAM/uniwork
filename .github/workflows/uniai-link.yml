@@ -3,9 +3,10 @@ name: UniAI link
 # Every PR into develop/main must name its UniAI issue (UNI-nnn) in the title
 # or body — docs/engineering/UNIAI_TRACKING.md § 1 rule 1. What happens when it
 # does not depends on GATE_LEVEL (docs/engineering/GATE_LEVELS.md):
-#   fast      warning
-#   standard  failure, unless the PR carries the `no-issue` label (maintainers)
+#   fast      failure, unless the PR carries the `no-issue` label (maintainers)
+#   standard  same as fast
 #   strict    failure, label or not
+# No level makes a missing key a warning: no issue, no code, even while building.
 
 on:
   pull_request:
@@ -38,11 +39,7 @@ jobs:
             exit 0
           fi
           msg="PR title or body must contain the UniAI issue key (UNI-nnn). Run: make issue-pr KEY=UNI-nnn, or add 'Issue: UNI-nnn' to the description."
-          if [ "$level" = fast ]; then
-            echo "::warning::$msg (GATE_LEVEL=fast: warning only)"
-            exit 0
-          fi
-          if [ "$level" = standard ] && printf '%s' "$LABELS" | tr ',' '\n' | grep -qx 'no-issue'; then
+          if [ "$level" != strict ] && printf '%s' "$LABELS" | tr ',' '\n' | grep -qx 'no-issue'; then
             echo "::warning::PR has no UniAI issue; allowed only because it is labelled no-issue"
             exit 0
           fi

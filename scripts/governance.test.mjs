@@ -342,6 +342,8 @@ test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
   assert.ok(isExecutable("scripts/uniai.sh"), "scripts/uniai.sh is not executable");
   assert.ok(fs.existsSync(path.join(root, ".github/workflows/uniai-link.yml")), "uniai-link workflow is missing");
   assert.match(read(".github/workflows/uniai-link.yml"), /UNI-\[0-9\]\+/, "uniai-link must grep for UNI-nnn");
+  // No issue, no code, at every level: fast must not turn a missing key into a warning.
+  assert.doesNotMatch(read(".github/workflows/uniai-link.yml"), /=\s*fast\b/, "uniai-link must not special-case fast");
   assert.match(read(".githooks/prepare-commit-msg"), /Refs: /, "prepare-commit-msg must add the Refs trailer");
   assert.match(read("CLAUDE.md"), /\n## Project Tracking \(UniAI\)\n/, "CLAUDE.md needs a Project Tracking (UniAI) section");
   for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {
