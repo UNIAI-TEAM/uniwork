@@ -1,6 +1,8 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../auth/store";
+import * as auth from "../api/endpoints/auth";
+import { setSessionUser } from "../auth/hooks";
 import * as workspaces from "../api/endpoints/workspaces";
 
 export type { InviteResult } from "../api/endpoints/workspaces";
@@ -105,7 +107,12 @@ export function useAcceptInvite() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (token: string) => workspaces.acceptInvite(token),
-    onSuccess: () => {
+    // Accepting marks the user onboarded on the server; the session copy
+    // must follow before anything routes on it, or the dashboard gate sends
+    // a brand-new member to /onboarding instead of the workspace they joined.
+    onSuccess: async () => {
+      const user = await auth.me();
+      if (user) setSessionUser(user);
       void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
       void qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
     },

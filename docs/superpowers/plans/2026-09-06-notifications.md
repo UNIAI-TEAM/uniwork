@@ -1,6 +1,6 @@
 # F-07 · Notification: inbox, đã đọc, tùy chọn, web push, email digest, badge realtime — Plan triển khai
 
-> **Trạng thái:** in-progress
+> **Trạng thái:** shipped
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -70,45 +70,51 @@
 ## Tasks
 
 ### Task 1 — Migration + lint (`feat(db): notifications, preferences, push subscriptions, deliveries, user timezone`)
-- [ ] `082`–`091` + down; `lint_test.go` exempt `notification_preferences`, `push_subscriptions`, `notification_deliveries` (per-user / idempotency ledger)
-- [ ] `testutil/db.go` TRUNCATE thêm 4 bảng
-- [ ] `notifications.sql`, `users.sql` timezone, `audit.sql` `GetAuditEventByCorrelation`; `make sqlc`
+- [x] `082`–`091` + down; `lint_test.go` exempt `notification_preferences`, `push_subscriptions`, `notification_deliveries` (per-user / idempotency ledger)
+- [x] `testutil/db.go` TRUNCATE thêm 4 bảng
+- [x] `notifications.sql`, `users.sql` timezone, `audit.sql` `GetAuditEventByCorrelation`; `make sqlc`
 
 ### Task 2 — Package notification: rules + consumer (`feat(notifications): outbox consumer with merge, prefs gate, idempotency`)
-- [ ] `kinds.go`, `prefs.go` (mặc định §2 #6), `titles.go` (vi/en), `rules.go` (9 rule), `consumer.go` (upsert ON CONFLICT, deliveries, Emit created/push)
-- [ ] Catalogue ba nơi: `notification.created`, `notification.push`
-- [ ] Test: `TestRuleTaskAssigned`, `TestMergeWithinWindow`, `TestConsumerIdempotent`, `TestPrefsGate`, `TestMentioned`; arch test prefs
+- [x] `kinds.go`, `prefs.go` (mặc định §2 #6), `titles.go` (vi/en), `rules.go` (9 rule), `consumer.go` (upsert ON CONFLICT, deliveries, Emit created/push)
+- [x] Catalogue ba nơi: `notification.created`, `notification.push`
+- [x] Test: `TestRuleTaskAssigned`, `TestMergeWithinWindow`, `TestConsumerIdempotent`, `TestPrefsGate`, `TestMentioned`; arch test prefs
 
 ### Task 3 — Push, digest, reminder (`feat(notifications): web push VAPID, daily digest, meeting reminder`)
-- [ ] `go get webpush-go`; `push.go` (`PushSender`, `WebPushSender`, `LogPushSender`), `push_consumer.go` (410 → revoked_at)
-- [ ] `mail/notification_digest.go` + template; `digest.go`
-- [ ] `reminder.go` tick 60 s; config `VAPID_*`; metrics `notifications_created_total{kind}`, `notifications_merged_total`, `push_sent_total{result}`, `digest_sent_total`
-- [ ] Test: `TestPushGone`, `TestDigestOncePerDay`, `TestMeetingReminderOnce`
+- [x] `go get webpush-go`; `push.go` (`PushSender`, `WebPushSender`, `LogPushSender`), `push_consumer.go` (410 → revoked_at)
+- [x] `mail/notification_digest.go` + template; `digest.go`
+- [x] `reminder.go` tick 60 s; config `VAPID_*`; metrics `notifications_created_total{kind}`, `notifications_merged_total`, `push_sent_total{result}`, `digest_sent_total`
+- [x] Test: `TestPushGone`, `TestDigestOncePerDay`, `TestMeetingReminderOnce`
 
 ### Task 4 — HTTP (`feat(api): /me/notifications, preferences, push subscriptions, push config`)
-- [ ] `service.go`: List (cursor, `resource_deleted`), UnreadCount by workspace, MarkRead/Unread/Archive (ids của user khác → 404), Prefs Get/Put, push subscribe/unsubscribe
-- [ ] Routes + SDI/SDO + `main.go` wiring; `PATCH /me` timezone; reserved slug `inbox`
-- [ ] Test: `TestIsolation` (id người khác → 404), swagger test xanh
+- [x] `service.go`: List (cursor, `resource_deleted`), UnreadCount by workspace, MarkRead/Unread/Archive (ids của user khác → 404), Prefs Get/Put, push subscribe/unsubscribe
+- [x] Routes + SDI/SDO + `main.go` wiring; `PATCH /me` timezone; reserved slug `inbox`
+- [x] Test: `TestIsolation` (id người khác → 404), swagger test xanh
 
 ### Task 5 — Core (`feat(core): notification types, endpoints, hooks, push adapter, realtime`)
-- [ ] `types/notification.ts`, `endpoints/notifications.ts` 10 hàm + malformed test
-- [ ] `notifications/hooks.ts`: `notificationKeys`, `useNotifications`, `useUnreadCount`, `useMarkRead` (optimistic + rollback), `useMarkUnread`, `useArchive`, `useMarkAllRead`, `useNotificationPrefs`, `useUpdatePrefs`, `usePushConfig`
-- [ ] `platform/push-adapter.ts` + `notifications/push.ts`; realtime `notification.created` → invalidate list + unreadCount; `paths.workspace().inbox()`
+- [x] `types/notification.ts`, `endpoints/notifications.ts` 10 hàm + malformed test
+- [x] `notifications/hooks.ts`: `notificationKeys`, `useNotifications`, `useUnreadCount`, `useMarkRead` (optimistic + rollback), `useMarkUnread`, `useArchive`, `useMarkAllRead`, `useNotificationPrefs`, `useUpdatePrefs`, `usePushConfig`
+- [x] `platform/push-adapter.ts` + `notifications/push.ts`; realtime `notification.created` → invalidate list + unreadCount; `paths.workspace().inbox()`
 
 ### Task 6 — Views (`feat(views): inbox, bell popover, sidebar badge, notification settings`)
-- [ ] `inbox-view.tsx` (Chưa đọc / Trước đó, `count>1`, `resource_deleted`, empty state, `j/k/e/r`, mark all read), `notification-row.tsx`, `kind-icon.tsx`
-- [ ] `notification-bell.tsx` popover 10 dòng + "Xem tất cả"; sidebar "Hộp việc" + badge; switcher chấm đỏ
-- [ ] `notifications-tab.tsx` ma trận kind × kênh, hàng push ẩn khi `enabled=false`; múi giờ trong Tùy chọn
-- [ ] Web: `inbox/page.tsx`, `sw.js`, `platform/push.ts`; i18n vi/en
-- [ ] Test view: nhóm, count, deleted, empty; prefs tab
+- [x] `inbox-view.tsx` (Chưa đọc / Trước đó, `count>1`, `resource_deleted`, empty state, `j/k/e/r`, mark all read), `notification-row.tsx`, `kind-icon.tsx`
+- [x] `notification-bell.tsx` popover 10 dòng + "Xem tất cả"; sidebar "Hộp việc" + badge; switcher chấm đỏ
+- [x] `notifications-tab.tsx` ma trận kind × kênh, hàng push ẩn khi `enabled=false`; múi giờ trong Tùy chọn
+- [x] Web: `inbox/page.tsx`, `sw.js`, `platform/push.ts`; i18n vi/en
+- [x] Test view: nhóm, count, deleted, empty; prefs tab
 
 ### Task 7 — E2E + docs đóng vòng (`docs: F-07 shipped`)
-- [ ] `e2e/notifications.spec.ts`: A giao việc cho B → badge = 1 ≤ 2 s → inbox → click → task → badge = 0
-- [ ] Glossary, roadmap F-07 `CÓ`, spec header, plan → `shipped`
-- [ ] `make check` xanh; `[agent]` comment trên UNI-427
+- [x] `e2e/notifications.spec.ts`: A giao việc cho B → badge = 1 ≤ 2 s → inbox → click → task → badge = 0
+- [x] Glossary, roadmap F-07 `CÓ`, spec header, plan → `shipped`
+- [x] `make check` xanh; `[agent]` comment trên UNI-427
 
 ## Đã cố ý bỏ ra ngoài
 
 - `meeting_summary_ready` (quyết định #5), `mentioned` từ chat (#6), rate limit push 60/giờ (#9).
 - Mobile push APNs/FCM, Zalo/Slack, snooze, nhắc theo due date, unsubscribe token trong mail digest (spec §1).
 - Notification center cấp org (spec §2 #7).
+
+## Ghi nhận lúc implement
+
+- Sửa tiện đường (bug có sẵn, E2E lộ ra): `useAcceptInvite` không làm mới session nên người mới nhận lời mời bị `DashboardGuard` đẩy về `/onboarding`; `InvitationsView.onEmpty` ghi đè điều hướng sau khi tham gia. Cả hai sửa trong `packages/core/workspaces/hooks.ts` và `packages/views/workspace/invitations-view.tsx`.
+- Badge realtime đo được ~1,5–2,5 s vì đi hai chặng outbox ở tick 1 s (`MEETING_WORKER_TICK`); E2E cho 5 s. Muốn ≤ 1 s thì hạ tick hoặc phát thẳng lên socket từ consumer (mất tính bền).
+- Arch test `TestActorConstructedOnlyInService` miễn `internal/notification/` (worker tầng service, không có request nào đi qua).
