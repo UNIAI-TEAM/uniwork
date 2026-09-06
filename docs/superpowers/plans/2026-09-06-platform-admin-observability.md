@@ -1,6 +1,6 @@
 # F-11 · Platform admin tối thiểu, OpenTelemetry, feature flag theo org, k6 hằng đêm, RUM — Plan triển khai
 
-> **Trạng thái:** in-progress
+> **Trạng thái:** shipped
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -95,7 +95,7 @@
   `feat(api): admin routes`
 - [x] **A1.4** CLI `server/cmd/uniwork-admin` grant/revoke/list; ghi `admin_actions` actor `cli` + audit.
   `feat(admin): uniwork-admin cli`
-- [ ] **A1.5** FE: endpoints + malformed tests, hooks, `paths.admin*`, layout guard (`/admin/me` 404 → `/`), màn Organizations, Organization detail (tabs, dialog reason), Trace, System; i18n `admin.*`; trang "Tổ chức tạm ngưng" cho user org bị suspend.
+- [x] **A1.5** FE: endpoints + malformed tests, hooks, `paths.admin*`, layout guard (`/admin/me` 404 → `/`), màn Organizations, Organization detail (tabs, dialog reason), Trace, System; i18n `admin.*`; trang "Tổ chức tạm ngưng" cho user org bị suspend.
   `feat(views): admin console organizations, trace, system`
 
 ## Plan F1 — Feature flags theo org (sub-issue)
@@ -104,7 +104,7 @@
   `feat(flags): db provider, catalogue with review_at`
 - [x] **F1.2** `GET /api/v1/config`; admin `GET /flags`, `GET/PUT/DELETE /flags/{key}/overrides`; audit + admin_actions; event `flag.updated` ba nơi.
   `feat(api): public config, flag overrides`
-- [ ] **F1.3** FE: `apps/web/platform/feature-flags.tsx` wire `FeatureFlagsProvider` từ `/config`; màn Flags; tab Flags trong org detail; bỏ module khỏi danh sách unwired trong CLAUDE.md.
+- [x] **F1.3** FE: `apps/web/platform/feature-flags.tsx` wire `FeatureFlagsProvider` từ `/config`; màn Flags; tab Flags trong org detail; bỏ module khỏi danh sách unwired trong CLAUDE.md.
   `feat(core): wire feature-flags from /config`
 
 ## Plan O2 — Metric, dashboard, alert (sub-issue)
@@ -120,11 +120,19 @@
 
 - [x] **P1.1** `POST /api/v1/rum` → histogram; FE `platform/rum.ts` (web‑vitals, flag `rum_sampling`, sample rate).
   `feat(api): rum endpoint and web-vitals reporter`
-- [ ] **P1.2** `size-limit` trong `apps/web` + job CI.
+- [x] **P1.2** Ngân sách bundle trong CI: `scripts/bundle-budget.mjs` (+ `bundle-budget.json` ratchet) thay cho `size-limit` — không thêm dependency.
   `ci: bundle size budget`
 - [x] **P1.3** `server/cmd/seed`, `perf/k6/*.js`, `.github/workflows/perf-nightly.yml` (artifact 90 ngày, issue tự động), smoke k6 khi nhãn `perf`.
   `ci: k6 nightly and seed tool`
 
 ## Đóng vòng
 
-- [ ] Spec → **Đã triển khai**; plan → `shipped`; roadmap F-11 `CÓ` + ngày; CLAUDE.md: bỏ `feature-flags` khỏi danh sách unwired, thêm luật admin/telemetry + tên test.
+- [x] Spec → **Đã triển khai**; plan → `shipped`; roadmap F-11 `CÓ` + ngày; CLAUDE.md: bỏ `feature-flags` khỏi danh sách unwired, thêm luật admin/telemetry + tên test.
+
+## Đã cố ý bỏ ra ngoài
+
+- Proxy Loki trong `GET /admin/trace/{id}` (chưa có backend log ở F).
+- Kiểm S3 trong `/readyz` (không có probe rẻ; ghi ở runbook ReadinessFailing).
+- Kiểm `platform_role` cho `X-Debug-Trace` (sampling đang 100 % theo O3).
+- Xếp hạng "top org theo usage %" ở màn Quota (cần query server-side; màn hiện chọn một org).
+- `size-limit` (dùng script stdlib; sáu route nặng sẵn được ratchet ở `scripts/bundle-budget.json`).

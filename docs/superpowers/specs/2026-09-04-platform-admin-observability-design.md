@@ -1,7 +1,7 @@
 # UniWork — Platform Admin tối thiểu, Observability và Feature Flag theo tổ chức
 
 **Ngày:** 2026-09-04  
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
+**Trạng thái:** Đã triển khai (2026-09-07, UNI-429; plan `docs/superpowers/plans/2026-09-06-platform-admin-observability.md`). Đã duyệt 2026-09-04 (quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
 **Spec liên quan:** `2026-08-24-uniwork-platform-design.md` §8, `2026-08-27-workspace-permissions-design.md`, `2026-09-04-tenant-subscription-entitlement-design.md` (gói, quota), `2026-09-04-audit-domain-events-design.md` (correlation id, outbox lag), `2026-09-04-ai-platform-gateway-design.md` (AI cost)  
 **Tham chiếu:** `docs/vision/PROJECT_VISION.md` §5.2 (#16), §6.2–6.4, §6.3 ngưỡng hiệu năng; bản cũ `unidigiwork/docs/performance/OBSERVABILITY_GAPS.md`, `src/routes/_authenticated/admin*.tsx`; Blueprint v1.0 §24; hiện có `server/internal/metrics/*`, `server/internal/middleware/request_logger.go`, `server/pkg/featureflag/*`, `server/internal/featureflags/keys.go`
 
