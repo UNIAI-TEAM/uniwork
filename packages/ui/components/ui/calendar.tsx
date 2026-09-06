@@ -7,7 +7,8 @@ import {
   type DayButton,
   type Locale,
 } from "react-day-picker"
-import { vi } from "react-day-picker/locale"
+// Subpath import: the locale barrels re-export ~200 date-fns locales.
+import { vi } from "date-fns/locale/vi"
 
 import { cn } from "@uniwork/ui/lib/utils"
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button"
