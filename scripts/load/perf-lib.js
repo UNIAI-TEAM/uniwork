@@ -4,8 +4,8 @@
 import http from "k6/http";
 import { check } from "k6";
 
-export const BASE = __ENV.BASE_URL || "http://localhost:8080";
-export const USERS = Number(__ENV.SEED_USERS || 5000);
+const BASE = __ENV.BASE_URL || "http://localhost:8080";
+const USERS = Number(__ENV.SEED_USERS || 5000);
 
 export function login(i) {
   const res = http.post(

@@ -126,6 +126,10 @@ jobs:
       - name: Build, typecheck, lint
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         run: pnpm exec turbo build typecheck lint
+      - name: Bundle size budget
+        # Initial JS ≤ 250 KB gzip, route chunks ≤ 150 KB (Vision §6.3, F-11).
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: node scripts/bundle-budget.mjs --print
       - name: Known vulnerabilities (high+)
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         run: pnpm audit --audit-level high
