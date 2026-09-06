@@ -1142,5 +1142,18 @@
     "pagination_previous": "Trang trước",
     "plain_text": "Văn bản thuần",
     "toggle_sidebar": "Ẩn/hiện thanh bên"
+  },
+  "notifications": {
+    "kind": {
+      "task_assigned": "{{actor}} đã giao bạn việc “{{task}}”",
+      "task_status_changed": "{{actor}} chuyển “{{task}}” sang {{status}}",
+      "task_commented": "{{actor}} đã bình luận trong “{{task}}”",
+      "mentioned": "{{actor}} đã nhắc đến bạn trong “{{task}}”",
+      "meeting_invited": "{{actor}} đã mời bạn họp “{{meeting}}”",
+      "meeting_starting": "“{{meeting}}” bắt đầu sau {{minutes}} phút",
+      "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
+      "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
+      "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng"
+    }
   }
 }

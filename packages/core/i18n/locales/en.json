@@ -1146,5 +1146,18 @@
     "pagination_previous": "Previous page",
     "plain_text": "Plain text",
     "toggle_sidebar": "Toggle sidebar"
+  },
+  "notifications": {
+    "kind": {
+      "task_assigned": "{{actor}} assigned you “{{task}}”",
+      "task_status_changed": "{{actor}} moved “{{task}}” to {{status}}",
+      "task_commented": "{{actor}} commented on “{{task}}”",
+      "mentioned": "{{actor}} mentioned you in “{{task}}”",
+      "meeting_invited": "{{actor}} invited you to “{{meeting}}”",
+      "meeting_starting": "“{{meeting}}” starts in {{minutes}} minutes",
+      "member_added": "{{actor}} added you to workspace {{workspace}}",
+      "role_changed": "{{actor}} changed your role to {{role}}",
+      "audit_export_ready": "Your audit export is ready"
+    }
   }
 }

@@ -116,6 +116,11 @@ var catalogue = []EventDef{
 	{Topic: "subscription.changed", Version: 1, Payload: []string{"organization_id", "subscription_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "quota.threshold", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
+	// Notifications (F-07). created goes to the recipient's own connections so
+	// the badge refreshes; push is infrastructure work for the push consumer.
+	{Topic: "notification.created", Version: 1, Payload: []string{"notification_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "notification.push", Version: 1, Payload: []string{"notification_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "audit.exported", Version: 1, Payload: []string{"export_id", "organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
