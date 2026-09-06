@@ -80,6 +80,11 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	}); err != nil {
 		return db.Organization{}, err
 	}
+	// Every organization is on the default plan from its first transaction;
+	// the entitlement gate has nothing to fall back on otherwise (F-02).
+	if _, err := createDefaultSubscription(ctx, q, o.ID, audit.System("organization.created")); err != nil {
+		return db.Organization{}, err
+	}
 	// Every organization starts with its built-in agent (OPEN_QUESTIONS AG6);
 	// the founder is its owner and can rename it.
 	if _, err := createAgent(ctx, q, o.ID, "UNI", DefaultAgentHandle,

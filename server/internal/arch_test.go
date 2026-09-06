@@ -146,3 +146,34 @@ func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The subscription and usage tables have one writer and one reader (spec F-02
+// §4.1): EntitlementService decides the gate, BillingService changes the plan.
+// A gate re-implemented beside a business command would drift from the
+// fail-closed formula, so the sqlc queries on plans, subscriptions and
+// usage_* are callable from those two files only.
+func TestBillingQueriesStayInBillingServices(t *testing.T) {
+	billing := regexp.MustCompile(`\.(ListActivePlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|ListFeatures|ListPlanFeatures|ListActivePlanFeatures|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified)\(`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") ||
+			strings.HasSuffix(slash, "internal/service/entitlement.go") ||
+			strings.HasSuffix(slash, "internal/service/billing.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if billing.Match(src) {
+			t.Errorf("%s touches plans/subscriptions/usage directly; go through EntitlementService or BillingService", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

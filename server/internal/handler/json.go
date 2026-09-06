@@ -24,6 +24,10 @@ func respondError(w http.ResponseWriter, status int, code, msg string) {
 	respondJSON(w, status, sdo.ErrorSDO{Error: sdo.ErrorDetail{Code: code, Message: msg}})
 }
 
+func respondErrorFields(w http.ResponseWriter, status int, code, msg string, fields map[string]any) {
+	respondJSON(w, status, sdo.ErrorSDO{Error: sdo.ErrorDetail{Code: code, Message: msg, Fields: fields}})
+}
+
 // decode reads a JSON body into dst, bounded by limit bytes. On failure it
 // writes the error response itself — 413 when the body exceeds the limit,
 // 400 otherwise — and returns false so the handler can simply return.
