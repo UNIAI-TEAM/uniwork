@@ -14,6 +14,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/storage"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 )
 
 // Deps is the subset of handler.Deps the mux needs: middleware, CORS,
@@ -40,6 +41,9 @@ func New(d Deps, h Routes) http.Handler {
 	// the rate limiter, the WebSocket origin check — applies TRUSTED_PROXIES
 	// itself. handler/router_test.go pins this.
 	proxies := mw.ParseTrustedProxies(d.Cfg.TrustedProxies)
+	// The server span comes first so every middleware below, the access log
+	// and the audit row share one trace id (X-Trace-Id).
+	r.Use(telemetry.HTTP)
 	r.Use(chimw.RequestID)
 	// Correlation before the logger so every access-log line carries the id
 	// the audit rows of that request will carry.
@@ -60,8 +64,8 @@ func New(d Deps, h Routes) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader},
-		ExposedHeaders:   []string{mw.CorrelationHeader},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader, telemetry.DebugTraceHeader},
+		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader},
 		AllowCredentials: true,
 	}))
 	cat := &apiCatalog{}

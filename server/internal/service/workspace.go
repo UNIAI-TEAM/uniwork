@@ -14,6 +14,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -185,14 +186,17 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 // org chứa workspace (khi đó role hiệu lực là "admin"). Đây là nơi DUY NHẤT
 // quyết định quyền workspace — service khác không tự query workspace_members.
 func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userID string) (db.WorkspaceMember, error) {
-	role, err := s.q.GetWorkspaceAccess(ctx, db.GetWorkspaceAccessParams{ID: workspaceID, UserID: userID})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && role == "") {
+	access, err := s.q.GetWorkspaceAccess(ctx, db.GetWorkspaceAccessParams{ID: workspaceID, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && access.Role == "") {
 		return db.WorkspaceMember{}, ErrForbidden
 	}
 	if err != nil {
 		return db.WorkspaceMember{}, err
 	}
-	return db.WorkspaceMember{WorkspaceID: workspaceID, UserID: userID, Role: role}, nil
+	// The one place every workspace request passes through, so the span and
+	// the log lines of this request learn their tenant here (spec F-11 §6.1).
+	telemetry.SetTenant(ctx, access.OrganizationID, workspaceID)
+	return db.WorkspaceMember{WorkspaceID: workspaceID, UserID: userID, Role: access.Role}, nil
 }
 
 // RequireAgentMember is the agent counterpart of RequireMember: an agent is

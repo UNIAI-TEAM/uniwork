@@ -10,7 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -28,8 +30,16 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
+)
+
+// version is set at build time: -ldflags "-X main.version=<git sha>". It
+// reaches the OTel resource and the build_info metric.
+var (
+	version = "dev"
+	commit  = ""
 )
 
 func main() {
@@ -41,7 +51,21 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	// Tracing first so the pool and the Redis client below are instrumented.
+	// No OTEL_EXPORTER_OTLP_ENDPOINT means spans are created (every request
+	// still gets an X-Trace-Id) but never exported.
+	stopTracing, err := telemetry.Init(ctx, telemetry.ConfigFromEnv(version), log)
+	if err != nil {
+		log.Error("otel", "err", err)
+		os.Exit(1)
+	}
+	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		log.Error("db url", "err", err)
+		os.Exit(1)
+	}
+	poolCfg.ConnConfig.Tracer = otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName())
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		log.Error("db connect", "err", err)
 		os.Exit(1)
@@ -58,6 +82,9 @@ func main() {
 			os.Exit(1)
 		}
 		rdb = redis.NewClient(opt)
+		if err := redisotel.InstrumentTracing(rdb); err != nil {
+			log.Warn("redis tracing", "err", err)
+		}
 	}
 	var membershipCache *auth.MembershipCache
 	if rdb != nil {
@@ -330,5 +357,11 @@ func main() {
 		_ = metricsSrv.Shutdown(metricsCtx)
 		metricsCancel()
 	}
+	// Last: flush whatever the batcher still holds for the spans above.
+	traceCtx, traceCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := stopTracing(traceCtx); err != nil {
+		log.Warn("otel shutdown", "err", err)
+	}
+	traceCancel()
 	log.Info("stopped")
 }

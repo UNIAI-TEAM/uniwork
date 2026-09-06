@@ -139,7 +139,8 @@ func (q *Queries) GetInvitationByToken(ctx context.Context, token string) (Invit
 }
 
 const getWorkspaceAccess = `-- name: GetWorkspaceAccess :one
-SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role
+SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role,
+       w.organization_id
 FROM workspaces w
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $2
 LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $2
@@ -151,12 +152,17 @@ type GetWorkspaceAccessParams struct {
 	UserID string `json:"user_id"`
 }
 
+type GetWorkspaceAccessRow struct {
+	Role           string `json:"role"`
+	OrganizationID string `json:"organization_id"`
+}
+
 // ” = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
-func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccessParams) (string, error) {
+func (q *Queries) GetWorkspaceAccess(ctx context.Context, arg GetWorkspaceAccessParams) (GetWorkspaceAccessRow, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceAccess, arg.ID, arg.UserID)
-	var role string
-	err := row.Scan(&role)
-	return role, err
+	var i GetWorkspaceAccessRow
+	err := row.Scan(&i.Role, &i.OrganizationID)
+	return i, err
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one

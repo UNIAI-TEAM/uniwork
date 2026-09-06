@@ -7,6 +7,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
@@ -33,9 +34,16 @@ const userAgentMaxLen = 512
 func Correlation(trustedProxies []*net.IPNet) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id := r.Header.Get(CorrelationHeader)
-			if !audit.ValidCorrelationID(id) {
-				id = util.NewID()
+			// correlation_id = trace_id (spec F-11 §2.5): the same value the
+			// response carries in X-Trace-Id ends up in audit_events and
+			// outbox_events. A client id is only honoured when no span exists
+			// (tests without the telemetry middleware).
+			id := telemetry.TraceID(r.Context())
+			if id == "" {
+				id = r.Header.Get(CorrelationHeader)
+				if !audit.ValidCorrelationID(id) {
+					id = util.NewID()
+				}
 			}
 			ua := r.UserAgent()
 			if len(ua) > userAgentMaxLen {

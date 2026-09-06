@@ -117,7 +117,7 @@ var softNotFoundMarkers = []string{
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip the hot liveness endpoint to keep logs readable.
-		if r.URL.Path == "/health" {
+		if r.URL.Path == "/health" || r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -170,17 +170,17 @@ func RequestLogger(next http.Handler) http.Handler {
 
 		switch {
 		case status >= 500:
-			slog.Error("http request", attrs...)
+			slog.ErrorContext(r.Context(), "http request", attrs...)
 		case status == http.StatusNotFound && isSoftNotFound(bodyPrefix.Bytes()):
 			// Lifecycle 404 — runtime/task was deleted server-side. The daemon
 			// catches this exact body and triggers its own self-heal, so it is
 			// neither noise nor a bug; logging at Info keeps the signal in
 			// structured logs without flooding the warn channel.
-			slog.Info("http request", attrs...)
+			slog.InfoContext(r.Context(), "http request", attrs...)
 		case status >= 400:
-			slog.Warn("http request", attrs...)
+			slog.WarnContext(r.Context(), "http request", attrs...)
 		default:
-			slog.Info("http request", attrs...)
+			slog.InfoContext(r.Context(), "http request", attrs...)
 		}
 	})
 }
