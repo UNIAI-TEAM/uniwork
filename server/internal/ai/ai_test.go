@@ -364,15 +364,15 @@ func TestFakeReplyCitesEverySource(t *testing.T) {
 	p, _ := LookupPrompt(PromptCopilotAnswer)
 	pack, _ := BuildContext([]Source{{Kind: "task", Title: "Viết spec", Excerpt: "x"}, {Kind: "meeting", Title: "Standup", Excerpt: "y"}})
 	req := provider.CompletionRequest{System: p.System, Messages: []provider.Message{{Role: "user", Content: p.Render(map[string]any{"sources": RenderSources(pack), "question": "?"})}}}
-	out, err := ParseAnswer(fakeReply(req).Text, pack)
+	out, err := ParseAnswer(FakeReply(req).Text, pack)
 	if err != nil || len(out.Citations) != 2 || !strings.Contains(out.Answer, "[S1]") {
 		t.Fatalf("%+v %v", out, err)
 	}
-	empty, _ := ParseAnswer(fakeReply(provider.CompletionRequest{System: p.System, Messages: []provider.Message{{Role: "user", Content: "Sources: (none)"}}}).Text, nil)
+	empty, _ := ParseAnswer(FakeReply(provider.CompletionRequest{System: p.System, Messages: []provider.Message{{Role: "user", Content: "Sources: (none)"}}}).Text, nil)
 	if empty.Answer != NoSourcesAnswer {
 		t.Fatalf("%q", empty.Answer)
 	}
-	if _, err := ParseSummaryJSON(fakeReply(provider.CompletionRequest{System: "meeting"}).Text); err != nil {
+	if _, err := ParseSummaryJSON(FakeReply(provider.CompletionRequest{System: "meeting"}).Text); err != nil {
 		t.Fatal(err)
 	}
 }

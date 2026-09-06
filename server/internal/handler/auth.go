@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
@@ -132,11 +133,14 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 	var ve service.ValidationError
 	var ce service.CodedError
+	var aiErr *ai.Error
 	switch {
 	case errors.As(err, &ve):
 		respondError(w, 400, "invalid_request", ve.Msg)
 	case errors.As(err, &ce):
 		respondErrorFields(w, ce.Status, ce.Code, ce.Msg, ce.Fields)
+	case errors.As(err, &aiErr):
+		respondError(w, aiErr.Status, aiErr.Code, aiErr.Msg)
 	case errors.Is(err, service.ErrNotFound):
 		respondError(w, 404, "not_found", "not found")
 	case errors.Is(err, service.ErrForbidden):

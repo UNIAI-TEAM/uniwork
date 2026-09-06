@@ -10,12 +10,12 @@ import (
 
 var sourceTag = regexp.MustCompile(`\[(S\d+)\] ([^\n(]+)`)
 
-// fakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
+// FakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
 // deterministic, well-formed answer for every prompt. For copilot_answer it
 // cites every numbered source it was given, which is exactly what the
 // cross-tenant E2E needs to observe; for meeting_summary it returns the
 // smallest valid record.
-func fakeReply(req provider.CompletionRequest) provider.CompletionResponse {
+func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 	last := ""
 	if n := len(req.Messages); n > 0 {
 		last = req.Messages[n-1].Content

@@ -177,6 +177,7 @@ func main() {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
+	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	auditSvc := service.NewAuditService(pool, q, orgSvc, wsSvc)
 	// One dispatcher drains outbox_events for the whole process. Registering a
@@ -250,6 +251,7 @@ func main() {
 		Audit:           auditSvc,
 		Billing:         billingSvc,
 		Notifications:   notifSvc,
+		AskUNI:          askUNI,
 		Meetings:        meetingSvc,
 		Chat:            chatSvc,
 		Hub:             hub,

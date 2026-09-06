@@ -38,6 +38,7 @@ type Deps struct {
 	Audit         *service.AuditService
 	Billing       *service.BillingService
 	Notifications *notification.Service
+	AskUNI        *service.AskUNIService
 	Meetings      *service.MeetingService
 	Chat          *service.ChatService
 	Hub           *realtime.Hub
@@ -133,6 +134,14 @@ func New(d Deps) http.Handler {
 		PushConfig:                 h.pushConfig,
 		SubscribePush:              h.subscribePush,
 		UnsubscribePush:            h.unsubscribePush,
+
+		AiCapabilities:       h.aiCapabilities,
+		AskUni:               h.askUni,
+		ListAiConversations:  h.listAiConversations,
+		ListAiMessages:       h.listAiMessages,
+		DeleteAiConversation: h.deleteAiConversation,
+		WorkspaceAiUsage:     h.workspaceAiUsage,
+		OrganizationAiUsage:  h.organizationAiUsage,
 
 		ListPlans:          h.listPlans,
 		GetSubscription:    h.getSubscription,

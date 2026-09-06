@@ -57,7 +57,7 @@ func FromEnv(get func(string) string) (provider.Provider, Options) {
 	case "ollama":
 		return provider.NewOllama(get("OLLAMA_BASE_URL"), opts.Timeout), opts
 	case "fake":
-		return &provider.Fake{Reply: fakeReply}, opts
+		return &provider.Fake{Reply: FakeReply}, opts
 	}
 	return nil, opts
 }
