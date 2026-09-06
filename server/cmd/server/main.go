@@ -65,7 +65,10 @@ func main() {
 		log.Error("db url", "err", err)
 		os.Exit(1)
 	}
-	poolCfg.ConnConfig.Tracer = otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName())
+	// One tracer yields both the otelpgx spans and the per-query histogram
+	// (registered below once the metrics registry exists).
+	dbTracer := metrics.NewDBQueryTracer(otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName()))
+	poolCfg.ConnConfig.Tracer = dbTracer
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		log.Error("db connect", "err", err)
@@ -107,7 +110,7 @@ func main() {
 	var metricsSrv *http.Server
 	var reg *metrics.Registry
 	if mcfg := metrics.ConfigFromEnv(); mcfg.Enabled() {
-		reg = metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M, Version: version, Commit: commit})
+		reg = metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M, Version: version, Commit: commit, DBQueries: dbTracer})
 		httpMetrics = reg.HTTP
 		metricsSrv = metrics.NewServer(mcfg.Addr, reg.Gatherer)
 		go func() {

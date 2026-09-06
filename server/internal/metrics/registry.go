@@ -15,6 +15,8 @@ type RegistryOptions struct {
 	Realtime *realtime.Metrics
 	Version  string
 	Commit   string
+	// DBQueries is the pool tracer's histogram; nil when tracing is off.
+	DBQueries *DBQueryTracer
 }
 
 type Registry struct {
@@ -50,6 +52,9 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
+	}
+	if opts.DBQueries != nil {
+		reg.MustRegister(opts.DBQueries.Collectors()...)
 	}
 
 	emails := prometheus.NewCounterVec(prometheus.CounterOpts{
