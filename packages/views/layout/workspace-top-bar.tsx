@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
 import { PAGE_GUTTER } from "./page-header";
@@ -116,6 +117,7 @@ export function WorkspaceTopBar({
     >
       <SidebarTrigger size="icon" />
       <div className="flex-1" />
+      <NotificationBell />
       <IconTooltipButton label={createLabel} onClick={() => onCreateOpenChange(true)}>
         <Plus aria-hidden className="size-4" />
       </IconTooltipButton>

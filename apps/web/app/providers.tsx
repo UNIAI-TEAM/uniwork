@@ -2,6 +2,8 @@
 // Must be first: it feeds packages/core the endpoint origins before any
 // module below can issue a request with them.
 import "../platform/runtime-config";
+// Registers the Web Push adapter when the browser supports it; no exports.
+import "../platform/push";
 import type { SupportedLocale } from "@uniwork/core/i18n";
 import { CoreProvider } from "@uniwork/core/platform";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";

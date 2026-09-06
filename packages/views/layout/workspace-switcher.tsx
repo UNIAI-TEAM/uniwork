@@ -4,6 +4,7 @@ import { ChevronsUpDown, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import type { Workspace } from "@uniwork/core/types";
+import { useUnreadCount } from "@uniwork/core/notifications";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import {
   DropdownMenu,
@@ -32,6 +33,9 @@ export function WorkspaceSwitcher({ current, onNavigate }: { current: Workspace;
   const { t } = useTranslation();
   const { push } = useNavigation();
   const { data: workspaces = [] } = useWorkspaces();
+  const unread = useUnreadCount();
+  const unreadIn = (id: string) => unread.data?.by_workspace[id] ?? 0;
+  const elsewhere = workspaces.some((w) => w.id !== current.id && unreadIn(w.id) > 0);
 
   const go = (href: string) => {
     onNavigate?.();
@@ -57,11 +61,20 @@ export function WorkspaceSwitcher({ current, onNavigate }: { current: Workspace;
           />
         }
       >
-        <span
-          aria-hidden
-          className="flex size-6 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-caption font-medium text-sidebar-primary-foreground"
-        >
-          {current.name.trim().slice(0, 1).toUpperCase()}
+        <span className="relative shrink-0">
+          <span
+            aria-hidden
+            className="flex size-6 items-center justify-center rounded-md bg-sidebar-primary text-caption font-medium text-sidebar-primary-foreground"
+          >
+            {current.name.trim().slice(0, 1).toUpperCase()}
+          </span>
+          {elsewhere ? (
+            <span
+              role="img"
+              aria-label={t("notifications.unread_elsewhere")}
+              className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-sidebar"
+            />
+          ) : null}
         </span>
         <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
           <span className="block truncate text-caption text-muted-foreground">{current.organization_name}</span>
@@ -79,7 +92,14 @@ export function WorkspaceSwitcher({ current, onNavigate }: { current: Workspace;
                 onClick={() => go(paths.workspace(w.organization_slug, w.slug).tasks())}
                 className={cn(w.id === current.id && "font-medium")}
               >
-                {w.name}
+                <span className="min-w-0 flex-1 truncate">{w.name}</span>
+                {w.id !== current.id && unreadIn(w.id) > 0 ? (
+                  <span
+                    role="img"
+                    aria-label={t("notifications.bell_unread", { count: unreadIn(w.id) })}
+                    className="size-2 shrink-0 rounded-full bg-primary"
+                  />
+                ) : null}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
