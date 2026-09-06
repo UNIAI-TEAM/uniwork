@@ -169,12 +169,12 @@ func (o *Outbox) deliver(ctx context.Context, q *db.Queries, row db.Email) error
 	}
 	attempt := int(row.Attempts) + 1
 	if attempt >= outboxMaxTries || errors.Is(sendErr, ErrPermanent) {
-		o.log.Error("mail: giving up", "kind", row.Kind, "to", row.ToEmail, "attempts", attempt, "err", sendErr)
+		o.log.Error("mail: giving up", "kind", row.Kind, "email_id", row.ID, "attempts", attempt, "err", sendErr)
 		o.count(row.Kind, "failed")
 		return q.MarkEmailFailed(ctx, db.MarkEmailFailedParams{ID: row.ID, LastError: pgtype.Text{String: sendErr.Error(), Valid: true}})
 	}
 	next := o.now().Add(backoff[attempt-1])
-	o.log.Warn("mail: send failed, will retry", "kind", row.Kind, "to", row.ToEmail, "attempts", attempt, "next", next, "err", sendErr)
+	o.log.Warn("mail: send failed, will retry", "kind", row.Kind, "email_id", row.ID, "attempts", attempt, "next", next, "err", sendErr)
 	o.count(row.Kind, "retry")
 	return q.MarkEmailAttemptFailed(ctx, db.MarkEmailAttemptFailedParams{
 		ID: row.ID, NextAttemptAt: pgtype.Timestamptz{Time: next, Valid: true},

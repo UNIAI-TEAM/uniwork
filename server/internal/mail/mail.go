@@ -61,6 +61,6 @@ func (s LogSender) Send(_ context.Context, msg Message) error {
 	if log == nil {
 		log = slog.Default()
 	}
-	log.Info("mail not configured, printing message", "kind", msg.Kind, "to", msg.To, "subject", msg.Subject, "text", msg.Text)
+	log.Info("mail not configured, printing message", "kind", msg.Kind, "to", msg.To, "subject", msg.Subject, "text", msg.Text) // log-pii-ok: dev sink replaces SMTP; the address is the message
 	return nil
 }

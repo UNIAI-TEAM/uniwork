@@ -104,7 +104,7 @@ func main() {
 	var metricsSrv *http.Server
 	var reg *metrics.Registry
 	if mcfg := metrics.ConfigFromEnv(); mcfg.Enabled() {
-		reg = metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M})
+		reg = metrics.NewRegistry(metrics.RegistryOptions{Pool: pool, Realtime: realtime.M, Version: version, Commit: commit})
 		httpMetrics = reg.HTTP
 		metricsSrv = metrics.NewServer(mcfg.Addr, reg.Gatherer)
 		go func() {
@@ -288,6 +288,7 @@ func main() {
 		Storage:         store,
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
+		Readiness:       service.NewReadiness(pool, rdb),
 	})
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

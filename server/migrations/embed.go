@@ -211,3 +211,21 @@ func WaitAdvisoryLock(ctx context.Context, conn *pgxpool.Conn, key int) error {
 		}
 	}
 }
+
+// Latest is the newest embedded migration version; /readyz compares it with
+// schema_migrations so a node running old code against a newer database, or
+// new code against an unmigrated one, reports itself not ready.
+func Latest() string {
+	vs, err := versions()
+	if err != nil || len(vs) == 0 {
+		return ""
+	}
+	return vs[len(vs)-1]
+}
+
+// Applied returns the newest version recorded in schema_migrations.
+func Applied(ctx context.Context, pool *pgxpool.Pool) (string, error) {
+	var v string
+	err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&v)
+	return v, err
+}

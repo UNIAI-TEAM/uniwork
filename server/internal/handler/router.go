@@ -60,6 +60,8 @@ type Deps struct {
 	// HTTPMetrics is nil unless METRICS_ADDR is set; when present every request
 	// is counted and timed by chi route pattern.
 	HTTPMetrics *metrics.HTTPMetrics
+	// Readiness backs /readyz; nil (tests) answers 503.
+	Readiness *service.Readiness
 }
 
 type handlers struct {
@@ -78,6 +80,7 @@ func New(d Deps) http.Handler {
 		HTTPMetrics: d.HTTPMetrics,
 	}, rt.Routes{
 		Health: h.health,
+		Ready:  h.ready,
 		WS:     h.ws,
 
 		Register:       h.register,

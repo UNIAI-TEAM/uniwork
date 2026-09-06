@@ -12,12 +12,19 @@ import (
 // tag: meta
 //
 //	GET /healthz
+//	GET /readyz
 func registerMeta(root api, r chi.Router, store storage.Storage, h Routes) {
 	root.Get("/healthz", h.Health, apiOp{
 		summary:     "Liveness",
 		description: "Kiểm tra tiến trình còn sống. Trả {status: ok} khi HTTP listener đang chạy.",
 		tags:        []string{"meta"},
 		sdo:         sdo.StatusSDO{},
+	})
+	root.Get("/readyz", h.Ready, apiOp{
+		summary:     "Readiness",
+		description: "Kiểm tra phụ thuộc: DB trả lời trong 500 ms, schema đúng phiên bản binary nhúng, Redis PING nếu cấu hình. 503 kèm từng check khi có check lỗi.",
+		tags:        []string{"meta"},
+		sdo:         sdo.ReadinessSDO{},
 	})
 	// Local storage only: S3 objects are reached through the URL storage
 	// returned, so this route is not on the OpenAPI spec.

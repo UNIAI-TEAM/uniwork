@@ -6,6 +6,7 @@ import "net/http"
 // from *handlers so route files stay in this package.
 type Routes struct {
 	Health http.HandlerFunc
+	Ready  http.HandlerFunc
 	WS     http.HandlerFunc
 
 	Register       http.HandlerFunc
