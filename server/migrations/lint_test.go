@@ -220,6 +220,9 @@ var tenantExemptTables = map[string]string{
 	"organizations":            "the tenant itself",
 	"emails":                   "transactional mail outbox, provider-facing",
 	"webhook_inbox":            "raw provider callbacks, before they are attributed",
+	"plans":                    "the global plan catalogue, shared by every tenant (F-02)",
+	"features":                 "the entitlement vocabulary, shared by every tenant (F-02)",
+	"plan_features":            "catalogue rows, keyed by plan (F-02)",
 }
 
 // Business tables created before ADR 0008 that still lack organization_id.
