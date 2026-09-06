@@ -98,7 +98,11 @@ func TestActorConstructedOnlyInService(t *testing.T) {
 			return err
 		}
 		slash := filepath.ToSlash(path)
-		if strings.Contains(slash, "internal/service/") || strings.Contains(slash, "internal/audit/") {
+		// internal/notification is a worker on the service tier: it reads
+		// committed events and its jobs act as "system" (F-07). No request
+		// reaches it, which is what the rule protects against.
+		if strings.Contains(slash, "internal/service/") || strings.Contains(slash, "internal/audit/") ||
+			strings.Contains(slash, "internal/notification/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
