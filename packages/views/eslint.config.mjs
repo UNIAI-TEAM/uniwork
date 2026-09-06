@@ -35,6 +35,14 @@ export default [
       "no-restricted-syntax": ["error", {
         selector: "MemberExpression[object.name='window'][property.name='location']",
         message: "packages/views must not reload the page. Use useNavigation().push()/replace().",
+      }, {
+        // Native pickers look different on every browser; the registry
+        // primitives are the one look the product ships.
+        selector: "JSXOpeningElement[name.name=/^(select|datalist)$/]",
+        message: "Use <Select> or <Combobox> from @uniwork/ui, not a native <select>/<datalist>.",
+      }, {
+        selector: "JSXOpeningElement JSXAttribute[name.name='type'][value.value=/^(date|time|datetime-local|month|week)$/]",
+        message: "Use <DateField> (packages/views/common) or <TimeInput> from @uniwork/ui, not a native date/time input.",
       }],
       "no-restricted-imports": ["error", {
         patterns: [
