@@ -24,6 +24,7 @@ type Registry struct {
 	Meetings      *Meetings
 	Outbox        *Outbox
 	Notifications *Notifications
+	AI            *AI
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -65,6 +66,9 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	notificationMetrics := NewNotifications()
 	reg.MustRegister(notificationMetrics.Collectors()...)
 
+	aiMetrics := NewAI()
+	reg.MustRegister(aiMetrics.Collectors()...)
+
 	return &Registry{
 		Gatherer:      reg,
 		HTTP:          httpMetrics,
@@ -72,6 +76,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Meetings:      meetingMetrics,
 		Outbox:        outboxMetrics,
 		Notifications: notificationMetrics,
+		AI:            aiMetrics,
 	}
 }
 

@@ -121,6 +121,9 @@ var catalogue = []EventDef{
 	{Topic: "notification.created", Version: 1, Payload: []string{"notification_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "notification.push", Version: 1, Payload: []string{"notification_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
+	// AI gateway (F-09): a usage row completed; Settings → AI refreshes.
+	{Topic: "ai.usage.updated", Version: 1, Payload: []string{"organization_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "audit.exported", Version: 1, Payload: []string{"export_id", "organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
