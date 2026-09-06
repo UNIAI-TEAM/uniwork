@@ -10,6 +10,7 @@
   },
   "exports": {
     "./auth/*": "./auth/*.tsx",
+    "./admin/*": "./admin/*.tsx",
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
