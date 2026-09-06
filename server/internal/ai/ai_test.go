@@ -215,7 +215,13 @@ func (f *fakeQuota) Record(_ context.Context, in UsageRecord) error {
 
 func gatewayFixture(t *testing.T, p provider.Provider, quota Quota) (*Gateway, *db.Queries) {
 	t.Helper()
-	q := db.New(testutil.DB(t))
+	pool := testutil.DB(t)
+	// ai_model_rates is the global catalogue and survives the test TRUNCATE;
+	// drop the fake provider's rows so an earlier run cannot price this one.
+	if _, err := pool.Exec(context.Background(), "DELETE FROM ai_model_rates WHERE provider = 'fake'"); err != nil {
+		t.Fatal(err)
+	}
+	q := db.New(pool)
 	g := NewGateway(q, p, quota, nil, Options{Timeout: time.Second})
 	return g, q
 }
