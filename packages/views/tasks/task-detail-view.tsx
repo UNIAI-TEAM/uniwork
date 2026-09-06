@@ -20,6 +20,7 @@ import { Select } from "@uniwork/ui/components/ui/select";
 import { AgentBadge } from "../agents/agent-badge";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { useWorkspace } from "../layout/workspace-context";
+import { DateField } from "../common/date-field";
 import { TaskActivity } from "./task-activity";
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done", "cancelled"];
@@ -187,10 +188,9 @@ export function TaskDetailView({
           </div>
           <div className="space-y-1.5">
             <Label>{t("tasks.dueDate")}</Label>
-            <Input
-              type="date"
+            <DateField
               value={task.due_date ?? ""}
-              onChange={(e) => patch({ due_date: e.target.value || null })}
+              onChange={(v) => patch({ due_date: v || null })}
             />
           </div>
         </aside>

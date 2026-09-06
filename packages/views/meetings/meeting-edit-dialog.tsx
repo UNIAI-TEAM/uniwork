@@ -21,6 +21,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
+import { DateField } from "../common/date-field";
 import { combineLocalIso, MEETING_TIMEZONES, splitIsoLocal } from "./meeting-datetime";
 
 function meetingDraft(meeting: Meeting) {
@@ -128,7 +129,7 @@ export function MeetingEditDialog({
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="edit-date">{t("meetings.date")}</FieldLabel>
-                  <Input id="edit-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                  <DateField id="edit-date" value={date} onChange={setDate} />
                 </Field>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field>
@@ -166,7 +167,7 @@ export function MeetingEditDialog({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" disabled={update.isPending}>
+            <Button type="submit" disabled={update.isPending || !date}>
               {t("meetings.saveChanges")}
             </Button>
           </DialogFooter>

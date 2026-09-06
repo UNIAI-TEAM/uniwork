@@ -1,8 +1,8 @@
 "use client";
 import { useTranslation } from "react-i18next";
 import { Field, FieldError, FieldLabel } from "@uniwork/ui/components/ui/field";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
+import { DateField } from "../common/date-field";
 import { meetingDayKey } from "./meeting-datetime";
 
 /** "HH:MM" strings compare as times; the window is valid only when it has length. */
@@ -64,13 +64,11 @@ export function MeetingScheduleFields({
         <FieldLabel htmlFor={`${idPrefix}-date`}>
           {t("meetings.date")}
         </FieldLabel>
-        <Input
+        <DateField
           id={`${idPrefix}-date`}
-          type="date"
           min={meetingDayKey(new Date().toISOString())}
           value={date}
-          onChange={(e) => onDate(e.target.value)}
-          required
+          onChange={onDate}
         />
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
