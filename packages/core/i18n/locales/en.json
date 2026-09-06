@@ -186,6 +186,7 @@
         "workspace": "General",
         "members": "Members",
         "integrations": "Integrations",
+        "billing": "Billing",
         "audit": "Security & audit"
       }
     },
@@ -223,6 +224,46 @@
     "integrations": {
       "emptyTitle": "No integrations yet",
       "emptyDescription": "External tool connections will appear here when UniWork is ready."
+    },
+    "billing": {
+      "title": "Billing",
+      "description": "The organization's plan, current usage against its limits, and how to change plans. Prices come from the server; without a payment provider, plans are changed by the platform admin.",
+      "forbidden_title": "You cannot see billing",
+      "forbidden_description": "Only organization owners and admins can see the plan and its limits.",
+      "error_title": "Could not load the plan",
+      "error_description": "Try again in a few minutes. If it keeps failing, send the correlation id to the platform admin.",
+      "retry": "Retry",
+      "current_plan": "Current plan",
+      "plan": "Plan",
+      "period_end": "Period ends",
+      "cancel_at": "Ends on",
+      "cancel_at_hint": "The plan stays active until this date; it can be resumed before then.",
+      "change_plan": "Change plan",
+      "pick_plan": "Pick a plan…",
+      "plan_free": "{{name}} (free)",
+      "plan_paid": "{{name}} (paid)",
+      "apply_plan": "Apply",
+      "checkout": "Pay",
+      "cancel": "Cancel at period end",
+      "resume": "Resume",
+      "plan_changed": "Plan changed",
+      "canceled": "Cancellation scheduled",
+      "resumed": "Plan resumed",
+      "owner_only": "Only the organization owner can change the plan.",
+      "usage": "Limits and features",
+      "usage_description": "Usage in the current period against the plan's limits. Past a limit, creating more is refused.",
+      "usage_of": "{{used}} / {{limit}}",
+      "unlimited": "unlimited",
+      "flag_on": "On",
+      "flag_off": "Off",
+      "no_entitlements": "This plan declares no features yet",
+      "status": {
+        "trialing": "Trial",
+        "active": "Active",
+        "past_due": "Past due",
+        "suspended": "Suspended",
+        "canceled": "Canceled"
+      }
     },
     "audit": {
       "title": "Security & audit",

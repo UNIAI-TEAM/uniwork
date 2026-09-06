@@ -1,6 +1,6 @@
 "use client";
 
-import { Plug, ScrollText, Settings, SlidersHorizontal, User, Users } from "lucide-react";
+import { CreditCard, Plug, ScrollText, Settings, SlidersHorizontal, User, Users } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
@@ -10,6 +10,7 @@ import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
 import { AuditTab } from "./audit-tab";
+import { BillingTab } from "./billing-tab";
 import { IntegrationsTab } from "./integrations-tab";
 import { MembersTab } from "./members-tab";
 import { PreferencesTab } from "./preferences-tab";
@@ -21,17 +22,19 @@ const ACCOUNT_TAB_ICONS = {
   preferences: SlidersHorizontal,
 } as const;
 
-const WORKSPACE_TAB_KEYS = ["general", "members", "integrations", "audit"] as const;
+const WORKSPACE_TAB_KEYS = ["general", "members", "integrations", "billing", "audit"] as const;
 const WORKSPACE_TAB_VALUES = {
   general: "workspace",
   members: "members",
   integrations: "integrations",
+  billing: "billing",
   audit: "audit",
 } as const;
 const WORKSPACE_TAB_ICONS = {
   general: Settings,
   members: Users,
   integrations: Plug,
+  billing: CreditCard,
   audit: ScrollText,
 } as const;
 
@@ -132,6 +135,9 @@ export function SettingsPage() {
           </TabsContent>
           <TabsContent value="integrations">
             <IntegrationsTab />
+          </TabsContent>
+          <TabsContent value="billing">
+            <BillingTab />
           </TabsContent>
           <TabsContent value="audit">
             <AuditTab />

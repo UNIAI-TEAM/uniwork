@@ -185,6 +185,7 @@
         "workspace": "Chung",
         "members": "Thành viên",
         "integrations": "Tích hợp",
+        "billing": "Thanh toán",
         "audit": "Bảo mật & Nhật ký"
       }
     },
@@ -222,6 +223,46 @@
     "integrations": {
       "emptyTitle": "Chưa có tích hợp",
       "emptyDescription": "Kết nối công cụ bên ngoài sẽ có ở đây khi UniWork sẵn sàng."
+    },
+    "billing": {
+      "title": "Thanh toán",
+      "description": "Gói của tổ chức, hạn mức đang dùng và cách đổi gói. Giá lấy từ máy chủ; chưa có cổng thanh toán thì đổi gói qua quản trị hệ thống.",
+      "forbidden_title": "Bạn không xem được mục thanh toán",
+      "forbidden_description": "Chỉ chủ sở hữu và quản trị viên của tổ chức mới xem được gói và hạn mức.",
+      "error_title": "Không tải được thông tin gói",
+      "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, gửi mã tương quan cho quản trị hệ thống.",
+      "retry": "Thử lại",
+      "current_plan": "Gói hiện tại",
+      "plan": "Gói",
+      "period_end": "Hết kỳ",
+      "cancel_at": "Ngừng vào",
+      "cancel_at_hint": "Gói vẫn hiệu lực đến ngày này; có thể khôi phục trước đó.",
+      "change_plan": "Đổi gói",
+      "pick_plan": "Chọn gói…",
+      "plan_free": "{{name}} (miễn phí)",
+      "plan_paid": "{{name}} (trả phí)",
+      "apply_plan": "Áp dụng",
+      "checkout": "Thanh toán",
+      "cancel": "Ngừng gói cuối kỳ",
+      "resume": "Khôi phục",
+      "plan_changed": "Đã đổi gói",
+      "canceled": "Đã đặt lịch ngừng gói",
+      "resumed": "Đã khôi phục gói",
+      "owner_only": "Chỉ chủ sở hữu tổ chức đổi được gói.",
+      "usage": "Hạn mức và tính năng",
+      "usage_description": "Số đang dùng trong kỳ hiện tại so với hạn mức của gói. Vượt hạn mức thì thao tác tạo mới bị từ chối.",
+      "usage_of": "{{used}} / {{limit}}",
+      "unlimited": "không giới hạn",
+      "flag_on": "Bật",
+      "flag_off": "Tắt",
+      "no_entitlements": "Gói này chưa khai báo tính năng nào",
+      "status": {
+        "trialing": "Dùng thử",
+        "active": "Đang hiệu lực",
+        "past_due": "Quá hạn thanh toán",
+        "suspended": "Tạm ngưng",
+        "canceled": "Đã hủy"
+      }
     },
     "audit": {
       "title": "Bảo mật & Nhật ký",
