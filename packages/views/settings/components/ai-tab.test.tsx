@@ -1,12 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import type { Workspace } from "@uniwork/core/types";
+import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrap } from "../../test/api-mock";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { AiTab } from "./ai-tab";
 
 initI18n();
+
+const user: User = {
+  id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-08-25T00:00:00Z",
+  email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+};
 
 const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme",
@@ -28,13 +33,13 @@ beforeEach(() => requestMock.mockReset());
 describe("AiTab", () => {
   it("is admin-only", async () => {
     mockApi("member", []);
-    render(wrap(<WorkspaceProvider workspace={workspace}><AiTab /></WorkspaceProvider>));
+    render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByText("Chỉ owner/admin workspace xem được")).toBeInTheDocument();
   });
 
   it("shows the quota line and the empty state", async () => {
     mockApi("admin", []);
-    render(wrap(<WorkspaceProvider workspace={workspace}><AiTab /></WorkspaceProvider>));
+    render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByText("Chưa có lượt gọi AI nào")).toBeInTheDocument();
     expect(await screen.findByText(/1.234 \/ 500.000 token/)).toBeInTheDocument();
   });
@@ -46,7 +51,7 @@ describe("AiTab", () => {
       { day: today, capability: "copilot_answer", actor_kind: "human", calls: 1, input_tokens: 100, output_tokens: 10, cost_micros: 1500 },
       { day: today, capability: "meeting_summarization", actor_kind: "human", calls: 1, input_tokens: 1000, output_tokens: 200, cost_micros: 30000 },
     ]);
-    render(wrap(<WorkspaceProvider workspace={workspace}><AiTab /></WorkspaceProvider>));
+    render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByRole("img", { name: "Token mỗi ngày" })).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument(); // calls
     expect(screen.getByText("1.400")).toBeInTheDocument(); // tokens in

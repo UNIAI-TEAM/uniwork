@@ -4,7 +4,7 @@ import { useAiPanelStore } from "@uniwork/core/ai";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { configureShortcutPlatform } from "@uniwork/core/shortcuts";
-import type { Workspace } from "@uniwork/core/types";
+import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { AskUniButton } from "./ask-uni-button";
@@ -12,6 +12,11 @@ import { AskUniPanel } from "./ask-uni-panel";
 
 initI18n();
 configureShortcutPlatform("macos");
+
+const user: User = {
+  id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-08-25T00:00:00Z",
+  email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+};
 
 const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme",
@@ -45,7 +50,7 @@ function mockApi(opts: { enabled?: boolean; askError?: ApiError; conversations?:
 function mount() {
   return render(
     wrapWithNav(
-      <WorkspaceProvider workspace={workspace}>
+      <WorkspaceProvider workspace={workspace} user={user}>
         <AskUniButton />
         <AskUniPanel />
       </WorkspaceProvider>,

@@ -142,8 +142,13 @@ func TestNewOrganizationIsOnTheDefaultPlan(t *testing.T) {
 	if e, _ := lookup(snap.Entitlements, FeatureMembersMax); e.Current != 1 || !e.Metered {
 		t.Fatalf("members.max current = %d metered=%v, want 1 (the founder) and metered", e.Current, e.Metered)
 	}
-	if e, ok := lookup(snap.Entitlements, "ai.tokens"); !ok || e.Metered {
-		t.Fatalf("ai.tokens has no consumer yet and must not claim to be metered: %+v", e)
+	// F-09 wired ai.tokens (the gateway meters it) and G2 gives the default
+	// plan 500k per month.
+	if e, ok := lookup(snap.Entitlements, FeatureAITokens); !ok || !e.Metered || e.Limit == nil || *e.Limit != 500000 {
+		t.Fatalf("ai.tokens must be metered with the G2 default: %+v", e)
+	}
+	if e, ok := lookup(snap.Entitlements, "storage.bytes"); !ok || e.Metered {
+		t.Fatalf("storage.bytes has no consumer yet and must not claim to be metered: %+v", e)
 	}
 }
 

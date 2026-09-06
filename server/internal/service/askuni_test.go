@@ -246,6 +246,9 @@ func TestSearchScoringOverdueAndMembers(t *testing.T) {
 	s, _, ua, ub, w := askFixture(t)
 	ctx := context.Background()
 	addMember(t, s.meetings, w.ID, ub.ID)
+	if _, err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{ID: ub.ID, DisplayName: strText("Bình")}); err != nil {
+		t.Fatal(err)
+	}
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Trễ", DueDate: &yesterday, AssigneeID: &ub.ID}); err != nil {
 		t.Fatal(err)
@@ -254,10 +257,10 @@ func TestSearchScoringOverdueAndMembers(t *testing.T) {
 		t.Fatal(err)
 	}
 	srcs, err := s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, WorkspaceID: w.ID, Question: "việc nào overdue?"})
-	if err != nil || len(srcs) != 1 || srcs[0].Title != "Trễ" || !strings.Contains(srcs[0].Excerpt, "Người nhận: B") {
+	if err != nil || len(srcs) != 1 || srcs[0].Title != "Trễ" || !strings.Contains(srcs[0].Excerpt, "Người nhận: Bình") {
 		t.Fatalf("%+v %v", srcs, err)
 	}
-	srcs, err = s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, WorkspaceID: w.ID, Question: "B đang làm gì?"})
+	srcs, err = s.Sources(ctx, ai.SourceQuery{UserID: ua.ID, WorkspaceID: w.ID, Question: "Bình đang làm gì?"})
 	if err != nil || len(srcs) == 0 || srcs[0].Title != "Trễ" {
 		t.Fatalf("assignee name match: %+v %v", srcs, err)
 	}
@@ -271,7 +274,7 @@ func TestSearchScoringOverdueAndMembers(t *testing.T) {
 			members = src.Excerpt
 		}
 	}
-	if !strings.Contains(members, "A (owner)") || !strings.Contains(members, "B (member)") || strings.Contains(members, "@") {
+	if !strings.Contains(members, "A (owner)") || !strings.Contains(members, "Bình (member)") || strings.Contains(members, "@") {
 		t.Fatalf("members source: %q", members)
 	}
 }
