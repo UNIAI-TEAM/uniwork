@@ -33,20 +33,43 @@ function dailyTokens(rows: AiUsageRow[], from: Date, days: number): { day: strin
  * accessible view of the same numbers.
  */
 function Sparkline({ points, label, locale }: { points: { day: string; tokens: number }[]; label: string; locale: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.ai" });
   const w = 240;
   const h = 40;
   const max = Math.max(1, ...points.map((p) => p.tokens));
   const step = points.length > 1 ? w / (points.length - 1) : 0;
   const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - 2 - (p.tokens / max) * (h - 4)).toFixed(1)}`).join(" ");
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} role="img" aria-label={label} className="text-foreground">
-      <path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-      {points.map((p, i) => (
-        <circle key={p.day} cx={(i * step).toFixed(1)} cy={(h - 2 - (p.tokens / max) * (h - 4)).toFixed(1)} r={4} fill="transparent">
-          <title>{`${p.day}: ${p.tokens.toLocaleString(locale)}`}</title>
-        </circle>
-      ))}
-    </svg>
+    <>
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} role="img" aria-label={label} className="text-foreground">
+        <path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {points.map((p, i) => (
+          <circle key={p.day} cx={(i * step).toFixed(1)} cy={(h - 2 - (p.tokens / max) * (h - 4)).toFixed(1)} r={4} fill="transparent">
+            <title>{`${p.day}: ${p.tokens.toLocaleString(locale)}`}</title>
+          </circle>
+        ))}
+      </svg>
+      {/* The readable form of the same numbers: hover-only titles are not enough. */}
+      <details className="mt-2 text-caption">
+        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t("tokens_by_day")}</summary>
+        <table className="mt-2 w-full tabular-nums">
+          <thead>
+            <tr>
+              <th scope="col" className="text-left font-medium">{t("columns.day")}</th>
+              <th scope="col" className="text-right font-medium">{t("columns.tokens")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {points.filter((p) => p.tokens > 0).map((p) => (
+              <tr key={p.day}>
+                <td>{p.day}</td>
+                <td className="text-right">{p.tokens.toLocaleString(locale)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </>
   );
 }
 

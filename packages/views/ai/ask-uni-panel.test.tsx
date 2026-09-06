@@ -87,6 +87,14 @@ describe("AskUniPanel", () => {
     expect(link).toHaveAttribute("href", "/acme/team/tasks/t1");
     expect(screen.getByText("812 token vào · 96 token ra")).toBeInTheDocument();
     expect(useAiPanelStore.getState().conversationId).toBe("c1");
+    expect(screen.getByRole("button", { name: "Đóng" })).toBeInTheDocument();
+
+    // A new conversation drops the token line of the previous answer.
+    fireEvent.click(screen.getByRole("button", { name: "Hội thoại mới" }));
+    await waitFor(() => expect(screen.queryByText("812 token vào · 96 token ra")).toBeNull());
+    fireEvent.change(screen.getByRole("textbox", { name: "Hỏi UNI…" }), { target: { value: "lại" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "j", metaKey: true });
     await waitFor(() => expect(useAiPanelStore.getState().open).toBe(false));
@@ -109,6 +117,8 @@ describe("AskUniPanel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "task nào quá hạn?" }));
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Xóa hội thoại" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Xóa hội thoại này?");
+    fireEvent.click(screen.getByRole("button", { name: "Xóa hẳn" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/conversations/c1", expect.objectContaining({ method: "DELETE" })));
     await waitFor(() => expect(useAiPanelStore.getState().conversationId).toBeNull());
   });

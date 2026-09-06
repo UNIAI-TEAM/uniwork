@@ -502,7 +502,8 @@
         "actor": "Người gọi",
         "calls": "Lượt",
         "tokens": "Token",
-        "cost": "Chi phí"
+        "cost": "Chi phí",
+        "day": "Ngày"
       },
       "capability": {
         "copilot_answer": "Hỏi UNI",
@@ -517,7 +518,8 @@
         "human": "Người",
         "agent": "Agent",
         "system": "Hệ thống"
-      }
+      },
+      "tokens_by_day": "Token theo ngày"
     }
   },
   "tasks": {
@@ -1345,6 +1347,15 @@
       "ai_output_invalid": "UNI trả lời không đúng định dạng, hãy hỏi lại.",
       "ai_provider_error": "Nhà cung cấp AI không trả lời được, thử lại sau.",
       "default": "Không hỏi được lúc này, thử lại sau."
-    }
+    },
+    "close": "Đóng",
+    "delete_confirm_title": "Xóa hội thoại này?",
+    "delete_confirm_description": "Toàn bộ câu hỏi và câu trả lời sẽ bị xóa hẳn, không khôi phục được.",
+    "delete_cancel": "Giữ lại",
+    "delete_confirm": "Xóa hẳn",
+    "hint_send": "gửi",
+    "hint_newline": "xuống dòng",
+    "key_enter": "Enter",
+    "key_shift": "Shift"
   }
 }

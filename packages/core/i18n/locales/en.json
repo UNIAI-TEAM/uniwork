@@ -503,7 +503,8 @@
         "actor": "Caller",
         "calls": "Calls",
         "tokens": "Tokens",
-        "cost": "Cost"
+        "cost": "Cost",
+        "day": "Day"
       },
       "capability": {
         "copilot_answer": "Ask UNI",
@@ -518,7 +519,8 @@
         "human": "Human",
         "agent": "Agent",
         "system": "System"
-      }
+      },
+      "tokens_by_day": "Tokens by day"
     }
   },
   "tasks": {
@@ -1349,6 +1351,15 @@
       "ai_output_invalid": "UNI answered in an unexpected format; please ask again.",
       "ai_provider_error": "The AI provider did not respond; try again later.",
       "default": "Could not ask right now; try again later."
-    }
+    },
+    "close": "Close",
+    "delete_confirm_title": "Delete this conversation?",
+    "delete_confirm_description": "Every question and answer in it is deleted for good.",
+    "delete_cancel": "Keep it",
+    "delete_confirm": "Delete",
+    "hint_send": "send",
+    "hint_newline": "new line",
+    "key_enter": "Enter",
+    "key_shift": "Shift"
   }
 }

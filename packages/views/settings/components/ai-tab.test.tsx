@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -53,9 +53,12 @@ describe("AiTab", () => {
     ]);
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByRole("img", { name: "Token mỗi ngày" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Token theo ngày"));
+    expect(screen.getByRole("cell", { name: today })).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument(); // calls
     expect(screen.getByText("1.400")).toBeInTheDocument(); // tokens in
-    const rows = screen.getAllByRole("row");
+    const byCapability = screen.getAllByRole("table").at(-1)!;
+    const rows = within(byCapability).getAllByRole("row");
     expect(rows).toHaveLength(3); // header + 2 groups
     expect(rows[1]).toHaveTextContent("Hỏi UNI");
     expect(rows[1]).toHaveTextContent("440");
