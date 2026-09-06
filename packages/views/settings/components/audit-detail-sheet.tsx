@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ArrowRight, Check, Copy } from "lucide-react";
 import type { AuditEvent } from "@uniwork/core/types";
 import { Badge } from "@uniwork/ui/components/ui/badge";
+import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -10,31 +13,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-
-/** A change entry as the server writes it: only the fields that moved. */
-interface ChangeEntry {
-  from?: unknown;
-  to?: unknown;
-}
-
-function isChangeEntry(value: unknown): value is ChangeEntry {
-  return typeof value === "object" && value !== null && ("from" in value || "to" in value);
-}
-
-/**
- * Renders a stored value for a reader. `null` is a real value in this log — it
- * is how "the field was cleared" is recorded — so it gets a word rather than
- * an empty cell that reads as a rendering bug.
- */
-function Value({ value, empty }: { value: unknown; empty: string }) {
-  if (value === null || value === undefined || value === "") {
-    return <span className="text-muted-foreground italic">{empty}</span>;
-  }
-  if (typeof value === "object") {
-    return <code className="text-caption break-all">{JSON.stringify(value)}</code>;
-  }
-  return <span className="break-all">{String(value)}</span>;
-}
+import { copyText } from "@uniwork/ui/lib/clipboard";
+import {
+  ActionIcon,
+  ActorIcon,
+  changeEntries,
+  ChangeValue,
+  EventTime,
+  useAuditLabels,
+} from "../../audit/event-presenter";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -45,42 +32,92 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+/** A monospace id with a copy button; a reader pastes it into the system log search. */
+function CopyableId({ value, label }: { value: string; label: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.audit.detail" });
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className="inline-flex max-w-full items-center gap-1">
+      <code className="text-caption break-all">{value}</code>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label={copied ? t("copied") : `${t("copy")} ${label}`}
+        onClick={async () => {
+          if (await copyText(value)) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }
+        }}
+      >
+        {copied ? <Check className="text-success" aria-hidden /> : <Copy aria-hidden />}
+      </Button>
+    </span>
+  );
+}
+
 export function AuditDetailSheet({
   event,
+  actorName,
   onClose,
 }: {
   event: AuditEvent | null;
+  actorName: string;
   onClose: () => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
-  const changes = Object.entries(event?.changes ?? {});
+  const labels = useAuditLabels();
+  const changes = event ? changeEntries(event) : [];
 
   return (
     <Sheet open={event !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>{t("detail.title")}</SheetTitle>
-          <SheetDescription>{event?.action}</SheetDescription>
+          <SheetTitle>
+            {event ? (
+              <span className="flex items-center gap-2">
+                <ActionIcon action={event.action} />
+                {labels.action(event.action)}
+              </span>
+            ) : (
+              t("detail.title")
+            )}
+          </SheetTitle>
+          <SheetDescription>
+            {event ? (
+              <>
+                <code className="text-caption">{event.action}</code>
+                {" · "}
+                <EventTime iso={event.occurred_at} />
+              </>
+            ) : null}
+          </SheetDescription>
         </SheetHeader>
         {event ? (
           <dl className="divide-y divide-border px-4 pb-8">
             <Field label={t("table.time")}>
-              {new Date(event.occurred_at).toLocaleString()}
+              <time dateTime={event.occurred_at}>{new Date(event.occurred_at).toLocaleString()}</time>
             </Field>
             <Field label={t("table.actor")}>
               <span className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{t(`actor_kind.${event.actor_kind}`, t("actor_kind.unknown"))}</Badge>
-                <code className="text-caption break-all">{event.actor_id}</code>
+                <Badge variant="secondary">
+                  <ActorIcon kind={event.actor_kind} />
+                  {labels.actorKind(event.actor_kind)}
+                </Badge>
+                <span>{actorName}</span>
+                <CopyableId value={event.actor_id} label={t("table.actor")} />
               </span>
             </Field>
             <Field label={t("table.resource")}>
-              <code className="text-caption break-all">
-                {event.resource_type}/{event.resource_id}
-              </code>
+              <span className="flex flex-wrap items-center gap-2">
+                <span>{labels.resource(event.resource_type)}</span>
+                <CopyableId value={event.resource_id} label={t("table.resource")} />
+              </span>
             </Field>
             {event.workspace_id ? (
               <Field label={t("detail.workspace")}>
-                <code className="text-caption break-all">{event.workspace_id}</code>
+                <CopyableId value={event.workspace_id} label={t("detail.workspace")} />
               </Field>
             ) : null}
             <Field label={t("table.changes")}>
@@ -88,16 +125,19 @@ export function AuditDetailSheet({
                 <span className="text-muted-foreground">{t("table.no_changes")}</span>
               ) : (
                 <ul className="grid gap-2">
-                  {changes.map(([field, raw]) => (
-                    <li key={field} className="grid gap-0.5">
+                  {changes.map(([field, change]) => (
+                    <li key={field} className="grid gap-1 rounded-md bg-muted p-2">
                       <span className="text-caption font-medium">{field}</span>
-                      <span className="text-caption text-muted-foreground">
-                        {t("detail.from")}:{" "}
-                        <Value value={isChangeEntry(raw) ? raw.from : undefined} empty={t("detail.empty")} />
-                      </span>
-                      <span className="text-caption">
-                        {t("detail.to")}:{" "}
-                        <Value value={isChangeEntry(raw) ? raw.to : raw} empty={t("detail.empty")} />
+                      <span className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-caption">
+                        <span className="min-w-0">
+                          <span className="block text-micro text-muted-foreground uppercase">{t("detail.from")}</span>
+                          <ChangeValue value={change.from} className="text-muted-foreground" full />
+                        </span>
+                        <ArrowRight aria-hidden className="size-3.5 text-muted-foreground" />
+                        <span className="min-w-0">
+                          <span className="block text-micro text-muted-foreground uppercase">{t("detail.to")}</span>
+                          <ChangeValue value={change.to} full />
+                        </span>
                       </span>
                     </li>
                   ))}
@@ -106,11 +146,13 @@ export function AuditDetailSheet({
             </Field>
             {Object.keys(event.metadata ?? {}).length > 0 ? (
               <Field label={t("detail.metadata")}>
-                <code className="text-caption break-all">{JSON.stringify(event.metadata)}</code>
+                <pre className="overflow-x-auto rounded-md bg-muted p-2 text-caption">
+                  {JSON.stringify(event.metadata, null, 2)}
+                </pre>
               </Field>
             ) : null}
             <Field label={t("detail.correlation")}>
-              <code className="text-caption break-all">{event.correlation_id}</code>
+              <CopyableId value={event.correlation_id} label={t("detail.correlation")} />
               <p className="mt-1 text-caption text-muted-foreground">{t("detail.correlation_hint")}</p>
             </Field>
             {/* The address is absent for an admin by design, and saying so is
