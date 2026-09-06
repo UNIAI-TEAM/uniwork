@@ -177,6 +177,11 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 		return WorkspaceView{}, err
 	}
 	if _, err := s.RequireMember(ctx, r.ID, userID); err != nil {
+		// A suspended tenant answers its own members honestly (they already
+		// know it exists); everything else is 404 so nothing leaks.
+		if errors.Is(err, ErrOrganizationSuspended) {
+			return WorkspaceView{}, err
+		}
 		return WorkspaceView{}, ErrNotFound // không lộ sự tồn tại
 	}
 	return viewFromInOrgRow(db.ListWorkspacesInOrgRow(r)), nil

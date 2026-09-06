@@ -27,6 +27,11 @@ func TestSuspendClosesBothMembershipGates(t *testing.T) {
 	if _, err := f.ws.RequireMember(ctx, w.ID, f.owner.ID); !errors.Is(err, ErrOrganizationSuspended) {
 		t.Fatalf("workspace gate: %v", err)
 	}
+	// The slug lookup the web shell boots from must say "suspended", not 404,
+	// or the client redirects to the workspace list instead of the notice.
+	if _, err := f.ws.GetBySlugs(ctx, f.owner.ID, "audit-org", "audit-ws"); !errors.Is(err, ErrOrganizationSuspended) {
+		t.Fatalf("GetBySlugs during suspension: %v", err)
+	}
 	actions, err := f.q.ListAdminActionsByTarget(ctx, db.ListAdminActionsByTargetParams{TargetType: "organization", TargetID: f.orgID, Limit: 10})
 	if err != nil || len(actions) != 1 || actions[0].Action != audit.ActionOrganizationSuspended || actions[0].ActorID != f.third.ID {
 		t.Fatalf("admin_actions: %v %+v", err, actions)
