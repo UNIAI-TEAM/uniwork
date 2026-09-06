@@ -80,7 +80,7 @@ func New(d Deps, h Routes) http.Handler {
 		v1.Group(func(pub api) {
 			pub.Use(mw.OptionalAuth(d.Minter))
 			registerPublicMeetings(pub, h, credentialLimit, joinLimit, lobbyWSLimit)
-			registerConfig(pub, h)
+			registerConfig(pub, h, mw.RateLimit(d.Redis, 60, time.Minute, proxies))
 		})
 		v1.Group(func(authed api) {
 			authed.Use(mw.RequireAuth(d.Minter))

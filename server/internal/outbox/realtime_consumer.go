@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // Publisher is the realtime fan-out this package needs. The concrete
@@ -28,11 +29,22 @@ type MemberResolver interface {
 type RealtimeConsumer struct {
 	pub     Publisher
 	members MemberResolver
+	metrics PublishMetrics
+	now     func() time.Time
 }
+
+// PublishMetrics receives commit → frame latency per topic; metrics.Outbox
+// implements it. Nil is fine.
+type PublishMetrics interface {
+	ObserveRealtimePublish(topic string, d time.Duration)
+}
+
+// SetMetrics attaches the latency histogram.
+func (c *RealtimeConsumer) SetMetrics(m PublishMetrics) { c.metrics = m }
 
 // NewRealtimeConsumer returns a consumer publishing to pub.
 func NewRealtimeConsumer(pub Publisher) *RealtimeConsumer {
-	return &RealtimeConsumer{pub: pub}
+	return &RealtimeConsumer{pub: pub, now: time.Now}
 }
 
 // WithMembers attaches the resolver ScopeRoom events need. Without it those
@@ -64,6 +76,9 @@ func (c *RealtimeConsumer) Handle(ctx context.Context, ev Row) error {
 		if err := json.Unmarshal([]byte(ev.Payload), &payload); err != nil {
 			return fmt.Errorf("realtime: payload of %s: %w", ev.ID, err)
 		}
+	}
+	if c.metrics != nil && ev.CreatedAt.Valid {
+		defer c.metrics.ObserveRealtimePublish(ev.Topic, c.now().Sub(ev.CreatedAt.Time))
 	}
 	switch def.Scope {
 	case ScopeWorkspace:

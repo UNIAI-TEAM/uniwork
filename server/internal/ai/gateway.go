@@ -40,6 +40,8 @@ type UsageRecord struct {
 // Metrics is satisfied by metrics.AI; nil is fine.
 type Metrics interface {
 	ObserveAICall(capability, status string, latency time.Duration)
+	// ObserveAIUsage is called once per priced call with tokens and cost.
+	ObserveAIUsage(provider, model, organizationID string, inputTokens, outputTokens int, costUSD float64)
 }
 
 type Request struct {
@@ -142,18 +144,18 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	cancel()
 	latency := g.now().Sub(started)
 	if perr != nil {
-		_ = g.finish(ctx, row.ID, resp, "failed", ErrProviderError.Code, latency, nil)
+		_ = g.finish(ctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
 		g.log.Warn("ai: provider error", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds(), "err", perr)
 		return Response{}, ErrProviderError.wrap(perr)
 	}
 	calls, denied := auditToolCalls(resp.ToolCalls, req.Tools)
 	if denied != "" {
-		_ = g.finish(ctx, row.ID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
+		_ = g.finish(ctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
 		g.observe(req.Capability, "failed", latency)
 		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
 	}
-	if err := g.finish(ctx, row.ID, resp, "succeeded", "", latency, calls); err != nil {
+	if err := g.finish(ctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
 		return Response{}, err
 	}
 	if g.quota != nil {
@@ -219,7 +221,7 @@ func (g *Gateway) insertUsage(ctx context.Context, req Request, model, status, r
 	})
 }
 
-func (g *Gateway) finish(ctx context.Context, id string, resp provider.CompletionResponse, status, reason string, latency time.Duration, calls []toolCallAudit) error {
+func (g *Gateway) finish(ctx context.Context, id, orgID string, resp provider.CompletionResponse, status, reason string, latency time.Duration, calls []toolCallAudit) error {
 	var rateID pgtype.Text
 	var cost int64
 	if status == "succeeded" {
@@ -237,6 +239,9 @@ func (g *Gateway) finish(ctx context.Context, id string, resp provider.Completio
 		calls = []toolCallAudit{}
 	}
 	callsJSON, _ := json.Marshal(calls)
+	if status == "succeeded" && g.metrics != nil {
+		g.metrics.ObserveAIUsage(g.p.Name(), resp.Model, orgID, resp.InputTokens, resp.OutputTokens, float64(cost)/1_000_000)
+	}
 	_, err := g.q.AiFinishUsageEvent(ctx, db.AiFinishUsageEventParams{
 		ID: id, Status: status, ReasonCode: optText(reason), RateID: rateID,
 		InputTokens: int32(resp.InputTokens), OutputTokens: int32(resp.OutputTokens), CostMicros: cost,

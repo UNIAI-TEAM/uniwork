@@ -218,7 +218,8 @@ func main() {
 		Batch: cfg.MeetingOutboxBatch, Tick: cfg.MeetingWorkerTick, Log: log,
 	})
 	dispatcher.Register(meetingSvc.ProviderConsumer())
-	dispatcher.Register(outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc))
+	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
+	dispatcher.Register(realtimeConsumer)
 	dispatcher.Register(service.NewAuditExportConsumer(q, store))
 	dispatcher.Register(outbox.WebhookConsumer{})
 	// Notifications are the first bounded context fed purely by the outbox:
@@ -239,6 +240,7 @@ func main() {
 	dispatcher.Register(pushConsumer)
 	if reg != nil {
 		dispatcher.SetMetrics(reg.Outbox)
+		realtimeConsumer.SetMetrics(reg.Outbox)
 		service.SetAuditCounter(reg.Outbox)
 		notifConsumer.SetMetrics(reg.Notifications)
 		pushConsumer.SetMetrics(reg.Notifications)
@@ -297,6 +299,7 @@ func main() {
 		Storage:         store,
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
+		WebVitals:       webVitals(reg),
 		Readiness:       readiness,
 		Admin:           adminSvc,
 		Version:         version,
@@ -377,4 +380,12 @@ func main() {
 	}
 	traceCancel()
 	log.Info("stopped")
+}
+
+// webVitals keeps a nil registry from becoming a non-nil metric.
+func webVitals(reg *metrics.Registry) *metrics.WebVitals {
+	if reg == nil {
+		return nil
+	}
+	return reg.WebVitals
 }

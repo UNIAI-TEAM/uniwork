@@ -63,6 +63,8 @@ type Deps struct {
 	HTTPMetrics *metrics.HTTPMetrics
 	// Readiness backs /readyz; nil (tests) answers 503.
 	Readiness *service.Readiness
+	// WebVitals is nil unless METRICS_ADDR is set; /rum then only answers 204.
+	WebVitals *metrics.WebVitals
 	// Admin is the platform console (F-11); nil leaves /api/v1/admin unmounted.
 	Admin *service.AdminService
 	// Version and Commit are the build stamps main.go carries into /admin/system.
@@ -90,6 +92,7 @@ func New(d Deps) http.Handler {
 		Ready:  h.ready,
 
 		Config:                     h.config,
+		RUM:                        h.rum,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
 		AdminGetOrganization:       h.adminGetOrganization,
