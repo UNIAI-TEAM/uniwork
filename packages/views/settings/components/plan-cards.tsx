@@ -17,6 +17,7 @@ import {
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@uniwork/ui/components/ui/card";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 
 /** A paid plan needs the provider's checkout; a free one changes in place. */
@@ -63,6 +64,8 @@ export interface PlanCardsProps {
   currentCode: string;
   entitlements: Entitlement[];
   busy: boolean;
+  /** Code of the plan whose change or checkout is in flight, "" otherwise. */
+  pendingCode: string;
   onChoose: (plan: Plan) => void;
 }
 
@@ -71,7 +74,7 @@ export interface PlanCardsProps {
  * includes before committing. A free plan applies after a confirmation; a
  * paid one goes to checkout.
  */
-export function PlanCards({ plans, currentCode, entitlements, busy, onChoose }: PlanCardsProps) {
+export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode, onChoose }: PlanCardsProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.billing" });
   const [pending, setPending] = useState<Plan | null>(null);
   const names = new Map(entitlements.map((e) => [e.feature_key, e]));
@@ -109,17 +112,23 @@ export function PlanCards({ plans, currentCode, entitlements, busy, onChoose }: 
                   ))}
                 </ul>
               </CardContent>
-              <CardFooter className="px-4">
-                <Button
-                  type="button"
-                  variant={current ? "outline" : paid ? "default" : "secondary"}
-                  className="w-full"
-                  disabled={current || busy}
-                  onClick={() => (paid ? onChoose(plan) : setPending(plan))}
-                >
-                  {current ? t("plan_current") : paid ? t("checkout") : t("choose_plan")}
-                </Button>
-              </CardFooter>
+              {current ? null : (
+                // The current plan is already marked in the header; a second
+                // "current plan" control would only repeat it.
+                <CardFooter className="px-4">
+                  <Button
+                    type="button"
+                    variant={paid ? "default" : "secondary"}
+                    className="w-full"
+                    disabled={busy}
+                    aria-busy={pendingCode === plan.code}
+                    onClick={() => (paid ? onChoose(plan) : setPending(plan))}
+                  >
+                    {pendingCode === plan.code ? <Spinner aria-hidden aria-label={undefined} role="presentation" /> : null}
+                    {paid ? t("checkout") : t("choose_plan")}
+                  </Button>
+                </CardFooter>
+              )}
             </Card>
           );
         })}

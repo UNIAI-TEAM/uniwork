@@ -54,7 +54,7 @@ func toSubscriptionSDO(s service.EntitlementSnapshot) sdo.SubscriptionSDO {
 	for _, e := range s.Entitlements {
 		out.Entitlements = append(out.Entitlements, sdo.EntitlementDTO{
 			FeatureKey: e.Key, Name: e.Name, Kind: e.Kind, Unit: e.Unit, Category: e.Category,
-			Enabled: e.Enabled, QuotaLimit: e.Limit, CurrentUsage: e.Current,
+			Enabled: e.Enabled, QuotaLimit: e.Limit, CurrentUsage: e.Current, Metered: e.Metered,
 		})
 	}
 	return out

@@ -50,6 +50,8 @@ export const EntitlementSchema = z.object({
   enabled: z.boolean(),
   quota_limit: z.number().nullable().optional().default(null),
   current_usage: z.number().optional().default(0),
+  /** false = nothing reads or writes this feature yet; the UI hides it. */
+  metered: z.boolean().optional().default(true),
 });
 export type Entitlement = z.infer<typeof EntitlementSchema>;
 

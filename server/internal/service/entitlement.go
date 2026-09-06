@@ -27,6 +27,15 @@ const (
 	FeatureMeetingAISummary = "meeting.ai_summary"
 )
 
+// wiredFeatures have a consumer in this codebase (a gate or a meter call).
+// The rest are seeded for later specs; the client hides them so a "0 /
+// unlimited" row never claims a number nobody writes. Add a key here in the
+// same change that adds its first Consume/Can call.
+var wiredFeatures = map[string]bool{
+	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureMeetingMinutes: true,
+	FeatureMeetingRecording: true, FeatureMeetingAISummary: true,
+}
+
 // graceFeatures stay effective when the subscription is inactive, so an
 // organization that stopped paying can still read what it has.
 var graceFeatures = map[string]bool{FeatureMembersMax: true}
@@ -46,6 +55,7 @@ type Entitlement struct {
 	Enabled   bool
 	Limit     *int64 // nil = unlimited; 0 = off
 	Current   int64
+	Metered   bool // something in this codebase reads or writes this feature
 }
 
 // EntitlementSnapshot is what GET /orgs/{org}/billing returns.
@@ -118,7 +128,7 @@ func effective(sub db.Subscription, rows []db.ListPlanFeaturesRow, now time.Time
 	out := make([]Entitlement, 0, len(rows))
 	for _, r := range rows {
 		e := Entitlement{Key: r.FeatureKey, Name: r.Name, Kind: r.Kind, Unit: r.Unit.String,
-			Category: r.Category, MeterMode: r.MeterMode, Enabled: r.Enabled}
+			Category: r.Category, MeterMode: r.MeterMode, Enabled: r.Enabled, Metered: wiredFeatures[r.FeatureKey]}
 		if r.QuotaLimit.Valid {
 			v := r.QuotaLimit.Int64
 			e.Limit = &v

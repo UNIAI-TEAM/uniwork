@@ -47,6 +47,7 @@ type EntitlementDTO struct {
 	Enabled      bool   `json:"enabled" example:"true"`
 	QuotaLimit   *int64 `json:"quota_limit" description:"null = không giới hạn" example:"50"`
 	CurrentUsage int64  `json:"current_usage" example:"12"`
+	Metered      bool   `json:"metered" description:"false = chưa có gì đọc/ghi feature này; client ẩn" example:"true"`
 }
 
 // SubscriptionSDO is GET /api/v1/orgs/{orgID}/billing and the plan mutations.

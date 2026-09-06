@@ -251,6 +251,8 @@
       "plans": "Plans",
       "plans_description": "Compare, then choose. A free plan applies right after you confirm; a paid plan opens the payment page.",
       "plan_current": "Current plan",
+      "checkout_ready": "Payment page ready",
+      "open_checkout": "Open the payment page",
       "choose_plan": "Choose this plan",
       "checkout": "Pay",
       "plan_line_quota": "{{name}}: {{limit}}",

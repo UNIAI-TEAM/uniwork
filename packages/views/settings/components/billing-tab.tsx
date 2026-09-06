@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, CreditCard, ShieldAlert } from "lucide-react";
+import { AlertCircle, CreditCard, ExternalLink, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import {
@@ -28,6 +28,7 @@ import {
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useWorkspace } from "../../layout/workspace-context";
@@ -55,13 +56,6 @@ function formatDate(iso: string | undefined, locale: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(locale);
 }
-
-/**
- * Meters nothing writes yet (AI gateway, documents, SSO are later specs).
- * Showing "0 / unlimited" for them is noise; drop them from the list when
- * their consumer lands.
- */
-const NOT_WIRED_YET = new Set(["ai.tokens", "storage.bytes", "sso.oidc"]);
 
 /** Bar colour follows the same thresholds the server notifies at (80 %, 100 %). */
 function barTone(percent: number): string {
@@ -108,7 +102,7 @@ function UsageRow({ entitlement, locale }: { entitlement: Entitlement; locale: s
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={percent}
-            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted-foreground/40"
           >
             <div className={cn("h-full rounded-full transition-all", barTone(percent))} style={{ width: `${percent}%` }} />
           </div>
@@ -130,6 +124,8 @@ export function BillingTab() {
   const resume = useResumeSubscription(orgId);
   const checkout = useCreateCheckout(orgId);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [pendingCode, setPendingCode] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
 
   if (permissionsLoading) {
     return (
@@ -181,23 +177,29 @@ export function BillingTab() {
   const locale = i18n.language;
   const busy = changePlan.isPending || cancel.isPending || resume.isPending || checkout.isPending;
   const currentPlan = plans.data?.find((p) => p.code === sub.plan_code);
-  const visible = view.entitlements.filter((e) => !NOT_WIRED_YET.has(e.feature_key));
+  // The server says which features something actually reads or writes.
+  const visible = view.entitlements.filter((e) => e.metered);
   const fail = (err: unknown) => toast.error(apiErrorMessage(err) ?? t("error_title"));
 
   const choose = async (plan: Plan) => {
+    setPendingCode(plan.code);
     try {
       if (isPaid(plan)) {
         // Paths only: the server prefixes FRONTEND_ORIGIN. The provider's page
-        // is another origin, so it opens in its own tab like an invoice link.
+        // is another origin and the URL arrives after an await, so a
+        // window.open here would be popup-blocked; render a link instead.
         const back = `/${workspace.organization_slug}/${workspace.slug}/settings?tab=billing`;
         const url = await checkout.mutateAsync({ plan_code: plan.code, success_path: back, cancel_path: back });
-        if (url) window.open(url, "_blank", "noopener");
+        setCheckoutUrl(url);
+        if (url) toast.success(t("checkout_ready"));
         return;
       }
       await changePlan.mutateAsync({ plan_code: plan.code, row_version: sub.row_version });
       toast.success(t("plan_changed", { name: plan.name }));
     } catch (err) {
       fail(err);
+    } finally {
+      setPendingCode("");
     }
   };
 
@@ -229,8 +231,10 @@ export function BillingTab() {
                     size="sm"
                     variant="outline"
                     disabled={busy}
+                    aria-busy={resume.isPending}
                     onClick={() => resume.mutateAsync(undefined).then(() => toast.success(t("resumed")), fail)}
                   >
+                    {resume.isPending ? <Spinner aria-hidden aria-label={undefined} role="presentation" /> : null}
                     {t("resume")}
                   </Button>
                 ) : null}
@@ -260,20 +264,43 @@ export function BillingTab() {
           plans.isLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : (
-            <PlanCards
-              plans={plans.data ?? []}
-              currentCode={sub.plan_code}
-              entitlements={view.entitlements}
-              busy={busy}
-              onChoose={(plan) => void choose(plan)}
-            />
+            <>
+              <PlanCards
+                plans={plans.data ?? []}
+                currentCode={sub.plan_code}
+                entitlements={view.entitlements}
+                busy={busy}
+                pendingCode={pendingCode}
+                onChoose={(plan) => void choose(plan)}
+              />
+              {checkoutUrl ? (
+                <p className="text-caption text-muted-foreground">
+                  <a
+                    href={checkoutUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-4"
+                  >
+                    {t("open_checkout")}
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  </a>
+                </p>
+              ) : null}
+            </>
           )
         ) : null}
       </SettingsSection>
 
       {canManage.allowed && !sub.cancel_at ? (
         <SettingsSection title={t("cancel_section")} description={t("cancel_description")}>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmCancel(true)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            aria-busy={cancel.isPending}
+            onClick={() => setConfirmCancel(true)}
+          >
+            {cancel.isPending ? <Spinner aria-hidden aria-label={undefined} role="presentation" /> : null}
             {t("cancel")}
           </Button>
           <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>

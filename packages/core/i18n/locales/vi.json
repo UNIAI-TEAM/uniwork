@@ -250,6 +250,8 @@
       "plans": "Các gói",
       "plans_description": "So sánh rồi chọn. Gói miễn phí áp dụng ngay sau khi xác nhận; gói trả phí mở trang thanh toán.",
       "plan_current": "Gói hiện tại",
+      "checkout_ready": "Đã tạo trang thanh toán",
+      "open_checkout": "Mở trang thanh toán",
       "choose_plan": "Chọn gói này",
       "checkout": "Thanh toán",
       "plan_line_quota": "{{name}}: {{limit}}",

@@ -139,8 +139,11 @@ func TestNewOrganizationIsOnTheDefaultPlan(t *testing.T) {
 	if err := f.ent.Can(f.ctx, f.orgID, FeatureMeetingRecording); err != nil {
 		t.Fatalf("default plan should allow recording: %v", err)
 	}
-	if e, _ := lookup(snap.Entitlements, FeatureMembersMax); e.Current != 1 {
-		t.Fatalf("members.max current = %d, want 1 (the founder)", e.Current)
+	if e, _ := lookup(snap.Entitlements, FeatureMembersMax); e.Current != 1 || !e.Metered {
+		t.Fatalf("members.max current = %d metered=%v, want 1 (the founder) and metered", e.Current, e.Metered)
+	}
+	if e, ok := lookup(snap.Entitlements, "ai.tokens"); !ok || e.Metered {
+		t.Fatalf("ai.tokens has no consumer yet and must not claim to be metered: %+v", e)
 	}
 }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -35,6 +35,7 @@ const subscription = {
 const entitlements = [
   { feature_key: "members.max", name: "Thành viên tổ chức", kind: "quota", unit: "members", enabled: true, quota_limit: 50, current_usage: 12 },
   { feature_key: "meeting.recording", name: "Ghi hình cuộc họp", kind: "flag", enabled: false, quota_limit: null, current_usage: 0 },
+  { feature_key: "ai.tokens", name: "Token AI", kind: "quota", unit: "tokens", enabled: true, quota_limit: null, current_usage: 0, metered: false },
 ];
 const plans = [
   { id: "p1", code: "starter", name: "Starter", price_amount: 0, features: [] },
@@ -80,9 +81,12 @@ describe("BillingTab", () => {
     expect(screen.getByText("Còn 38")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Thành viên tổ chức" })).toHaveAttribute("aria-valuenow", "24");
     expect(screen.getByText("Tắt")).toBeInTheDocument();
-    // Plan cards: the current one is marked, the paid one goes to checkout.
+    // A feature nothing meters yet is not listed.
+    expect(screen.queryByText("Token AI")).toBeNull();
+    // Plan cards: the current one is marked once, with no button; the paid one goes to checkout.
     await screen.findByTestId("plan-card-team");
-    expect(screen.getAllByText("Gói hiện tại").length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId("plan-card-starter")).getAllByText("Gói hiện tại")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Gói hiện tại" })).toBeNull();
     expect(screen.getByRole("button", { name: "Thanh toán" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Ngừng gói cuối kỳ" })).toBeInTheDocument();
   });
