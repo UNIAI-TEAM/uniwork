@@ -233,19 +233,25 @@ func TestConsumeIdempotencyKey(t *testing.T) {
 func TestQuotaThresholdEventsFireOncePerLevel(t *testing.T) {
 	f := newEntitlementFixture(t)
 	f.override(t, `{"meeting.participant_minutes": 10}`)
+	// One event per crossing; the level itself is on usage_counters.
 	levels := func() []string {
-		rows, err := f.pool.Query(f.ctx, `SELECT payload::jsonb->>'level' FROM outbox_events WHERE topic = 'quota.threshold' AND organization_id = $1 ORDER BY created_at`, f.orgID)
-		if err != nil {
+		var n int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'quota.threshold' AND organization_id = $1`, f.orgID).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
-		defer rows.Close()
-		var out []string
-		for rows.Next() {
-			var l string
-			if err := rows.Scan(&l); err != nil {
-				t.Fatal(err)
-			}
-			out = append(out, l)
+		var n80, n100 bool
+		if err := f.pool.QueryRow(f.ctx, `SELECT notified_80_at IS NOT NULL, notified_100_at IS NOT NULL FROM usage_counters WHERE organization_id = $1 AND meter_key = $2`, f.orgID, FeatureMeetingMinutes).Scan(&n80, &n100); err != nil {
+			t.Fatal(err)
+		}
+		out := make([]string, 0, n)
+		if n80 {
+			out = append(out, "80")
+		}
+		if n100 {
+			out = append(out, "100")
+		}
+		if len(out) != n {
+			t.Fatalf("%d events for %v crossings", n, out)
 		}
 		return out
 	}

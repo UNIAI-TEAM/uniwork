@@ -76,6 +76,12 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionWorkspaceAgentAdded: func(t *testing.T, f *auditFixture) { f.build(t) },
+		audit.ActionSubscriptionChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionTaskUpdated: func(t *testing.T, f *auditFixture) {
 			task := f.newTask(t)
 			status := "in_progress"
@@ -190,25 +196,27 @@ func auditActions() []string {
 		audit.ActionChatRoomMemberRemoved,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditRetentionSet,
+		audit.ActionSubscriptionChanged,
 	}
 }
 
 const auditPassword = "password123"
 
 type auditFixture struct {
-	ctx    context.Context
-	pool   *pgxpool.Pool
-	q      *db.Queries
-	auth   *AuthService
-	orgs   *OrganizationService
-	ws     *WorkspaceService
-	tasks  *TaskService
-	agents *AgentService
-	chat   *ChatService
-	reset  *PasswordResetService
-	owner  db.User
-	member db.User
-	third  db.User
+	ctx     context.Context
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	auth    *AuthService
+	orgs    *OrganizationService
+	ws      *WorkspaceService
+	tasks   *TaskService
+	agents  *AgentService
+	billing *BillingService
+	chat    *ChatService
+	reset   *PasswordResetService
+	owner   db.User
+	member  db.User
+	third   db.User
 
 	workspace db.Workspace
 	orgID     string
@@ -227,10 +235,11 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
 		auth: auth, orgs: orgs, ws: ws,
-		tasks:  NewTaskService(pool, q, ws),
-		agents: NewAgentService(pool, q, orgs, ws),
-		chat:   NewChatService(pool, q, ws, NopPublisher{}),
-		reset:  NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
+		tasks:   NewTaskService(pool, q, ws),
+		agents:  NewAgentService(pool, q, orgs, ws),
+		billing: NewBillingService(pool, q, orgs, nil),
+		chat:    NewChatService(pool, q, ws, NopPublisher{}),
+		reset:   NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
 	}
 }
 

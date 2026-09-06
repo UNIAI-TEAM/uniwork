@@ -358,21 +358,16 @@ func (s *EntitlementService) notifyThreshold(ctx context.Context, q *db.Queries,
 	}
 	evs := make([]audit.Event, 0, len(admins))
 	for _, uid := range admins {
+		// Payloads carry ids only; the meter and level are on the counter row
+		// the consumer refetches through the billing snapshot.
 		evs = append(evs, audit.Event{Topic: "quota.threshold", OrganizationID: in.OrganizationID, Payload: map[string]string{
-			"organization_id": in.OrganizationID, "meter_key": in.Meter, "level": levelString(level), "user_id": uid,
+			"organization_id": in.OrganizationID, "user_id": uid,
 		}})
 	}
 	if len(evs) == 0 {
 		return nil
 	}
 	return auditRecorder.Emit(ctx, q, audit.System("quota.threshold"), evs...)
-}
-
-func levelString(level int) string {
-	if level == 100 {
-		return "100"
-	}
-	return "80"
 }
 
 // Snapshot: plan + effective entitlements + current usage of the organization.

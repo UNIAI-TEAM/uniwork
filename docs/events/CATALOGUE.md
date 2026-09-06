@@ -68,9 +68,11 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `provider.end_session` | 1 | `room_name` | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | - | outbox |
+| `quota.threshold` | 1 | `organization_id`, `user_id` | user | outbox |
 | `recording.ready` | 1 | `meeting_id` | workspace | ephemeral |
 | `recording.started` | 1 | `meeting_id` | workspace | ephemeral |
 | `recording.stopped` | 1 | `meeting_id` | workspace | ephemeral |
+| `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | user | outbox |
 | `summary.created` | 1 | `meeting_id` | workspace | ephemeral |
 | `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
 | `task.created` | 1 | `task_id`, `workspace_id` | workspace | outbox |

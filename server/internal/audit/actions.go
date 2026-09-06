@@ -43,6 +43,8 @@ const (
 	ActionChatRoomMemberAdded   = "chat.room.member_added"
 	ActionChatRoomMemberRemoved = "chat.room.member_removed"
 
+	ActionSubscriptionChanged = "subscription.changed"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditRetentionSet    = "audit.retention_set"
 )
