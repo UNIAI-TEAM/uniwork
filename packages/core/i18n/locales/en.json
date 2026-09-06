@@ -1361,5 +1361,202 @@
     "hint_newline": "new line",
     "key_enter": "Enter",
     "key_shift": "Shift"
+  },
+  "admin": {
+    "title": "Platform admin",
+    "nav": {
+      "organizations": "Organizations",
+      "flags": "Flags",
+      "trace": "Trace",
+      "quota": "Quota",
+      "system": "System"
+    },
+    "common": {
+      "retry": "Retry"
+    },
+    "guard": {
+      "error_title": "Could not load your admin role",
+      "error_description": "Try again in a few minutes. If it persists, check the API connection."
+    },
+    "reason": {
+      "label": "Reason",
+      "placeholder": "Customer has not paid the August invoice",
+      "hint": "At least {{min}} characters; recorded in the admin action history",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "organizations": {
+      "title": "Organizations",
+      "search_placeholder": "Organization name or slug",
+      "search_label": "Search organizations",
+      "status_label": "Filter by status",
+      "status_all": "All statuses",
+      "status": {
+        "active": "Active",
+        "suspended": "Suspended",
+        "archived": "Archived"
+      },
+      "col": {
+        "name": "Organization",
+        "status": "Status",
+        "plan": "Plan",
+        "members": "Members",
+        "workspaces": "Workspaces",
+        "last_activity": "Last activity"
+      },
+      "never": "None yet",
+      "empty_title": "No organizations match",
+      "empty_description": "Change the search or clear the status filter.",
+      "error_title": "Could not load organizations",
+      "error_description": "Try again in a few minutes. If it persists, check the System page.",
+      "retry": "Retry"
+    },
+    "detail": {
+      "crumb": "Organizations",
+      "not_found": "Organization not found",
+      "error_title": "Could not load the organization",
+      "error_description": "Try again in a few minutes.",
+      "error_write": "Could not save the change. Try again.",
+      "retry": "Retry",
+      "tabs": {
+        "overview": "Overview",
+        "flags": "Flags",
+        "history": "History"
+      },
+      "suspend": "Suspend",
+      "unsuspend": "Unsuspend",
+      "change_plan": "Change plan",
+      "suspended_banner": "Suspended since {{at}}.",
+      "members": "Members",
+      "workspaces": "Workspaces",
+      "created_at": "Created",
+      "last_activity": "Last activity",
+      "never": "None yet",
+      "entitlements": "Quotas and features",
+      "no_entitlements": "This plan declares no entitlements.",
+      "history_empty": "No admin actions on this organization yet.",
+      "col": {
+        "key": "Key",
+        "kind": "Kind",
+        "enabled": "Enabled",
+        "current": "In use",
+        "limit": "Limit",
+        "time": "Time",
+        "action": "Action",
+        "actor": "Actor",
+        "reason": "Reason",
+        "trace": "Trace"
+      },
+      "on": "On",
+      "off": "Off",
+      "unlimited": "Unlimited",
+      "suspend_title": "Suspend {{name}}?",
+      "suspend_description": "No member can enter the organization until it is unsuspended. The owner is notified by email.",
+      "unsuspend_title": "Unsuspend {{name}}?",
+      "unsuspend_description": "The organization is active again as soon as you confirm.",
+      "plan_title": "Change plan for {{name}}",
+      "plan_description": "Manual plan change for a pilot or partner. The new limits apply immediately.",
+      "plan_label": "Target plan",
+      "plan_placeholder": "Pick a plan",
+      "suspended_toast": "Organization suspended",
+      "unsuspended_toast": "Organization unsuspended",
+      "plan_changed_toast": "Switched to plan {{code}}"
+    },
+    "flags": {
+      "title": "Feature flags",
+      "description": "Server-side flag catalogue; an override beats the default.",
+      "empty_title": "No flags declared",
+      "empty_description": "Flags are declared in the server catalogue.",
+      "error_title": "Could not load the flag catalogue",
+      "error_description": "Try again in a few minutes.",
+      "error_write": "Could not save the override. Try again.",
+      "retry": "Retry",
+      "col": {
+        "key": "Key",
+        "description": "Description",
+        "default": "Default",
+        "public": "Public",
+        "review_at": "Review",
+        "overrides": "Overrides",
+        "global": "Global override",
+        "organization": "Organization override"
+      },
+      "on": "On",
+      "off": "Off",
+      "yes": "Yes",
+      "no": "No",
+      "overridden": "Overridden",
+      "remove": "Remove override",
+      "toggle_label": "Override {{key}}",
+      "override_title": "Override {{key}}",
+      "remove_title": "Remove the {{key}} override?",
+      "scope": {
+        "global": "Applies to every organization.",
+        "organization": "Applies to this organization only."
+      },
+      "set": "Override for {{key}} saved",
+      "removed": "Override for {{key}} removed"
+    },
+    "trace": {
+      "title": "Trace lookup",
+      "input_label": "Trace id",
+      "placeholder": "0af7651916cd43dd8448eb211c80319c",
+      "lookup": "Look up",
+      "copy_link": "Copy link",
+      "copied": "Copied",
+      "copy_failed": "Could not copy. Copy the URL from the address bar.",
+      "empty_title": "Enter a trace id",
+      "empty_description": "From the X-Trace-Id response header or the correlation id on an error screen.",
+      "not_found_title": "Nothing stored under this trace",
+      "not_found_description": "No audit, outbox or admin action row carries this trace id.",
+      "error_title": "Could not look up the trace",
+      "error_description": "Try again in a few minutes.",
+      "retry": "Retry",
+      "source": {
+        "audit": "audit",
+        "outbox": "outbox",
+        "action": "admin"
+      }
+    },
+    "quota": {
+      "title": "Quota",
+      "description": "Quotas and usage of one organization.",
+      "off_title": "The quota screen is off",
+      "off_description": "Turn on the admin_quota flag once plan usage data is ready.",
+      "pick_org": "Pick an organization",
+      "empty_title": "Pick an organization",
+      "empty_description": "The quota table follows the selected organization."
+    },
+    "system": {
+      "title": "System",
+      "readiness": "Readiness",
+      "ready": "Ready",
+      "ready_yes": "Passing",
+      "ready_no": "Failing",
+      "check_ok": "ok",
+      "check_failed": "failed",
+      "versions": "Versions",
+      "version": "Build version",
+      "commit": "Commit",
+      "migration": "Embedded migration",
+      "outbox": "Outbox",
+      "outbox_pending": "Pending",
+      "outbox_dead": "Dead-letter",
+      "outbox_oldest": "Oldest pending",
+      "seconds": "{{n}} s",
+      "realtime": "Realtime",
+      "connections": "Connections",
+      "providers": "Feature flags",
+      "provider_chain": "Provider chain",
+      "none": "None",
+      "error_title": "Could not load system status",
+      "error_description": "Try again in a few minutes. If it persists, open /readyz directly.",
+      "retry": "Retry"
+    },
+    "suspended": {
+      "title": "Organization suspended",
+      "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
+      "workspaces_link": "Back to workspaces"
+    }
   }
 }

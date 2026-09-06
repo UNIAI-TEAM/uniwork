@@ -13,3 +13,4 @@ export * from "./audit";
 export * from "./billing";
 export * from "./notification";
 export * from "./ai";
+export * from "./admin";

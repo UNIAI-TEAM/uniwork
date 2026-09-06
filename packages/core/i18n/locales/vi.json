@@ -1357,5 +1357,202 @@
     "hint_newline": "xuống dòng",
     "key_enter": "Enter",
     "key_shift": "Shift"
+  },
+  "admin": {
+    "title": "Quản trị nền tảng",
+    "nav": {
+      "organizations": "Tổ chức",
+      "flags": "Flags",
+      "trace": "Trace",
+      "quota": "Hạn mức",
+      "system": "Hệ thống"
+    },
+    "common": {
+      "retry": "Thử lại"
+    },
+    "guard": {
+      "error_title": "Không tải được vai trò quản trị",
+      "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, kiểm tra kết nối tới API."
+    },
+    "reason": {
+      "label": "Lý do",
+      "placeholder": "Khách hàng chưa thanh toán hóa đơn tháng 8",
+      "hint": "Tối thiểu {{min}} ký tự; ghi vào lịch sử thao tác admin",
+      "confirm": "Xác nhận",
+      "cancel": "Hủy"
+    },
+    "organizations": {
+      "title": "Tổ chức",
+      "search_placeholder": "Tên hoặc slug tổ chức",
+      "search_label": "Tìm tổ chức",
+      "status_label": "Lọc theo trạng thái",
+      "status_all": "Mọi trạng thái",
+      "status": {
+        "active": "Đang hoạt động",
+        "suspended": "Tạm ngưng",
+        "archived": "Đã lưu trữ"
+      },
+      "col": {
+        "name": "Tổ chức",
+        "status": "Trạng thái",
+        "plan": "Gói",
+        "members": "Thành viên",
+        "workspaces": "Workspace",
+        "last_activity": "Hoạt động gần nhất"
+      },
+      "never": "Chưa có",
+      "empty_title": "Chưa có tổ chức nào khớp",
+      "empty_description": "Đổi từ khóa hoặc bỏ lọc trạng thái.",
+      "error_title": "Không tải được danh sách tổ chức",
+      "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, xem trang Hệ thống.",
+      "retry": "Thử lại"
+    },
+    "detail": {
+      "crumb": "Tổ chức",
+      "not_found": "Không tìm thấy tổ chức",
+      "error_title": "Không tải được tổ chức",
+      "error_description": "Thử lại sau ít phút.",
+      "error_write": "Không thể lưu thay đổi. Thử lại.",
+      "retry": "Thử lại",
+      "tabs": {
+        "overview": "Tổng quan",
+        "flags": "Flags",
+        "history": "Lịch sử"
+      },
+      "suspend": "Tạm ngưng",
+      "unsuspend": "Bỏ tạm ngưng",
+      "change_plan": "Đổi gói",
+      "suspended_banner": "Tạm ngưng từ {{at}}.",
+      "members": "Thành viên",
+      "workspaces": "Workspace",
+      "created_at": "Tạo lúc",
+      "last_activity": "Hoạt động gần nhất",
+      "never": "Chưa có",
+      "entitlements": "Hạn mức và tính năng",
+      "no_entitlements": "Gói này chưa khai báo hạn mức.",
+      "history_empty": "Chưa có thao tác admin nào với tổ chức này.",
+      "col": {
+        "key": "Khóa",
+        "kind": "Loại",
+        "enabled": "Bật",
+        "current": "Đang dùng",
+        "limit": "Hạn mức",
+        "time": "Thời gian",
+        "action": "Thao tác",
+        "actor": "Người thực hiện",
+        "reason": "Lý do",
+        "trace": "Trace"
+      },
+      "on": "Bật",
+      "off": "Tắt",
+      "unlimited": "Không giới hạn",
+      "suspend_title": "Tạm ngưng {{name}}?",
+      "suspend_description": "Mọi thành viên sẽ không vào được tổ chức cho đến khi bỏ tạm ngưng. Chủ sở hữu nhận email thông báo.",
+      "unsuspend_title": "Bỏ tạm ngưng {{name}}?",
+      "unsuspend_description": "Tổ chức hoạt động lại ngay sau khi xác nhận.",
+      "plan_title": "Đổi gói cho {{name}}",
+      "plan_description": "Đổi gói thủ công cho pilot hoặc đối tác. Hạn mức mới áp dụng ngay.",
+      "plan_label": "Gói đích",
+      "plan_placeholder": "Chọn gói",
+      "suspended_toast": "Đã tạm ngưng tổ chức",
+      "unsuspended_toast": "Đã bỏ tạm ngưng tổ chức",
+      "plan_changed_toast": "Đã chuyển sang gói {{code}}"
+    },
+    "flags": {
+      "title": "Feature flags",
+      "description": "Catalogue flag phía server; override thắng mặc định.",
+      "empty_title": "Chưa khai báo flag nào",
+      "empty_description": "Flag được khai báo trong catalogue của server.",
+      "error_title": "Không tải được catalogue flag",
+      "error_description": "Thử lại sau ít phút.",
+      "error_write": "Không thể lưu override. Thử lại.",
+      "retry": "Thử lại",
+      "col": {
+        "key": "Khóa",
+        "description": "Mô tả",
+        "default": "Mặc định",
+        "public": "Public",
+        "review_at": "Review",
+        "overrides": "Override",
+        "global": "Override toàn cục",
+        "organization": "Override cho tổ chức"
+      },
+      "on": "Bật",
+      "off": "Tắt",
+      "yes": "Có",
+      "no": "Không",
+      "overridden": "Đang override",
+      "remove": "Xóa override",
+      "toggle_label": "Override {{key}}",
+      "override_title": "Override {{key}}",
+      "remove_title": "Xóa override {{key}}?",
+      "scope": {
+        "global": "Áp dụng cho mọi tổ chức.",
+        "organization": "Chỉ áp dụng cho tổ chức này."
+      },
+      "set": "Đã ghi override {{key}}",
+      "removed": "Đã xóa override {{key}}"
+    },
+    "trace": {
+      "title": "Tra trace",
+      "input_label": "Trace id",
+      "placeholder": "0af7651916cd43dd8448eb211c80319c",
+      "lookup": "Tra cứu",
+      "copy_link": "Sao chép liên kết",
+      "copied": "Đã sao chép",
+      "copy_failed": "Không sao chép được. Sao chép URL trên thanh địa chỉ.",
+      "empty_title": "Nhập trace id để tra",
+      "empty_description": "Lấy từ header X-Trace-Id của phản hồi hoặc mã tương quan trên màn hình lỗi.",
+      "not_found_title": "Không có dữ liệu cho trace này",
+      "not_found_description": "Chưa có audit, outbox hay thao tác admin nào ghi trace id này.",
+      "error_title": "Không tra được trace",
+      "error_description": "Thử lại sau ít phút.",
+      "retry": "Thử lại",
+      "source": {
+        "audit": "audit",
+        "outbox": "outbox",
+        "action": "admin"
+      }
+    },
+    "quota": {
+      "title": "Hạn mức",
+      "description": "Hạn mức và mức dùng của một tổ chức.",
+      "off_title": "Màn hình hạn mức đang tắt",
+      "off_description": "Bật flag admin_quota khi dữ liệu usage từ gói đã sẵn sàng.",
+      "pick_org": "Chọn tổ chức",
+      "empty_title": "Chọn một tổ chức",
+      "empty_description": "Bảng hạn mức hiện theo tổ chức đã chọn."
+    },
+    "system": {
+      "title": "Hệ thống",
+      "readiness": "Readiness",
+      "ready": "Sẵn sàng",
+      "ready_yes": "Đạt",
+      "ready_no": "Không đạt",
+      "check_ok": "đạt",
+      "check_failed": "lỗi",
+      "versions": "Phiên bản",
+      "version": "Phiên bản build",
+      "commit": "Commit",
+      "migration": "Migration nhúng",
+      "outbox": "Outbox",
+      "outbox_pending": "Đang chờ",
+      "outbox_dead": "Dead-letter",
+      "outbox_oldest": "Chờ lâu nhất",
+      "seconds": "{{n}} giây",
+      "realtime": "Realtime",
+      "connections": "Kết nối",
+      "providers": "Feature flag",
+      "provider_chain": "Chuỗi provider",
+      "none": "Không có",
+      "error_title": "Không tải được trạng thái hệ thống",
+      "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, xem /readyz trực tiếp.",
+      "retry": "Thử lại"
+    },
+    "suspended": {
+      "title": "Tổ chức đang tạm ngưng",
+      "description": "Tổ chức này tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
+      "workspaces_link": "Về danh sách workspace"
+    }
   }
 }
