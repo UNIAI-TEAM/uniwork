@@ -28,6 +28,63 @@ type Agent struct {
 	ArchivedAt         pgtype.Timestamptz `json:"archived_at"`
 }
 
+type AiConversation struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	Title          string             `json:"title"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AiMessage struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ConversationID string             `json:"conversation_id"`
+	Role           string             `json:"role"`
+	Content        string             `json:"content"`
+	Citations      string             `json:"citations"`
+	UsageEventID   pgtype.Text        `json:"usage_event_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type AiModelRate struct {
+	ID                  string             `json:"id"`
+	Provider            string             `json:"provider"`
+	Model               string             `json:"model"`
+	InputMicrosPerMtok  int64              `json:"input_micros_per_mtok"`
+	OutputMicrosPerMtok int64              `json:"output_micros_per_mtok"`
+	Currency            string             `json:"currency"`
+	EffectiveAt         pgtype.Timestamptz `json:"effective_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type AiUsageEvent struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	ActorID        string             `json:"actor_id"`
+	ActorKind      string             `json:"actor_kind"`
+	Capability     string             `json:"capability"`
+	PromptID       string             `json:"prompt_id"`
+	Provider       string             `json:"provider"`
+	Model          string             `json:"model"`
+	RateID         pgtype.Text        `json:"rate_id"`
+	InputTokens    int32              `json:"input_tokens"`
+	OutputTokens   int32              `json:"output_tokens"`
+	CostMicros     int64              `json:"cost_micros"`
+	Status         string             `json:"status"`
+	ReasonCode     pgtype.Text        `json:"reason_code"`
+	LatencyMs      pgtype.Int4        `json:"latency_ms"`
+	ToolCalls      string             `json:"tool_calls"`
+	SourceCount    int32              `json:"source_count"`
+	Truncated      bool               `json:"truncated"`
+	CorrelationID  string             `json:"correlation_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+}
+
 type AuditEvent struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -389,14 +446,15 @@ type MeetingRecording struct {
 }
 
 type MeetingSummary struct {
-	ID          string             `json:"id"`
-	MeetingID   string             `json:"meeting_id"`
-	Summary     string             `json:"summary"`
-	Decisions   string             `json:"decisions"`
-	ActionItems string             `json:"action_items"`
-	Model       string             `json:"model"`
-	CreatedBy   string             `json:"created_by"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ID           string             `json:"id"`
+	MeetingID    string             `json:"meeting_id"`
+	Summary      string             `json:"summary"`
+	Decisions    string             `json:"decisions"`
+	ActionItems  string             `json:"action_items"`
+	Model        string             `json:"model"`
+	CreatedBy    string             `json:"created_by"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UsageEventID pgtype.Text        `json:"usage_event_id"`
 }
 
 type MeetingTranscriptSegment struct {
