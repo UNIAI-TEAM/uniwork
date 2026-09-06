@@ -268,3 +268,66 @@ func TestQuotaThresholdEventsFireOncePerLevel(t *testing.T) {
 		t.Fatalf("crossing 100%% notifies once: %v", got)
 	}
 }
+
+func TestCreateWorkspaceOverQuotaIsRefused(t *testing.T) {
+	f := newEntitlementFixture(t)
+	f.override(t, `{"workspaces.max": 1}`)
+	if _, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "One", "one"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "Two", "two")
+	if !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("second workspace: got %v", err)
+	}
+	n, err := f.q.CountWorkspacesInOrganization(f.ctx, f.orgID)
+	if err != nil || n != 1 {
+		t.Fatalf("workspaces = %d (%v), want 1: the refused row must not exist", n, err)
+	}
+}
+
+func TestAcceptInviteOverQuotaRollsBack(t *testing.T) {
+	f := newEntitlementFixture(t)
+	v, err := f.ws.CreateInOrg(f.ctx, f.owner.ID, f.orgID, "One", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth := NewAuthService(f.pool, f.q, authpkg.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	invitee := registerVerified(t, f.q, auth, "ent-invitee@example.com", "Invitee")
+	invs, _, err := f.ws.InviteMany(f.ctx, f.owner.ID, v.Workspace.ID, []string{invitee.Email}, "member")
+	if err != nil || len(invs) != 1 {
+		t.Fatalf("invite: %v (%d)", err, len(invs))
+	}
+	f.override(t, `{"members.max": 1}`)
+	if _, err := f.ws.AcceptInvite(f.ctx, invitee.ID, invs[0].Token); !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("accept over members.max: got %v", err)
+	}
+	if _, err := f.orgs.RequireMember(f.ctx, f.orgID, invitee.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("organization_members must not have the row after rollback: %v", err)
+	}
+	if _, err := f.ws.RequireMember(f.ctx, v.Workspace.ID, invitee.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("workspace_members must not have the row after rollback: %v", err)
+	}
+	// Lifting the limit lets the same token through; the invitation is still pending.
+	f.override(t, `{}`)
+	if _, err := f.ws.AcceptInvite(f.ctx, invitee.ID, invs[0].Token); err != nil {
+		t.Fatalf("accept after lifting the limit: %v", err)
+	}
+}
+
+func TestRecordingAndSummaryNeedTheFlag(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Họp nhanh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE subscriptions SET overrides = '{"meeting.recording": false, "meeting.ai_summary": false}'::jsonb WHERE organization_id = $1`, w.OrganizationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.StartRecording(ctx, ua.ID, m.ID); !errors.Is(err, ErrEntitlementRequired) {
+		t.Fatalf("recording without the flag: got %v", err)
+	}
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !errors.Is(err, ErrEntitlementRequired) {
+		t.Fatalf("summary without the flag: got %v", err)
+	}
+}

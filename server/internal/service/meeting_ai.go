@@ -107,6 +107,9 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
+	if err := s.requireFeature(ctx, m, FeatureMeetingAISummary); err != nil {
+		return db.MeetingSummary{}, err
+	}
 	if s.AI == nil {
 		return db.MeetingSummary{}, coded(http.StatusServiceUnavailable, "ai_not_configured", "AI chưa được cấu hình trên server")
 	}
@@ -204,6 +207,9 @@ func (s *MeetingService) RecordingEnabled(ctx context.Context) bool {
 func (s *MeetingService) StartRecording(ctx context.Context, userID, meetingID string) (db.MeetingRecording, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
+		return db.MeetingRecording{}, err
+	}
+	if err := s.requireFeature(ctx, m, FeatureMeetingRecording); err != nil {
 		return db.MeetingRecording{}, err
 	}
 	if !s.RecordingEnabled(ctx) {

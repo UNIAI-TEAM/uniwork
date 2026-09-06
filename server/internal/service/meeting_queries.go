@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -85,9 +87,51 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		if ev.Type == "conference.participant_connection_aborted" {
 			reason = "connection_aborted"
 		}
-		_, _ = s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: open.ID, LeaveReason: strText(reason)})
+		closed, err := s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: open.ID, LeaveReason: strText(reason)})
+		if err == nil {
+			s.meterAttendance(ctx, sess.MeetingID, closed)
+		}
 	}
 	return nil
+}
+
+// meterAttendance adds a closed attendance session to
+// meeting.participant_minutes, idempotent on the session id. Minutes already
+// spent cannot be refused, so this records rather than consumes; the counter
+// still moves and the threshold events still fire.
+//
+// ponytail: only the single-session close path is metered. The bulk closes on
+// room_finished and stale reconciliation are not; meter them when C-05 shows
+// people the number.
+func (s *MeetingService) meterAttendance(ctx context.Context, meetingID string, sess db.MeetingAttendanceSession) {
+	if !sess.LeftAt.Valid {
+		return
+	}
+	minutes := int64(math.Ceil(sess.LeftAt.Time.Sub(sess.JoinedAt.Time).Minutes()))
+	if minutes <= 0 {
+		return
+	}
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		return
+	}
+	orgID, err := s.organizationOf(ctx, m)
+	if err != nil {
+		return
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx)
+	if err := s.ent.RecordUsage(ctx, s.q.WithTx(tx), ConsumeInput{
+		OrganizationID: orgID, WorkspaceID: m.WorkspaceID, Meter: FeatureMeetingMinutes, Delta: minutes,
+		Actor: audit.System("meeting.attendance"), RefType: "meeting", RefID: meetingID,
+		IdempotencyKey: "attendance:" + sess.ID,
+	}); err != nil {
+		return
+	}
+	_ = tx.Commit(ctx)
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
