@@ -15,7 +15,8 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@uniwork/ui/components/ui/native-select";
+import { Select } from "@uniwork/ui/components/ui/select";
+import { DateField } from "../../common/date-field";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { EventTime } from "../../audit/event-presenter";
 import { dayEnd, dayStart } from "./audit-log";
@@ -169,39 +170,37 @@ export function AuditExports({ orgId, canManage }: { orgId: string; canManage: b
         >
           <div className="grid gap-1.5">
             <Label htmlFor="audit-export-format">{t("export.format")}</Label>
-            <NativeSelect
+            <Select
               id="audit-export-format"
-              className="w-32"
               value={range.format}
               disabled={!canManage}
-              onChange={(e) => setRange({ ...range, format: e.target.value })}
-            >
-              <NativeSelectOption value="csv">CSV</NativeSelectOption>
-              <NativeSelectOption value="json">{t("export.format_jsonl")}</NativeSelectOption>
-            </NativeSelect>
+              onValueChange={(v) => setRange({ ...range, format: v ?? "csv" })}
+              items={[
+                { value: "csv", label: "CSV" },
+                { value: "json", label: t("export.format_jsonl") },
+              ]}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="audit-export-from">{t("export.from")}</Label>
-            <Input
+            <DateField
               id="audit-export-from"
-              type="date"
-              required
+              className="w-40"
               value={range.from}
               max={range.to || undefined}
               disabled={!canManage}
-              onChange={(e) => setRange({ ...range, from: e.target.value })}
+              onChange={(from) => setRange({ ...range, from })}
             />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="audit-export-to">{t("export.to")}</Label>
-            <Input
+            <DateField
               id="audit-export-to"
-              type="date"
-              required
+              className="w-40"
               value={range.to}
               min={range.from || undefined}
               disabled={!canManage}
-              onChange={(e) => setRange({ ...range, to: e.target.value })}
+              onChange={(to) => setRange({ ...range, to })}
             />
           </div>
           <Button

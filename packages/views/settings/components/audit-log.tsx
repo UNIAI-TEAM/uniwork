@@ -7,9 +7,17 @@ import { useAuditEvents, type AuditQuery } from "@uniwork/core/audit";
 import type { AuditEvent } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@uniwork/ui/components/ui/native-select";
+import { Select } from "@uniwork/ui/components/ui/select";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@uniwork/ui/components/ui/combobox";
+import { DateField } from "../../common/date-field";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
@@ -140,44 +148,56 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
         >
           <div className="grid gap-1.5">
             <Label htmlFor="audit-action">{t("filters.action")}</Label>
-            <NativeSelect id="audit-action" className="w-full" value={filters.action} onChange={(e) => field("action")(e.target.value)}>
-              <NativeSelectOption value="">{t("filters.any")}</NativeSelectOption>
-              {KNOWN_ACTIONS.map((a) => (
-                <NativeSelectOption key={a} value={a}>{labels.action(a)}</NativeSelectOption>
-              ))}
-            </NativeSelect>
+            <Select
+              id="audit-action"
+              value={filters.action}
+              onValueChange={(v) => field("action")(v ?? "")}
+              items={[{ value: "", label: t("filters.any") }, ...KNOWN_ACTIONS.map((a) => ({ value: a, label: labels.action(a) }))]}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="audit-resource">{t("filters.resource_type")}</Label>
-            <NativeSelect id="audit-resource" className="w-full" value={filters.resource_type} onChange={(e) => field("resource_type")(e.target.value)}>
-              <NativeSelectOption value="">{t("filters.any")}</NativeSelectOption>
-              {KNOWN_RESOURCES.map((r) => (
-                <NativeSelectOption key={r} value={r}>{labels.resource(r)}</NativeSelectOption>
-              ))}
-            </NativeSelect>
+            <Select
+              id="audit-resource"
+              value={filters.resource_type}
+              onValueChange={(v) => field("resource_type")(v ?? "")}
+              items={[{ value: "", label: t("filters.any") }, ...KNOWN_RESOURCES.map((r) => ({ value: r, label: labels.resource(r) }))]}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="audit-actor">{t("filters.actor")}</Label>
-            <Input
-              id="audit-actor"
-              list="audit-actor-options"
-              value={filters.actor_id}
-              placeholder={t("filters.actor_placeholder")}
-              onChange={(e) => field("actor_id")(e.target.value)}
-            />
-            <datalist id="audit-actor-options">
-              {(members.data ?? []).map((m) => (
-                <option key={m.user_id} value={m.user_id}>{m.display_name}</option>
-              ))}
-            </datalist>
+            {/* Free text stays allowed: a pasted id of someone outside this
+                workspace is still a valid filter, so typing writes the raw
+                text and picking a member writes their id. */}
+            <Combobox
+              items={members.data ?? []}
+              itemToStringLabel={(m) => m.display_name}
+              itemToStringValue={(m) => m.user_id}
+              value={(members.data ?? []).find((m) => m.user_id === filters.actor_id) ?? null}
+              inputValue={names.get(filters.actor_id) ?? filters.actor_id}
+              onValueChange={(m) => field("actor_id")(m?.user_id ?? "")}
+              onInputValueChange={(text, details) => {
+                if (details.reason === "input-change" || details.reason === "input-clear" || details.reason === "clear-press") field("actor_id")(text);
+              }}
+            >
+              <ComboboxInput id="audit-actor" className="w-full" placeholder={t("filters.actor_placeholder")} showClear />
+              <ComboboxContent>
+                <ComboboxEmpty>{t("filters.actor_placeholder")}</ComboboxEmpty>
+                <ComboboxList>
+                  {(m: { user_id: string; display_name: string }) => (
+                    <ComboboxItem key={m.user_id} value={m}>{m.display_name}</ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="audit-from">{t("filters.from")}</Label>
-            <Input id="audit-from" type="date" value={filters.from} max={filters.to || undefined} onChange={(e) => field("from")(e.target.value)} />
+            <DateField id="audit-from" value={filters.from} max={filters.to || undefined} onChange={field("from")} />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="audit-to">{t("filters.to")}</Label>
-            <Input id="audit-to" type="date" value={filters.to} min={filters.from || undefined} onChange={(e) => field("to")(e.target.value)} />
+            <DateField id="audit-to" value={filters.to} min={filters.from || undefined} onChange={field("to")} />
           </div>
           <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-3">
             <Button type="submit">

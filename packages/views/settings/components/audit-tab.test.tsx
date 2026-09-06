@@ -100,7 +100,7 @@ describe("AuditTab", () => {
     // The change summary shows the field and both sides of the move.
     expect(await screen.findByText("todo")).toBeInTheDocument();
     expect(screen.getByText("status")).toBeInTheDocument();
-    expect(screen.getAllByText("Cập nhật task").length).toBeGreaterThan(1);
+    expect(screen.getByText("Cập nhật task")).toBeInTheDocument();
     // The actor is a name when the workspace knows them, never a bare ULID.
     expect(await screen.findByTitle("u1")).toHaveTextContent("An");
     expect(screen.getByText("done")).toBeInTheDocument();
@@ -111,8 +111,8 @@ describe("AuditTab", () => {
     renderTab();
     await screen.findByText("todo");
     fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
-    await waitFor(() => expect(screen.getAllByText("Xóa task")).toHaveLength(2));
-    expect(screen.getAllByText("Cập nhật task")).toHaveLength(2);
+    await waitFor(() => expect(screen.getByText("Xóa task")).toBeInTheDocument());
+    expect(screen.getByText("Cập nhật task")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
   });
 

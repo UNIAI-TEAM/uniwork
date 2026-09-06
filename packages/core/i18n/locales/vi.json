@@ -14,7 +14,9 @@
     "copied": "Đã sao chép",
     "retry": "Thử lại",
     "later": "Để sau",
-    "done": "Xong"
+    "done": "Xong",
+    "date_pick": "Chọn ngày",
+    "date_clear": "Bỏ chọn ngày"
   },
   "auth": {
     "login": "Đăng nhập",

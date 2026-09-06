@@ -14,7 +14,9 @@
     "copied": "Copied",
     "retry": "Try again",
     "later": "Later",
-    "done": "Done"
+    "done": "Done",
+    "date_pick": "Pick a date",
+    "date_clear": "No date"
   },
   "auth": {
     "login": "Log in",

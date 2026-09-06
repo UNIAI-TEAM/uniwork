@@ -170,7 +170,7 @@ export function NewMeetingDialog({
             <Button
               type="submit"
               disabled={
-                create.isPending || !title.trim() || !scheduleValid(start, end)
+                create.isPending || !title.trim() || !date || !scheduleValid(start, end)
               }
             >
               {t("common.create")}

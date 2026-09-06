@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentType } from "react";
+import { useMemo, type ComponentType } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from "@uniwor
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { usePatchMe, useSession } from "@uniwork/core/auth";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
-import { NativeSelect } from "@uniwork/ui/components/ui/native-select";
 import {
   Select,
   SelectContent,
@@ -49,7 +48,8 @@ export function PreferencesTab() {
   const { user } = useSession();
   const patchMe = usePatchMe();
   const timezone = user?.timezone ?? DEFAULT_TIMEZONE;
-  const zones = timezoneOptions(timezone);
+  // timezoneOptions enumerates ~600 IANA zones; build the item list once per zone.
+  const zoneItems = useMemo(() => timezoneOptions(timezone).map((z) => ({ value: z, label: z })), [timezone]);
 
   const currentLocale: SupportedLocale = SUPPORTED_LOCALES.includes(i18n.language as SupportedLocale)
     ? (i18n.language as SupportedLocale)
@@ -134,12 +134,12 @@ export function PreferencesTab() {
             </Select>
           </SettingsRow>
           <SettingsRow label={t("preferences.timezone")} size="select">
-            <NativeSelect
+            <Select
               aria-label={t("preferences.timezone")}
               value={timezone}
               disabled={patchMe.isPending}
-              onChange={(e) => {
-                const next = e.target.value;
+              items={zoneItems}
+              onValueChange={(next) => {
                 if (!next || next === timezone) return;
                 patchMe.mutate(
                   { timezone: next },
@@ -149,13 +149,7 @@ export function PreferencesTab() {
                   },
                 );
               }}
-            >
-              {zones.map((z) => (
-                <option key={z} value={z}>
-                  {z}
-                </option>
-              ))}
-            </NativeSelect>
+            />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
