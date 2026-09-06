@@ -33,13 +33,13 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Six modules came
+  Zustand stores, realtime sync, permissions, paths, i18n. Five modules came
   over with the port and no host reaches them yet: `packages/core/analytics/`,
   `packages/core/constants/`, `packages/core/diagnostics/`,
-  `packages/core/feature-flags/`, `packages/core/modals/`,
-  `packages/core/navigation/`. They import each other, not the app (the
-  shortcuts module left this list with F-09: ⌘J opens Ask UNI). Wire one
-  before relying on it;
+  `packages/core/modals/`, `packages/core/navigation/`. They import each
+  other, not the app (the shortcuts module left this list with F-09: ⌘J opens
+  Ask UNI; feature-flags with F-11: `GET /api/v1/config` feeds
+  `FeatureFlagsProvider`). Wire one before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
   2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
@@ -230,6 +230,41 @@ Every command that changes business state writes an `audit_events` row and its
   `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
   `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
 
+## Platform Admin and Observability
+
+The console (`/admin`, F-11) reads metadata across tenants, so it lives
+behind its own gate and never reaches content.
+
+- `/api/v1/admin/*` is guarded only by `middleware.RequirePlatformRole`
+  (`users.platform_role`: `support` reads, `admin` writes; no role → 404). It
+  never goes through `RequireMember` and never returns task bodies, messages
+  or files. Only `server/internal/service/admin.go` and
+  `server/internal/service/admin_flags.go` call the queries in
+  `server/pkg/db/queries/admin.sql` and `server/pkg/db/queries/feature_flags.sql`, and neither
+  touches a content service
+  — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`.
+- Every admin write takes a `reason` (≥ 10 characters) and lands in
+  `admin_actions` and `audit_events` in one transaction, sharing the trace id.
+  A platform role is granted only by `server/cmd/uniwork-admin`; there is no UI.
+- A suspended organization is closed to its own members on both membership
+  gates with 403 `organization_suspended` (`TestSuspendClosesBothMembershipGates`).
+- `server/internal/telemetry` is the only OpenTelemetry seam: spans are always
+  created (no exporter without `OTEL_EXPORTER_OTLP_ENDPOINT`), every response
+  carries `X-Trace-Id`, and `correlation_id` is the trace id
+  (`TestCorrelationIDIsTheTraceID`). `RequireMember` stamps organization and
+  workspace on the span and the log fields. Log lines identify people by id,
+  never email or name (`scripts/no-pii-log.test.mjs`; `// log-pii-ok: <why>`
+  is the escape hatch).
+- `/healthz` is liveness only; `/readyz` checks DB, schema version and Redis.
+- Every variable the server reads is listed in `.env.example`
+  (`scripts/env-example.test.mjs`). Every alert in `deploy/alerts.yml` has a
+  runbook in `docs/runbooks/` with the four sections
+  (`scripts/alerts-runbooks.test.mjs`). Every flag is declared in
+  `server/internal/featureflags/keys.go` with a `review_at`;
+  `TestFlagsAreReviewed` fails once it passes. Overrides
+  (`feature_flag_overrides`, user > organization > global) win over the
+  static file and `FF_*` env; flags hide capability, never grant permission.
+
 ## Coding Rules
 
 - TypeScript strict; keep types explicit. ESLint runs with `--max-warnings 0`,
@@ -375,7 +410,7 @@ When adding a shared screen:
 | Shared logic, stores, endpoints, hooks | `packages/core/**/*.test.ts(x)` |
 | Shared screens, components | `packages/views/**/*.test.tsx` |
 | Primitives, tokens | `packages/ui/**/*.test.ts(x)` |
-| Repo contracts (catalog, usf leak, legacy tokens, turbo hash, governance, ADRs, plan status) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
+| Repo contracts (catalog, usf leak, legacy tokens, turbo hash, governance, ADRs, plan status, env example, no-PII logs, alerts ↔ runbooks) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
 | Go layering, membership gate | `server/internal/arch_test.go` |
 | End-to-end flows | `e2e/*.spec.ts` |
 | Backend | `server/**/*_test.go` (test DB via `TEST_DATABASE_URL`, Redis via `REDIS_TEST_URL`) |

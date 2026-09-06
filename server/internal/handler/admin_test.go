@@ -132,7 +132,7 @@ func TestFlagOverridesReachPublicConfig(t *testing.T) {
 	if res.StatusCode != 200 || out["flags"].(map[string]any)["agents_assignee"] != true {
 		t.Fatalf("config for org: %d %v", res.StatusCode, out)
 	}
-	res, out = doJSON(t, srv, "GET", "/api/v1/config", "", nil)
+	_, out = doJSON(t, srv, "GET", "/api/v1/config", "", nil)
 	if out["flags"].(map[string]any)["agents_assignee"] != false {
 		t.Fatalf("config without org leaked the override: %v", out)
 	}
