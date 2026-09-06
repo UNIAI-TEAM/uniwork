@@ -105,6 +105,44 @@ func (q *Queries) GetAuditEvent(ctx context.Context, arg GetAuditEventParams) (A
 	return i, err
 }
 
+const getAuditEventByCorrelation = `-- name: GetAuditEventByCorrelation :one
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at FROM audit_events
+WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
+ORDER BY occurred_at DESC
+LIMIT 1
+`
+
+type GetAuditEventByCorrelationParams struct {
+	CorrelationID string `json:"correlation_id"`
+	Action        string `json:"action"`
+	ResourceID    string `json:"resource_id"`
+}
+
+// The notification consumer asks "which fields moved" here rather than
+// having the task service say so in its payload (OPEN_QUESTIONS N1).
+func (q *Queries) GetAuditEventByCorrelation(ctx context.Context, arg GetAuditEventByCorrelationParams) (AuditEvent, error) {
+	row := q.db.QueryRow(ctx, getAuditEventByCorrelation, arg.CorrelationID, arg.Action, arg.ResourceID)
+	var i AuditEvent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ActorKind,
+		&i.ActorID,
+		&i.Action,
+		&i.ResourceType,
+		&i.ResourceID,
+		&i.Changes,
+		&i.Metadata,
+		&i.CorrelationID,
+		&i.RequestID,
+		&i.IpAddress,
+		&i.UserAgent,
+		&i.OccurredAt,
+	)
+	return i, err
+}
+
 const getAuditExport = `-- name: GetAuditExport :one
 SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at FROM audit_exports WHERE id = $1 AND organization_id = $2
 `

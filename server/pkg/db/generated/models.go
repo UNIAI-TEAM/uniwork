@@ -409,6 +409,44 @@ type MeetingTranscriptSegment struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
+type Notification struct {
+	ID             string             `json:"id"`
+	UserID         string             `json:"user_id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	Kind           string             `json:"kind"`
+	GroupKey       string             `json:"group_key"`
+	ResourceType   string             `json:"resource_type"`
+	ResourceID     string             `json:"resource_id"`
+	ActorKind      string             `json:"actor_kind"`
+	ActorID        string             `json:"actor_id"`
+	TitleKey       string             `json:"title_key"`
+	Params         string             `json:"params"`
+	Count          int32              `json:"count"`
+	CorrelationID  pgtype.Text        `json:"correlation_id"`
+	ReadAt         pgtype.Timestamptz `json:"read_at"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	PushedAt       pgtype.Timestamptz `json:"pushed_at"`
+	DigestedAt     pgtype.Timestamptz `json:"digested_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type NotificationDelivery struct {
+	EventID   string             `json:"event_id"`
+	UserID    string             `json:"user_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type NotificationPreference struct {
+	UserID    string             `json:"user_id"`
+	Kind      string             `json:"kind"`
+	InApp     bool               `json:"in_app"`
+	Push      bool               `json:"push"`
+	Email     bool               `json:"email"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Organization struct {
 	ID        string             `json:"id"`
 	Slug      string             `json:"slug"`
@@ -478,6 +516,18 @@ type PlanFeature struct {
 	FeatureKey string      `json:"feature_key"`
 	Enabled    bool        `json:"enabled"`
 	QuotaLimit pgtype.Int8 `json:"quota_limit"`
+}
+
+type PushSubscription struct {
+	ID         string             `json:"id"`
+	UserID     string             `json:"user_id"`
+	Endpoint   string             `json:"endpoint"`
+	P256dh     string             `json:"p256dh"`
+	Auth       string             `json:"auth"`
+	UserAgent  pgtype.Text        `json:"user_agent"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
 type RefreshToken struct {
@@ -579,6 +629,7 @@ type User struct {
 	Locale                  string             `json:"locale"`
 	MatrixUserID            pgtype.Text        `json:"matrix_user_id"`
 	PlatformRole            pgtype.Text        `json:"platform_role"`
+	Timezone                string             `json:"timezone"`
 }
 
 type WebhookInbox struct {
