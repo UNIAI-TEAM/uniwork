@@ -147,3 +147,20 @@ func variantEnabled(v string) bool {
 	}
 	return true
 }
+
+// ProviderNames lists the provider chain in evaluation order, for the
+// diagnostics endpoint. A nil service has no providers.
+func ProviderNames(s *Service) []string {
+	if s == nil || s.provider == nil {
+		return nil
+	}
+	cp, ok := s.provider.(*ChainProvider)
+	if !ok {
+		return []string{s.provider.Name()}
+	}
+	out := make([]string, 0, len(cp.providers))
+	for _, p := range cp.providers {
+		out = append(out, p.Name())
+	}
+	return out
+}

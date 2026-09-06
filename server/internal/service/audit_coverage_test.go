@@ -28,6 +28,8 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionMemberRemoved:        "no organization member removal command exists yet",
 	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
 	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
+	audit.ActionFlagOverrideSet:      "flag overrides land with plan F1 of F-11",
+	audit.ActionFlagOverrideDeleted:  "flag overrides land with plan F1 of F-11",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -76,6 +78,30 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionWorkspaceAgentAdded: func(t *testing.T, f *auditFixture) { f.build(t) },
+		audit.ActionOrganizationSuspended: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			f.suspend(t, OrganizationSuspended)
+		},
+		audit.ActionOrganizationUnsuspended: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			f.suspend(t, OrganizationSuspended)
+			f.suspend(t, OrganizationActive)
+		},
+		audit.ActionPlatformRoleGranted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.SetPlatformRole(f.ctx, CLIActor, f.third.Email, PlatformRoleSupport, "first support account"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionPlatformRoleRevoked: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.admin.SetPlatformRole(f.ctx, CLIActor, f.third.Email, PlatformRoleSupport, "first support account"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.admin.SetPlatformRole(f.ctx, CLIActor, f.third.Email, "", "left the support team"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionSubscriptionChanged: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			if _, err := f.billing.Cancel(f.ctx, f.owner.ID, f.orgID); err != nil {
@@ -214,6 +240,7 @@ type auditFixture struct {
 	billing *BillingService
 	chat    *ChatService
 	reset   *PasswordResetService
+	admin   *AdminService
 	owner   db.User
 	member  db.User
 	third   db.User
@@ -240,6 +267,18 @@ func newAuditFixture(t *testing.T) *auditFixture {
 		billing: NewBillingService(pool, q, orgs, nil),
 		chat:    NewChatService(pool, q, ws, NopPublisher{}),
 		reset:   NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
+		admin:   NewAdminService(pool, q, NewBillingService(pool, q, orgs, nil), NewEntitlementService(pool, q)),
+	}
+}
+
+// suspend makes the third user a platform admin and flips the org's status.
+func (f *auditFixture) suspend(t *testing.T, status string) {
+	t.Helper()
+	if _, err := f.q.SetUserPlatformRole(f.ctx, db.SetUserPlatformRoleParams{ID: f.third.ID, PlatformRole: nullText(PlatformRoleAdmin), PlatformRoleGrantedBy: nullText(CLIActor)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.admin.SetOrganizationStatus(f.ctx, f.third.ID, f.orgID, status, "audit coverage fixture"); err != nil {
+		t.Fatal(err)
 	}
 }
 

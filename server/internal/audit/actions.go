@@ -45,6 +45,15 @@ const (
 
 	ActionSubscriptionChanged = "subscription.changed"
 
+	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
+	// for uniwork-admin; admin_actions carries the reason beside the row.
+	ActionOrganizationSuspended   = "organization.suspended"
+	ActionOrganizationUnsuspended = "organization.unsuspended"
+	ActionPlatformRoleGranted     = "platform_role.granted"
+	ActionPlatformRoleRevoked     = "platform_role.revoked"
+	ActionFlagOverrideSet         = "flag.override_set"
+	ActionFlagOverrideDeleted     = "flag.override_deleted"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditRetentionSet    = "audit.retention_set"
 )

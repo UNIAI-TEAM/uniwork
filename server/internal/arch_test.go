@@ -250,3 +250,39 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The platform console reads across tenants, so its query set (admin.sql) is
+// fenced: only service/admin.go calls Admin* queries, and admin.go never
+// reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
+func TestAdminQueriesStayInAdminService(t *testing.T) {
+	adminQueries := regexp.MustCompile(`\.(AdminListOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers)\(`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.Contains(slash, "pkg/db/generated/") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if adminQueries.Match(src) {
+			t.Errorf("%s calls an admin.sql query; only service/admin.go may", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile("service/admin.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"TaskService", "ChatService", "MeetingService", "GetTask", "chat_messages", "ListTasks"} {
+		if strings.Contains(string(src), forbidden) {
+			t.Errorf("service/admin.go mentions %s: the console never returns content", forbidden)
+		}
+	}
+}

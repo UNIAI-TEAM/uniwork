@@ -106,6 +106,10 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	aiProvider, aiOpts := ai.FromEnv(os.Getenv)
 	gateway := service.NewAIGateway(pool, q, aiProvider, aiOpts)
 	meetingSvc.AI = gateway
+	billingSvc := service.NewBillingService(pool, q, orgs, nil)
+	readiness := service.NewReadiness(pool, nil)
+	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
+	adminSvc.SetSystemSources(readiness, nil, nil)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
@@ -122,7 +126,9 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Agents:        service.NewAgentService(pool, q, orgs, ws),
 		Actors:        service.NewActorService(q),
 		Audit:         service.NewAuditService(pool, q, orgs, ws),
-		Billing:       service.NewBillingService(pool, q, orgs, nil),
+		Billing:       billingSvc,
+		Admin:         adminSvc,
+		Readiness:     readiness,
 		Meetings:      meetingSvc,
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.

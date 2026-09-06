@@ -34,8 +34,9 @@ ORDER BY w.created_at, w.id;
 -- name: GetWorkspaceAccess :one
 -- '' = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
 SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role,
-       w.organization_id
+       w.organization_id, o.status AS organization_status
 FROM workspaces w
+JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $2
 LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = $2
 WHERE w.id = $1;

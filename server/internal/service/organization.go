@@ -106,7 +106,13 @@ func (s *OrganizationService) RequireMember(ctx context.Context, orgID, userID s
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.OrganizationMember{}, ErrForbidden
 	}
-	return m, err
+	if err != nil {
+		return db.OrganizationMember{}, err
+	}
+	if m.OrganizationStatus != OrganizationActive {
+		return db.OrganizationMember{}, errOrganizationSuspended()
+	}
+	return db.OrganizationMember{OrganizationID: m.OrganizationID, UserID: m.UserID, Role: m.Role, CreatedAt: m.CreatedAt}, nil
 }
 
 func (s *OrganizationService) GetBySlug(ctx context.Context, userID, slug string) (db.Organization, db.OrganizationMember, error) {

@@ -227,6 +227,8 @@ var tenantExemptTables = map[string]string{
 	"push_subscriptions":       "per-user browser credential, above every organization (F-07)",
 	"notification_deliveries":  "consumer idempotency ledger keyed by outbox event (F-07)",
 	"ai_model_rates":           "global model price list, shared by every tenant (F-09)",
+	"admin_actions":            "platform-admin ledger; a target may be any organization, user or flag (F-11)",
+	"feature_flag_overrides":   "flag overrides scoped to organization, user or global; the scope is a column (F-11)",
 }
 
 // Business tables created before ADR 0008 that still lack organization_id.

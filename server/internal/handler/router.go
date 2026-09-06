@@ -11,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/events"
 	rt "github.com/unicomhub/uniwork/server/internal/handler/router"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
+	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/notification"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -62,6 +63,11 @@ type Deps struct {
 	HTTPMetrics *metrics.HTTPMetrics
 	// Readiness backs /readyz; nil (tests) answers 503.
 	Readiness *service.Readiness
+	// Admin is the platform console (F-11); nil leaves /api/v1/admin unmounted.
+	Admin *service.AdminService
+	// Version and Commit are the build stamps main.go carries into /admin/system.
+	Version string
+	Commit  string
 }
 
 type handlers struct {
@@ -73,15 +79,29 @@ type handlers struct {
 func New(d Deps) http.Handler {
 	h := &handlers{Deps: d}
 	return rt.New(rt.Deps{
-		Cfg:         d.Cfg,
-		Minter:      d.Minter,
-		Redis:       d.Redis,
-		Storage:     d.Storage,
-		HTTPMetrics: d.HTTPMetrics,
+		Cfg:           d.Cfg,
+		Minter:        d.Minter,
+		Redis:         d.Redis,
+		Storage:       d.Storage,
+		HTTPMetrics:   d.HTTPMetrics,
+		PlatformRoles: platformRoles(d.Admin),
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
-		WS:     h.ws,
+
+		AdminMe:                    h.adminMe,
+		AdminListOrganizations:     h.adminListOrganizations,
+		AdminGetOrganization:       h.adminGetOrganization,
+		AdminSuspendOrganization:   h.adminSuspendOrganization,
+		AdminUnsuspendOrganization: h.adminUnsuspendOrganization,
+		AdminChangePlan:            h.adminChangePlan,
+		AdminTrace:                 h.adminTrace,
+		AdminSystem:                h.adminSystem,
+		AdminListFlags:             h.adminListFlags,
+		AdminListFlagOverrides:     h.adminListFlagOverrides,
+		AdminSetFlagOverride:       h.adminSetFlagOverride,
+		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
+		WS:                         h.ws,
 
 		Register:       h.register,
 		Login:          h.login,
@@ -236,4 +256,12 @@ func New(d Deps) http.Handler {
 		SignalChatVoiceHangup:     h.signalChatVoiceHangup,
 		SignalChatTyping:          h.signalChatTyping,
 	})
+}
+
+// platformRoles keeps a nil *AdminService from becoming a non-nil interface.
+func platformRoles(a *service.AdminService) mw.PlatformRoleSource {
+	if a == nil {
+		return nil
+	}
+	return a
 }

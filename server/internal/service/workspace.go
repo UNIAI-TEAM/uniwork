@@ -193,6 +193,11 @@ func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userI
 	if err != nil {
 		return db.WorkspaceMember{}, err
 	}
+	// A suspended tenant is closed to its members on every route (F-11 §4);
+	// platform admins reach it through /api/v1/admin, which never comes here.
+	if access.OrganizationStatus != OrganizationActive {
+		return db.WorkspaceMember{}, errOrganizationSuspended()
+	}
 	// The one place every workspace request passes through, so the span and
 	// the log lines of this request learn their tenant here (spec F-11 §6.1).
 	telemetry.SetTenant(ctx, access.OrganizationID, workspaceID)

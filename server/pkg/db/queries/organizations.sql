@@ -22,7 +22,11 @@ VALUES ($1, $2, $3)
 ON CONFLICT DO NOTHING;
 
 -- name: GetOrganizationMember :one
-SELECT * FROM organization_members WHERE organization_id = $1 AND user_id = $2;
+-- organization_status rides along so RequireMember can refuse a suspended
+-- tenant without a second query (F-11).
+SELECT m.*, o.status AS organization_status
+FROM organization_members m JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = $1 AND m.user_id = $2;
 
 -- name: ListWorkspacesInOrg :many
 SELECT w.*, o.slug AS organization_slug, o.name AS organization_name

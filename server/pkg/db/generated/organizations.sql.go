@@ -31,7 +31,7 @@ func (q *Queries) AddOrganizationMember(ctx context.Context, arg AddOrganization
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason
 `
 
 type CreateOrganizationParams struct {
@@ -56,12 +56,15 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -74,12 +77,15 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -92,12 +98,17 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
 	)
 	return i, err
 }
 
 const getOrganizationMember = `-- name: GetOrganizationMember :one
-SELECT organization_id, user_id, role, created_at FROM organization_members WHERE organization_id = $1 AND user_id = $2
+SELECT m.organization_id, m.user_id, m.role, m.created_at, o.status AS organization_status
+FROM organization_members m JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = $1 AND m.user_id = $2
 `
 
 type GetOrganizationMemberParams struct {
@@ -105,14 +116,25 @@ type GetOrganizationMemberParams struct {
 	UserID         string `json:"user_id"`
 }
 
-func (q *Queries) GetOrganizationMember(ctx context.Context, arg GetOrganizationMemberParams) (OrganizationMember, error) {
+type GetOrganizationMemberRow struct {
+	OrganizationID     string             `json:"organization_id"`
+	UserID             string             `json:"user_id"`
+	Role               string             `json:"role"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	OrganizationStatus string             `json:"organization_status"`
+}
+
+// organization_status rides along so RequireMember can refuse a suspended
+// tenant without a second query (F-11).
+func (q *Queries) GetOrganizationMember(ctx context.Context, arg GetOrganizationMemberParams) (GetOrganizationMemberRow, error) {
 	row := q.db.QueryRow(ctx, getOrganizationMember, arg.OrganizationID, arg.UserID)
-	var i OrganizationMember
+	var i GetOrganizationMemberRow
 	err := row.Scan(
 		&i.OrganizationID,
 		&i.UserID,
 		&i.Role,
 		&i.CreatedAt,
+		&i.OrganizationStatus,
 	)
 	return i, err
 }
@@ -176,7 +198,7 @@ func (q *Queries) ListMemberWorkspacesInOrg(ctx context.Context, arg ListMemberW
 }
 
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, m.role
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, m.role
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1
@@ -184,13 +206,16 @@ ORDER BY o.created_at
 `
 
 type ListOrganizationsForUserRow struct {
-	ID        string             `json:"id"`
-	Slug      string             `json:"slug"`
-	Name      string             `json:"name"`
-	CreatedBy string             `json:"created_by"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	Role      string             `json:"role"`
+	ID              string             `json:"id"`
+	Slug            string             `json:"slug"`
+	Name            string             `json:"name"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Status          string             `json:"status"`
+	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason pgtype.Text        `json:"suspended_reason"`
+	Role            string             `json:"role"`
 }
 
 func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) ([]ListOrganizationsForUserRow, error) {
@@ -209,6 +234,9 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Status,
+			&i.SuspendedAt,
+			&i.SuspendedReason,
 			&i.Role,
 		); err != nil {
 			return nil, err

@@ -19,7 +19,13 @@ type auditWorld struct {
 
 func newAuditWorld(t *testing.T) auditWorld {
 	t.Helper()
-	srv := newTestServer(t)
+	return buildAuditWorld(t, newTestServer(t))
+}
+
+// buildAuditWorld registers an owner with an organization, a workspace and
+// one updated task on an existing server, for tests that need the Deps too.
+func buildAuditWorld(t *testing.T, srv *httptest.Server) auditWorld {
+	t.Helper()
 	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
 		"email": "audit@example.com", "password": "password123", "display_name": "Audit",
 	})

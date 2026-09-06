@@ -48,6 +48,8 @@ export const WS_EVENT_TYPES = [
   "member.role_changed",
   "notification.created",
   "organization.created",
+  "organization.suspended",
+  "organization.unsuspended",
   "organization.updated",
   "participant.invited",
   "participant.removed",

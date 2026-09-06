@@ -27,6 +27,23 @@ var (
 	ErrSubscriptionInactive = errors.New("subscription_inactive")
 )
 
+// Organization status values (F-11). Anything but active is closed to the
+// organization's own members; only /api/v1/admin reaches it.
+const (
+	OrganizationActive    = "active"
+	OrganizationSuspended = "suspended"
+)
+
+// ErrOrganizationSuspended is what every RequireMember answers for a tenant a
+// platform admin has suspended; the client shows the "tổ chức tạm ngưng" page.
+// Always wrapped by errOrganizationSuspended so handlers get the 403 code and
+// errors.Is still matches the sentinel.
+var ErrOrganizationSuspended = errors.New("organization_suspended")
+
+func errOrganizationSuspended() error {
+	return CodedError{Code: "organization_suspended", Status: http.StatusForbidden, Msg: "tổ chức đang tạm ngưng", Err: ErrOrganizationSuspended}
+}
+
 type ValidationError struct{ Msg string }
 
 func (e ValidationError) Error() string { return e.Msg }

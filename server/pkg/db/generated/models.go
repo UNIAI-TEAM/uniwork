@@ -8,6 +8,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AdminAction struct {
+	ID         string             `json:"id"`
+	ActorID    string             `json:"actor_id"`
+	Action     string             `json:"action"`
+	TargetType string             `json:"target_type"`
+	TargetID   string             `json:"target_id"`
+	Before     []byte             `json:"before"`
+	After      []byte             `json:"after"`
+	Reason     string             `json:"reason"`
+	TraceID    pgtype.Text        `json:"trace_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type Agent struct {
 	ID                 string             `json:"id"`
 	OrganizationID     string             `json:"organization_id"`
@@ -215,6 +228,19 @@ type Feature struct {
 	Category  string      `json:"category"`
 	MeterMode string      `json:"meter_mode"`
 	SortOrder int32       `json:"sort_order"`
+}
+
+type FeatureFlagOverride struct {
+	ID            string             `json:"id"`
+	FlagKey       string             `json:"flag_key"`
+	ScopeType     string             `json:"scope_type"`
+	ScopeID       string             `json:"scope_id"`
+	Enabled       bool               `json:"enabled"`
+	Note          string             `json:"note"`
+	CreatedBy     string             `json:"created_by"`
+	CreatedByKind string             `json:"created_by_kind"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
 }
 
 type Invitation struct {
@@ -506,12 +532,15 @@ type NotificationPreference struct {
 }
 
 type Organization struct {
-	ID        string             `json:"id"`
-	Slug      string             `json:"slug"`
-	Name      string             `json:"name"`
-	CreatedBy string             `json:"created_by"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID              string             `json:"id"`
+	Slug            string             `json:"slug"`
+	Name            string             `json:"name"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Status          string             `json:"status"`
+	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason pgtype.Text        `json:"suspended_reason"`
 }
 
 type OrganizationMember struct {
@@ -688,6 +717,8 @@ type User struct {
 	MatrixUserID            pgtype.Text        `json:"matrix_user_id"`
 	PlatformRole            pgtype.Text        `json:"platform_role"`
 	Timezone                string             `json:"timezone"`
+	PlatformRoleGrantedBy   pgtype.Text        `json:"platform_role_granted_by"`
+	PlatformRoleGrantedAt   pgtype.Timestamptz `json:"platform_role_granted_at"`
 }
 
 type WebhookInbox struct {

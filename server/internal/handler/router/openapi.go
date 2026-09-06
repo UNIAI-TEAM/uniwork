@@ -177,6 +177,14 @@ func pathParamSDI(path string) any {
 		return struct {
 			OrgID string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
 		}{}
+	case "traceID":
+		return struct {
+			TraceID string `path:"traceID" description:"Trace id (X-Trace-Id) hoặc correlation id" example:"0af7651916cd43dd8448eb211c80319c"`
+		}{}
+	case "key":
+		return struct {
+			Key string `path:"key" description:"Khóa feature flag" example:"agents_assignee"`
+		}{}
 	case "orgID,eventID":
 		return struct {
 			OrgID   string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`

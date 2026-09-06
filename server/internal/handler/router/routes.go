@@ -9,6 +9,19 @@ type Routes struct {
 	Ready  http.HandlerFunc
 	WS     http.HandlerFunc
 
+	AdminMe                    http.HandlerFunc
+	AdminListOrganizations     http.HandlerFunc
+	AdminGetOrganization       http.HandlerFunc
+	AdminSuspendOrganization   http.HandlerFunc
+	AdminUnsuspendOrganization http.HandlerFunc
+	AdminChangePlan            http.HandlerFunc
+	AdminTrace                 http.HandlerFunc
+	AdminSystem                http.HandlerFunc
+	AdminListFlags             http.HandlerFunc
+	AdminListFlagOverrides     http.HandlerFunc
+	AdminSetFlagOverride       http.HandlerFunc
+	AdminDeleteFlagOverride    http.HandlerFunc
+
 	Register       http.HandlerFunc
 	Login          http.HandlerFunc
 	ForgotPassword http.HandlerFunc

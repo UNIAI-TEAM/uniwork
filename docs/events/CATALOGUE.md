@@ -45,6 +45,7 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `chat.voice.hangup` | 1 | `room_id`, `user_id` | user | ephemeral |
 | `chat.voice.invite` | 1 | `room_id`, `user_id` | user | ephemeral |
 | `conference.session_ready` | 1 | `meeting_id`, `version` | workspace | ephemeral |
+| `flag.updated` | 1 | `flag_key` | - | outbox |
 | `host.transferred` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `invitation.responded` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `invite_link.revoked` | 1 | `meeting_id`, `version` | workspace | outbox |
@@ -66,6 +67,8 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `notification.push` | 1 | `notification_id`, `user_id` | - | outbox |
 | `organization.created` | 1 | `organization_id` | user | outbox |
 | `organization.updated` | 1 | `organization_id` | user | outbox |
+| `organization.suspended` | 1 | `organization_id`, `user_id` | user | outbox |
+| `organization.unsuspended` | 1 | `organization_id`, `user_id` | user | outbox |
 | `participant.invited` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `participant.removed` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `provider.end_session` | 1 | `room_name` | - | outbox |

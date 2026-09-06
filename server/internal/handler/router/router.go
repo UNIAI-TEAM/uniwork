@@ -25,6 +25,9 @@ type Deps struct {
 	Redis       *redis.Client
 	Storage     storage.Storage
 	HTTPMetrics *metrics.HTTPMetrics
+	// PlatformRoles resolves users.platform_role for /api/v1/admin; nil
+	// (tests without an admin service) makes every admin route 404.
+	PlatformRoles mw.PlatformRoleSource
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).
@@ -94,6 +97,12 @@ func New(d Deps, h Routes) http.Handler {
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 			chatTypingLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
+			if d.PlatformRoles != nil {
+				adminLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
+				registerAdmin(authed, h, adminLimit,
+					mw.RequirePlatformRole(d.PlatformRoles, "support"),
+					mw.RequirePlatformRole(d.PlatformRoles, "admin"))
+			}
 		})
 	})
 	if d.Cfg.EnableSwagger {

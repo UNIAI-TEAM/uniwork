@@ -66,6 +66,9 @@ var catalogue = []EventDef{
 	// Organization and workspace membership
 	{Topic: "organization.created", Version: 1, Payload: []string{"organization_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "organization.updated", Version: 1, Payload: []string{"organization_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Platform admin (F-11): the owner's client shows the suspended page.
+	{Topic: "organization.suspended", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "organization.unsuspended", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.invited", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.joined", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.role_changed", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
@@ -123,6 +126,9 @@ var catalogue = []EventDef{
 
 	// AI gateway (F-09): a usage row completed; Settings → AI refreshes.
 	{Topic: "ai.usage.updated", Version: 1, Payload: []string{"organization_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+
+	// Feature flags (F-11): every node drops its override cache.
+	{Topic: "flag.updated", Version: 1, Payload: []string{"flag_key"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},

@@ -186,6 +186,7 @@ func main() {
 	taskSvc := service.NewTaskService(pool, q, wsSvc)
 	meetingSvc.Tasks = taskSvc
 	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
+	readiness := service.NewReadiness(pool, rdb)
 	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg.BillingProvider))
 	actorSvc := service.NewActorService(q)
 	// One AI gateway for the process (F-09): meeting summaries and Ask UNI
@@ -262,6 +263,10 @@ func main() {
 			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
 		}
 	}
+	// Platform console (F-11): reads metadata across tenants, guarded by
+	// users.platform_role rather than membership.
+	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
+	adminSvc.SetSystemSources(readiness, realtime.M.ActiveConnections.Load, featureflag.ProviderNames(flags))
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:            authSvc,
@@ -288,7 +293,10 @@ func main() {
 		Storage:         store,
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
-		Readiness:       service.NewReadiness(pool, rdb),
+		Readiness:       readiness,
+		Admin:           adminSvc,
+		Version:         version,
+		Commit:          commit,
 	})
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
