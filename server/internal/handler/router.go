@@ -35,6 +35,7 @@ type Deps struct {
 	Agents        *service.AgentService
 	Actors        *service.ActorService
 	Audit         *service.AuditService
+	Billing       *service.BillingService
 	Meetings      *service.MeetingService
 	Chat          *service.ChatService
 	Hub           *realtime.Hub
@@ -119,6 +120,13 @@ func New(d Deps) http.Handler {
 		UpdateTask:   h.updateTask,
 		DeleteTask:   h.deleteTask,
 		ListComments: h.listComments,
+
+		ListPlans:          h.listPlans,
+		GetSubscription:    h.getSubscription,
+		ChangePlan:         h.changePlan,
+		CancelSubscription: h.cancelSubscription,
+		ResumeSubscription: h.resumeSubscription,
+		CreateCheckout:     h.createCheckout,
 
 		ListOrgAgents:       h.listOrgAgents,
 		CreateOrgAgent:      h.createOrgAgent,

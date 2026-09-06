@@ -98,6 +98,7 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 		Agents:        service.NewAgentService(pool, q, orgs, ws),
 		Actors:        service.NewActorService(q),
 		Audit:         service.NewAuditService(pool, q, orgs, ws),
+		Billing:       service.NewBillingService(pool, q, orgs, nil),
 		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.

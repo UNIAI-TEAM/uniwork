@@ -31,6 +31,7 @@ type Config struct {
 	LiveKitEmptyTimeout       time.Duration
 	LiveKitDepartureTimeout   time.Duration
 	MeetingProvider           string
+	BillingProvider           string
 	MeetingWorkerTick         time.Duration
 	MeetingOutboxBatch        int32
 	MeetingWebhookBatch       int32
@@ -111,6 +112,7 @@ func Load() (Config, error) {
 		LiveKitEmptyTimeout:       parseDuration(os.Getenv("LIVEKIT_ROOM_EMPTY_TIMEOUT"), 0),
 		LiveKitDepartureTimeout:   parseDuration(os.Getenv("LIVEKIT_ROOM_DEPARTURE_TIMEOUT"), 20*time.Second),
 		MeetingProvider:           getenv("MEETING_PROVIDER", "livekit"),
+		BillingProvider:           getenv("BILLING_PROVIDER", "manual"),
 		MeetingWorkerTick:         parseDuration(os.Getenv("MEETING_WORKER_TICK"), time.Second),
 		MeetingOutboxBatch:        parseInt32(os.Getenv("MEETING_OUTBOX_BATCH"), 50),
 		MeetingWebhookBatch:       parseInt32(os.Getenv("MEETING_WEBHOOK_BATCH"), 50),
