@@ -100,7 +100,7 @@ func TestUpdateProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	name := "  After  "
-	updated, err := s.UpdateProfile(ctx, sess.User.ID, &name, nil)
+	updated, err := s.UpdateProfile(ctx, sess.User.ID, &name, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestUpdateProfile(t *testing.T) {
 		t.Fatalf("display_name = %q", updated.DisplayName)
 	}
 	empty := "   "
-	if _, err := s.UpdateProfile(ctx, sess.User.ID, &empty, nil); err == nil {
+	if _, err := s.UpdateProfile(ctx, sess.User.ID, &empty, nil, nil); err == nil {
 		t.Fatal("empty display name accepted")
 	}
 }

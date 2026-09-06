@@ -11,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/events"
 	rt "github.com/unicomhub/uniwork/server/internal/handler/router"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
+	"github.com/unicomhub/uniwork/server/internal/notification"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -36,6 +37,7 @@ type Deps struct {
 	Actors        *service.ActorService
 	Audit         *service.AuditService
 	Billing       *service.BillingService
+	Notifications *notification.Service
 	Meetings      *service.MeetingService
 	Chat          *service.ChatService
 	Hub           *realtime.Hub
@@ -120,6 +122,17 @@ func New(d Deps) http.Handler {
 		UpdateTask:   h.updateTask,
 		DeleteTask:   h.deleteTask,
 		ListComments: h.listComments,
+
+		ListNotifications:          h.listNotifications,
+		UnreadNotificationCount:    h.unreadNotificationCount,
+		MarkNotificationsRead:      h.markNotificationsRead,
+		MarkNotificationsUnread:    h.markNotificationsUnread,
+		ArchiveNotifications:       h.archiveNotifications,
+		GetNotificationPreferences: h.getNotificationPreferences,
+		PutNotificationPreferences: h.putNotificationPreferences,
+		PushConfig:                 h.pushConfig,
+		SubscribePush:              h.subscribePush,
+		UnsubscribePush:            h.unsubscribePush,
 
 		ListPlans:          h.listPlans,
 		GetSubscription:    h.getSubscription,

@@ -53,6 +53,17 @@ type Routes struct {
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
 
+	ListNotifications          http.HandlerFunc
+	UnreadNotificationCount    http.HandlerFunc
+	MarkNotificationsRead      http.HandlerFunc
+	MarkNotificationsUnread    http.HandlerFunc
+	ArchiveNotifications       http.HandlerFunc
+	GetNotificationPreferences http.HandlerFunc
+	PutNotificationPreferences http.HandlerFunc
+	PushConfig                 http.HandlerFunc
+	SubscribePush              http.HandlerFunc
+	UnsubscribePush            http.HandlerFunc
+
 	ListPlans          http.HandlerFunc
 	GetSubscription    http.HandlerFunc
 	ChangePlan         http.HandlerFunc

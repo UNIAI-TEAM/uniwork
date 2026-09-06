@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	meetingspkg "github.com/unicomhub/uniwork/server/internal/meetings"
+	"github.com/unicomhub/uniwork/server/internal/notification"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -75,6 +77,17 @@ func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Ser
 // newTestServerWithOutbox lets a test observe what password-reset mail was
 // queued (recordOutbox) instead of dropping it (discardOutbox).
 func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqueuer) *httptest.Server {
+	d, _ := newTestDeps(t, google, out)
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// newTestDeps builds every service on a fresh test database and returns the
+// pool too, for tests that need to drive a background consumer or seed rows
+// the HTTP surface deliberately cannot create.
+func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps, *pgxpool.Pool) {
+	t.Helper()
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
@@ -102,11 +115,10 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.
-		Storage: storage.NewLocalStorageFromEnv(),
+		Storage:       storage.NewLocalStorageFromEnv(),
+		Notifications: notification.NewService(q, notification.PushConfig{}),
 	}
-	srv := httptest.NewServer(New(d))
-	t.Cleanup(srv.Close)
-	return srv
+	return d, pool
 }
 
 func postJSON(t *testing.T, srv *httptest.Server, path string, body any) *http.Response {

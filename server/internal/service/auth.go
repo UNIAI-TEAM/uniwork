@@ -175,9 +175,9 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 
 const maxDisplayNameRunes = 100
 
-func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale *string) (db.User, error) {
-	if displayName == nil && locale == nil {
-		return db.User{}, Invalid("cần display_name hoặc locale")
+func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale, timezone *string) (db.User, error) {
+	if displayName == nil && locale == nil && timezone == nil {
+		return db.User{}, Invalid("cần display_name, locale hoặc timezone")
 	}
 	var name string
 	if displayName != nil {
@@ -192,10 +192,16 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 	if locale != nil && *locale != "vi" && *locale != "en" {
 		return db.User{}, Invalid("locale phải là vi hoặc en")
 	}
+	if timezone != nil {
+		if _, err := time.LoadLocation(*timezone); err != nil || *timezone == "" || *timezone == "Local" {
+			return db.User{}, Invalid("timezone phải là tên IANA, ví dụ Asia/Ho_Chi_Minh")
+		}
+	}
 	u, err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
 		ID:          userID,
 		DisplayName: pgtype.Text{String: name, Valid: displayName != nil},
 		Locale:      pgtype.Text{String: ptrString(locale), Valid: locale != nil},
+		Timezone:    pgtype.Text{String: ptrString(timezone), Valid: timezone != nil},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.User{}, ErrNotFound

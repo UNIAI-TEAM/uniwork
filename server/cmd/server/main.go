@@ -193,6 +193,7 @@ func main() {
 	}
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
+	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	dispatcher.Register(notifConsumer)
 	dispatcher.Register(pushConsumer)
 	if reg != nil {
@@ -240,6 +241,7 @@ func main() {
 		Actors:          actorSvc,
 		Audit:           auditSvc,
 		Billing:         billingSvc,
+		Notifications:   notifSvc,
 		Meetings:        meetingSvc,
 		Chat:            chatSvc,
 		Hub:             hub,
