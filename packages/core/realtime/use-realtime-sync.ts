@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { agentKeys } from "../agents/hooks";
+import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
@@ -60,6 +61,13 @@ function keysFor(
       // comes back from the API.
       push(notificationKeys.lists());
       push(notificationKeys.unreadCount());
+      break;
+    }
+    case "ai.usage.updated": {
+      // A gateway call finished somewhere in the workspace: Settings → AI
+      // and the quota line refetch; the payload is ids only.
+      push(aiKeys.usages());
+      if (payload.workspace_id) push(aiKeys.capabilities(payload.workspace_id));
       break;
     }
     case "subscription.changed":

@@ -22,6 +22,7 @@
     "./tasks/position": "./tasks/position.ts",
     "./audit": "./audit/hooks.ts",
     "./billing": "./billing/hooks.ts",
+    "./ai": "./ai/hooks.ts",
     "./notifications": "./notifications/hooks.ts",
     "./notifications/push": "./notifications/push.ts",
     "./meetings": "./meetings/hooks.ts",
