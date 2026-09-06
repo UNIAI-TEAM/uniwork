@@ -9,6 +9,7 @@ import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
+import { notificationKeys } from "../notifications/hooks";
 import { taskKeys } from "../tasks/hooks";
 import type { WSEventType } from "../types/events";
 import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./invalidate-scheduler";
@@ -51,6 +52,14 @@ function keysFor(
     }
     case "workspace_agent.added": {
       push(agentKeys.workspace(wsId));
+      break;
+    }
+    case "notification.created": {
+      // Arrives on the user scope, from any workspace: refresh every cached
+      // list and the account-level badge. Payload is ids only; the row itself
+      // comes back from the API.
+      push(notificationKeys.lists());
+      push(notificationKeys.unreadCount());
       break;
     }
     case "subscription.changed":
@@ -173,6 +182,8 @@ function allWorkspaceKeys(wsId: string) {
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),
     meetingKeys.joinRequestsRoot,
+    notificationKeys.lists(),
+    notificationKeys.unreadCount(),
   ];
 }
 

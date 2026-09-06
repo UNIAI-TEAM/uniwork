@@ -9,6 +9,7 @@ export const UserSchema = z.object({
   email_verified_at: z.string().nullable().optional().default(null),
   onboarding_questionnaire: z.record(z.string(), z.unknown()).optional().default({}),
   locale: z.string().optional().default("vi"),
+  timezone: z.string().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 

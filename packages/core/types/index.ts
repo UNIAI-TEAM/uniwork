@@ -11,3 +11,4 @@ export * from "./meeting";
 export * from "./events";
 export * from "./audit";
 export * from "./billing";
+export * from "./notification";
