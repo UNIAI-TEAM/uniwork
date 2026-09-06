@@ -53,6 +53,13 @@ type Routes struct {
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
 
+	ListPlans          http.HandlerFunc
+	GetSubscription    http.HandlerFunc
+	ChangePlan         http.HandlerFunc
+	CancelSubscription http.HandlerFunc
+	ResumeSubscription http.HandlerFunc
+	CreateCheckout     http.HandlerFunc
+
 	ListOrgAgents       http.HandlerFunc
 	CreateOrgAgent      http.HandlerFunc
 	PatchAgent          http.HandlerFunc

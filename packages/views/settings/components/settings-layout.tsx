@@ -19,7 +19,7 @@ export function SettingsTab({
       <header>
         <h2 className="text-title-lg font-semibold tracking-tight">{title}</h2>
         {description ? (
-          <p className="mt-1 max-w-2xl text-body leading-6 text-muted-foreground">{description}</p>
+          <p className="mt-1 max-w-[68ch] text-body leading-6 text-muted-foreground">{description}</p>
         ) : null}
       </header>
       {children}
@@ -47,7 +47,7 @@ export function SettingsSection({
           <div className="min-w-0">
             {title ? <h3 className="text-body font-semibold">{title}</h3> : null}
             {description ? (
-              <p className="mt-1 text-caption leading-5 text-muted-foreground">{description}</p>
+              <p className="mt-1 max-w-[68ch] text-caption leading-5 text-muted-foreground">{description}</p>
             ) : null}
           </div>
           {action ? <div className="shrink-0">{action}</div> : null}

@@ -6,4 +6,4 @@
 export type { Decision, DecisionReason, PermissionContext } from "./types";
 export { canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
 export { useCurrentMember, useOrgMembership } from "./use-current-member";
-export { useAuditPermissions, useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";
+export { useAuditPermissions, useBillingPermissions, useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";

@@ -20,6 +20,11 @@ var (
 	ErrEmailUnverified = errors.New("email_unverified")
 	// ErrInvalidToken covers unknown, expired and used password reset tokens.
 	ErrInvalidToken = errors.New("invalid_token")
+	// Entitlement gate (F-02). Always wrapped in a CodedError carrying the
+	// feature/meter in Fields; errors.Is still matches the sentinel.
+	ErrEntitlementRequired  = errors.New("entitlement_required")
+	ErrQuotaExceeded        = errors.New("quota_exceeded")
+	ErrSubscriptionInactive = errors.New("subscription_inactive")
 )
 
 type ValidationError struct{ Msg string }
@@ -35,6 +40,9 @@ type CodedError struct {
 	Status int
 	Msg    string
 	Err    error
+	// Fields is machine-readable detail (meter, limit, current…) for the
+	// client to render its own sentence. Optional.
+	Fields map[string]any
 }
 
 func (e CodedError) Error() string {

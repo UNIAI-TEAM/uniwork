@@ -36,10 +36,13 @@ type WorkspaceService struct {
 	orgs   *OrganizationService
 	render mail.Renderer
 	out    mail.Enqueuer
+	// ent is the quota gate (F-02). Built here rather than injected so there
+	// is no nil path that skips the gate.
+	ent *EntitlementService
 }
 
 func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, r mail.Renderer, out mail.Enqueuer) *WorkspaceService {
-	return &WorkspaceService{pool: pool, q: q, orgs: orgs, render: r, out: out}
+	return &WorkspaceService{pool: pool, q: q, orgs: orgs, render: r, out: out, ent: NewEntitlementService(pool, q)}
 }
 
 func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
@@ -66,6 +69,11 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
+	// workspaces.max: refused here means the workspace row below is never
+	// written (spec F-02 §4.3).
+	if err := s.ent.Consume(ctx, q, ConsumeInput{OrganizationID: orgID, Meter: FeatureWorkspacesMax, Delta: 1, Actor: Human(userID)}); err != nil {
+		return WorkspaceView{}, err
+	}
 	w, err := q.CreateWorkspace(ctx, db.CreateWorkspaceParams{
 		ID: util.NewID(), OrganizationID: orgID, Slug: slug, Name: name, CreatedBy: userID,
 	})
@@ -564,6 +572,16 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	}
 	defer tx.Rollback(ctx)
 	qtx := s.q.WithTx(tx)
+	// members.max counts organization members, so only a person new to the
+	// organization consumes a seat; an existing member joining another
+	// workspace does not (spec F-02 §4.3).
+	if _, err := s.orgs.RequireMember(ctx, w.OrganizationID, userID); errors.Is(err, ErrForbidden) {
+		if err := s.ent.Consume(ctx, qtx, ConsumeInput{OrganizationID: w.OrganizationID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(userID)}); err != nil {
+			return WorkspaceView{}, err
+		}
+	} else if err != nil {
+		return WorkspaceView{}, err
+	}
 	if err := qtx.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: w.OrganizationID, UserID: userID, Role: "member"}); err != nil {
 		return WorkspaceView{}, err
 	}

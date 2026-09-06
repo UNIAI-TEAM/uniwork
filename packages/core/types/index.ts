@@ -10,3 +10,4 @@ export * from "./task";
 export * from "./meeting";
 export * from "./events";
 export * from "./audit";
+export * from "./billing";

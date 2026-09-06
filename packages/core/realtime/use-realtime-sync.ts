@@ -6,6 +6,7 @@ import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { agentKeys } from "../agents/hooks";
 import { auditKeys } from "../audit/hooks";
+import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { taskKeys } from "../tasks/hooks";
@@ -50,6 +51,12 @@ function keysFor(
     }
     case "workspace_agent.added": {
       push(agentKeys.workspace(wsId));
+      break;
+    }
+    case "subscription.changed":
+    case "quota.threshold": {
+      // Both are organization-scoped; the payload names the organization.
+      if (payload.organization_id) push(billingKeys.current(payload.organization_id));
       break;
     }
     case "chat.message.created":

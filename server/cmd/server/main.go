@@ -15,6 +15,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/billing"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
 	"github.com/unicomhub/uniwork/server/internal/handler"
@@ -157,6 +158,7 @@ func main() {
 	taskSvc := service.NewTaskService(pool, q, wsSvc)
 	meetingSvc.Tasks = taskSvc
 	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
+	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg.BillingProvider))
 	actorSvc := service.NewActorService(q)
 	if cfg.AnthropicAPIKey != "" {
 		meetingSvc.AI = ai.NewClaude(cfg.AnthropicAPIKey, cfg.AnthropicModel)
@@ -217,6 +219,7 @@ func main() {
 		Agents:          agentSvc,
 		Actors:          actorSvc,
 		Audit:           auditSvc,
+		Billing:         billingSvc,
 		Meetings:        meetingSvc,
 		Chat:            chatSvc,
 		Hub:             hub,

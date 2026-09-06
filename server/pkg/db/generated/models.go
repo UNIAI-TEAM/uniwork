@@ -150,6 +150,16 @@ type EmailVerificationCode struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Feature struct {
+	Key       string      `json:"key"`
+	Name      string      `json:"name"`
+	Kind      string      `json:"kind"`
+	Unit      pgtype.Text `json:"unit"`
+	Category  string      `json:"category"`
+	MeterMode string      `json:"meter_mode"`
+	SortOrder int32       `json:"sort_order"`
+}
+
 type Invitation struct {
 	ID          string             `json:"id"`
 	WorkspaceID string             `json:"workspace_id"`
@@ -159,6 +169,26 @@ type Invitation struct {
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 	AcceptedAt  pgtype.Timestamptz `json:"accepted_at"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type Invoice struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	SubscriptionID    string             `json:"subscription_id"`
+	Provider          string             `json:"provider"`
+	ProviderInvoiceID pgtype.Text        `json:"provider_invoice_id"`
+	Number            string             `json:"number"`
+	Status            string             `json:"status"`
+	AmountDue         int64              `json:"amount_due"`
+	AmountPaid        int64              `json:"amount_paid"`
+	Currency          string             `json:"currency"`
+	PeriodStart       pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd         pgtype.Timestamptz `json:"period_end"`
+	HostedUrl         pgtype.Text        `json:"hosted_url"`
+	IssuedAt          pgtype.Timestamptz `json:"issued_at"`
+	PaidAt            pgtype.Timestamptz `json:"paid_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Meeting struct {
@@ -428,6 +458,28 @@ type PasswordResetToken struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Plan struct {
+	ID            string             `json:"id"`
+	Code          string             `json:"code"`
+	Name          string             `json:"name"`
+	Description   string             `json:"description"`
+	BillingPeriod string             `json:"billing_period"`
+	PriceAmount   pgtype.Int8        `json:"price_amount"`
+	PriceCurrency string             `json:"price_currency"`
+	IsDefault     bool               `json:"is_default"`
+	IsActive      bool               `json:"is_active"`
+	SortOrder     int32              `json:"sort_order"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PlanFeature struct {
+	PlanID     string      `json:"plan_id"`
+	FeatureKey string      `json:"feature_key"`
+	Enabled    bool        `json:"enabled"`
+	QuotaLimit pgtype.Int8 `json:"quota_limit"`
+}
+
 type RefreshToken struct {
 	ID        string             `json:"id"`
 	UserID    string             `json:"user_id"`
@@ -435,6 +487,29 @@ type RefreshToken struct {
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Subscription struct {
+	ID                     string             `json:"id"`
+	OrganizationID         string             `json:"organization_id"`
+	PlanID                 string             `json:"plan_id"`
+	Status                 string             `json:"status"`
+	Provider               string             `json:"provider"`
+	ProviderCustomerID     pgtype.Text        `json:"provider_customer_id"`
+	ProviderSubscriptionID pgtype.Text        `json:"provider_subscription_id"`
+	CurrentPeriodStart     pgtype.Timestamptz `json:"current_period_start"`
+	CurrentPeriodEnd       pgtype.Timestamptz `json:"current_period_end"`
+	CancelAt               pgtype.Timestamptz `json:"cancel_at"`
+	CanceledAt             pgtype.Timestamptz `json:"canceled_at"`
+	TrialEndsAt            pgtype.Timestamptz `json:"trial_ends_at"`
+	Overrides              []byte             `json:"overrides"`
+	RowVersion             int32              `json:"row_version"`
+	CreatedBy              string             `json:"created_by"`
+	CreatedByKind          string             `json:"created_by_kind"`
+	UpdatedBy              string             `json:"updated_by"`
+	UpdatedByKind          string             `json:"updated_by_kind"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Task struct {
@@ -465,6 +540,30 @@ type TaskComment struct {
 	Origin     pgtype.Text        `json:"origin"`
 }
 
+type UsageCounter struct {
+	OrganizationID string             `json:"organization_id"`
+	MeterKey       string             `json:"meter_key"`
+	PeriodStart    pgtype.Timestamptz `json:"period_start"`
+	Total          int64              `json:"total"`
+	Notified80At   pgtype.Timestamptz `json:"notified_80_at"`
+	Notified100At  pgtype.Timestamptz `json:"notified_100_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type UsageEvent struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	MeterKey       string             `json:"meter_key"`
+	Delta          int64              `json:"delta"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	ActorKind      string             `json:"actor_kind"`
+	RefType        pgtype.Text        `json:"ref_type"`
+	RefID          pgtype.Text        `json:"ref_id"`
+	IdempotencyKey pgtype.Text        `json:"idempotency_key"`
+	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+}
+
 type User struct {
 	ID                      string             `json:"id"`
 	Email                   string             `json:"email"`
@@ -479,6 +578,7 @@ type User struct {
 	GoogleID                pgtype.Text        `json:"google_id"`
 	Locale                  string             `json:"locale"`
 	MatrixUserID            pgtype.Text        `json:"matrix_user_id"`
+	PlatformRole            pgtype.Text        `json:"platform_role"`
 }
 
 type WebhookInbox struct {

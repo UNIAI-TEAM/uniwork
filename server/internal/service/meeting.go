@@ -91,6 +91,26 @@ type MeetingService struct {
 	// nil means the feature reports itself as unavailable.
 	AI    ai.Summarizer
 	Tasks *TaskService
+	// ent is the entitlement gate (F-02); built here so it can never be nil.
+	ent *EntitlementService
+}
+
+// organizationOf resolves the tenant a meeting belongs to, for the gate.
+func (s *MeetingService) organizationOf(ctx context.Context, m db.Meeting) (string, error) {
+	w, err := s.q.GetWorkspaceByID(ctx, m.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	return w.OrganizationID, nil
+}
+
+// requireFeature: the organization's plan must include the flag (spec §4.3).
+func (s *MeetingService) requireFeature(ctx context.Context, m db.Meeting, feature string) error {
+	orgID, err := s.organizationOf(ctx, m)
+	if err != nil {
+		return err
+	}
+	return s.ent.Can(ctx, orgID, feature)
 }
 
 func (s *MeetingService) SetMeetingMetrics(m MeetingMetrics) {
@@ -117,7 +137,7 @@ func NewMeetingService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, 
 		rt.WebhookConcurrency = 8
 	}
 	nodeID := util.NewID()
-	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID}
+	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID, ent: NewEntitlementService(pool, q)}
 }
 
 // GuestHMACKey exposes the guest cookie signing key for lobby WebSocket auth.
