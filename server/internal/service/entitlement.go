@@ -33,7 +33,7 @@ const (
 // same change that adds its first Consume/Can call.
 var wiredFeatures = map[string]bool{
 	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureMeetingMinutes: true,
-	FeatureMeetingRecording: true, FeatureMeetingAISummary: true,
+	FeatureMeetingRecording: true, FeatureMeetingAISummary: true, FeatureAITokens: true,
 }
 
 // graceFeatures stay effective when the subscription is inactive, so an

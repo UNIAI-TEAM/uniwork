@@ -208,3 +208,45 @@ func TestNotificationPreferencesReadInOnePlace(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The AI gateway is the one door to a model (spec F-09 §2 #1, ADR 0010).
+// Three shapes hold it: only internal/ai/provider may import a vendor SDK;
+// internal/ai never imports the service tier (context comes in through
+// ai.SourceReader, so there is no second read path and no cycle); and the
+// only sqlc queries internal/ai may call are its own Ai* ones, so the model
+// side of the house cannot reach a business table by accident.
+func TestProviderSDKOnlyInAIProvider(t *testing.T) {
+	graph := directImports(t)
+	for pkg, imports := range graph {
+		for _, imp := range imports {
+			if strings.HasPrefix(imp, "github.com/anthropics/") && pkg != "internal/ai/provider" {
+				t.Errorf("%s imports %s; vendor SDKs live in internal/ai/provider only", pkg, imp)
+			}
+			if strings.HasPrefix(pkg, "internal/ai") && strings.HasPrefix(imp, module+"internal/service") {
+				t.Errorf("%s imports %s; the gateway never reaches the service tier", pkg, imp)
+			}
+		}
+	}
+}
+
+func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
+	call := regexp.MustCompile(`\bq\.([A-Z]\w*)\(`)
+	err := filepath.WalkDir("../internal/ai", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, m := range call.FindAllStringSubmatch(string(src), -1) {
+			if !strings.HasPrefix(m[1], "Ai") {
+				t.Errorf("%s calls q.%s; internal/ai may only call Ai* queries (ADR 0010)", path, m[1])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

@@ -161,9 +161,17 @@ func main() {
 	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
 	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg.BillingProvider))
 	actorSvc := service.NewActorService(q)
-	if cfg.AnthropicAPIKey != "" {
-		meetingSvc.AI = ai.NewClaude(cfg.AnthropicAPIKey, cfg.AnthropicModel)
-		log.Info("meeting AI summaries enabled")
+	// One AI gateway for the process (F-09): meeting summaries and Ask UNI
+	// share the provider, the policy, the meter and the audit trail. No
+	// credential in the environment means a disabled gateway, not an error.
+	aiProvider, aiOpts := ai.FromEnv(os.Getenv)
+	gateway := service.NewAIGateway(pool, q, aiProvider, aiOpts)
+	meetingSvc.AI = gateway
+	if gateway.Enabled() {
+		log.Info("ai gateway enabled", "provider", gateway.Provider())
+	}
+	if reg != nil {
+		gateway.SetMetrics(reg.AI)
 	}
 	if reg != nil && reg.Meetings != nil {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
