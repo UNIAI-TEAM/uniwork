@@ -112,6 +112,34 @@ export function canCreateWorkspaceInOrg(ctx: PermissionContext): Decision {
   return ALLOW;
 }
 
+// ---- Billing ----------------------------------------------------------------
+
+/**
+ * See the organization's plan, entitlements and usage.
+ * Backend: BillingService.Current only needs organization membership
+ * (server/internal/service/billing.go); the tab is shown to owners and
+ * admins, who are the ones who act on it — a member sees the quota error
+ * where it happens instead.
+ */
+export function canViewBilling(ctx: PermissionContext): Decision {
+  if (ctx.userId === null) return deny("not_authenticated", "Sign in to continue.");
+  if (ctx.orgRole === null) return deny("not_org_member", "You are not a member of this organization.");
+  if (isAdminLike(ctx.orgRole)) return ALLOW;
+  return deny("not_admin_role", "Only organization owners and admins can see billing.");
+}
+
+/**
+ * Change, cancel or resume the plan, or open a checkout.
+ * Backend: BillingService.requireOwner — `m.Role != "owner"` → 403 unless the
+ * user is platform staff, which this rule cannot see (server/internal/service/billing.go).
+ */
+export function canManageBilling(ctx: PermissionContext): Decision {
+  const gate = canViewBilling(ctx);
+  if (!gate.allowed) return gate;
+  if (ctx.orgRole === "owner") return ALLOW;
+  return deny("not_owner_role", "Only the organization owner can change the plan.");
+}
+
 // ---- Audit ------------------------------------------------------------------
 
 /**

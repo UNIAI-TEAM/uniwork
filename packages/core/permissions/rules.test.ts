@@ -10,6 +10,8 @@ import {
   canInviteMembers,
   canManageAgents,
   canManageAuditSettings,
+  canManageBilling,
+  canViewBilling,
   canManageMembers,
   canReadAuditLog,
   canRemoveMember,
@@ -22,6 +24,20 @@ const ctx = (over: Partial<PermissionContext>): PermissionContext => ({
   orgRole: null,
   wsRole: null,
   ...over,
+});
+
+describe("canViewBilling / canManageBilling — mirror BillingService (billing.go)", () => {
+  it("owners and admins view; only owners manage", () => {
+    expect(canViewBilling(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canViewBilling(ctx({ orgRole: "admin" })).allowed).toBe(true);
+    expect(canManageBilling(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canManageBilling(ctx({ orgRole: "admin" })).reason).toBe("not_owner_role");
+  });
+  it("members, non-members and signed-out users are denied", () => {
+    expect(canViewBilling(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
+    expect(canViewBilling(ctx({ orgRole: null })).reason).toBe("not_org_member");
+    expect(canManageBilling(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
+  });
 });
 
 describe("canManageAgents — mirrors AgentService.Create/Update (agent.go)", () => {

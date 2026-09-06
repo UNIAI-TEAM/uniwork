@@ -6,7 +6,9 @@ import {
   canChangeMemberRole,
   canCreateWorkspaceInOrg,
   canManageAuditSettings,
+  canManageBilling,
   canReadAuditLog,
+  canViewBilling,
   canDeleteMeeting,
   canDeleteTask,
   canEditTask,
@@ -86,6 +88,19 @@ export function useTaskPermissions(
   const ctx: PermissionContext = { userId, orgRole: null, wsRole: role };
   if (isLoading || task === null) return { canEdit: PENDING, canDelete: PENDING, isLoading };
   return { canEdit: canEditTask(task, ctx), canDelete: canDeleteTask(task, ctx), isLoading };
+}
+
+export function useBillingPermissions(orgId: string): {
+  canView: Decision;
+  canManage: Decision;
+  isLoading: boolean;
+} {
+  const { user, status } = useSession();
+  const { role, isLoading } = useOrgMembership(orgId);
+  const loading = isLoading || status === "loading";
+  if (loading) return { canView: PENDING, canManage: PENDING, isLoading: loading };
+  const ctx: PermissionContext = { userId: user?.id ?? null, orgRole: role, wsRole: null };
+  return { canView: canViewBilling(ctx), canManage: canManageBilling(ctx), isLoading: loading };
 }
 
 export function useOrgPermissions(orgId: string): { canCreateWorkspace: Decision; isLoading: boolean } {
