@@ -129,6 +129,102 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionTaskCommentUpdated: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			c, err := f.tasks.AddComment(f.ctx, Human(f.owner.ID), task.ID, "gốc")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.UpdateComment(f.ctx, Human(f.owner.ID), c.ID, UpdateCommentInput{Body: "sửa"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskCommentDeleted: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			c, err := f.tasks.AddComment(f.ctx, Human(f.owner.ID), task.ID, "xóa")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskCommentResolved: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			c, err := f.tasks.AddComment(f.ctx, Human(f.owner.ID), task.ID, "resolve me")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.ResolveComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskCommentUnresolved: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			c, err := f.tasks.AddComment(f.ctx, Human(f.owner.ID), task.ID, "unresolve me")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.ResolveComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.UnresolveComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionCommentReactionAdded: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			c, err := f.tasks.AddComment(f.ctx, Human(f.owner.ID), task.ID, "react")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.AddCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionCommentReactionRemoved: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			c, err := f.tasks.AddComment(f.ctx, Human(f.owner.ID), task.ID, "react")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.AddCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.RemoveCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskReactionAdded: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			if _, err := f.tasks.AddTaskReaction(f.ctx, Human(f.owner.ID), task.ID, "🔥"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskReactionRemoved: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			if _, err := f.tasks.AddTaskReaction(f.ctx, Human(f.owner.ID), task.ID, "🔥"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.RemoveTaskReaction(f.ctx, Human(f.owner.ID), task.ID, "🔥"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskSubscribed: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			if err := f.tasks.SubscribeTask(f.ctx, Human(f.owner.ID), task.ID, SubscribeTaskInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskUnsubscribed: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			if err := f.tasks.SubscribeTask(f.ctx, Human(f.owner.ID), task.ID, SubscribeTaskInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.UnsubscribeTask(f.ctx, Human(f.owner.ID), task.ID, SubscribeTaskInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionTaskDeleted: func(t *testing.T, f *auditFixture) {
 			if err := f.tasks.Delete(f.ctx, f.owner.ID, f.newTask(t).ID); err != nil {
 				t.Fatal(err)
@@ -470,6 +566,16 @@ func auditActions() []string {
 		audit.ActionTaskUpdated,
 		audit.ActionTaskDeleted,
 		audit.ActionTaskCommentAdded,
+		audit.ActionTaskCommentUpdated,
+		audit.ActionTaskCommentDeleted,
+		audit.ActionTaskCommentResolved,
+		audit.ActionTaskCommentUnresolved,
+		audit.ActionCommentReactionAdded,
+		audit.ActionCommentReactionRemoved,
+		audit.ActionTaskReactionAdded,
+		audit.ActionTaskReactionRemoved,
+		audit.ActionTaskSubscribed,
+		audit.ActionTaskUnsubscribed,
 		audit.ActionAuthLoginSucceeded,
 		audit.ActionAuthLoginFailed,
 		audit.ActionAuthPasswordResetRequested,

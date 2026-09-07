@@ -402,51 +402,10 @@ func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID 
 }
 
 // AddComment records the author's kind so the client can draw the badge; origin
-// ("agent_run:<id>") arrives with A-01 and stays NULL until then.
+// ("agent_run:<id>") arrives with A-01 and stays NULL until then. Suite
+// threading / idempotency live on AddCommentSuite.
 func (s *TaskService) AddComment(ctx context.Context, actor Actor, taskID, body string) (db.TaskComment, error) {
-	task, err := s.authorizeActor(ctx, actor, taskID)
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-	if strings.TrimSpace(body) == "" {
-		return db.TaskComment{}, Invalid("nội dung không được để trống")
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, task.WorkspaceID)
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-
-	c, err := q.CreateTaskComment(ctx, db.CreateTaskCommentParams{
-		ID: util.NewID(), OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
-	})
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-	// The comment body is not audited: it is user content that already lives
-	// in task_comments, and audit_events cannot be edited if it must be removed.
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor:        actor,
-		Action:       audit.ActionTaskCommentAdded,
-		ResourceType: "task", ResourceID: taskID,
-		Metadata: map[string]any{"comment_id": c.ID},
-	}, audit.Event{Topic: "task.comment_added", Payload: map[string]string{
-		"task_id": taskID, "comment_id": c.ID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
-		return db.TaskComment{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return db.TaskComment{}, err
-	}
-	return c, nil
+	return s.AddCommentSuite(ctx, actor, taskID, AddCommentInput{Body: body}, "")
 }
 
 func (s *TaskService) Comments(ctx context.Context, userID, taskID string) ([]db.ListTaskCommentsRow, error) {

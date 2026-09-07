@@ -33,6 +33,17 @@ const (
 	ActionTaskDeleted      = "task.deleted"
 	ActionTaskCommentAdded = "task.comment_added"
 
+	ActionTaskCommentUpdated     = "task.comment_updated"
+	ActionTaskCommentDeleted     = "task.comment_deleted"
+	ActionTaskCommentResolved    = "task.comment_resolved"
+	ActionTaskCommentUnresolved  = "task.comment_unresolved"
+	ActionCommentReactionAdded   = "comment.reaction_added"
+	ActionCommentReactionRemoved = "comment.reaction_removed"
+	ActionTaskReactionAdded      = "task.reaction_added"
+	ActionTaskReactionRemoved    = "task.reaction_removed"
+	ActionTaskSubscribed         = "task.subscribed"
+	ActionTaskUnsubscribed       = "task.unsubscribed"
+
 	ActionTaskStatusCreated   = "task_status.created"
 	ActionTaskStatusUpdated   = "task_status.updated"
 	ActionTaskStatusDeleted   = "task_status.deleted"

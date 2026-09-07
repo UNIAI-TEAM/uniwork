@@ -42,7 +42,12 @@ type CommentDTO struct {
 	AuthorKind  string   `json:"author_kind" description:"human, agent hoặc system" example:"human"`
 	Author      ActorDTO `json:"author"`
 	Body        string   `json:"body" example:"Đã review, merge được."`
+	ParentID    *string  `json:"parent_id,omitempty" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	Type        string   `json:"type,omitempty" example:"comment"`
+	Revision    int64    `json:"revision,omitempty" example:"1"`
+	ResolvedAt  *string  `json:"resolved_at,omitempty" example:"2026-08-27T11:00:00Z"`
 	CreatedAt   string   `json:"created_at" example:"2026-08-27T10:00:00Z"`
+	UpdatedAt   string   `json:"updated_at,omitempty" example:"2026-08-27T10:00:00Z"`
 	DisplayName string   `json:"display_name" example:"Nguyễn Văn An"`
 	AvatarURL   string   `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
 }

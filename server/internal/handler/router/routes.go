@@ -127,6 +127,26 @@ type Routes struct {
 	PutProjectResource    http.HandlerFunc
 	DeleteProjectResource http.HandlerFunc
 
+	UpdateComment          http.HandlerFunc
+	DeleteComment          http.HandlerFunc
+	ResolveComment         http.HandlerFunc
+	UnresolveComment       http.HandlerFunc
+	AddCommentReaction     http.HandlerFunc
+	RemoveCommentReaction  http.HandlerFunc
+	AddTaskReaction        http.HandlerFunc
+	RemoveTaskReaction     http.HandlerFunc
+	ListTaskSubscribers    http.HandlerFunc
+	SubscribeTask          http.HandlerFunc
+	UnsubscribeTask        http.HandlerFunc
+	UnsubscribeTaskSubtree http.HandlerFunc
+	ListTaskAttachments    http.HandlerFunc
+	GetAttachment          http.HandlerFunc
+	DeleteAttachment       http.HandlerFunc
+	GetTaskTimeline        http.HandlerFunc
+	CommentSubTaskPreview  http.HandlerFunc
+	CreateCommentSubTasks  http.HandlerFunc
+	PreviewCommentTriggers http.HandlerFunc
+
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc

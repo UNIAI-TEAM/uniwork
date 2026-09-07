@@ -174,12 +174,14 @@ func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	c, err := h.Tasks.AddComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"), in.Body)
+	c, err := h.Tasks.AddCommentSuite(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"), service.AddCommentInput{
+		Body: in.Body, ParentID: in.ParentID, CommentType: in.CommentType,
+	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"comment": c})
+	respondJSON(w, 200, map[string]any{"comment": commentDTOFromRow(c)})
 }
 
 func parseTaskPatch(raw map[string]json.RawMessage) (service.UpdateTaskInput, error) {

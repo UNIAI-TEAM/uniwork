@@ -81,6 +81,16 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | user | outbox |
 | `summary.created` | 1 | `meeting_id` | workspace | ephemeral |
 | `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
+| `task.comment_updated` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
+| `task.comment_deleted` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
+| `task.comment_resolved` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
+| `task.comment_unresolved` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
+| `comment.reaction_added` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
+| `comment.reaction_removed` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
+| `task.reaction_added` | 1 | `task_id`, `workspace_id` | workspace | outbox |
+| `task.reaction_removed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
+| `task.subscribed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
+| `task.unsubscribed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.created` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.deleted` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.updated` | 1 | `task_id`, `workspace_id` | workspace | outbox |

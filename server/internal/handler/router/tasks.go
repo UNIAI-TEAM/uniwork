@@ -371,5 +371,83 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			summary: "Delete project resource", description: "Xóa một resource. Flag tasks_work_management_parity.",
 			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
 		})
+
+		// Collaboration (catalogue group collaboration).
+		suite.Put("/comments/{commentID}", h.UpdateComment, apiOp{
+			summary: "Update comment", description: "Sửa nội dung comment. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.UpdateCommentSDI{}, sdo: sdo.CommentSDO{}, auth: true,
+		})
+		suite.Delete("/comments/{commentID}", h.DeleteComment, apiOp{
+			summary: "Delete comment", description: "Xóa comment. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/comments/{commentID}/resolve", h.ResolveComment, apiOp{
+			summary: "Resolve comment", description: "Đánh dấu comment đã giải quyết. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.CommentSDO{}, auth: true,
+		})
+		suite.Delete("/comments/{commentID}/resolve", h.UnresolveComment, apiOp{
+			summary: "Unresolve comment", description: "Bỏ đánh dấu giải quyết. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.CommentSDO{}, auth: true,
+		})
+		suite.Post("/comments/{commentID}/reactions", h.AddCommentReaction, apiOp{
+			summary: "Add comment reaction", description: "Thêm emoji trên comment. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.ReactionSDI{}, sdo: sdo.CommentReactionSDO{}, auth: true,
+		})
+		suite.Delete("/comments/{commentID}/reactions", h.RemoveCommentReaction, apiOp{
+			summary: "Remove comment reaction", description: "Gỡ emoji trên comment. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.ReactionSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Get("/comments/{commentID}/sub-task-preview", h.CommentSubTaskPreview, apiOp{
+			summary: "Sub-task preview", description: "Preview tạo sub-task từ comment (stub). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/comments/{commentID}/sub-tasks", h.CreateCommentSubTasks, apiOp{
+			summary: "Create sub-tasks from comment", description: "Tạo sub-task từ comment (stub). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/tasks/{taskID}/reactions", h.AddTaskReaction, apiOp{
+			summary: "Add task reaction", description: "Thêm emoji trên task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.ReactionSDI{}, sdo: sdo.TaskReactionSDO{}, auth: true,
+		})
+		suite.Delete("/tasks/{taskID}/reactions", h.RemoveTaskReaction, apiOp{
+			summary: "Remove task reaction", description: "Gỡ emoji trên task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.ReactionSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Get("/tasks/{taskID}/subscribers", h.ListTaskSubscribers, apiOp{
+			summary: "List task subscribers", description: "Danh sách người theo dõi task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskSubscriberListSDO{}, auth: true,
+		})
+		suite.Post("/tasks/{taskID}/subscribe", h.SubscribeTask, apiOp{
+			summary: "Subscribe to task", description: "Theo dõi task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.SubscribeTaskSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/tasks/{taskID}/unsubscribe", h.UnsubscribeTask, apiOp{
+			summary: "Unsubscribe from task", description: "Bỏ theo dõi task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.SubscribeTaskSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/tasks/{taskID}/unsubscribe/subtree", h.UnsubscribeTaskSubtree, apiOp{
+			summary: "Unsubscribe subtree", description: "Bỏ theo dõi task và mọi con. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.SubscribeTaskSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Get("/tasks/{taskID}/attachments", h.ListTaskAttachments, apiOp{
+			summary: "List task attachments", description: "Đính kèm trên task (stub storage). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Get("/attachments/{attachmentID}", h.GetAttachment, apiOp{
+			summary: "Get attachment", description: "Chi tiết đính kèm (stub storage). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Delete("/attachments/{attachmentID}", h.DeleteAttachment, apiOp{
+			summary: "Delete attachment", description: "Xóa đính kèm (stub storage). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Get("/tasks/{taskID}/timeline", h.GetTaskTimeline, apiOp{
+			summary: "Task timeline", description: "Timeline hoạt động (stub). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/tasks/{taskID}/comments/trigger-preview", h.PreviewCommentTriggers, apiOp{
+			summary: "Comment trigger preview", description: "Preview agent mention (stub). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
 	})
 }

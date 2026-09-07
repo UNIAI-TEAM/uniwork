@@ -24,11 +24,6 @@ type PatchTaskSDI struct {
 	DueDate      *string  `json:"due_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa hạn" example:"2026-08-28"`
 }
 
-// CreateCommentSDI is POST /api/v1/tasks/{taskID}/comments.
-type CreateCommentSDI struct {
-	Body string `json:"body" minLength:"1" description:"Nội dung bình luận" example:"Đã review, merge được."`
-}
-
 // QueryTasksSDI is POST /api/v1/workspaces/{workspaceID}/tasks/query (flagged suite).
 type QueryTasksSDI struct {
 	Status string `json:"status" description:"Lọc theo status; bỏ trống = mọi status" example:"todo"`

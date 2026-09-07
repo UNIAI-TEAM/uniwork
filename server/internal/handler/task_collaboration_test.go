@@ -1,0 +1,122 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"testing"
+)
+
+func TestSuiteCollaborationRoutes404WhenFlagOff(t *testing.T) {
+	srv := newTestServer(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
+		"email": "collab-flag@example.com", "password": "password123", "display_name": "Collab",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("register: %d %v", res.StatusCode, out)
+	}
+	token := out["access_token"].(string)
+	verifyEmail(t, srv, token)
+
+	const fakeTask = "01J8X4TASKN1P2Q3R4S5T6U7"
+	const fakeComment = "01J8X4CMTN1P2Q3R4S5T6U7V"
+	paths := []struct {
+		method, path string
+		body         any
+	}{
+		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/subscribers", nil},
+		{http.MethodPost, "/api/v1/tasks/" + fakeTask + "/subscribe", map[string]any{}},
+		{http.MethodPost, "/api/v1/comments/" + fakeComment + "/resolve", nil},
+		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/timeline", nil},
+		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/attachments", nil},
+	}
+	for _, p := range paths {
+		res, body := doJSON(t, srv, p.method, p.path, token, p.body)
+		if res.StatusCode != http.StatusNotFound {
+			t.Fatalf("%s %s status = %d, want 404; body=%v", p.method, p.path, res.StatusCode, body)
+		}
+		errObj, _ := body["error"].(map[string]any)
+		if errObj["code"] != "feature_disabled" {
+			raw, _ := json.Marshal(body)
+			t.Fatalf("%s %s body = %s, want feature_disabled", p.method, p.path, raw)
+		}
+	}
+}
+
+func TestCollaborationHTTPRoundTrip(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Collab HTTP",
+	})
+	if res.StatusCode != 200 && res.StatusCode != 201 {
+		t.Fatalf("create task: %d %v", res.StatusCode, body)
+	}
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+	if taskID == "" {
+		t.Fatalf("task = %v", body)
+	}
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{
+		"body": "parent",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, body)
+	}
+	parentID, _ := body["comment"].(map[string]any)["id"].(string)
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{
+		"body": "reply", "parent_id": parentID,
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("reply: %d %v", res.StatusCode, body)
+	}
+	if body["comment"].(map[string]any)["parent_id"] != parentID {
+		t.Fatalf("reply parent = %v", body)
+	}
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/comments/"+parentID+"/resolve", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("resolve: %d %v", res.StatusCode, body)
+	}
+	if body["comment"].(map[string]any)["resolved_at"] == nil {
+		t.Fatalf("resolved = %v", body)
+	}
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/comments/"+parentID+"/reactions", token, map[string]any{
+		"emoji": "👍",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("reaction: %d %v", res.StatusCode, body)
+	}
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/subscribe", token, map[string]any{})
+	if res.StatusCode != 200 {
+		t.Fatalf("subscribe: %d %v", res.StatusCode, body)
+	}
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/subscribers", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list subscribers: %d %v", res.StatusCode, body)
+	}
+	subs, _ := body["subscribers"].([]any)
+	if len(subs) < 1 {
+		t.Fatalf("subscribers = %v", body)
+	}
+
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/timeline", token, nil)
+	if res.StatusCode != 422 {
+		t.Fatalf("timeline stub status = %d %v", res.StatusCode, body)
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if errObj["code"] != "capability_unavailable" {
+		t.Fatalf("timeline code = %v", body)
+	}
+
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/attachments", token, nil)
+	if res.StatusCode != 422 {
+		t.Fatalf("attachments stub status = %d %v", res.StatusCode, body)
+	}
+	errObj, _ = body["error"].(map[string]any)
+	if errObj["code"] != "capability_unavailable" {
+		t.Fatalf("attachments code = %v", body)
+	}
+}

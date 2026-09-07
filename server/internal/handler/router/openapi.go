@@ -238,6 +238,14 @@ func pathParamSDI(path string) any {
 			TaskID     string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 			PropertyID string `path:"propertyID" description:"ULID thuộc tính" example:"01J8X4PROP0N1P2Q3R4S5T6U7"`
 		}{}
+	case "commentID":
+		return struct {
+			CommentID string `path:"commentID" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+		}{}
+	case "attachmentID":
+		return struct {
+			AttachmentID string `path:"attachmentID" description:"ULID đính kèm" example:"01J8X4ATTN1P2Q3R4S5T6U7"`
+		}{}
 	case "token":
 		return struct {
 			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`
