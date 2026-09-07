@@ -581,6 +581,7 @@ UPDATE tasks SET
   assignee_id = $2,
   assignee_kind = $3,
   assignee_type = $4,
+  revision = revision + 1,
   updated_at = now(),
   last_activity_at = now()
 WHERE id = $1
@@ -649,6 +650,7 @@ func (q *Queries) SetTaskAssignee(ctx context.Context, arg SetTaskAssigneeParams
 const setTaskDueDate = `-- name: SetTaskDueDate :one
 UPDATE tasks SET
   due_date = $2,
+  revision = revision + 1,
   updated_at = now(),
   last_activity_at = now()
 WHERE id = $1
@@ -717,6 +719,7 @@ UPDATE tasks SET
   status      = COALESCE($3, status),
   priority    = COALESCE($4, priority),
   position    = COALESCE($5, position),
+  revision    = revision + 1,
   updated_at  = now(),
   last_activity_at = now()
 WHERE id = $6

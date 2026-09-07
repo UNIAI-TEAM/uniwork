@@ -83,6 +83,9 @@ func TestTaskCRUD(t *testing.T) {
 	if task.Status != "todo" || task.Priority != "high" {
 		t.Fatalf("defaults: %+v", task)
 	}
+	if task.Revision != 1 {
+		t.Fatalf("create revision: got %d want 1", task.Revision)
+	}
 	// non-member bị chặn
 	if _, err := s.Create(ctx, Human(ub.ID), w.ID, CreateTaskInput{Title: "X"}); err != ErrForbidden {
 		t.Fatalf("non-member create: %v", err)
@@ -97,16 +100,23 @@ func TestTaskCRUD(t *testing.T) {
 	if err != nil || up.Status != "in_progress" || up.Position != 10.5 {
 		t.Fatalf("update: %v %+v", err, up)
 	}
+	if up.Revision != 2 {
+		t.Fatalf("update revision: got %d want 2", up.Revision)
+	}
 	bad := "not-a-status"
 	if _, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{Status: &bad}); err == nil {
 		t.Fatal("invalid status accepted")
 	}
 
 	// assignee set và clear qua con trỏ kép
+	// Update always runs UpdateTask then SetTaskAssignee, so revision +2.
 	aid := &ua.ID
 	set, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{AssigneeID: &aid})
 	if err != nil || !set.AssigneeID.Valid || set.AssigneeID.String != ua.ID {
 		t.Fatalf("set assignee: %v %+v", err, set.AssigneeID)
+	}
+	if set.Revision != 4 {
+		t.Fatalf("set assignee revision: got %d want 4", set.Revision)
 	}
 	var nilStr *string
 	cleared, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{AssigneeID: &nilStr})
@@ -116,13 +126,19 @@ func TestTaskCRUD(t *testing.T) {
 	if cleared.AssigneeID.Valid {
 		t.Fatal("assignee not cleared")
 	}
+	if cleared.Revision != 6 {
+		t.Fatalf("clear assignee revision: got %d want 6", cleared.Revision)
+	}
 
-	// due date set và clear
+	// due date set và clear — UpdateTask then SetTaskDueDate → +2
 	dd := "2026-09-01"
 	ddp := &dd
 	withDue, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{DueDate: &ddp})
 	if err != nil || !withDue.DueDate.Valid {
 		t.Fatalf("set due: %v", err)
+	}
+	if withDue.Revision != 8 {
+		t.Fatalf("set due revision: got %d want 8", withDue.Revision)
 	}
 
 	// comments

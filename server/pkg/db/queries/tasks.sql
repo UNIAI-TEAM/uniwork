@@ -38,6 +38,7 @@ UPDATE tasks SET
   status      = COALESCE(sqlc.narg('status'), status),
   priority    = COALESCE(sqlc.narg('priority'), priority),
   position    = COALESCE(sqlc.narg('position'), position),
+  revision    = revision + 1,
   updated_at  = now(),
   last_activity_at = now()
 WHERE id = sqlc.arg('id')
@@ -50,6 +51,7 @@ UPDATE tasks SET
   assignee_id = $2,
   assignee_kind = $3,
   assignee_type = $4,
+  revision = revision + 1,
   updated_at = now(),
   last_activity_at = now()
 WHERE id = $1
@@ -60,6 +62,7 @@ RETURNING *;
 -- name: SetTaskDueDate :one
 UPDATE tasks SET
   due_date = $2,
+  revision = revision + 1,
   updated_at = now(),
   last_activity_at = now()
 WHERE id = $1
