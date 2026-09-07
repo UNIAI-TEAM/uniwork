@@ -24,6 +24,9 @@
     "e2e": {
       "entry": [
         "*.spec.ts"
+      ],
+      "ignoreBinaries": [
+        "go"
       ]
     },
     "packages/tsconfig": {
