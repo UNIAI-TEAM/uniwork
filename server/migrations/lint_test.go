@@ -90,6 +90,33 @@ func TestNewMigrationsCreateIndexesConcurrently(t *testing.T) {
 	}
 }
 
+func TestTaskFoundationTablesAndColumnsExist(t *testing.T) {
+	required := map[string][]string{
+		"task_statuses":     {"organization_id", "workspace_id", "key", "category", "is_system"},
+		"task_labels":       {"organization_id", "workspace_id", "name", "color"},
+		"task_properties":   {"organization_id", "workspace_id", "name", "type", "config"},
+		"projects":          {"organization_id", "workspace_id", "title", "status", "priority", "revision"},
+		"project_resources": {"organization_id", "workspace_id", "project_id", "resource_type", "resource_ref"},
+		"task_views":        {"organization_id", "workspace_id", "scope_type", "query", "display", "revision"},
+	}
+	all := ""
+	for _, name := range newMigrationUpFiles(t) {
+		all += "\n" + stripSQLComments(readMigration(t, name))
+	}
+	for table, columns := range required {
+		body, ok := createdTables(all)[table]
+		if !ok {
+			t.Errorf("missing table %s", table)
+			continue
+		}
+		for _, column := range columns {
+			if !regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(column) + `\b`).MatchString(body) {
+				t.Errorf("%s missing %s", table, column)
+			}
+		}
+	}
+}
+
 // --- helpers ---------------------------------------------------------------
 
 func migrationFileNames(t *testing.T) []string {
@@ -237,7 +264,6 @@ var tenantExemptTables = map[string]string{
 var tenantBackfillDebt = []string{
 	"chat_messages", "chat_room_members",
 	"workspace_members",
-	"tasks", "task_comments",
 	"meetings", "meeting_attendees", "meeting_notes",
 	"meeting_participants", "meeting_invitations", "meeting_access_grants",
 	"meeting_invite_links", "meeting_join_requests", "meeting_conference_sessions",

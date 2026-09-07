@@ -1,6 +1,6 @@
 # UNI-495 · Tasks parity slice 1 Implementation Plan
 
-> **Trạng thái:** in-progress — kế hoạch đã viết, chưa bắt đầu product code
+> **Trạng thái:** shipped — UNI-495 slice 1 hoàn tất; `make check-worktree` PASS (GATE_LEVEL=fast, E2E skipped by contract); evidence trong commits foundation + overlay verified cho 6 capability entries
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

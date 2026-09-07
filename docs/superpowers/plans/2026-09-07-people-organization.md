@@ -41,17 +41,17 @@
 ## File map
 
 ```
-server/migrations/107_organization_members_lifecycle.{up,down}.sql
-server/migrations/108_org_members_single_owner_uidx.{up,down}.sql
-server/migrations/109_organization_member_profiles.{up,down}.sql
-server/migrations/110_member_profiles_search_idx.{up,down}.sql
-server/migrations/111_member_profiles_employee_code_uidx.{up,down}.sql
-server/migrations/112_member_profiles_department_idx.{up,down}.sql
-server/migrations/113_departments.{up,down}.sql
-server/migrations/114_departments_org_idx.{up,down}.sql
-server/migrations/115_departments_org_code_uidx.{up,down}.sql
-server/migrations/116_invitations_org_level.{up,down}.sql
-server/migrations/117_invitations_org_pending_idx.{up,down}.sql
+server/migrations/132_organization_members_lifecycle.{up,down}.sql
+server/migrations/133_org_members_single_owner_uidx.{up,down}.sql
+server/migrations/134_organization_member_profiles.{up,down}.sql
+server/migrations/135_member_profiles_search_idx.{up,down}.sql
+server/migrations/136_member_profiles_employee_code_uidx.{up,down}.sql
+server/migrations/137_member_profiles_department_idx.{up,down}.sql
+server/migrations/138_departments.{up,down}.sql
+server/migrations/139_departments_org_idx.{up,down}.sql
+server/migrations/140_departments_org_code_uidx.{up,down}.sql
+server/migrations/141_invitations_org_level.{up,down}.sql
+server/migrations/142_invitations_org_pending_idx.{up,down}.sql
 server/pkg/db/queries/{organizations,departments,member_profiles,workspaces}.sql
 server/internal/service/{organization,organization_members,department,people}.go + *_test.go
 server/internal/handler/{organization,people,department}.go

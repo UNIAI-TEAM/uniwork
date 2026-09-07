@@ -49,7 +49,7 @@ func (h *handlers) seedWelcomeTask(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = 201
 	}
-	respondJSON(w, status, map[string]any{"task": toTaskDTO(task)})
+	h.respondTask(w, r, status, task)
 }
 
 func (h *handlers) myInvitations(w http.ResponseWriter, r *http.Request) {

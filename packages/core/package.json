@@ -49,6 +49,7 @@
     "./api/ws-client": "./api/ws-client.ts",
     "./platform": "./platform/index.ts",
     "./feature-flags": "./feature-flags/index.ts",
+    "./capabilities": "./capabilities/index.ts",
     "./diagnostics": "./diagnostics/index.ts",
     "./analytics": "./analytics/index.ts",
     "./shortcuts": "./shortcuts/index.ts",

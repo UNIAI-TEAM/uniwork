@@ -340,3 +340,51 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 		}
 	}
 }
+
+// Work Management foundation queries (UNI-495) must scope every read/write of a
+// business table by both organization_id and workspace_id. NextTaskNumber is
+// not exempt — the allocator updates the workspace row under the same pair.
+var taskFoundationQueryFiles = []string{
+	"../pkg/db/queries/tasks.sql",
+	"../pkg/db/queries/task_statuses.sql",
+	"../pkg/db/queries/projects.sql",
+}
+
+// GetTask is authorize-by-taskID (id-only SELECT); membership is decided solely
+// via RequireMember. JOIN-only presence of tenant columns must not fake compliance.
+var taskFoundationScopeExemptQueries = map[string]bool{
+	"GetTask": true,
+}
+
+func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {
+	nameRe := regexp.MustCompile(`(?m)^-- name: (\S+)`)
+	for _, rel := range taskFoundationQueryFiles {
+		path := filepath.Clean(rel)
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s: %v", path, err)
+			continue
+		}
+		body := string(src)
+		idxs := nameRe.FindAllStringSubmatchIndex(body, -1)
+		if len(idxs) == 0 {
+			t.Errorf("%s: no sqlc queries", path)
+			continue
+		}
+		for i, loc := range idxs {
+			name := body[loc[2]:loc[3]]
+			if taskFoundationScopeExemptQueries[name] {
+				continue
+			}
+			start := loc[0]
+			end := len(body)
+			if i+1 < len(idxs) {
+				end = idxs[i+1][0]
+			}
+			stmt := body[start:end]
+			if !strings.Contains(stmt, "organization_id") || !strings.Contains(stmt, "workspace_id") {
+				t.Errorf("%s query %s: every foundation read/write must reference organization_id and workspace_id", path, name)
+			}
+		}
+	}
+}
