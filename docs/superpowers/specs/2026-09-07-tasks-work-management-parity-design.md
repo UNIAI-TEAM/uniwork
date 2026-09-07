@@ -1,6 +1,6 @@
 # UniWork — Tasks Work Management parity
 
-> **Trạng thái:** in-progress — thiết kế hội thoại đã được duyệt; chờ duyệt tài liệu trước khi viết implementation plan
+> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-07; lát cắt 1 có plan tại `../plans/2026-09-07-tasks-parity-foundation.md`
 
 **Ngày:** 2026-09-07
 **Issue:** UNI-426 · F-05
@@ -281,7 +281,8 @@ UI → typed endpoint → handler → tenant/membership gate → service transac
 
 ## 8. Capability và stub contract
 
-Registry tối thiểu:
+Registry đích tại thời điểm core cutover (sau khi các lát cắt sở hữu capability đã
+qua gate):
 
 ```text
 tasks.core             available
@@ -295,10 +296,12 @@ desktop.host           unavailable
 mobile.host            unavailable
 ```
 
-Đây là trạng thái khởi tạo của rollout, không phải trạng thái đích cố định.
-`desktop.host` và `mobile.host` chuyển thành `available` độc lập khi host tương ứng
-qua build, smoke test và parity gates của lát cắt 7; capability con vẫn có thể
-`unavailable` trên host đã chạy được.
+Trong rollout, một capability chỉ chuyển thành `available` sau khi chính surface,
+backend và contract tests của nó đã qua gate. Vì vậy `tasks.projects` và
+`tasks.attachments` bắt đầu là `unavailable/surface_not_ready` ở lát cắt nền rồi được
+bật bởi lát cắt 4 và 5. `desktop.host` và `mobile.host` chuyển thành `available` độc
+lập khi host tương ứng qua build, smoke test và parity gates của lát cắt 7;
+capability con vẫn có thể `unavailable` trên host đã chạy được.
 
 Mỗi entry trả `status`, stable `reason_code` và localized explanation. UI render control
 đúng vị trí nhưng disabled, có tooltip/dialog “Chưa khả dụng” và lý do. UI không gọi
@@ -432,4 +435,6 @@ runbook migration rehearsal; không dual-write dài hạn.
 - UNI-426 mô tả đúng phạm vi mới.
 - Spec F-05 cũ được đánh dấu superseded và roadmap trỏ tới tài liệu này.
 - Tám sub-issue được tạo khi implementation plan tương ứng bắt đầu.
-- Bước tiếp theo duy nhất sau duyệt spec là dùng `superpowers:writing-plans` cho lát cắt 1.
+- Lát cắt 1 được lập kế hoạch bằng `superpowers:writing-plans` tại
+  `../plans/2026-09-07-tasks-parity-foundation.md`; các lát cắt sau chỉ lập plan khi
+  checkpoint trước đủ evidence.
