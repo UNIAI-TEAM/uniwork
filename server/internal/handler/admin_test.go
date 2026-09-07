@@ -108,7 +108,7 @@ func TestFlagOverridesReachPublicConfig(t *testing.T) {
 		t.Fatalf("config before: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/admin/flags", w.token, nil)
-	if res.StatusCode != 200 || len(out["flags"].([]any)) != 5 {
+	if res.StatusCode != 200 || len(out["flags"].([]any)) != 6 {
 		t.Fatalf("catalogue: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, srv, "PUT", "/api/v1/admin/flags/agents_assignee/overrides", w.token,
