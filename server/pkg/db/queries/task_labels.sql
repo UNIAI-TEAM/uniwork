@@ -1,11 +1,19 @@
 -- name: ListTaskLabels :many
 SELECT l.*,
   (SELECT COUNT(*) FROM task_label_links x
-   WHERE x.workspace_id = l.workspace_id AND x.label_id = l.id)::bigint AS usage_count
+   WHERE x.organization_id = l.organization_id
+     AND x.workspace_id = l.workspace_id
+     AND x.label_id = l.id)::bigint AS usage_count
 FROM task_labels l
 WHERE l.organization_id = $1 AND l.workspace_id = $2
   AND (sqlc.arg('include_archived')::bool OR l.archived_at IS NULL)
 ORDER BY LOWER(l.name) ASC, l.id;
+
+-- name: TaskLabelLinkExists :one
+SELECT EXISTS(
+  SELECT 1 FROM task_label_links
+  WHERE organization_id = $1 AND workspace_id = $2 AND task_id = $3 AND label_id = $4
+)::bool;
 
 -- name: GetTaskLabelByID :one
 SELECT * FROM task_labels

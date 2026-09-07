@@ -262,7 +262,9 @@ func (q *Queries) ListTaskLabelLinks(ctx context.Context, arg ListTaskLabelLinks
 const listTaskLabels = `-- name: ListTaskLabels :many
 SELECT l.id, l.organization_id, l.workspace_id, l.name, l.color, l.description, l.archived_at, l.created_by, l.created_by_kind, l.created_at, l.updated_at,
   (SELECT COUNT(*) FROM task_label_links x
-   WHERE x.workspace_id = l.workspace_id AND x.label_id = l.id)::bigint AS usage_count
+   WHERE x.organization_id = l.organization_id
+     AND x.workspace_id = l.workspace_id
+     AND x.label_id = l.id)::bigint AS usage_count
 FROM task_labels l
 WHERE l.organization_id = $1 AND l.workspace_id = $2
   AND ($3::bool OR l.archived_at IS NULL)
@@ -321,6 +323,32 @@ func (q *Queries) ListTaskLabels(ctx context.Context, arg ListTaskLabelsParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const taskLabelLinkExists = `-- name: TaskLabelLinkExists :one
+SELECT EXISTS(
+  SELECT 1 FROM task_label_links
+  WHERE organization_id = $1 AND workspace_id = $2 AND task_id = $3 AND label_id = $4
+)::bool
+`
+
+type TaskLabelLinkExistsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	TaskID         string `json:"task_id"`
+	LabelID        string `json:"label_id"`
+}
+
+func (q *Queries) TaskLabelLinkExists(ctx context.Context, arg TaskLabelLinkExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, taskLabelLinkExists,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.LabelID,
+	)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const updateTaskLabel = `-- name: UpdateTaskLabel :one

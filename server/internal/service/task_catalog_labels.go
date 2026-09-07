@@ -266,12 +266,17 @@ func (s *TaskService) AttachTaskLabel(ctx context.Context, actor Actor, taskID, 
 	if err != nil {
 		return err
 	}
-	if _, err := s.q.GetTaskLabelByID(ctx, db.GetTaskLabelByIDParams{
+	label, err := s.q.GetTaskLabelByID(ctx, db.GetTaskLabelByIDParams{
 		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID, ID: labelID,
-	}); errors.Is(err, pgx.ErrNoRows) {
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
-	} else if err != nil {
+	}
+	if err != nil {
 		return err
+	}
+	if label.ArchivedAt.Valid {
+		return Invalid("archived labels cannot be attached")
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -283,8 +288,19 @@ func (s *TaskService) AttachTaskLabel(ctx context.Context, actor Actor, taskID, 
 	if _, err := q.AttachTaskLabel(ctx, db.AttachTaskLabelParams{
 		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 		TaskID: task.ID, LabelID: labelID,
-	}); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		// ErrNoRows = already attached (ON CONFLICT DO NOTHING).
+	}); errors.Is(err, pgx.ErrNoRows) {
+		exists, checkErr := q.TaskLabelLinkExists(ctx, db.TaskLabelLinkExistsParams{
+			OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+			TaskID: task.ID, LabelID: labelID,
+		})
+		if checkErr != nil {
+			return checkErr
+		}
+		if exists {
+			return nil // already attached — success without audit
+		}
+		return ErrNotFound
+	} else if err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{

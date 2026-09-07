@@ -296,32 +296,6 @@ func (q *Queries) MaxTaskStatusPositionInCategory(ctx context.Context, arg MaxTa
 	return max_position, err
 }
 
-const reorderTaskStatuses = `-- name: ReorderTaskStatuses :execrows
-UPDATE task_statuses s
-SET position = v.ordinality::float8,
-    updated_at = now()
-FROM unnest($3::text[]) WITH ORDINALITY AS v(id, ordinality)
-WHERE s.id = v.id
-  AND s.organization_id = $1
-  AND s.workspace_id = $2
-  AND s.is_system = FALSE
-  AND s.archived_at IS NULL
-`
-
-type ReorderTaskStatusesParams struct {
-	OrganizationID string   `json:"organization_id"`
-	WorkspaceID    string   `json:"workspace_id"`
-	Ids            []string `json:"ids"`
-}
-
-func (q *Queries) ReorderTaskStatuses(ctx context.Context, arg ReorderTaskStatusesParams) (int64, error) {
-	result, err := q.db.Exec(ctx, reorderTaskStatuses, arg.OrganizationID, arg.WorkspaceID, arg.Ids)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateTaskStatus = `-- name: UpdateTaskStatus :one
 UPDATE task_statuses SET
   name = COALESCE($1, name),

@@ -54,14 +54,3 @@ WHERE organization_id = $1 AND workspace_id = $2 AND category = $3
   AND is_system = FALSE
   AND archived_at IS NULL
 ORDER BY position, key;
-
--- name: ReorderTaskStatuses :execrows
-UPDATE task_statuses s
-SET position = v.ordinality::float8,
-    updated_at = now()
-FROM unnest(sqlc.arg('ids')::text[]) WITH ORDINALITY AS v(id, ordinality)
-WHERE s.id = v.id
-  AND s.organization_id = sqlc.arg('organization_id')
-  AND s.workspace_id = sqlc.arg('workspace_id')
-  AND s.is_system = FALSE
-  AND s.archived_at IS NULL;

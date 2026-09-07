@@ -386,16 +386,16 @@ func (s *TaskService) ReorderTaskStatuses(ctx context.Context, actor Actor, work
 		}); err != nil {
 			return nil, err
 		}
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-		Actor:  actor,
-		Action: audit.ActionTaskStatusUpdated, ResourceType: "task_status", ResourceID: workspaceID,
-		Metadata: map[string]any{"reorder_category": in.Category},
-	}, audit.Event{Topic: "task_status.updated", Payload: map[string]string{
-		"status_id": workspaceID, "workspace_id": workspaceID,
-	}}); err != nil {
-		return nil, err
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+			Actor:  actor,
+			Action: audit.ActionTaskStatusUpdated, ResourceType: "task_status", ResourceID: id,
+			Metadata: map[string]any{"reorder_category": in.Category},
+		}, audit.Event{Topic: "task_status.updated", Payload: map[string]string{
+			"status_id": id, "workspace_id": workspaceID,
+		}}); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
