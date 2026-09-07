@@ -743,6 +743,9 @@ type RefreshToken struct {
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	SessionID string             `json:"session_id"`
+	UserAgent string             `json:"user_agent"`
+	Ip        string             `json:"ip"`
 }
 
 type Subscription struct {
@@ -1012,6 +1015,10 @@ type User struct {
 	Timezone                string             `json:"timezone"`
 	PlatformRoleGrantedBy   pgtype.Text        `json:"platform_role_granted_by"`
 	PlatformRoleGrantedAt   pgtype.Timestamptz `json:"platform_role_granted_at"`
+	TotpSecret              pgtype.Text        `json:"totp_secret"`
+	MfaEnabledAt            pgtype.Timestamptz `json:"mfa_enabled_at"`
+	MfaRecoveryCodes        []string           `json:"mfa_recovery_codes"`
+	DeletedAt               pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type WebhookInbox struct {
