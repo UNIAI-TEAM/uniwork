@@ -101,6 +101,16 @@
       "failed": "Google sign-in didn't go through. Try again or use your email and password.",
       "unverified": "Google hasn't verified this account's email. Use another account or sign up with email.",
       "signingIn": "Signing in with Google…"
+    },
+    "mfa": {
+      "title": "Two-factor authentication",
+      "subtitle": "Enter the 6-digit code from your authenticator app, or a recovery code.",
+      "codeLabel": "Verification code",
+      "hint": "The 6-digit app code, or a recovery code like xxxxx-xxxxx.",
+      "invalidCode": "That code is wrong or the challenge expired. Try again or sign in again.",
+      "submit": "Confirm",
+      "verifying": "Confirming…",
+      "back": "Back to sign in"
     }
   },
   "workspace": {
@@ -226,7 +236,8 @@
         "audit": "Security & audit",
         "ai": "AI",
         "organization": "Organization",
-        "departments": "Departments"
+        "departments": "Departments",
+        "security": "Security"
       }
     },
     "save": {
@@ -526,6 +537,67 @@
         "system": "System"
       },
       "tokens_by_day": "Tokens by day"
+    },
+    "security": {
+      "mfa": {
+        "section": "Two-factor authentication (MFA)",
+        "description": "One more layer: every sign-in also needs a 6-digit code from your authenticator app.",
+        "platformRequiredTitle": "Platform staff must enable MFA",
+        "platformRequired": "You hold a platform admin role. The /admin console stays closed until you turn on two-factor authentication here.",
+        "statusOff": "Off",
+        "statusOffHint": "Works with Google Authenticator, 1Password, Authy or any TOTP app.",
+        "enable": "Enable MFA",
+        "statusOn": "On",
+        "disableHint": "Enter an app code or a recovery code to turn it off.",
+        "disableCodeLabel": "Verification code",
+        "disable": "Disable MFA",
+        "scanHint": "Scan the QR code with your authenticator app, then enter the 6-digit code it shows.",
+        "qrAlt": "QR code to add UniWork to your authenticator app",
+        "manualSecret": "Or enter this key manually",
+        "confirmLabel": "6-digit code from the app",
+        "confirm": "Confirm and enable",
+        "cancel": "Cancel",
+        "recoveryTitle": "Recovery codes",
+        "recoveryHint": "Keep these 8 codes somewhere safe. Each works once if you lose your phone. They are shown only now.",
+        "recoveryDone": "I saved my codes",
+        "invalidCode": "Wrong code",
+        "toastEnabled": "Two-factor authentication enabled",
+        "toastDisabled": "Two-factor authentication disabled",
+        "toastFailed": "Could not start MFA setup"
+      },
+      "sessions": {
+        "section": "Sessions",
+        "description": "Browsers signed in to your account. Revoke one you do not recognise; it loses access within 15 minutes.",
+        "loading": "Loading sessions…",
+        "error": "Could not load sessions.",
+        "retry": "Retry",
+        "unknownBrowser": "Unknown browser",
+        "current": "This session",
+        "meta": "IP {{ip}} · Active {{at}}",
+        "revoke": "Revoke",
+        "revokeOthers_one": "Revoke {{count}} other session",
+        "revokeOthers_other": "Revoke {{count}} other sessions",
+        "revokedOthers": "Other sessions revoked",
+        "revokeFailed": "Could not revoke the session"
+      },
+      "delete": {
+        "section": "Delete account",
+        "description": "Under Decree 13 you may erase your personal data. Email, name, photo and sign-in are removed; work you created stays under \"Deleted user\".",
+        "label": "Delete permanently",
+        "hint": "Cannot be undone. If you own an organization, transfer ownership first.",
+        "open": "Delete account",
+        "title": "Delete your account?",
+        "body": "You will be signed out everywhere and cannot sign in again. This cannot be undone.",
+        "proof": {
+          "password": "Enter your current password to confirm",
+          "code": "Enter your two-factor code to confirm",
+          "email": "Type your email address to confirm"
+        },
+        "ownerHint": "An account that owns an organization cannot be deleted until ownership is transferred.",
+        "cancel": "Cancel",
+        "confirm": "Delete permanently",
+        "failed": "Could not delete the account"
+      }
     }
   },
   "tasks": {
@@ -1636,7 +1708,10 @@
     },
     "guard": {
       "error_title": "Could not load your admin role",
-      "error_description": "Try again in a few minutes. If it persists, check the API connection."
+      "error_description": "Try again in a few minutes. If it persists, check the API connection.",
+      "mfa_title": "Enable two-factor authentication to open the console",
+      "mfa_description": "Platform roles require MFA. Go to Settings → Security in your workspace, enable MFA, then come back.",
+      "mfa_action": "Back to the app"
     },
     "reason": {
       "label": "Reason",

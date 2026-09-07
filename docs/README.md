@@ -32,6 +32,7 @@
 - `superpowers/specs/` — thiết kế từng tính năng (tiếng Việt). Trạng thái ghi ở header.
 - `superpowers/plans/` — kế hoạch triển khai theo task, có `> **Trạng thái:**`.
 - 8 spec `2026-09-04-*-design.md` cho Giai đoạn F đã duyệt ngày 2026-09-04 (UNI-421).
+- `2026-09-07-identity-hardening-design.md` (F-01, UNI-432): MFA TOTP, phiên/thiết bị, xóa tài khoản; OIDC Microsoft chuyển A-06.
 
 ## Vận hành và kiến trúc meeting
 

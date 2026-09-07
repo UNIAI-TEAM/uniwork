@@ -97,6 +97,12 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 
 // extractIP determines the client IP for rate limiting purposes.
 // It only honors X-Forwarded-For when RemoteAddr is from a trusted proxy.
+// ClientIP is the address a session records and the rate limiter keys on;
+// X-Forwarded-For counts only behind a trusted proxy.
+func ClientIP(r *http.Request, trustedProxies []*net.IPNet) string {
+	return extractIP(r, trustedProxies)
+}
+
 func extractIP(r *http.Request, trustedProxies []*net.IPNet) string {
 	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

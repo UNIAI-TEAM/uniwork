@@ -19,6 +19,8 @@ const (
 	KindOrganizationInvite = "organization_invite"
 	KindWelcome            = "welcome"
 	KindNotificationDigest = "notification_digest"
+	// A sign-in from a browser the account has never used (F-01).
+	KindNewLogin = "new_login"
 )
 
 type Message struct {

@@ -168,6 +168,10 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			UserID      string `path:"userID" description:"ULID thành viên" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "sessionId":
+		return struct {
+			SessionId string `path:"sessionId" description:"ULID phiên đăng nhập" example:"01J8X4SESS0N1P2Q3R4S5T6U7"`
+		}{}
 	case "taskID":
 		return struct {
 			TaskID string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`

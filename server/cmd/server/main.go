@@ -168,6 +168,7 @@ func main() {
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
+	authSvc.SetMail(renderer, mailOutbox)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {

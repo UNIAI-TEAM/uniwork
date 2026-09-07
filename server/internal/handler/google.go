@@ -74,7 +74,7 @@ func (h *handlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 		h.redirectLoginError(w, r, "google_failed")
 		return
 	}
-	sess, err := h.GoogleAuth.SignIn(r.Context(), claims, requestLocale(r))
+	sess, err := h.GoogleAuth.SignIn(h.authCtx(r).Context(), claims, requestLocale(r))
 	switch {
 	case errors.Is(err, service.ErrEmailUnverified):
 		h.redirectLoginError(w, r, "google_unverified")
@@ -82,6 +82,17 @@ func (h *handlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		h.Log.Error("google sign-in", "err", err)
 		h.redirectLoginError(w, r, "google_failed")
+		return
+	}
+	if sess.MFAPending() {
+		// The second factor is typed on the login page; the challenge rides
+		// in a cookie because a redirect has no JSON body (spec F-01 §2 I5).
+		h.setMFACookie(w, sess.MFAToken)
+		target := h.Cfg.FrontendOrigin + "/login?mfa=1"
+		if next != "" {
+			target += "&next=" + url.QueryEscape(next)
+		}
+		http.Redirect(w, r, target, http.StatusFound)
 		return
 	}
 	h.setRefreshCookie(w, sess.RefreshToken, sess.RefreshExpiresAt)

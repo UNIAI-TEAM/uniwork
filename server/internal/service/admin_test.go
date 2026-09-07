@@ -79,7 +79,7 @@ func TestPlatformRoleGrantRevoke(t *testing.T) {
 	if err != nil || u.PlatformRole.String != PlatformRoleSupport || u.PlatformRoleGrantedBy.String != CLIActor || !u.PlatformRoleGrantedAt.Valid {
 		t.Fatalf("grant: %v %+v", err, u)
 	}
-	if role, _ := f.admin.PlatformRole(ctx, f.third.ID); role != PlatformRoleSupport {
+	if role, mfa, _ := f.admin.PlatformRole(ctx, f.third.ID); role != PlatformRoleSupport || mfa {
 		t.Fatalf("PlatformRole = %q", role)
 	}
 	u, err = f.admin.SetPlatformRole(ctx, CLIActor, f.third.Email, "", "left the team")

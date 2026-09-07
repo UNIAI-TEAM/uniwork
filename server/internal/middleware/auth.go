@@ -13,7 +13,10 @@ import (
 
 type ctxKey int
 
-const userIDKey ctxKey = 1
+const (
+	userIDKey    ctxKey = 1
+	sessionIDKey ctxKey = 2
+)
 
 func RequireAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -24,14 +27,15 @@ func RequireAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 				writeUnauthorized(w, "missing bearer token")
 				return
 			}
-			uid, err := m.Parse(token)
+			uid, sid, err := m.ParseSession(token)
 			if err != nil {
 				writeUnauthorized(w, "invalid token")
 				return
 			}
 			platform, _, _ := ClientMetadataFromContext(r.Context())
 			telemetry.SetActor(r.Context(), uid, string(audit.KindHuman), platform)
-			next.ServeHTTP(w, r.WithContext(WithUserID(r.Context(), uid)))
+			ctx := context.WithValue(WithUserID(r.Context(), uid), sessionIDKey, sid)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -67,6 +71,13 @@ func writeUnauthorized(w http.ResponseWriter, msg string) {
 func WithUserID(ctx context.Context, uid string) context.Context {
 	ctx = context.WithValue(ctx, userIDKey, uid)
 	return featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: uid})
+}
+
+// SessionID is the `sid` claim of the bearer token: the session the request
+// runs in, "" for tokens minted before sessions had ids.
+func SessionID(ctx context.Context) string {
+	v, _ := ctx.Value(sessionIDKey).(string)
+	return v
 }
 
 func UserID(ctx context.Context) string {
