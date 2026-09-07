@@ -146,8 +146,11 @@ func TestInviteManyAndAccept(t *testing.T) {
 		t.Fatal("B should not be onboarded before accept")
 	}
 	got, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token)
-	if err != nil || got.ID != w.ID {
-		t.Fatalf("accept: %v", err)
+	if err != nil || got.Workspace == nil || got.Workspace.ID != w.ID {
+		t.Fatalf("accept: %v %+v", err, got)
+	}
+	if got.Organization.ID != f.org.ID {
+		t.Fatalf("accept should name the organization too: %+v", got.Organization)
 	}
 	if _, err := f.ws.RequireMember(ctx, w.ID, f.ub.ID); err != nil {
 		t.Fatal("ws member not added")

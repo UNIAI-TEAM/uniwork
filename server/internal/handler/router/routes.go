@@ -50,6 +50,29 @@ type Routes struct {
 	ListOrgWorkspaces  http.HandlerFunc
 	CreateOrgWorkspace http.HandlerFunc
 
+	ListOrgMembers      http.HandlerFunc
+	GetOrgMembershipMe  http.HandlerFunc
+	PatchOrgMember      http.HandlerFunc
+	DeactivateOrgMember http.HandlerFunc
+	ReactivateOrgMember http.HandlerFunc
+	LeaveOrganization   http.HandlerFunc
+
+	InviteToOrganization http.HandlerFunc
+	ListOrgInvitations   http.HandlerFunc
+	RevokeOrgInvitation  http.HandlerFunc
+	TransferOrgOwnership http.HandlerFunc
+
+	ListPeople         http.HandlerFunc
+	GetPerson          http.HandlerFunc
+	PatchPersonProfile http.HandlerFunc
+	ExportPeople       http.HandlerFunc
+
+	ListDepartments    http.HandlerFunc
+	CreateDepartment   http.HandlerFunc
+	PatchDepartment    http.HandlerFunc
+	ArchiveDepartment  http.HandlerFunc
+	ReorderDepartments http.HandlerFunc
+
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc

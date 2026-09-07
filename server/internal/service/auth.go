@@ -206,7 +206,18 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.User{}, ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return db.User{}, err
+	}
+	// The directory searches over a folded copy of the display name, so a
+	// rename has to reach every organization this person belongs to or they
+	// stay findable only under the old name (F-03 §3.3).
+	if displayName != nil {
+		if err := refreshSearchText(ctx, s.q, RefreshSearchTextInput{UserID: userID}); err != nil {
+			return db.User{}, err
+		}
+	}
+	return u, nil
 }
 
 func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.User, error) {

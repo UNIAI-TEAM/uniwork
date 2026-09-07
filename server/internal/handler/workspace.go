@@ -154,10 +154,20 @@ func (h *handlers) createInvitation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) acceptInvitation(w http.ResponseWriter, r *http.Request) {
-	ws, err := h.Workspaces.AcceptInvite(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"))
+	result, err := h.Workspaces.AcceptInvite(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "token"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.WorkspaceSDO{Workspace: toWorkspaceDTO(ws)})
+	out := sdo.AcceptInviteSDO{Organization: sdo.OrganizationDTO{
+		ID: result.Organization.ID, Slug: result.Organization.Slug, Name: result.Organization.Name,
+	}}
+	// An organization-level invitation leaves the person in the company but in
+	// no team yet, so `workspace` is absent and the client sends them to the
+	// workspace picker rather than into a workspace they do not have.
+	if result.Workspace != nil {
+		dto := toWorkspaceDTO(*result.Workspace)
+		out.Workspace = &dto
+	}
+	respondJSON(w, 200, out)
 }

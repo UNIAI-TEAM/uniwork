@@ -397,3 +397,73 @@ func TestTasksWorkManagementUpgradeFrom106(t *testing.T) {
 		t.Fatalf("migration wrote audit_events: before=%d after=%d", auditBefore, auditAfter)
 	}
 }
+
+// 004 grandfathered one organization per legacy workspace and copied every
+// workspace owner into it, so an organization can hold several owners. 132
+// keeps the earliest and demotes the rest, and only then can 133 build the
+// single-owner unique index (spec F-03 §2 decision 3).
+func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	// Roll back to just before 132 so the two owners can be inserted without
+	// the unique index refusing them.
+	for {
+		var applied bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version LIKE '132%')`).Scan(&applied); err != nil {
+			t.Fatal(err)
+		}
+		if !applied {
+			break
+		}
+		if err := Down(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `TRUNCATE users, organizations CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = pool.Exec(ctx, `
+		INSERT INTO users (id, email, password_hash, display_name) VALUES
+		  ('01USER00000000000000000011','first@example.com','x','First'),
+		  ('01USER00000000000000000012','second@example.com','x','Second');
+		INSERT INTO organizations (id, slug, name, created_by) VALUES
+		  ('01ORGA00000000000000000011','hai-owner','Hai owner','01USER00000000000000000011');
+		INSERT INTO organization_members (organization_id, user_id, role, created_at) VALUES
+		  ('01ORGA00000000000000000011','01USER00000000000000000011','owner', now() - interval '2 days'),
+		  ('01ORGA00000000000000000011','01USER00000000000000000012','owner', now() - interval '1 day');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal("re-up:", err)
+	}
+	var firstRole, secondRole string
+	if err := pool.QueryRow(ctx, `SELECT role FROM organization_members WHERE organization_id=$1 AND user_id=$2`,
+		"01ORGA00000000000000000011", "01USER00000000000000000011").Scan(&firstRole); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT role FROM organization_members WHERE organization_id=$1 AND user_id=$2`,
+		"01ORGA00000000000000000011", "01USER00000000000000000012").Scan(&secondRole); err != nil {
+		t.Fatal(err)
+	}
+	if firstRole != "owner" || secondRole != "admin" {
+		t.Fatalf("expected the earliest owner to stay owner and the later one to become admin, got %q and %q", firstRole, secondRole)
+	}
+	// The unique index is what the demotion exists for: a second owner must be
+	// impossible from here on.
+	if _, err := pool.Exec(ctx, `UPDATE organization_members SET role='owner' WHERE organization_id=$1 AND user_id=$2`,
+		"01ORGA00000000000000000011", "01USER00000000000000000012"); err == nil {
+		t.Fatal("expected the single-owner unique index to refuse a second owner")
+	}
+}

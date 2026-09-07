@@ -12,7 +12,12 @@ export function AcceptInviteView({
   onAnon,
 }: {
   token: string;
-  onAccepted: (ws: Workspace) => void;
+  /**
+   * `workspace` is null for an invitation to the organization itself: the
+   * person is in the company but in no team yet, so the host sends them to the
+   * workspace picker instead of into a workspace (F-03).
+   */
+  onAccepted: (workspace: Workspace | null) => void;
   onAnon: () => void;
 }) {
   const { t } = useTranslation();
@@ -25,9 +30,7 @@ export function AcceptInviteView({
     if (status === "authed" && !fired.current) {
       fired.current = true;
       accept.mutate(token, {
-        onSuccess: (workspace) => {
-          if (workspace) onAccepted(workspace);
-        },
+        onSuccess: (result) => onAccepted(result.workspace),
       });
     }
   }, [status, token, accept, onAccepted, onAnon]);

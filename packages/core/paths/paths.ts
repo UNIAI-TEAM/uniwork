@@ -45,6 +45,8 @@ export const paths = {
       chat: () => `${base}/chat`,
       inbox: () => `${base}/inbox`,
       members: () => `${base}/members`,
+      people: () => `${base}/people`,
+      person: (userId: string) => `${base}/people/${userId}`,
       settings: () => `${base}/settings`,
     };
   },

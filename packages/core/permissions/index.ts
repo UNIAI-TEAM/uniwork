@@ -5,5 +5,16 @@
  */
 export type { Decision, DecisionReason, PermissionContext } from "./types";
 export { canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
+export {
+  canChangeOrgRole,
+  canDeactivateMember,
+  canEditEmploymentFields,
+  canEditProfile,
+  canExportPeople,
+  canLeaveOrg,
+  canManageDepartments,
+  canManageOrgMembers,
+  canTransferOwnership,
+} from "./rules";
 export { useCurrentMember, useOrgMembership } from "./use-current-member";
-export { useAuditPermissions, useBillingPermissions, useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";
+export { usePeoplePermissions, useAuditPermissions, useBillingPermissions, useOrgPermissions, useTaskPermissions, useWorkspacePermissions, useMeetingPermissions } from "./use-resource-permissions";

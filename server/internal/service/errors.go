@@ -44,6 +44,28 @@ func errOrganizationSuspended() error {
 	return CodedError{Code: "organization_suspended", Status: http.StatusForbidden, Msg: "tổ chức đang tạm ngưng", Err: ErrOrganizationSuspended}
 }
 
+// Organization membership lifecycle (F-03). A deactivated member keeps their
+// rows — workspace membership, authored content, history — and is refused at
+// every membership gate, so the sentinel is separate from ErrForbidden: the
+// client shows "tài khoản bị vô hiệu hóa", not "bạn không có quyền".
+var ErrMemberDeactivated = errors.New("member_deactivated")
+
+func errMemberDeactivated() error {
+	return CodedError{Code: "member_deactivated", Status: http.StatusForbidden, Msg: "tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này", Err: ErrMemberDeactivated}
+}
+
+// ErrLastOwner: an organization always has exactly one owner, so the last one
+// cannot leave or be demoted — they transfer ownership first.
+var ErrLastOwner = errors.New("last_owner")
+
+func errLastOwner() error {
+	return CodedError{Code: "last_owner", Status: http.StatusConflict, Msg: "tổ chức phải có đúng một chủ sở hữu; hãy chuyển quyền trước", Err: ErrLastOwner}
+}
+
+func errCannotDeactivateSelf() error {
+	return coded(http.StatusBadRequest, "cannot_deactivate_self", "không thể tự vô hiệu hóa tài khoản của mình")
+}
+
 type ValidationError struct{ Msg string }
 
 func (e ValidationError) Error() string { return e.Msg }

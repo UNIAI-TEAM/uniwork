@@ -37,6 +37,7 @@
     "./realtime": "./realtime/index.ts",
     "./paths": "./paths/index.ts",
     "./organizations": "./organizations/hooks.ts",
+    "./people": "./people/hooks.ts",
     "./onboarding": "./onboarding/index.ts",
     "./config": "./config.ts",
     "./runtime-config": "./runtime-config.ts",

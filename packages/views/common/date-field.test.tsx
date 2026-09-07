@@ -14,10 +14,14 @@ describe("date-only transport", () => {
 });
 
 describe("DateField", () => {
-  it("opens a calendar, emits the picked day and clears it", () => {
+  // The calendar is behind React.lazy (it carries react-day-picker + date-fns),
+  // so the grid arrives only after that module loads — a generous timeout
+  // because vitest compiles it on demand.
+  it("opens a calendar, emits the picked day and clears it", async () => {
     const onChange = vi.fn();
     render(<DateField id="d" value="2026-09-06" onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /2026/ }));
+    await screen.findAllByRole("gridcell", {}, { timeout: 5000 });
     fireEvent.click(screen.getAllByRole("gridcell").map((c) => c.querySelector("button")).find((b) => b?.textContent === "10")!);
     expect(onChange).toHaveBeenCalledWith("2026-09-10");
     fireEvent.click(screen.getByRole("button", { name: /2026/ }));

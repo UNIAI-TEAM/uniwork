@@ -12,6 +12,16 @@ import (
 //	GET  /api/v1/orgs/{org}
 //	GET  /api/v1/orgs/{org}/workspaces
 //	POST /api/v1/orgs/{org}/workspaces
+//	GET  /api/v1/orgs/{org}/members
+//	GET  /api/v1/orgs/{org}/members/me
+//	PATCH /api/v1/orgs/{org}/members/{userID}
+//	POST /api/v1/orgs/{org}/members/{userID}/deactivate
+//	POST /api/v1/orgs/{org}/members/{userID}/reactivate
+//	POST /api/v1/orgs/{org}/leave
+//	POST /api/v1/orgs/{org}/transfer-ownership
+//	GET  /api/v1/orgs/{org}/invitations
+//	POST /api/v1/orgs/{org}/invitations
+//	DELETE /api/v1/orgs/{org}/invitations/{invitationId}
 func registerOrganizations(r api, h Routes) {
 	r.Get("/orgs", h.ListOrganizations, apiOp{
 		summary:     "List organizations",
@@ -50,6 +60,79 @@ func registerOrganizations(r api, h Routes) {
 		sdi:         sdi.CreateWorkspaceSDI{},
 		sdo:         sdo.WorkspaceSDO{},
 		status:      201,
+		auth:        true,
+	})
+	r.Get("/orgs/{org}/members", h.ListOrgMembers, apiOp{
+		summary:     "List organization members",
+		description: "Danh sách thành viên tổ chức. Mọi thành viên đọc được; lọc theo status (active mặc định, deactivated, all) và phân trang bằng cursor.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.OrgMemberListSDO{},
+		auth:        true,
+	})
+	r.Get("/orgs/{org}/members/me", h.GetOrgMembershipMe, apiOp{
+		summary:     "Get my membership in an organization",
+		description: "Vai trò của người gọi trong tổ chức. Trả cả khi tài khoản đã bị vô hiệu hóa để client hiện màn chặn.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.OrgMembershipSDO{},
+		auth:        true,
+	})
+	r.Patch("/orgs/{org}/members/{userID}", h.PatchOrgMember, apiOp{
+		summary:     "Change an organization member's role",
+		description: "Owner/admin đổi giữa admin và member. Không đổi được vai trò owner: dùng chuyển quyền chủ sở hữu.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.OrgMemberRoleSDI{},
+		sdo:         sdo.OrgMemberSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/members/{userID}/deactivate", h.DeactivateOrgMember, apiOp{
+		summary:     "Deactivate an organization member",
+		description: "Khóa lối vào tổ chức mà không xóa dữ liệu. Admin chỉ vô hiệu hóa được member; owner vô hiệu hóa được cả admin.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.OrgMemberSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/members/{userID}/reactivate", h.ReactivateOrgMember, apiOp{
+		summary:     "Reactivate an organization member",
+		description: "Mở lại lối vào; chiếm lại một ghế trong hạn mức members.max.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.OrgMemberSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/transfer-ownership", h.TransferOrgOwnership, apiOp{
+		summary:     "Transfer organization ownership",
+		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.TransferOwnershipSDI{},
+		sdo:         sdo.OrgMemberSDO{},
+		auth:        true,
+	})
+	r.Get("/orgs/{org}/invitations", h.ListOrgInvitations, apiOp{
+		summary:     "List pending organization invitations",
+		description: "Lời mời cấp tổ chức chưa được chấp nhận và chưa thu hồi.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.OrgInvitationListSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/invitations", h.InviteToOrganization, apiOp{
+		summary:     "Invite people to the organization",
+		description: "Mời vào tổ chức, không cần workspace. Địa chỉ đã là thành viên bị bỏ qua; địa chỉ đã có lời mời giữ nguyên token cũ.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.OrgInviteSDI{},
+		sdo:         sdo.OrgInvitationListSDO{},
+		auth:        true,
+	})
+	r.Delete("/orgs/{org}/invitations/{invitationId}", h.RevokeOrgInvitation, apiOp{
+		summary:     "Revoke an organization invitation",
+		description: "Thu hồi lời mời chưa chấp nhận; dòng dữ liệu vẫn giữ để truy vết.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/leave", h.LeaveOrganization, apiOp{
+		summary:     "Leave an organization",
+		description: "Tự rời tổ chức; xóa luôn tư cách thành viên mọi workspace trong tổ chức. Owner phải chuyển quyền trước.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
 }

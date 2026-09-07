@@ -223,6 +223,21 @@ type CommentReaction struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type Department struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	ParentID       pgtype.Text        `json:"parent_id"`
+	Name           string             `json:"name"`
+	Code           pgtype.Text        `json:"code"`
+	HeadUserID     pgtype.Text        `json:"head_user_id"`
+	SortOrder      int32              `json:"sort_order"`
+	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Email struct {
 	ID            string             `json:"id"`
 	Kind          string             `json:"kind"`
@@ -274,14 +289,18 @@ type FeatureFlagOverride struct {
 }
 
 type Invitation struct {
-	ID          string             `json:"id"`
-	WorkspaceID string             `json:"workspace_id"`
-	Email       string             `json:"email"`
-	Role        string             `json:"role"`
-	Token       string             `json:"token"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-	AcceptedAt  pgtype.Timestamptz `json:"accepted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ID             string             `json:"id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	Email          string             `json:"email"`
+	Role           string             `json:"role"`
+	Token          string             `json:"token"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt     pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
+	OrgRole        string             `json:"org_role"`
+	InvitedBy      pgtype.Text        `json:"invited_by"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type Invoice struct {
@@ -578,6 +597,28 @@ type OrganizationMember struct {
 	UserID         string             `json:"user_id"`
 	Role           string             `json:"role"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	DeactivatedAt  pgtype.Timestamptz `json:"deactivated_at"`
+	DeactivatedBy  pgtype.Text        `json:"deactivated_by"`
+	InvitedBy      pgtype.Text        `json:"invited_by"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OrganizationMemberProfile struct {
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Title          string             `json:"title"`
+	DepartmentID   pgtype.Text        `json:"department_id"`
+	ManagerID      pgtype.Text        `json:"manager_id"`
+	EmployeeCode   pgtype.Text        `json:"employee_code"`
+	Phone          string             `json:"phone"`
+	PhoneVisible   bool               `json:"phone_visible"`
+	Location       string             `json:"location"`
+	Bio            string             `json:"bio"`
+	JoinedOn       pgtype.Date        `json:"joined_on"`
+	SearchText     string             `json:"search_text"`
+	UpdatedBy      string             `json:"updated_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type OutboxEvent struct {
