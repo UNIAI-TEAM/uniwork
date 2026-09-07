@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Loader2, Monitor } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import QRCode from "qrcode";
 import { toastApiError } from "../../toast-api-error";
 import {
   useAuthStore,
@@ -73,8 +72,10 @@ function EnrolMfa() {
   useEffect(() => {
     if (!pending) return;
     let live = true;
-    // A canvas-less environment (tests) simply shows the secret for manual entry.
-    QRCode.toDataURL(pending.otpauth_url, { margin: 1, width: 192 })
+    // qrcode loads on enrolment only, so the settings route does not carry
+    // it; a canvas-less environment (tests) simply shows the secret.
+    import("qrcode")
+      .then((m) => m.default.toDataURL(pending.otpauth_url, { margin: 1, width: 192 }))
       .then((url) => live && setQr(url))
       .catch(() => live && setQr(null));
     return () => {

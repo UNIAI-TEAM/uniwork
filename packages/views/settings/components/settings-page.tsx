@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
-import { useMemo } from "react";
+import { Suspense, lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
@@ -18,7 +18,10 @@ import { MembersTab } from "./members-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { OrganizationTab } from "./organization-tab";
 import { PreferencesTab } from "./preferences-tab";
-import { SecurityTab } from "./security-tab";
+
+// The security tab (MFA enrolment, sessions, deletion) loads when opened so
+// the settings route stays inside its bundle ceiling.
+const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
 import { WorkspaceTab } from "./workspace-tab";
 
 const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
@@ -157,7 +160,9 @@ export function SettingsPage() {
             <AccountTab />
           </TabsContent>
           <TabsContent value="security">
-            <SecurityTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <SecurityTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="preferences">
             <PreferencesTab />
