@@ -53,7 +53,8 @@ test("a task edit shows up in the organization's audit log", async ({ page }) =>
   await expect(page.getByRole("cell", { name: /title/ }).first()).toBeVisible();
 
   // Filtering to something nobody did leaves an honest empty state, not rows.
-  await page.getByLabel("Hành động").selectOption("auth.session_revoked");
+  await page.getByLabel("Hành động").click();
+  await page.getByRole("option", { name: "Thu hồi phiên" }).click();
   await page.getByRole("button", { name: "Áp dụng" }).click();
   await expect(page.getByText("Chưa có bản ghi nào khớp")).toBeVisible({ timeout: 15_000 });
 });
