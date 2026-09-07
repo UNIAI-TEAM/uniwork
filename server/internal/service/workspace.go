@@ -47,9 +47,11 @@ func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationSe
 }
 
 func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
-	return WorkspaceView{Workspace: db.Workspace{ID: r.ID, OrganizationID: r.OrganizationID, Slug: r.Slug, Name: r.Name,
-		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt},
-		OrganizationSlug: r.OrganizationSlug, OrganizationName: r.OrganizationName}
+	return WorkspaceView{Workspace: db.Workspace{
+		ID: r.ID, OrganizationID: r.OrganizationID, Slug: r.Slug, Name: r.Name,
+		CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		MatrixRoomID: r.MatrixRoomID, TaskPrefix: r.TaskPrefix, TaskCounter: r.TaskCounter,
+	}, OrganizationSlug: r.OrganizationSlug, OrganizationName: r.OrganizationName}
 }
 
 func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name, slug string) (WorkspaceView, error) {

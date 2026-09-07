@@ -287,6 +287,9 @@ func TestWorkspaceCreateSeedsTaskStatuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if w.TaskPrefix != "ALP" {
+		t.Fatalf("WorkspaceView.TaskPrefix = %q, want ALP", w.TaskPrefix)
+	}
 	row, err := f.q.GetWorkspaceByID(ctx, w.ID)
 	if err != nil {
 		t.Fatal(err)

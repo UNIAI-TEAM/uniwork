@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -148,5 +150,41 @@ func TestTaskCRUD(t *testing.T) {
 		if !types[want] {
 			t.Fatalf("missing event %s (got %v)", want, delivered)
 		}
+	}
+}
+
+func TestTaskNumbersAreAtomicPerWorkspace(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	const count = 12
+	numbers := make(chan int64, count)
+	errs := make(chan error, count)
+	for i := 0; i < count; i++ {
+		go func(i int) {
+			task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: fmt.Sprintf("T-%d", i)})
+			if err != nil {
+				errs <- err
+				return
+			}
+			numbers <- task.Number
+		}(i)
+	}
+	seen := map[int64]bool{}
+	for i := 0; i < count; i++ {
+		select {
+		case err := <-errs:
+			t.Fatal(err)
+		case number := <-numbers:
+			if seen[number] {
+				t.Fatalf("duplicate number %d", number)
+			}
+			seen[number] = true
+		}
+	}
+
+	_, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Outsider", AssigneeID: &ub.ID})
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "assignee_not_member" {
+		t.Fatalf("outsider assignee: %v", err)
 	}
 }

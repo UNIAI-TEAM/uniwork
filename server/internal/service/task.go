@@ -55,14 +55,30 @@ type UpdateTaskInput struct {
 	DueDate      **string
 }
 
-// assigneeKind validates the assignee pair: a human assignee is any id (the
-// old behaviour), an agent assignee must be a member of the task's workspace.
+// assigneeKind validates the assignee pair: humans and agents must already be
+// workspace members; squad assignees are refused until that directory exists.
 func (s *TaskService) assigneeKind(ctx context.Context, workspaceID string, assigneeID *string, kind string) (string, error) {
 	if kind == "" {
 		kind = string(audit.KindHuman)
 	}
+	if kind == "squad" {
+		return "", CodedError{
+			Code:   "capability_unavailable",
+			Status: http.StatusUnprocessableEntity,
+			Msg:    "squad directory chưa khả dụng",
+			Fields: map[string]any{"reason_code": "squad_directory_missing"},
+		}
+	}
 	switch audit.Kind(kind) {
 	case audit.KindHuman:
+		if assigneeID != nil {
+			if _, err := s.ws.RequireMember(ctx, workspaceID, *assigneeID); err != nil {
+				if errors.Is(err, ErrOrganizationSuspended) {
+					return "", err
+				}
+				return "", coded(http.StatusUnprocessableEntity, "assignee_not_member", "người được gán không phải thành viên workspace")
+			}
+		}
 	case audit.KindAgent:
 		if assigneeID != nil {
 			if _, err := s.ws.RequireAgentMember(ctx, workspaceID, *assigneeID); err != nil {
