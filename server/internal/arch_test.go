@@ -299,6 +299,12 @@ var taskFoundationQueryFiles = []string{
 	"../pkg/db/queries/projects.sql",
 }
 
+// GetTask is authorize-by-taskID (id-only SELECT); membership is decided solely
+// via RequireMember. JOIN-only presence of tenant columns must not fake compliance.
+var taskFoundationScopeExemptQueries = map[string]bool{
+	"GetTask": true,
+}
+
 func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {
 	nameRe := regexp.MustCompile(`(?m)^-- name: (\S+)`)
 	for _, rel := range taskFoundationQueryFiles {
@@ -316,6 +322,9 @@ func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {
 		}
 		for i, loc := range idxs {
 			name := body[loc[2]:loc[3]]
+			if taskFoundationScopeExemptQueries[name] {
+				continue
+			}
 			start := loc[0]
 			end := len(body)
 			if i+1 < len(idxs) {

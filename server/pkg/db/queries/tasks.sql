@@ -23,10 +23,7 @@ WHERE organization_id = $1 AND workspace_id = $2
 ORDER BY status, position, created_at;
 
 -- name: GetTask :one
-SELECT t.*
-FROM tasks t
-JOIN workspaces w ON w.id = t.workspace_id AND w.organization_id = t.organization_id
-WHERE t.id = sqlc.arg('id');
+SELECT * FROM tasks WHERE id = $1;
 
 -- name: GetTaskInWorkspace :one
 SELECT * FROM tasks
