@@ -14,7 +14,9 @@ import (
 
 type fakeRoles struct{}
 
-func (fakeRoles) PlatformRole(context.Context, string) (string, error) { return "admin", nil }
+func (fakeRoles) PlatformRole(context.Context, string) (string, bool, error) {
+	return "admin", true, nil
+}
 
 // stubRoutes fills every Routes field with a handler that answers with the
 // field's name, so a walk over the mux can tell which fields it reached.

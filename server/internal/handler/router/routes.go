@@ -31,18 +31,26 @@ type Routes struct {
 	ResetPassword  http.HandlerFunc
 	Refresh        http.HandlerFunc
 	Logout         http.HandlerFunc
+	MFAVerify      http.HandlerFunc
 	AuthProviders  http.HandlerFunc
 	GoogleStart    http.HandlerFunc
 	GoogleCallback http.HandlerFunc
 
-	Me                 http.HandlerFunc
-	PatchMe            http.HandlerFunc
-	UploadAvatar       http.HandlerFunc
-	VerifyEmail        http.HandlerFunc
-	ResendVerification http.HandlerFunc
-	PatchOnboarding    http.HandlerFunc
-	CompleteOnboarding http.HandlerFunc
-	MyInvitations      http.HandlerFunc
+	Me                  http.HandlerFunc
+	PatchMe             http.HandlerFunc
+	UploadAvatar        http.HandlerFunc
+	VerifyEmail         http.HandlerFunc
+	ResendVerification  http.HandlerFunc
+	MFASetup            http.HandlerFunc
+	MFAConfirm          http.HandlerFunc
+	MFADisable          http.HandlerFunc
+	ListSessions        http.HandlerFunc
+	RevokeSession       http.HandlerFunc
+	RevokeOtherSessions http.HandlerFunc
+	DeleteAccount       http.HandlerFunc
+	PatchOnboarding     http.HandlerFunc
+	CompleteOnboarding  http.HandlerFunc
+	MyInvitations       http.HandlerFunc
 
 	ListOrganizations  http.HandlerFunc
 	CreateOrganization http.HandlerFunc

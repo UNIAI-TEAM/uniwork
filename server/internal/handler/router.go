@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
 
 	"github.com/redis/go-redis/v9"
@@ -77,12 +78,15 @@ type Deps struct {
 
 type handlers struct {
 	Deps
+	// proxies is TRUSTED_PROXIES parsed once; sessions record the client
+	// address the same way the rate limiter keys on it.
+	proxies []*net.IPNet
 }
 
 // New builds the HTTP handler. Routes live in package router, split by
 // OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
-	h := &handlers{Deps: d}
+	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	return rt.New(rt.Deps{
 		Cfg:           d.Cfg,
 		Minter:        d.Minter,
@@ -117,18 +121,26 @@ func New(d Deps) http.Handler {
 		ResetPassword:  h.resetPassword,
 		Refresh:        h.refresh,
 		Logout:         h.logout,
+		MFAVerify:      h.mfaVerify,
 		AuthProviders:  h.authProviders,
 		GoogleStart:    h.googleStart,
 		GoogleCallback: h.googleCallback,
 
-		Me:                 h.me,
-		PatchMe:            h.patchMe,
-		UploadAvatar:       h.uploadAvatar,
-		VerifyEmail:        h.verifyEmail,
-		ResendVerification: h.resendVerification,
-		PatchOnboarding:    h.patchOnboarding,
-		CompleteOnboarding: h.completeOnboarding,
-		MyInvitations:      h.myInvitations,
+		Me:                  h.me,
+		PatchMe:             h.patchMe,
+		UploadAvatar:        h.uploadAvatar,
+		VerifyEmail:         h.verifyEmail,
+		ResendVerification:  h.resendVerification,
+		MFASetup:            h.mfaSetup,
+		MFAConfirm:          h.mfaConfirm,
+		MFADisable:          h.mfaDisable,
+		ListSessions:        h.listSessions,
+		RevokeSession:       h.revokeSession,
+		RevokeOtherSessions: h.revokeOtherSessions,
+		DeleteAccount:       h.deleteAccount,
+		PatchOnboarding:     h.patchOnboarding,
+		CompleteOnboarding:  h.completeOnboarding,
+		MyInvitations:       h.myInvitations,
 
 		ListOrganizations:  h.listOrganizations,
 		CreateOrganization: h.createOrganization,
