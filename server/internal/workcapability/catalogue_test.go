@@ -4,18 +4,54 @@ import "testing"
 
 func TestCatalogueMatchesInitialRolloutContract(t *testing.T) {
 	got := Catalogue()
-	want := map[string]Status{
-		"tasks.core": Available, "tasks.projects": Unavailable, "tasks.attachments": Unavailable,
-		"tasks.agent_runs": Unavailable, "tasks.squads": Unavailable,
-		"tasks.vcs": Unavailable, "tasks.local_workdir": Unavailable,
-		"desktop.host": Unavailable, "mobile.host": Unavailable,
+	want := map[string]Entry{
+		"tasks.core": {
+			Status: Available,
+		},
+		"tasks.projects": {
+			Status:         Unavailable,
+			ReasonCode:     "surface_not_ready",
+			ExplanationKey: "capabilities.surface_not_ready",
+		},
+		"tasks.attachments": {
+			Status:         Unavailable,
+			ReasonCode:     "surface_not_ready",
+			ExplanationKey: "capabilities.surface_not_ready",
+		},
+		"tasks.agent_runs": {
+			Status:         Unavailable,
+			ReasonCode:     "agent_runtime_missing",
+			ExplanationKey: "capabilities.agent_runtime_missing",
+		},
+		"tasks.squads": {
+			Status:         Unavailable,
+			ReasonCode:     "squad_directory_missing",
+			ExplanationKey: "capabilities.squad_directory_missing",
+		},
+		"tasks.vcs": {
+			Status:         Unavailable,
+			ReasonCode:     "vcs_provider_missing",
+			ExplanationKey: "capabilities.vcs_provider_missing",
+		},
+		"tasks.local_workdir": {
+			Status:         Unavailable,
+			ReasonCode:     "local_daemon_missing",
+			ExplanationKey: "capabilities.local_daemon_missing",
+		},
+		"desktop.host": {
+			Status:         Unavailable,
+			ReasonCode:     "host_not_built",
+			ExplanationKey: "capabilities.host_not_built",
+		},
+		"mobile.host": {
+			Status:         Unavailable,
+			ReasonCode:     "host_not_built",
+			ExplanationKey: "capabilities.host_not_built",
+		},
 	}
-	for key, status := range want {
-		if got[key].Status != status {
-			t.Fatalf("%s = %+v", key, got[key])
-		}
-		if status == Unavailable && got[key].ReasonCode == "" {
-			t.Fatalf("%s has no reason", key)
+	for key, entry := range want {
+		if got[key] != entry {
+			t.Fatalf("%s = %+v, want %+v", key, got[key], entry)
 		}
 	}
 	delete(got, "tasks.core")
