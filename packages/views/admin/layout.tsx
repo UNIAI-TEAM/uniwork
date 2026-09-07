@@ -6,7 +6,7 @@ import { AlertCircle, ShieldCheck } from "lucide-react";
 import { useAdminMe } from "@uniwork/core/admin";
 import { ApiError } from "@uniwork/core/api";
 import { paths } from "@uniwork/core/paths";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { WorkspaceLoader } from "../layout/workspace-loader";
@@ -45,6 +45,23 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   }, [status, replace, pathname]);
 
   if (me.isPending || status === 404 || status === 401) return <WorkspaceLoader />;
+  // A platform role without MFA is refused at the gate (F-01): say what to
+  // turn on, and where, instead of a generic failure.
+  if (me.error instanceof ApiError && me.error.code === "mfa_required") {
+    return (
+      <CollectionPageState
+        icon={ShieldCheck}
+        role="alert"
+        title={t("guard.mfa_title")}
+        description={t("guard.mfa_description")}
+        actions={
+          <AppLink href={paths.root()} className={buttonVariants({ variant: "outline" })}>
+            {t("guard.mfa_action")}
+          </AppLink>
+        }
+      />
+    );
+  }
   if (me.isError) {
     return (
       <CollectionPageState

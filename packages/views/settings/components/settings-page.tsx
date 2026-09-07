@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
+import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
@@ -18,11 +18,13 @@ import { MembersTab } from "./members-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { OrganizationTab } from "./organization-tab";
 import { PreferencesTab } from "./preferences-tab";
+import { SecurityTab } from "./security-tab";
 import { WorkspaceTab } from "./workspace-tab";
 
-const ACCOUNT_TAB_KEYS = ["profile", "preferences", "notifications"] as const;
+const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
 const ACCOUNT_TAB_ICONS = {
   profile: User,
+  security: ShieldCheck,
   preferences: SlidersHorizontal,
   notifications: Bell,
 } as const;
@@ -153,6 +155,9 @@ export function SettingsPage() {
         <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 md:p-8">
           <TabsContent value="profile">
             <AccountTab />
+          </TabsContent>
+          <TabsContent value="security">
+            <SecurityTab />
           </TabsContent>
           <TabsContent value="preferences">
             <PreferencesTab />
