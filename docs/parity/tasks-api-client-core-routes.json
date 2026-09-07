@@ -1,0 +1,685 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "3d37828e9",
+  "routes": [
+    {
+      "method": "DELETE",
+      "source_path": "/api/attachments/{id}",
+      "target_path": "/api/v1/attachments/{attachmentID}",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/comments/{commentID}",
+      "target_path": "/api/v1/comments/{commentID}",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/comments/{commentID}/reactions",
+      "target_path": "/api/v1/comments/{commentID}/reactions",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/comments/{commentID}/resolve",
+      "target_path": "/api/v1/comments/{commentID}/resolve",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/issues/{id}",
+      "target_path": "/api/v1/tasks/{taskID}",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/issues/{id}/labels/{labelID}",
+      "target_path": "/api/v1/tasks/{taskID}/labels/{labelID}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/issues/{id}/properties/{propertyID}",
+      "target_path": "/api/v1/tasks/{taskID}/properties/{propertyID}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/issues/{taskID}/reactions",
+      "target_path": "/api/v1/tasks/{taskID}/reactions",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/pins/{itemType}/{itemID}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/pins/{itemType}/{itemID}",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/projects/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/{projectID}",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/projects/{projectID}/resources/{resourceID}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/{projectID}/resources/{resourceID}",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/labels/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-labels/{id}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/issue-statuses/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-statuses/{id}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/issue-views/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-views/{id}",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
+      "source_path": "/api/workspaces/{workspaceID}/vcs/connections/{connectionID}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/vcs/connections/{connectionID}",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/attachments/{id}",
+      "target_path": "/api/v1/attachments/{attachmentID}",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/comments/{id}/sub-issue-preview",
+      "target_path": "/api/v1/comments/{commentID}/sub-task-preview",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}",
+      "target_path": "/api/v1/tasks/{taskID}",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{taskID}/active-task",
+      "target_path": "/api/v1/tasks/{taskID}/active-task",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{taskID}/attachments",
+      "target_path": "/api/v1/tasks/{taskID}/attachments",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}/children",
+      "target_path": "/api/v1/tasks/{taskID}/children",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}/comments",
+      "target_path": "/api/v1/tasks/{taskID}/comments",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}/labels",
+      "target_path": "/api/v1/tasks/{taskID}/labels",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/tasks/{taskID}/messages",
+      "target_path": "/api/v1/tasks/{taskID}/messages",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}/pull-requests",
+      "target_path": "/api/v1/tasks/{taskID}/pull-requests",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}/subscribers",
+      "target_path": "/api/v1/tasks/{taskID}/subscribers",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}/task-runs",
+      "target_path": "/api/v1/tasks/{taskID}/task-runs",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{id}/timeline",
+      "target_path": "/api/v1/tasks/{taskID}/timeline",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/{taskID}/usage",
+      "target_path": "/api/v1/tasks/{taskID}/usage",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/assignee-frequency",
+      "target_path": "/api/v1/workspaces/{workspaceID}/my-tasks",
+      "group": "my_tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/pins",
+      "target_path": "/api/v1/workspaces/{workspaceID}/pins",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/projects",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/projects/search",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/search",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/projects/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/{projectID}",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/projects/{projectID}/resources",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/{projectID}/resources",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/labels",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-labels",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/labels/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-labels/{id}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/properties",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-properties",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issue-statuses",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-statuses",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issue-view-preferences",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-view-preferences",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issue-views",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-views",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issue-views/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-views/{id}",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/child-progress",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/child-progress",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/children",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/children",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/grouped",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/grouped",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/limit-usage",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/limit-usage",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues/search",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/search",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/workspaces/{workspaceID}/vcs/connections",
+      "target_path": "/api/v1/workspaces/{workspaceID}/vcs/connections",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "PATCH",
+      "source_path": "/api/properties/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-properties/{id}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PATCH",
+      "source_path": "/api/issue-statuses/reorder",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-statuses/reorder",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PATCH",
+      "source_path": "/api/issue-statuses/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-statuses/{id}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PATCH",
+      "source_path": "/api/issue-views/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-views/{id}",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/comments/{commentID}/reactions",
+      "target_path": "/api/v1/comments/{commentID}/reactions",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/comments/{commentID}/resolve",
+      "target_path": "/api/v1/comments/{commentID}/resolve",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/comments/{id}/sub-issues",
+      "target_path": "/api/v1/comments/{commentID}/sub-tasks",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/tasks/{taskID}/cancel",
+      "target_path": "/api/v1/tasks/{taskID}/cancel",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/tasks/{taskID}/cancel{query}",
+      "target_path": "/api/v1/tasks/{taskID}/cancel{query}",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{taskID}/comments",
+      "target_path": "/api/v1/tasks/{taskID}/comments",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{id}/comments/trigger-preview",
+      "target_path": "/api/v1/tasks/{taskID}/comments/trigger-preview",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{id}/labels",
+      "target_path": "/api/v1/tasks/{taskID}/labels",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{id}/move",
+      "target_path": "/api/v1/tasks/{taskID}/move",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{id}/quick-actions/{quickActionID}/render",
+      "target_path": "/api/v1/tasks/{taskID}/quick-actions/{quickActionID}/render",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{id}/quick-actions/{quickActionID}/run",
+      "target_path": "/api/v1/tasks/{taskID}/quick-actions/{quickActionID}/run",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{taskID}/reactions",
+      "target_path": "/api/v1/tasks/{taskID}/reactions",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{taskID}/rerun",
+      "target_path": "/api/v1/tasks/{taskID}/rerun",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/tasks/{id}/retry-source-context",
+      "target_path": "/api/v1/tasks/{taskID}/retry-source-context",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{taskID}/subscribe",
+      "target_path": "/api/v1/tasks/{taskID}/subscribe",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{taskID}/tasks/{taskID}/cancel",
+      "target_path": "/api/v1/tasks/{taskID}/tasks/{taskID}/cancel",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{taskID}/unsubscribe",
+      "target_path": "/api/v1/tasks/{taskID}/unsubscribe",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/{taskID}/unsubscribe/subtree",
+      "target_path": "/api/v1/tasks/{taskID}/unsubscribe/subtree",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/pins",
+      "target_path": "/api/v1/workspaces/{workspaceID}/pins",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/projects",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/projects/{projectID}/resources",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/{projectID}/resources",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/labels",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-labels",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/properties",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-properties",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issue-statuses",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-statuses",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issue-views",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-views",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/batch-delete",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/batch-delete",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/batch-update",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/batch-update",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/preview-trigger",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/preview-trigger",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/query",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/query",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/quick-create",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/quick-create",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/table/facets",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/table/facets",
+      "group": "table",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/table/groups",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/table/groups",
+      "group": "table",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/issues/table/rows",
+      "target_path": "/api/v1/workspaces/{workspaceID}/tasks/table/rows",
+      "group": "table",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/workspaces/{workspaceID}/vcs/connections",
+      "target_path": "/api/v1/workspaces/{workspaceID}/vcs/connections",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "POST",
+      "source_path": "/api/workspaces/{workspaceID}/vcs/connections/{connectionID}/rotate-webhook",
+      "target_path": "/api/v1/workspaces/{workspaceID}/vcs/connections/{connectionID}/rotate-webhook",
+      "group": "stub",
+      "disposition": "stubbed"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/comments/{commentID}",
+      "target_path": "/api/v1/comments/{commentID}",
+      "group": "collaboration",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/issues/{id}",
+      "target_path": "/api/v1/tasks/{taskID}",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/issues/{id}/properties/{propertyID}",
+      "target_path": "/api/v1/tasks/{taskID}/properties/{propertyID}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/pins/reorder",
+      "target_path": "/api/v1/workspaces/{workspaceID}/pins/reorder",
+      "group": "views",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/projects/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/{projectID}",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/projects/{projectID}/resources/{resourceID}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/projects/{projectID}/resources/{resourceID}",
+      "group": "projects",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/labels/{id}",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-labels/{id}",
+      "group": "catalog",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/issue-view-preferences",
+      "target_path": "/api/v1/workspaces/{workspaceID}/task-view-preferences",
+      "group": "views",
+      "disposition": "adapted"
+    }
+  ]
+}
