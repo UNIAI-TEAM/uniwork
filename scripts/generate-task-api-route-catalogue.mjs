@@ -15,6 +15,9 @@ function normalizeSourcePath(raw) {
     .replace(/\$\{encodeURIComponent\(([^)]+)\)\}/g, "{$1}")
     .replace(/\$\{([^}]+)\}/g, "{$1}")
     .replace(/:([A-Za-z_][A-Za-z0-9_]*)/g, "{$1}");
+  // Drop optional-query appendages glued to the path (`/cancel${query}` →
+  // `/cancel{query}`). Those are not path segments.
+  path = path.replace(/\{[^}/]*query[^}/]*\}$/i, "");
   path = path.replace(/\{([^}]+)\}/g, (_, name) => {
     const cleaned = name.replace(/Id$/i, "ID").replace(/id$/i, "ID");
     const map = {
@@ -109,7 +112,7 @@ function mapTargetPath(sourcePath) {
     .replace(/^\/api\/properties(\/|$)/, "/api/task-properties$1");
 
   if (renamed === "/api/assignee-frequency") {
-    return "/api/v1/workspaces/{workspaceID}/my-tasks";
+    return "/api/v1/workspaces/{workspaceID}/assignee-frequency";
   }
 
   // Global comment routes stay global.

@@ -208,6 +208,13 @@
     {
       "method": "GET",
       "source_path": "/api/assignee-frequency",
+      "target_path": "/api/v1/workspaces/{workspaceID}/assignee-frequency",
+      "group": "my_tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "GET",
+      "source_path": "/api/issues",
       "target_path": "/api/v1/workspaces/{workspaceID}/my-tasks",
       "group": "my_tasks",
       "disposition": "adapted"
@@ -398,13 +405,6 @@
       "method": "POST",
       "source_path": "/api/tasks/{taskID}/cancel",
       "target_path": "/api/v1/tasks/{taskID}/cancel",
-      "group": "stub",
-      "disposition": "stubbed"
-    },
-    {
-      "method": "POST",
-      "source_path": "/api/tasks/{taskID}/cancel{query}",
-      "target_path": "/api/v1/tasks/{taskID}/cancel{query}",
       "group": "stub",
       "disposition": "stubbed"
     },
