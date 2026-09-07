@@ -313,6 +313,7 @@ export function MeetingRoomCopilotTab({
               type="button"
               variant="secondary"
               className="w-full"
+              // eslint-disable-next-line jsx-a11y/anchor-has-content -- Base UI merges the button's children into the anchor
               render={<a href={completedRecording.file_url} target="_blank" rel="noreferrer" />}
             >
               {t("meetings.openRecording")}
