@@ -35,3 +35,24 @@ type QueryTasksSDI struct {
 	Limit  int32  `json:"limit" description:"Kích thước trang (mặc định 50, tối đa 200)" example:"50"`
 	Offset int32  `json:"offset" description:"Offset phân trang" example:"0"`
 }
+
+// PutTaskSDI is PUT /api/v1/tasks/{taskID} (flagged suite). Revision may also
+// arrive via If-Match; body revision wins when both are present and equal.
+type PutTaskSDI struct {
+	Revision *int64   `json:"revision" description:"Revision hiện tại phía client; lệch → revision_conflict" example:"1"`
+	Title    *string  `json:"title" example:"Chuẩn bị standup"`
+	Status   *string  `json:"status" example:"in_progress"`
+	Priority *string  `json:"priority" example:"high"`
+	Position *float64 `json:"position" example:"1"`
+}
+
+// BatchUpdateTasksSDI is POST .../tasks/batch-update.
+type BatchUpdateTasksSDI struct {
+	TaskIDs []string     `json:"task_ids" description:"Danh sách ULID công việc (tối đa 100)" example:"[\"01J8X4TASKN1P2Q3R4S5T6U7\"]"`
+	Updates PatchTaskSDI `json:"updates" description:"Patch áp dụng cho mỗi task"`
+}
+
+// BatchDeleteTasksSDI is POST .../tasks/batch-delete.
+type BatchDeleteTasksSDI struct {
+	TaskIDs []string `json:"task_ids" description:"Danh sách ULID công việc (tối đa 100)" example:"[\"01J8X4TASKN1P2Q3R4S5T6U7\"]"`
+}

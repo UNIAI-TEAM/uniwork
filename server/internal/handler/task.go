@@ -109,21 +109,6 @@ func (h *handlers) listTasks(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]any{"tasks": out})
 }
 
-func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
-	var in sdi.CreateTaskSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	t, err := h.Tasks.Create(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
-		service.CreateTaskInput{Title: in.Title, Description: in.Description, Priority: in.Priority,
-			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, DueDate: in.DueDate})
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	h.respondTask(w, r, 200, t)
-}
-
 func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
 	t, err := h.Tasks.GetByRef(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"))
 	if err != nil {
@@ -134,7 +119,8 @@ func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
 }
 
 // PATCH body: field vắng mặt = không đổi; assignee_id/due_date gửi null = xóa.
-// Dùng json.RawMessage để phân biệt "vắng mặt" và "null".
+// Dùng json.RawMessage để phân biệt "vắng mặt" và "null". Suite revision
+// checks live on PUT (UpdateTaskSuite); board drag keeps PATCH without If-Match.
 func (h *handlers) updateTask(w http.ResponseWriter, r *http.Request) {
 	var raw map[string]json.RawMessage
 	if !decode(w, r, &raw, maxJSONBody) {

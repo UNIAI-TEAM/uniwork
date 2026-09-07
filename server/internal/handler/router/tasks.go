@@ -26,7 +26,7 @@ func registerTasks(r api, h Routes) {
 	})
 	r.Post("/workspaces/{workspaceID}/tasks", h.CreateTask, apiOp{
 		summary:     "Create task",
-		description: "Tạo công việc trong workspace.",
+		description: "Tạo công việc trong workspace. Header Idempotency-Key (tuỳ chọn) replay cùng response.",
 		tags:        []string{"tasks"},
 		sdi:         sdi.CreateTaskSDI{},
 		sdo:         sdo.TaskSDO{},
@@ -76,6 +76,9 @@ func registerTasks(r api, h Routes) {
 //
 //	POST /api/v1/workspaces/{workspaceID}/tasks/query
 //	GET  /api/v1/workspaces/{workspaceID}/tasks/grouped
+//	PUT  /api/v1/tasks/{taskID}
+//	POST /api/v1/workspaces/{workspaceID}/tasks/batch-update
+//	POST /api/v1/workspaces/{workspaceID}/tasks/batch-delete
 func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler) {
 	r.Group(func(suite api) {
 		suite.Use(flagMW)
@@ -92,6 +95,30 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			description: "Nhóm công việc theo status cho board. Query: group_by, status, limit, offset. Flag tasks_work_management_parity.",
 			tags:        []string{"tasks"},
 			sdo:         sdo.TaskGroupedSDO{},
+			auth:        true,
+		})
+		suite.Put("/tasks/{taskID}", h.PutTaskSuite, apiOp{
+			summary:     "Update task (suite)",
+			description: "Sửa công việc với revision / If-Match. Lệch → 422 revision_conflict. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.PutTaskSDI{},
+			sdo:         sdo.TaskSDO{},
+			auth:        true,
+		})
+		suite.Post("/workspaces/{workspaceID}/tasks/batch-update", h.BatchUpdateTasks, apiOp{
+			summary:     "Batch update tasks",
+			description: "Cập nhật nhiều công việc cùng patch. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.BatchUpdateTasksSDI{},
+			sdo:         sdo.BatchUpdateTasksSDO{},
+			auth:        true,
+		})
+		suite.Post("/workspaces/{workspaceID}/tasks/batch-delete", h.BatchDeleteTasks, apiOp{
+			summary:     "Batch delete tasks",
+			description: "Xóa nhiều công việc. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.BatchDeleteTasksSDI{},
+			sdo:         sdo.BatchDeleteTasksSDO{},
 			auth:        true,
 		})
 	})

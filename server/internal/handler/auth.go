@@ -149,6 +149,8 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 401, "invalid_credentials", "invalid credentials")
 	case errors.Is(err, service.ErrConflict):
 		respondError(w, 409, "conflict", "already exists")
+	case errors.Is(err, service.ErrIdempotencyInFlight):
+		respondError(w, 409, "idempotency_in_flight", "yêu cầu trùng đang được xử lý; thử lại sau")
 	case errors.Is(err, service.ErrRateLimited):
 		respondError(w, 429, "rate_limited", "too many requests")
 	case errors.Is(err, service.ErrInvalidCode):

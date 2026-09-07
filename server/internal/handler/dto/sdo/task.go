@@ -75,3 +75,13 @@ type TaskGroupDTO struct {
 type TaskGroupedSDO struct {
 	Groups []TaskGroupDTO `json:"groups"`
 }
+
+// BatchUpdateTasksSDO is POST .../tasks/batch-update.
+type BatchUpdateTasksSDO struct {
+	Updated int `json:"updated" example:"3"`
+}
+
+// BatchDeleteTasksSDO is POST .../tasks/batch-delete.
+type BatchDeleteTasksSDO struct {
+	Deleted int `json:"deleted" example:"3"`
+}
