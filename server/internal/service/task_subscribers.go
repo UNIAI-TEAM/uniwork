@@ -50,6 +50,17 @@ func (s *TaskService) SubscribeTask(ctx context.Context, actor Actor, taskID str
 	if err != nil {
 		return err
 	}
+	existing, err := s.q.ListTaskSubscribers(ctx, db.ListTaskSubscribersParams{
+		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, sub := range existing {
+		if sub.ActorType == actorType && sub.ActorID == actorID && sub.Reason == "manual" {
+			return nil // already subscribed — skip audit/outbox
+		}
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -85,16 +96,18 @@ func (s *TaskService) UnsubscribeTask(ctx context.Context, actor Actor, taskID s
 	if err != nil {
 		return err
 	}
-	return s.unsubscribeOne(ctx, actor, task, taskID, actorType, actorID)
-}
-
-func (s *TaskService) unsubscribeOne(ctx context.Context, actor Actor, task db.Task, taskID, actorType, actorID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
+	if err := s.unsubscribeOneTx(ctx, s.q.WithTx(tx), actor, task, taskID, actorType, actorID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *TaskService) unsubscribeOneTx(ctx context.Context, q *db.Queries, actor Actor, task db.Task, taskID, actorType, actorID string) error {
 	n, err := q.DeleteTaskSubscriber(ctx, db.DeleteTaskSubscriberParams{
 		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 		ActorType: actorType, ActorID: actorID,
@@ -103,22 +116,19 @@ func (s *TaskService) unsubscribeOne(ctx context.Context, actor Actor, task db.T
 		return err
 	}
 	if n == 0 {
-		return tx.Commit(ctx)
+		return nil
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
+	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 		Actor: actor, Action: audit.ActionTaskUnsubscribed,
 		ResourceType: "task", ResourceID: taskID,
 		Metadata: map[string]any{"actor_type": actorType, "actor_id": actorID},
 	}, audit.Event{Topic: "task.unsubscribed", Payload: map[string]string{
 		"task_id": taskID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	}})
 }
 
-// UnsubscribeTaskSubtree leaves the task and every descendant.
+// UnsubscribeTaskSubtree leaves the task and every descendant in one transaction.
 func (s *TaskService) UnsubscribeTaskSubtree(ctx context.Context, actor Actor, taskID string, in SubscribeTaskInput) error {
 	task, err := s.authorizeActor(ctx, actor, taskID)
 	if err != nil {
@@ -134,12 +144,18 @@ func (s *TaskService) UnsubscribeTaskSubtree(ctx context.Context, actor Actor, t
 	if err != nil {
 		return err
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
 	for _, id := range ids {
-		if err := s.unsubscribeOne(ctx, actor, task, id, actorType, actorID); err != nil {
+		if err := s.unsubscribeOneTx(ctx, q, actor, task, id, actorType, actorID); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 // ListTaskAttachments is stubbed until object storage is wired.

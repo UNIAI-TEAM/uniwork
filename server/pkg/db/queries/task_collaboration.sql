@@ -70,8 +70,7 @@ INSERT INTO comment_reactions (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7
 )
-ON CONFLICT (comment_id, actor_type, actor_id, emoji) DO UPDATE
-SET emoji = EXCLUDED.emoji
+ON CONFLICT (comment_id, actor_type, actor_id, emoji) DO NOTHING
 RETURNING *;
 
 -- name: DeleteCommentReaction :execrows
@@ -97,8 +96,7 @@ INSERT INTO task_reactions (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7
 )
-ON CONFLICT (task_id, actor_type, actor_id, emoji) DO UPDATE
-SET emoji = EXCLUDED.emoji
+ON CONFLICT (task_id, actor_type, actor_id, emoji) DO NOTHING
 RETURNING *;
 
 -- name: DeleteTaskReaction :execrows

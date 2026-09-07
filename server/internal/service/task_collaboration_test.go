@@ -31,6 +31,26 @@ func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
 	if !reply.ParentCommentID.Valid || reply.ParentCommentID.String != parent.ID {
 		t.Fatalf("reply parent = %+v", reply)
 	}
+	listed, err := s.Comments(ctx, ua.ID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundReply := false
+	for _, c := range listed {
+		if c.ID != reply.ID {
+			continue
+		}
+		foundReply = true
+		if !c.ParentCommentID.Valid || c.ParentCommentID.String != parent.ID {
+			t.Fatalf("GET list reply parent_id = %+v", c)
+		}
+		if c.CommentType == "" || c.Revision < 1 {
+			t.Fatalf("GET list missing type/revision: %+v", c)
+		}
+	}
+	if !foundReply {
+		t.Fatalf("GET list missing reply: %+v", listed)
+	}
 
 	resolved, err := s.ResolveComment(ctx, Human(ua.ID), parent.ID)
 	if err != nil {

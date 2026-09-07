@@ -263,8 +263,7 @@ INSERT INTO comment_reactions (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7
 )
-ON CONFLICT (comment_id, actor_type, actor_id, emoji) DO UPDATE
-SET emoji = EXCLUDED.emoji
+ON CONFLICT (comment_id, actor_type, actor_id, emoji) DO NOTHING
 RETURNING id, organization_id, workspace_id, comment_id, actor_type, actor_id, emoji, created_at
 `
 
@@ -308,8 +307,7 @@ INSERT INTO task_reactions (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7
 )
-ON CONFLICT (task_id, actor_type, actor_id, emoji) DO UPDATE
-SET emoji = EXCLUDED.emoji
+ON CONFLICT (task_id, actor_type, actor_id, emoji) DO NOTHING
 RETURNING id, organization_id, workspace_id, task_id, actor_type, actor_id, emoji, created_at
 `
 

@@ -73,6 +73,37 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 	if body["comment"].(map[string]any)["parent_id"] != parentID {
 		t.Fatalf("reply parent = %v", body)
 	}
+	replyID, _ := body["comment"].(map[string]any)["id"].(string)
+
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/comments", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list comments: %d %v", res.StatusCode, body)
+	}
+	comments, _ := body["comments"].([]any)
+	found := false
+	for _, raw := range comments {
+		c, _ := raw.(map[string]any)
+		if c["id"] != replyID {
+			continue
+		}
+		found = true
+		if c["parent_id"] != parentID {
+			t.Fatalf("list reply parent_id = %v", c)
+		}
+		if c["type"] == nil || c["type"] == "" {
+			t.Fatalf("list reply missing type: %v", c)
+		}
+		if c["display_name"] == nil || c["display_name"] == "" {
+			t.Fatalf("list reply missing display_name: %v", c)
+		}
+		author, _ := c["author"].(map[string]any)
+		if author["display_name"] == nil || author["display_name"] == "" {
+			t.Fatalf("list reply author = %v", author)
+		}
+	}
+	if !found {
+		t.Fatalf("list missing reply: %v", body)
+	}
 
 	res, body = doJSON(t, srv, "POST", "/api/v1/comments/"+parentID+"/resolve", token, nil)
 	if res.StatusCode != 200 {

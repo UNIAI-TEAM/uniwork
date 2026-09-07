@@ -155,18 +155,9 @@ func (h *handlers) listComments(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.CommentDTO, 0, len(cs))
 	for _, c := range cs {
-		dto := sdo.CommentDTO{
-			ID: c.ID, TaskID: c.TaskID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind, Body: c.Body,
-			CreatedAt: c.CreatedAt.Time.Format(time.RFC3339), DisplayName: c.DisplayName,
-			Author: sdo.ActorDTO{ID: c.AuthorID, Kind: c.AuthorKind, DisplayName: c.DisplayName},
-		}
-		if c.AvatarUrl.Valid {
-			dto.AvatarURL = c.AvatarUrl.String
-			dto.Author.AvatarURL = c.AvatarUrl.String
-		}
-		out = append(out, dto)
+		out = append(out, commentDTOFromListRow(c))
 	}
-	respondJSON(w, 200, map[string]any{"comments": out})
+	respondJSON(w, 200, sdo.CommentListSDO{Comments: out})
 }
 
 func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +172,7 @@ func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"comment": commentDTOFromRow(c)})
+	h.respondComment(w, r, c)
 }
 
 func parseTaskPatch(raw map[string]json.RawMessage) (service.UpdateTaskInput, error) {

@@ -5,33 +5,74 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func commentDTOFromRow(c db.TaskComment) map[string]any {
-	out := map[string]any{
-		"id": c.ID, "task_id": c.TaskID, "author_id": c.AuthorID, "author_kind": c.AuthorKind,
-		"body": c.Body, "type": c.CommentType, "revision": c.Revision,
-		"created_at": c.CreatedAt.Time.Format(time.RFC3339),
-		"updated_at": c.UpdatedAt.Time.Format(time.RFC3339),
+// commentDTO builds the CommentSDO shape for create/list/update/resolve so
+// thread fields and author display stay consistent across every response.
+func commentDTO(
+	id, taskID, authorID, authorKind, body, commentType string,
+	revision int64,
+	parentID pgtype.Text,
+	resolvedAt pgtype.Timestamptz,
+	createdAt, updatedAt pgtype.Timestamptz,
+	displayName, avatarURL string,
+) sdo.CommentDTO {
+	out := sdo.CommentDTO{
+		ID: id, TaskID: taskID, AuthorID: authorID, AuthorKind: authorKind, Body: body,
+		Type: commentType, Revision: revision,
+		CreatedAt:   createdAt.Time.Format(time.RFC3339),
+		UpdatedAt:   updatedAt.Time.Format(time.RFC3339),
+		DisplayName: displayName, AvatarURL: avatarURL,
+		Author: sdo.ActorDTO{ID: authorID, Kind: authorKind, DisplayName: displayName, AvatarURL: avatarURL},
 	}
-	if c.ParentCommentID.Valid {
-		out["parent_id"] = c.ParentCommentID.String
+	if parentID.Valid {
+		p := parentID.String
+		out.ParentID = &p
 	}
-	if c.ResolvedAt.Valid {
-		out["resolved_at"] = c.ResolvedAt.Time.Format(time.RFC3339)
-		if c.ResolvedByType.Valid {
-			out["resolved_by_type"] = c.ResolvedByType.String
-		}
-		if c.ResolvedByID.Valid {
-			out["resolved_by_id"] = c.ResolvedByID.String
-		}
+	if resolvedAt.Valid {
+		s := resolvedAt.Time.Format(time.RFC3339)
+		out.ResolvedAt = &s
 	}
 	return out
+}
+
+func commentDTOFromListRow(c db.ListTaskCommentsRow) sdo.CommentDTO {
+	avatar := ""
+	if c.AvatarUrl.Valid {
+		avatar = c.AvatarUrl.String
+	}
+	return commentDTO(
+		c.ID, c.TaskID, c.AuthorID, c.AuthorKind, c.Body, c.CommentType, c.Revision,
+		c.ParentCommentID, c.ResolvedAt, c.CreatedAt, c.UpdatedAt, c.DisplayName, avatar,
+	)
+}
+
+func commentDTOFromTaskComment(c db.TaskComment, displayName, avatarURL string) sdo.CommentDTO {
+	return commentDTO(
+		c.ID, c.TaskID, c.AuthorID, c.AuthorKind, c.Body, c.CommentType, c.Revision,
+		c.ParentCommentID, c.ResolvedAt, c.CreatedAt, c.UpdatedAt, displayName, avatarURL,
+	)
+}
+
+func (h *handlers) respondComment(w http.ResponseWriter, r *http.Request, c db.TaskComment) {
+	displayName, avatarURL := "", ""
+	actors, err := h.Actors.Resolve(r.Context(), []service.ActorRef{{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	if a, ok := actors[service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}]; ok {
+		displayName, avatarURL = a.DisplayName, a.AvatarURL
+	}
+	respondJSON(w, 200, sdo.CommentSDO{Comment: commentDTOFromTaskComment(c, displayName, avatarURL)})
 }
 
 func (h *handlers) updateComment(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +85,7 @@ func (h *handlers) updateComment(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"comment": commentDTOFromRow(c)})
+	h.respondComment(w, r, c)
 }
 
 func (h *handlers) deleteComment(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +102,7 @@ func (h *handlers) resolveComment(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"comment": commentDTOFromRow(c)})
+	h.respondComment(w, r, c)
 }
 
 func (h *handlers) unresolveComment(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +111,7 @@ func (h *handlers) unresolveComment(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"comment": commentDTOFromRow(c)})
+	h.respondComment(w, r, c)
 }
 
 func (h *handlers) addCommentReaction(w http.ResponseWriter, r *http.Request) {

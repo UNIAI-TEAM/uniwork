@@ -323,6 +323,7 @@ func (s *TaskService) AddCommentReaction(ctx context.Context, actor Actor, comme
 	if err != nil {
 		return db.CommentReaction{}, err
 	}
+	actorType := s.commentActorType(actor.Kind)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.CommentReaction{}, err
@@ -331,10 +332,28 @@ func (s *TaskService) AddCommentReaction(ctx context.Context, actor Actor, comme
 	q := s.q.WithTx(tx)
 	row, err := q.InsertCommentReaction(ctx, db.InsertCommentReactionParams{
 		ID: util.NewID(), OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
-		CommentID: commentID, ActorType: s.commentActorType(actor.Kind), ActorID: actor.ID, Emoji: emoji,
+		CommentID: commentID, ActorType: actorType, ActorID: actor.ID, Emoji: emoji,
 	})
 	if err != nil {
-		return db.CommentReaction{}, err
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return db.CommentReaction{}, err
+		}
+		// Already present — return existing without audit/outbox.
+		existing, lerr := q.ListCommentReactions(ctx, db.ListCommentReactionsParams{
+			CommentID: commentID, OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
+		})
+		if lerr != nil {
+			return db.CommentReaction{}, lerr
+		}
+		for _, r := range existing {
+			if r.ActorType == actorType && r.ActorID == actor.ID && r.Emoji == emoji {
+				if err := tx.Commit(ctx); err != nil {
+					return db.CommentReaction{}, err
+				}
+				return r, nil
+			}
+		}
+		return db.CommentReaction{}, ErrNotFound
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
@@ -376,7 +395,7 @@ func (s *TaskService) RemoveCommentReaction(ctx context.Context, actor Actor, co
 		return err
 	}
 	if n == 0 {
-		return nil
+		return tx.Commit(ctx) // no-op remove — no audit
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
@@ -401,6 +420,7 @@ func (s *TaskService) AddTaskReaction(ctx context.Context, actor Actor, taskID, 
 	if err != nil {
 		return db.TaskReaction{}, err
 	}
+	actorType := s.commentActorType(actor.Kind)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.TaskReaction{}, err
@@ -409,10 +429,27 @@ func (s *TaskService) AddTaskReaction(ctx context.Context, actor Actor, taskID, 
 	q := s.q.WithTx(tx)
 	row, err := q.InsertTaskReaction(ctx, db.InsertTaskReactionParams{
 		ID: util.NewID(), OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		TaskID: taskID, ActorType: s.commentActorType(actor.Kind), ActorID: actor.ID, Emoji: emoji,
+		TaskID: taskID, ActorType: actorType, ActorID: actor.ID, Emoji: emoji,
 	})
 	if err != nil {
-		return db.TaskReaction{}, err
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return db.TaskReaction{}, err
+		}
+		existing, lerr := q.ListTaskReactions(ctx, db.ListTaskReactionsParams{
+			TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+		})
+		if lerr != nil {
+			return db.TaskReaction{}, lerr
+		}
+		for _, r := range existing {
+			if r.ActorType == actorType && r.ActorID == actor.ID && r.Emoji == emoji {
+				if err := tx.Commit(ctx); err != nil {
+					return db.TaskReaction{}, err
+				}
+				return r, nil
+			}
+		}
+		return db.TaskReaction{}, ErrNotFound
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
@@ -454,7 +491,7 @@ func (s *TaskService) RemoveTaskReaction(ctx context.Context, actor Actor, taskI
 		return err
 	}
 	if n == 0 {
-		return nil
+		return tx.Commit(ctx) // no-op remove — no audit
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,

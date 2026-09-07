@@ -90,6 +90,8 @@ RETURNING *;
 
 -- name: ListTaskComments :many
 SELECT c.id, c.task_id, c.author_id, c.author_kind, c.body, c.created_at,
+       c.parent_comment_id, c.comment_type, c.revision, c.updated_at,
+       c.resolved_at, c.resolved_by_type, c.resolved_by_id,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
        COALESCE(u.avatar_url, a.avatar_url) AS avatar_url
 FROM task_comments c

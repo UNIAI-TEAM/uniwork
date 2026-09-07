@@ -1156,6 +1156,8 @@ func (q *Queries) ListTableTaskRows(ctx context.Context, arg ListTableTaskRowsPa
 
 const listTaskComments = `-- name: ListTaskComments :many
 SELECT c.id, c.task_id, c.author_id, c.author_kind, c.body, c.created_at,
+       c.parent_comment_id, c.comment_type, c.revision, c.updated_at,
+       c.resolved_at, c.resolved_by_type, c.resolved_by_id,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
        COALESCE(u.avatar_url, a.avatar_url) AS avatar_url
 FROM task_comments c
@@ -1174,14 +1176,21 @@ type ListTaskCommentsParams struct {
 }
 
 type ListTaskCommentsRow struct {
-	ID          string             `json:"id"`
-	TaskID      string             `json:"task_id"`
-	AuthorID    string             `json:"author_id"`
-	AuthorKind  string             `json:"author_kind"`
-	Body        string             `json:"body"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	DisplayName string             `json:"display_name"`
-	AvatarUrl   pgtype.Text        `json:"avatar_url"`
+	ID              string             `json:"id"`
+	TaskID          string             `json:"task_id"`
+	AuthorID        string             `json:"author_id"`
+	AuthorKind      string             `json:"author_kind"`
+	Body            string             `json:"body"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ParentCommentID pgtype.Text        `json:"parent_comment_id"`
+	CommentType     string             `json:"comment_type"`
+	Revision        int64              `json:"revision"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
+	ResolvedByType  pgtype.Text        `json:"resolved_by_type"`
+	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
+	DisplayName     string             `json:"display_name"`
+	AvatarUrl       pgtype.Text        `json:"avatar_url"`
 }
 
 func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error) {
@@ -1200,6 +1209,13 @@ func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsPara
 			&i.AuthorKind,
 			&i.Body,
 			&i.CreatedAt,
+			&i.ParentCommentID,
+			&i.CommentType,
+			&i.Revision,
+			&i.UpdatedAt,
+			&i.ResolvedAt,
+			&i.ResolvedByType,
+			&i.ResolvedByID,
 			&i.DisplayName,
 			&i.AvatarUrl,
 		); err != nil {
