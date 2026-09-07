@@ -6,7 +6,13 @@ WHERE organization_id = $1 AND workspace_id = $2
 ORDER BY updated_at DESC, id;
 
 -- name: SearchProjects :many
-SELECT * FROM projects
+-- total_count is the window count over the filtered set (not the page length).
+SELECT
+  id, organization_id, workspace_id, title, description, icon, status, priority,
+  lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind,
+  created_at, updated_at,
+  count(*) OVER ()::bigint AS total_count
+FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
   AND (
     title ILIKE '%' || sqlc.arg('q') || '%'
@@ -23,6 +29,19 @@ ORDER BY
   updated_at DESC,
   id
 LIMIT sqlc.arg('limit_count') OFFSET sqlc.arg('offset_count');
+
+-- name: CountSearchProjects :one
+-- Empty pages have no window row to carry total_count; use this fallback.
+SELECT count(*)::bigint FROM projects
+WHERE organization_id = $1 AND workspace_id = $2
+  AND (
+    title ILIKE '%' || sqlc.arg('q') || '%'
+    OR description ILIKE '%' || sqlc.arg('q') || '%'
+  )
+  AND (
+    sqlc.arg('include_closed')::bool
+    OR status NOT IN ('completed', 'cancelled')
+  );
 
 -- name: GetProject :one
 SELECT * FROM projects
@@ -45,15 +64,16 @@ UPDATE projects SET
   icon        = COALESCE(sqlc.narg('icon'), icon),
   status      = COALESCE(sqlc.narg('status'), status),
   priority    = COALESCE(sqlc.narg('priority'), priority),
-  lead_type   = COALESCE(sqlc.narg('lead_type'), lead_type),
-  lead_id     = COALESCE(sqlc.narg('lead_id'), lead_id),
-  start_date  = COALESCE(sqlc.narg('start_date'), start_date),
-  due_date    = COALESCE(sqlc.narg('due_date'), due_date),
+  lead_type   = CASE WHEN sqlc.arg('set_lead')::bool THEN sqlc.narg('lead_type') ELSE lead_type END,
+  lead_id     = CASE WHEN sqlc.arg('set_lead')::bool THEN sqlc.narg('lead_id') ELSE lead_id END,
+  start_date  = CASE WHEN sqlc.arg('set_start_date')::bool THEN sqlc.narg('start_date') ELSE start_date END,
+  due_date    = CASE WHEN sqlc.arg('set_due_date')::bool THEN sqlc.narg('due_date') ELSE due_date END,
   revision    = revision + 1,
   updated_at  = now()
 WHERE id = sqlc.arg('id')
   AND organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
+  AND revision = sqlc.arg('expected_revision')
 RETURNING *;
 
 -- name: DeleteProject :execrows
@@ -123,9 +143,10 @@ WHERE id = $1
 DELETE FROM project_resources
 WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3;
 
--- name: ClearTasksProjectID :exec
+-- name: ClearTasksProjectID :many
 UPDATE tasks SET project_id = NULL, revision = revision + 1, updated_at = now()
-WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3;
+WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
+RETURNING id;
 
 -- name: DeleteTaskViewsByProjectScope :exec
 DELETE FROM task_views

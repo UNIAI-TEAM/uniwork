@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -90,7 +91,7 @@ func (h *handlers) searchProjects(w http.ResponseWriter, r *http.Request) {
 			in.Offset = int32(v)
 		}
 	}
-	list, err := h.Tasks.SearchProjects(r.Context(), actor, wsID, in)
+	list, total, err := h.Tasks.SearchProjects(r.Context(), actor, wsID, in)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -104,7 +105,7 @@ func (h *handlers) searchProjects(w http.ResponseWriter, r *http.Request) {
 	for _, p := range list {
 		out = append(out, projectDTO(p, stats[p.ID]))
 	}
-	respondJSON(w, 200, sdo.ProjectListSDO{Projects: out, Total: len(out)})
+	respondJSON(w, 200, sdo.ProjectListSDO{Projects: out, Total: int(total)})
 }
 
 func (h *handlers) createProject(w http.ResponseWriter, r *http.Request) {
@@ -155,17 +156,37 @@ func (h *handlers) getProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) putProject(w http.ResponseWriter, r *http.Request) {
-	var in sdi.PutProjectSDI
-	if !decode(w, r, &in, maxJSONBody) {
+	var raw map[string]json.RawMessage
+	if !decode(w, r, &raw, maxJSONBody) {
 		return
 	}
+	in, err := parsePutProject(raw)
+	if err != nil {
+		respondError(w, 400, "invalid_request", err.Error())
+		return
+	}
+	var bodyRev *int64
+	if v, ok := raw["revision"]; ok && string(v) != "null" {
+		var n int64
+		if err := json.Unmarshal(v, &n); err != nil {
+			respondError(w, 400, "invalid_request", "revision phải là số")
+			return
+		}
+		bodyRev = &n
+	}
+	rev, err := resolveTaskRevision(r.Header.Get("If-Match"), bodyRev)
+	if err != nil {
+		respondError(w, 400, "invalid_request", err.Error())
+		return
+	}
+	if rev == nil {
+		respondError(w, 400, "invalid_request", "revision hoặc If-Match là bắt buộc")
+		return
+	}
+	in.ExpectedRevision = *rev
 	actor := service.Human(middleware.UserID(r.Context()))
 	wsID := chi.URLParam(r, "workspaceID")
-	project, err := h.Tasks.UpdateProject(r.Context(), actor, wsID, chi.URLParam(r, "projectID"), service.UpdateProjectInput{
-		Title: in.Title, Description: in.Description, Icon: in.Icon,
-		Status: in.Status, Priority: in.Priority, LeadType: in.LeadType, LeadID: in.LeadID,
-		StartDate: in.StartDate, DueDate: in.DueDate,
-	})
+	project, err := h.Tasks.UpdateProject(r.Context(), actor, wsID, chi.URLParam(r, "projectID"), in)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -176,6 +197,66 @@ func (h *handlers) putProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.ProjectSDO{Project: projectDTO(project, stats[project.ID])})
+}
+
+func parsePutProject(raw map[string]json.RawMessage) (service.UpdateProjectInput, error) {
+	var in service.UpdateProjectInput
+	str := func(k string) (*string, error) {
+		v, ok := raw[k]
+		if !ok {
+			return nil, nil
+		}
+		var s string
+		if err := json.Unmarshal(v, &s); err != nil {
+			return nil, fmt.Errorf("%s phải là chuỗi", k)
+		}
+		return &s, nil
+	}
+	nullable := func(k string) (**string, error) {
+		v, ok := raw[k]
+		if !ok {
+			return nil, nil
+		}
+		if string(v) == "null" {
+			var p *string
+			return &p, nil
+		}
+		var s string
+		if err := json.Unmarshal(v, &s); err != nil {
+			return nil, fmt.Errorf("%s phải là chuỗi hoặc null", k)
+		}
+		p := &s
+		return &p, nil
+	}
+	var err error
+	if in.Title, err = str("title"); err != nil {
+		return in, err
+	}
+	if in.Description, err = str("description"); err != nil {
+		return in, err
+	}
+	if in.Icon, err = str("icon"); err != nil {
+		return in, err
+	}
+	if in.Status, err = str("status"); err != nil {
+		return in, err
+	}
+	if in.Priority, err = str("priority"); err != nil {
+		return in, err
+	}
+	if in.LeadType, err = nullable("lead_type"); err != nil {
+		return in, err
+	}
+	if in.LeadID, err = nullable("lead_id"); err != nil {
+		return in, err
+	}
+	if in.StartDate, err = nullable("start_date"); err != nil {
+		return in, err
+	}
+	if in.DueDate, err = nullable("due_date"); err != nil {
+		return in, err
+	}
+	return in, nil
 }
 
 func (h *handlers) deleteProject(w http.ResponseWriter, r *http.Request) {

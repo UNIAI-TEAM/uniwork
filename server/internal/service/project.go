@@ -38,16 +38,19 @@ type CreateProjectInput struct {
 	Resources   []CreateProjectResourceInput
 }
 
+// UpdateProjectInput: nil pointer = omit; for Lead*/dates, outer nil = omit,
+// &nil = clear, &*string = set (same presence pattern as UpdateTaskInput).
 type UpdateProjectInput struct {
-	Title       *string
-	Description *string
-	Icon        *string
-	Status      *string
-	Priority    *string
-	LeadType    *string
-	LeadID      *string
-	StartDate   *string
-	DueDate     *string
+	ExpectedRevision int64
+	Title            *string
+	Description      *string
+	Icon             *string
+	Status           *string
+	Priority         *string
+	LeadType         **string
+	LeadID           **string
+	StartDate        **string
+	DueDate          **string
 }
 
 type ListProjectsFilter struct {
@@ -194,17 +197,17 @@ func (s *TaskService) ListProjects(ctx context.Context, actor Actor, workspaceID
 	})
 }
 
-func (s *TaskService) SearchProjects(ctx context.Context, actor Actor, workspaceID string, in SearchProjectsInput) ([]db.Project, error) {
+func (s *TaskService) SearchProjects(ctx context.Context, actor Actor, workspaceID string, in SearchProjectsInput) ([]db.Project, int64, error) {
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	q := strings.TrimSpace(in.Q)
 	if q == "" {
-		return nil, Invalid("q parameter is required")
+		return nil, 0, Invalid("q parameter is required")
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	limit := in.Limit
 	if limit <= 0 {
@@ -217,11 +220,38 @@ func (s *TaskService) SearchProjects(ctx context.Context, actor Actor, workspace
 	if offset < 0 {
 		offset = 0
 	}
-	return s.q.SearchProjects(ctx, db.SearchProjectsParams{
+	qText := pgtype.Text{String: q, Valid: true}
+	rows, err := s.q.SearchProjects(ctx, db.SearchProjectsParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-		Q: pgtype.Text{String: q, Valid: true}, IncludeClosed: in.IncludeClosed,
+		Q: qText, IncludeClosed: in.IncludeClosed,
 		LimitCount: limit, OffsetCount: offset,
 	})
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]db.Project, 0, len(rows))
+	var total int64
+	for _, row := range rows {
+		total = row.TotalCount
+		out = append(out, db.Project{
+			ID: row.ID, OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID,
+			Title: row.Title, Description: row.Description, Icon: row.Icon,
+			Status: row.Status, Priority: row.Priority, LeadType: row.LeadType, LeadID: row.LeadID,
+			StartDate: row.StartDate, DueDate: row.DueDate, Revision: row.Revision,
+			CreatedBy: row.CreatedBy, CreatedByKind: row.CreatedByKind,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		})
+	}
+	if len(rows) == 0 {
+		total, err = s.q.CountSearchProjects(ctx, db.CountSearchProjectsParams{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+			Q: qText, IncludeClosed: in.IncludeClosed,
+		})
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	return out, total, nil
 }
 
 func (s *TaskService) GetProject(ctx context.Context, actor Actor, workspaceID, projectID string) (db.Project, error) {
@@ -243,7 +273,14 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 	if err != nil {
 		return db.Project{}, err
 	}
-	if _, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID); err != nil {
+	current, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID)
+	if err != nil {
+		return db.Project{}, err
+	}
+	if in.ExpectedRevision <= 0 {
+		return db.Project{}, Invalid("expected_revision is required")
+	}
+	if err := CheckTaskRevision(in.ExpectedRevision, current.Revision); err != nil {
 		return db.Project{}, err
 	}
 	var title pgtype.Text
@@ -260,22 +297,36 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 	if in.Priority != nil && !containsStr(validProjectPriorities, *in.Priority) {
 		return db.Project{}, Invalid("invalid priority")
 	}
-	leadType, leadID, err := normalizeProjectLead(in.LeadType, in.LeadID)
-	if err != nil {
-		return db.Project{}, err
-	}
-	// Only touch lead columns when the caller sent either field.
+	setLead := in.LeadType != nil || in.LeadID != nil
 	var leadTypeArg, leadIDArg pgtype.Text
-	if in.LeadType != nil || in.LeadID != nil {
-		leadTypeArg, leadIDArg = leadType, leadID
+	if setLead {
+		var lt, lid *string
+		if in.LeadType != nil {
+			lt = *in.LeadType
+		}
+		if in.LeadID != nil {
+			lid = *in.LeadID
+		}
+		leadTypeArg, leadIDArg, err = normalizeProjectLead(lt, lid)
+		if err != nil {
+			return db.Project{}, err
+		}
 	}
-	startDate, err := parseProjectDate(in.StartDate, "start_date")
-	if err != nil {
-		return db.Project{}, err
+	setStart := in.StartDate != nil
+	var startDate pgtype.Date
+	if setStart {
+		startDate, err = parseProjectDate(*in.StartDate, "start_date")
+		if err != nil {
+			return db.Project{}, err
+		}
 	}
-	dueDate, err := parseProjectDate(in.DueDate, "due_date")
-	if err != nil {
-		return db.Project{}, err
+	setDue := in.DueDate != nil
+	var dueDate pgtype.Date
+	if setDue {
+		dueDate, err = parseProjectDate(*in.DueDate, "due_date")
+		if err != nil {
+			return db.Project{}, err
+		}
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -289,10 +340,22 @@ func (s *TaskService) UpdateProject(ctx context.Context, actor Actor, workspaceI
 		ID: projectID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Title: title, Description: optText(in.Description), Icon: optText(in.Icon),
 		Status: optText(in.Status), Priority: optText(in.Priority),
-		LeadType: leadTypeArg, LeadID: leadIDArg, StartDate: startDate, DueDate: dueDate,
+		SetLead: setLead, LeadType: leadTypeArg, LeadID: leadIDArg,
+		SetStartDate: setStart, StartDate: startDate,
+		SetDueDate: setDue, DueDate: dueDate,
+		ExpectedRevision: in.ExpectedRevision,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return db.Project{}, ErrNotFound
+		again, getErr := q.GetProject(ctx, db.GetProjectParams{
+			ID: projectID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		})
+		if errors.Is(getErr, pgx.ErrNoRows) {
+			return db.Project{}, ErrNotFound
+		}
+		if getErr != nil {
+			return db.Project{}, getErr
+		}
+		return db.Project{}, CheckTaskRevision(in.ExpectedRevision, again.Revision)
 	}
 	if err != nil {
 		return db.Project{}, err
@@ -336,11 +399,23 @@ func (s *TaskService) DeleteProject(ctx context.Context, actor Actor, workspaceI
 	}); err != nil {
 		return err
 	}
-	if err := q.ClearTasksProjectID(ctx, db.ClearTasksProjectIDParams{
+	clearedTaskIDs, err := q.ClearTasksProjectID(ctx, db.ClearTasksProjectIDParams{
 		ProjectID:      pgtype.Text{String: projectID, Valid: true},
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
+	}
+	for _, taskID := range clearedTaskIDs {
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+			Actor: actor, Action: audit.ActionTaskUpdated,
+			ResourceType: "task", ResourceID: taskID,
+		}, audit.Event{Topic: "task.updated", Payload: map[string]string{
+			"task_id": taskID, "workspace_id": workspaceID,
+		}}); err != nil {
+			return err
+		}
 	}
 	if err := q.DeleteTaskViewsByProjectScope(ctx, db.DeleteTaskViewsByProjectScopeParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,

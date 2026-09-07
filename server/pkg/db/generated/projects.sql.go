@@ -11,9 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const clearTasksProjectID = `-- name: ClearTasksProjectID :exec
+const clearTasksProjectID = `-- name: ClearTasksProjectID :many
 UPDATE tasks SET project_id = NULL, revision = revision + 1, updated_at = now()
 WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
+RETURNING id
 `
 
 type ClearTasksProjectIDParams struct {
@@ -22,9 +23,57 @@ type ClearTasksProjectIDParams struct {
 	WorkspaceID    string      `json:"workspace_id"`
 }
 
-func (q *Queries) ClearTasksProjectID(ctx context.Context, arg ClearTasksProjectIDParams) error {
-	_, err := q.db.Exec(ctx, clearTasksProjectID, arg.ProjectID, arg.OrganizationID, arg.WorkspaceID)
-	return err
+func (q *Queries) ClearTasksProjectID(ctx context.Context, arg ClearTasksProjectIDParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, clearTasksProjectID, arg.ProjectID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countSearchProjects = `-- name: CountSearchProjects :one
+SELECT count(*)::bigint FROM projects
+WHERE organization_id = $1 AND workspace_id = $2
+  AND (
+    title ILIKE '%' || $3 || '%'
+    OR description ILIKE '%' || $3 || '%'
+  )
+  AND (
+    $4::bool
+    OR status NOT IN ('completed', 'cancelled')
+  )
+`
+
+type CountSearchProjectsParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Q              pgtype.Text `json:"q"`
+	IncludeClosed  bool        `json:"include_closed"`
+}
+
+// Empty pages have no window row to carry total_count; use this fallback.
+func (q *Queries) CountSearchProjects(ctx context.Context, arg CountSearchProjectsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSearchProjects,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Q,
+		arg.IncludeClosed,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createProject = `-- name: CreateProject :one
@@ -522,7 +571,12 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 }
 
 const searchProjects = `-- name: SearchProjects :many
-SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects
+SELECT
+  id, organization_id, workspace_id, title, description, icon, status, priority,
+  lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind,
+  created_at, updated_at,
+  count(*) OVER ()::bigint AS total_count
+FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
   AND (
     title ILIKE '%' || $3 || '%'
@@ -550,7 +604,29 @@ type SearchProjectsParams struct {
 	LimitCount     int32       `json:"limit_count"`
 }
 
-func (q *Queries) SearchProjects(ctx context.Context, arg SearchProjectsParams) ([]Project, error) {
+type SearchProjectsRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Icon           pgtype.Text        `json:"icon"`
+	Status         string             `json:"status"`
+	Priority       string             `json:"priority"`
+	LeadType       pgtype.Text        `json:"lead_type"`
+	LeadID         pgtype.Text        `json:"lead_id"`
+	StartDate      pgtype.Date        `json:"start_date"`
+	DueDate        pgtype.Date        `json:"due_date"`
+	Revision       int64              `json:"revision"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TotalCount     int64              `json:"total_count"`
+}
+
+// total_count is the window count over the filtered set (not the page length).
+func (q *Queries) SearchProjects(ctx context.Context, arg SearchProjectsParams) ([]SearchProjectsRow, error) {
 	rows, err := q.db.Query(ctx, searchProjects,
 		arg.OrganizationID,
 		arg.WorkspaceID,
@@ -563,9 +639,9 @@ func (q *Queries) SearchProjects(ctx context.Context, arg SearchProjectsParams) 
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Project{}
+	items := []SearchProjectsRow{}
 	for rows.Next() {
-		var i Project
+		var i SearchProjectsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
@@ -584,6 +660,7 @@ func (q *Queries) SearchProjects(ctx context.Context, arg SearchProjectsParams) 
 			&i.CreatedByKind,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}
@@ -602,31 +679,36 @@ UPDATE projects SET
   icon        = COALESCE($3, icon),
   status      = COALESCE($4, status),
   priority    = COALESCE($5, priority),
-  lead_type   = COALESCE($6, lead_type),
-  lead_id     = COALESCE($7, lead_id),
-  start_date  = COALESCE($8, start_date),
-  due_date    = COALESCE($9, due_date),
+  lead_type   = CASE WHEN $6::bool THEN $7 ELSE lead_type END,
+  lead_id     = CASE WHEN $6::bool THEN $8 ELSE lead_id END,
+  start_date  = CASE WHEN $9::bool THEN $10 ELSE start_date END,
+  due_date    = CASE WHEN $11::bool THEN $12 ELSE due_date END,
   revision    = revision + 1,
   updated_at  = now()
-WHERE id = $10
-  AND organization_id = $11
-  AND workspace_id = $12
+WHERE id = $13
+  AND organization_id = $14
+  AND workspace_id = $15
+  AND revision = $16
 RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at
 `
 
 type UpdateProjectParams struct {
-	Title          pgtype.Text `json:"title"`
-	Description    pgtype.Text `json:"description"`
-	Icon           pgtype.Text `json:"icon"`
-	Status         pgtype.Text `json:"status"`
-	Priority       pgtype.Text `json:"priority"`
-	LeadType       pgtype.Text `json:"lead_type"`
-	LeadID         pgtype.Text `json:"lead_id"`
-	StartDate      pgtype.Date `json:"start_date"`
-	DueDate        pgtype.Date `json:"due_date"`
-	ID             string      `json:"id"`
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
+	Title            pgtype.Text `json:"title"`
+	Description      pgtype.Text `json:"description"`
+	Icon             pgtype.Text `json:"icon"`
+	Status           pgtype.Text `json:"status"`
+	Priority         pgtype.Text `json:"priority"`
+	SetLead          bool        `json:"set_lead"`
+	LeadType         pgtype.Text `json:"lead_type"`
+	LeadID           pgtype.Text `json:"lead_id"`
+	SetStartDate     bool        `json:"set_start_date"`
+	StartDate        pgtype.Date `json:"start_date"`
+	SetDueDate       bool        `json:"set_due_date"`
+	DueDate          pgtype.Date `json:"due_date"`
+	ID               string      `json:"id"`
+	OrganizationID   string      `json:"organization_id"`
+	WorkspaceID      string      `json:"workspace_id"`
+	ExpectedRevision int64       `json:"expected_revision"`
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
@@ -636,13 +718,17 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.Icon,
 		arg.Status,
 		arg.Priority,
+		arg.SetLead,
 		arg.LeadType,
 		arg.LeadID,
+		arg.SetStartDate,
 		arg.StartDate,
+		arg.SetDueDate,
 		arg.DueDate,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.ExpectedRevision,
 	)
 	var i Project
 	err := row.Scan(

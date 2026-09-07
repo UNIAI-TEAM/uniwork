@@ -25,7 +25,9 @@ type CreateProjectResourceEmbedSDI struct {
 }
 
 // PutProjectSDI is PUT .../projects/{projectID}.
+// Clearable lead/date fields use RawMessage in the handler so null clears.
 type PutProjectSDI struct {
+	Revision    *int64  `json:"revision" description:"Revision hiện tại phía client; lệch → revision_conflict" example:"1"`
 	Title       *string `json:"title"`
 	Description *string `json:"description"`
 	Icon        *string `json:"icon"`

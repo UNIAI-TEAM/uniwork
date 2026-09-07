@@ -303,7 +303,9 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			title := "After"
-			if _, err := f.tasks.UpdateProject(f.ctx, Human(f.owner.ID), w.ID, p.ID, UpdateProjectInput{Title: &title}); err != nil {
+			if _, err := f.tasks.UpdateProject(f.ctx, Human(f.owner.ID), w.ID, p.ID, UpdateProjectInput{
+				ExpectedRevision: p.Revision, Title: &title,
+			}); err != nil {
 				t.Fatal(err)
 			}
 		},

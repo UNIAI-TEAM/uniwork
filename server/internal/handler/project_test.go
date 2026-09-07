@@ -100,13 +100,27 @@ func TestProjectsHTTPRoundTripAndCapabilityNotReady(t *testing.T) {
 	resourceID := resources[0].(map[string]any)["id"].(string)
 
 	res, body = doJSON(t, srv, "PUT", "/api/v1/workspaces/"+wsID+"/projects/"+projectID, token, map[string]any{
-		"title": "Launch v2", "status": "in_progress",
+		"revision": 1, "title": "Launch v2", "status": "in_progress",
 	})
 	if res.StatusCode != 200 {
 		t.Fatalf("put project: %d %v", res.StatusCode, body)
 	}
 	if body["project"].(map[string]any)["title"] != "Launch v2" {
 		t.Fatalf("updated = %v", body)
+	}
+	if body["project"].(map[string]any)["revision"].(float64) != 2 {
+		t.Fatalf("revision after put = %v", body["project"])
+	}
+
+	res, body = doJSON(t, srv, "PUT", "/api/v1/workspaces/"+wsID+"/projects/"+projectID, token, map[string]any{
+		"revision": 1, "title": "stale",
+	})
+	if res.StatusCode != 422 {
+		t.Fatalf("stale put status = %d %v", res.StatusCode, body)
+	}
+	errObj, _ := body["error"].(map[string]any)
+	if errObj["code"] != "revision_conflict" {
+		t.Fatalf("stale put code = %v", body)
 	}
 
 	res, body = doJSON(t, srv, "PUT", "/api/v1/workspaces/"+wsID+"/projects/"+projectID+"/resources/"+resourceID, token, map[string]any{
