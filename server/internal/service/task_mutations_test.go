@@ -158,3 +158,87 @@ func TestCreateTaskSuiteIdempotentReplay(t *testing.T) {
 		t.Fatalf("rows: got %d want 1", len(list))
 	}
 }
+
+func TestCreateTaskSuiteRetriesAfterFailedCreate(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	key := "create-suite-retry-after-fail"
+
+	_, err := s.CreateTaskSuite(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Bad", Priority: "not-a-priority"}, key)
+	var ve ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("want ValidationError, got %v", err)
+	}
+
+	task, err := s.CreateTaskSuite(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Good", Priority: "medium"}, key)
+	if err != nil {
+		t.Fatalf("retry after failed create: %v", err)
+	}
+	if task.Title != "Good" {
+		t.Fatalf("title: got %q want Good", task.Title)
+	}
+	list, err := s.List(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("rows: got %d want 1", len(list))
+	}
+}
+
+func TestBatchUpdateTasksRollsBackOnMidFailure(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+
+	ids := make([]string, 0, 2)
+	for i := 0; i < 2; i++ {
+		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Batch atomic", Priority: "low"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, task.ID)
+	}
+	st := "done"
+	_, err := s.BatchUpdateTasks(ctx, Human(ua.ID), w.ID, BatchUpdateTasksInput{
+		TaskIDs: append(ids, "01JNOTATASK000000000000000"),
+		Patch:   UpdateTaskInput{Status: &st},
+	})
+	if err == nil {
+		t.Fatal("expected error for unknown task id")
+	}
+	for _, id := range ids {
+		got, err := s.Get(ctx, ua.ID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Status != "todo" {
+			t.Fatalf("task %s status=%q want todo (batch must roll back)", id, got.Status)
+		}
+		if got.Revision != 1 {
+			t.Fatalf("task %s revision=%d want 1", id, got.Revision)
+		}
+	}
+}
+
+func TestBatchDeleteTasksRollsBackOnMidFailure(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+
+	ids := make([]string, 0, 2)
+	for i := 0; i < 2; i++ {
+		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Del atomic", Priority: "low"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, task.ID)
+	}
+	_, err := s.BatchDeleteTasks(ctx, Human(ua.ID), w.ID, append(ids, "01JNOTATASK000000000000000"))
+	if err == nil {
+		t.Fatal("expected error for unknown task id")
+	}
+	for _, id := range ids {
+		if _, err := s.Get(ctx, ua.ID, id); err != nil {
+			t.Fatalf("task %s should still exist after rolled-back batch delete: %v", id, err)
+		}
+	}
+}

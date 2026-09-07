@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -33,6 +35,8 @@ type BatchUpdateTasksInput struct {
 
 // CreateTaskSuite creates a task, optionally keyed by Idempotency-Key (empty
 // key skips the claim). A completed prior claim replays the stored task.
+// Claim, create, and response commit share one transaction so a failed create
+// never leaves the key stranded in_flight.
 func (s *TaskService) CreateTaskSuite(ctx context.Context, actor Actor, workspaceID string, in CreateTaskInput, idempotencyKey string) (db.Task, error) {
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return db.Task{}, err
@@ -42,7 +46,14 @@ func (s *TaskService) CreateTaskSuite(ctx context.Context, actor Actor, workspac
 		return db.Task{}, err
 	}
 
-	replay, commit, err := BeginIdempotent(ctx, s.q, ws.OrganizationID, workspaceID, idempotencyScopeTaskCreate, idempotencyKey, actor.ID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.Task{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	replay, commit, err := BeginIdempotent(ctx, q, ws.OrganizationID, workspaceID, idempotencyScopeTaskCreate, idempotencyKey, actor.ID)
 	if err != nil {
 		return db.Task{}, NormalizeIdempotencyError(err)
 	}
@@ -54,7 +65,7 @@ func (s *TaskService) CreateTaskSuite(ctx context.Context, actor Actor, workspac
 		return task, nil
 	}
 
-	task, err := s.Create(ctx, actor, workspaceID, in)
+	task, err := s.createTaskInTx(ctx, q, actor, ws, workspaceID, in)
 	if err != nil {
 		return db.Task{}, err
 	}
@@ -63,6 +74,9 @@ func (s *TaskService) CreateTaskSuite(ctx context.Context, actor Actor, workspac
 		return db.Task{}, err
 	}
 	if err := commit(http.StatusOK, body); err != nil {
+		return db.Task{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
@@ -86,8 +100,9 @@ func (s *TaskService) UpdateTaskSuite(ctx context.Context, actor Actor, taskID s
 	})
 }
 
-// BatchUpdateTasks applies Patch to each id that belongs to the workspace.
-// Missing or foreign ids are skipped; membership is required once for the ws.
+// BatchUpdateTasks applies Patch to every listed id in one transaction.
+// Unknown (missing/foreign) non-empty ids fail the whole batch; empty strings
+// are ignored. Membership is required once for the workspace.
 func (s *TaskService) BatchUpdateTasks(ctx context.Context, actor Actor, workspaceID string, in BatchUpdateTasksInput) (int, error) {
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return 0, err
@@ -103,27 +118,41 @@ func (s *TaskService) BatchUpdateTasks(ctx context.Context, actor Actor, workspa
 		return 0, err
 	}
 
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
 	updated := 0
 	for _, id := range in.TaskIDs {
 		id = strings.TrimSpace(id)
 		if id == "" {
 			continue
 		}
-		task, err := s.q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
+		task, err := q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
 			ID: id, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		})
 		if err != nil {
-			continue
+			if errors.Is(err, pgx.ErrNoRows) {
+				return 0, Invalid("task_ids chứa id không thuộc workspace")
+			}
+			return 0, err
 		}
-		if _, err := s.Update(ctx, actor, task.ID, in.Patch); err != nil {
-			return updated, err
+		if _, err := s.updateTaskInTx(ctx, q, actor, task, ws, in.Patch); err != nil {
+			return 0, err
 		}
 		updated++
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
 	}
 	return updated, nil
 }
 
-// BatchDeleteTasks deletes each id that belongs to the workspace.
+// BatchDeleteTasks deletes every listed id in one transaction. Unknown
+// non-empty ids fail the whole batch; empty strings are ignored.
 func (s *TaskService) BatchDeleteTasks(ctx context.Context, actor Actor, workspaceID string, taskIDs []string) (int, error) {
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return 0, err
@@ -139,22 +168,35 @@ func (s *TaskService) BatchDeleteTasks(ctx context.Context, actor Actor, workspa
 		return 0, err
 	}
 
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
 	deleted := 0
 	for _, id := range taskIDs {
 		id = strings.TrimSpace(id)
 		if id == "" {
 			continue
 		}
-		task, err := s.q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
+		task, err := q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
 			ID: id, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		})
 		if err != nil {
-			continue
+			if errors.Is(err, pgx.ErrNoRows) {
+				return 0, Invalid("task_ids chứa id không thuộc workspace")
+			}
+			return 0, err
 		}
-		if err := s.Delete(ctx, actor.ID, task.ID); err != nil {
-			return deleted, err
+		if err := s.deleteTaskInTx(ctx, q, actor.ID, task, ws); err != nil {
+			return 0, err
 		}
 		deleted++
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
 	}
 	return deleted, nil
 }
