@@ -273,6 +273,18 @@ type FeatureFlagOverride struct {
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
 }
 
+type IdempotencyKey struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Scope          string             `json:"scope"`
+	Key            string             `json:"key"`
+	ActorID        string             `json:"actor_id"`
+	ResponseStatus pgtype.Int4        `json:"response_status"`
+	ResponseBody   []byte             `json:"response_body"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Invitation struct {
 	ID          string             `json:"id"`
 	WorkspaceID string             `json:"workspace_id"`
