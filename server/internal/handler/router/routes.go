@@ -116,6 +116,17 @@ type Routes struct {
 	DeletePin             http.HandlerFunc
 	ReorderPins           http.HandlerFunc
 
+	ListProjects          http.HandlerFunc
+	SearchProjects        http.HandlerFunc
+	CreateProject         http.HandlerFunc
+	GetProject            http.HandlerFunc
+	PutProject            http.HandlerFunc
+	DeleteProject         http.HandlerFunc
+	ListProjectResources  http.HandlerFunc
+	CreateProjectResource http.HandlerFunc
+	PutProjectResource    http.HandlerFunc
+	DeleteProjectResource http.HandlerFunc
+
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc

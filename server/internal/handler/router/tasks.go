@@ -329,5 +329,47 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			summary: "Delete pin", description: "Bỏ ghim theo item_type + item_id. Flag tasks_work_management_parity.",
 			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
 		})
+
+		// Projects + resources (catalogue group projects). search before {projectID}.
+		suite.Get("/workspaces/{workspaceID}/projects/search", h.SearchProjects, apiOp{
+			summary: "Search projects", description: "Tìm project theo title/description. Query: q, include_closed, limit, offset. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.ProjectListSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/projects", h.ListProjects, apiOp{
+			summary: "List projects", description: "Danh sách project workspace. Query: status, priority. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.ProjectListSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/projects", h.CreateProject, apiOp{
+			summary: "Create project", description: "Tạo project (tuỳ chọn kèm resources). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.CreateProjectSDI{}, sdo: sdo.ProjectSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/projects/{projectID}", h.GetProject, apiOp{
+			summary: "Get project", description: "Chi tiết một project. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.ProjectSDO{}, auth: true,
+		})
+		suite.Put("/workspaces/{workspaceID}/projects/{projectID}", h.PutProject, apiOp{
+			summary: "Update project", description: "Sửa project. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.PutProjectSDI{}, sdo: sdo.ProjectSDO{}, auth: true,
+		})
+		suite.Delete("/workspaces/{workspaceID}/projects/{projectID}", h.DeleteProject, apiOp{
+			summary: "Delete project", description: "Xóa project, resources, pin và view theo scope. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/projects/{projectID}/resources", h.ListProjectResources, apiOp{
+			summary: "List project resources", description: "Tài nguyên gắn với project. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.ProjectResourceListSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/projects/{projectID}/resources", h.CreateProjectResource, apiOp{
+			summary: "Create project resource", description: "Thêm github_repo hoặc local_directory. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.CreateProjectResourceSDI{}, sdo: sdo.ProjectResourceSDO{}, auth: true,
+		})
+		suite.Put("/workspaces/{workspaceID}/projects/{projectID}/resources/{resourceID}", h.PutProjectResource, apiOp{
+			summary: "Update project resource", description: "Sửa ref/label/position. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.PutProjectResourceSDI{}, sdo: sdo.ProjectResourceSDO{}, auth: true,
+		})
+		suite.Delete("/workspaces/{workspaceID}/projects/{projectID}/resources/{resourceID}", h.DeleteProjectResource, apiOp{
+			summary: "Delete project resource", description: "Xóa một resource. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
 	})
 }

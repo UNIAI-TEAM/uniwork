@@ -288,6 +288,85 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionProjectCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{
+				Title: "Audit project",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "Before"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			title := "After"
+			if _, err := f.tasks.UpdateProject(f.ctx, Human(f.owner.ID), w.ID, p.ID, UpdateProjectInput{Title: &title}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "Temp"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectResourceCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "With res"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.CreateProjectResource(f.ctx, Human(f.owner.ID), w.ID, p.ID, CreateProjectResourceInput{
+				ResourceType: "github_repo",
+				ResourceRef:  json.RawMessage(`{"url":"https://github.com/acme/app.git"}`),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectResourceUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "With res"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := f.tasks.CreateProjectResource(f.ctx, Human(f.owner.ID), w.ID, p.ID, CreateProjectResourceInput{
+				ResourceType: "github_repo",
+				ResourceRef:  json.RawMessage(`{"url":"https://github.com/acme/app.git"}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			label := "main"
+			if _, err := f.tasks.UpdateProjectResource(f.ctx, Human(f.owner.ID), w.ID, p.ID, res.ID, UpdateProjectResourceInput{
+				Label: &label,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectResourceDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "With res"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := f.tasks.CreateProjectResource(f.ctx, Human(f.owner.ID), w.ID, p.ID, CreateProjectResourceInput{
+				ResourceType: "github_repo",
+				ResourceRef:  json.RawMessage(`{"url":"https://github.com/acme/app.git"}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteProjectResource(f.ctx, Human(f.owner.ID), w.ID, p.ID, res.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionTaskPinReordered: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			task := f.newTask(t)

@@ -200,6 +200,17 @@ func New(d Deps) http.Handler {
 		DeletePin:             h.deletePin,
 		ReorderPins:           h.reorderPins,
 
+		ListProjects:          h.listProjects,
+		SearchProjects:        h.searchProjects,
+		CreateProject:         h.createProject,
+		GetProject:            h.getProject,
+		PutProject:            h.putProject,
+		DeleteProject:         h.deleteProject,
+		ListProjectResources:  h.listProjectResources,
+		CreateProjectResource: h.createProjectResource,
+		PutProjectResource:    h.putProjectResource,
+		DeleteProjectResource: h.deleteProjectResource,
+
 		ListNotifications:          h.listNotifications,
 		UnreadNotificationCount:    h.unreadNotificationCount,
 		MarkNotificationsRead:      h.markNotificationsRead,

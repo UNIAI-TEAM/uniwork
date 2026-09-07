@@ -99,6 +99,12 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `task_view.deleted` | 1 | `view_id`, `workspace_id` | workspace | outbox |
 | `task_view.updated` | 1 | `view_id`, `workspace_id` | workspace | outbox |
 | `task_view_preference.updated` | 1 | `workspace_id`, `user_id`, `scope_id` | workspace | outbox |
+| `project.created` | 1 | `project_id`, `workspace_id` | workspace | outbox |
+| `project.deleted` | 1 | `project_id`, `workspace_id` | workspace | outbox |
+| `project.updated` | 1 | `project_id`, `workspace_id` | workspace | outbox |
+| `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
+| `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
+| `project_resource.updated` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
 | `transcript.appended` | 1 | `meeting_id` | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | - | outbox |
 | `workspace.created` | 1 | `workspace_id`, `organization_id` | workspace | outbox |

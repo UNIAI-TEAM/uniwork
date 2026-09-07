@@ -74,6 +74,12 @@ var catalogue = []EventDef{
 	{Topic: "task_view.deleted", Version: 1, Payload: []string{"view_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_view.updated", Version: 1, Payload: []string{"view_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_view_preference.updated", Version: 1, Payload: []string{"workspace_id", "user_id", "scope_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.created", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.deleted", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.updated", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project_resource.created", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project_resource.deleted", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project_resource.updated", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Agents (ADR 0007): the picker in a workspace refreshes when one joins.
 	{Topic: "workspace_agent.added", Version: 1, Payload: []string{"workspace_id", "agent_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

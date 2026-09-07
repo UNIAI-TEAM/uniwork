@@ -50,6 +50,13 @@ const (
 	ActionTaskPinDeleted            = "task_pin.deleted"
 	ActionTaskPinReordered          = "task_pin.reordered"
 
+	ActionProjectCreated         = "project.created"
+	ActionProjectUpdated         = "project.updated"
+	ActionProjectDeleted         = "project.deleted"
+	ActionProjectResourceCreated = "project_resource.created"
+	ActionProjectResourceUpdated = "project_resource.updated"
+	ActionProjectResourceDeleted = "project_resource.deleted"
+
 	ActionAuthLoginSucceeded         = "auth.login_succeeded"
 	ActionAuthLoginFailed            = "auth.login_failed"
 	ActionAuthPasswordResetRequested = "auth.password_reset_requested"

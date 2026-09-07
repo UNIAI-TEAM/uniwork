@@ -1,7 +1,28 @@
 -- name: ListProjects :many
 SELECT * FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('priority')::text IS NULL OR priority = sqlc.narg('priority'))
 ORDER BY updated_at DESC, id;
+
+-- name: SearchProjects :many
+SELECT * FROM projects
+WHERE organization_id = $1 AND workspace_id = $2
+  AND (
+    title ILIKE '%' || sqlc.arg('q') || '%'
+    OR description ILIKE '%' || sqlc.arg('q') || '%'
+  )
+  AND (
+    sqlc.arg('include_closed')::bool
+    OR status NOT IN ('completed', 'cancelled')
+  )
+ORDER BY
+  CASE WHEN lower(title) = lower(sqlc.arg('q')) THEN 0
+       WHEN lower(title) LIKE lower(sqlc.arg('q')) || '%' THEN 1
+       ELSE 2 END,
+  updated_at DESC,
+  id
+LIMIT sqlc.arg('limit_count') OFFSET sqlc.arg('offset_count');
 
 -- name: GetProject :one
 SELECT * FROM projects
@@ -35,14 +56,39 @@ WHERE id = sqlc.arg('id')
   AND workspace_id = sqlc.arg('workspace_id')
 RETURNING *;
 
--- name: DeleteProject :exec
+-- name: DeleteProject :execrows
 DELETE FROM projects
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3;
+
+-- name: GetProjectTaskStats :many
+SELECT project_id,
+  COUNT(*)::bigint AS total_count,
+  COUNT(*) FILTER (WHERE status IN ('done', 'cancelled'))::bigint AS done_count
+FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND project_id = ANY(sqlc.arg('project_ids')::text[])
+GROUP BY project_id;
+
+-- name: GetProjectResourceCounts :many
+SELECT project_id, COUNT(*)::bigint AS resource_count
+FROM project_resources
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND project_id = ANY(sqlc.arg('project_ids')::text[])
+GROUP BY project_id;
 
 -- name: ListProjectResources :many
 SELECT * FROM project_resources
 WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
 ORDER BY position, created_at, id;
+
+-- name: GetProjectResource :one
+SELECT * FROM project_resources
+WHERE id = $1
+  AND project_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4;
 
 -- name: CreateProjectResource :one
 INSERT INTO project_resources (
@@ -61,10 +107,36 @@ UPDATE project_resources SET
   position     = COALESCE(sqlc.narg('position'), position),
   updated_at   = now()
 WHERE id = sqlc.arg('id')
+  AND project_id = sqlc.arg('project_id')
   AND organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
 RETURNING *;
 
--- name: DeleteProjectResource :exec
+-- name: DeleteProjectResource :execrows
 DELETE FROM project_resources
-WHERE id = $1 AND organization_id = $2 AND workspace_id = $3;
+WHERE id = $1
+  AND project_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4;
+
+-- name: DeleteProjectResourcesByProject :exec
+DELETE FROM project_resources
+WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3;
+
+-- name: ClearTasksProjectID :exec
+UPDATE tasks SET project_id = NULL, revision = revision + 1, updated_at = now()
+WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3;
+
+-- name: DeleteTaskViewsByProjectScope :exec
+DELETE FROM task_views
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND scope_type = 'project'
+  AND scope_id = $3;
+
+-- name: DeleteTaskPinsByItem :exec
+DELETE FROM task_pins
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND item_type = $3
+  AND item_id = $4;
