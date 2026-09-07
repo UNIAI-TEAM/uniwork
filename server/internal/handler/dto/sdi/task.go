@@ -67,3 +67,36 @@ type SetTaskDependencySDI struct {
 	DependsOnTaskID string `json:"depends_on_task_id" description:"ULID công việc phụ thuộc" example:"01J8X4TASKN1P2Q3R4S5T6U8"`
 	Type            string `json:"type" description:"blocks, blocked_by hoặc related" example:"blocked_by"`
 }
+
+// TableFilterSDI narrows table groups/rows/facets.
+type TableFilterSDI struct {
+	Statuses    []string `json:"statuses" description:"Lọc status; bỏ trống = mọi status" example:"[\"todo\",\"in_progress\"]"`
+	Priorities  []string `json:"priorities" description:"Lọc priority" example:"[\"high\"]"`
+	AssigneeIDs []string `json:"assignee_ids" description:"Lọc assignee ULID" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+}
+
+// TableGroupsSDI is POST .../tasks/table/groups (flagged suite).
+type TableGroupsSDI struct {
+	Filter  TableFilterSDI `json:"filter" description:"Bộ lọc chung"`
+	GroupBy string         `json:"group_by" description:"status, priority hoặc assignee" example:"status"`
+	Columns []string       `json:"columns" description:"Cột client yêu cầu (fingerprint); groups không chiếu cột" example:"[\"title\",\"status\"]"`
+	Limit   int32          `json:"limit" description:"Giới hạn số group (dự phòng phân trang)" example:"50"`
+	Offset  int32          `json:"offset" example:"0"`
+}
+
+// TableRowsSDI is POST .../tasks/table/rows (flagged suite).
+type TableRowsSDI struct {
+	Filter   TableFilterSDI `json:"filter"`
+	GroupBy  string         `json:"group_by" description:"Trục nhóm khớp groups" example:"status"`
+	GroupKey *string        `json:"group_key" description:"Key group từ /table/groups; null = mọi group" example:"todo"`
+	Columns  []string       `json:"columns" description:"Cột client; server trả task đầy đủ ổn định" example:"[\"title\",\"status\",\"priority\"]"`
+	Limit    int32          `json:"limit" example:"50"`
+	Offset   int32          `json:"offset" example:"0"`
+}
+
+// TableFacetsSDI is POST .../tasks/table/facets (flagged suite).
+type TableFacetsSDI struct {
+	Filter  TableFilterSDI `json:"filter"`
+	Facets  []string       `json:"facets" description:"status, priority, assignee" example:"[\"status\",\"priority\"]"`
+	Columns []string       `json:"columns" description:"Fingerprint; facets không chiếu cột" example:"[\"title\"]"`
+}

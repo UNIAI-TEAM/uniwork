@@ -81,6 +81,9 @@ type Routes struct {
 	SetTaskParent         http.HandlerFunc
 	SetTaskDependency     http.HandlerFunc
 	RemoveTaskDependency  http.HandlerFunc
+	TableGroups           http.HandlerFunc
+	TableRows             http.HandlerFunc
+	TableFacets           http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc

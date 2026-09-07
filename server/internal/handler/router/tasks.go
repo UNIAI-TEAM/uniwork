@@ -86,6 +86,9 @@ func registerTasks(r api, h Routes) {
 //	PUT  /api/v1/tasks/{taskID}/parent
 //	POST /api/v1/tasks/{taskID}/dependencies
 //	DELETE /api/v1/tasks/{taskID}/dependencies/{dependsOnTaskID}
+//	POST /api/v1/workspaces/{workspaceID}/tasks/table/groups
+//	POST /api/v1/workspaces/{workspaceID}/tasks/table/rows
+//	POST /api/v1/workspaces/{workspaceID}/tasks/table/facets
 func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler) {
 	r.Group(func(suite api) {
 		suite.Use(flagMW)
@@ -177,6 +180,30 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			description: "Xóa cạnh phụ thuộc. Query type tùy chọn. Flag tasks_work_management_parity.",
 			tags:        []string{"tasks"},
 			sdo:         sdo.StatusSDO{},
+			auth:        true,
+		})
+		suite.Post("/workspaces/{workspaceID}/tasks/table/groups", h.TableGroups, apiOp{
+			summary:     "Table groups",
+			description: "Nhóm công việc theo group_by (status|priority|assignee) với filter/columns. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.TableGroupsSDI{},
+			sdo:         sdo.TableGroupsSDO{},
+			auth:        true,
+		})
+		suite.Post("/workspaces/{workspaceID}/tasks/table/rows", h.TableRows, apiOp{
+			summary:     "Table rows",
+			description: "Hàng bảng trong một group_key; filter/group_by/columns. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.TableRowsSDI{},
+			sdo:         sdo.TableRowsSDO{},
+			auth:        true,
+		})
+		suite.Post("/workspaces/{workspaceID}/tasks/table/facets", h.TableFacets, apiOp{
+			summary:     "Table facets",
+			description: "Đếm facet (status|priority|assignee) theo filter. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.TableFacetsSDI{},
+			sdo:         sdo.TableFacetsSDO{},
 			auth:        true,
 		})
 	})

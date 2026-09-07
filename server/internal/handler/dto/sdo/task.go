@@ -113,3 +113,68 @@ type TaskDependencyDTO struct {
 type TaskDependencySDO struct {
 	Dependency TaskDependencyDTO `json:"dependency"`
 }
+
+// TableActorRefDTO is an assignee key in a table group value.
+type TableActorRefDTO struct {
+	Type string `json:"type" example:"member"`
+	ID   string `json:"id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+}
+
+// TableGroupValueDTO is the stable group value for table mode.
+type TableGroupValueDTO struct {
+	Kind     string            `json:"kind" example:"status"`
+	Status   string            `json:"status,omitempty" example:"todo"`
+	Priority string            `json:"priority,omitempty" example:"high"`
+	Actor    *TableActorRefDTO `json:"actor,omitempty"`
+}
+
+// TableGroupDescriptorDTO is one bucket in TableGroupsSDO.
+type TableGroupDescriptorDTO struct {
+	Key   string             `json:"key" example:"todo"`
+	Value TableGroupValueDTO `json:"value"`
+	Count int64              `json:"count" example:"3"`
+}
+
+// TableGroupsSDO is POST .../tasks/table/groups.
+type TableGroupsSDO struct {
+	QueryFingerprint string                    `json:"query_fingerprint" example:"a1b2c3d4e5f60718"`
+	Total            int64                     `json:"total" example:"6"`
+	Groups           []TableGroupDescriptorDTO `json:"groups"`
+	NextCursor       *string                   `json:"next_cursor"`
+}
+
+// TableRowDTO is one row in TableRowsSDO.
+type TableRowDTO struct {
+	Task             TaskDTO `json:"task"`
+	DirectChildCount int64   `json:"direct_child_count" example:"0"`
+}
+
+// TableRowsSDO is POST .../tasks/table/rows.
+type TableRowsSDO struct {
+	QueryFingerprint string        `json:"query_fingerprint"`
+	GroupKey         *string       `json:"group_key" example:"todo"`
+	ParentID         *string       `json:"parent_id"`
+	Total            int64         `json:"total" example:"3"`
+	Rows             []TableRowDTO `json:"rows"`
+	BranchTotal      int64         `json:"branch_total" example:"3"`
+	NextCursor       *string       `json:"next_cursor"`
+}
+
+// TableFacetValueDTO is one facet bucket.
+type TableFacetValueDTO struct {
+	Key   string `json:"key" example:"todo"`
+	Count int64  `json:"count" example:"3"`
+}
+
+// TableFacetDTO is one facet dimension.
+type TableFacetDTO struct {
+	Kind   string               `json:"kind" example:"status"`
+	Values []TableFacetValueDTO `json:"values"`
+}
+
+// TableFacetsSDO is POST .../tasks/table/facets.
+type TableFacetsSDO struct {
+	QueryFingerprint string          `json:"query_fingerprint"`
+	Total            int64           `json:"total" example:"6"`
+	Facets           []TableFacetDTO `json:"facets"`
+}

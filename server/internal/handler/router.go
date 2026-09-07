@@ -165,6 +165,9 @@ func New(d Deps) http.Handler {
 		SetTaskParent:         h.setTaskParent,
 		SetTaskDependency:     h.setTaskDependency,
 		RemoveTaskDependency:  h.removeTaskDependency,
+		TableGroups:           h.tableGroups,
+		TableRows:             h.tableRows,
+		TableFacets:           h.tableFacets,
 
 		ListNotifications:          h.listNotifications,
 		UnreadNotificationCount:    h.unreadNotificationCount,

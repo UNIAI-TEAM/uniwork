@@ -80,6 +80,216 @@ func (q *Queries) CountMyTasks(ctx context.Context, arg CountMyTasksParams) (int
 	return column_1, err
 }
 
+const countTableTasks = `-- name: CountTableTasks :one
+
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND (NOT $3::bool OR status = ANY($4::text[]))
+  AND (NOT $5::bool OR priority = ANY($6::text[]))
+  AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+`
+
+type CountTableTasksParams struct {
+	OrganizationID    string   `json:"organization_id"`
+	WorkspaceID       string   `json:"workspace_id"`
+	HasStatusFilter   bool     `json:"has_status_filter"`
+	Statuses          []string `json:"statuses"`
+	HasPriorityFilter bool     `json:"has_priority_filter"`
+	Priorities        []string `json:"priorities"`
+	HasAssigneeFilter bool     `json:"has_assignee_filter"`
+	AssigneeIds       []string `json:"assignee_ids"`
+}
+
+// Table mode (groups / rows / facets). Empty filter arrays are ignored when
+// the matching has_*_filter flag is false.
+func (q *Queries) CountTableTasks(ctx context.Context, arg CountTableTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTableTasks,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HasStatusFilter,
+		arg.Statuses,
+		arg.HasPriorityFilter,
+		arg.Priorities,
+		arg.HasAssigneeFilter,
+		arg.AssigneeIds,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countTableTasksByAssignee = `-- name: CountTableTasksByAssignee :many
+SELECT COALESCE(assignee_id, '') AS key, count(*)::bigint AS count
+FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND (NOT $3::bool OR status = ANY($4::text[]))
+  AND (NOT $5::bool OR priority = ANY($6::text[]))
+  AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+GROUP BY COALESCE(assignee_id, '')
+ORDER BY 1
+`
+
+type CountTableTasksByAssigneeParams struct {
+	OrganizationID    string   `json:"organization_id"`
+	WorkspaceID       string   `json:"workspace_id"`
+	HasStatusFilter   bool     `json:"has_status_filter"`
+	Statuses          []string `json:"statuses"`
+	HasPriorityFilter bool     `json:"has_priority_filter"`
+	Priorities        []string `json:"priorities"`
+	HasAssigneeFilter bool     `json:"has_assignee_filter"`
+	AssigneeIds       []string `json:"assignee_ids"`
+}
+
+type CountTableTasksByAssigneeRow struct {
+	Key   string `json:"key"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) CountTableTasksByAssignee(ctx context.Context, arg CountTableTasksByAssigneeParams) ([]CountTableTasksByAssigneeRow, error) {
+	rows, err := q.db.Query(ctx, countTableTasksByAssignee,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HasStatusFilter,
+		arg.Statuses,
+		arg.HasPriorityFilter,
+		arg.Priorities,
+		arg.HasAssigneeFilter,
+		arg.AssigneeIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountTableTasksByAssigneeRow{}
+	for rows.Next() {
+		var i CountTableTasksByAssigneeRow
+		if err := rows.Scan(&i.Key, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countTableTasksByPriority = `-- name: CountTableTasksByPriority :many
+SELECT priority AS key, count(*)::bigint AS count
+FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND (NOT $3::bool OR status = ANY($4::text[]))
+  AND (NOT $5::bool OR priority = ANY($6::text[]))
+  AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+GROUP BY priority
+ORDER BY priority
+`
+
+type CountTableTasksByPriorityParams struct {
+	OrganizationID    string   `json:"organization_id"`
+	WorkspaceID       string   `json:"workspace_id"`
+	HasStatusFilter   bool     `json:"has_status_filter"`
+	Statuses          []string `json:"statuses"`
+	HasPriorityFilter bool     `json:"has_priority_filter"`
+	Priorities        []string `json:"priorities"`
+	HasAssigneeFilter bool     `json:"has_assignee_filter"`
+	AssigneeIds       []string `json:"assignee_ids"`
+}
+
+type CountTableTasksByPriorityRow struct {
+	Key   string `json:"key"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) CountTableTasksByPriority(ctx context.Context, arg CountTableTasksByPriorityParams) ([]CountTableTasksByPriorityRow, error) {
+	rows, err := q.db.Query(ctx, countTableTasksByPriority,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HasStatusFilter,
+		arg.Statuses,
+		arg.HasPriorityFilter,
+		arg.Priorities,
+		arg.HasAssigneeFilter,
+		arg.AssigneeIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountTableTasksByPriorityRow{}
+	for rows.Next() {
+		var i CountTableTasksByPriorityRow
+		if err := rows.Scan(&i.Key, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countTableTasksByStatus = `-- name: CountTableTasksByStatus :many
+SELECT status AS key, count(*)::bigint AS count
+FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND (NOT $3::bool OR status = ANY($4::text[]))
+  AND (NOT $5::bool OR priority = ANY($6::text[]))
+  AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+GROUP BY status
+ORDER BY status
+`
+
+type CountTableTasksByStatusParams struct {
+	OrganizationID    string   `json:"organization_id"`
+	WorkspaceID       string   `json:"workspace_id"`
+	HasStatusFilter   bool     `json:"has_status_filter"`
+	Statuses          []string `json:"statuses"`
+	HasPriorityFilter bool     `json:"has_priority_filter"`
+	Priorities        []string `json:"priorities"`
+	HasAssigneeFilter bool     `json:"has_assignee_filter"`
+	AssigneeIds       []string `json:"assignee_ids"`
+}
+
+type CountTableTasksByStatusRow struct {
+	Key   string `json:"key"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) CountTableTasksByStatus(ctx context.Context, arg CountTableTasksByStatusParams) ([]CountTableTasksByStatusRow, error) {
+	rows, err := q.db.Query(ctx, countTableTasksByStatus,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HasStatusFilter,
+		arg.Statuses,
+		arg.HasPriorityFilter,
+		arg.Priorities,
+		arg.HasAssigneeFilter,
+		arg.AssigneeIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountTableTasksByStatusRow{}
+	for rows.Next() {
+		var i CountTableTasksByStatusRow
+		if err := rows.Scan(&i.Key, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countTasks = `-- name: CountTasks :one
 SELECT count(*)::bigint FROM tasks
 WHERE organization_id = $1
@@ -780,6 +990,159 @@ func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Tas
 			&i.FirstExecutedAt,
 			&i.Revision,
 			&i.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTableTaskRows = `-- name: ListTableTaskRows :many
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority,
+       t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at,
+       t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number,
+       t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id,
+       t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date,
+       t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at,
+       (
+         SELECT count(*)::bigint FROM tasks c
+         WHERE c.organization_id = t.organization_id
+           AND c.workspace_id = t.workspace_id
+           AND c.parent_task_id = t.id
+       ) AS direct_child_count
+FROM tasks t
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND (NOT $3::bool OR t.status = ANY($4::text[]))
+  AND (NOT $5::bool OR t.priority = ANY($6::text[]))
+  AND (NOT $7::bool OR t.assignee_id = ANY($8::text[]))
+  AND (
+    NOT $9::bool
+    OR CASE $10::text
+         WHEN 'priority' THEN t.priority
+         WHEN 'assignee' THEN COALESCE(t.assignee_id, '')
+         ELSE t.status
+       END = $11
+  )
+ORDER BY t.status, t.position, t.created_at
+LIMIT $13 OFFSET $12
+`
+
+type ListTableTaskRowsParams struct {
+	OrganizationID    string   `json:"organization_id"`
+	WorkspaceID       string   `json:"workspace_id"`
+	HasStatusFilter   bool     `json:"has_status_filter"`
+	Statuses          []string `json:"statuses"`
+	HasPriorityFilter bool     `json:"has_priority_filter"`
+	Priorities        []string `json:"priorities"`
+	HasAssigneeFilter bool     `json:"has_assignee_filter"`
+	AssigneeIds       []string `json:"assignee_ids"`
+	HasGroupKey       bool     `json:"has_group_key"`
+	GroupBy           string   `json:"group_by"`
+	GroupKey          string   `json:"group_key"`
+	OffsetN           int32    `json:"offset_n"`
+	LimitN            int32    `json:"limit_n"`
+}
+
+type ListTableTaskRowsRow struct {
+	ID                 string             `json:"id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	Title              string             `json:"title"`
+	Description        string             `json:"description"`
+	Status             string             `json:"status"`
+	Priority           string             `json:"priority"`
+	AssigneeID         pgtype.Text        `json:"assignee_id"`
+	DueDate            pgtype.Date        `json:"due_date"`
+	Position           float64            `json:"position"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Kind               string             `json:"kind"`
+	CreatedByKind      string             `json:"created_by_kind"`
+	AssigneeKind       string             `json:"assignee_kind"`
+	OrganizationID     string             `json:"organization_id"`
+	Number             int64              `json:"number"`
+	ProjectID          pgtype.Text        `json:"project_id"`
+	ParentTaskID       pgtype.Text        `json:"parent_task_id"`
+	AssigneeType       pgtype.Text        `json:"assignee_type"`
+	CreatorType        string             `json:"creator_type"`
+	CreatorID          string             `json:"creator_id"`
+	AcceptanceCriteria []byte             `json:"acceptance_criteria"`
+	ContextRefs        []byte             `json:"context_refs"`
+	Metadata           []byte             `json:"metadata"`
+	Properties         []byte             `json:"properties"`
+	StartDate          pgtype.Date        `json:"start_date"`
+	Stage              pgtype.Int4        `json:"stage"`
+	OriginType         pgtype.Text        `json:"origin_type"`
+	OriginID           pgtype.Text        `json:"origin_id"`
+	FirstExecutedAt    pgtype.Timestamptz `json:"first_executed_at"`
+	Revision           int64              `json:"revision"`
+	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
+	DirectChildCount   int64              `json:"direct_child_count"`
+}
+
+func (q *Queries) ListTableTaskRows(ctx context.Context, arg ListTableTaskRowsParams) ([]ListTableTaskRowsRow, error) {
+	rows, err := q.db.Query(ctx, listTableTaskRows,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.HasStatusFilter,
+		arg.Statuses,
+		arg.HasPriorityFilter,
+		arg.Priorities,
+		arg.HasAssigneeFilter,
+		arg.AssigneeIds,
+		arg.HasGroupKey,
+		arg.GroupBy,
+		arg.GroupKey,
+		arg.OffsetN,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTableTaskRowsRow{}
+	for rows.Next() {
+		var i ListTableTaskRowsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+			&i.DirectChildCount,
 		); err != nil {
 			return nil, err
 		}
