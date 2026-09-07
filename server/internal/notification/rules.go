@@ -245,7 +245,9 @@ func ruleTaskCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[strin
 	if err != nil {
 		return nil, err
 	}
-	comments, err := e.q.ListTaskComments(ctx, task.ID)
+	comments, err := e.q.ListTaskComments(ctx, db.ListTaskCommentsParams{
+		TaskID: task.ID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -16,14 +16,29 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func toTaskDTO(t db.Task) sdo.TaskDTO {
+func toTaskDTO(task db.Task, prefix string) sdo.TaskDTO {
 	out := sdo.TaskDTO{
-		ID: t.ID, WorkspaceID: t.WorkspaceID, Title: t.Title, Description: t.Description,
-		Status: t.Status, Priority: t.Priority, AssigneeKind: t.AssigneeKind,
-		Position: t.Position, Kind: t.Kind, CreatedBy: t.CreatedBy, CreatedByKind: t.CreatedByKind,
-		CreatedAt: t.CreatedAt.Time.Format(time.RFC3339),
-		UpdatedAt: t.UpdatedAt.Time.Format(time.RFC3339),
+		ID: task.ID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+		Number: task.Number, Identifier: fmt.Sprintf("%s-%d", prefix, task.Number),
+		Revision: task.Revision,
 	}
+	return fillLegacyTaskDTOFields(out, task)
+}
+
+// fillLegacyTaskDTOFields keeps the MVP task payload fields so additive
+// foundation columns never drop title/status/assignee/due/timestamps.
+func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
+	out.Title = t.Title
+	out.Description = t.Description
+	out.Status = t.Status
+	out.Priority = t.Priority
+	out.AssigneeKind = t.AssigneeKind
+	out.Position = t.Position
+	out.Kind = t.Kind
+	out.CreatedBy = t.CreatedBy
+	out.CreatedByKind = t.CreatedByKind
+	out.CreatedAt = t.CreatedAt.Time.Format(time.RFC3339)
+	out.UpdatedAt = t.UpdatedAt.Time.Format(time.RFC3339)
 	if t.AssigneeID.Valid {
 		s := t.AssigneeID.String
 		out.AssigneeID = &s
@@ -36,12 +51,21 @@ func toTaskDTO(t db.Task) sdo.TaskDTO {
 }
 
 // taskDTOs maps rows and resolves every assignee in one batch, so a board of
-// 200 tasks costs two lookups, not 200.
+// 200 tasks costs two lookups, not 200. Workspace-scoped lists load the
+// task_prefix once and reuse it for every identifier.
 func (h *handlers) taskDTOs(r *http.Request, ts []db.Task) ([]sdo.TaskDTO, error) {
 	out := make([]sdo.TaskDTO, 0, len(ts))
+	if len(ts) == 0 {
+		return out, nil
+	}
+	view, err := h.Workspaces.GetView(r.Context(), middleware.UserID(r.Context()), ts[0].WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	prefix := view.TaskPrefix
 	refs := make([]service.ActorRef, 0, len(ts))
 	for _, t := range ts {
-		out = append(out, toTaskDTO(t))
+		out = append(out, toTaskDTO(t, prefix))
 		if t.AssigneeID.Valid {
 			refs = append(refs, service.ActorRef{Kind: audit.Kind(t.AssigneeKind), ID: t.AssigneeID.String})
 		}

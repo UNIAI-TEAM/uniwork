@@ -1,5 +1,7 @@
 package sdo
 
+import "github.com/unicomhub/uniwork/server/internal/workcapability"
+
 // ErrorSDO is the envelope for every 4xx/5xx JSON body.
 type ErrorSDO struct {
 	Error ErrorDetail `json:"error"`
@@ -32,8 +34,10 @@ type StatusSDO struct {
 }
 
 // ConfigSDO is GET /api/v1/config: what the web client needs before it has
-// a session — public feature flags and the RUM sampling rate.
+// a session — public feature flags, the RUM sampling rate, and the Work
+// Management capability catalogue.
 type ConfigSDO struct {
-	Flags         map[string]bool `json:"flags" description:"Flag public theo ngữ cảnh người gọi" example:"{\"rum_sampling\":true}"`
-	RumSampleRate float64         `json:"rum_sample_rate" description:"Tỷ lệ phiên gửi web-vitals, 0..1" example:"0.2"`
+	Flags                      map[string]bool                 `json:"flags" description:"Flag public theo ngữ cảnh người gọi" example:"{\"rum_sampling\":true}"`
+	RumSampleRate              float64                         `json:"rum_sample_rate" description:"Tỷ lệ phiên gửi web-vitals, 0..1" example:"0.2"`
+	WorkManagementCapabilities map[string]workcapability.Entry `json:"work_management_capabilities" description:"Catalog capability Work Management (status + reason_code)"`
 }

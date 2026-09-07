@@ -33,6 +33,7 @@ apps/web/CLAUDE.md
 # stray upload dir when LOCAL_UPLOAD_DIR is resolved relative to a test's cwd
 server/internal/handler/data/
 .superpowers/
+.worktrees/
 
 # per-user Claude Code overrides; the shared hooks live in .claude/settings.json
 .claude/settings.local.json
