@@ -232,7 +232,24 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionAuthPasswordChanged: func(t *testing.T, f *auditFixture) { f.resetPassword(t) },
-		audit.ActionChatRoomCreated:     func(t *testing.T, f *auditFixture) { f.newDM(t) },
+		audit.ActionAuthMFAEnabled: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			enrol(t, f.auth, f.ctx, f.member.ID)
+		},
+		audit.ActionAuthMFADisabled: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			_, codes := enrol(t, f.auth, f.ctx, f.member.ID)
+			if _, err := f.auth.DisableTOTP(f.ctx, f.member.ID, codes[0]); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionUserDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if err := f.auth.DeleteAccount(f.ctx, f.member.ID, DeleteAccountInput{Password: auditPassword}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatRoomCreated: func(t *testing.T, f *auditFixture) { f.newDM(t) },
 		audit.ActionChatRoomMemberAdded: func(t *testing.T, f *auditFixture) {
 			// A group needs three organization members; inviting the third is
 			// the command that adds a room member.
@@ -304,6 +321,9 @@ func auditActions() []string {
 		audit.ActionAuthPasswordResetRequested,
 		audit.ActionAuthPasswordChanged,
 		audit.ActionAuthSessionRevoked,
+		audit.ActionAuthMFAEnabled,
+		audit.ActionAuthMFADisabled,
+		audit.ActionUserDeleted,
 		audit.ActionChatRoomCreated,
 		audit.ActionChatRoomMemberAdded,
 		audit.ActionChatRoomMemberRemoved,

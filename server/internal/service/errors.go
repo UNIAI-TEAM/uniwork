@@ -62,6 +62,14 @@ func errLastOwner() error {
 	return CodedError{Code: "last_owner", Status: http.StatusConflict, Msg: "tổ chức phải có đúng một chủ sở hữu; hãy chuyển quyền trước", Err: ErrLastOwner}
 }
 
+// ErrOwnerMustTransfer: an account that owns an organization cannot be
+// deleted while it does — the organization would be left without an owner.
+var ErrOwnerMustTransfer = errors.New("owner_must_transfer")
+
+func errOwnerMustTransfer() error {
+	return CodedError{Code: "owner_must_transfer", Status: http.StatusConflict, Msg: "bạn đang là chủ sở hữu tổ chức; hãy chuyển quyền trước khi xóa tài khoản", Err: ErrOwnerMustTransfer}
+}
+
 func errCannotDeactivateSelf() error {
 	return coded(http.StatusBadRequest, "cannot_deactivate_self", "không thể tự vô hiệu hóa tài khoản của mình")
 }
