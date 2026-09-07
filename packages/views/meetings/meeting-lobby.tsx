@@ -6,6 +6,8 @@ import { useCreateJoinRequest } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MEETING_DARK_BAR } from "./meeting-dark-bar";
+import { MeetingLobbyBackground } from "./meeting-lobby-background";
 import { MeetingWaitingIllustration } from "./meeting-waiting-illustration";
 
 export function lobbyMessage(t: (key: string) => string, decision: string | undefined, error: unknown): string {
@@ -37,6 +39,9 @@ export function lobbyMessage(t: (key: string) => string, decision: string | unde
   }
 }
 
+const LOBBY_ACTION =
+  "h-11 w-full gap-2 rounded-xl text-body font-medium sm:min-w-0";
+
 function LobbyControlBar({
   onLeave,
   children,
@@ -45,21 +50,29 @@ function LobbyControlBar({
   children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
+  const dual = Boolean(children);
+
   return (
-    <div className="flex shrink-0 justify-center px-4 pb-6 pt-2">
-      <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-surface-border bg-surface p-2 shadow-[var(--floating-shadow)] sm:p-2.5">
+    <footer className="flex shrink-0 justify-center px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3">
+      <div
+        className={cn(
+          MEETING_DARK_BAR,
+          "w-full sm:max-w-md",
+          dual ? "grid max-w-sm grid-cols-2 gap-2" : "flex max-w-xs justify-center",
+        )}
+      >
         {children}
         <Button
           type="button"
           variant="destructive"
-          className="h-11 gap-2 rounded-xl px-4"
+          className={cn(LOBBY_ACTION, !dual && "min-w-40 px-6")}
           onClick={onLeave}
         >
           <PhoneOff aria-hidden className="size-5" />
           {t("meetings.leave")}
         </Button>
       </div>
-    </div>
+    </footer>
   );
 }
 
@@ -105,20 +118,20 @@ export function MeetingLobby({
     const statusTitle = waitingApproval ? t("meetings.waitingApprovalTitle") : t("meetings.prejoinTitle");
 
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <MeetingLobbyBackground>
         <div
           role="status"
-          className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-8 sm:px-8"
+          className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8"
         >
-          <div className="grid w-full max-w-3xl gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-12">
-            <div className="flex justify-center">
+          <div className="grid w-full max-w-3xl gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-center lg:gap-14">
+            <div className="flex justify-center lg:justify-end">
               <MeetingWaitingIllustration
                 variant={illustrationVariant}
-                className="max-w-[12rem] sm:max-w-xs md:max-w-sm"
+                className="max-w-[13rem] sm:max-w-xs md:max-w-sm"
               />
             </div>
-            <div className="flex flex-col gap-4 text-center lg:text-left">
-              <div className="space-y-2">
+            <div className="flex flex-col gap-5 text-center lg:text-left">
+              <div className="space-y-2.5">
                 <p className="text-caption font-medium tracking-wide text-muted-foreground uppercase">
                   {statusTitle}
                 </p>
@@ -128,12 +141,12 @@ export function MeetingLobby({
                   </h1>
                 ) : null}
               </div>
-              <div className="rounded-2xl border border-surface-border bg-surface px-5 py-5 shadow-[var(--floating-shadow)] sm:px-6">
-                <div className="flex items-start gap-3 sm:items-center">
+              <div className="rounded-2xl border border-surface-border bg-surface-raised px-5 py-5 shadow-[var(--floating-shadow)] sm:px-6 sm:py-6">
+                <div className="flex items-start gap-3.5 sm:items-center">
                   <Spinner className="mt-0.5 size-5 shrink-0 text-brand sm:mt-0" />
                   <div className="min-w-0 flex-1 text-left">
                     <p className="text-pretty text-body font-medium text-foreground">{message}</p>
-                    <p className="mt-2 text-pretty text-label text-muted-foreground">{hint}</p>
+                    <p className="mt-2 text-pretty text-label leading-relaxed text-muted-foreground">{hint}</p>
                   </div>
                 </div>
               </div>
@@ -142,12 +155,13 @@ export function MeetingLobby({
         </div>
         <LobbyControlBar onLeave={onLeave}>
           {showStart ? (
-            <Button size="sm" disabled={starting} onClick={onStart}>
+            <Button type="button" disabled={starting} onClick={onStart} className={LOBBY_ACTION}>
+              {starting ? <Spinner className="size-4" /> : null}
               {t("meetings.start")}
             </Button>
           ) : null}
         </LobbyControlBar>
-      </div>
+      </MeetingLobbyBackground>
     );
   }
 

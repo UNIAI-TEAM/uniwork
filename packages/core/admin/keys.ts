@@ -15,4 +15,5 @@ export const adminKeys = {
   system: ["admin", "system"] as const,
   flags: ["admin", "flags"] as const,
   overrides: (key: string) => ["admin", "flags", key, "overrides"] as const,
+  allOverrides: ["admin", "flags", "overrides"] as const,
 };

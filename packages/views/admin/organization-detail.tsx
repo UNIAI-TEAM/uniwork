@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   useAdminFlags,
   useAdminOrganization,
+  useAllFlagOverrides,
   useChangeOrganizationPlan,
   useSuspendOrganization,
   useUnsuspendOrganization,
@@ -19,12 +20,14 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
+import { Progress } from "@uniwork/ui/components/ui/progress";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@uniwork/ui/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { EventTime, shortId } from "../audit/event-presenter";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageState } from "../layout/collection-page";
+import { AppLink } from "../navigation";
 import { FlagOverrideRow } from "./flag-override-row";
 import { ReasonDialog } from "./reason-dialog";
 import { formatDateTime, OrganizationStatusBadge } from "./status-badge";
@@ -37,6 +40,35 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
       <dt className="text-caption text-muted-foreground">{label}</dt>
       <dd className="text-body">{children}</dd>
     </div>
+  );
+}
+
+/** Where a quota sits between comfortable and out. */
+function usageTone(pct: number): string {
+  if (pct >= 100) return "[&_[data-slot=progress-indicator]]:bg-destructive";
+  if (pct >= 80) return "[&_[data-slot=progress-indicator]]:bg-warning";
+  return "[&_[data-slot=progress-indicator]]:bg-primary";
+}
+
+/**
+ * A quota is read to answer "is this tenant about to hit the wall", and two
+ * bare numbers make that a subtraction the reader has to do per row.
+ */
+function UsageMeter({ entitlement }: { entitlement: AdminEntitlement }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin.detail" });
+  if (entitlement.limit === null || entitlement.limit === undefined) {
+    return <span className="text-caption text-muted-foreground">{t("unlimited")}</span>;
+  }
+  const pct = entitlement.limit === 0 ? 100 : Math.min(100, Math.round((entitlement.current / entitlement.limit) * 100));
+  return (
+    <span className="flex flex-col gap-1">
+      <Progress
+        value={pct}
+        className={usageTone(pct)}
+        aria-label={t("usage_label", { key: entitlement.key, current: entitlement.current, limit: entitlement.limit })}
+      />
+      <span className="text-caption text-muted-foreground tabular-nums">{t("usage_percent", { n: pct })}</span>
+    </span>
   );
 }
 
@@ -55,6 +87,7 @@ export function EntitlementsTable({ entitlements }: { entitlements: AdminEntitle
           <TableHead>{t("col.enabled")}</TableHead>
           <TableHead className="text-right">{t("col.current")}</TableHead>
           <TableHead className="text-right">{t("col.limit")}</TableHead>
+          <TableHead className="w-40">{t("col.usage")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -65,6 +98,9 @@ export function EntitlementsTable({ entitlements }: { entitlements: AdminEntitle
             <TableCell>{e.enabled ? t("on") : t("off")}</TableCell>
             <TableCell className="text-right tabular-nums">{e.current}</TableCell>
             <TableCell className="text-right tabular-nums">{e.limit === null ? t("unlimited") : e.limit}</TableCell>
+            <TableCell>
+              <UsageMeter entitlement={e} />
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -100,7 +136,11 @@ function ActionsTable({ actions }: { actions: AdminAction[] }) {
               {a.reason}
             </TableCell>
             <TableCell className="font-mono text-caption">
-              {a.trace_id ? <a href={paths.admin.trace(a.trace_id)}>{shortId(a.trace_id)}</a> : null}
+              {a.trace_id ? (
+                <AppLink href={paths.admin.trace(a.trace_id)} className="underline underline-offset-2 hover:text-foreground">
+                  {shortId(a.trace_id)}
+                </AppLink>
+              ) : null}
             </TableCell>
           </TableRow>
         ))}
@@ -112,7 +152,8 @@ function ActionsTable({ actions }: { actions: AdminAction[] }) {
 function FlagsTab({ orgId }: { orgId: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.flags" });
   const flags = useAdminFlags();
-  if (flags.isPending) return <Skeleton className="m-4 h-24" />;
+  const overrides = useAllFlagOverrides();
+  if (flags.isPending || overrides.isPending) return <Skeleton className="m-4 h-24" />;
   if (flags.isError || flags.data.length === 0) {
     return <p className="px-4 py-6 text-body text-muted-foreground">{t("empty_title")}</p>;
   }
@@ -127,7 +168,7 @@ function FlagsTab({ orgId }: { orgId: string }) {
       </TableHeader>
       <TableBody>
         {flags.data.map((flag) => (
-          <FlagOverrideRow key={flag.key} flag={flag} scopeType="organization" scopeId={orgId} />
+          <FlagOverrideRow key={flag.key} flag={flag} scopeType="organization" scopeId={orgId} overrides={overrides.data ?? []} />
         ))}
       </TableBody>
     </Table>

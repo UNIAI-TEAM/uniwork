@@ -11,13 +11,17 @@ type TaskListSDO struct {
 }
 
 type TaskDTO struct {
-	ID          string  `json:"id" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
-	WorkspaceID string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	Title       string  `json:"title" example:"Chuẩn bị standup"`
-	Description string  `json:"description" example:"Agenda và ghi chú"`
-	Status      string  `json:"status" example:"todo"`
-	Priority    string  `json:"priority" example:"medium"`
-	AssigneeID  *string `json:"assignee_id,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ID             string  `json:"id" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	OrganizationID string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID    string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	Number         int64   `json:"number" example:"42"`
+	Identifier     string  `json:"identifier" example:"ALP-42"`
+	Revision       int64   `json:"revision" example:"1"`
+	Title          string  `json:"title" example:"Chuẩn bị standup"`
+	Description    string  `json:"description" example:"Agenda và ghi chú"`
+	Status         string  `json:"status" example:"todo"`
+	Priority       string  `json:"priority" example:"medium"`
+	AssigneeID     *string `json:"assignee_id,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	// AssigneeKind pairs with AssigneeID (ADR 0007); Assignee is the resolved
 	// actor when the id is known.
 	AssigneeKind  string    `json:"assignee_kind" description:"human hoặc agent" example:"human"`

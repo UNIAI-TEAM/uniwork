@@ -42,14 +42,20 @@
 
   /* Colour is a signal, not decoration. The signal slots double as text
      colours, so they hold the ≥ 4.5:1 text-safe value on every light surface
-     (success 4.6:1, warning 4.6:1, destructive 4.5:1 on white). */
+     (success 4.6:1, warning 4.6:1). --destructive is measured one step
+     further: the pattern it is actually used in is `text-destructive` on
+     `bg-destructive/10`, with `/20` as the hover of the destructive button,
+     and #dc2626 fell to 3.94:1 there — passing on white, failing everywhere
+     it ships. #ad1a1a holds 4.5:1 on its own /10 and /20 tint over
+     background, surface and muted; e2e/admin-contrast.spec.ts measures it on
+     the suspended banner. */
   /* The mark's own deep blue, flattened and lightened until it clears the
      4.5:1 text floor: hue 262 against the logo gradient's 263. The previous
      #2f5aff sat at hue 266 and measured 5.00 on --background; this reads 5.25
      on the same surface, so the realignment costs no contrast. */
   --brand: #0b5bf5;
   --brand-foreground: #ffffff;
-  --destructive: #dc2626;
+  --destructive: #ad1a1a;
   --success: #15803d;
   --warning: #a1580a;
   --info: #0b5bf5;
@@ -104,6 +110,26 @@
   --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 1px rgb(15 23 42 / 0.03);
   --menu-shadow: 0 8px 24px rgb(15 23 42 / 0.08), 0 2px 6px rgb(15 23 42 / 0.05);
   --floating-shadow: 0 16px 40px rgb(15 23 42 / 0.14), 0 3px 10px rgb(15 23 42 / 0.08);
+
+  /* Meeting room — video rail overlay, dark control bar, tile labels. Used
+     inside the forced-dark video subtree; values are dark-surface oriented in
+     both themes so the in-room chrome stays consistent. */
+  --meeting-rail-overlay-from: rgb(27 27 31 / 0.85);
+  --meeting-rail-overlay-to: rgb(27 27 31 / 0);
+  --meeting-bar-bg: rgb(27 27 31 / 0.92);
+  --meeting-bar-border: rgb(255 255 255 / 0.12);
+  --meeting-bar-foreground: #f4f4f5;
+  --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
+  --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
+  --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
+  --meeting-tile-name-foreground: #fafafa;
+
+  /* Meeting lobby — ambient canvas behind prejoin / waiting screens. */
+  --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 16%, transparent);
+  --meeting-lobby-glow-b: color-mix(in srgb, var(--chart-2) 12%, transparent);
+  --meeting-lobby-vignette-from: color-mix(in srgb, var(--background) 45%, transparent);
+  --meeting-lobby-vignette-to: color-mix(in srgb, var(--background) 88%, transparent);
+  --meeting-lobby-grid: color-mix(in srgb, var(--border) 55%, transparent);
 }
 
 .dark {
@@ -181,6 +207,22 @@
   --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 1px 1px rgb(0 0 0 / 0.16);
   --menu-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.25);
   --floating-shadow: 0 16px 40px rgb(0 0 0 / 0.5), 0 3px 10px rgb(0 0 0 / 0.35);
+
+  --meeting-rail-overlay-from: rgb(17 17 19 / 0.9);
+  --meeting-rail-overlay-to: rgb(17 17 19 / 0);
+  --meeting-bar-bg: rgb(17 17 19 / 0.92);
+  --meeting-bar-border: rgb(255 255 255 / 0.12);
+  --meeting-bar-foreground: #f4f4f5;
+  --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
+  --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
+  --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
+  --meeting-tile-name-foreground: #fafafa;
+
+  --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 22%, transparent);
+  --meeting-lobby-glow-b: color-mix(in srgb, var(--chart-2) 14%, transparent);
+  --meeting-lobby-vignette-from: color-mix(in srgb, var(--background) 35%, transparent);
+  --meeting-lobby-vignette-to: color-mix(in srgb, var(--background) 92%, transparent);
+  --meeting-lobby-grid: color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 /* Tailwind mapping. Lives beside the tokens it maps so that any consumer —
@@ -245,6 +287,13 @@
   --color-chat-sender-6: var(--chat-sender-6);
   --color-chat-sender-7: var(--chat-sender-7);
   --color-chat-sender-8: var(--chat-sender-8);
+  --color-meeting-bar-bg: var(--meeting-bar-bg);
+  --color-meeting-bar-border: var(--meeting-bar-border);
+  --color-meeting-bar-foreground: var(--meeting-bar-foreground);
+  --color-meeting-bar-chip-bg: var(--meeting-bar-chip-bg);
+  --color-meeting-bar-chip-hover: var(--meeting-bar-chip-hover);
+  --color-meeting-tile-name-bg: var(--meeting-tile-name-bg);
+  --color-meeting-tile-name-foreground: var(--meeting-tile-name-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

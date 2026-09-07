@@ -17,13 +17,18 @@ import { EntitlementsTable } from "./organization-detail";
  * decision 11).
  */
 // ponytail: one org at a time; a "top organizations by usage" ranking needs a server-side query, not N detail calls.
+/** The picker holds the most recently active tenants, which is who anyone checks. */
+const PICKER_LIMIT = 200;
+
 export function AdminQuotaView() {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.quota" });
   const enabled = useFlag("admin_quota", false);
   const [orgId, setOrgId] = useState("");
-  const organizations = useAdminOrganizations({}, enabled);
+  const organizations = useAdminOrganizations({ sort: "activity_desc", limit: PICKER_LIMIT }, enabled);
   const detail = useAdminOrganization(enabled ? orgId : "");
-  const items = (organizations.data ?? []).map((o) => ({ value: o.id, label: `${o.name} (${o.slug})` }));
+  const rows = organizations.data?.organizations ?? [];
+  const items = rows.map((o) => ({ value: o.id, label: `${o.name} (${o.slug})` }));
+  const truncated = (organizations.data?.total ?? 0) > rows.length;
 
   return (
     <>
@@ -45,6 +50,7 @@ export function AdminQuotaView() {
                 ))}
               </SelectContent>
             </Select>
+            {truncated ? <p className="text-caption text-muted-foreground">{t("picker_truncated", { n: PICKER_LIMIT })}</p> : null}
           </div>
           {!orgId ? (
             <CollectionPageState icon={Gauge} title={t("empty_title")} description={t("empty_description")} role="status" />

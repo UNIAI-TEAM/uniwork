@@ -91,7 +91,7 @@ function MeetingRoomChatView({
                 )}
               >
                 {group.isLocal ? (
-                  <span className="rounded-full border border-brand/25 bg-brand/10 px-1.5 py-px text-caption font-medium text-foreground">
+                  <span className="rounded-full bg-brand/15 px-1.5 py-px text-caption font-medium text-brand">
                     {t("meetings.you")}
                   </span>
                 ) : null}
@@ -112,10 +112,10 @@ function MeetingRoomChatView({
                   <p
                     key={msg.id}
                     className={cn(
-                      "w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-1.5 text-pretty text-body wrap-break-word shadow-sm",
+                      "w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-pretty text-body wrap-break-word shadow-sm",
                       group.isLocal
                         ? "rounded-br-md bg-brand text-brand-foreground"
-                        : "rounded-bl-md border border-border/80 bg-muted/80 text-foreground",
+                        : "rounded-bl-md bg-muted text-foreground ring-1 ring-border/60",
                     )}
                   >
                     {msg.message}

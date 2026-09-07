@@ -26,6 +26,12 @@ type MembershipChecker interface {
 // SlugResolver translates a workspace slug to its UUID.
 type SlugResolver func(ctx context.Context, slug string) (workspaceID string, err error)
 
+// OrganizationResolver names the organization a workspace belongs to, so a
+// connection can join the organization scope without the client being told
+// which organization it is in. Optional: without it the connection simply
+// receives no organization-scoped events.
+type OrganizationResolver func(ctx context.Context, workspaceID string) (organizationID string, err error)
+
 // TokenParser turns a bearer token into a user ID. The hub does not know how
 // tokens are minted — the auth package does — so it is handed the parser
 // instead of a secret. Personal access tokens, if they ever exist, are the
@@ -219,11 +225,12 @@ func sk(t, id string) scopeKey { return scopeKey{Type: t, ID: id} }
 // Client represents a single WebSocket connection with identity and the set
 // of scopes it is currently subscribed to.
 type Client struct {
-	hub         *Hub
-	conn        *websocket.Conn
-	send        chan []byte
-	userID      string
-	workspaceID string
+	hub            *Hub
+	conn           *websocket.Conn
+	send           chan []byte
+	userID         string
+	workspaceID    string
+	organizationID string
 	// lobbyMeetingID is set for public meeting lobby sockets; subscribed after register.
 	lobbyMeetingID string
 
@@ -283,6 +290,7 @@ type Hub struct {
 	mu         sync.RWMutex
 
 	authorizer ScopeAuthorizer
+	orgOf      OrganizationResolver
 
 	// Subscription lifecycle hooks. Both can be nil.
 	onFirstSubscriber SubscriptionCallback
@@ -305,6 +313,20 @@ func (h *Hub) SetAuthorizer(a ScopeAuthorizer) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.authorizer = a
+}
+
+// SetOrganizationResolver wires the lookup that puts a connection into its
+// organization scope. Safe to call before Run.
+func (h *Hub) SetOrganizationResolver(f OrganizationResolver) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.orgOf = f
+}
+
+func (h *Hub) organizationResolver() OrganizationResolver {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.orgOf
 }
 
 // SetSubscriptionCallbacks registers callbacks fired when a scope on this
@@ -334,6 +356,9 @@ func (h *Hub) Run() {
 			}
 			if client.userID != "" && client.workspaceID != "" {
 				h.subscribe(client, ScopeUser, client.userID)
+			}
+			if client.organizationID != "" {
+				h.subscribe(client, ScopeOrganization, client.organizationID)
 			}
 			if client.lobbyMeetingID != "" {
 				h.subscribe(client, ScopeMeeting, client.lobbyMeetingID)
@@ -830,12 +855,24 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveS
 		"client_os", clientOS,
 	)
 
+	// The organization scope is best-effort: a failed lookup costs the
+	// connection its directory updates, never the connection itself.
+	var organizationID string
+	if resolveOrg := hub.organizationResolver(); resolveOrg != nil {
+		if orgID, err := resolveOrg(r.Context(), workspaceID); err == nil {
+			organizationID = orgID
+		} else {
+			slog.Warn("ws: organization scope unavailable", "workspace_id", workspaceID, "error", err)
+		}
+	}
+
 	client := &Client{
-		hub:         hub,
-		conn:        conn,
-		send:        make(chan []byte, 256),
-		userID:      userID,
-		workspaceID: workspaceID,
+		hub:            hub,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		userID:         userID,
+		workspaceID:    workspaceID,
+		organizationID: organizationID,
 	}
 	hub.register <- client
 
@@ -924,9 +961,11 @@ func (c *Client) handleFrame(raw []byte) {
 
 func (c *Client) handleSubscribe(scope, id string) {
 	switch scope {
-	case ScopeWorkspace, ScopeUser:
+	case ScopeWorkspace, ScopeUser, ScopeOrganization:
 		// Implicit scopes — only allowed if it matches the connection identity.
-		if (scope == ScopeWorkspace && id != c.workspaceID) || (scope == ScopeUser && id != c.userID) {
+		if (scope == ScopeWorkspace && id != c.workspaceID) ||
+			(scope == ScopeUser && id != c.userID) ||
+			(scope == ScopeOrganization && (c.organizationID == "" || id != c.organizationID)) {
 			M.SubscribeDeniedTotal(scope).Add(1)
 			c.sendJSON(map[string]any{
 				"type": "subscribe_error",

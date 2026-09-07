@@ -1,4 +1,5 @@
 import type { OrgRole } from "../types/organization";
+import type { OrgMemberStatus } from "../types/people";
 import type { MemberRole } from "../types/workspace";
 
 /**
@@ -13,6 +14,15 @@ export interface PermissionContext {
   userId: string | null;
   orgRole: OrgRole | null;
   wsRole: MemberRole | null;
+  /**
+   * Whether the caller's organization membership is still open (F-03). A
+   * deactivated member keeps their role but may do nothing, so this is checked
+   * before the role is — mirroring OrganizationService.RequireMember, which
+   * refuses them ahead of every other gate.
+   *
+   * `null` means "not a member" or "still loading".
+   */
+  orgMemberStatus?: OrgMemberStatus | null;
 }
 
 /**
@@ -27,6 +37,8 @@ export type DecisionReason =
   | "not_org_member"
   | "not_admin_role"
   | "not_owner_role"
+  | "member_deactivated"
+  | "last_owner"
   | "not_resource_owner"
   | "unknown";
 

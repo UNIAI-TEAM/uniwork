@@ -96,12 +96,24 @@ func TestAdminListAndTrace(t *testing.T) {
 	f := newAuditFixture(t)
 	f.build(t)
 	ctx := context.Background()
-	rows, err := f.admin.ListOrganizations(ctx, ListOrganizationsInput{Query: "audit"})
+	page, err := f.admin.ListOrganizations(ctx, ListOrganizationsInput{Query: "audit"})
+	rows := page.Organizations
 	if err != nil || len(rows) != 1 || rows[0].MemberCount != 1 || rows[0].WorkspaceCount != 1 || !rows[0].LastActivityAt.Valid {
 		t.Fatalf("list: %v %+v", err, rows)
 	}
-	if rows, _ = f.admin.ListOrganizations(ctx, ListOrganizationsInput{Status: OrganizationSuspended}); len(rows) != 0 {
-		t.Fatalf("status filter: %+v", rows)
+	if page.Total != 1 || page.Limit != 50 {
+		t.Fatalf("page meta: %+v", page)
+	}
+	// The window count answers for the whole filtered set, not the page.
+	if narrow, _ := f.admin.ListOrganizations(ctx, ListOrganizationsInput{Query: "audit", Limit: 1, Sort: SortOrganizationsActivityAsc}); narrow.Total != 1 || len(narrow.Organizations) != 1 {
+		t.Fatalf("paged: %+v", narrow)
+	}
+	// An unknown sort falls back instead of reaching the database.
+	if bad, err := f.admin.ListOrganizations(ctx, ListOrganizationsInput{Sort: "; drop table organizations"}); err != nil || bad.Total == 0 {
+		t.Fatalf("unknown sort: %v %+v", err, bad)
+	}
+	if suspended, _ := f.admin.ListOrganizations(ctx, ListOrganizationsInput{Status: OrganizationSuspended}); len(suspended.Organizations) != 0 || suspended.Total != 0 {
+		t.Fatalf("status filter: %+v", suspended)
 	}
 	if _, err := f.admin.Trace(ctx, "bad id!"); err == nil {
 		t.Fatal("invalid trace id accepted")

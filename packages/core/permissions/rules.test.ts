@@ -1,20 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
   canChangeMemberRole,
+  canChangeOrgRole,
   canCreateWorkspaceInOrg,
+  canDeactivateMember,
   canDeleteComment,
   canDeleteMeeting,
   canDeleteTask,
   canEditComment,
+  canEditEmploymentFields,
+  canEditProfile,
   canEditTask,
+  canExportPeople,
   canInviteMembers,
+  canLeaveOrg,
   canManageAgents,
   canManageAuditSettings,
   canManageBilling,
+  canManageDepartments,
+  canManageOrgMembers,
   canViewBilling,
   canManageMembers,
   canReadAuditLog,
   canRemoveMember,
+  canTransferOwnership,
   canUpdateWorkspaceSettings,
 } from "./rules";
 import type { PermissionContext } from "./types";
@@ -151,5 +160,69 @@ describe("comment authorship policy (not wired to Tasks yet)", () => {
     expect(canEditComment("u2", ctx({ userId: "u1", wsRole: "member" })).reason).toBe(
       "not_resource_owner",
     );
+  });
+});
+
+describe("Organization & People — mirror OrganizationMemberService and PeopleService", () => {
+  const owner = ctx({ orgRole: "owner" });
+  const admin = ctx({ orgRole: "admin" });
+  const member = ctx({ orgRole: "member" });
+
+  it("a deactivated membership denies everything, whatever the role says", () => {
+    const off = ctx({ orgRole: "owner", orgMemberStatus: "deactivated" });
+    for (const decision of [
+      canEditProfile({ user_id: "u1" }, off),
+      canEditEmploymentFields(off),
+      canManageOrgMembers(off),
+      canChangeOrgRole({ user_id: "u2", role: "member" }, off),
+      canDeactivateMember({ user_id: "u2", role: "member" }, off),
+      canTransferOwnership(off),
+      canLeaveOrg(off),
+      canManageDepartments(off),
+      canExportPeople(off),
+    ]) {
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toBe("member_deactivated");
+    }
+  });
+
+  it("a person edits their own profile; the company-owned fields need an admin", () => {
+    expect(canEditProfile({ user_id: "u1" }, member).allowed).toBe(true);
+    expect(canEditProfile({ user_id: "u2" }, member).reason).toBe("not_resource_owner");
+    expect(canEditProfile({ user_id: "u2" }, admin).allowed).toBe(true);
+    expect(canEditEmploymentFields(member).reason).toBe("not_admin_role");
+    expect(canEditEmploymentFields(admin).allowed).toBe(true);
+  });
+
+  it("ownership is never a role change, and nobody changes their own role", () => {
+    expect(canChangeOrgRole({ user_id: "u2", role: "member" }, admin).allowed).toBe(true);
+    expect(canChangeOrgRole({ user_id: "u2", role: "owner" }, owner).reason).toBe("last_owner");
+    expect(canChangeOrgRole({ user_id: "u1", role: "admin" }, owner).reason).toBe("not_resource_owner");
+    expect(canChangeOrgRole({ user_id: "u2", role: "member" }, member).reason).toBe("not_admin_role");
+  });
+
+  it("only the owner deactivates an admin, and nobody deactivates themselves", () => {
+    expect(canDeactivateMember({ user_id: "u2", role: "member" }, admin).allowed).toBe(true);
+    expect(canDeactivateMember({ user_id: "u2", role: "admin" }, admin).reason).toBe("not_owner_role");
+    expect(canDeactivateMember({ user_id: "u2", role: "admin" }, owner).allowed).toBe(true);
+    expect(canDeactivateMember({ user_id: "u2", role: "owner" }, owner).reason).toBe("last_owner");
+    expect(canDeactivateMember({ user_id: "u1", role: "admin" }, owner).reason).toBe("not_resource_owner");
+  });
+
+  it("the owner hands the organization over and cannot simply leave", () => {
+    expect(canTransferOwnership(owner).allowed).toBe(true);
+    expect(canTransferOwnership(admin).reason).toBe("not_owner_role");
+    expect(canLeaveOrg(owner).reason).toBe("last_owner");
+    expect(canLeaveOrg(admin).allowed).toBe(true);
+    expect(canLeaveOrg(member).allowed).toBe(true);
+  });
+
+  it("reading the directory is open to members; shaping and exporting it are not", () => {
+    expect(canManageDepartments(member).reason).toBe("not_admin_role");
+    expect(canManageDepartments(admin).allowed).toBe(true);
+    expect(canExportPeople(member).reason).toBe("not_admin_role");
+    expect(canExportPeople(owner).allowed).toBe(true);
+    expect(canExportPeople(ctx({ orgRole: null })).reason).toBe("not_org_member");
+    expect(canExportPeople(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
   });
 });

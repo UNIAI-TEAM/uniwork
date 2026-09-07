@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-09-04
 **Trạng thái:** Đề xuất — chờ duyệt (điểm xuất phát cho C-08; chi tiết màn hình chốt khi Giai đoạn F qua nửa đường)
-**Spec liên quan:** `2026-08-24-uniwork-platform-design.md`, `2026-09-04-tasks-complete-design.md`, `2026-09-04-notifications-design.md`, `2026-08-29-meeting-world-class-design.md`, `2026-09-04-agent-actor-model-design.md`
+**Spec liên quan:** `2026-08-24-uniwork-platform-design.md`, `2026-09-07-tasks-work-management-parity-design.md`, `2026-09-04-notifications-design.md`, `2026-08-29-meeting-world-class-design.md`, `2026-09-04-agent-actor-model-design.md`
 **Tham chiếu:** ADR 0011; `../usf/apps/mobile/CLAUDE.md`, `../usf/apps/mobile/README.md`, `../usf/.github/workflows/mobile-verify.yml` (kiến trúc nguồn); IA V2 bản cũ (5 tab) chỉ để tham chiếu điều hướng
 
 > **Ghi chú số migration:** spec này không có migration; mobile dùng API và sự kiện đã có.

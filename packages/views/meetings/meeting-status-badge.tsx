@@ -1,6 +1,7 @@
 "use client";
-import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
+import { cn } from "@uniwork/ui/lib/utils";
+import { useTranslation } from "react-i18next";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   SCHEDULED: "outline",
@@ -12,8 +13,15 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 export function MeetingStatusBadge({ status, className }: { status?: string; className?: string }) {
   const { t } = useTranslation();
   const key = status && status in STATUS_VARIANT ? status : "SCHEDULED";
+  const live = key === "IN_PROGRESS";
   return (
-    <Badge variant={STATUS_VARIANT[key]} className={className}>
+    <Badge variant={STATUS_VARIANT[key]} className={cn(live && "gap-1.5", className)}>
+      {live ? (
+        <span
+          aria-hidden
+          className="size-1.5 animate-pulse rounded-full bg-brand-foreground motion-reduce:animate-none"
+        />
+      ) : null}
       {t(`meetings.status_${key}`)}
     </Badge>
   );

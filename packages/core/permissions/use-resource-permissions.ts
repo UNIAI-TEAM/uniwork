@@ -4,7 +4,16 @@ import type { Task } from "../types/task";
 import type { Member } from "../types/workspace";
 import {
   canChangeMemberRole,
+  canChangeOrgRole,
   canCreateWorkspaceInOrg,
+  canDeactivateMember,
+  canEditEmploymentFields,
+  canEditProfile,
+  canExportPeople,
+  canLeaveOrg,
+  canManageDepartments,
+  canManageOrgMembers,
+  canTransferOwnership,
   canManageAuditSettings,
   canManageBilling,
   canReadAuditLog,
@@ -20,6 +29,8 @@ import {
 import { deny, type Decision, type PermissionContext } from "./types";
 import { useSession } from "../auth/hooks";
 import { useCurrentMember, useOrgMembership } from "./use-current-member";
+import { useOrgMembership as useOrgMembershipRow } from "../organizations/hooks";
+import { ORG_ROLES, type OrgRole } from "../types/organization";
 
 /** Every Decision collapses to this while memberships are still loading, so callers stay branch-free. */
 const PENDING: Decision = deny("unknown", "");
@@ -121,4 +132,62 @@ export function useMeetingPermissions(
   if (isLoading) return { canHost: PENDING, canCancel: PENDING, isLoading };
   const d = canDeleteMeeting(meeting, ctx);
   return { canHost: d, canCancel: d, isLoading };
+}
+
+/**
+ * The directory's gates (F-03). Everything here reads the organization tier,
+ * and by slug rather than id, because that is what the people routes carry —
+ * and because GET /orgs/{org}/members/me answers even while the membership is
+ * deactivated, which the organizations list cannot express.
+ */
+export function usePeoplePermissions(orgSlug: string): {
+  canManageMembers: Decision;
+  canManageDepartments: Decision;
+  canExport: Decision;
+  canEditEmployment: Decision;
+  canTransferOwnership: Decision;
+  canLeave: Decision;
+  decideEditProfile: (target: { user_id: string } | null) => Decision;
+  decideChangeRole: (target: { user_id: string; role: string } | null) => Decision;
+  decideDeactivate: (target: { user_id: string; role: string } | null) => Decision;
+  isLoading: boolean;
+} {
+  const { user, status } = useSession();
+  const { data: membership, isLoading } = useOrgMembershipRow(orgSlug);
+  const loading = isLoading || status === "loading";
+  const ctx: PermissionContext = {
+    userId: user?.id ?? null,
+    orgRole: (ORG_ROLES as readonly string[]).includes(membership?.role ?? "")
+      ? (membership?.role as OrgRole)
+      : null,
+    wsRole: null,
+    orgMemberStatus: membership ? (membership.deactivated_at ? "deactivated" : "active") : null,
+  };
+  const pending = <T,>(_target: T): Decision => PENDING;
+  if (loading) {
+    return {
+      canManageMembers: PENDING,
+      canManageDepartments: PENDING,
+      canExport: PENDING,
+      canEditEmployment: PENDING,
+      canTransferOwnership: PENDING,
+      canLeave: PENDING,
+      decideEditProfile: pending,
+      decideChangeRole: pending,
+      decideDeactivate: pending,
+      isLoading: loading,
+    };
+  }
+  return {
+    canManageMembers: canManageOrgMembers(ctx),
+    canManageDepartments: canManageDepartments(ctx),
+    canExport: canExportPeople(ctx),
+    canEditEmployment: canEditEmploymentFields(ctx),
+    canTransferOwnership: canTransferOwnership(ctx),
+    canLeave: canLeaveOrg(ctx),
+    decideEditProfile: (target) => canEditProfile(target, ctx),
+    decideChangeRole: (target) => canChangeOrgRole(target, ctx),
+    decideDeactivate: (target) => canDeactivateMember(target, ctx),
+    isLoading: loading,
+  };
 }

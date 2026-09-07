@@ -19,7 +19,7 @@ import {
   shouldLeaveOnDisconnect,
   shouldRefreshCredentialOnDisconnect,
   type MediaDisconnectKind,
-} from "./room-connection";
+} from "./room-disconnect";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 
 function MeetingRoomShell({
@@ -31,7 +31,7 @@ function MeetingRoomShell({
 }) {
   return (
     <div
-      className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden bg-app-shell"
+      className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-testid={testId}
     >
       {children}

@@ -12,9 +12,11 @@ import {
   MicOff,
   MonitorUp,
   MoreHorizontal,
+  PanelBottom,
   PhoneOff,
   Settings2,
   SmilePlus,
+  Sparkles,
   Square,
   Video,
   VideoOff,
@@ -22,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 import { useStartRecording, useStopRecording } from "@uniwork/core/meetings";
+import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
@@ -38,20 +41,14 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAdjustViewDialog } from "./meeting-adjust-view-dialog";
+import { MEETING_DARK_BAR, MEETING_DARK_BAR_CHIP } from "./meeting-dark-bar";
 import { MeetingDevicesDialog } from "./meeting-devices-dialog";
 import { REACTIONS } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
-/** Filled destructive — overrides outline/destructive variant tints on the bar. */
+/** Filled destructive on the dark bar. */
 const SOLID_DESTRUCTIVE =
   "border-destructive !bg-destructive text-brand-foreground hover:!bg-destructive/90 focus-visible:border-destructive focus-visible:ring-destructive/30";
-
-/** Idle icon chip — secondary fill in dark clears 3:1 on the muted bar. */
-const MEETING_CONTROL_ICON =
-  "size-11 shrink-0 rounded-xl border-input bg-background text-foreground hover:bg-muted hover:text-foreground dark:bg-secondary dark:hover:bg-surface-hover";
-
-const MEETING_CONTROL_BAR =
-  "pointer-events-auto flex items-center gap-2 rounded-2xl border border-surface-border bg-surface p-2 shadow-[var(--floating-shadow)] dark:border-input dark:bg-muted sm:p-2.5";
 
 function IconControl({
   label,
@@ -60,7 +57,6 @@ function IconControl({
   onClick,
   disabled,
   children,
-  accent,
 }: {
   label: string;
   pressed?: boolean;
@@ -68,7 +64,6 @@ function IconControl({
   onClick?: MouseEventHandler<HTMLButtonElement>;
   disabled?: boolean;
   children: ReactNode;
-  accent?: boolean;
 }) {
   return (
     <Tooltip>
@@ -83,7 +78,7 @@ function IconControl({
                 : tone === "active"
                   ? "brand"
                   : tone === "copilot"
-                    ? "default"
+                    ? "brand"
                     : pressed
                       ? "secondary"
                       : "outline"
@@ -93,11 +88,12 @@ function IconControl({
             disabled={disabled}
             onClick={onClick}
             className={cn(
-              "size-11 shrink-0 rounded-xl",
+              MEETING_DARK_BAR_CHIP,
               tone === "off" && SOLID_DESTRUCTIVE,
-              !tone &&
-                "border-input bg-background text-foreground hover:bg-muted dark:bg-secondary dark:hover:bg-surface-hover",
-              accent && "bg-brand text-brand-foreground hover:bg-brand/90",
+              tone === "active" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90",
+              tone === "copilot" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90",
+              !tone && !pressed && "border-meeting-bar-border",
+              pressed && !tone && "!bg-meeting-bar-chip-hover",
             )}
           />
         }
@@ -176,7 +172,7 @@ function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) {
                     size="icon-lg"
                     variant="outline"
                     aria-label={label}
-                    className={MEETING_CONTROL_ICON}
+                    className={MEETING_DARK_BAR_CHIP}
                   />
                 }
               />
@@ -230,7 +226,7 @@ function AdjustViewControl({ inMenu = false }: { inMenu?: boolean }) {
                     size="icon-lg"
                     variant="outline"
                     aria-label={label}
-                    className={MEETING_CONTROL_ICON}
+                    className={MEETING_DARK_BAR_CHIP}
                   />
                 }
               />
@@ -270,7 +266,7 @@ function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
               size="icon-lg"
               variant="outline"
               aria-label={label}
-              className={MEETING_CONTROL_ICON}
+              className={MEETING_DARK_BAR_CHIP}
             />
           }
         >
@@ -307,7 +303,10 @@ export function MeetingControlBar({
   captionsOn = false,
   captionsAvailable = false,
   onToggleCaptions,
+  onOpenCopilot,
+  copilotActive = false,
   floating = false,
+  embedded = false,
 }: {
   className?: string;
   onLeave: () => void;
@@ -318,11 +317,17 @@ export function MeetingControlBar({
   captionsOn?: boolean;
   captionsAvailable?: boolean;
   onToggleCaptions?: () => void;
+  onOpenCopilot?: () => void;
+  copilotActive?: boolean;
   floating?: boolean;
+  /** Rendered inside MeetingStageFooter without its own footer shell. */
+  embedded?: boolean;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
   const [moreOpen, setMoreOpen] = useState(false);
+  const controlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.controlBarAutoHide);
+  const setControlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.setControlBarAutoHide);
   const mic = useTrackToggle({ source: Track.Source.Microphone });
   const camera = useTrackToggle({ source: Track.Source.Camera });
   const screen = useTrackToggle({ source: Track.Source.ScreenShare });
@@ -381,22 +386,38 @@ export function MeetingControlBar({
       )
     ) : null;
 
-  return (
-    <footer
-      className={cn(
-        floating
-          ? "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4"
-          : "shrink-0 bg-app-shell px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-4",
-        className,
-      )}
-    >
-      <TooltipProvider delay={300}>
-        <div
-          className={cn(
-            MEETING_CONTROL_BAR,
-            floating ? "max-w-3xl" : "w-full max-w-none border-0 bg-transparent p-0 shadow-none dark:border-0 dark:bg-transparent",
-          )}
-        >
+  const moreMenu = (
+    <>
+      {secondaryInMenu ? <DeviceSettingsControl inMenu /> : null}
+      <ReactionsControl inMenu />
+      <AdjustViewControl inMenu />
+      <MenuControl
+        caption={t("meetings.controlBarAutoHide")}
+        pressed={controlBarAutoHide}
+        onClick={() => setControlBarAutoHide(!controlBarAutoHide)}
+      >
+        <PanelBottom aria-hidden />
+      </MenuControl>
+      {secondaryInMenu ? (
+        <>
+          {captionsControl(true)}
+          {recordControl(true)}
+        </>
+      ) : null}
+    </>
+  );
+
+  const bar = (
+    <TooltipProvider delay={300}>
+      <div
+        className={cn(
+          MEETING_DARK_BAR,
+          embedded || floating
+            ? "w-fit"
+            : "w-full max-w-none border-0 bg-transparent p-0 shadow-none backdrop-blur-none",
+          !embedded && floating && "max-w-3xl",
+        )}
+      >
           <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
             <IconControl
               label={t("meetings.mic")}
@@ -420,7 +441,6 @@ export function MeetingControlBar({
             >
               {camera.enabled ? <Video aria-hidden /> : <VideoOff aria-hidden />}
             </IconControl>
-            {!secondaryInMenu ? <DeviceSettingsControl /> : null}
             <IconControl
               label={t("meetings.share")}
               pressed={screen.enabled}
@@ -432,6 +452,7 @@ export function MeetingControlBar({
             >
               <MonitorUp aria-hidden />
             </IconControl>
+            {!secondaryInMenu ? <DeviceSettingsControl /> : null}
             <IconControl
               label={t("meetings.hand")}
               pressed={handRaised}
@@ -440,47 +461,50 @@ export function MeetingControlBar({
             >
               <Hand aria-hidden />
             </IconControl>
-            {secondaryInMenu ? (
-              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            type="button"
-                            size="icon-lg"
-                            variant="outline"
-                            aria-label={t("meetings.more")}
-                            className={MEETING_CONTROL_ICON}
-                          />
-                        }
-                      />
-                    }
-                  >
-                    <MoreHorizontal aria-hidden />
-                  </TooltipTrigger>
-                  <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
-                </Tooltip>
-                <PopoverContent side="top" className="flex w-56 flex-col gap-0.5 p-1.5">
-                  <DeviceSettingsControl inMenu />
-                  <ReactionsControl inMenu />
-                  <AdjustViewControl inMenu />
-                  {captionsControl(true)}
-                  {recordControl(true)}
-                </PopoverContent>
-              </Popover>
-            ) : (
+            {onOpenCopilot ? (
+              <IconControl
+                label={t("meetings.aiCopilotToggle")}
+                pressed={copilotActive}
+                tone={copilotActive ? "copilot" : undefined}
+                onClick={onOpenCopilot}
+              >
+                <Sparkles aria-hidden />
+              </IconControl>
+            ) : null}
+            {!secondaryInMenu ? (
               <>
-                <ReactionsControl />
-                <AdjustViewControl />
                 {captionsControl(false)}
                 {recordControl(false)}
               </>
-            )}
+            ) : null}
+            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          type="button"
+                          size="icon-lg"
+                          variant="outline"
+                          aria-label={t("meetings.more")}
+                          className={MEETING_DARK_BAR_CHIP}
+                        />
+                      }
+                    />
+                  }
+                >
+                  <MoreHorizontal aria-hidden />
+                </TooltipTrigger>
+                <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
+              </Tooltip>
+              <PopoverContent side="top" className="flex w-56 flex-col gap-0.5 p-1.5">
+                {moreMenu}
+              </PopoverContent>
+            </Popover>
           </div>
 
-          <span aria-hidden className="h-8 w-px shrink-0 bg-border dark:bg-input" />
+          <span aria-hidden className="mx-0.5 h-8 w-px shrink-0 bg-meeting-bar-border" />
 
           <Tooltip>
             <TooltipTrigger
@@ -491,7 +515,7 @@ export function MeetingControlBar({
                   size="icon-lg"
                   onClick={onLeave}
                   aria-label={t("meetings.leave")}
-                  className={cn(MEETING_CONTROL_ICON, SOLID_DESTRUCTIVE)}
+                  className={cn(MEETING_DARK_BAR_CHIP, SOLID_DESTRUCTIVE)}
                 />
               }
             >
@@ -501,6 +525,22 @@ export function MeetingControlBar({
           </Tooltip>
         </div>
       </TooltipProvider>
+  );
+
+  if (embedded) {
+    return <div className={className}>{bar}</div>;
+  }
+
+  return (
+    <footer
+      className={cn(
+        floating
+          ? "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4"
+          : "shrink-0 bg-app-shell px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-4",
+        className,
+      )}
+    >
+      {bar}
     </footer>
   );
 }

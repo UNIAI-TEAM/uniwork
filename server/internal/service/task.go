@@ -55,14 +55,30 @@ type UpdateTaskInput struct {
 	DueDate      **string
 }
 
-// assigneeKind validates the assignee pair: a human assignee is any id (the
-// old behaviour), an agent assignee must be a member of the task's workspace.
+// assigneeKind validates the assignee pair: humans and agents must already be
+// workspace members; squad assignees are refused until that directory exists.
 func (s *TaskService) assigneeKind(ctx context.Context, workspaceID string, assigneeID *string, kind string) (string, error) {
 	if kind == "" {
 		kind = string(audit.KindHuman)
 	}
+	if kind == "squad" {
+		return "", CodedError{
+			Code:   "capability_unavailable",
+			Status: http.StatusUnprocessableEntity,
+			Msg:    "squad directory chưa khả dụng",
+			Fields: map[string]any{"reason_code": "squad_directory_missing"},
+		}
+	}
 	switch audit.Kind(kind) {
 	case audit.KindHuman:
+		if assigneeID != nil {
+			if _, err := s.ws.RequireMember(ctx, workspaceID, *assigneeID); err != nil {
+				if errors.Is(err, ErrOrganizationSuspended) {
+					return "", err
+				}
+				return "", coded(http.StatusUnprocessableEntity, "assignee_not_member", "người được gán không phải thành viên workspace")
+			}
+		}
 	case audit.KindAgent:
 		if assigneeID != nil {
 			if _, err := s.ws.RequireAgentMember(ctx, workspaceID, *assigneeID); err != nil {
@@ -90,6 +106,35 @@ func optFloat(f *float64) pgtype.Float8 {
 		return pgtype.Float8{}
 	}
 	return pgtype.Float8{Float64: *f, Valid: true}
+}
+
+func nowTz() pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+}
+
+// normalizedCreatorType maps ADR 0007 actor kinds onto the Tasks foundation
+// creator_type vocabulary (member|agent|system).
+func normalizedCreatorType(kind audit.Kind) string {
+	switch kind {
+	case audit.KindAgent:
+		return "agent"
+	case audit.KindSystem:
+		return "system"
+	default:
+		return "member"
+	}
+}
+
+// normalizedAssigneeType maps the legacy assignee pair onto assignee_type.
+// Unassigned tasks keep a NULL type.
+func normalizedAssigneeType(assigneeID *string, kind string) pgtype.Text {
+	if assigneeID == nil {
+		return pgtype.Text{}
+	}
+	if audit.Kind(kind) == audit.KindAgent {
+		return pgtype.Text{String: "agent", Valid: true}
+	}
+	return pgtype.Text{String: "member", Valid: true}
 }
 
 // taskAuditFields is the explicit list of columns an audit row may report on.
@@ -148,15 +193,26 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{WorkspaceID: workspaceID, Status: "todo"})
+	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: "todo",
+	})
+	if err != nil {
+		return db.Task{}, err
+	}
+	number, err := q.NextTaskNumber(ctx, db.NextTaskNumberParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return db.Task{}, err
 	}
 	task, err := q.CreateTask(ctx, db.CreateTaskParams{
-		ID: util.NewID(), WorkspaceID: workspaceID,
-		Title: strings.TrimSpace(in.Title), Description: in.Description,
-		Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind, DueDate: due,
+		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Number: number, Title: strings.TrimSpace(in.Title), Description: in.Description,
+		Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
+		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), DueDate: due,
 		Position: maxPos + 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
+		Revision: 1, LastActivityAt: nowTz(),
 	})
 	if err != nil {
 		return db.Task{}, err
@@ -182,7 +238,13 @@ func (s *TaskService) List(ctx context.Context, userID, workspaceID string) ([]d
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
-	return s.q.ListTasksByWorkspace(ctx, workspaceID)
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListTasksByWorkspace(ctx, db.ListTasksByWorkspaceParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	})
 }
 
 // authorize loads the task then checks membership on the task's own
@@ -236,7 +298,8 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 	q := s.q.WithTx(tx)
 
 	task, err := q.UpdateTask(ctx, db.UpdateTaskParams{
-		ID: taskID, Title: optText(in.Title), Description: optText(in.Description),
+		ID: taskID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		Title: optText(in.Title), Description: optText(in.Description),
 		Status: optText(in.Status), Priority: optText(in.Priority), Position: optFloat(in.Position),
 	})
 	if err != nil {
@@ -247,7 +310,11 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 		if kerr != nil {
 			return db.Task{}, kerr
 		}
-		task, err = q.SetTaskAssignee(ctx, db.SetTaskAssigneeParams{ID: taskID, AssigneeID: optText(*in.AssigneeID), AssigneeKind: kind})
+		task, err = q.SetTaskAssignee(ctx, db.SetTaskAssigneeParams{
+			ID: taskID, AssigneeID: optText(*in.AssigneeID), AssigneeKind: kind,
+			AssigneeType:   normalizedAssigneeType(*in.AssigneeID, kind),
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
 		if err != nil {
 			return db.Task{}, err
 		}
@@ -257,7 +324,10 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 		if derr != nil {
 			return db.Task{}, derr
 		}
-		task, err = q.SetTaskDueDate(ctx, db.SetTaskDueDateParams{ID: taskID, DueDate: due})
+		task, err = q.SetTaskDueDate(ctx, db.SetTaskDueDateParams{
+			ID: taskID, DueDate: due,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
 		if err != nil {
 			return db.Task{}, err
 		}
@@ -296,7 +366,9 @@ func (s *TaskService) Delete(ctx context.Context, userID, taskID string) error {
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	if err := q.DeleteTask(ctx, taskID); err != nil {
+	if err := q.DeleteTask(ctx, db.DeleteTaskParams{
+		ID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	}); err != nil {
 		return err
 	}
 	// The row is gone, so the audit entry is the only remaining record of what
@@ -338,7 +410,8 @@ func (s *TaskService) AddComment(ctx context.Context, actor Actor, taskID, body 
 	q := s.q.WithTx(tx)
 
 	c, err := q.CreateTaskComment(ctx, db.CreateTaskCommentParams{
-		ID: util.NewID(), TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
+		ID: util.NewID(), OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+		TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
 	})
 	if err != nil {
 		return db.TaskComment{}, err
@@ -363,10 +436,13 @@ func (s *TaskService) AddComment(ctx context.Context, actor Actor, taskID, body 
 }
 
 func (s *TaskService) Comments(ctx context.Context, userID, taskID string) ([]db.ListTaskCommentsRow, error) {
-	if _, err := s.authorize(ctx, userID, taskID); err != nil {
+	task, err := s.authorize(ctx, userID, taskID)
+	if err != nil {
 		return nil, err
 	}
-	return s.q.ListTaskComments(ctx, taskID)
+	return s.q.ListTaskComments(ctx, db.ListTaskCommentsParams{
+		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
 }
 
 func parseDate(s *string) (pgtype.Date, error) {

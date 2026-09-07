@@ -226,3 +226,144 @@ export function canEditComment(authorId: string | null, ctx: PermissionContext):
 export function canDeleteComment(authorId: string | null, ctx: PermissionContext): Decision {
   return canEditComment(authorId, ctx);
 }
+
+// ---- Organization & People (F-03) ----------------------------------------
+
+/**
+ * The gate every organization rule starts with. A deactivated member keeps
+ * their role but may do nothing at all, so this is checked before the role is.
+ * Backend: OrganizationService.RequireMember returns 403 member_deactivated
+ * ahead of every other decision (server/internal/service/organization.go).
+ */
+function requireActiveOrgMember(ctx: PermissionContext): Decision | null {
+  if (ctx.userId === null) return deny("not_authenticated", "Sign in to continue.");
+  if (ctx.orgRole === null) return deny("not_org_member", "You are not a member of this organization.");
+  if (ctx.orgMemberStatus === "deactivated") {
+    return deny("member_deactivated", "Your account in this organization has been deactivated.");
+  }
+  return null;
+}
+
+function requireOrgAdmin(ctx: PermissionContext, message: string): Decision {
+  const gate = requireActiveOrgMember(ctx);
+  if (gate) return gate;
+  if (isAdminLike(ctx.orgRole)) return ALLOW;
+  return deny("not_admin_role", message);
+}
+
+/**
+ * Edit a profile. A person owns what they say about themselves; the company
+ * owns department, manager, employee code and start date.
+ * Backend: PeopleService.UpdateProfile — 403 for someone else's profile
+ * without admin, and 403 for an admin-only field either way
+ * (server/internal/service/people.go).
+ */
+export function canEditProfile(
+  target: { user_id: string } | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = requireActiveOrgMember(ctx);
+  if (gate) return gate;
+  if (target && target.user_id === ctx.userId) return ALLOW;
+  if (isAdminLike(ctx.orgRole)) return ALLOW;
+  return deny("not_resource_owner", "You can only edit your own profile.");
+}
+
+/**
+ * Edit the fields the company asserts about a person, as opposed to the ones
+ * the person asserts about themselves (OPEN_QUESTIONS P8).
+ * Backend: PeopleService.UpdateProfile — ProfileInput.adminOnly() → 403.
+ */
+export function canEditEmploymentFields(ctx: PermissionContext): Decision {
+  return requireOrgAdmin(ctx, "Only organization owners and admins can set department, manager, employee code or start date.");
+}
+
+/**
+ * Invite, change roles, deactivate and reactivate.
+ * Backend: OrganizationMemberService.requireAdmin
+ * (server/internal/service/organization_members.go).
+ */
+export function canManageOrgMembers(ctx: PermissionContext): Decision {
+  return requireOrgAdmin(ctx, "Only organization owners and admins can manage members.");
+}
+
+/**
+ * Change one member's organization role. Ownership is not a role change, and
+ * nobody changes their own role.
+ * Backend: OrganizationMemberService.UpdateRole — owner target → 409
+ * last_owner; self → 400 cannot_change_own_role.
+ */
+export function canChangeOrgRole(
+  target: { user_id: string; role: string } | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = canManageOrgMembers(ctx);
+  if (!gate.allowed) return gate;
+  if (!target) return gate;
+  if (target.user_id === ctx.userId) return deny("not_resource_owner", "You cannot change your own role.");
+  if (target.role === "owner") {
+    return deny("last_owner", "The owner's role changes by transferring ownership.");
+  }
+  return ALLOW;
+}
+
+/**
+ * Deactivate one member. The owner is never a target, nobody deactivates
+ * themselves, and only the owner may deactivate an admin (OPEN_QUESTIONS P6).
+ * Backend: OrganizationMemberService.Deactivate.
+ */
+export function canDeactivateMember(
+  target: { user_id: string; role: string } | null,
+  ctx: PermissionContext,
+): Decision {
+  const gate = canManageOrgMembers(ctx);
+  if (!gate.allowed) return gate;
+  if (!target) return gate;
+  if (target.user_id === ctx.userId) return deny("not_resource_owner", "You cannot deactivate yourself.");
+  if (target.role === "owner") return deny("last_owner", "The owner cannot be deactivated.");
+  if (target.role === "admin" && ctx.orgRole !== "owner") {
+    return deny("not_owner_role", "Only the organization owner can deactivate an admin.");
+  }
+  return ALLOW;
+}
+
+/**
+ * Hand the organization to someone else.
+ * Backend: OrganizationMemberService.TransferOwnership — owner only.
+ */
+export function canTransferOwnership(ctx: PermissionContext): Decision {
+  const gate = requireActiveOrgMember(ctx);
+  if (gate) return gate;
+  if (ctx.orgRole === "owner") return ALLOW;
+  return deny("not_owner_role", "Only the organization owner can transfer ownership.");
+}
+
+/**
+ * Leave the organization. The owner transfers ownership first.
+ * Backend: OrganizationMemberService.Leave — owner → 409 last_owner.
+ */
+export function canLeaveOrg(ctx: PermissionContext): Decision {
+  const gate = requireActiveOrgMember(ctx);
+  if (gate) return gate;
+  if (ctx.orgRole === "owner") {
+    return deny("last_owner", "Transfer ownership before leaving the organization.");
+  }
+  return ALLOW;
+}
+
+/**
+ * Create, rename and archive departments.
+ * Backend: DepartmentService.requireAdmin (server/internal/service/department.go).
+ */
+export function canManageDepartments(ctx: PermissionContext): Decision {
+  return requireOrgAdmin(ctx, "Only organization owners and admins can manage departments.");
+}
+
+/**
+ * Take a copy of the directory. Reading it is open to every member; exporting
+ * it is not.
+ * Backend: PeopleService.RequireExporter (server/internal/service/people.go).
+ */
+export function canExportPeople(ctx: PermissionContext): Decision {
+  return requireOrgAdmin(ctx, "Only organization owners and admins can export the directory.");
+}

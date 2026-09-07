@@ -144,7 +144,8 @@
     "settings": "Settings",
     "workspace_group": "Workspace navigation",
     "account": "Account",
-    "skip_to_content": "Skip to main content"
+    "skip_to_content": "Skip to main content",
+    "people": "People"
   },
   "topbar": {
     "search": "Search…",
@@ -222,7 +223,9 @@
         "integrations": "Integrations",
         "billing": "Billing",
         "audit": "Security & audit",
-        "ai": "AI"
+        "ai": "AI",
+        "organization": "Organization",
+        "departments": "Departments"
       }
     },
     "save": {
@@ -806,6 +809,8 @@
     "noParticipantsYet": "No one else is here yet.",
     "adjustView": "Adjust view",
     "adjustViewHint": "Selection is saved for future meetings.",
+    "controlBarAutoHide": "Auto-hide control bar",
+    "controlBarAutoHideHint": "Hide the bar when the pointer leaves the video area; show it again over the tiles or the bar itself.",
     "viewLayoutAuto": "Auto (dynamic)",
     "viewLayoutTiled": "Tiled",
     "viewLayoutSpotlight": "Spotlight",
@@ -894,6 +899,14 @@
     "devicePreviewTimeout": "The browser has not granted camera access yet. Check the camera icon in the address bar.",
     "more": "More",
     "aiCopilot": "AI Copilot",
+    "uniworkAi": "Uniwork AI",
+    "aiCopilotToggle": "Open AI panel",
+    "hostMenu": "Meeting options",
+    "keyPoints": "Key points",
+    "insightsTab": "Insights",
+    "meetingNotes": "Meeting notes",
+    "copyNotes": "Copied to clipboard",
+    "createTasksInUniwork": "Create tasks in Uniwork ({{count}})",
     "aiMeetingAssistant": "AI Meeting Assistant",
     "betaLabel": "BETA",
     "aiCopilotHint": "Summaries, notes, and action items from this meeting.",
@@ -1107,7 +1120,48 @@
     "name": "Organization name",
     "slug": "Organization slug",
     "create": "Create organization",
-    "switch": "Switch workspace"
+    "switch": "Switch workspace",
+    "members": {
+      "title": "Organization members",
+      "description": "Who belongs to the organization, in what role, and whether they can still get in.",
+      "change_role": "Change role",
+      "role_updated": "Role updated",
+      "deactivate": "Deactivate",
+      "deactivated": "Member deactivated",
+      "reactivate": "Reactivate",
+      "reactivated": "Member reactivated",
+      "status_deactivated": "Deactivated"
+    },
+    "leave": {
+      "title": "Leave this organization",
+      "description": "You lose access to every workspace inside it. The owner must transfer ownership first.",
+      "action": "Leave organization",
+      "done": "You left the organization"
+    },
+    "invitations": {
+      "title": "Invite people to the organization",
+      "description": "They join the company directly and pick a workspace afterwards.",
+      "send": "Send invitations",
+      "sent": "Sent {{count}} invitations",
+      "revoke": "Revoke",
+      "revoked": "Invitation revoked"
+    },
+    "transfer": {
+      "title": "Transfer ownership",
+      "description": "The new owner has full control of the organization. You become an admin and cannot take it back on your own.",
+      "action": "Transfer ownership",
+      "new_owner": "New owner",
+      "confirm_label": "Type the organization name to confirm",
+      "confirm_hint": "Type “{{name}}” exactly.",
+      "password_label": "Your current password",
+      "no_candidate": "No active member is available to receive ownership yet.",
+      "done": "Ownership transferred"
+    },
+    "deactivated": {
+      "title": "Your account in this organization has been deactivated",
+      "description": "An organization admin paused your access. Everything you created is still there. Ask an admin to restore it.",
+      "workspaces_link": "Go to your other organizations"
+    }
   },
   "invitations": {
     "title": "You have an invitation",
@@ -1403,10 +1457,13 @@
       "flags": "Flags",
       "trace": "Trace",
       "quota": "Quota",
-      "system": "System"
+      "system": "System",
+      "overview": "Overview"
     },
     "common": {
-      "retry": "Retry"
+      "retry": "Retry",
+      "updated_seconds": "Updated {{n}}s ago",
+      "updated_minutes": "Updated {{n}}m ago"
     },
     "guard": {
       "error_title": "Could not load your admin role",
@@ -1417,7 +1474,9 @@
       "placeholder": "Customer has not paid the August invoice",
       "hint": "At least {{min}} characters; recorded in the admin action history",
       "confirm": "Confirm",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "hint_remaining": "{{n}} more characters; the reason is kept in the admin action history",
+      "hint_ok": "{{n}} characters; the reason is kept in the admin action history"
     },
     "organizations": {
       "title": "Organizations",
@@ -1443,7 +1502,11 @@
       "empty_description": "Change the search or clear the status filter.",
       "error_title": "Could not load organizations",
       "error_description": "Try again in a few minutes. If it persists, check the System page.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "pager_label": "Organization list pages",
+      "range": "{{from}}–{{to}} of {{total}} organizations",
+      "previous": "Previous",
+      "next": "Next"
     },
     "detail": {
       "crumb": "Organizations",
@@ -1479,7 +1542,8 @@
         "action": "Action",
         "actor": "Actor",
         "reason": "Reason",
-        "trace": "Trace"
+        "trace": "Trace",
+        "usage": "Usage"
       },
       "on": "On",
       "off": "Off",
@@ -1494,7 +1558,9 @@
       "plan_placeholder": "Pick a plan",
       "suspended_toast": "Organization suspended",
       "unsuspended_toast": "Organization unsuspended",
-      "plan_changed_toast": "Switched to plan {{code}}"
+      "plan_changed_toast": "Switched to plan {{code}}",
+      "usage_label": "{{key}}: {{current}} of {{limit}} used",
+      "usage_percent": "{{n}}%"
     },
     "flags": {
       "title": "Feature flags",
@@ -1550,7 +1616,9 @@
         "audit": "audit",
         "outbox": "outbox",
         "action": "admin"
-      }
+      },
+      "all_hidden_title": "Every source is hidden",
+      "all_hidden_description": "Turn at least one source back on to see the timeline."
     },
     "quota": {
       "title": "Quota",
@@ -1559,7 +1627,8 @@
       "off_description": "Turn on the admin_quota flag once plan usage data is ready.",
       "pick_org": "Pick an organization",
       "empty_title": "Pick an organization",
-      "empty_description": "The quota table follows the selected organization."
+      "empty_description": "The quota table follows the selected organization.",
+      "picker_truncated": "Lists the {{n}} most recently active organizations only."
     },
     "system": {
       "title": "System",
@@ -1585,12 +1654,91 @@
       "none": "None",
       "error_title": "Could not load system status",
       "error_description": "Try again in a few minutes. If it persists, open /readyz directly.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "refresh": "Refresh"
     },
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
       "workspaces_link": "Back to workspaces"
+    },
+    "overview": {
+      "title": "Overview",
+      "refresh": "Refresh",
+      "error_title": "Could not load platform health",
+      "error_description": "Try again in a few minutes. If it persists, check the API and Redis.",
+      "retry": "Retry",
+      "readiness": "Readiness",
+      "ready_yes": "Ready",
+      "ready_no": "Not ready",
+      "checks_ok": "{{n}} checks passing",
+      "open_system": "Open system detail",
+      "outbox_dead": "Dead-letter events",
+      "outbox_dead_hint": "Outbox events that gave up; see the outbox runbook.",
+      "outbox_pending": "Pending events",
+      "outbox_oldest": "Oldest {{n}}s",
+      "organizations": "Organizations",
+      "open_organizations": "Open organization list",
+      "suspended": "Suspended",
+      "suspended_hint": "Members stay locked out until unsuspended.",
+      "realtime": "Realtime connections",
+      "build": "Build {{version}} · {{commit}}"
     }
+  },
+  "people": {
+    "title": "People",
+    "search": "Search people",
+    "search_placeholder": "Name, email or job title",
+    "filter_department": "Filter by department",
+    "filter_role": "Filter by role",
+    "filter_status": "Filter by status",
+    "department": "Department",
+    "department_none": "No department",
+    "manager": "Manager",
+    "reports": "Direct reports",
+    "role_any": "Any role",
+    "role_owner": "Owner",
+    "role_admin": "Admin",
+    "role_member": "Member",
+    "status_active": "Active",
+    "status_deactivated": "Deactivated",
+    "status_all": "All",
+    "agent_badge": "Agent",
+    "export": "Export CSV",
+    "load_more": "Load more",
+    "edit_profile": "Edit profile",
+    "profile_saved": "Profile saved",
+    "field_title": "Job title",
+    "field_employee_code": "Employee code",
+    "field_phone": "Phone",
+    "field_phone_hint": "Colleagues only see it once you turn on the switch below.",
+    "field_phone_visible": "Let colleagues see my phone number",
+    "field_location": "Location",
+    "field_joined_on": "Start date",
+    "field_bio": "About",
+    "field_timezone": "Time zone",
+    "empty_title": "You are the only person here",
+    "empty_description": "Invite colleagues to fill the directory.",
+    "empty_filtered_title": "Nobody matches these filters",
+    "empty_filtered_description": "Try removing a filter or changing the search term.",
+    "error_title": "The directory did not load",
+    "error_description": "Try again in a moment. If it keeps failing, tell an organization admin.",
+    "not_found_title": "This person was not found",
+    "not_found_description": "They may have left the organization, or you may not be allowed to see them."
+  },
+  "departments": {
+    "title": "Departments",
+    "description": "The organization's structure, at most two levels deep. Archiving a department moves its people out of it.",
+    "name": "Department name",
+    "code": "Code",
+    "parent": "Parent department",
+    "add": "Add department",
+    "add_title": "Add a department",
+    "archive": "Archive",
+    "archived": "Department archived",
+    "created": "Department created",
+    "updated": "Department updated",
+    "empty": "No departments yet.",
+    "member_count": "{{count}} members"
   }
 }

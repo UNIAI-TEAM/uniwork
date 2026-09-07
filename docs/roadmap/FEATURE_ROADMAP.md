@@ -41,9 +41,9 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | --- | --- | --- | --- | --- | --- | --- |
 | F-01 | Identity: MFA TOTP, OIDC Microsoft, quản lý phiên/thiết bị, xóa tài khoản | Identity & Access | MỘT PHẦN | Thêm MFA, provider OIDC thứ hai, danh sách phiên + thu hồi, luồng xóa tài khoản | `(cần viết)` identity-hardening | P1 |
 | F-02 | Gói, subscription, entitlement, quota | Tenant & Subscription | CÓ (2026-09-06, UNI-425; billing thật ở C-04, cảnh báo ngưỡng ở C-05) | Toàn bộ theo spec; `entitlements.can(feature)` ở Go, không hard-code tên gói | `2026-09-04-tenant-subscription-entitlement-design.md` | P0 |
-| F-03 | Hồ sơ người dùng, phòng ban, danh bạ /people, quản trị thành viên org, transfer ownership | Organization & People | MỘT PHẦN | Hồ sơ đầy đủ, phòng ban, danh bạ + CSV, transfer/deactivate | `2026-09-04-organization-people-directory-design.md` | P1 |
+| F-03 | Hồ sơ người dùng, phòng ban, danh bạ /people, quản trị thành viên org, transfer ownership | Organization & People | CÓ (2026-09-07, UNI-431; SCIM/đồng bộ thư mục ở giai đoạn E, kéo thả sắp xếp phòng ban dùng nút thứ tự thay vì dnd) | Toàn bộ theo spec; hồ sơ, phòng ban 2 cấp, danh bạ + CSV, mời cấp tổ chức, vô hiệu hóa, transfer ownership | `2026-09-04-organization-people-directory-design.md` | P1 |
 | F-04 | Workspace: nhãn/tags, lưu trữ, transfer ownership, xóa workspace | Workspace | MỘT PHẦN | Các mục "ngoài phạm vi" của spec quyền 2026-08-27 | `2026-08-27-workspace-permissions-design.md` + follow-up `(cần viết)` | P2 |
-| F-05 | Task hoàn chỉnh: project, label, attachment, subtask, activity, saved view, My Work, row_version, idempotency | Project & Task | MỘT PHẦN | Theo spec; đây là lát cắt dọc chuẩn cho mọi feature khác | `2026-09-04-tasks-complete-design.md` | P0 |
+| F-05 | Tasks Work Management parity: Tasks, My Tasks, Projects, năm views, collaboration, web/desktop/mobile và integration stubs | Project & Task | MỘT PHẦN | Slice 1/UNI-495 foundation shipped (schema/backfill, identifiers, status seed, capability visible-disabled, rehearsal). Còn slices 2–7: UI surfaces, Project/Status/Label handlers, collection/detail, realtime | `2026-09-07-tasks-work-management-parity-design.md` | P0 |
 | F-06 | Meeting đạt DoD: egress thật trên staging, metrics, E2E, kiểm chứng runtime | Meeting | CÓ | Chạy bằng chứng thật (ghi hình, transcript, summary) trên staging; đóng mục "cố ý để lại" nếu cần | `2026-08-29-meeting-world-class-design.md` | P1 |
 | F-07 | Notification: inbox, đã đọc, tùy chọn, web push, email digest, badge realtime | Notification | CÓ (2026-09-06, UNI-427; `meeting_summary_ready` và mention trong chat chờ topic lên outbox; rate limit push chưa làm) | Toàn bộ; sinh từ outbox consumer, không từ handler | `2026-09-04-notifications-design.md` | P0 |
 | F-08 | Audit bất biến + outbox + catalogue sự kiện toàn hệ thống + correlation id + màn hình Security & Audit | Audit & Compliance | CÓ (2026-09-04) | `audit_events` append-only; `outbox_events` dùng chung với `outbox.Dispatcher`; catalogue ba nơi; export + retention; tab Bảo mật & Nhật ký | `2026-09-04-audit-domain-events-design.md` | P0 |
@@ -126,7 +126,8 @@ Nền trước, bề mặt sau; mỗi bước để lại gate trong CI:
 
 1. **F-08 Audit + outbox** và **F-10 actor_kind** (schema) — mọi feature sau ghi qua đây.
 2. **F-02 Entitlement/quota** (chưa cần billing) — mọi feature sau kiểm `can(feature)`.
-3. **F-05 Tasks hoàn chỉnh** — lát cắt dọc mẫu, chứng minh DoD chạy được.
+3. **F-05 Tasks Work Management parity** — suite Tasks, My Tasks và Projects là lát
+   cắt dọc mẫu, chứng minh DoD chạy được.
 4. **F-07 Notifications** — consumer đầu tiên của outbox.
 5. **F-09 AI Gateway + Ask UNI** — tách khỏi meeting, metering.
 6. **F-11 Observability + admin + flags**, **F-13 hạ tầng** — chạy song song từ tuần 1.
@@ -136,8 +137,8 @@ Nền trước, bề mặt sau; mỗi bước để lại gate trong CI:
 
 - Số migration trong spec là giữ chỗ; số thật cấp lúc viết plan theo thứ tự ở trên.
 - `actor_kind` thống nhất `human` / `agent` / `system` (ADR 0007).
-- Spec `tasks-complete` ghi nhận plan `2026-08-27-tasks-phase-0-skeleton.md` đánh dấu
-  `shipped` nhưng mã vẫn ở mức 4 status; khi duyệt spec, đánh dấu plan cũ `superseded`.
+- Spec `2026-09-07-tasks-work-management-parity-design.md` thay `tasks-complete` và
+  ghi nhận plan `2026-08-27-tasks-phase-0-skeleton.md` chỉ là nền MVP đã superseded.
 - Câu hỏi mở của 8 spec đã chốt 2026-09-04 trong `docs/roadmap/OPEN_QUESTIONS.md`.
 
 ## Cập nhật tài liệu này

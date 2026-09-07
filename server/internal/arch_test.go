@@ -62,23 +62,74 @@ func TestLayering(t *testing.T) {
 
 // Membership is decided in WorkspaceService.RequireMember and nowhere else
 // (CLAUDE.md § Database and Migration Rules). The two sqlc queries that read
-// workspace_members for a decision may only be called from that file.
+// workspace_members for a decision may only be called from that file, and the
+// organization membership row only from the two files that own that lifecycle
+// (spec F-03 §8) — a third caller would be a second place a deactivated member
+// could slip through.
 func TestMembershipDecidedInOnePlace(t *testing.T) {
-	decision := regexp.MustCompile(`\.(GetWorkspaceMember|GetWorkspaceAccess|GetWorkspaceAgentMember)\(`)
+	decision := regexp.MustCompile(`\.(GetWorkspaceMember|GetWorkspaceAccess|GetWorkspaceAgentMember|GetOrganizationMember)\(`)
+	owners := map[string]bool{
+		"internal/service/workspace.go":            true,
+		"internal/service/organization.go":         true,
+		"internal/service/organization_members.go": true,
+	}
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		if strings.Contains(filepath.ToSlash(path), "pkg/db/generated") ||
-			strings.HasSuffix(filepath.ToSlash(path), "internal/service/workspace.go") {
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") {
 			return nil
+		}
+		for owner := range owners {
+			if strings.HasSuffix(slash, owner) {
+				return nil
+			}
 		}
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
 		if decision.Match(src) {
-			t.Errorf("%s reads workspace_members directly; go through WorkspaceService.RequireMember", path)
+			t.Errorf("%s reads a membership row directly; go through WorkspaceService.RequireMember or OrganizationService.RequireMember", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The profile table is written in one place (spec F-03 §8). Every other
+// command that needs a profile row — creating an organization, accepting an
+// invitation, renaming yourself — goes through the helpers in people.go, so
+// the folded search column can never be written by a caller that forgot to
+// rebuild it.
+func TestMemberProfilesWrittenInOnePlace(t *testing.T) {
+	write := regexp.MustCompile(`\.(UpsertMemberProfile|UpdateMemberProfile|SetMemberProfileSearchText|ClearDepartmentFromProfiles)\(`)
+	owners := []string{
+		"internal/service/people.go",
+		"internal/service/department.go",
+	}
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") {
+			return nil
+		}
+		for _, owner := range owners {
+			if strings.HasSuffix(slash, owner) {
+				return nil
+			}
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if write.Match(src) {
+			t.Errorf("%s writes organization_member_profiles directly; go through people.go", path)
 		}
 		return nil
 	})
@@ -163,7 +214,10 @@ func TestBillingQueriesStayInBillingServices(t *testing.T) {
 			return err
 		}
 		slash := filepath.ToSlash(path)
+		// cmd/seed is the k6 fixture tool: it COPYs rows straight into the
+		// tables and only reads the default plan to point them at it.
 		if strings.Contains(slash, "pkg/db/generated") ||
+			strings.Contains(slash, "cmd/seed/") ||
 			strings.HasSuffix(slash, "internal/service/entitlement.go") ||
 			strings.HasSuffix(slash, "internal/service/billing.go") {
 			return nil
@@ -255,7 +309,7 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // fenced: only service/admin.go calls Admin* queries, and admin.go never
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
-	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride)\(`)
+	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -283,6 +337,54 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 	for _, forbidden := range []string{"TaskService", "ChatService", "MeetingService", "GetTask", "chat_messages", "ListTasks"} {
 		if strings.Contains(string(src), forbidden) {
 			t.Errorf("service/admin.go mentions %s: the console never returns content", forbidden)
+		}
+	}
+}
+
+// Work Management foundation queries (UNI-495) must scope every read/write of a
+// business table by both organization_id and workspace_id. NextTaskNumber is
+// not exempt — the allocator updates the workspace row under the same pair.
+var taskFoundationQueryFiles = []string{
+	"../pkg/db/queries/tasks.sql",
+	"../pkg/db/queries/task_statuses.sql",
+	"../pkg/db/queries/projects.sql",
+}
+
+// GetTask is authorize-by-taskID (id-only SELECT); membership is decided solely
+// via RequireMember. JOIN-only presence of tenant columns must not fake compliance.
+var taskFoundationScopeExemptQueries = map[string]bool{
+	"GetTask": true,
+}
+
+func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {
+	nameRe := regexp.MustCompile(`(?m)^-- name: (\S+)`)
+	for _, rel := range taskFoundationQueryFiles {
+		path := filepath.Clean(rel)
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("%s: %v", path, err)
+			continue
+		}
+		body := string(src)
+		idxs := nameRe.FindAllStringSubmatchIndex(body, -1)
+		if len(idxs) == 0 {
+			t.Errorf("%s: no sqlc queries", path)
+			continue
+		}
+		for i, loc := range idxs {
+			name := body[loc[2]:loc[3]]
+			if taskFoundationScopeExemptQueries[name] {
+				continue
+			}
+			start := loc[0]
+			end := len(body)
+			if i+1 < len(idxs) {
+				end = idxs[i+1][0]
+			}
+			stmt := body[start:end]
+			if !strings.Contains(stmt, "organization_id") || !strings.Contains(stmt, "workspace_id") {
+				t.Errorf("%s query %s: every foundation read/write must reference organization_id and workspace_id", path, name)
+			}
 		}
 	}
 }

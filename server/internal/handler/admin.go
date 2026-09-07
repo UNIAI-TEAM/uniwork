@@ -28,22 +28,25 @@ func (h *handlers) adminListOrganizations(w http.ResponseWriter, r *http.Request
 	q := r.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
-	rows, err := h.Admin.ListOrganizations(r.Context(), service.ListOrganizationsInput{
-		Query: q.Get("q"), Status: q.Get("status"), Limit: int32(limit), Offset: int32(offset),
+	page, err := h.Admin.ListOrganizations(r.Context(), service.ListOrganizationsInput{
+		Query: q.Get("q"), Status: q.Get("status"), Sort: q.Get("sort"),
+		Limit: int32(limit), Offset: int32(offset),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.AdminOrganizationDTO, 0, len(rows))
-	for _, o := range rows {
+	out := make([]sdo.AdminOrganizationDTO, 0, len(page.Organizations))
+	for _, o := range page.Organizations {
 		out = append(out, sdo.AdminOrganizationDTO{
 			ID: o.ID, Slug: o.Slug, Name: o.Name, Status: o.Status, PlanCode: o.PlanCode,
 			MemberCount: o.MemberCount, WorkspaceCount: o.WorkspaceCount,
 			CreatedAt: o.CreatedAt.Time.Format(time.RFC3339), LastActivityAt: optTimePtr(o.LastActivityAt),
 		})
 	}
-	respondJSON(w, 200, sdo.AdminOrganizationListSDO{Organizations: out})
+	respondJSON(w, 200, sdo.AdminOrganizationListSDO{
+		Organizations: out, Total: page.Total, Limit: page.Limit, Offset: page.Offset,
+	})
 }
 
 func (h *handlers) adminGetOrganization(w http.ResponseWriter, r *http.Request) {

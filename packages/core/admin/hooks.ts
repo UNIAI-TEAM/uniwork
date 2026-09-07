@@ -6,7 +6,7 @@ import type { FlagOverrideDeleteInput, FlagOverrideInput } from "../types/admin"
 import { adminKeys } from "./keys";
 
 export { adminKeys } from "./keys";
-export type { AdminOrganizationQuery } from "../api/endpoints/admin";
+export type { AdminOrganizationPage, AdminOrganizationQuery, AdminOrganizationSort } from "../api/endpoints/admin";
 
 /**
  * The caller's platform role. A 404 is the server saying "no role" without
@@ -71,20 +71,32 @@ export function useAdminTrace(traceId: string) {
   });
 }
 
+/**
+ * The ops screen refreshes itself: outbox depth and readiness are the numbers
+ * an on-call reads while waiting for them to move, and a stale panel there is
+ * worse than an empty one. `dataUpdatedAt` is what the screen shows as "as of".
+ */
+export const ADMIN_SYSTEM_REFRESH_MS = 15_000;
+
 export function useAdminSystem() {
-  return useQuery({ queryKey: adminKeys.system, queryFn: admin.getAdminSystem });
+  return useQuery({
+    queryKey: adminKeys.system,
+    queryFn: admin.getAdminSystem,
+    refetchInterval: ADMIN_SYSTEM_REFRESH_MS,
+    refetchOnWindowFocus: true,
+  });
 }
 
 export function useAdminFlags() {
   return useQuery({ queryKey: adminKeys.flags, queryFn: admin.listAdminFlags });
 }
 
-export function useFlagOverrides(key: string) {
-  return useQuery({
-    queryKey: adminKeys.overrides(key),
-    queryFn: () => admin.listFlagOverrides(key),
-    enabled: !!key,
-  });
+/**
+ * Every override, once, for a screen that draws a row per flag. The per-key
+ * hook stays for a screen that really is about one flag.
+ */
+export function useAllFlagOverrides() {
+  return useQuery({ queryKey: adminKeys.allOverrides, queryFn: admin.listAllFlagOverrides });
 }
 
 function useOverrideMutation<TVars>(key: string, fn: (vars: TVars) => Promise<unknown>) {
@@ -93,7 +105,8 @@ function useOverrideMutation<TVars>(key: string, fn: (vars: TVars) => Promise<un
     mutationFn: fn,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: adminKeys.overrides(key) });
-      // The catalogue shows the override count.
+      // adminKeys.flags is the prefix of both the catalogue and the override
+      // lists, so one invalidation refreshes the count and every row.
       void qc.invalidateQueries({ queryKey: adminKeys.flags });
     },
   });

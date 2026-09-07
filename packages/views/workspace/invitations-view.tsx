@@ -9,7 +9,17 @@ import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 
 /** Danh sách lời mời đang chờ của user; chấp nhận từng cái hoặc tất cả. */
-export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspace) => void; onEmpty: () => void }) {
+export function InvitationsView({
+  onJoined,
+  onEmpty,
+}: {
+  /**
+   * `workspace` is null when the invitation was to the organization itself:
+   * the person is in the company but in no team yet (F-03).
+   */
+  onJoined: (workspace: Workspace | null) => void;
+  onEmpty: () => void;
+}) {
   const { t } = useTranslation();
   const { data: invites, isFetched } = useMyInvitations();
   const accept = useAcceptInvite();
@@ -23,9 +33,9 @@ export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspac
 
   const join = (token: string) =>
     accept.mutate(token, {
-      onSuccess: (workspace) => {
+      onSuccess: (result) => {
         joined.current = true;
-        if (workspace) onJoined(workspace);
+        onJoined(result.workspace);
       },
       onError: (err) => toastApiError(err, t("common.error")),
     });
@@ -33,15 +43,13 @@ export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspac
     let last: Workspace | null = null;
     for (const i of invites) {
       try {
-        last = (await accept.mutateAsync(i.token)) ?? last;
+        last = (await accept.mutateAsync(i.token)).workspace ?? last;
       } catch (err) {
         toastApiError(err, t("common.error"));
       }
     }
-    if (last) {
-      joined.current = true;
-      onJoined(last);
-    }
+    joined.current = true;
+    onJoined(last);
   };
 
   return (

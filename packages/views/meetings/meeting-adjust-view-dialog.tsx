@@ -85,9 +85,11 @@ export function MeetingAdjustViewDialog({
   const viewLayout = useMeetingRoomPreferencesStore((s) => s.viewLayout);
   const maxTiles = useMeetingRoomPreferencesStore((s) => s.maxTiles);
   const hideTilesWithoutVideo = useMeetingRoomPreferencesStore((s) => s.hideTilesWithoutVideo);
+  const controlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.controlBarAutoHide);
   const setViewLayout = useMeetingRoomPreferencesStore((s) => s.setViewLayout);
   const setMaxTiles = useMeetingRoomPreferencesStore((s) => s.setMaxTiles);
   const setHideTilesWithoutVideo = useMeetingRoomPreferencesStore((s) => s.setHideTilesWithoutVideo);
+  const setControlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.setControlBarAutoHide);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,6 +156,20 @@ export function MeetingAdjustViewDialog({
             id="hide-no-video"
             checked={hideTilesWithoutVideo}
             onCheckedChange={setHideTilesWithoutVideo}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-lg px-1 py-1">
+          <div>
+            <Label htmlFor="control-bar-auto-hide" className="text-body text-foreground">
+              {t("meetings.controlBarAutoHide")}
+            </Label>
+            <p className="text-caption text-muted-foreground">{t("meetings.controlBarAutoHideHint")}</p>
+          </div>
+          <Switch
+            id="control-bar-auto-hide"
+            checked={controlBarAutoHide}
+            onCheckedChange={setControlBarAutoHide}
           />
         </div>
       </DialogContent>

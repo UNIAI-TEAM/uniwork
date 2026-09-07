@@ -19,9 +19,13 @@ type AdminOrganizationDTO struct {
 	LastActivityAt *string `json:"last_activity_at" description:"Audit row gần nhất; null khi chưa có" example:"2026-09-06T09:30:00Z"`
 }
 
-// AdminOrganizationListSDO is GET /api/v1/admin/organizations.
+// AdminOrganizationListSDO is GET /api/v1/admin/organizations. Total counts
+// the whole filtered set, not the page, so the console can page through it.
 type AdminOrganizationListSDO struct {
 	Organizations []AdminOrganizationDTO `json:"organizations"`
+	Total         int64                  `json:"total" description:"Tổng số tổ chức khớp bộ lọc" example:"128"`
+	Limit         int32                  `json:"limit" description:"Kích thước trang đã áp dụng" example:"50"`
+	Offset        int32                  `json:"offset" description:"Vị trí bắt đầu của trang" example:"0"`
 }
 
 // AdminEntitlementDTO mirrors the org's entitlement snapshot for the Quota tab.

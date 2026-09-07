@@ -1,7 +1,17 @@
 "use client";
 
 import { useRef } from "react";
-import { CalendarDays, ChevronsUpDown, Inbox, LogOut, MessageSquare, Settings, SquareCheckBig, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronsUpDown,
+  Inbox,
+  LogOut,
+  MessageSquare,
+  Settings,
+  SquareCheckBig,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useUnreadCount } from "@uniwork/core/notifications";
@@ -38,7 +48,7 @@ import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.inbox" | "nav.tasks" | "nav.meetings" | "nav.chat";
+  key: "nav.inbox" | "nav.tasks" | "nav.meetings" | "nav.chat" | "nav.people";
   href: string;
   icon: LucideIcon;
   badge?: number;
@@ -74,6 +84,7 @@ export function AppSidebar() {
     { key: "nav.tasks", href: ws.tasks(), icon: SquareCheckBig },
     { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },
     { key: "nav.chat", href: ws.chat(), icon: MessageSquare },
+    { key: "nav.people", href: ws.people(), icon: Users },
   ];
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");

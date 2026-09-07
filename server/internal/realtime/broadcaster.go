@@ -6,9 +6,14 @@ package realtime
 const (
 	ScopeWorkspace = "workspace"
 	ScopeUser      = "user"
-	ScopeTask      = "task"
-	ScopeChat      = "chat"
-	ScopeMeeting   = "meeting"
+	// ScopeOrganization carries changes that belong to the company rather
+	// than to one workspace — the people directory and departments (F-03).
+	// Every connection joins it at connect time from the organization that
+	// owns its workspace.
+	ScopeOrganization = "organization"
+	ScopeTask         = "task"
+	ScopeChat         = "chat"
+	ScopeMeeting      = "meeting"
 )
 
 // Broadcaster is the abstraction every realtime event producer should depend

@@ -2,9 +2,10 @@
 
 import type { ReactNode } from "react";
 import type { User, Workspace } from "@uniwork/core/types";
+import { MemberDeactivatedPage } from "../admin/member-deactivated";
 import { OrganizationSuspendedPage } from "../admin/organization-suspended";
 import { useDashboardGuard } from "./use-dashboard-guard";
-import { useOrganizationSuspended } from "./use-organization-suspended";
+import { MEMBER_DEACTIVATED, ORGANIZATION_SUSPENDED, useOrganizationBlock } from "./use-organization-suspended";
 
 interface DashboardGuardProps {
   orgSlug: string;
@@ -20,9 +21,13 @@ interface DashboardGuardProps {
  * own chrome inside; the redirects live in useDashboardGuard.
  */
 export function DashboardGuard({ orgSlug, wsSlug, loadingFallback = null, children }: DashboardGuardProps) {
-  const { user, workspace, suspended } = useDashboardGuard(orgSlug, wsSlug);
-  const suspendedLater = useOrganizationSuspended();
-  if (suspended || suspendedLater) return <OrganizationSuspendedPage />;
+  const { user, workspace, block } = useDashboardGuard(orgSlug, wsSlug);
+  // The block can arrive with the workspace request itself, or later from any
+  // other query once an admin switches the person or the tenant off.
+  const blockedLater = useOrganizationBlock();
+  const blocked = block ?? blockedLater;
+  if (blocked === ORGANIZATION_SUSPENDED) return <OrganizationSuspendedPage />;
+  if (blocked === MEMBER_DEACTIVATED) return <MemberDeactivatedPage />;
   if (!user || !workspace) return <>{loadingFallback}</>;
   return <>{children({ user, workspace })}</>;
 }

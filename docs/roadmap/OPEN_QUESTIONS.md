@@ -37,6 +37,10 @@ tương ứng và đổi trạng thái sang **Đã duyệt**.
 
 ## F-05 Tasks
 
+> **Trạng thái:** superseded — các quyết định bên dưới chỉ là lịch sử của
+> `2026-09-04-tasks-complete-design.md`; phạm vi và hành vi hiện hành được chốt tại
+> `2026-09-07-tasks-work-management-parity-design.md` theo baseline `3d37828e9`.
+
 | # | Câu hỏi | Đề xuất mặc định | Quyết định |
 | --- | --- | --- | --- |
 | T1 | My Work ở cấp organization hay workspace? | Organization; là trang mặc định sau đăng nhập | **Chốt:** theo đề xuất |

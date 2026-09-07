@@ -11,6 +11,7 @@ import {
   type CameraPreviewStatus,
 } from "./meeting-camera-preview";
 import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
+import { MeetingLobbyBackground } from "./meeting-lobby-background";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
@@ -49,7 +50,7 @@ export function MeetingPreJoin({
     }));
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+    <MeetingLobbyBackground className="overflow-y-auto">
       <header className="flex h-14 shrink-0 items-center gap-3 px-3 sm:px-4">
         <Button
           type="button"
@@ -61,12 +62,12 @@ export function MeetingPreJoin({
           {t("common.back")}
         </Button>
       </header>
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center gap-6 px-4 pb-8 lg:flex-row lg:items-center lg:gap-10">
-        <div className="w-full min-w-0 lg:flex-1">
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-stretch gap-6 px-4 pb-8 lg:flex-row lg:items-center lg:gap-8">
+        <div className="w-full min-w-0 rounded-2xl bg-rail p-3 ring-1 ring-surface-border lg:flex-1">
           <MeetingCameraPreview
             active={video}
             deviceId={videoDeviceId || undefined}
-            className="aspect-video min-h-0 rounded-2xl"
+            className="aspect-video min-h-0 rounded-xl"
             onStatusChange={onPreviewStatus}
           />
           <MeetingMediaControlBar
@@ -79,7 +80,7 @@ export function MeetingPreJoin({
             className="mt-3 flex justify-center gap-3"
           />
         </div>
-        <div className="flex w-full max-w-sm flex-col gap-4 lg:w-80">
+        <div className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[var(--surface-shadow)] lg:w-80">
           <div>
             <p className="text-caption text-muted-foreground">
               {t("meetings.prejoinTitle")}
@@ -143,6 +144,6 @@ export function MeetingPreJoin({
           </p>
         </div>
       </div>
-    </div>
+    </MeetingLobbyBackground>
   );
 }

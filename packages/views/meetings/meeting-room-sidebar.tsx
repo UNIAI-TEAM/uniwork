@@ -4,6 +4,7 @@ import type { Meeting } from "@uniwork/core/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Badge } from "@uniwork/ui/components/ui/badge";
+import { Sparkles } from "lucide-react";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
 import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
@@ -14,9 +15,8 @@ export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "files";
 
 const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "files"];
 
-// Line-variant TabsTrigger only tints text; force a pill so the active tab is obvious.
 const MEETING_SIDEBAR_TAB_TRIGGER =
-  "h-8 min-h-8 min-w-0 flex-1 basis-0 truncate rounded-lg px-1.5 text-caption font-medium text-foreground after:hidden hover:bg-surface-hover hover:text-foreground data-active:!bg-surface-selected data-active:!font-semibold data-active:!text-brand data-active:shadow-sm data-active:ring-1 data-active:ring-brand/20";
+  "relative flex min-h-10 items-center justify-center overflow-hidden rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 py-2 shadow-none after:!hidden h-auto flex-none text-caption font-medium leading-tight whitespace-normal text-center transition-[color,border-color] duration-200 data-active:!border-brand data-active:!bg-transparent data-active:!font-semibold data-active:!text-brand data-active:!shadow-none dark:data-active:!border-brand dark:data-active:!bg-transparent hover:text-foreground text-muted-foreground";
 
 export function MeetingRoomSidebar({
   meetingId,
@@ -71,8 +71,20 @@ export function MeetingRoomSidebar({
         onValueChange={(value) => onTabChange(value as MeetingSidebarTab)}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div className="shrink-0 border-b border-border px-2 py-2">
-          <TabsList className="flex h-auto w-full items-center gap-0.5 rounded-xl bg-muted p-1 dark:bg-secondary">
+        <div className="shrink-0 overflow-hidden border-b border-border px-2 pt-3 pb-0">
+          {!guestMode ? (
+            <div className="mb-2 flex items-center gap-2 px-1">
+              <Sparkles aria-hidden className="size-4 text-brand" />
+              <span className="text-label font-semibold text-foreground">{t("meetings.uniworkAi")}</span>
+            </div>
+          ) : null}
+          <TabsList
+            variant="line"
+            className={cn(
+              "grid h-auto w-full gap-0 overflow-hidden rounded-none bg-transparent p-0",
+              sidebarTabs.length === 3 ? "grid-cols-3" : "grid-cols-4",
+            )}
+          >
             {sidebarTabs.map((id) => (
               <TabsTrigger
                 key={id}
@@ -80,8 +92,8 @@ export function MeetingRoomSidebar({
                 title={tabLabel(id)}
                 className={MEETING_SIDEBAR_TAB_TRIGGER}
               >
-                <span className="inline-flex min-w-0 items-center gap-1">
-                  <span className="truncate">{tabLabel(id)}</span>
+                <span className="inline-flex min-w-0 flex-col items-center gap-0.5 px-0.5">
+                  <span className="line-clamp-2">{tabLabel(id)}</span>
                   {id === "participants" && pendingJoinCount > 0 ? (
                     <Badge
                       variant="destructive"

@@ -55,6 +55,7 @@ function builderTemplates(): string[] {
     paths.meetingInvite(ID),
     paths.meetingInviteRoom(ID),
     paths.admin.root(),
+    paths.admin.organizations(),
     paths.admin.organization(ID),
     paths.admin.flags(),
     paths.admin.trace(),
@@ -62,7 +63,7 @@ function builderTemplates(): string[] {
     paths.admin.system(),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.inbox(), ws.members(), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.inbox(), ws.members(), ws.people(), ws.person(ID), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p

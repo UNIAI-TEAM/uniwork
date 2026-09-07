@@ -24,6 +24,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) | AI không ghi nghiệp vụ trực tiếp: đề xuất → xác nhận → thực thi |
 | [0011](0011-mobile-la-app-expo-doc-lap.md) | Mobile là app Expo / React Native độc lập, không PWA, không tái dùng `views` |
 | [0012](0012-audit-bat-bien-bang-quyen-db-va-trigger.md) | `audit_events` bất biến bằng quyền DB và trigger; ghi qua đúng một package |
+| [0013](0013-man-tong-quan-la-cua-vao-console-admin.md) | Console `/admin` mở bằng màn Tổng quan; trần màn hình lên 7 |
 
 ## Bản nháp
 

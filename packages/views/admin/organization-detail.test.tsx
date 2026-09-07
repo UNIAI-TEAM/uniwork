@@ -50,6 +50,12 @@ describe("AdminOrganizationDetailView", () => {
     expect(screen.getByText("Đang hoạt động")).toBeInTheDocument();
     expect(screen.getByText("free")).toBeInTheDocument();
     expect(screen.getByText("members")).toBeInTheDocument();
+    // 3 of 50 is a meter, not two numbers the reader has to divide.
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "6");
+    expect(screen.getByText("6%")).toBeInTheDocument();
+    // The trace id is an in-app link, not a full page load.
+    fireEvent.click(screen.getByRole("tab", { name: "Lịch sử" }));
+    expect(await screen.findByRole("link", { name: "t1" })).toHaveAttribute("href", "/admin/trace?id=t1");
     fireEvent.click(screen.getByRole("tab", { name: "Lịch sử" }));
     expect(await screen.findByText("organization.plan_changed")).toBeInTheDocument();
     expect(screen.getByText("Pilot đối tác")).toBeInTheDocument();

@@ -52,9 +52,11 @@ func (q *Queries) AddUsageWithinLimit(ctx context.Context, arg AddUsageWithinLim
 }
 
 const countOrganizationMembers = `-- name: CountOrganizationMembers :one
-SELECT count(*) FROM organization_members WHERE organization_id = $1
+SELECT count(*) FROM organization_members WHERE organization_id = $1 AND deactivated_at IS NULL
 `
 
+// members.max counts seats in use, and a deactivated member gives their seat
+// back (OPEN_QUESTIONS P1), so the recount matches what Consume tracks.
 func (q *Queries) CountOrganizationMembers(ctx context.Context, organizationID string) (int64, error) {
 	row := q.db.QueryRow(ctx, countOrganizationMembers, organizationID)
 	var count int64

@@ -1,5 +1,5 @@
 "use client";
-import { Circle, Send, Sparkles, Video } from "lucide-react";
+import { Circle, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -15,21 +15,23 @@ import {
   useRecordings,
   useTranscript,
 } from "@uniwork/core/meetings";
-import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
-import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import {
   Progress,
   ProgressIndicator,
   ProgressTrack,
 } from "@uniwork/ui/components/ui/progress";
-import { cn } from "@uniwork/ui/lib/utils";
+import { MeetingCopilotFooter, MeetingCopilotTasksCta } from "./meeting-copilot/meeting-copilot-footer";
+import { MeetingCopilotHeader } from "./meeting-copilot/meeting-copilot-header";
+import { MeetingActionItemRow } from "./meeting-copilot/meeting-action-item-row";
+import { MeetingNotesCard } from "./meeting-copilot/meeting-notes-card";
+import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
 
-type CopilotSection = "summary" | "notes" | "transcript" | "actions";
+type CopilotSection = "notes" | "transcript" | "insights" | "actions";
 
-const SECTIONS: CopilotSection[] = ["summary", "notes", "transcript", "actions"];
+const SECTIONS: CopilotSection[] = ["notes", "transcript", "insights", "actions"];
 
 function useRecordingElapsed(startedAt: string | undefined): string {
   const [elapsed, setElapsed] = useState("00:00:00");
@@ -54,49 +56,6 @@ function useRecordingElapsed(startedAt: string | undefined): string {
   return elapsed;
 }
 
-function summaryLines(text: string): string[] {
-  return text
-    .split(/\n+/)
-    .map((line) => line.replace(/^[-•*]\s*/, "").trim())
-    .filter(Boolean);
-}
-
-function SectionPills({
-  section,
-  onSectionChange,
-  label,
-}: {
-  section: CopilotSection;
-  onSectionChange: (section: CopilotSection) => void;
-  label: (id: CopilotSection) => string;
-}) {
-  return (
-    <div
-      className="flex shrink-0 gap-1.5 overflow-x-auto pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      role="tablist"
-      aria-label={label("summary")}
-    >
-      {SECTIONS.map((id) => (
-        <button
-          key={id}
-          type="button"
-          role="tab"
-          aria-selected={section === id}
-          className={cn(
-            "inline-flex h-8 shrink-0 items-center justify-center rounded-full px-3 text-label whitespace-nowrap transition-colors",
-            section === id
-              ? "bg-brand font-medium text-brand-foreground"
-              : "border border-input bg-surface text-foreground hover:bg-surface-hover dark:bg-secondary",
-          )}
-          onClick={() => onSectionChange(id)}
-        >
-          {label(id)}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function MeetingRoomCopilotTab({
   workspaceId,
   meetingId,
@@ -107,7 +66,7 @@ export function MeetingRoomCopilotTab({
   canHost: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const [section, setSection] = useState<CopilotSection>("summary");
+  const [section, setSection] = useState<CopilotSection>("insights");
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: summary, isLoading: summaryLoading } = useMeetingSummary(meetingId);
   const { data: transcript } = useTranscript(meetingId);
@@ -131,12 +90,12 @@ export function MeetingRoomCopilotTab({
 
   const sectionLabel = (id: CopilotSection) => {
     switch (id) {
-      case "summary":
-        return t("meetings.summaryTab");
       case "notes":
         return t("meetings.notes");
       case "transcript":
         return t("meetings.transcriptTab");
+      case "insights":
+        return t("meetings.insightsTab");
       case "actions":
         return t("meetings.actionsTab");
     }
@@ -185,80 +144,43 @@ export function MeetingRoomCopilotTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex shrink-0 items-start justify-between gap-2 pb-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Sparkles aria-hidden className="size-4 shrink-0 text-brand" />
-          <h2 className="text-pretty text-title-sm font-semibold text-foreground">
-            {t("meetings.aiMeetingAssistant")}
-          </h2>
-          <Badge
-            variant="secondary"
-            className="border-brand/20 bg-surface-selected text-brand"
-          >
-            {t("meetings.betaLabel")}
-          </Badge>
-        </div>
-        {canHost && aiOn ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="shrink-0"
-            disabled={generate.isPending || !hasSource}
-            onClick={onGenerate}
-          >
-            {generate.isPending
-              ? t("meetings.summarizing")
-              : summary
-                ? t("meetings.regenerateSummary")
-                : t("meetings.generateSummary")}
-          </Button>
-        ) : null}
-      </div>
+      <MeetingCopilotHeader
+        canHost={canHost}
+        aiOn={aiOn}
+        hasSource={hasSource}
+        hasSummary={Boolean(summary)}
+        generating={generate.isPending}
+        onGenerate={onGenerate}
+      />
 
       {!aiOn && caps ? (
         <p className="shrink-0 pb-2 text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
       ) : null}
 
-      <SectionPills section={section} onSectionChange={setSection} label={sectionLabel} />
+      <MeetingUnderlineTabs
+        tabs={SECTIONS}
+        value={section}
+        onChange={setSection}
+        label={sectionLabel}
+        equalWidth
+        className="mb-3"
+      />
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
-        {section === "summary" ? (
-          <section className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-caption font-medium text-foreground">{t("meetings.summaryTab")}</h3>
-              {generate.isPending ? (
-                <span className="text-caption text-success">{t("meetings.summarizing")}</span>
-              ) : summaryUpdatedAt ? (
-                <span className="text-caption text-muted-foreground">
-                  {t("meetings.summaryUpdated", { time: summaryUpdatedAt })}
-                </span>
-              ) : null}
-            </div>
-            {summary ? (
-              <ul className="list-disc space-y-1.5 pl-4 text-body text-foreground">
-                {summaryLines(summary.summary).map((line, i) => (
-                  <li key={i} className="text-pretty">
-                    {line}
-                  </li>
-                ))}
-              </ul>
-            ) : summaryLoading ? null : (
-              <p className="text-label text-muted-foreground">
-                {hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
-              </p>
-            )}
-            {decisions.length > 0 ? (
-              <div className="pt-2">
-                <h4 className="mb-1 text-caption font-medium text-foreground">{t("meetings.decisions")}</h4>
-                <ul className="list-disc space-y-0.5 pl-4 text-body text-foreground">
-                  {decisions.map((d, i) => (
-                    <li key={i}>{d}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </section>
+        {section === "insights" ? (
+          <MeetingNotesCard
+            summary={summary?.summary}
+            decisions={decisions}
+            summaryUpdatedAt={summaryUpdatedAt}
+            summarizing={generate.isPending}
+            emptyHint={
+              summaryLoading
+                ? t("common.loading")
+                : hasSource
+                  ? t("meetings.summaryEmpty")
+                  : t("meetings.transcriptEmpty")
+            }
+          />
         ) : null}
 
         {section === "notes" ? (
@@ -317,73 +239,55 @@ export function MeetingRoomCopilotTab({
           </section>
         ) : null}
 
-        {section === "actions" || (section === "summary" && actionItems.length > 0) ? (
-          <section className="space-y-2 border-t border-border pt-4">
+        {section === "actions" ? (
+          <section className="space-y-3">
             <h3 className="text-caption font-medium text-foreground">{t("meetings.actionItems")}</h3>
             {actionItems.length > 0 ? (
               <ul className="space-y-2">
                 {actionItems.map((it, i) => (
-                  <li
+                  <MeetingActionItemRow
                     key={i}
-                    className="flex items-start gap-2.5 rounded-xl border border-border bg-surface-hover/30 px-3 py-2.5"
-                  >
-                    {canHost && workspaceId ? (
-                      <Checkbox
-                        className="mt-0.5"
-                        aria-label={it.title}
-                        checked={picked.has(i)}
-                        onCheckedChange={(v) =>
-                          setPicked((s) => {
-                            const next = new Set(s);
-                            if (v) next.add(i);
-                            else next.delete(i);
-                            return next;
-                          })
-                        }
-                      />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-body text-foreground">{it.title}</p>
-                      {it.owner || it.due ? (
-                        <p className="mt-0.5 text-caption text-muted-foreground">
-                          {[it.owner, it.due].filter(Boolean).join(" · ")}
-                        </p>
-                      ) : null}
-                    </div>
-                  </li>
+                    title={it.title}
+                    owner={it.owner}
+                    due={it.due}
+                    selectable={canHost && Boolean(workspaceId)}
+                    checked={picked.has(i)}
+                    onCheckedChange={(v) =>
+                      setPicked((s) => {
+                        const next = new Set(s);
+                        if (v) next.add(i);
+                        else next.delete(i);
+                        return next;
+                      })
+                    }
+                  />
                 ))}
               </ul>
             ) : (
               <p className="text-label text-muted-foreground">{t("meetings.actionItemsEmpty")}</p>
             )}
-            {canHost && workspaceId && picked.size > 0 ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={createTasks.isPending}
-                onClick={onCreateTasks}
-              >
-                {t("meetings.createTasks", { count: picked.size })}
-              </Button>
+            <MeetingCopilotTasksCta
+              count={picked.size}
+              disabled={!canHost || !workspaceId}
+              pending={createTasks.isPending}
+              onClick={onCreateTasks}
+            />
+            {actionItems.length > 0 ? (
+              <div className="space-y-2 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-caption font-medium text-foreground">{t("meetings.progressTitle")}</h3>
+                  <span className="text-caption tabular-nums text-muted-foreground">{progressPct}%</span>
+                </div>
+                <Progress value={progressPct} className="gap-0">
+                  <ProgressTrack className="h-2 bg-muted">
+                    <ProgressIndicator className="bg-success" />
+                  </ProgressTrack>
+                </Progress>
+                <p className="text-caption text-muted-foreground">
+                  {t("meetings.progressCompleted", { done: picked.size, total: actionItems.length })}
+                </p>
+              </div>
             ) : null}
-          </section>
-        ) : null}
-
-        {actionItems.length > 0 ? (
-          <section className="space-y-2 border-t border-border pt-4">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-caption font-medium text-foreground">{t("meetings.progressTitle")}</h3>
-              <span className="text-caption tabular-nums text-muted-foreground">{progressPct}%</span>
-            </div>
-            <Progress value={progressPct} className="gap-0">
-              <ProgressTrack className="h-2 bg-muted">
-                <ProgressIndicator className="bg-success" />
-              </ProgressTrack>
-            </Progress>
-            <p className="text-caption text-muted-foreground">
-              {t("meetings.progressCompleted", { done: picked.size, total: actionItems.length })}
-            </p>
           </section>
         ) : null}
 
@@ -405,50 +309,19 @@ export function MeetingRoomCopilotTab({
 
         {completedRecording?.file_url ? (
           <section className="space-y-2">
-            <a
-              href={completedRecording.file_url}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(buttonVariants({ variant: "secondary" }), "w-full")}
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              render={<a href={completedRecording.file_url} target="_blank" rel="noreferrer" />}
             >
               {t("meetings.openRecording")}
-            </a>
+            </Button>
           </section>
         ) : null}
       </div>
 
-      <div className="mt-3 shrink-0 rounded-xl border border-border bg-muted p-3 dark:border-input dark:bg-secondary">
-        <p className="flex items-center gap-1.5 text-label font-medium text-foreground">
-          <Sparkles aria-hidden className="size-3.5 text-brand" />
-          {t("meetings.askAiCopilot")}
-        </p>
-        <form
-          className="relative mt-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-          }}
-        >
-          <Input
-            disabled
-            placeholder={t("meetings.askAiCopilotPlaceholder")}
-            className="bg-background pr-10 dark:bg-background"
-            aria-describedby="copilot-soon-hint"
-          />
-          <Button
-            type="submit"
-            size="icon-sm"
-            variant="ghost"
-            disabled
-            className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
-            aria-label={t("meetings.send")}
-          >
-            <Send aria-hidden className="size-4" />
-          </Button>
-        </form>
-        <p id="copilot-soon-hint" className="mt-1.5 text-caption text-muted-foreground">
-          {t("meetings.askAiCopilotSoon")}
-        </p>
-      </div>
+      <MeetingCopilotFooter />
     </div>
   );
 }

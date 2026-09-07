@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, Check } from "lucide-react";
-import { Calendar } from "@uniwork/ui/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
+
+// react-day-picker + date-fns is ~24 KB gzip and nothing renders it before the
+// popover opens, so it loads on that click instead of in every route that has a
+// date field (scripts/bundle-budget.mjs).
+const Calendar = lazy(() =>
+  import("@uniwork/ui/components/ui/calendar").then((m) => ({ default: m.Calendar })),
+);
 
 /** "YYYY-MM-DD" → local Date (no timezone shift), or undefined when empty/invalid. */
 export function dateOnlyToLocalDate(value: string): Date | undefined {
@@ -76,17 +82,19 @@ export function DateField({ id, value, onChange, min, max, disabled, className }
           <span className="flex-1 text-muted-foreground">{t("common.date_clear")}</span>
           <Check aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground", selected && "invisible")} />
         </button>
-        <Calendar
-          mode="single"
-          lang={i18n.language}
-          selected={selected}
-          defaultMonth={selected}
-          disabled={[...(before ? [{ before }] : []), ...(after ? [{ after }] : [])]}
-          onSelect={(d) => {
-            onChange(d ? toDateOnly(d) : "");
-            setOpen(false);
-          }}
-        />
+        <Suspense fallback={<div className="h-72 w-64" aria-hidden />}>
+          <Calendar
+            mode="single"
+            lang={i18n.language}
+            selected={selected}
+            defaultMonth={selected}
+            disabled={[...(before ? [{ before }] : []), ...(after ? [{ after }] : [])]}
+            onSelect={(d) => {
+              onChange(d ? toDateOnly(d) : "");
+              setOpen(false);
+            }}
+          />
+        </Suspense>
       </PopoverContent>
     </Popover>
   );

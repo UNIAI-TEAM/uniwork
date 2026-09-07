@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactElement } from "react";
+import { CalendarDays } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCreateMeeting } from "@uniwork/core/meetings";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -27,6 +28,7 @@ import {
   MeetingScheduleFields,
   scheduleValid,
 } from "./meeting-schedule-fields";
+import { MeetingDialogHeader } from "./meeting-dialog-header";
 
 export function NewMeetingDialog({
   workspaceId,
@@ -74,7 +76,8 @@ export function NewMeetingDialog({
       />
       <DialogContent className="flex max-h-[min(90dvh,44rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
         <DialogHeader className="shrink-0 space-y-0 border-b border-border bg-muted/20 px-5 py-4">
-          <DialogTitle>{t("meetings.new")}</DialogTitle>
+          <MeetingDialogHeader icon={CalendarDays} title={t("meetings.new")} />
+          <DialogTitle className="sr-only">{t("meetings.new")}</DialogTitle>
         </DialogHeader>
         <form
           className="flex min-h-0 flex-1 flex-col overflow-hidden"

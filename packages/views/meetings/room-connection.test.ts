@@ -4,11 +4,13 @@ import {
   isLobbyWaiting,
   lobbyRetryDelayMs,
   lobbyWsTriggerJitterMs,
+  shouldTriggerLobbyJoin,
+} from "./room-connection";
+import {
   mediaDisconnectKind,
   shouldLeaveOnDisconnect,
   shouldRefreshCredentialOnDisconnect,
-  shouldTriggerLobbyJoin,
-} from "./room-connection";
+} from "./room-disconnect";
 
 describe("lobbyRetryDelayMs", () => {
   it("uses increasing backoff steps with jitter bounded by ±20%", () => {

@@ -22,6 +22,8 @@ export const DEFAULT_MEETING_TILES = 6;
 export interface MeetingRoomPreferencesState {
   mirrorCamera: boolean;
   showExpandedLabels: boolean;
+  /** When true, the in-room control bar hides when the pointer leaves the video tile area. */
+  controlBarAutoHide: boolean;
   background: MeetingBackgroundPreset;
   /** Data URL for user-uploaded virtual backgrounds. */
   customBackgroundDataUrl: string | null;
@@ -30,6 +32,7 @@ export interface MeetingRoomPreferencesState {
   hideTilesWithoutVideo: boolean;
   setMirrorCamera: (value: boolean) => void;
   setShowExpandedLabels: (value: boolean) => void;
+  setControlBarAutoHide: (value: boolean) => void;
   setBackground: (value: MeetingBackgroundPreset) => void;
   setCustomBackgroundDataUrl: (value: string | null) => void;
   setViewLayout: (value: MeetingViewLayout) => void;
@@ -72,6 +75,7 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
     (set) => ({
       mirrorCamera: true,
       showExpandedLabels: true,
+      controlBarAutoHide: false,
       background: "none",
       customBackgroundDataUrl: null,
       viewLayout: "auto",
@@ -79,6 +83,7 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
       hideTilesWithoutVideo: false,
       setMirrorCamera: (mirrorCamera) => set({ mirrorCamera }),
       setShowExpandedLabels: (showExpandedLabels) => set({ showExpandedLabels }),
+      setControlBarAutoHide: (controlBarAutoHide) => set({ controlBarAutoHide }),
       setBackground: (background) => set({ background }),
       setCustomBackgroundDataUrl: (customBackgroundDataUrl) =>
         set({ customBackgroundDataUrl }),
@@ -93,6 +98,7 @@ export const useMeetingRoomPreferencesStore = create<MeetingRoomPreferencesState
       partialize: (state) => ({
         mirrorCamera: state.mirrorCamera,
         showExpandedLabels: state.showExpandedLabels,
+        controlBarAutoHide: state.controlBarAutoHide,
         background: state.background,
         customBackgroundDataUrl: state.customBackgroundDataUrl,
         viewLayout: state.viewLayout,

@@ -1,7 +1,9 @@
 # UniWork — Công việc hoàn chỉnh (Tasks Complete): lát cắt dọc đạt DoD
 
+> **Trạng thái:** superseded — thay bởi `2026-09-07-tasks-work-management-parity-design.md`
+
 **Ngày:** 2026-09-04  
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
+**Trạng thái lịch sử:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
 **Spec liên quan:** `2026-08-27-tasks-multica-parity-design.md` (thu hẹp và thay thế phần roadmap pha), `2026-08-27-workspace-permissions-design.md`, `2026-08-24-uniwork-platform-design.md`, `2026-09-04-agent-actor-model-design.md` (chỗ dành cho agent), `2026-09-04-audit-domain-events-design.md` (activity log), `2026-09-04-platform-admin-observability-design.md`  
 **Tham chiếu:** `docs/vision/PROJECT_VISION.md` §5.2 (#5), §6.9 (DoD); bản cũ `unidigiwork/src/lib/api/tasks.functions.ts`, `task-views.functions.ts`, `src/lib/tasks-storage.ts`; Blueprint v1.0 §24 (bộ test bắt buộc mỗi module)
 
