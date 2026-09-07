@@ -31,6 +31,7 @@ type Deps struct {
 	// answers 503 and /auth/providers reports google=false.
 	Google        GoogleExchanger
 	Organizations *service.OrganizationService
+	OrgMembers    *service.OrganizationMemberService
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
@@ -132,6 +133,13 @@ func New(d Deps) http.Handler {
 		GetOrganization:    h.getOrganization,
 		ListOrgWorkspaces:  h.listOrgWorkspaces,
 		CreateOrgWorkspace: h.createOrgWorkspace,
+
+		ListOrgMembers:      h.listOrgMembers,
+		GetOrgMembershipMe:  h.getOrgMembershipMe,
+		PatchOrgMember:      h.patchOrgMember,
+		DeactivateOrgMember: h.deactivateOrgMember,
+		ReactivateOrgMember: h.reactivateOrgMember,
+		LeaveOrganization:   h.leaveOrganization,
 
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,

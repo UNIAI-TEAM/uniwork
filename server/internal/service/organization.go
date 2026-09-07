@@ -112,7 +112,17 @@ func (s *OrganizationService) RequireMember(ctx context.Context, orgID, userID s
 	if m.OrganizationStatus != OrganizationActive {
 		return db.OrganizationMember{}, errOrganizationSuspended()
 	}
-	return db.OrganizationMember{OrganizationID: m.OrganizationID, UserID: m.UserID, Role: m.Role, CreatedAt: m.CreatedAt}, nil
+	// A deactivated member is refused here, so every gate that goes through
+	// this one — WorkspaceService.RequireMember included — refuses too, and no
+	// caller has to remember the check (spec F-03 §4.1).
+	if m.DeactivatedAt.Valid {
+		return db.OrganizationMember{}, errMemberDeactivated()
+	}
+	return db.OrganizationMember{
+		OrganizationID: m.OrganizationID, UserID: m.UserID, Role: m.Role,
+		CreatedAt: m.CreatedAt, DeactivatedAt: m.DeactivatedAt,
+		DeactivatedBy: m.DeactivatedBy, InvitedBy: m.InvitedBy, UpdatedAt: m.UpdatedAt,
+	}, nil
 }
 
 func (s *OrganizationService) GetBySlug(ctx context.Context, userID, slug string) (db.Organization, db.OrganizationMember, error) {
@@ -124,6 +134,12 @@ func (s *OrganizationService) GetBySlug(ctx context.Context, userID, slug string
 		return db.Organization{}, db.OrganizationMember{}, err
 	}
 	m, err := s.RequireMember(ctx, o.ID, userID)
+	// A deactivated member already knows this organization exists, so they get
+	// the honest answer and the client can show the blocked screen; everyone
+	// else gets 404 rather than a hint that the slug is taken.
+	if errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended) {
+		return db.Organization{}, db.OrganizationMember{}, err
+	}
 	if err != nil {
 		return db.Organization{}, db.OrganizationMember{}, ErrNotFound // không lộ sự tồn tại
 	}

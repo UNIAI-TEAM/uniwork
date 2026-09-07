@@ -24,8 +24,7 @@ import (
 // reviewer reads instead of guessing why coverage has a hole.
 var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationUpdated:  "no organization rename command exists yet",
-	audit.ActionMemberRoleChanged:    "organization roles change only through workspace membership today",
-	audit.ActionMemberRemoved:        "no organization member removal command exists yet",
+	audit.ActionMemberRemoved:        "deactivation replaced removal by an admin; leaving writes member.left",
 	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
 	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
 }
@@ -55,6 +54,33 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			w := f.build(t)
 			f.addMember(t)
 			if err := f.ws.RemoveMember(f.ctx, f.owner.ID, w.ID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberRoleChanged: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.UpdateRole(f.ctx, f.owner.ID, f.orgID, f.member.ID, OrgRoleAdmin); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberDeactivated: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberReactivated: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.orgMem.Reactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberLeft: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if err := f.orgMem.Leave(f.ctx, f.member.ID, f.orgID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -210,6 +236,9 @@ func auditActions() []string {
 		audit.ActionMemberJoined,
 		audit.ActionMemberRoleChanged,
 		audit.ActionMemberRemoved,
+		audit.ActionMemberDeactivated,
+		audit.ActionMemberReactivated,
+		audit.ActionMemberLeft,
 		audit.ActionWorkspaceCreated,
 		audit.ActionWorkspaceUpdated,
 		audit.ActionWorkspaceMemberAdded,
@@ -241,6 +270,7 @@ type auditFixture struct {
 	q       *db.Queries
 	auth    *AuthService
 	orgs    *OrganizationService
+	orgMem  *OrganizationMemberService
 	ws      *WorkspaceService
 	tasks   *TaskService
 	agents  *AgentService
@@ -268,7 +298,7 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
-		auth: auth, orgs: orgs, ws: ws,
+		auth: auth, orgs: orgs, orgMem: NewOrganizationMemberService(pool, q, orgs), ws: ws,
 		tasks:   NewTaskService(pool, q, ws),
 		agents:  NewAgentService(pool, q, orgs, ws),
 		billing: NewBillingService(pool, q, orgs, nil),

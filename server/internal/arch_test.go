@@ -62,23 +62,36 @@ func TestLayering(t *testing.T) {
 
 // Membership is decided in WorkspaceService.RequireMember and nowhere else
 // (CLAUDE.md § Database and Migration Rules). The two sqlc queries that read
-// workspace_members for a decision may only be called from that file.
+// workspace_members for a decision may only be called from that file, and the
+// organization membership row only from the two files that own that lifecycle
+// (spec F-03 §8) — a third caller would be a second place a deactivated member
+// could slip through.
 func TestMembershipDecidedInOnePlace(t *testing.T) {
-	decision := regexp.MustCompile(`\.(GetWorkspaceMember|GetWorkspaceAccess|GetWorkspaceAgentMember)\(`)
+	decision := regexp.MustCompile(`\.(GetWorkspaceMember|GetWorkspaceAccess|GetWorkspaceAgentMember|GetOrganizationMember)\(`)
+	owners := map[string]bool{
+		"internal/service/workspace.go":            true,
+		"internal/service/organization.go":         true,
+		"internal/service/organization_members.go": true,
+	}
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		if strings.Contains(filepath.ToSlash(path), "pkg/db/generated") ||
-			strings.HasSuffix(filepath.ToSlash(path), "internal/service/workspace.go") {
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") {
 			return nil
+		}
+		for owner := range owners {
+			if strings.HasSuffix(slash, owner) {
+				return nil
+			}
 		}
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
 		if decision.Match(src) {
-			t.Errorf("%s reads workspace_members directly; go through WorkspaceService.RequireMember", path)
+			t.Errorf("%s reads a membership row directly; go through WorkspaceService.RequireMember or OrganizationService.RequireMember", path)
 		}
 		return nil
 	})

@@ -73,6 +73,13 @@ var catalogue = []EventDef{
 	{Topic: "member.joined", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.role_changed", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.removed", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Organization membership lifecycle (F-03). Each one reaches the person it
+	// is about on their user scope, so a deactivated member's own tabs switch
+	// to the blocked screen without waiting for a poll.
+	{Topic: "member.deactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "member.reactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "member.left", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "organization.ownership_transferred", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "workspace.created", Version: 1, Payload: []string{"workspace_id", "organization_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "workspace.updated", Version: 1, Payload: []string{"workspace_id", "organization_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 

@@ -78,6 +78,7 @@ func main() {
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	orgSvc := service.NewOrganizationService(pool, q)
+	orgMemberSvc := service.NewOrganizationMemberService(pool, q, orgSvc)
 	var rdb *redis.Client
 	if cfg.RedisURL != "" {
 		opt, err := redis.ParseURL(cfg.RedisURL)
@@ -284,6 +285,7 @@ func main() {
 		GoogleAuth:      service.NewGoogleAuthService(q, authSvc),
 		Google:          google,
 		Organizations:   orgSvc,
+		OrgMembers:      orgMemberSvc,
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,

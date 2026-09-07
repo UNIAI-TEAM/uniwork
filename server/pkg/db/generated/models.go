@@ -548,6 +548,10 @@ type OrganizationMember struct {
 	UserID         string             `json:"user_id"`
 	Role           string             `json:"role"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	DeactivatedAt  pgtype.Timestamptz `json:"deactivated_at"`
+	DeactivatedBy  pgtype.Text        `json:"deactivated_by"`
+	InvitedBy      pgtype.Text        `json:"invited_by"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type OutboxEvent struct {

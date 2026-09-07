@@ -28,6 +28,53 @@ func (q *Queries) AddOrganizationMember(ctx context.Context, arg AddOrganization
 	return err
 }
 
+const clearOrganizationMemberDeactivated = `-- name: ClearOrganizationMemberDeactivated :one
+UPDATE organization_members
+SET deactivated_at = NULL, deactivated_by = NULL, updated_at = now()
+WHERE organization_id = $1 AND user_id = $2 AND deactivated_at IS NOT NULL
+RETURNING organization_id, user_id, role, created_at, deactivated_at, deactivated_by, invited_by, updated_at
+`
+
+type ClearOrganizationMemberDeactivatedParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+func (q *Queries) ClearOrganizationMemberDeactivated(ctx context.Context, arg ClearOrganizationMemberDeactivatedParams) (OrganizationMember, error) {
+	row := q.db.QueryRow(ctx, clearOrganizationMemberDeactivated, arg.OrganizationID, arg.UserID)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
+		&i.InvitedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const countActiveOrganizationsForUser = `-- name: CountActiveOrganizationsForUser :one
+SELECT count(*) FROM organization_members
+WHERE user_id = $1 AND deactivated_at IS NULL AND organization_id <> $2
+`
+
+type CountActiveOrganizationsForUserParams struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Deactivating a member revokes their sessions only when this is the last
+// organization they can still enter.
+func (q *Queries) CountActiveOrganizationsForUser(ctx context.Context, arg CountActiveOrganizationsForUserParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveOrganizationsForUser, arg.UserID, arg.OrganizationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
@@ -61,6 +108,38 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.SuspendedReason,
 	)
 	return i, err
+}
+
+const deleteOrganizationMember = `-- name: DeleteOrganizationMember :exec
+DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2
+`
+
+type DeleteOrganizationMemberParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+func (q *Queries) DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error {
+	_, err := q.db.Exec(ctx, deleteOrganizationMember, arg.OrganizationID, arg.UserID)
+	return err
+}
+
+const deleteWorkspaceMembershipsInOrg = `-- name: DeleteWorkspaceMembershipsInOrg :exec
+DELETE FROM workspace_members wm
+USING workspaces w
+WHERE w.id = wm.workspace_id AND w.organization_id = $1 AND wm.user_id = $2
+`
+
+type DeleteWorkspaceMembershipsInOrgParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// Leaving is voluntary and complete: the workspace rows go with the org row,
+// inside the same transaction (spec F-03 §4.2).
+func (q *Queries) DeleteWorkspaceMembershipsInOrg(ctx context.Context, arg DeleteWorkspaceMembershipsInOrgParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceMembershipsInOrg, arg.OrganizationID, arg.UserID)
+	return err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
@@ -106,7 +185,7 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 }
 
 const getOrganizationMember = `-- name: GetOrganizationMember :one
-SELECT m.organization_id, m.user_id, m.role, m.created_at, o.status AS organization_status
+SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by, m.updated_at, o.status AS organization_status
 FROM organization_members m JOIN organizations o ON o.id = m.organization_id
 WHERE m.organization_id = $1 AND m.user_id = $2
 `
@@ -121,6 +200,10 @@ type GetOrganizationMemberRow struct {
 	UserID             string             `json:"user_id"`
 	Role               string             `json:"role"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	DeactivatedAt      pgtype.Timestamptz `json:"deactivated_at"`
+	DeactivatedBy      pgtype.Text        `json:"deactivated_by"`
+	InvitedBy          pgtype.Text        `json:"invited_by"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	OrganizationStatus string             `json:"organization_status"`
 }
 
@@ -134,6 +217,10 @@ func (q *Queries) GetOrganizationMember(ctx context.Context, arg GetOrganization
 		&i.UserID,
 		&i.Role,
 		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
+		&i.InvitedBy,
+		&i.UpdatedAt,
 		&i.OrganizationStatus,
 	)
 	return i, err
@@ -197,8 +284,84 @@ func (q *Queries) ListMemberWorkspacesInOrg(ctx context.Context, arg ListMemberW
 	return items, nil
 }
 
+const listOrganizationMembers = `-- name: ListOrganizationMembers :many
+SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by,
+       u.email, u.display_name, u.avatar_url
+FROM organization_members m JOIN users u ON u.id = m.user_id
+WHERE m.organization_id = $1
+  AND (
+    $2::text = 'all'
+    OR ($2::text = 'active' AND m.deactivated_at IS NULL)
+    OR ($2::text = 'deactivated' AND m.deactivated_at IS NOT NULL)
+  )
+  AND ($3::text IS NULL
+       OR (u.display_name, m.user_id) > ($3::text, $4::text))
+ORDER BY u.display_name, m.user_id
+LIMIT $5
+`
+
+type ListOrganizationMembersParams struct {
+	OrganizationID string      `json:"organization_id"`
+	Status         string      `json:"status"`
+	CursorName     pgtype.Text `json:"cursor_name"`
+	CursorUserID   pgtype.Text `json:"cursor_user_id"`
+	RowLimit       int32       `json:"row_limit"`
+}
+
+type ListOrganizationMembersRow struct {
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Role           string             `json:"role"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	DeactivatedAt  pgtype.Timestamptz `json:"deactivated_at"`
+	DeactivatedBy  pgtype.Text        `json:"deactivated_by"`
+	InvitedBy      pgtype.Text        `json:"invited_by"`
+	Email          string             `json:"email"`
+	DisplayName    string             `json:"display_name"`
+	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+}
+
+// The directory's admin view: membership plus the identity columns, keyset
+// paged on (display_name, user_id) so a rename cannot skip or repeat a row.
+func (q *Queries) ListOrganizationMembers(ctx context.Context, arg ListOrganizationMembersParams) ([]ListOrganizationMembersRow, error) {
+	rows, err := q.db.Query(ctx, listOrganizationMembers,
+		arg.OrganizationID,
+		arg.Status,
+		arg.CursorName,
+		arg.CursorUserID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrganizationMembersRow{}
+	for rows.Next() {
+		var i ListOrganizationMembersRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.UserID,
+			&i.Role,
+			&i.CreatedAt,
+			&i.DeactivatedAt,
+			&i.DeactivatedBy,
+			&i.InvitedBy,
+			&i.Email,
+			&i.DisplayName,
+			&i.AvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, m.role
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1
@@ -216,8 +379,11 @@ type ListOrganizationsForUserRow struct {
 	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
 	SuspendedReason pgtype.Text        `json:"suspended_reason"`
 	Role            string             `json:"role"`
+	DeactivatedAt   pgtype.Timestamptz `json:"deactivated_at"`
 }
 
+// Deactivated memberships stay in the switcher so the person can see which
+// organization locked them out instead of watching it vanish (spec F-03 §6.3).
 func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) ([]ListOrganizationsForUserRow, error) {
 	rows, err := q.db.Query(ctx, listOrganizationsForUser, userID)
 	if err != nil {
@@ -238,6 +404,7 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.SuspendedAt,
 			&i.SuspendedReason,
 			&i.Role,
+			&i.DeactivatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -298,4 +465,88 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockOrganizationMemberForUpdate = `-- name: LockOrganizationMemberForUpdate :one
+SELECT organization_id, user_id, role, created_at, deactivated_at, deactivated_by, invited_by, updated_at FROM organization_members
+WHERE organization_id = $1 AND user_id = $2
+FOR UPDATE
+`
+
+type LockOrganizationMemberForUpdateParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+func (q *Queries) LockOrganizationMemberForUpdate(ctx context.Context, arg LockOrganizationMemberForUpdateParams) (OrganizationMember, error) {
+	row := q.db.QueryRow(ctx, lockOrganizationMemberForUpdate, arg.OrganizationID, arg.UserID)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
+		&i.InvitedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setOrganizationMemberDeactivated = `-- name: SetOrganizationMemberDeactivated :one
+UPDATE organization_members
+SET deactivated_at = now(), deactivated_by = $3, updated_at = now()
+WHERE organization_id = $1 AND user_id = $2 AND deactivated_at IS NULL
+RETURNING organization_id, user_id, role, created_at, deactivated_at, deactivated_by, invited_by, updated_at
+`
+
+type SetOrganizationMemberDeactivatedParams struct {
+	OrganizationID string      `json:"organization_id"`
+	UserID         string      `json:"user_id"`
+	DeactivatedBy  pgtype.Text `json:"deactivated_by"`
+}
+
+func (q *Queries) SetOrganizationMemberDeactivated(ctx context.Context, arg SetOrganizationMemberDeactivatedParams) (OrganizationMember, error) {
+	row := q.db.QueryRow(ctx, setOrganizationMemberDeactivated, arg.OrganizationID, arg.UserID, arg.DeactivatedBy)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
+		&i.InvitedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateOrganizationMemberRole = `-- name: UpdateOrganizationMemberRole :one
+UPDATE organization_members SET role = $3, updated_at = now()
+WHERE organization_id = $1 AND user_id = $2
+RETURNING organization_id, user_id, role, created_at, deactivated_at, deactivated_by, invited_by, updated_at
+`
+
+type UpdateOrganizationMemberRoleParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+}
+
+func (q *Queries) UpdateOrganizationMemberRole(ctx context.Context, arg UpdateOrganizationMemberRoleParams) (OrganizationMember, error) {
+	row := q.db.QueryRow(ctx, updateOrganizationMemberRole, arg.OrganizationID, arg.UserID, arg.Role)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.DeactivatedAt,
+		&i.DeactivatedBy,
+		&i.InvitedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

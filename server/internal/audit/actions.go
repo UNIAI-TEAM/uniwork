@@ -16,6 +16,14 @@ const (
 	ActionMemberJoined      = "member.joined"
 	ActionMemberRoleChanged = "member.role_changed"
 	ActionMemberRemoved     = "member.removed"
+	// Organization membership lifecycle (F-03). Deactivation is reversible and
+	// keeps the row; leaving is voluntary and deletes it. Ownership transfer is
+	// its own action because it is the one change that cannot be undone by the
+	// person who made it.
+	ActionMemberDeactivated            = "member.deactivated"
+	ActionMemberReactivated            = "member.reactivated"
+	ActionMemberLeft                   = "member.left"
+	ActionOrganizationOwnershipChanged = "organization.ownership_transferred"
 
 	ActionWorkspaceCreated = "workspace.created"
 	ActionWorkspaceUpdated = "workspace.updated"

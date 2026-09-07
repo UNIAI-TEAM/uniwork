@@ -59,8 +59,11 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `meeting.ended` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `meeting.started` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `meeting.updated` | 1 | `meeting_id`, `version` | workspace | outbox |
+| `member.deactivated` | 1 | `organization_id`, `user_id` | user | outbox |
 | `member.invited` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
 | `member.joined` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
+| `member.left` | 1 | `organization_id`, `user_id` | user | outbox |
+| `member.reactivated` | 1 | `organization_id`, `user_id` | user | outbox |
 | `member.removed` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
 | `member.role_changed` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
 | `notification.created` | 1 | `notification_id`, `user_id` | user | outbox |
@@ -69,6 +72,7 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `organization.updated` | 1 | `organization_id` | user | outbox |
 | `organization.suspended` | 1 | `organization_id`, `user_id` | user | outbox |
 | `organization.unsuspended` | 1 | `organization_id`, `user_id` | user | outbox |
+| `organization.ownership_transferred` | 1 | `organization_id`, `user_id` | user | outbox |
 | `participant.invited` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `participant.removed` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `provider.end_session` | 1 | `room_name` | - | outbox |

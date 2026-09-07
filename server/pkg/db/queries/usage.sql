@@ -32,7 +32,9 @@ UPDATE usage_counters SET
 WHERE organization_id = $1 AND meter_key = $2 AND period_start = $3;
 
 -- name: CountOrganizationMembers :one
-SELECT count(*) FROM organization_members WHERE organization_id = $1;
+-- members.max counts seats in use, and a deactivated member gives their seat
+-- back (OPEN_QUESTIONS P1), so the recount matches what Consume tracks.
+SELECT count(*) FROM organization_members WHERE organization_id = $1 AND deactivated_at IS NULL;
 
 -- name: CountWorkspacesInOrganization :one
 SELECT count(*) FROM workspaces WHERE organization_id = $1;
