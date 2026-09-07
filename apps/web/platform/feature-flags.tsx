@@ -8,7 +8,6 @@ import {
   usePublicConfig,
   type Rule,
 } from "@uniwork/core/feature-flags";
-import { startWebVitals } from "./rum";
 
 /**
  * The web host's flag source (F-11 §7.2): one GET /api/v1/config at boot,
@@ -26,7 +25,11 @@ export function WebFeatureFlagsProvider({ children }: { children: ReactNode }) {
   }, [data]);
   useEffect(() => {
     if (!data || !data.flags["rum_sampling"]) return;
-    return startWebVitals(data.rum_sample_rate);
+    // Loaded on demand: web-vitals is not on every route's critical path,
+    // and the initial-JS budget (250 KB gzip) sits right at the line.
+    let live = true;
+    void import("./rum").then((m) => { if (live) m.startWebVitals(data.rum_sample_rate); });
+    return () => { live = false; };
   }, [data]);
   return <FeatureFlagsProvider service={service}>{children}</FeatureFlagsProvider>;
 }

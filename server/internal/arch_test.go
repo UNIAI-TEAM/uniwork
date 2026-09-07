@@ -163,7 +163,10 @@ func TestBillingQueriesStayInBillingServices(t *testing.T) {
 			return err
 		}
 		slash := filepath.ToSlash(path)
+		// cmd/seed is the k6 fixture tool: it COPYs rows straight into the
+		// tables and only reads the default plan to point them at it.
 		if strings.Contains(slash, "pkg/db/generated") ||
+			strings.Contains(slash, "cmd/seed/") ||
 			strings.HasSuffix(slash, "internal/service/entitlement.go") ||
 			strings.HasSuffix(slash, "internal/service/billing.go") {
 			return nil
