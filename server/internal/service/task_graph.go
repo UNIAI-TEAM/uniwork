@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -161,15 +163,15 @@ func (s *TaskService) SetParent(ctx context.Context, actor Actor, taskID string,
 		if pid == task.ID {
 			return db.Task{}, coded(http.StatusUnprocessableEntity, "parent_cycle", "công việc không thể là cha của chính nó")
 		}
-		parent, err := s.q.GetTask(ctx, pid)
+		parent, err := s.authorizeActor(ctx, actor, pid)
 		if err != nil {
-			return db.Task{}, ErrNotFound
+			if errors.Is(err, ErrForbidden) {
+				return db.Task{}, ErrNotFound
+			}
+			return db.Task{}, err
 		}
 		if parent.WorkspaceID != task.WorkspaceID || parent.OrganizationID != task.OrganizationID {
 			return db.Task{}, coded(http.StatusUnprocessableEntity, "cross_workspace_reference", "cha/con phải cùng workspace")
-		}
-		if err := s.ws.requireActorMember(ctx, parent.WorkspaceID, actor); err != nil {
-			return db.Task{}, err
 		}
 		if err := s.detectParentCycle(ctx, task.ID, pid); err != nil {
 			return db.Task{}, err
@@ -233,15 +235,15 @@ func (s *TaskService) SetDependency(ctx context.Context, actor Actor, taskID str
 	if dependsOnID == "" || dependsOnID == task.ID {
 		return db.TaskDependency{}, Invalid("depends_on_task_id không hợp lệ")
 	}
-	other, err := s.q.GetTask(ctx, dependsOnID)
+	other, err := s.authorizeActor(ctx, actor, dependsOnID)
 	if err != nil {
-		return db.TaskDependency{}, ErrNotFound
+		if errors.Is(err, ErrForbidden) {
+			return db.TaskDependency{}, ErrNotFound
+		}
+		return db.TaskDependency{}, err
 	}
 	if other.WorkspaceID != task.WorkspaceID || other.OrganizationID != task.OrganizationID {
 		return db.TaskDependency{}, coded(http.StatusUnprocessableEntity, "cross_workspace_reference", "phụ thuộc phải cùng workspace")
-	}
-	if err := s.ws.requireActorMember(ctx, other.WorkspaceID, actor); err != nil {
-		return db.TaskDependency{}, err
 	}
 	if depType != dependencyTypeRelated {
 		if err := s.detectDependencyCycle(ctx, task.OrganizationID, task.WorkspaceID, task.ID, dependsOnID, depType); err != nil {
@@ -265,6 +267,9 @@ func (s *TaskService) SetDependency(ctx context.Context, actor Actor, taskID str
 		Type:            depType,
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return db.TaskDependency{}, ErrConflict
+		}
 		return db.TaskDependency{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -344,7 +349,10 @@ func (s *TaskService) detectParentCycle(ctx context.Context, taskID, newParentID
 	for depth := 0; depth < maxParentWalkDepth; depth++ {
 		ancestor, err := s.q.GetTask(ctx, cursor)
 		if err != nil {
-			return nil
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
 		}
 		if !ancestor.ParentTaskID.Valid {
 			return nil

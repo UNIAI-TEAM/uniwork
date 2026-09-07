@@ -179,3 +179,106 @@ func TestListChildrenAndByParents(t *testing.T) {
 		t.Fatalf("batch len = %d, want 2", len(batch))
 	}
 }
+
+func TestSetDependencyInvisibleOtherWorkspaceNotCrossWorkspace(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	actorA := Human(ua.ID)
+
+	a, err := s.Create(ctx, actorA, w.ID, CreateTaskInput{Title: "In A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	orgs := NewOrganizationService(s.pool, s.q)
+	wsSvc := NewWorkspaceService(s.pool, s.q, orgs, s.ws.render, &fakeOutbox{})
+	orgB, err := orgs.Create(ctx, ub.ID, "Org B Only", "org-b-only")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vB, err := wsSvc.CreateInOrg(ctx, ub.ID, orgB.ID, "Beta", "beta-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sB := NewTaskService(s.pool, s.q, wsSvc)
+	foreign, err := sB.Create(ctx, Human(ub.ID), vB.Workspace.ID, CreateTaskInput{Title: "Foreign"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.SetDependency(ctx, actorA, a.ID, SetDependencyInput{
+		DependsOnTaskID: foreign.ID, Type: "blocked_by",
+	})
+	var ce CodedError
+	if errors.As(err, &ce) && ce.Code == "cross_workspace_reference" {
+		t.Fatalf("existence leak: got cross_workspace_reference for invisible task")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("want ErrNotFound for invisible other-workspace task, got %v", err)
+	}
+
+	_, err = s.SetParent(ctx, actorA, a.ID, &foreign.ID)
+	if errors.As(err, &ce) && ce.Code == "cross_workspace_reference" {
+		t.Fatalf("existence leak on SetParent: got cross_workspace_reference")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("SetParent want ErrNotFound, got %v", err)
+	}
+}
+
+func TestSetDependencyDuplicateReturnsConflict(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	a, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := SetDependencyInput{DependsOnTaskID: b.ID, Type: "blocked_by"}
+	if _, err := s.SetDependency(ctx, actor, a.ID, in); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.SetDependency(ctx, actor, a.ID, in)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("duplicate dependency: want ErrConflict, got %v", err)
+	}
+}
+
+func TestDetectParentCyclePropagatesLookupError(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	parent, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "Parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "Child"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Break the chain: parent points at a missing ancestor so walk must error,
+	// not silently treat lookup failure as no-cycle.
+	missing := "01MISSINGPARENT000000000000"
+	_, err = s.pool.Exec(ctx,
+		`UPDATE tasks SET parent_task_id = $1 WHERE id = $2`,
+		missing, parent.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.SetParent(ctx, actor, child.ID, &parent.ID)
+	if err == nil {
+		t.Fatal("want parent-cycle walk to surface GetTask failure, got nil")
+	}
+	var ce CodedError
+	if errors.As(err, &ce) && ce.Code == "parent_cycle" {
+		t.Fatalf("lookup failure must not be treated as cycle/no-cycle success: %v", err)
+	}
+}
