@@ -26,6 +26,7 @@ export const paths = {
   /** Platform-admin console: outside every organization, guarded by GET /admin/me. */
   admin: {
     root: () => "/admin",
+    organizations: () => "/admin/organizations",
     organization: (id: string) => `/admin/organizations/${id}`,
     flags: () => "/admin/flags",
     trace: (traceId?: string) => (traceId ? `/admin/trace?id=${encodeURIComponent(traceId)}` : "/admin/trace"),

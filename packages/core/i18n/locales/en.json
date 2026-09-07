@@ -1369,10 +1369,13 @@
       "flags": "Flags",
       "trace": "Trace",
       "quota": "Quota",
-      "system": "System"
+      "system": "System",
+      "overview": "Overview"
     },
     "common": {
-      "retry": "Retry"
+      "retry": "Retry",
+      "updated_seconds": "Updated {{n}}s ago",
+      "updated_minutes": "Updated {{n}}m ago"
     },
     "guard": {
       "error_title": "Could not load your admin role",
@@ -1383,7 +1386,9 @@
       "placeholder": "Customer has not paid the August invoice",
       "hint": "At least {{min}} characters; recorded in the admin action history",
       "confirm": "Confirm",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "hint_remaining": "{{n}} more characters; the reason is kept in the admin action history",
+      "hint_ok": "{{n}} characters; the reason is kept in the admin action history"
     },
     "organizations": {
       "title": "Organizations",
@@ -1409,7 +1414,11 @@
       "empty_description": "Change the search or clear the status filter.",
       "error_title": "Could not load organizations",
       "error_description": "Try again in a few minutes. If it persists, check the System page.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "pager_label": "Organization list pages",
+      "range": "{{from}}–{{to}} of {{total}} organizations",
+      "previous": "Previous",
+      "next": "Next"
     },
     "detail": {
       "crumb": "Organizations",
@@ -1445,7 +1454,8 @@
         "action": "Action",
         "actor": "Actor",
         "reason": "Reason",
-        "trace": "Trace"
+        "trace": "Trace",
+        "usage": "Usage"
       },
       "on": "On",
       "off": "Off",
@@ -1460,7 +1470,9 @@
       "plan_placeholder": "Pick a plan",
       "suspended_toast": "Organization suspended",
       "unsuspended_toast": "Organization unsuspended",
-      "plan_changed_toast": "Switched to plan {{code}}"
+      "plan_changed_toast": "Switched to plan {{code}}",
+      "usage_label": "{{key}}: {{current}} of {{limit}} used",
+      "usage_percent": "{{n}}%"
     },
     "flags": {
       "title": "Feature flags",
@@ -1516,7 +1528,9 @@
         "audit": "audit",
         "outbox": "outbox",
         "action": "admin"
-      }
+      },
+      "all_hidden_title": "Every source is hidden",
+      "all_hidden_description": "Turn at least one source back on to see the timeline."
     },
     "quota": {
       "title": "Quota",
@@ -1525,7 +1539,8 @@
       "off_description": "Turn on the admin_quota flag once plan usage data is ready.",
       "pick_org": "Pick an organization",
       "empty_title": "Pick an organization",
-      "empty_description": "The quota table follows the selected organization."
+      "empty_description": "The quota table follows the selected organization.",
+      "picker_truncated": "Lists the {{n}} most recently active organizations only."
     },
     "system": {
       "title": "System",
@@ -1551,12 +1566,35 @@
       "none": "None",
       "error_title": "Could not load system status",
       "error_description": "Try again in a few minutes. If it persists, open /readyz directly.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "refresh": "Refresh"
     },
     "suspended": {
       "title": "Organization suspended",
       "description": "This organization is temporarily unavailable. Contact the organization owner for details.",
       "workspaces_link": "Back to workspaces"
+    },
+    "overview": {
+      "title": "Overview",
+      "refresh": "Refresh",
+      "error_title": "Could not load platform health",
+      "error_description": "Try again in a few minutes. If it persists, check the API and Redis.",
+      "retry": "Retry",
+      "readiness": "Readiness",
+      "ready_yes": "Ready",
+      "ready_no": "Not ready",
+      "checks_ok": "{{n}} checks passing",
+      "open_system": "Open system detail",
+      "outbox_dead": "Dead-letter events",
+      "outbox_dead_hint": "Outbox events that gave up; see the outbox runbook.",
+      "outbox_pending": "Pending events",
+      "outbox_oldest": "Oldest {{n}}s",
+      "organizations": "Organizations",
+      "open_organizations": "Open organization list",
+      "suspended": "Suspended",
+      "suspended_hint": "Members stay locked out until unsuspended.",
+      "realtime": "Realtime connections",
+      "build": "Build {{version}} · {{commit}}"
     }
   }
 }

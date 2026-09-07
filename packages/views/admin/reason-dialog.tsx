@@ -14,6 +14,7 @@ import {
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { cn } from "@uniwork/ui/lib/utils";
 
 /** The server's floor (sdi.ReasonSDI minLength); the dialog mirrors it so the 400 never happens. */
 export const REASON_MIN = 10;
@@ -85,8 +86,12 @@ export function ReasonDialog({
               aria-describedby="admin-reason-hint"
               aria-invalid={reason.length > 0 && tooShort ? true : undefined}
             />
-            <p id="admin-reason-hint" className="text-caption text-muted-foreground">
-              {t("hint", { min: REASON_MIN })}
+            <p
+              id="admin-reason-hint"
+              aria-live="polite"
+              className={cn("text-caption", tooShort && trimmed.length > 0 ? "text-warning" : "text-muted-foreground")}
+            >
+              {tooShort ? t("hint_remaining", { n: REASON_MIN - trimmed.length }) : t("hint_ok", { n: trimmed.length })}
             </p>
           </div>
           <DialogFooter>

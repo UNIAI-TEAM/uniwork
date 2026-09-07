@@ -1365,10 +1365,13 @@
       "flags": "Flags",
       "trace": "Trace",
       "quota": "Hạn mức",
-      "system": "Hệ thống"
+      "system": "Hệ thống",
+      "overview": "Tổng quan"
     },
     "common": {
-      "retry": "Thử lại"
+      "retry": "Thử lại",
+      "updated_seconds": "Cập nhật {{n}} giây trước",
+      "updated_minutes": "Cập nhật {{n}} phút trước"
     },
     "guard": {
       "error_title": "Không tải được vai trò quản trị",
@@ -1379,7 +1382,9 @@
       "placeholder": "Khách hàng chưa thanh toán hóa đơn tháng 8",
       "hint": "Tối thiểu {{min}} ký tự; ghi vào lịch sử thao tác admin",
       "confirm": "Xác nhận",
-      "cancel": "Hủy"
+      "cancel": "Hủy",
+      "hint_remaining": "Cần thêm {{n}} ký tự; lý do được ghi vào lịch sử thao tác admin",
+      "hint_ok": "{{n}} ký tự; lý do được ghi vào lịch sử thao tác admin"
     },
     "organizations": {
       "title": "Tổ chức",
@@ -1405,7 +1410,11 @@
       "empty_description": "Đổi từ khóa hoặc bỏ lọc trạng thái.",
       "error_title": "Không tải được danh sách tổ chức",
       "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, xem trang Hệ thống.",
-      "retry": "Thử lại"
+      "retry": "Thử lại",
+      "pager_label": "Phân trang danh sách tổ chức",
+      "range": "{{from}}–{{to}} trên {{total}} tổ chức",
+      "previous": "Trang trước",
+      "next": "Trang sau"
     },
     "detail": {
       "crumb": "Tổ chức",
@@ -1441,7 +1450,8 @@
         "action": "Thao tác",
         "actor": "Người thực hiện",
         "reason": "Lý do",
-        "trace": "Trace"
+        "trace": "Trace",
+        "usage": "Mức dùng"
       },
       "on": "Bật",
       "off": "Tắt",
@@ -1456,7 +1466,9 @@
       "plan_placeholder": "Chọn gói",
       "suspended_toast": "Đã tạm ngưng tổ chức",
       "unsuspended_toast": "Đã bỏ tạm ngưng tổ chức",
-      "plan_changed_toast": "Đã chuyển sang gói {{code}}"
+      "plan_changed_toast": "Đã chuyển sang gói {{code}}",
+      "usage_label": "{{key}}: đang dùng {{current}} trên {{limit}}",
+      "usage_percent": "{{n}}%"
     },
     "flags": {
       "title": "Feature flags",
@@ -1512,7 +1524,9 @@
         "audit": "audit",
         "outbox": "outbox",
         "action": "admin"
-      }
+      },
+      "all_hidden_title": "Đang ẩn hết các nguồn",
+      "all_hidden_description": "Bật lại ít nhất một nguồn để xem dòng thời gian."
     },
     "quota": {
       "title": "Hạn mức",
@@ -1521,7 +1535,8 @@
       "off_description": "Bật flag admin_quota khi dữ liệu usage từ gói đã sẵn sàng.",
       "pick_org": "Chọn tổ chức",
       "empty_title": "Chọn một tổ chức",
-      "empty_description": "Bảng hạn mức hiện theo tổ chức đã chọn."
+      "empty_description": "Bảng hạn mức hiện theo tổ chức đã chọn.",
+      "picker_truncated": "Chỉ liệt kê {{n}} tổ chức hoạt động gần đây nhất."
     },
     "system": {
       "title": "Hệ thống",
@@ -1547,12 +1562,35 @@
       "none": "Không có",
       "error_title": "Không tải được trạng thái hệ thống",
       "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, xem /readyz trực tiếp.",
-      "retry": "Thử lại"
+      "retry": "Thử lại",
+      "refresh": "Làm mới"
     },
     "suspended": {
       "title": "Tổ chức đang tạm ngưng",
       "description": "Tổ chức này tạm thời không truy cập được. Liên hệ chủ sở hữu tổ chức để biết thêm.",
       "workspaces_link": "Về danh sách workspace"
+    },
+    "overview": {
+      "title": "Tổng quan",
+      "refresh": "Làm mới",
+      "error_title": "Không tải được tình trạng nền tảng",
+      "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, kiểm tra API và Redis.",
+      "retry": "Thử lại",
+      "readiness": "Sẵn sàng phục vụ",
+      "ready_yes": "Sẵn sàng",
+      "ready_no": "Chưa sẵn sàng",
+      "checks_ok": "{{n}} kiểm tra đều đạt",
+      "open_system": "Xem chi tiết hệ thống",
+      "outbox_dead": "Sự kiện chết",
+      "outbox_dead_hint": "Sự kiện outbox đã bỏ cuộc; xem runbook outbox.",
+      "outbox_pending": "Sự kiện chờ gửi",
+      "outbox_oldest": "Cũ nhất {{n}} giây",
+      "organizations": "Tổ chức",
+      "open_organizations": "Mở danh sách tổ chức",
+      "suspended": "Đang tạm ngưng",
+      "suspended_hint": "Thành viên bị chặn cho tới khi bỏ tạm ngưng.",
+      "realtime": "Kết nối realtime",
+      "build": "Bản {{version}} · {{commit}}"
     }
   }
 }
