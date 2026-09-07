@@ -19,7 +19,7 @@ import {
   shouldLeaveOnDisconnect,
   shouldRefreshCredentialOnDisconnect,
   type MediaDisconnectKind,
-} from "./room-connection";
+} from "./room-disconnect";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 
 function MeetingRoomShell({
