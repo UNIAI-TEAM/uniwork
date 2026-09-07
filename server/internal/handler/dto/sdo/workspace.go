@@ -86,16 +86,24 @@ type InvitationInvitedByDTO struct {
 }
 
 type PendingInvitationDTO struct {
-	ID           string                 `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
-	Role         string                 `json:"role" example:"member"`
-	Token        string                 `json:"token" example:"inv_01J8X4TOKEN"`
-	ExpiresAt    string                 `json:"expires_at" example:"2026-09-01T09:00:00Z"`
-	Workspace    InvitationWorkspaceDTO `json:"workspace"`
-	Organization InvitationOrgDTO       `json:"organization"`
-	InvitedBy    InvitationInvitedByDTO `json:"invited_by"`
+	ID           string                  `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+	Role         string                  `json:"role" example:"member"`
+	Token        string                  `json:"token" example:"inv_01J8X4TOKEN"`
+	ExpiresAt    string                  `json:"expires_at" example:"2026-09-01T09:00:00Z"`
+	OrgRole      string                  `json:"org_role" description:"Vai trò tổ chức khi chấp nhận" example:"member"`
+	Workspace    *InvitationWorkspaceDTO `json:"workspace,omitempty" description:"Vắng mặt với lời mời cấp tổ chức"`
+	Organization InvitationOrgDTO        `json:"organization"`
+	InvitedBy    InvitationInvitedByDTO  `json:"invited_by"`
 }
 
 // PendingInvitationListSDO is GET /api/v1/me/invitations.
 type PendingInvitationListSDO struct {
 	Invitations []PendingInvitationDTO `json:"invitations"`
+}
+
+// AcceptInviteSDO is POST /api/v1/invitations/{token}/accept. `workspace` is
+// absent for an invitation to the organization itself (F-03).
+type AcceptInviteSDO struct {
+	Organization OrganizationDTO `json:"organization"`
+	Workspace    *WorkspaceDTO   `json:"workspace,omitempty"`
 }

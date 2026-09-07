@@ -81,6 +81,7 @@ var catalogue = []EventDef{
 	// Organization membership lifecycle (F-03). Each one reaches the person it
 	// is about on their user scope, so a deactivated member's own tabs switch
 	// to the blocked screen without waiting for a poll.
+	{Topic: "invitation.revoked", Version: 1, Payload: []string{"organization_id", "invitation_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 	{Topic: "member.deactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.reactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.left", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},

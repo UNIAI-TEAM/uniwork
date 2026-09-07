@@ -1092,6 +1092,25 @@
       "description": "Bạn sẽ mất quyền truy cập mọi workspace trong tổ chức này. Chủ sở hữu phải chuyển quyền trước.",
       "action": "Rời tổ chức",
       "done": "Đã rời tổ chức"
+    },
+    "invitations": {
+      "title": "Mời vào tổ chức",
+      "description": "Người được mời vào thẳng tổ chức, chọn workspace sau.",
+      "send": "Gửi lời mời",
+      "sent": "Đã gửi {{count}} lời mời",
+      "revoke": "Thu hồi",
+      "revoked": "Đã thu hồi lời mời"
+    },
+    "transfer": {
+      "title": "Chuyển quyền chủ sở hữu",
+      "description": "Chủ sở hữu mới toàn quyền với tổ chức. Bạn trở thành quản trị và không tự lấy lại được.",
+      "action": "Chuyển quyền",
+      "new_owner": "Chủ sở hữu mới",
+      "confirm_label": "Gõ tên tổ chức để xác nhận",
+      "confirm_hint": "Gõ đúng “{{name}}”.",
+      "password_label": "Mật khẩu hiện tại của bạn",
+      "no_candidate": "Chưa có thành viên nào đang hoạt động để nhận quyền.",
+      "done": "Đã chuyển quyền chủ sở hữu"
     }
   },
   "invitations": {

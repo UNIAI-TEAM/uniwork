@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -45,6 +46,10 @@ type OrganizationMemberService struct {
 	q    *db.Queries
 	orgs *OrganizationService
 	ent  *EntitlementService
+	// render and out are only needed by the invitation path; SetMail wires
+	// them after main has built the mail stack.
+	render mail.Renderer
+	out    mail.Enqueuer
 }
 
 func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *OrganizationMemberService {

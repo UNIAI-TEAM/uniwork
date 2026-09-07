@@ -33,6 +33,7 @@ const (
 	ActionDepartmentUpdated  = "department.updated"
 	ActionDepartmentArchived = "department.archived"
 	ActionPeopleExported     = "people.exported"
+	ActionInvitationRevoked  = "invitation.revoked"
 
 	ActionWorkspaceCreated = "workspace.created"
 	ActionWorkspaceUpdated = "workspace.updated"

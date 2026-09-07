@@ -143,6 +143,11 @@ func New(d Deps) http.Handler {
 		ReactivateOrgMember: h.reactivateOrgMember,
 		LeaveOrganization:   h.leaveOrganization,
 
+		InviteToOrganization: h.inviteToOrganization,
+		ListOrgInvitations:   h.listOrgInvitations,
+		RevokeOrgInvitation:  h.revokeOrgInvitation,
+		TransferOrgOwnership: h.transferOrgOwnership,
+
 		ListPeople:         h.listPeople,
 		GetPerson:          h.getPerson,
 		PatchPersonProfile: h.patchPersonProfile,

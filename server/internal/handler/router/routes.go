@@ -57,6 +57,11 @@ type Routes struct {
 	ReactivateOrgMember http.HandlerFunc
 	LeaveOrganization   http.HandlerFunc
 
+	InviteToOrganization http.HandlerFunc
+	ListOrgInvitations   http.HandlerFunc
+	RevokeOrgInvitation  http.HandlerFunc
+	TransferOrgOwnership http.HandlerFunc
+
 	ListPeople         http.HandlerFunc
 	GetPerson          http.HandlerFunc
 	PatchPersonProfile http.HandlerFunc

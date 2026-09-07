@@ -3,6 +3,10 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   deactivateOrgMember,
+  inviteToOrganization,
+  listOrgInvitations,
+  revokeOrgInvitation,
+  transferOwnership,
   getOrgMembership,
   leaveOrganization,
   listOrgMembers,
@@ -60,6 +64,31 @@ describe("organization member endpoints", () => {
       vi.mocked(fetch).mockResolvedValueOnce(json({ member: { user_id: 1 } }));
       await expect(call()).resolves.toBeNull();
     }
+  });
+
+  it("listOrgInvitations and inviteToOrganization degrade to an empty result", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ invitations: [{ id: "i1", email: "an@acme.vn", org_role: "member" }], skipped: ["x"] }),
+    );
+    const listed = await listOrgInvitations("acme");
+    expect(listed.invitations[0]!.expires_at).toBe("");
+    expect(listed.skipped).toEqual(["x"]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ invitations: [{ id: 1 }] }));
+    await expect(inviteToOrganization("acme", ["an@acme.vn"], "member")).resolves.toEqual({
+      invitations: [],
+      skipped: [],
+    });
+    expect(vi.mocked(fetch).mock.calls[1]![1]).toMatchObject({ method: "POST" });
+  });
+
+  it("revokeOrgInvitation and transferOwnership report failure rather than throwing", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: 1 }));
+    await expect(revokeOrgInvitation("acme", "i1")).resolves.toBe(false);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ member: { user_id: 1 } }));
+    await expect(transferOwnership("acme", "u2", "pw")).resolves.toBeNull();
+    // The password goes in the body, never in the URL.
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).not.toContain("pw");
   });
 
   it("leaveOrganization reports failure rather than throwing on a malformed response", async () => {

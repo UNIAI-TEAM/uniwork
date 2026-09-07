@@ -1093,6 +1093,25 @@
       "description": "You lose access to every workspace inside it. The owner must transfer ownership first.",
       "action": "Leave organization",
       "done": "You left the organization"
+    },
+    "invitations": {
+      "title": "Invite people to the organization",
+      "description": "They join the company directly and pick a workspace afterwards.",
+      "send": "Send invitations",
+      "sent": "Sent {{count}} invitations",
+      "revoke": "Revoke",
+      "revoked": "Invitation revoked"
+    },
+    "transfer": {
+      "title": "Transfer ownership",
+      "description": "The new owner has full control of the organization. You become an admin and cannot take it back on your own.",
+      "action": "Transfer ownership",
+      "new_owner": "New owner",
+      "confirm_label": "Type the organization name to confirm",
+      "confirm_hint": "Type “{{name}}” exactly.",
+      "password_label": "Your current password",
+      "no_candidate": "No active member is available to receive ownership yet.",
+      "done": "Ownership transferred"
     }
   },
   "invitations": {

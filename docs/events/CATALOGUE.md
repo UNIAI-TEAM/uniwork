@@ -61,6 +61,7 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `meeting.ended` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `meeting.started` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `meeting.updated` | 1 | `meeting_id`, `version` | workspace | outbox |
+| `invitation.revoked` | 1 | `organization_id`, `invitation_id` | organization | outbox |
 | `member.deactivated` | 1 | `organization_id`, `user_id` | user | outbox |
 | `member.invited` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
 | `member.joined` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |

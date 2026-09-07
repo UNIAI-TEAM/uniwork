@@ -166,6 +166,7 @@ function keysFor(
     case "member.reactivated":
     case "member.left":
     case "member.role_changed":
+    case "invitation.revoked":
     case "member.invited":
     case "member.joined":
     case "member.removed":

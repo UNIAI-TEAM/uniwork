@@ -101,3 +101,21 @@ type DepartmentSDO struct {
 type DepartmentListSDO struct {
 	Departments []DepartmentDTO `json:"departments"`
 }
+
+// OrgInvitationDTO is one outstanding invitation to the organization.
+type OrgInvitationDTO struct {
+	ID            string `json:"id" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+	Email         string `json:"email" example:"an@acme.vn"`
+	OrgRole       string `json:"org_role" example:"member"`
+	InvitedByName string `json:"invited_by_name,omitempty" example:"Đỗ Thị Hà"`
+	ExpiresAt     string `json:"expires_at" example:"2026-09-14T09:00:00Z"`
+	CreatedAt     string `json:"created_at" example:"2026-09-07T09:00:00Z"`
+}
+
+// OrgInvitationListSDO is GET and POST /api/v1/orgs/{org}/invitations.
+// `skipped` names the addresses that were not invited because they are already
+// members or are not valid addresses.
+type OrgInvitationListSDO struct {
+	Invitations []OrgInvitationDTO `json:"invitations"`
+	Skipped     []string           `json:"skipped"`
+}

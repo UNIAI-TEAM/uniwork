@@ -37,3 +37,18 @@ type DepartmentSDI struct {
 type DepartmentOrderSDI struct {
 	IDs []string `json:"ids" description:"ULID phòng ban theo thứ tự hiển thị mong muốn"`
 }
+
+// OrgInviteSDI is POST /api/v1/orgs/{org}/invitations: an invitation to the
+// organization itself, with no workspace behind it.
+type OrgInviteSDI struct {
+	Emails  []string `json:"emails" description:"Tối đa 50 địa chỉ, không trùng nhau"`
+	OrgRole string   `json:"org_role,omitempty" enum:"admin,member" description:"Vai trò khi tham gia, mặc định member" example:"member"`
+}
+
+// TransferOwnershipSDI is POST /api/v1/orgs/{org}/transfer-ownership. The
+// current owner re-enters their password: this is the one change they cannot
+// undo alone afterwards (OPEN_QUESTIONS P2).
+type TransferOwnershipSDI struct {
+	ToUserID string `json:"to_user_id" description:"ULID thành viên nhận quyền chủ sở hữu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Password string `json:"password" description:"Mật khẩu hiện tại của chủ sở hữu" example:"••••••••"`
+}

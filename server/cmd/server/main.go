@@ -165,6 +165,7 @@ func main() {
 	}
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, mailOutbox)
+	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)

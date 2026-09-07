@@ -34,6 +34,7 @@ export const WS_EVENT_TYPES = [
   "department.updated",
   "host.transferred",
   "invitation.responded",
+  "invitation.revoked",
   "invite_link.revoked",
   "join_request.approved",
   "join_request.canceled",

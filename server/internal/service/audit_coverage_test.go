@@ -112,6 +112,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionInvitationRevoked: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.orgMem.RevokeInvitation(f.ctx, f.owner.ID, f.orgID, invs[0].ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionMemberInvited: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			if _, _, err := f.ws.InviteMany(f.ctx, f.owner.ID, w.ID, []string{"invitee@example.com"}, "member"); err != nil {
@@ -272,6 +288,8 @@ func auditActions() []string {
 		audit.ActionDepartmentUpdated,
 		audit.ActionDepartmentArchived,
 		audit.ActionPeopleExported,
+		audit.ActionInvitationRevoked,
+		audit.ActionOrganizationOwnershipChanged,
 		audit.ActionWorkspaceCreated,
 		audit.ActionWorkspaceUpdated,
 		audit.ActionWorkspaceMemberAdded,
@@ -331,9 +349,11 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	auth := NewAuthService(pool, q, minter, time.Hour, nil)
 	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
+	orgMembers := NewOrganizationMemberService(pool, q, orgs)
+	orgMembers.SetMail(renderer, &fakeOutbox{})
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
-		auth: auth, orgs: orgs, orgMem: NewOrganizationMemberService(pool, q, orgs),
+		auth: auth, orgs: orgs, orgMem: orgMembers,
 		people: NewPeopleService(pool, q, orgs), depts: NewDepartmentService(pool, q, orgs), ws: ws,
 		tasks:   NewTaskService(pool, q, ws),
 		agents:  NewAgentService(pool, q, orgs, ws),

@@ -147,6 +147,11 @@ func pathParamSDI(path string) any {
 			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
 			DepartmentId string `path:"departmentId" description:"ULID phòng ban" example:"01J8X4DEPT0N1P2Q3R4S5T6U"`
 		}{}
+	case "org,invitationId":
+		return struct {
+			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
+			InvitationId string `path:"invitationId" description:"ULID lời mời" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+		}{}
 	case "org,userID":
 		return struct {
 			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`

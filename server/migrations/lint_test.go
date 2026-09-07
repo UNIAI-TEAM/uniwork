@@ -236,7 +236,7 @@ var tenantExemptTables = map[string]string{
 // removes its table from this list. Names only ever leave.
 var tenantBackfillDebt = []string{
 	"chat_messages", "chat_room_members",
-	"invitations", "workspace_members",
+	"workspace_members",
 	"tasks", "task_comments",
 	"meetings", "meeting_attendees", "meeting_notes",
 	"meeting_participants", "meeting_invitations", "meeting_access_grants",

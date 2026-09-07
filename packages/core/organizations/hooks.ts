@@ -129,3 +129,39 @@ export function useLeaveOrganization(orgSlug: string) {
     onSuccess: () => qc.clear(),
   });
 }
+
+export function useOrgInvitations(orgSlug: string, enabled = true) {
+  return useQuery({
+    queryKey: [...orgMemberKeys.all(orgSlug), "invitations"] as const,
+    queryFn: () => orgMembers.listOrgInvitations(orgSlug),
+    enabled: enabled && !!orgSlug,
+  });
+}
+
+export function useInviteToOrganization(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ emails, orgRole }: { emails: string[]; orgRole: string }) =>
+      orgMembers.inviteToOrganization(orgSlug, emails, orgRole),
+    onSuccess: () => qc.invalidateQueries({ queryKey: orgMemberKeys.all(orgSlug) }),
+  });
+}
+
+export function useRevokeOrgInvitation(orgSlug: string) {
+  return useOrgMemberMutation(orgSlug, (invitationId: string) =>
+    orgMembers.revokeOrgInvitation(orgSlug, invitationId),
+  );
+}
+
+/**
+ * Handing the organization over changes what the caller may do everywhere, so
+ * the whole cache is refreshed rather than the membership list alone.
+ */
+export function useTransferOwnership(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ toUserId, password }: { toUserId: string; password: string }) =>
+      orgMembers.transferOwnership(orgSlug, toUserId, password),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}

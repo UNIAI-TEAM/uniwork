@@ -146,3 +146,80 @@ func (h *handlers) respondOrgMember(w http.ResponseWriter, r *http.Request, m db
 	}
 	respondJSON(w, http.StatusOK, sdo.OrgMemberSDO{Member: dto})
 }
+
+func (h *handlers) inviteToOrganization(w http.ResponseWriter, r *http.Request) {
+	var in sdi.OrgInviteSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	invs, skipped, err := h.OrgMembers.InviteToOrg(r.Context(), middleware.UserID(r.Context()), orgID, in.Emails, in.OrgRole)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.OrgInvitationDTO, 0, len(invs))
+	for _, inv := range invs {
+		out = append(out, sdo.OrgInvitationDTO{
+			ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
+			ExpiresAt: rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
+		})
+	}
+	if skipped == nil {
+		skipped = []string{}
+	}
+	respondJSON(w, http.StatusOK, sdo.OrgInvitationListSDO{Invitations: out, Skipped: skipped})
+}
+
+func (h *handlers) listOrgInvitations(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	rows, err := h.OrgMembers.PendingInvitations(r.Context(), middleware.UserID(r.Context()), orgID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.OrgInvitationDTO, 0, len(rows))
+	for _, inv := range rows {
+		out = append(out, sdo.OrgInvitationDTO{
+			ID: inv.ID, Email: inv.Email, OrgRole: inv.OrgRole,
+			InvitedByName: pgText(inv.InvitedByName),
+			ExpiresAt:     rfc3339(inv.ExpiresAt), CreatedAt: rfc3339(inv.CreatedAt),
+		})
+	}
+	respondJSON(w, http.StatusOK, sdo.OrgInvitationListSDO{Invitations: out, Skipped: []string{}})
+}
+
+func (h *handlers) revokeOrgInvitation(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	if err := h.OrgMembers.RevokeInvitation(r.Context(), middleware.UserID(r.Context()), orgID, chi.URLParam(r, "invitationId")); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+func (h *handlers) transferOrgOwnership(w http.ResponseWriter, r *http.Request) {
+	var in sdi.TransferOwnershipSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	m, err := h.OrgMembers.TransferOwnership(r.Context(), middleware.UserID(r.Context()), orgID, in.ToUserID, in.Password)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	h.respondOrgMember(w, r, m)
+}

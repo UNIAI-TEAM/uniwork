@@ -108,3 +108,14 @@ export interface DepartmentInput {
   parent_id?: string;
   head_user_id?: string;
 }
+
+/** One outstanding invitation to the organization. */
+export const OrgInvitationSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  org_role: z.string(),
+  invited_by_name: z.string().optional(),
+  expires_at: z.string().default(""),
+  created_at: z.string().default(""),
+});
+export type OrgInvitation = z.infer<typeof OrgInvitationSchema>;

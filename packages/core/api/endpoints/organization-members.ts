@@ -1,7 +1,9 @@
 import { z } from "zod";
 import {
+  OrgInvitationSchema,
   OrgMemberSchema,
   OrgMembershipSchema,
+  type OrgInvitation,
   type OrgMember,
   type OrgMembership,
 } from "../../types/people";
@@ -87,4 +89,65 @@ export async function leaveOrganization(orgSlug: string): Promise<boolean> {
   return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
     endpoint: "POST /api/v1/orgs/{org}/leave",
   }).status === "ok";
+}
+
+const InvitationListResponse = z.object({
+  invitations: z.array(OrgInvitationSchema),
+  skipped: z.array(z.string()).default([]),
+});
+
+export interface OrgInvitationResult {
+  invitations: OrgInvitation[];
+  skipped: string[];
+}
+
+const EMPTY_INVITATIONS: OrgInvitationResult = { invitations: [], skipped: [] };
+
+export async function listOrgInvitations(orgSlug: string): Promise<OrgInvitationResult> {
+  const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/invitations`);
+  return parseWithFallback<OrgInvitationResult>(raw, InvitationListResponse, EMPTY_INVITATIONS, {
+    endpoint: "GET /api/v1/orgs/{org}/invitations",
+  });
+}
+
+export async function inviteToOrganization(
+  orgSlug: string,
+  emails: string[],
+  orgRole: string,
+): Promise<OrgInvitationResult> {
+  const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/invitations`, {
+    method: "POST",
+    body: { emails, org_role: orgRole },
+  });
+  return parseWithFallback<OrgInvitationResult>(raw, InvitationListResponse, EMPTY_INVITATIONS, {
+    endpoint: "POST /api/v1/orgs/{org}/invitations",
+  });
+}
+
+export async function revokeOrgInvitation(orgSlug: string, invitationId: string): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/orgs/${encodeURIComponent(orgSlug)}/invitations/${encodeURIComponent(invitationId)}`,
+    { method: "DELETE" },
+  );
+  return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
+    endpoint: "DELETE /api/v1/orgs/{org}/invitations/{invitationId}",
+  }).status === "ok";
+}
+
+/**
+ * Handing the organization to somebody else. The current owner re-enters their
+ * password, because this is the one change they cannot undo alone afterwards.
+ */
+export async function transferOwnership(
+  orgSlug: string,
+  toUserId: string,
+  password: string,
+): Promise<OrgMember | null> {
+  const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/transfer-ownership`, {
+    method: "POST",
+    body: { to_user_id: toUserId, password },
+  });
+  return parseWithFallback<{ member: OrgMember } | null>(raw, MemberResponse, null, {
+    endpoint: "POST /api/v1/orgs/{org}/transfer-ownership",
+  })?.member ?? null;
 }

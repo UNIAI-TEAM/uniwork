@@ -259,14 +259,18 @@ type FeatureFlagOverride struct {
 }
 
 type Invitation struct {
-	ID          string             `json:"id"`
-	WorkspaceID string             `json:"workspace_id"`
-	Email       string             `json:"email"`
-	Role        string             `json:"role"`
-	Token       string             `json:"token"`
-	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
-	AcceptedAt  pgtype.Timestamptz `json:"accepted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ID             string             `json:"id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	Email          string             `json:"email"`
+	Role           string             `json:"role"`
+	Token          string             `json:"token"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt     pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OrganizationID string             `json:"organization_id"`
+	OrgRole        string             `json:"org_role"`
+	InvitedBy      pgtype.Text        `json:"invited_by"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type Invoice struct {
