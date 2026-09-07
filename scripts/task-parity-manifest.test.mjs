@@ -19,16 +19,20 @@ const capabilityIDs = [
   "capability:desktop.host",
   "capability:mobile.host",
 ];
+const entryKeys = [
+  "disposition",
+  "kind",
+  "owner_issue",
+  "source_path",
+  "target_path",
+  "verification_state",
+];
 
 test("Tasks parity manifest pins and classifies the complete baseline", async () => {
   const manifest = JSON.parse(await readFile(path, "utf8"));
   assert.equal(manifest.schema_version, 1);
   assert.equal(manifest.baseline_commit, "3d37828e9");
   assert.equal(manifest.entries.length, 1531);
-  assert.equal(
-    createHash("sha256").update(JSON.stringify(manifest.entries)).digest("hex"),
-    "837cbe773093ecfa374b9d66fd571ee7d103dbaa8183710f692af6af8b66b09f",
-  );
 
   const sources = manifest.entries.map((entry) => entry.source_path);
   const sourceEntries = manifest.entries.filter((entry) => entry.kind !== "capability");
@@ -37,6 +41,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   assert.deepEqual(capabilities.map((entry) => entry.source_path), capabilityIDs);
   assert.equal(new Set(sources).size, sources.length);
   for (const entry of manifest.entries) {
+    assert.deepEqual(Object.keys(entry).sort(), entryKeys);
     assert.match(entry.source_path, /\S/);
     assert.match(entry.target_path, /\S/);
     assert.equal(entry.target_path.toLowerCase().includes(manifest.source_product.toLowerCase()), false);
@@ -44,10 +49,12 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     assert.ok(["source", "route", "test", "locale", "capability"].includes(entry.kind));
     assert.ok(["ported", "adapted", "stubbed"].includes(entry.disposition));
     assert.equal(entry.verification_state, "pending");
-    assert.equal("completion_evidence" in entry, false);
-    assert.equal("verification_evidence" in entry, false);
     assert.equal(entry.owner_issue, "UNI-426");
   }
+  assert.equal(
+    createHash("sha256").update(JSON.stringify(manifest.entries)).digest("hex"),
+    "837cbe773093ecfa374b9d66fd571ee7d103dbaa8183710f692af6af8b66b09f",
+  );
 
   for (const route of [
     "apps/web/app/[workspaceSlug]/(dashboard)/issues/page.tsx",
