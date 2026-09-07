@@ -56,3 +56,14 @@ type BatchUpdateTasksSDI struct {
 type BatchDeleteTasksSDI struct {
 	TaskIDs []string `json:"task_ids" description:"Danh sách ULID công việc (tối đa 100)" example:"[\"01J8X4TASKN1P2Q3R4S5T6U7\"]"`
 }
+
+// SetTaskParentSDI is PUT /api/v1/tasks/{taskID}/parent (flagged suite).
+type SetTaskParentSDI struct {
+	ParentTaskID *string `json:"parent_task_id" description:"ULID cha; null hoặc bỏ trống để gỡ" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+}
+
+// SetTaskDependencySDI is POST /api/v1/tasks/{taskID}/dependencies (flagged suite).
+type SetTaskDependencySDI struct {
+	DependsOnTaskID string `json:"depends_on_task_id" description:"ULID công việc phụ thuộc" example:"01J8X4TASKN1P2Q3R4S5T6U8"`
+	Type            string `json:"type" description:"blocks, blocked_by hoặc related" example:"blocked_by"`
+}

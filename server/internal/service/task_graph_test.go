@@ -1,0 +1,181 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"testing"
+)
+
+func TestListMyTasksReturnsOnlyActorsTasks(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	actorA := Human(ua.ID)
+	actorB := Human(ub.ID)
+
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+
+	mineAssigned, err := s.Create(ctx, actorA, w.ID, CreateTaskInput{
+		Title: "Assigned to A", AssigneeID: &ua.ID, AssigneeKind: "human",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mineCreated, err := s.Create(ctx, actorA, w.ID, CreateTaskInput{Title: "Created by A, unassigned"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := s.Create(ctx, actorB, w.ID, CreateTaskInput{
+		Title: "B's task", AssigneeID: &ub.ID, AssigneeKind: "human",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := s.ListMyTasks(ctx, actorA, w.ID, TaskQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, task := range page.Tasks {
+		ids[task.ID] = true
+	}
+	if !ids[mineAssigned.ID] || !ids[mineCreated.ID] {
+		t.Fatalf("my-tasks missing A's tasks: %+v", ids)
+	}
+	if ids[theirs.ID] {
+		t.Fatal("my-tasks included another actor's task")
+	}
+}
+
+func TestSetDependencyCycleReturnsParentCycle(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	a, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.SetDependency(ctx, actor, a.ID, SetDependencyInput{
+		DependsOnTaskID: b.ID, Type: "blocked_by",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.SetDependency(ctx, actor, b.ID, SetDependencyInput{
+		DependsOnTaskID: a.ID, Type: "blocked_by",
+	})
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "parent_cycle" || ce.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("want parent_cycle 422, got %v", err)
+	}
+}
+
+func TestSetParentCycleReturnsParentCycle(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	parent, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "Parent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "Child"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetParent(ctx, actor, child.ID, &parent.ID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.SetParent(ctx, actor, parent.ID, &child.ID)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "parent_cycle" {
+		t.Fatalf("want parent_cycle, got %v", err)
+	}
+}
+
+func TestSetDependencyCrossWorkspaceRejected(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	a, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "In W"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	orgs := NewOrganizationService(s.pool, s.q)
+	wsSvc := NewWorkspaceService(s.pool, s.q, orgs, s.ws.render, &fakeOutbox{})
+	org2, err := orgs.Create(ctx, ua.ID, "Org Two", "org-two")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := wsSvc.CreateInOrg(ctx, ua.ID, org2.ID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2 := NewTaskService(s.pool, s.q, wsSvc)
+	other, err := s2.Create(ctx, actor, v2.Workspace.ID, CreateTaskInput{Title: "Other WS"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.SetDependency(ctx, actor, a.ID, SetDependencyInput{
+		DependsOnTaskID: other.ID, Type: "blocked_by",
+	})
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "cross_workspace_reference" {
+		t.Fatalf("want cross_workspace_reference, got %v", err)
+	}
+}
+
+func TestListChildrenAndByParents(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	p1, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "P1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "P2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c1, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "C1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c2, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "C2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetParent(ctx, actor, c1.ID, &p1.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetParent(ctx, actor, c2.ID, &p2.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	kids, err := s.ListChildren(ctx, actor, p1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kids) != 1 || kids[0].ID != c1.ID {
+		t.Fatalf("ListChildren = %+v, want [%s]", kids, c1.ID)
+	}
+
+	batch, err := s.ListChildrenByParents(ctx, actor, w.ID, []string{p1.ID, p2.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batch) != 2 {
+		t.Fatalf("batch len = %d, want 2", len(batch))
+	}
+}

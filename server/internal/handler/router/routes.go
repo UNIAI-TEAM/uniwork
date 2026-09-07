@@ -62,18 +62,25 @@ type Routes struct {
 
 	SeedWelcomeTask http.HandlerFunc
 
-	ListTasks        http.HandlerFunc
-	CreateTask       http.HandlerFunc
-	GetTask          http.HandlerFunc
-	UpdateTask       http.HandlerFunc
-	PutTaskSuite     http.HandlerFunc
-	DeleteTask       http.HandlerFunc
-	ListComments     http.HandlerFunc
-	CreateComment    http.HandlerFunc
-	QueryTasks       http.HandlerFunc
-	GroupedTasks     http.HandlerFunc
-	BatchUpdateTasks http.HandlerFunc
-	BatchDeleteTasks http.HandlerFunc
+	ListTasks             http.HandlerFunc
+	CreateTask            http.HandlerFunc
+	GetTask               http.HandlerFunc
+	UpdateTask            http.HandlerFunc
+	PutTaskSuite          http.HandlerFunc
+	DeleteTask            http.HandlerFunc
+	ListComments          http.HandlerFunc
+	CreateComment         http.HandlerFunc
+	QueryTasks            http.HandlerFunc
+	GroupedTasks          http.HandlerFunc
+	BatchUpdateTasks      http.HandlerFunc
+	BatchDeleteTasks      http.HandlerFunc
+	ListMyTasks           http.HandlerFunc
+	ListTaskChildren      http.HandlerFunc
+	ListChildrenByParents http.HandlerFunc
+	ChildTaskProgress     http.HandlerFunc
+	SetTaskParent         http.HandlerFunc
+	SetTaskDependency     http.HandlerFunc
+	RemoveTaskDependency  http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc

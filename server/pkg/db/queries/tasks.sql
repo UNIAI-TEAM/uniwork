@@ -140,3 +140,76 @@ INNER JOIN workspaces w
   ON w.id = t.workspace_id AND w.organization_id = t.organization_id
 WHERE upper(w.task_prefix) = upper(sqlc.arg('prefix'))
   AND t.number = sqlc.arg('number');
+
+-- name: ListMyTasks :many
+-- Actor's tasks: assigned to them or created by them in this workspace.
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+ORDER BY status, position, created_at
+LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
+
+-- name: CountMyTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'));
+
+-- name: ListChildTasks :many
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND parent_task_id = sqlc.arg('parent_task_id')
+ORDER BY number ASC;
+
+-- name: ListChildrenByParents :many
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND parent_task_id = ANY(sqlc.arg('parent_ids')::text[])
+ORDER BY parent_task_id, number ASC;
+
+-- name: ChildTaskProgress :many
+SELECT parent_task_id,
+       COUNT(*)::bigint AS total,
+       COUNT(*) FILTER (WHERE status IN ('done', 'cancelled'))::bigint AS done
+FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND parent_task_id IS NOT NULL
+GROUP BY parent_task_id;
+
+-- name: SetTaskParent :one
+UPDATE tasks SET
+  parent_task_id = sqlc.narg('parent_task_id'),
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+RETURNING *;
+
+-- name: CreateTaskDependency :one
+INSERT INTO task_dependencies (
+  id, organization_id, workspace_id, task_id, depends_on_task_id, type
+) VALUES (
+  $1, $2, $3, $4, $5, $6
+)
+RETURNING *;
+
+-- name: DeleteTaskDependency :execrows
+DELETE FROM task_dependencies
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND task_id = sqlc.arg('task_id')
+  AND depends_on_task_id = sqlc.arg('depends_on_task_id')
+  AND (sqlc.narg('type')::text IS NULL OR type = sqlc.narg('type'));
+
+-- name: ListTaskDependenciesInWorkspace :many
+SELECT * FROM task_dependencies
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id');

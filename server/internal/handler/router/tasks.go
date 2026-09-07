@@ -79,6 +79,13 @@ func registerTasks(r api, h Routes) {
 //	PUT  /api/v1/tasks/{taskID}
 //	POST /api/v1/workspaces/{workspaceID}/tasks/batch-update
 //	POST /api/v1/workspaces/{workspaceID}/tasks/batch-delete
+//	GET  /api/v1/workspaces/{workspaceID}/my-tasks
+//	GET  /api/v1/tasks/{taskID}/children
+//	GET  /api/v1/workspaces/{workspaceID}/tasks/children
+//	GET  /api/v1/workspaces/{workspaceID}/tasks/child-progress
+//	PUT  /api/v1/tasks/{taskID}/parent
+//	POST /api/v1/tasks/{taskID}/dependencies
+//	DELETE /api/v1/tasks/{taskID}/dependencies/{dependsOnTaskID}
 func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler) {
 	r.Group(func(suite api) {
 		suite.Use(flagMW)
@@ -119,6 +126,57 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			tags:        []string{"tasks"},
 			sdi:         sdi.BatchDeleteTasksSDI{},
 			sdo:         sdo.BatchDeleteTasksSDO{},
+			auth:        true,
+		})
+		suite.Get("/workspaces/{workspaceID}/my-tasks", h.ListMyTasks, apiOp{
+			summary:     "My tasks",
+			description: "Công việc được giao hoặc do người gọi tạo trong workspace. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.TaskQueryPageSDO{},
+			auth:        true,
+		})
+		suite.Get("/tasks/{taskID}/children", h.ListTaskChildren, apiOp{
+			summary:     "List child tasks",
+			description: "Task con trực tiếp của một task. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.TaskListSDO{},
+			auth:        true,
+		})
+		suite.Get("/workspaces/{workspaceID}/tasks/children", h.ListChildrenByParents, apiOp{
+			summary:     "List children by parents",
+			description: "Query parent_ids=id,id — batch children cho Swimlane. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.TaskListSDO{},
+			auth:        true,
+		})
+		suite.Get("/workspaces/{workspaceID}/tasks/child-progress", h.ChildTaskProgress, apiOp{
+			summary:     "Child task progress",
+			description: "Tổng/done theo từng parent trong workspace. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.ChildProgressListSDO{},
+			auth:        true,
+		})
+		suite.Put("/tasks/{taskID}/parent", h.SetTaskParent, apiOp{
+			summary:     "Set task parent",
+			description: "Gán hoặc gỡ cha. Chu trình → 422 parent_cycle. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.SetTaskParentSDI{},
+			sdo:         sdo.TaskSDO{},
+			auth:        true,
+		})
+		suite.Post("/tasks/{taskID}/dependencies", h.SetTaskDependency, apiOp{
+			summary:     "Set task dependency",
+			description: "Thêm phụ thuộc blocks/blocked_by/related. Chu trình → 422 parent_cycle. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.SetTaskDependencySDI{},
+			sdo:         sdo.TaskDependencySDO{},
+			auth:        true,
+		})
+		suite.Delete("/tasks/{taskID}/dependencies/{dependsOnTaskID}", h.RemoveTaskDependency, apiOp{
+			summary:     "Remove task dependency",
+			description: "Xóa cạnh phụ thuộc. Query type tùy chọn. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.StatusSDO{},
 			auth:        true,
 		})
 	})

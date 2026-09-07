@@ -11,6 +11,75 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const childTaskProgress = `-- name: ChildTaskProgress :many
+SELECT parent_task_id,
+       COUNT(*)::bigint AS total,
+       COUNT(*) FILTER (WHERE status IN ('done', 'cancelled'))::bigint AS done
+FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND parent_task_id IS NOT NULL
+GROUP BY parent_task_id
+`
+
+type ChildTaskProgressParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type ChildTaskProgressRow struct {
+	ParentTaskID pgtype.Text `json:"parent_task_id"`
+	Total        int64       `json:"total"`
+	Done         int64       `json:"done"`
+}
+
+func (q *Queries) ChildTaskProgress(ctx context.Context, arg ChildTaskProgressParams) ([]ChildTaskProgressRow, error) {
+	rows, err := q.db.Query(ctx, childTaskProgress, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChildTaskProgressRow{}
+	for rows.Next() {
+		var i ChildTaskProgressRow
+		if err := rows.Scan(&i.ParentTaskID, &i.Total, &i.Done); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countMyTasks = `-- name: CountMyTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND (assignee_id = $3 OR created_by = $3)
+  AND ($4::text IS NULL OR status = $4)
+`
+
+type CountMyTasksParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ActorID        pgtype.Text `json:"actor_id"`
+	Status         pgtype.Text `json:"status"`
+}
+
+func (q *Queries) CountMyTasks(ctx context.Context, arg CountMyTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countMyTasks,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ActorID,
+		arg.Status,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countTasks = `-- name: CountTasks :one
 SELECT count(*)::bigint FROM tasks
 WHERE organization_id = $1
@@ -178,6 +247,46 @@ func (q *Queries) CreateTaskComment(ctx context.Context, arg CreateTaskCommentPa
 	return i, err
 }
 
+const createTaskDependency = `-- name: CreateTaskDependency :one
+INSERT INTO task_dependencies (
+  id, organization_id, workspace_id, task_id, depends_on_task_id, type
+) VALUES (
+  $1, $2, $3, $4, $5, $6
+)
+RETURNING id, organization_id, workspace_id, task_id, depends_on_task_id, type, created_at
+`
+
+type CreateTaskDependencyParams struct {
+	ID              string `json:"id"`
+	OrganizationID  string `json:"organization_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	TaskID          string `json:"task_id"`
+	DependsOnTaskID string `json:"depends_on_task_id"`
+	Type            string `json:"type"`
+}
+
+func (q *Queries) CreateTaskDependency(ctx context.Context, arg CreateTaskDependencyParams) (TaskDependency, error) {
+	row := q.db.QueryRow(ctx, createTaskDependency,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.DependsOnTaskID,
+		arg.Type,
+	)
+	var i TaskDependency
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.TaskID,
+		&i.DependsOnTaskID,
+		&i.Type,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createWelcomeTask = `-- name: CreateWelcomeTask :one
 INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, status, priority,
@@ -278,6 +387,37 @@ type DeleteTaskParams struct {
 func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) error {
 	_, err := q.db.Exec(ctx, deleteTask, arg.ID, arg.OrganizationID, arg.WorkspaceID)
 	return err
+}
+
+const deleteTaskDependency = `-- name: DeleteTaskDependency :execrows
+DELETE FROM task_dependencies
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND task_id = $3
+  AND depends_on_task_id = $4
+  AND ($5::text IS NULL OR type = $5)
+`
+
+type DeleteTaskDependencyParams struct {
+	OrganizationID  string      `json:"organization_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	TaskID          string      `json:"task_id"`
+	DependsOnTaskID string      `json:"depends_on_task_id"`
+	Type            pgtype.Text `json:"type"`
+}
+
+func (q *Queries) DeleteTaskDependency(ctx context.Context, arg DeleteTaskDependencyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTaskDependency,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.DependsOnTaskID,
+		arg.Type,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getTask = `-- name: GetTask :one
@@ -434,6 +574,223 @@ func (q *Queries) GetWelcomeTask(ctx context.Context, arg GetWelcomeTaskParams) 
 	return i, err
 }
 
+const listChildTasks = `-- name: ListChildTasks :many
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND parent_task_id = $3
+ORDER BY number ASC
+`
+
+type ListChildTasksParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ParentTaskID   pgtype.Text `json:"parent_task_id"`
+}
+
+func (q *Queries) ListChildTasks(ctx context.Context, arg ListChildTasksParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listChildTasks, arg.OrganizationID, arg.WorkspaceID, arg.ParentTaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChildrenByParents = `-- name: ListChildrenByParents :many
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND parent_task_id = ANY($3::text[])
+ORDER BY parent_task_id, number ASC
+`
+
+type ListChildrenByParentsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	ParentIds      []string `json:"parent_ids"`
+}
+
+func (q *Queries) ListChildrenByParents(ctx context.Context, arg ListChildrenByParentsParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listChildrenByParents, arg.OrganizationID, arg.WorkspaceID, arg.ParentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMyTasks = `-- name: ListMyTasks :many
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND (assignee_id = $3 OR created_by = $3)
+  AND ($4::text IS NULL OR status = $4)
+ORDER BY status, position, created_at
+LIMIT $6 OFFSET $5
+`
+
+type ListMyTasksParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ActorID        pgtype.Text `json:"actor_id"`
+	Status         pgtype.Text `json:"status"`
+	OffsetN        int32       `json:"offset_n"`
+	LimitN         int32       `json:"limit_n"`
+}
+
+// Actor's tasks: assigned to them or created by them in this workspace.
+func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listMyTasks,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ActorID,
+		arg.Status,
+		arg.OffsetN,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskComments = `-- name: ListTaskComments :many
 SELECT c.id, c.task_id, c.author_id, c.author_kind, c.body, c.created_at,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
@@ -482,6 +839,45 @@ func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsPara
 			&i.CreatedAt,
 			&i.DisplayName,
 			&i.AvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskDependenciesInWorkspace = `-- name: ListTaskDependenciesInWorkspace :many
+SELECT id, organization_id, workspace_id, task_id, depends_on_task_id, type, created_at FROM task_dependencies
+WHERE organization_id = $1
+  AND workspace_id = $2
+`
+
+type ListTaskDependenciesInWorkspaceParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) ListTaskDependenciesInWorkspace(ctx context.Context, arg ListTaskDependenciesInWorkspaceParams) ([]TaskDependency, error) {
+	rows, err := q.db.Query(ctx, listTaskDependenciesInWorkspace, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TaskDependency{}
+	for rows.Next() {
+		var i TaskDependency
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.TaskID,
+			&i.DependsOnTaskID,
+			&i.Type,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -835,6 +1231,71 @@ func (q *Queries) SetTaskDueDate(ctx context.Context, arg SetTaskDueDateParams) 
 	row := q.db.QueryRow(ctx, setTaskDueDate,
 		arg.ID,
 		arg.DueDate,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeID,
+		&i.DueDate,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
+		&i.OrganizationID,
+		&i.Number,
+		&i.ProjectID,
+		&i.ParentTaskID,
+		&i.AssigneeType,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Metadata,
+		&i.Properties,
+		&i.StartDate,
+		&i.Stage,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.Revision,
+		&i.LastActivityAt,
+	)
+	return i, err
+}
+
+const setTaskParent = `-- name: SetTaskParent :one
+UPDATE tasks SET
+  parent_task_id = $1,
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
+`
+
+type SetTaskParentParams struct {
+	ParentTaskID   pgtype.Text `json:"parent_task_id"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+}
+
+func (q *Queries) SetTaskParent(ctx context.Context, arg SetTaskParentParams) (Task, error) {
+	row := q.db.QueryRow(ctx, setTaskParent,
+		arg.ParentTaskID,
+		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 	)

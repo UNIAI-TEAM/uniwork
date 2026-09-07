@@ -85,3 +85,31 @@ type BatchUpdateTasksSDO struct {
 type BatchDeleteTasksSDO struct {
 	Deleted int `json:"deleted" example:"3"`
 }
+
+// ChildProgressDTO is one row of child-progress.
+type ChildProgressDTO struct {
+	ParentTaskID string `json:"parent_task_id" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	Total        int64  `json:"total" example:"4"`
+	Done         int64  `json:"done" example:"1"`
+}
+
+// ChildProgressListSDO is GET .../tasks/child-progress.
+type ChildProgressListSDO struct {
+	Progress []ChildProgressDTO `json:"progress"`
+}
+
+// TaskDependencyDTO is one task_dependencies row.
+type TaskDependencyDTO struct {
+	ID              string `json:"id" example:"01J8X4DEPN1P2Q3R4S5T6U7"`
+	OrganizationID  string `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	WorkspaceID     string `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	TaskID          string `json:"task_id" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	DependsOnTaskID string `json:"depends_on_task_id" example:"01J8X4TASKN1P2Q3R4S5T6U8"`
+	Type            string `json:"type" example:"blocked_by"`
+	CreatedAt       string `json:"created_at" example:"2026-09-07T09:00:00Z"`
+}
+
+// TaskDependencySDO wraps one dependency.
+type TaskDependencySDO struct {
+	Dependency TaskDependencyDTO `json:"dependency"`
+}

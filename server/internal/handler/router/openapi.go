@@ -142,6 +142,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			TaskID string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (prefix không phân biệt hoa thường)" example:"ALP-42"`
 		}{}
+	case "taskID,dependsOnTaskID":
+		return struct {
+			TaskID          string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			DependsOnTaskID string `path:"dependsOnTaskID" description:"ULID công việc phụ thuộc" example:"01J8X4TASKN1P2Q3R4S5T6U8"`
+		}{}
 	case "meetingID":
 		return struct {
 			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
