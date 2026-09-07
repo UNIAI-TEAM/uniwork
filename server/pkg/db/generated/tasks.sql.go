@@ -11,6 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTasks = `-- name: CountTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND ($3::text IS NULL OR status = $3)
+`
+
+type CountTasksParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Status         pgtype.Text `json:"status"`
+}
+
+func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTasks, arg.OrganizationID, arg.WorkspaceID, arg.Status)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, priority,
@@ -473,6 +493,74 @@ func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsPara
 	return items, nil
 }
 
+const listTasksByIdentifier = `-- name: ListTasksByIdentifier :many
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at FROM tasks t
+INNER JOIN workspaces w
+  ON w.id = t.workspace_id AND w.organization_id = t.organization_id
+WHERE upper(w.task_prefix) = upper($1)
+  AND t.number = $2
+`
+
+type ListTasksByIdentifierParams struct {
+	Prefix interface{} `json:"prefix"`
+	Number int64       `json:"number"`
+}
+
+// Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
+func (q *Queries) ListTasksByIdentifier(ctx context.Context, arg ListTasksByIdentifierParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, listTasksByIdentifier, arg.Prefix, arg.Number)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksByWorkspace = `-- name: ListTasksByWorkspace :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at FROM tasks
 WHERE organization_id = $1 AND workspace_id = $2
@@ -574,6 +662,83 @@ func (q *Queries) NextTaskNumber(ctx context.Context, arg NextTaskNumberParams) 
 	var task_counter int64
 	err := row.Scan(&task_counter)
 	return task_counter, err
+}
+
+const queryTasks = `-- name: QueryTasks :many
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND ($3::text IS NULL OR status = $3)
+ORDER BY status, position, created_at
+LIMIT $5 OFFSET $4
+`
+
+type QueryTasksParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Status         pgtype.Text `json:"status"`
+	OffsetN        int32       `json:"offset_n"`
+	LimitN         int32       `json:"limit_n"`
+}
+
+func (q *Queries) QueryTasks(ctx context.Context, arg QueryTasksParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, queryTasks,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Status,
+		arg.OffsetN,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Task{}
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.CreatedByKind,
+			&i.AssigneeKind,
+			&i.OrganizationID,
+			&i.Number,
+			&i.ProjectID,
+			&i.ParentTaskID,
+			&i.AssigneeType,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Metadata,
+			&i.Properties,
+			&i.StartDate,
+			&i.Stage,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.Revision,
+			&i.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setTaskAssignee = `-- name: SetTaskAssignee :one

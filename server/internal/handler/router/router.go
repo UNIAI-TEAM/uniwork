@@ -15,6 +15,7 @@ import (
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // Deps is the subset of handler.Deps the mux needs: middleware, CORS,
@@ -28,6 +29,9 @@ type Deps struct {
 	// PlatformRoles resolves users.platform_role for /api/v1/admin; nil
 	// (tests without an admin service) makes every admin route 404.
 	PlatformRoles mw.PlatformRoleSource
+	// FeatureFlags gates the Work Management suite; nil keeps every suite
+	// route closed (RequireFeatureFlag falls through to catalogue defaults).
+	FeatureFlags *featureflag.Service
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).
@@ -93,6 +97,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerAI(authed, h)
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
+			registerTasksSuite(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "tasks_work_management_parity"))
 			registerAudit(authed, h)
 			registerMeetings(authed, h)
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)

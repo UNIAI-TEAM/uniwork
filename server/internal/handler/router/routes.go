@@ -69,6 +69,8 @@ type Routes struct {
 	DeleteTask    http.HandlerFunc
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
+	QueryTasks    http.HandlerFunc
+	GroupedTasks  http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc

@@ -87,6 +87,7 @@ func New(d Deps) http.Handler {
 		Storage:       d.Storage,
 		HTTPMetrics:   d.HTTPMetrics,
 		PlatformRoles: platformRoles(d.Admin),
+		FeatureFlags:  d.FeatureFlags,
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
@@ -145,12 +146,15 @@ func New(d Deps) http.Handler {
 
 		SeedWelcomeTask: h.seedWelcomeTask,
 
-		ListTasks:    h.listTasks,
-		CreateTask:   h.createTask,
-		GetTask:      h.getTask,
-		UpdateTask:   h.updateTask,
-		DeleteTask:   h.deleteTask,
-		ListComments: h.listComments,
+		ListTasks:     h.listTasks,
+		CreateTask:    h.createTask,
+		GetTask:       h.getTask,
+		UpdateTask:    h.updateTask,
+		DeleteTask:    h.deleteTask,
+		ListComments:  h.listComments,
+		CreateComment: h.createComment,
+		QueryTasks:    h.queryTasks,
+		GroupedTasks:  h.groupedTasks,
 
 		ListNotifications:          h.listNotifications,
 		UnreadNotificationCount:    h.unreadNotificationCount,
@@ -192,7 +196,6 @@ func New(d Deps) http.Handler {
 		ListAuditExports:    h.listAuditExports,
 		CreateAuditExport:   h.createAuditExport,
 		GetAuditExport:      h.getAuditExport,
-		CreateComment:       h.createComment,
 
 		ListMeetings:         h.listMeetings,
 		CreateMeeting:        h.createMeeting,

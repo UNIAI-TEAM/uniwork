@@ -28,3 +28,10 @@ type PatchTaskSDI struct {
 type CreateCommentSDI struct {
 	Body string `json:"body" minLength:"1" description:"Nội dung bình luận" example:"Đã review, merge được."`
 }
+
+// QueryTasksSDI is POST /api/v1/workspaces/{workspaceID}/tasks/query (flagged suite).
+type QueryTasksSDI struct {
+	Status string `json:"status" description:"Lọc theo status; bỏ trống = mọi status" example:"todo"`
+	Limit  int32  `json:"limit" description:"Kích thước trang (mặc định 50, tối đa 200)" example:"50"`
+	Offset int32  `json:"offset" description:"Offset phân trang" example:"0"`
+}

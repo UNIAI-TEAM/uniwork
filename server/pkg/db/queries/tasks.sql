@@ -118,3 +118,25 @@ WHERE organization_id = $1
   AND workspace_id = $2
   AND created_by = $3
   AND kind = 'welcome';
+
+-- name: QueryTasks :many
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+ORDER BY status, position, created_at
+LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
+
+-- name: CountTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'));
+
+-- name: ListTasksByIdentifier :many
+-- Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
+SELECT t.* FROM tasks t
+INNER JOIN workspaces w
+  ON w.id = t.workspace_id AND w.organization_id = t.organization_id
+WHERE upper(w.task_prefix) = upper(sqlc.arg('prefix'))
+  AND t.number = sqlc.arg('number');

@@ -125,7 +125,7 @@ func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
-	t, err := h.Tasks.Get(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "taskID"))
+	t, err := h.Tasks.GetByRef(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

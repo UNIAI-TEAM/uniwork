@@ -56,3 +56,22 @@ type CommentSDO struct {
 type CommentListSDO struct {
 	Comments []CommentDTO `json:"comments"`
 }
+
+// TaskQueryPageSDO is POST /api/v1/workspaces/{workspaceID}/tasks/query.
+type TaskQueryPageSDO struct {
+	Tasks  []TaskDTO `json:"tasks"`
+	Total  int64     `json:"total" example:"42"`
+	Limit  int32     `json:"limit" example:"50"`
+	Offset int32     `json:"offset" example:"0"`
+}
+
+// TaskGroupDTO is one bucket in a grouped list.
+type TaskGroupDTO struct {
+	Key   string    `json:"key" example:"todo"`
+	Tasks []TaskDTO `json:"tasks"`
+}
+
+// TaskGroupedSDO is GET /api/v1/workspaces/{workspaceID}/tasks/grouped.
+type TaskGroupedSDO struct {
+	Groups []TaskGroupDTO `json:"groups"`
+}

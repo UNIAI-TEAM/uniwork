@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -32,7 +34,7 @@ func registerTasks(r api, h Routes) {
 	})
 	r.Get("/tasks/{taskID}", h.GetTask, apiOp{
 		summary:     "Get task",
-		description: "Trả một công việc nếu người gọi là thành viên workspace.",
+		description: "Trả một công việc theo ULID hoặc identifier PREFIX-N (prefix không phân biệt hoa thường) nếu người gọi là thành viên workspace.",
 		tags:        []string{"tasks"},
 		sdo:         sdo.TaskSDO{},
 		auth:        true,
@@ -66,5 +68,31 @@ func registerTasks(r api, h Routes) {
 		sdi:         sdi.CreateCommentSDI{},
 		sdo:         sdo.CommentSDO{},
 		auth:        true,
+	})
+}
+
+// registerTasksSuite mounts Work Management parity routes behind
+// tasks_work_management_parity. Flag off → 404 feature_disabled.
+//
+//	POST /api/v1/workspaces/{workspaceID}/tasks/query
+//	GET  /api/v1/workspaces/{workspaceID}/tasks/grouped
+func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler) {
+	r.Group(func(suite api) {
+		suite.Use(flagMW)
+		suite.Post("/workspaces/{workspaceID}/tasks/query", h.QueryTasks, apiOp{
+			summary:     "Query tasks",
+			description: "Lọc và phân trang công việc (suite parity). Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.QueryTasksSDI{},
+			sdo:         sdo.TaskQueryPageSDO{},
+			auth:        true,
+		})
+		suite.Get("/workspaces/{workspaceID}/tasks/grouped", h.GroupedTasks, apiOp{
+			summary:     "Grouped tasks",
+			description: "Nhóm công việc theo status cho board. Query: group_by, status, limit, offset. Flag tasks_work_management_parity.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.TaskGroupedSDO{},
+			auth:        true,
+		})
 	})
 }
