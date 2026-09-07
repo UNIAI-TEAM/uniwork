@@ -12209,48 +12209,60 @@
       "target_path": "capability:tasks.agent_runs",
       "kind": "capability",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
     },
     {
       "source_path": "capability:tasks.squads",
       "target_path": "capability:tasks.squads",
       "kind": "capability",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
     },
     {
       "source_path": "capability:tasks.vcs",
       "target_path": "capability:tasks.vcs",
       "kind": "capability",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
     },
     {
       "source_path": "capability:tasks.local_workdir",
       "target_path": "capability:tasks.local_workdir",
       "kind": "capability",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
     },
     {
       "source_path": "capability:desktop.host",
       "target_path": "capability:desktop.host",
       "kind": "capability",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
     },
     {
       "source_path": "capability:mobile.host",
       "target_path": "capability:mobile.host",
       "kind": "capability",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
     }
   ]
 }

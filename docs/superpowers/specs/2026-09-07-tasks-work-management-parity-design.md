@@ -1,6 +1,6 @@
 # UniWork — Tasks Work Management parity
 
-> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-07; lát cắt 1 có plan tại `../plans/2026-09-07-tasks-parity-foundation.md`
+> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-07; lát cắt 1 (UNI-495) đã shipped theo plan `../plans/2026-09-07-tasks-parity-foundation.md` (manifest, schema/backfill 107–131, tenant queries, status seed, Task identifiers, capability registry, rehearsal/isolation). UNI-426 / F-05 còn các slice UI và API tiếp theo.
 
 **Ngày:** 2026-09-07
 **Issue:** UNI-426 · F-05

@@ -7,8 +7,10 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { applyVerificationOverlay } from "./generate-task-parity-manifest.mjs";
 
 const path = new URL("../docs/parity/tasks-work-management.json", import.meta.url);
+const overlayPath = new URL("../docs/parity/tasks-work-management.slice1-verification.json", import.meta.url);
 const generator = fileURLToPath(new URL("./generate-task-parity-manifest.mjs", import.meta.url));
 const execFile = promisify(execFileCallback);
 const capabilityIDs = [
@@ -19,8 +21,18 @@ const capabilityIDs = [
   "capability:desktop.host",
   "capability:mobile.host",
 ];
-const entryKeys = [
+const pendingKeys = [
   "disposition",
+  "kind",
+  "owner_issue",
+  "source_path",
+  "target_path",
+  "verification_state",
+];
+const verifiedKeys = [
+  "disposition",
+  "evidence_commit",
+  "evidence_path",
   "kind",
   "owner_issue",
   "source_path",
@@ -30,9 +42,16 @@ const entryKeys = [
 
 test("Tasks parity manifest pins and classifies the complete baseline", async () => {
   const manifest = JSON.parse(await readFile(path, "utf8"));
+  const overlay = JSON.parse(await readFile(overlayPath, "utf8"));
   assert.equal(manifest.schema_version, 1);
   assert.equal(manifest.baseline_commit, "3d37828e9");
   assert.equal(manifest.entries.length, 1531);
+  assert.equal(overlay.schema_version, 1);
+  assert.equal(overlay.owner_issue, "UNI-495");
+  assert.deepEqual(
+    overlay.entries.map((entry) => entry.source_path).sort(),
+    [...capabilityIDs].sort(),
+  );
 
   const sources = manifest.entries.map((entry) => entry.source_path);
   const sourceEntries = manifest.entries.filter((entry) => entry.kind !== "capability");
@@ -40,20 +59,35 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   assert.equal(sourceEntries.length, 1525);
   assert.deepEqual(capabilities.map((entry) => entry.source_path), capabilityIDs);
   assert.equal(new Set(sources).size, sources.length);
+
+  const verifiedSources = new Set(overlay.entries.map((entry) => entry.source_path));
+  for (const entry of overlay.entries) {
+    assert.equal(entry.verification_state, "verified");
+    assert.match(entry.evidence_path, /\S/);
+    assert.match(entry.evidence_commit, /^[0-9a-f]{7,40}$/);
+  }
+
   for (const entry of manifest.entries) {
-    assert.deepEqual(Object.keys(entry).sort(), entryKeys);
     assert.match(entry.source_path, /\S/);
     assert.match(entry.target_path, /\S/);
     assert.equal(entry.target_path.toLowerCase().includes(manifest.source_product.toLowerCase()), false);
     assert.equal(entry.target_path.toLowerCase().includes("issue"), false);
     assert.ok(["source", "route", "test", "locale", "capability"].includes(entry.kind));
     assert.ok(["ported", "adapted", "stubbed"].includes(entry.disposition));
-    assert.equal(entry.verification_state, "pending");
     assert.equal(entry.owner_issue, "UNI-426");
+    if (verifiedSources.has(entry.source_path)) {
+      assert.deepEqual(Object.keys(entry).sort(), verifiedKeys);
+      assert.equal(entry.verification_state, "verified");
+      assert.match(entry.evidence_path, /\S/);
+      assert.match(entry.evidence_commit, /^[0-9a-f]{7,40}$/);
+    } else {
+      assert.deepEqual(Object.keys(entry).sort(), pendingKeys);
+      assert.equal(entry.verification_state, "pending");
+    }
   }
   assert.equal(
     createHash("sha256").update(JSON.stringify(manifest.entries)).digest("hex"),
-    "837cbe773093ecfa374b9d66fd571ee7d103dbaa8183710f692af6af8b66b09f",
+    "9985eb3b4d0e097d6d592607553b4328dd3ed19a354bb0db3756c633881819c1",
   );
 
   for (const route of [
@@ -122,4 +156,31 @@ test("Task parity generator emits a byte-stable manifest from a fixed Git fixtur
   ]);
   assert.equal(generated.entries.find((entry) => entry.source_path === "packages/fixture-brand/issue.ts")?.target_path, "packages/uniwork/task.ts");
   assert.equal(generated.entries.find((entry) => entry.source_path === "server/internal/issue-agent-task.go")?.disposition, "stubbed");
+  assert.equal(generated.entries.every((entry) => entry.verification_state === "pending"), true);
+});
+
+test("slice-1 verification overlay marks only owned capability entries", async () => {
+  const overlay = JSON.parse(await readFile(overlayPath, "utf8"));
+  const pending = {
+    source_path: "packages/core/issues/hooks.ts",
+    target_path: "packages/core/tasks/hooks.ts",
+    kind: "source",
+    disposition: "adapted",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const capability = {
+    source_path: "capability:tasks.vcs",
+    target_path: "capability:tasks.vcs",
+    kind: "capability",
+    disposition: "stubbed",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const merged = applyVerificationOverlay([pending, capability], overlay);
+  assert.equal(merged[0].verification_state, "pending");
+  assert.equal(merged[0].evidence_path, undefined);
+  assert.equal(merged[1].verification_state, "verified");
+  assert.equal(merged[1].evidence_path, "server/internal/workcapability/catalogue.go");
+  assert.equal(merged[1].evidence_commit, "017d8be7a9e83eab6ba0009379cf6c5cdddecd12");
 });
