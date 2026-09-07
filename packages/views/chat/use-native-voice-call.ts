@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  listPendingChatVoiceInvites,
   signalChatVoiceAccept,
   signalChatVoiceHangup,
   signalChatVoiceInvite,
@@ -15,12 +16,18 @@ type MintVoiceToken = (
   callId: string,
 ) => Promise<{ token: string; url: string } | null>;
 
+type VoiceInvitePayload = {
+  room_id?: string;
+  call_id?: string;
+  caller_id?: string;
+  caller_name?: string;
+  target_user_id?: string;
+  call_kind?: string;
+  room_name?: string;
+};
+
 function voiceEventForUser(
-  data: {
-    room_id?: string;
-    call_kind?: string;
-    target_user_id?: string;
-  },
+  data: VoiceInvitePayload,
   currentUserId: string,
   allowedRoomIds: ReadonlySet<string>,
 ): boolean {
@@ -32,6 +39,24 @@ function voiceEventForUser(
     return data.target_user_id === currentUserId;
   }
   return allowedRoomIds.has(data.room_id);
+}
+
+function incomingStateFromInvite(data: VoiceInvitePayload): VoiceCallOverlayState | null {
+  if (!data.room_id || !data.call_id || !data.caller_id) return null;
+  const callKind: VoiceCallKind = data.call_kind === "group" ? "group" : "dm";
+  const peerName =
+    callKind === "group"
+      ? data.room_name?.trim() || data.caller_name?.trim() || data.caller_id
+      : data.caller_name?.trim() || data.caller_id;
+  const callerName = data.caller_name?.trim() || data.caller_id;
+  return {
+    status: "incoming",
+    callId: data.call_id,
+    roomId: data.room_id,
+    peerName,
+    callKind,
+    callerName: callKind === "group" ? callerName : undefined,
+  };
 }
 
 export function useNativeVoiceCall({
@@ -53,6 +78,50 @@ export function useNativeVoiceCall({
   stateRef.current = state;
 
   const allowedRoomsKey = useMemo(() => [...allowedRoomIds].sort().join(","), [allowedRoomIds]);
+
+  const applyIncomingInvite = useCallback(
+    (data: VoiceInvitePayload, options?: { skipRoomCheck?: boolean }) => {
+      if (!data.room_id || !data.call_id || !data.caller_id || data.caller_id === currentUserId) {
+        return;
+      }
+      if (!options?.skipRoomCheck && !voiceEventForUser(data, currentUserId, allowedRoomIds)) {
+        return;
+      }
+      const incoming = incomingStateFromInvite(data);
+      if (!incoming || incoming.status !== "incoming") return;
+      setState((current) => {
+        if (current.status === "active" || current.status === "ringing") return current;
+        if (current.status === "incoming" && current.callId === incoming.callId) return current;
+        return incoming;
+      });
+    },
+    [allowedRoomIds, currentUserId],
+  );
+
+  const syncPendingInvites = useCallback(async () => {
+    if (stateRef.current.status !== "idle") return;
+    try {
+      const invites = await listPendingChatVoiceInvites(workspaceId);
+      if (invites.length === 0) return;
+      const latest = [...invites].sort(
+        (a, b) => Date.parse(b.invited_at) - Date.parse(a.invited_at),
+      )[0];
+      if (!latest) return;
+      applyIncomingInvite(
+        {
+          room_id: latest.room_id,
+          call_id: latest.call_id,
+          caller_id: latest.caller_id,
+          caller_name: latest.caller_name,
+          call_kind: latest.call_kind,
+          room_name: latest.room_name,
+        },
+        { skipRoomCheck: true },
+      );
+    } catch {
+      // Best-effort recovery when realtime invite was missed.
+    }
+  }, [applyIncomingInvite, workspaceId]);
 
   const markVoiceConnected = useCallback(() => {
     if (connectedAtRef.current == null) {
@@ -96,6 +165,7 @@ export function useNativeVoiceCall({
       outgoing: boolean,
       callKind: VoiceCallKind,
       callerName?: string,
+      withCamera = false,
     ) => {
       const connectingState = {
         status: "connecting" as const,
@@ -105,6 +175,7 @@ export function useNativeVoiceCall({
         outgoing,
         callKind,
         callerName,
+        withCamera,
       };
       stateRef.current = connectingState;
       setState(connectingState);
@@ -132,6 +203,7 @@ export function useNativeVoiceCall({
         outgoing,
         callKind,
         callerName,
+        withCamera,
       };
       stateRef.current = activeState;
       setState(activeState);
@@ -141,67 +213,44 @@ export function useNativeVoiceCall({
   );
 
   useEffect(() => {
+    void syncPendingInvites();
+  }, [syncPendingInvites, allowedRoomsKey]);
+
+  useEffect(() => {
+    if (!ws) return;
+    return ws.onReconnect(() => {
+      void syncPendingInvites();
+    });
+  }, [ws, syncPendingInvites]);
+
+  useEffect(() => {
     if (!ws) return;
 
     const offInvite = ws.on("chat.voice.invite", (payload) => {
-      const data = payload as {
-        room_id?: string;
-        call_id?: string;
-        caller_id?: string;
-        caller_name?: string;
-        target_user_id?: string;
-        call_kind?: string;
-        room_name?: string;
-      };
-      if (!data.room_id || !data.call_id || !data.caller_id || data.caller_id === currentUserId) return;
-      if (!voiceEventForUser(data, currentUserId, allowedRoomIds)) return;
-
-      const callKind: VoiceCallKind = data.call_kind === "group" ? "group" : "dm";
-      const peerName =
-        callKind === "group"
-          ? data.room_name?.trim() || data.caller_name?.trim() || data.caller_id
-          : data.caller_name?.trim() || data.caller_id;
-      const callerName = data.caller_name?.trim() || data.caller_id;
-
-      setState((current) => {
-        if (current.status === "active" || current.status === "ringing") return current;
-        if (current.status === "incoming" && current.callId === data.call_id) return current;
-        return {
-          status: "incoming",
-          callId: data.call_id!,
-          roomId: data.room_id!,
-          peerName,
-          callKind,
-          callerName: callKind === "group" ? callerName : undefined,
-        };
-      });
+      applyIncomingInvite(payload as VoiceInvitePayload);
     });
 
     const offAccept = ws.on("chat.voice.accept", (payload) => {
-      const data = payload as {
-        room_id?: string;
-        call_id?: string;
-        user_id?: string;
-        target_user_id?: string;
-        call_kind?: string;
-      };
+      const data = payload as VoiceInvitePayload & { user_id?: string };
       if (!data.room_id || !data.call_id || data.user_id === currentUserId) return;
       if (data.call_kind === "group") return;
       if (!voiceEventForUser(data, currentUserId, allowedRoomIds)) return;
       const current = stateRef.current;
       if (current.status !== "ringing" || current.callKind !== "dm") return;
       if (current.callId !== data.call_id || current.roomId !== data.room_id) return;
-      void connectCall(current.roomId, current.callId, current.peerName, true, "dm");
+      void connectCall(
+        current.roomId,
+        current.callId,
+        current.peerName,
+        true,
+        "dm",
+        undefined,
+        current.withCamera ?? false,
+      );
     });
 
     const offHangup = ws.on("chat.voice.hangup", (payload) => {
-      const data = payload as {
-        room_id?: string;
-        call_id?: string;
-        user_id?: string;
-        target_user_id?: string;
-        call_kind?: string;
-      };
+      const data = payload as VoiceInvitePayload & { user_id?: string };
       if (!data.room_id || !data.call_id) return;
       if (data.user_id === currentUserId) return;
       if (!voiceEventForUser(data, currentUserId, allowedRoomIds)) return;
@@ -218,16 +267,22 @@ export function useNativeVoiceCall({
       offAccept();
       offHangup();
     };
-  }, [ws, currentUserId, connectCall, allowedRoomsKey, allowedRoomIds]);
+  }, [ws, currentUserId, connectCall, allowedRoomsKey, allowedRoomIds, applyIncomingInvite]);
 
   const startCall = useCallback(
-    async (roomId: string, peerName: string, callKind: VoiceCallKind) => {
+    async (
+      roomId: string,
+      peerName: string,
+      callKind: VoiceCallKind,
+      options?: { withCamera?: boolean },
+    ) => {
       if (stateRef.current.status !== "idle") return false;
+      const withCamera = options?.withCamera ?? false;
       const callId = createVoiceCallId();
       hangupSentRef.current = null;
       await signalChatVoiceInvite(workspaceId, roomId, callId);
       if (callKind === "group") {
-        return connectCall(roomId, callId, peerName, true, "group");
+        return connectCall(roomId, callId, peerName, true, "group", undefined, withCamera);
       }
       setState({
         status: "ringing",
@@ -236,6 +291,7 @@ export function useNativeVoiceCall({
         peerName,
         outgoing: true,
         callKind: "dm",
+        withCamera,
       });
       return true;
     },

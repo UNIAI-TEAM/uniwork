@@ -27,14 +27,17 @@
     "@livekit/components-styles": "^1.2.0",
     "@livekit/track-processors": "^0.5.8",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-virtual": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
+    "@emoji-mart/data": "^1.2.1",
     "livekit-client": "^2.21.0",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
-    "sonner": "catalog:"
+    "sonner": "catalog:",
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",

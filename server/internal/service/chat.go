@@ -21,9 +21,10 @@ const (
 )
 
 type ChatService struct {
-	q   *db.Queries
-	ws  *WorkspaceService
-	pub EventPublisher
+	q           *db.Queries
+	ws          *WorkspaceService
+	pub         EventPublisher
+	TenorAPIKey string
 }
 
 func NewChatService(q *db.Queries, ws *WorkspaceService, pub EventPublisher) *ChatService {
@@ -54,7 +55,14 @@ type ChatMessageRow struct {
 	ReplyToMessageID  *string
 	CreatedAt         time.Time
 	Reactions         map[string]int
+	Pinned            bool
+	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
+	Poll              *ChatPollInfo
+	Reminder          *ChatReminderInfo
+	Note              *ChatNoteInfo
+	Priority          string
+	EditedAt          *time.Time
 }
 
 type ListChatMessagesInput struct {
@@ -65,6 +73,8 @@ type ListChatMessagesInput struct {
 type SendChatMessageInput struct {
 	Body             string
 	ReplyToMessageID *string
+	Priority         string
+	ClientMsgID      string
 }
 
 // GetWorkspaceRoom returns native chat room state for a workspace member.
@@ -125,19 +135,52 @@ func (s *ChatService) syncWorkspaceRoomMembers(ctx context.Context, roomID, work
 	if err != nil {
 		return err
 	}
+	keep := make(map[string]struct{}, len(members))
 	for _, m := range members {
-		if err := s.ensureRoomMember(ctx, roomID, workspaceID, m.UserID, "member"); err != nil {
+		keep[m.UserID] = struct{}{}
+		role := workspaceChatMemberRole(m.Role)
+		if err := s.syncRoomMember(ctx, roomID, workspaceID, m.UserID, role); err != nil {
+			return err
+		}
+	}
+	activeIDs, err := s.q.ListChatRoomMemberUserIDs(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	for _, uid := range activeIDs {
+		if _, ok := keep[uid]; ok {
+			continue
+		}
+		if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
+			RoomID: roomID, UserID: uid,
+		}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID, userID, role string) error {
-	_, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+func workspaceChatMemberRole(wsRole string) string {
+	if wsRole == "owner" || wsRole == "admin" {
+		return "admin"
+	}
+	return "member"
+}
+
+func (s *ChatService) syncRoomMember(ctx context.Context, roomID, workspaceID, userID, floorRole string) error {
+	existing, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	if err == nil {
+		nextRole := existing.Role
+		if floorRole == "admin" {
+			nextRole = "admin"
+		}
+		if nextRole != existing.Role {
+			return s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+				RoomID: roomID, UserID: userID, Role: nextRole,
+			})
+		}
 		return nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -148,10 +191,14 @@ func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID,
 		RoomID:      roomID,
 		WorkspaceID: workspaceID,
 		UserID:      userID,
-		Role:        role,
+		Role:        floorRole,
 		Status:      "active",
 	})
 	return err
+}
+
+func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID, userID, role string) error {
+	return s.syncRoomMember(ctx, roomID, workspaceID, userID, role)
 }
 
 func (s *ChatService) authorizeWorkspaceRoom(ctx context.Context, userID, workspaceID string) (db.ChatRoom, error) {
@@ -187,13 +234,37 @@ func (s *ChatService) ListRoomMessages(
 	return s.listMessages(ctx, userID, roomAnchorWorkspaceID(room), roomID, in)
 }
 
+// GetRoomMessage returns one message in a room the caller may access.
+func (s *ChatService) GetRoomMessage(
+	ctx context.Context, userID, workspaceID, roomID, messageID string,
+) (ChatMessageRow, error) {
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ChatMessageRow{}, ErrNotFound
+	}
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	u, err := s.q.GetUserByID(ctx, msg.SenderID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	return chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), nil
+}
+
 // SendRoomMessage posts a text message to any chat room the caller may access.
 func (s *ChatService) SendRoomMessage(
 	ctx context.Context, userID, workspaceID, roomID string, in SendChatMessageInput,
 ) (ChatMessageRow, error) {
-	body := strings.TrimSpace(in.Body)
-	if body == "" {
-		return ChatMessageRow{}, Invalid("nội dung tin nhắn không được để trống")
+	if err := validateChatMessageBody(in.Body); err != nil {
+		return ChatMessageRow{}, err
 	}
 	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
@@ -252,7 +323,7 @@ func (s *ChatService) listMessages(
 	}
 	out := make([]ChatMessageRow, 0, len(rows))
 	for i := len(rows) - 1; i >= 0; i-- {
-		out = append(out, chatMessageRowFromListRow(rows[i]))
+		out = append(out, chatMessageRowFromListRow(rows[i], userID))
 	}
 	if len(out) > 0 {
 		last := out[len(out)-1]
@@ -267,9 +338,8 @@ func (s *ChatService) listMessages(
 func (s *ChatService) SendWorkspaceMessage(
 	ctx context.Context, userID, workspaceID string, in SendChatMessageInput,
 ) (ChatMessageRow, error) {
-	body := strings.TrimSpace(in.Body)
-	if body == "" {
-		return ChatMessageRow{}, Invalid("nội dung tin nhắn không được để trống")
+	if err := validateChatMessageBody(in.Body); err != nil {
+		return ChatMessageRow{}, err
 	}
 	room, err := s.authorizeWorkspaceRoom(ctx, userID, workspaceID)
 	if errors.Is(err, ErrNotFound) {
@@ -291,6 +361,16 @@ func (s *ChatService) sendMessage(
 	ctx context.Context, userID string, room db.ChatRoom, in SendChatMessageInput,
 ) (ChatMessageRow, error) {
 	body := strings.TrimSpace(in.Body)
+	if err := validateChatMessageBody(body); err != nil {
+		return ChatMessageRow{}, err
+	}
+	clientMsgID := strings.TrimSpace(in.ClientMsgID)
+	if err := validateClientMsgID(clientMsgID); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return ChatMessageRow{}, err
+	}
 	if room.Kind == chatRoomKindDM {
 		peerID, err := dmPeerUserID(room, userID)
 		if err != nil {
@@ -305,6 +385,13 @@ func (s *ChatService) sendMessage(
 		}
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
+	if clientMsgID != "" {
+		if existing, found, err := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID); err != nil {
+			return ChatMessageRow{}, err
+		} else if found {
+			return s.chatMessageRowForExisting(ctx, existing)
+		}
+	}
 	var replyTo pgtype.Text
 	if in.ReplyToMessageID != nil && strings.TrimSpace(*in.ReplyToMessageID) != "" {
 		replyID := strings.TrimSpace(*in.ReplyToMessageID)
@@ -318,6 +405,10 @@ func (s *ChatService) sendMessage(
 		}
 		replyTo = pgtype.Text{String: replyID, Valid: true}
 	}
+	var clientMsg pgtype.Text
+	if clientMsgID != "" {
+		clientMsg = pgtype.Text{String: clientMsgID, Valid: true}
+	}
 	msg, err := s.q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
@@ -325,9 +416,39 @@ func (s *ChatService) sendMessage(
 		SenderID:         userID,
 		Body:             body,
 		ReplyToMessageID: replyTo,
+		ClientMsgID:      clientMsg,
 	})
 	if err != nil {
+		if clientMsgID != "" && isUniqueViolation(err) {
+			if existing, found, lookupErr := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID); lookupErr != nil {
+				return ChatMessageRow{}, lookupErr
+			} else if found {
+				return s.chatMessageRowForExisting(ctx, existing)
+			}
+		}
 		return ChatMessageRow{}, err
+	}
+	mentionedUserIDs, err := s.resolveMentionRecipients(ctx, userID, room, body)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if len(mentionedUserIDs) > 0 {
+		msg, err = s.persistMessageMentions(ctx, msg, mentionedUserIDs)
+		if err != nil {
+			return ChatMessageRow{}, err
+		}
+	}
+	if priority := normalizeMessagePriority(in.Priority); priority != "" {
+		meta, err := encodeMessagePriorityMetadata(msg.Metadata, priority)
+		if err != nil {
+			return ChatMessageRow{}, err
+		}
+		msg, err = s.q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
+			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
+		})
+		if err != nil {
+			return ChatMessageRow{}, err
+		}
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -352,21 +473,33 @@ func (s *ChatService) sendMessage(
 		s.publishChatRoomEvent(ctx, room.ID, ev)
 		s.publishChatRoomActivity(ctx, room.ID)
 	}
-	out := ChatMessageRow{
-		ID:                msg.ID,
-		RoomID:            msg.RoomID,
-		WorkspaceID:       msg.WorkspaceID,
-		SenderID:          msg.SenderID,
-		SenderDisplayName: u.DisplayName,
-		Body:              msg.Body,
-		Kind:              msg.Kind,
-		CreatedAt:         createdAt,
+	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentionedUserIDs)
+	return chatMessageRowFromDB(msg, u.DisplayName), nil
+}
+
+func (s *ChatService) existingMessageByClientMsgID(
+	ctx context.Context, roomID, senderID, clientMsgID string,
+) (db.ChatMessage, bool, error) {
+	msg, err := s.q.GetChatMessageByClientMsgID(ctx, db.GetChatMessageByClientMsgIDParams{
+		RoomID:      roomID,
+		SenderID:    senderID,
+		ClientMsgID: pgtype.Text{String: clientMsgID, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ChatMessage{}, false, nil
 	}
-	if msg.ReplyToMessageID.Valid {
-		s := msg.ReplyToMessageID.String
-		out.ReplyToMessageID = &s
+	if err != nil {
+		return db.ChatMessage{}, false, err
 	}
-	return out, nil
+	return msg, true, nil
+}
+
+func (s *ChatService) chatMessageRowForExisting(ctx context.Context, msg db.ChatMessage) (ChatMessageRow, error) {
+	u, err := s.q.GetUserByID(ctx, msg.SenderID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }
 
 // ToggleChatMessageReaction adds or removes the caller's reaction on a message.
@@ -375,6 +508,9 @@ func (s *ChatService) ToggleChatMessageReaction(
 ) (ChatMessageRow, error) {
 	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
@@ -401,40 +537,19 @@ func (s *ChatService) ToggleChatMessageReaction(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	ev := Event{
-		Type: "chat.message.updated",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": updated.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishChatMessageUpdated(ctx, room, updated.ID)
 	return chatMessageRowFromDB(updated, u.DisplayName), nil
 }
 
 func chatMessageRowFromDB(msg db.ChatMessage, senderDisplayName string) ChatMessageRow {
-	out := ChatMessageRow{
-		ID:                msg.ID,
-		RoomID:            msg.RoomID,
-		WorkspaceID:       msg.WorkspaceID,
-		SenderID:          msg.SenderID,
-		SenderDisplayName: senderDisplayName,
-		Body:              msg.Body,
-		Kind:              msg.Kind,
-		CreatedAt:         msg.CreatedAt.Time,
-		Reactions:         reactionCountsFromMetadata(msg.Metadata),
-		VoiceCall:         voiceCallLogFromMetadata(msg.Kind, msg.Metadata),
-	}
-	if msg.ReplyToMessageID.Valid {
-		s := msg.ReplyToMessageID.String
-		out.ReplyToMessageID = &s
-	}
+	return chatMessageRowFromDBForViewer(msg, senderDisplayName, "")
+}
+
+func chatMessageRowFromDBForViewer(msg db.ChatMessage, senderDisplayName, viewerID string) ChatMessageRow {
+	out := chatMessageRowFromMessageFields(
+		msg.ID, msg.RoomID, msg.WorkspaceID, msg.SenderID, senderDisplayName,
+		msg.Kind, msg.Body, msg.Metadata, msg.ReplyToMessageID, msg.EditedAt, msg.CreatedAt, viewerID,
+	)
 	return out
 }
 

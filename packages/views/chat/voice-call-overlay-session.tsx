@@ -51,7 +51,13 @@ function VoiceCallRoundControl({
   );
 }
 
-function VoiceCallVideoStage({ peerName, compact }: { peerName: string; compact?: boolean }) {
+function VoiceCallVideoStage({
+  peerName,
+  size = "compact",
+}: {
+  peerName: string;
+  size?: "compact" | "fullscreen";
+}) {
   const {
     cameraEnabled,
     remoteCameraEnabled,
@@ -62,13 +68,13 @@ function VoiceCallVideoStage({ peerName, compact }: { peerName: string; compact?
   if (!cameraEnabled && !remoteCameraEnabled) {
     return (
       <div className="flex flex-col items-center gap-3 py-2 text-center">
-        <Avatar className={cn("text-title", compact ? "size-20" : "size-24")}>
+        <Avatar className={cn("text-title", size === "fullscreen" ? "size-32" : "size-20")}>
           <AvatarFallback className="bg-primary/10 text-primary">
             {voiceCallInitialOf(peerName)}
           </AvatarFallback>
         </Avatar>
-        {!compact ? (
-          <p className="truncate text-body font-medium text-foreground">{peerName}</p>
+        {size === "fullscreen" ? (
+          <p className="truncate text-title font-medium text-foreground">{peerName}</p>
         ) : null}
       </div>
     );
@@ -78,7 +84,9 @@ function VoiceCallVideoStage({ peerName, compact }: { peerName: string; compact?
     <div
       className={cn(
         "relative w-full overflow-hidden rounded-xl bg-muted ring-1 ring-border/60",
-        compact ? "aspect-video max-h-36" : "aspect-video max-h-48",
+        size === "fullscreen"
+          ? "aspect-video max-h-[min(70vh,720px)]"
+          : "aspect-video max-h-36",
       )}
     >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- LiveKit realtime video has no caption track */}
@@ -106,7 +114,9 @@ function VoiceCallVideoStage({ peerName, compact }: { peerName: string; compact?
           className={cn(
             "object-cover",
             remoteCameraEnabled
-              ? "absolute bottom-2 right-2 h-16 w-24 scale-x-[-1] rounded-lg border border-border shadow-[var(--menu-shadow)]"
+              ? size === "fullscreen"
+                ? "absolute bottom-4 right-4 h-28 w-40 scale-x-[-1] rounded-xl border border-border shadow-[var(--menu-shadow)] sm:h-36 sm:w-52"
+                : "absolute bottom-2 right-2 h-16 w-24 scale-x-[-1] rounded-lg border border-border shadow-[var(--menu-shadow)]"
               : "size-full scale-x-[-1]",
           )}
         />
@@ -240,7 +250,8 @@ function ActiveVoiceCallContent({
   callKind,
   isCaller,
   panelMode,
-  onTogglePanelMode,
+  onMinimize,
+  onMaximize,
   onLeave,
   onEndForAll,
   onConnected,
@@ -249,7 +260,8 @@ function ActiveVoiceCallContent({
   callKind: VoiceCallKind;
   isCaller: boolean;
   panelMode: VoiceCallPanelMode;
-  onTogglePanelMode: () => void;
+  onMinimize: () => void;
+  onMaximize: () => void;
   onLeave: () => void;
   onEndForAll: () => void;
   onConnected: () => void;
@@ -319,7 +331,8 @@ function ActiveVoiceCallContent({
       peerName={peerName}
       statusLabel={statusLabel}
       mode={panelMode}
-      onToggleMode={onTogglePanelMode}
+      onMinimize={onMinimize}
+      onMaximize={onMaximize}
       footer={
         panelMode === "minimized" ? (
           <ActiveVoiceControls
@@ -355,11 +368,16 @@ function ActiveVoiceCallContent({
           </Button>
         </div>
       ) : null}
-      {panelMode === "expanded" ? <VoiceCallVideoStage peerName={peerName} compact /> : null}
+      {panelMode !== "minimized" ? (
+        <VoiceCallVideoStage
+          peerName={peerName}
+          size={panelMode === "fullscreen" ? "fullscreen" : "compact"}
+        />
+      ) : null}
     </VoiceCallFloatingPanel>
   );
 
-  if (panelMode === "minimized") {
+  if (panelMode === "minimized" || panelMode === "fullscreen") {
     return panel;
   }
 
@@ -376,8 +394,10 @@ export function ActiveVoiceCallSession({
   isCaller,
   url,
   token,
+  initialCameraEnabled,
   panelMode,
-  onTogglePanelMode,
+  onMinimize,
+  onMaximize,
   onLeave,
   onEndForAll,
   onConnected,
@@ -388,8 +408,10 @@ export function ActiveVoiceCallSession({
   isCaller: boolean;
   url: string;
   token: string;
+  initialCameraEnabled?: boolean;
   panelMode: VoiceCallPanelMode;
-  onTogglePanelMode: () => void;
+  onMinimize: () => void;
+  onMaximize: () => void;
   onLeave: () => void;
   onEndForAll: () => void;
   onConnected: () => void;
@@ -399,6 +421,7 @@ export function ActiveVoiceCallSession({
     <VoiceCallRoom
       url={url}
       token={token}
+      initialCameraEnabled={initialCameraEnabled}
       onDisconnected={onLeave}
       onConnectFailed={onConnectFailed}
     >
@@ -407,7 +430,8 @@ export function ActiveVoiceCallSession({
         callKind={callKind}
         isCaller={isCaller}
         panelMode={panelMode}
-        onTogglePanelMode={onTogglePanelMode}
+        onMinimize={onMinimize}
+        onMaximize={onMaximize}
         onLeave={onLeave}
         onEndForAll={onEndForAll}
         onConnected={onConnected}
@@ -433,8 +457,7 @@ export function PreConnectFloatingCall({
         peerName={peerName}
         statusLabel={statusLabel}
         mode="expanded"
-        onToggleMode={() => undefined}
-        allowMinimize={false}
+        allowResize={false}
         pulse={pulse}
       >
         <VoiceCallControlRow>{children}</VoiceCallControlRow>

@@ -3,6 +3,15 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
+import {
+  outboxEntryFromPayload,
+  type ChatTextSendPayload,
+} from "@uniwork/core/chat/deliver-chat-text-message";
+import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
+import { isRetriableChatSendError } from "@uniwork/core/chat/send-retry";
+import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
+import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
@@ -15,8 +24,12 @@ import type {
 } from "@uniwork/core/chat";
 import type { ChatMessage } from "./chat-messages";
 import type { ChatSidebarTarget } from "./chat-sidebar";
+import type { ChatMentionCandidate } from "./chat-mention-utils";
+import { serializeComposerDraftToMessageBody } from "./chat-mention-utils";
 
 export function useChatPageActions({
+  workspaceId,
+  currentUserId,
   target,
   setTarget,
   activeRoomId,
@@ -40,7 +53,13 @@ export function useChatPageActions({
   setInvitingMembers,
   setLeavingConversation,
   clearGroupMemberProfiles,
+  mentionCandidates = [],
+  mentionAllLabel = "all",
+  composerPriority = null,
+  setComposerPriority,
 }: {
+  workspaceId: string;
+  currentUserId: string;
   target: ChatSidebarTarget;
   setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
   activeRoomId: string | null;
@@ -64,52 +83,108 @@ export function useChatPageActions({
   setInvitingMembers: React.Dispatch<React.SetStateAction<boolean>>;
   setLeavingConversation: React.Dispatch<React.SetStateAction<boolean>>;
   clearGroupMemberProfiles: () => void;
+  mentionCandidates?: ChatMentionCandidate[];
+  mentionAllLabel?: string;
+  composerPriority?: ComposerMessagePriority | null;
+  setComposerPriority?: React.Dispatch<React.SetStateAction<ComposerMessagePriority | null>>;
 }) {
   const { t } = useTranslation();
 
-  const provisionAndSend = useCallback(async () => {
-    const text = draft.trim();
-    if (!text) return;
+  const sendMessageBody = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
 
-    let roomId = activeRoomId;
-    if (target.kind === "workspace" && !roomId) {
-      const created = await ensureRoom.mutateAsync();
-      roomId = created.room_id ?? null;
-    }
-    if (target.kind === "dm" && target.contact && !roomId) {
-      const room = await resolveDM.mutateAsync(target.contact.user_id);
-      roomId = room?.id ?? null;
-    }
-    if (!roomId) return;
-
-    try {
-      await sendRoomMessage.mutateAsync({
-        roomId,
-        body: text,
-        ...(replyTo ? { reply_to_message_id: replyTo.id } : {}),
-      });
-      setReplyTo(null);
-      setDraft("");
-    } catch (err: unknown) {
-      if (errorCode(err) === "chat_user_blocked") {
-        setConnectError(t("chat.block_send_error"));
-      } else {
-        setConnectError(err instanceof Error ? err.message : "send_failed");
+      let roomId = activeRoomId;
+      if (target.kind === "workspace" && !roomId) {
+        const created = await ensureRoom.mutateAsync();
+        roomId = created.room_id ?? null;
       }
-    }
-  }, [
-    draft,
-    activeRoomId,
-    target,
-    ensureRoom,
-    resolveDM,
-    sendRoomMessage,
-    replyTo,
-    setReplyTo,
-    setDraft,
-    setConnectError,
-    t,
-  ]);
+      if (target.kind === "dm" && target.contact && !roomId) {
+        const room = await resolveDM.mutateAsync(target.contact.user_id);
+        roomId = room?.id ?? null;
+      }
+      if (!roomId) return;
+
+      const payload: ChatTextSendPayload = {
+        roomId,
+        body: trimmed,
+        client_msg_id: newChatClientMsgId(),
+        ...(replyTo ? { reply_to_message_id: replyTo.id } : {}),
+        ...(composerPriority ? { priority: composerPriority } : {}),
+      };
+
+      const queueForLater = () => {
+        usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, payload));
+        setReplyTo(null);
+        setDraft("");
+        setComposerPriority?.(null);
+        setConnectError(t("chat.send_queued_offline"));
+      };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        queueForLater();
+        return;
+      }
+
+      usePendingChatMessagesStore.getState().upsert({
+        workspaceId,
+        roomId,
+        client_msg_id: payload.client_msg_id,
+        body: payload.body,
+        senderId: currentUserId,
+        createdAt: Date.now(),
+        reply_to_message_id: payload.reply_to_message_id,
+        priority: payload.priority,
+        status: "sending",
+      });
+
+      try {
+        await sendRoomMessage.mutateAsync(payload);
+        setReplyTo(null);
+        setDraft("");
+        setComposerPriority?.(null);
+        setConnectError(null);
+      } catch (err: unknown) {
+        if (errorCode(err) === "chat_user_blocked") {
+          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+          setConnectError(t("chat.block_send_error"));
+        } else if (isRetriableChatSendError(err)) {
+          queueForLater();
+        } else {
+          usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
+          setConnectError(err instanceof Error ? err.message : "send_failed");
+        }
+      }
+    },
+    [
+      workspaceId,
+      currentUserId,
+      activeRoomId,
+      target,
+      ensureRoom,
+      resolveDM,
+      sendRoomMessage,
+      replyTo,
+      setReplyTo,
+      setDraft,
+      setConnectError,
+      composerPriority,
+      setComposerPriority,
+      t,
+    ],
+  );
+
+  const provisionAndSend = useCallback(async () => {
+    const text = serializeComposerDraftToMessageBody(
+      draft.trim(),
+      mentionCandidates,
+      mentionAllLabel,
+    );
+    if (!text) return;
+    await sendMessageBody(text);
+  }, [draft, mentionCandidates, mentionAllLabel, sendMessageBody]);
 
   const handleCreateGroup = useCallback(
     (members: ChatContact[], name: string) => {
@@ -209,5 +284,5 @@ export function useChatPageActions({
     ],
   );
 
-  return { provisionAndSend, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation };
+  return { provisionAndSend, sendMessageBody, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation };
 }

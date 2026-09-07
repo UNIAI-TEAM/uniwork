@@ -64,6 +64,8 @@ type Config struct {
 	SMTPTLSInsecure    bool
 	SMTPEHLOName       string
 	MailFrom           string
+	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
+	TenorAPIKey string
 }
 
 // DevVerificationCode is the code accepted in place of a mailed one. Empty
@@ -131,6 +133,7 @@ func Load() (Config, error) {
 		SMTPTLSInsecure:           strings.EqualFold(os.Getenv("SMTP_TLS_INSECURE"), "true"),
 		SMTPEHLOName:              os.Getenv("SMTP_EHLO_NAME"),
 		MailFrom:                  getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
+		TenorAPIKey:               os.Getenv("TENOR_API_KEY"),
 	}
 	if c.DatabaseURL == "" {
 		return c, fmt.Errorf("DATABASE_URL is required")

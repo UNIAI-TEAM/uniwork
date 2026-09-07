@@ -15,6 +15,8 @@ export const WS_EVENT_TYPES = [
   "comment.created",
   "chat.message.created",
   "chat.message.updated",
+  "chat.message.deleted",
+  "chat.mention.created",
   "chat.room.created",
   "chat.room.updated",
   "chat.room.activity",
@@ -49,8 +51,9 @@ export type WSEventType = (typeof WS_EVENT_TYPES)[number];
 
 /**
  * Frame shape. `type` stays `z.string()` so an event this client predates is
- * ignored rather than rejected; `payload` carries ids only — the cache is
- * refreshed from the API, never patched from the socket.
+ * ignored rather than rejected; `payload` carries ids only — chat message
+ * events fetch one row from the API and patch the cache instead of refetching
+ * full lists.
  */
 export const WorkspaceEventSchema = z.object({
   type: z.string(),

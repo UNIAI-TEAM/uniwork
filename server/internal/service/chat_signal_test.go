@@ -85,3 +85,52 @@ func TestSignalTypingThrottled(t *testing.T) {
 		t.Fatalf("typing after gap publish: %+v", pub.events)
 	}
 }
+
+func TestListPendingVoiceInviteWhileOffline(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-1"); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+
+	pending, err := s.ListPendingVoiceInvites(ctx, ub.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].CallID != "offline-call-1" || pending[0].CallerID != ua.ID {
+		t.Fatalf("pending for callee: %+v", pending)
+	}
+	callerPending, err := s.ListPendingVoiceInvites(ctx, ua.ID, w.ID)
+	if err != nil || len(callerPending) != 0 {
+		t.Fatalf("caller should not see own invite: err=%v pending=%+v", err, callerPending)
+	}
+
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "offline-call-1"); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	pending, err = s.ListPendingVoiceInvites(ctx, ub.ID, w.ID)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending after accept: err=%v len=%d", err, len(pending))
+	}
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "offline-call-1", nil); err != nil {
+		t.Fatalf("hangup: %v", err)
+	}
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-2"); err != nil {
+		t.Fatalf("invite 2: %v", err)
+	}
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "offline-call-2", nil); err != nil {
+		t.Fatalf("hangup 2: %v", err)
+	}
+	pending, err = s.ListPendingVoiceInvites(ctx, ub.ID, w.ID)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("pending after caller hangup: err=%v len=%d", err, len(pending))
+	}
+}

@@ -1,9 +1,20 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { wrap } from "../test/api-mock";
 import { ChatComposer } from "./chat-composer";
 
 initI18n();
+
+vi.mock("@uniwork/core/chat", () => ({
+  useChatGifs: () => ({ data: [], isFetching: false }),
+  useChatStickers: () => ({ data: [], isFetching: false }),
+}));
+
+vi.mock("./chat-sticker-packs", () => ({
+  loadChatStickerPacks: vi.fn().mockResolvedValue([]),
+  filterStickerPacks: (packs: unknown[]) => packs,
+}));
 
 vi.mock("sonner", () => ({
   toast: { info: vi.fn() },
@@ -15,13 +26,16 @@ describe("ChatComposer", () => {
     const onSend = vi.fn();
 
     render(
-      <ChatComposer
-        draft=""
-        onDraftChange={onDraftChange}
-        onSend={onSend}
-        placeholder="Nhập tin nhắn…"
-        sendLabel="Gửi"
-      />,
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={onDraftChange}
+          onSend={onSend}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
     );
 
     expect(screen.getByLabelText("Đính kèm")).toBeInTheDocument();
@@ -29,26 +43,73 @@ describe("ChatComposer", () => {
     expect(screen.queryByLabelText("Thêm")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Đính kèm"));
-    expect(await screen.findByRole("menuitem", { name: "Nhãn dán" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Bỏ phiếu" })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Tạo bình chọn" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Tạo nhắc hẹn" })).toBeInTheDocument();
+  });
+
+  it("hides create poll in dm conversations", async () => {
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+          showCreatePoll={false}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByLabelText("Đính kèm"));
+    expect(await screen.findByRole("menuitem", { name: "Tạo nhắc hẹn" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Tạo bình chọn" })).not.toBeInTheDocument();
   });
 
   it("submits on Enter and shows send when draft has text", () => {
     const onSend = vi.fn();
 
     render(
-      <ChatComposer
-        draft="hello"
-        onDraftChange={vi.fn()}
-        onSend={onSend}
-        placeholder="Nhập tin nhắn…"
-        sendLabel="Gửi"
-      />,
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft="hello"
+          onDraftChange={vi.fn()}
+          onSend={onSend}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
     );
 
     expect(screen.getByRole("button", { name: "Gửi" })).toBeInTheDocument();
 
     fireEvent.keyDown(screen.getByLabelText("Nhập tin nhắn…"), { key: "Enter" });
     expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows priority chip and clears it", () => {
+    const onSend = vi.fn();
+    const onPriorityChange = vi.fn();
+
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft="hello"
+          onDraftChange={vi.fn()}
+          onSend={onSend}
+          composerPriority="urgent"
+          onComposerPriorityChange={onPriorityChange}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Khẩn cấp")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Bỏ đánh dấu"));
+    expect(onPriorityChange).toHaveBeenCalledWith(null);
   });
 });

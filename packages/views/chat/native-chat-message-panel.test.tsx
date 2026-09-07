@@ -38,6 +38,17 @@ vi.mock("@uniwork/core/api/endpoints/chat", async (orig) => ({
   listChatRoomMessages: vi.fn().mockResolvedValue([]),
 }));
 
+// @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
+// so render rows synchronously in this test.
+vi.mock("./virtual-chat-message-list", () => ({
+  VirtualChatMessageList: ({ messages, header, empty, renderMessage }: any) => (
+    <>
+      {header}
+      {messages.length === 0 ? empty : messages.map((_: unknown, index: number) => renderMessage(index))}
+    </>
+  ),
+}));
+
 beforeAll(() => {
   initI18n();
 });

@@ -1,0 +1,74 @@
+﻿
+[16:02:26] === TRUOC DON ===
+[16:02:27] C: con 2.02 GB
+[16:02:27] D: con 21.28 GB
+[16:02:27] Dang xoa: Temp user -> C:\Users\admin\AppData\Local\Temp
+[16:05:28] Xong: Temp user
+[16:05:28] Dang xoa: LocalAppData\Temp -> C:\Users\admin\AppData\Local\Temp
+[16:05:28] Xong: LocalAppData\Temp
+[16:05:28] Dang xoa: Windows\Temp -> C:\Windows\Temp
+[16:05:28] Xong: Windows\Temp
+[16:05:28] Bo qua (khong ton tai): pnpm store (C:)
+[16:05:28] Dang xoa: npm cache -> C:\Users\admin\AppData\Local\npm-cache
+[16:06:11] Xong: npm cache
+[16:06:11] Bo qua (khong ton tai): npm cache (Roaming)
+[16:06:11] Dang xoa: Go build cache -> C:\Users\admin\AppData\Local\go-build
+[16:06:13] Xong: Go build cache
+[16:06:13] Dang xoa: Go mod download cache -> C:\Users\admin\go\pkg\mod\cache
+[16:06:14] Xong: Go mod download cache
+[16:06:14] Dang xoa: IE/Edge INetCache -> C:\Users\admin\AppData\Local\Microsoft\Windows\INetCache
+[16:06:14] Xong: IE/Edge INetCache
+[16:06:14] Dang xoa: D3D shader cache -> C:\Users\admin\AppData\Local\D3DSCache
+[16:06:15] Xong: D3D shader cache
+[16:06:15] Dang xoa: Crash dumps -> C:\Users\admin\AppData\Local\CrashDumps
+[16:06:15] Xong: Crash dumps
+[16:06:15] Dang xoa: Explorer thumbs (se tao lai) -> C:\Users\admin\AppData\Local\Microsoft\Windows\Explorer
+[16:06:15] Xong: Explorer thumbs (se tao lai)
+[16:06:15] Dang xoa: Windows spotlight cache -> C:\Users\admin\AppData\Local\Packages\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy\LocalState\Assets
+[16:06:15] Xong: Windows spotlight cache
+[16:06:15] Dang xoa: Cursor Cache -> C:\Users\admin\AppData\Roaming\Cursor\Cache
+[16:06:15] Xong: Cursor Cache
+[16:06:15] Dang xoa: Cursor CachedData -> C:\Users\admin\AppData\Roaming\Cursor\CachedData
+[16:06:15] Xong: Cursor CachedData
+[16:06:15] Dang xoa: Cursor Code Cache -> C:\Users\admin\AppData\Roaming\Cursor\Code Cache
+[16:06:15] Xong: Cursor Code Cache
+[16:06:15] Dang xoa: Cursor GPUCache -> C:\Users\admin\AppData\Roaming\Cursor\GPUCache
+[16:06:15] Xong: Cursor GPUCache
+[16:06:15] Dang xoa: Cursor logs -> C:\Users\admin\AppData\Roaming\Cursor\logs
+[16:06:16] Xong: Cursor logs
+[16:06:16] Dang xoa: VS Code Cache -> C:\Users\admin\AppData\Roaming\Code\Cache
+[16:06:16] Xong: VS Code Cache
+[16:06:16] Dang xoa: VS Code CachedData -> C:\Users\admin\AppData\Roaming\Code\CachedData
+[16:06:16] Xong: VS Code CachedData
+[16:06:16] Dang xoa: VS Code Code Cache -> C:\Users\admin\AppData\Roaming\Code\Code Cache
+[16:06:16] Xong: VS Code Code Cache
+[16:06:16] Dang xoa: VS Code GPUCache -> C:\Users\admin\AppData\Roaming\Code\GPUCache
+[16:06:16] Xong: VS Code GPUCache
+[16:06:16] Dang xoa: VS Code logs -> C:\Users\admin\AppData\Roaming\Code\logs
+[16:06:17] Xong: VS Code logs
+[16:06:17] Bo qua (khong ton tai): Turbo cache (LocalAppData)
+[16:06:17] Bo qua (khong ton tai): Turbo cache (Home)
+[16:06:17] Dang xoa: Docker LocalAppData -> C:\Users\admin\AppData\Local\Docker
+[16:06:17] Xong: Docker LocalAppData
+[16:06:17] Bo qua (khong ton tai): Docker ProgramData
+[16:06:17] Dang xoa: NuGet packages cache -> C:\Users\admin\.nuget\packages
+[16:06:32] Xong: NuGet packages cache
+[16:06:32] Dang xoa: pip cache -> C:\Users\admin\AppData\Local\pip\Cache
+[16:06:40] Xong: pip cache
+[16:06:40] Dang xoa: Next.js .next -> D:\Java 6\be-uniwork\uniwork\apps\web\.next
+[16:06:40] Xong: Next.js .next
+[16:06:40] Dang xoa: Vitest/Vite cache -> D:\Java 6\be-uniwork\uniwork\packages\views\node_modules\.vite
+[16:06:40] Xong: Vitest/Vite cache
+[16:06:40] Dang xoa: node_modules .cache -> D:\Java 6\be-uniwork\uniwork\node_modules\.cache
+[16:06:40] Xong: node_modules .cache
+[16:06:40] Dang xoa: Turbo cache trong repo
+[16:06:40] Xong: Turbo cache trong repo
+[16:06:46] Da lam trong Thung rac
+[16:06:53] Da chay pnpm store prune
+[16:07:07] Da chay npm cache clean
+[16:07:25] Da chay go clean -cache -modcache
+[16:07:25] === SAU DON ===
+[16:07:25] C: con 16.75 GB
+[16:07:25] D: con 25.52 GB
+[16:07:25] Log: D:\Java 6\be-uniwork\uniwork\disk-cleanup-log.txt
+[16:07:25] Neu C: van day, chay scripts/scan-disk-c.ps1 de xem thu muc lon nhat.

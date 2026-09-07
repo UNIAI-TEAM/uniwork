@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import {
+  resetChatRoomPreferencesForTests,
+  useChatRoomPreferencesStore,
+} from "@uniwork/core/chat/room-preferences-store";
 import { wrap } from "../test/api-mock";
 import { ChatSidebar } from "./chat-sidebar";
 
@@ -33,6 +37,10 @@ const group = {
 
 beforeAll(() => {
   initI18n();
+});
+
+beforeEach(() => {
+  resetChatRoomPreferencesForTests();
 });
 
 describe("ChatSidebar", () => {
@@ -81,5 +89,53 @@ describe("ChatSidebar", () => {
 
     expect(screen.getByText(/Chưa có nhóm nào/)).toBeInTheDocument();
     expect(screen.getByText(/Chưa có cuộc trò chuyện/)).toBeInTheDocument();
+  });
+
+  it("shows contact nickname in conversation list", () => {
+    render(
+      wrap(
+        <ChatSidebar
+          currentUserId="self"
+          workspaceId="ws1"
+          target={{ kind: "workspace" }}
+          onTargetChange={vi.fn()}
+          contacts={[contact]}
+          groups={[]}
+          nicknamesByUserId={{ u2: "Bạn Binh" }}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("button", { name: /Bạn Binh/ })).toBeInTheDocument();
+  });
+
+  it("shows mute and pin indicators on separate rows like Zalo", () => {
+    useChatRoomPreferencesStore.getState().togglePinned("dm1");
+    useChatRoomPreferencesStore.getState().toggleNotificationsMuted("dm1");
+
+    render(
+      wrap(
+        <ChatSidebar
+          currentUserId="self"
+          workspaceId="ws1"
+          target={{ kind: "workspace" }}
+          onTargetChange={vi.fn()}
+          contacts={[contact]}
+          groups={[]}
+          roomPreviewsByRoomId={{
+            dm1: {
+              body: "hello",
+              kind: "text",
+              senderId: "u2",
+              senderName: "Binh",
+              createdAt: "2026-09-04T15:18:00.000Z",
+            },
+          }}
+        />,
+      ),
+    );
+
+    expect(screen.getByLabelText("Hội thoại đã ghim")).toBeInTheDocument();
+    expect(screen.getByLabelText("Đã tắt thông báo")).toBeInTheDocument();
   });
 });

@@ -61,6 +61,7 @@ export function useVoiceCallRoom() {
 export function VoiceCallRoom({
   url,
   token,
+  initialCameraEnabled = false,
   onDisconnected,
   onConnectFailed,
   onConnected,
@@ -68,6 +69,7 @@ export function VoiceCallRoom({
 }: {
   url: string;
   token: string;
+  initialCameraEnabled?: boolean;
   onDisconnected: () => void;
   onConnectFailed?: () => void;
   onConnected?: () => void;
@@ -242,6 +244,17 @@ export function VoiceCallRoom({
         } catch {
           if (!disposed) setMuted(true);
         }
+        if (initialCameraEnabled) {
+          try {
+            await room.localParticipant.setCameraEnabled(true);
+            if (!disposed) {
+              setCameraEnabled(true);
+              attachLocalVideo();
+            }
+          } catch {
+            if (!disposed) setCameraEnabled(false);
+          }
+        }
         onConnectedRef.current?.();
       })();
     };
@@ -328,7 +341,7 @@ export function VoiceCallRoom({
       setCameraEnabled(false);
       setRemoteCameraEnabled(false);
     };
-  }, [url, token, attachLocalVideo, syncAudioPlaybackState]);
+  }, [url, token, initialCameraEnabled, attachLocalVideo, syncAudioPlaybackState]);
 
   const toggleMute = useCallback(() => {
     const room = roomRef.current;

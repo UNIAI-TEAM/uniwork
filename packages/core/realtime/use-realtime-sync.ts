@@ -8,15 +8,16 @@ import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { taskKeys } from "../tasks/hooks";
 import type { WSEventType } from "../types/events";
+import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./invalidate-scheduler";
 
 /**
  * Central WS → cache sync for one workspace.
  *
- * Every event maps to the query keys it makes stale, and the cache is then
- * refreshed FROM THE API. Meeting detail skips invalidation when the cached
- * version is already >= the event version. Bursts coalesce into one debounced
- * invalidation wave per ~250ms.
+ * Chat message events patch the cache via GET /messages/{id} instead of
+ * refetching full lists. Other domains still invalidate and refetch from API.
+ * Meeting detail skips invalidation when the cached version is already >= the
+ * event version. Bursts coalesce into one debounced wave per ~250ms.
  */
 function keysFor(
   wsId: string,
@@ -38,22 +39,13 @@ function keysFor(
       if (payload.task_id) push(taskKeys.comments(payload.task_id));
       break;
     }
-    case "chat.message.created":
-    case "chat.message.updated": {
+    case "chat.room.created":
+    case "chat.room.updated": {
       push(chatKeys.rooms(wsId));
       push(chatKeys.room(wsId));
       if (payload.room_id) {
-        push(chatKeys.roomMessages(wsId, payload.room_id));
-        const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
-        if (wsRoom?.room_id === payload.room_id) push(chatKeys.messages(wsId));
+        push(chatKeys.roomMembers(wsId, payload.room_id));
       }
-      break;
-    }
-    case "chat.room.created":
-    case "chat.room.updated":
-    case "chat.room.activity": {
-      push(chatKeys.rooms(wsId));
-      push(chatKeys.room(wsId));
       break;
     }
     case "meeting.created":
@@ -131,6 +123,46 @@ function keysFor(
   return keys;
 }
 
+function handleChatRealtimeEvent(
+  chatScheduler: ReturnType<typeof createChatRealtimePatchScheduler>,
+  type: WSEventType,
+  payload: Record<string, string>,
+): boolean {
+  const roomId = payload.room_id;
+  const messageId = payload.message_id;
+  switch (type) {
+    case "chat.message.created":
+    case "chat.message.updated": {
+      if (roomId && messageId) {
+        chatScheduler.scheduleUpsert(roomId, messageId);
+        return true;
+      }
+      return false;
+    }
+    case "chat.message.deleted": {
+      if (roomId && messageId) {
+        chatScheduler.scheduleDelete(roomId, messageId);
+        return true;
+      }
+      return false;
+    }
+    case "chat.mention.created": {
+      if (roomId) {
+        chatScheduler.scheduleMention(roomId, payload.sender_id ?? "");
+        if (messageId) chatScheduler.scheduleUpsert(roomId, messageId);
+        return true;
+      }
+      return false;
+    }
+    case "chat.room.activity": {
+      chatScheduler.scheduleRoomActivity();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
 /** Keys that could have gone stale while the socket was down. */
 function allWorkspaceKeys(wsId: string) {
   return [
@@ -154,10 +186,15 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     if (!client || !wsId) return;
 
     const scheduler = createInvalidateScheduler(qc);
+    const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
-      for (const queryKey of keysFor(wsId, msg.type as WSEventType, payload, qc)) {
+      const eventType = msg.type as WSEventType;
+      if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
+        return;
+      }
+      for (const queryKey of keysFor(wsId, eventType, payload, qc)) {
         if (
           isMeetingDetailKey(queryKey) &&
           payload.meeting_id &&
@@ -175,6 +212,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       offAny();
       offReconnect();
       scheduler.dispose();
+      void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);
 }

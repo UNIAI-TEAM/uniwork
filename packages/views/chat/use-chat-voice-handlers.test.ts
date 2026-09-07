@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
 import { toast } from "sonner";
-import { prepareVoiceCapture } from "./voice-call-media";
+import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
 
 vi.mock("sonner", () => ({
@@ -12,6 +12,7 @@ vi.mock("sonner", () => ({
 
 vi.mock("./voice-call-media", () => ({
   prepareVoiceCapture: vi.fn(),
+  prepareVideoCapture: vi.fn(),
 }));
 
 const contact = {
@@ -26,6 +27,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.mocked(prepareVoiceCapture).mockResolvedValue(true);
+  vi.mocked(prepareVideoCapture).mockResolvedValue(true);
   vi.mocked(toast.error).mockReset();
 });
 
@@ -48,7 +50,29 @@ describe("useChatVoiceHandlers", () => {
       await result.current.handleStartVoiceCall();
     });
 
-    expect(startCall).toHaveBeenCalledWith("room1", "Binh", "dm");
+    expect(startCall).toHaveBeenCalledWith("room1", "Binh", "dm", { withCamera: false });
+  });
+
+  it("starts a dm video call with camera enabled", async () => {
+    const startCall = vi.fn().mockResolvedValue(true);
+    const { result } = renderHook(() =>
+      useChatVoiceHandlers({
+        targetKind: "dm",
+        activeRoomId: "room1",
+        activeContact: contact,
+        activeGroup: null,
+        startCall,
+        acceptCall: vi.fn(),
+        declineCall: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleStartVideoCall();
+    });
+
+    expect(prepareVideoCapture).toHaveBeenCalled();
+    expect(startCall).toHaveBeenCalledWith("room1", "Binh", "dm", { withCamera: true });
   });
 
   it("starts a group voice call", async () => {
@@ -74,7 +98,7 @@ describe("useChatVoiceHandlers", () => {
       await result.current.handleStartVoiceCall();
     });
 
-    expect(startCall).toHaveBeenCalledWith("room-g1", "Design", "group");
+    expect(startCall).toHaveBeenCalledWith("room-g1", "Design", "group", { withCamera: false });
   });
 
   it("shows mic denied toast when capture fails", async () => {

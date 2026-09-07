@@ -61,6 +61,22 @@ export function VoiceCallOverlay({
     state.status === "incoming" ? "incoming" : state.status === "ringing" ? "outgoing" : null;
   useCallRingtone(ringtoneKind);
 
+  const handleMinimize = () => {
+    setPanelMode((current) => {
+      if (current === "fullscreen") return "expanded";
+      if (current === "expanded") return "minimized";
+      return current;
+    });
+  };
+
+  const handleMaximize = () => {
+    setPanelMode((current) => {
+      if (current === "minimized") return "expanded";
+      if (current === "expanded") return "fullscreen";
+      return current;
+    });
+  };
+
   if (state.status === "incoming") {
     const statusLabel =
       state.callKind === "group"
@@ -140,8 +156,10 @@ export function VoiceCallOverlay({
       isCaller={state.outgoing}
       url={state.url}
       token={state.token}
+      initialCameraEnabled={state.withCamera ?? false}
       panelMode={panelMode}
-      onTogglePanelMode={() => setPanelMode((current) => (current === "expanded" ? "minimized" : "expanded"))}
+      onMinimize={handleMinimize}
+      onMaximize={handleMaximize}
       onLeave={onLeave}
       onEndForAll={onEndForAll}
       onConnected={onConnected}

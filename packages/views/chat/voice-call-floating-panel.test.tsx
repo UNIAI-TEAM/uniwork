@@ -28,15 +28,17 @@ describe("voiceCallInitialOf", () => {
 });
 
 describe("VoiceCallFloatingPanel", () => {
-  it("renders expanded panel with minimize control", () => {
-    const onToggleMode = vi.fn();
+  it("renders expanded panel with minimize and fullscreen controls", () => {
+    const onMinimize = vi.fn();
+    const onMaximize = vi.fn();
     render(
       wrap(
         <VoiceCallFloatingPanel
           peerName="Long"
           statusLabel="Calling…"
           mode="expanded"
-          onToggleMode={onToggleMode}
+          onMinimize={onMinimize}
+          onMaximize={onMaximize}
           footer={<span>footer</span>}
         >
           <span>body</span>
@@ -48,24 +50,47 @@ describe("VoiceCallFloatingPanel", () => {
     expect(screen.getByText("Calling…")).toBeInTheDocument();
     expect(screen.getByText("body")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Thu nhỏ cuộc gọi"));
-    expect(onToggleMode).toHaveBeenCalledTimes(1);
+    expect(onMinimize).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByLabelText("Phóng to toàn màn hình"));
+    expect(onMaximize).toHaveBeenCalledTimes(1);
   });
 
   it("renders minimized chip with expand control", () => {
-    const onToggleMode = vi.fn();
+    const onMaximize = vi.fn();
     render(
       wrap(
         <VoiceCallFloatingPanel
           peerName="Team"
           statusLabel="00:12"
           mode="minimized"
-          onToggleMode={onToggleMode}
+          onMaximize={onMaximize}
         />,
       ),
     );
 
     fireEvent.click(screen.getByLabelText("Mở rộng cuộc gọi"));
-    expect(onToggleMode).toHaveBeenCalledTimes(1);
+    expect(onMaximize).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders fullscreen panel with restore control", () => {
+    const onMinimize = vi.fn();
+    render(
+      wrap(
+        <VoiceCallFloatingPanel
+          peerName="Long"
+          statusLabel="Connected · 00:12"
+          mode="fullscreen"
+          onMinimize={onMinimize}
+          footer={<span>controls</span>}
+        >
+          <span>video</span>
+        </VoiceCallFloatingPanel>,
+      ),
+    );
+
+    expect(screen.getByText("video")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Thu về cửa sổ"));
+    expect(onMinimize).toHaveBeenCalledTimes(1);
   });
 });
 

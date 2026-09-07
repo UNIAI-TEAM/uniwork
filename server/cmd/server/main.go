@@ -163,6 +163,7 @@ func main() {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
 	chatSvc := service.NewChatService(q, wsSvc, pub)
+	chatSvc.TenorAPIKey = cfg.TenorAPIKey
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
