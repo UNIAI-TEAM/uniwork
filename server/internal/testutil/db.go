@@ -52,7 +52,12 @@ func DB(t *testing.T) *pgxpool.Pool {
 		t.Fatal("migrate:", err)
 	}
 	_, err = pool.Exec(ctx, `TRUNCATE users, organizations, organization_members,
-		workspaces, workspace_members, invitations, refresh_tokens, tasks, task_comments,
+		workspaces, workspace_members, invitations, refresh_tokens,
+		project_resources, projects,
+		task_source_contexts, attachments, task_reactions, comment_reactions,
+		task_view_preferences, task_views, task_pins, task_subscribers,
+		task_dependencies, task_label_links, task_properties, task_labels, task_statuses,
+		tasks, task_comments,
 		meetings, meeting_attendees, meeting_notes,
 		meeting_participants, meeting_invitations, meeting_access_grants,
 		meeting_invite_links, meeting_join_requests, meeting_conference_sessions,

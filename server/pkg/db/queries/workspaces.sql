@@ -95,3 +95,9 @@ WHERE workspace_id = $1 AND user_id = $2;
 UPDATE workspaces SET matrix_room_id = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateWorkspaceTaskPrefix :one
+UPDATE workspaces
+SET task_prefix = $2, updated_at = now()
+WHERE id = $1 AND organization_id = $3
+RETURNING *;

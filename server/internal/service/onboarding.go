@@ -139,12 +139,14 @@ func (s *OnboardingService) SeedWelcomeTask(ctx context.Context, userID, workspa
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return db.Task{}, false, err
 	}
-	if existing, err := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{WorkspaceID: workspaceID, CreatedBy: userID}); err == nil {
-		return existing, false, nil
-	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
 		return db.Task{}, false, err
+	}
+	if existing, err := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, CreatedBy: userID,
+	}); err == nil {
+		return existing, false, nil
 	}
 	tx, err := s.ws.pool.Begin(ctx)
 	if err != nil {
@@ -153,17 +155,29 @@ func (s *OnboardingService) SeedWelcomeTask(ctx context.Context, userID, workspa
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{WorkspaceID: workspaceID, Status: "in_progress"})
+	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: "in_progress",
+	})
+	if err != nil {
+		return db.Task{}, false, err
+	}
+	number, err := q.NextTaskNumber(ctx, db.NextTaskNumberParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return db.Task{}, false, err
 	}
 	task, err := q.CreateWelcomeTask(ctx, db.CreateWelcomeTaskParams{
-		ID: util.NewID(), WorkspaceID: workspaceID,
-		Title: templates.WelcomeTaskTitle, Description: templates.WelcomeTaskBody,
+		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Number: number, Title: templates.WelcomeTaskTitle, Description: templates.WelcomeTaskBody,
 		AssigneeID: pgtype.Text{String: userID, Valid: true}, Position: maxPos + 1024,
+		CreatedBy: userID, CreatorID: "onboarding", CreatorType: "system",
+		Revision: 1, LastActivityAt: nowTz(),
 	})
 	if isUniqueViolation(err) { // đua với chính mình (StrictMode) → đọc lại
-		existing, gerr := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{WorkspaceID: workspaceID, CreatedBy: userID})
+		existing, gerr := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, CreatedBy: userID,
+		})
 		return existing, false, gerr
 	}
 	if err != nil {
