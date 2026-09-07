@@ -57,6 +57,17 @@ type Routes struct {
 	ReactivateOrgMember http.HandlerFunc
 	LeaveOrganization   http.HandlerFunc
 
+	ListPeople         http.HandlerFunc
+	GetPerson          http.HandlerFunc
+	PatchPersonProfile http.HandlerFunc
+	ExportPeople       http.HandlerFunc
+
+	ListDepartments    http.HandlerFunc
+	CreateDepartment   http.HandlerFunc
+	PatchDepartment    http.HandlerFunc
+	ArchiveDepartment  http.HandlerFunc
+	ReorderDepartments http.HandlerFunc
+
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc

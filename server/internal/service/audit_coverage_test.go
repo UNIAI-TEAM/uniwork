@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -81,6 +82,33 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionMemberLeft: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
 			if err := f.orgMem.Leave(f.ctx, f.member.ID, f.orgID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProfileUpdated: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			title := "Kỹ sư"
+			if _, err := f.people.UpdateProfile(f.ctx, f.owner.ID, f.orgID, f.member.ID, ProfileInput{Title: &title}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDepartmentCreated: func(t *testing.T, f *auditFixture) { f.newDepartment(t) },
+		audit.ActionDepartmentUpdated: func(t *testing.T, f *auditFixture) {
+			d := f.newDepartment(t)
+			name := "Công nghệ"
+			if _, err := f.depts.Update(f.ctx, f.owner.ID, f.orgID, d.ID, DepartmentInput{Name: &name}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDepartmentArchived: func(t *testing.T, f *auditFixture) {
+			d := f.newDepartment(t)
+			if _, err := f.depts.Archive(f.ctx, f.owner.ID, f.orgID, d.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionPeopleExported: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -239,6 +267,11 @@ func auditActions() []string {
 		audit.ActionMemberDeactivated,
 		audit.ActionMemberReactivated,
 		audit.ActionMemberLeft,
+		audit.ActionProfileUpdated,
+		audit.ActionDepartmentCreated,
+		audit.ActionDepartmentUpdated,
+		audit.ActionDepartmentArchived,
+		audit.ActionPeopleExported,
 		audit.ActionWorkspaceCreated,
 		audit.ActionWorkspaceUpdated,
 		audit.ActionWorkspaceMemberAdded,
@@ -271,6 +304,8 @@ type auditFixture struct {
 	auth    *AuthService
 	orgs    *OrganizationService
 	orgMem  *OrganizationMemberService
+	people  *PeopleService
+	depts   *DepartmentService
 	ws      *WorkspaceService
 	tasks   *TaskService
 	agents  *AgentService
@@ -298,7 +333,8 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
-		auth: auth, orgs: orgs, orgMem: NewOrganizationMemberService(pool, q, orgs), ws: ws,
+		auth: auth, orgs: orgs, orgMem: NewOrganizationMemberService(pool, q, orgs),
+		people: NewPeopleService(pool, q, orgs), depts: NewDepartmentService(pool, q, orgs), ws: ws,
 		tasks:   NewTaskService(pool, q, ws),
 		agents:  NewAgentService(pool, q, orgs, ws),
 		billing: NewBillingService(pool, q, orgs, nil),
@@ -306,6 +342,18 @@ func newAuditFixture(t *testing.T) *auditFixture {
 		reset:   NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
 		admin:   NewAdminService(pool, q, NewBillingService(pool, q, orgs, nil), NewEntitlementService(pool, q)),
 	}
+}
+
+// newDepartment creates one department for the cases that need a target.
+func (f *auditFixture) newDepartment(t *testing.T) db.Department {
+	t.Helper()
+	f.build(t)
+	name := "Kỹ thuật"
+	d, err := f.depts.Create(f.ctx, f.owner.ID, f.orgID, DepartmentInput{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
 }
 
 // override sets (or deletes) the organization override of agents_assignee.

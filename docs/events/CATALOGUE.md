@@ -16,6 +16,8 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
   nội dung thì đọc lại qua API, nên một sự kiện không bao giờ lộ trường mà người
   đọc không được xem.
 - **Phạm vi** quyết định ai nhận: `workspace` (mọi người trong workspace),
+  `organization` (mọi kết nối trong tổ chức, dù đang ở workspace nào — danh bạ
+  và phòng ban thuộc về công ty, không thuộc một workspace),
   `user` (các kết nối của đúng một người), `chat` (một phòng đã đăng ký),
   `room` (từng thành viên phòng, giải quyết lúc gửi — cần cho sự kiện thành viên
   vì người vừa được thêm chưa đăng ký phòng), `-` (không có client nào nghe).
@@ -73,6 +75,11 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `organization.suspended` | 1 | `organization_id`, `user_id` | user | outbox |
 | `organization.unsuspended` | 1 | `organization_id`, `user_id` | user | outbox |
 | `organization.ownership_transferred` | 1 | `organization_id`, `user_id` | user | outbox |
+| `profile.updated` | 1 | `organization_id`, `user_id` | organization | outbox |
+| `department.created` | 1 | `organization_id`, `department_id` | organization | outbox |
+| `department.updated` | 1 | `organization_id`, `department_id` | organization | outbox |
+| `department.archived` | 1 | `organization_id`, `department_id` | organization | outbox |
+| `people.exported` | 1 | `organization_id`, `user_id` | - | outbox |
 | `participant.invited` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `participant.removed` | 1 | `meeting_id`, `version` | workspace | outbox |
 | `provider.end_session` | 1 | `room_name` | - | outbox |

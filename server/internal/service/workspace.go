@@ -599,6 +599,13 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	if err := qtx.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: w.OrganizationID, UserID: userID, Role: "member"}); err != nil {
 		return WorkspaceView{}, err
 	}
+	joiner, err := qtx.GetUserByID(ctx, userID)
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := ensureMemberProfile(ctx, qtx, w.OrganizationID, userID, joiner.DisplayName, joiner.Email); err != nil {
+		return WorkspaceView{}, err
+	}
 	if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: userID, Role: inv.Role}); err != nil {
 		return WorkspaceView{}, err
 	}
@@ -624,4 +631,15 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 		return WorkspaceView{}, err
 	}
 	return s.GetView(ctx, userID, w.ID)
+}
+
+// OrganizationOf names the organization a workspace belongs to. The realtime
+// hub uses it to put a connection into its organization scope without the
+// client having to say which organization it is in.
+func (s *WorkspaceService) OrganizationOf(ctx context.Context, workspaceID string) (string, error) {
+	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return w.OrganizationID, nil
 }

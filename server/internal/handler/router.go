@@ -32,6 +32,8 @@ type Deps struct {
 	Google        GoogleExchanger
 	Organizations *service.OrganizationService
 	OrgMembers    *service.OrganizationMemberService
+	People        *service.PeopleService
+	Departments   *service.DepartmentService
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
@@ -140,6 +142,17 @@ func New(d Deps) http.Handler {
 		DeactivateOrgMember: h.deactivateOrgMember,
 		ReactivateOrgMember: h.reactivateOrgMember,
 		LeaveOrganization:   h.leaveOrganization,
+
+		ListPeople:         h.listPeople,
+		GetPerson:          h.getPerson,
+		PatchPersonProfile: h.patchPersonProfile,
+		ExportPeople:       h.exportPeople,
+
+		ListDepartments:    h.listDepartments,
+		CreateDepartment:   h.createDepartment,
+		PatchDepartment:    h.patchDepartment,
+		ArchiveDepartment:  h.archiveDepartment,
+		ReorderDepartments: h.reorderDepartments,
 
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,

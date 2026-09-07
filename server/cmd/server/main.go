@@ -214,6 +214,9 @@ func main() {
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
+	// Directory and department events belong to the organization, so every
+	// connection joins its organization scope at connect time (F-03 §6.4).
+	hub.SetOrganizationResolver(wsSvc.OrganizationOf)
 	auditSvc := service.NewAuditService(pool, q, orgSvc, wsSvc)
 	// One dispatcher drains outbox_events for the whole process. Registering a
 	// consumer is the only thing a new bounded context has to do to receive
@@ -286,6 +289,8 @@ func main() {
 		Google:          google,
 		Organizations:   orgSvc,
 		OrgMembers:      orgMemberSvc,
+		People:          service.NewPeopleService(pool, q, orgSvc),
+		Departments:     service.NewDepartmentService(pool, q, orgSvc),
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,

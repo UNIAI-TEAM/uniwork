@@ -142,7 +142,8 @@
     "settings": "Cài đặt",
     "workspace_group": "Điều hướng workspace",
     "account": "Tài khoản",
-    "skip_to_content": "Tới nội dung chính"
+    "skip_to_content": "Tới nội dung chính",
+    "people": "Danh bạ"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -220,7 +221,9 @@
         "integrations": "Tích hợp",
         "billing": "Thanh toán",
         "audit": "Bảo mật & Nhật ký",
-        "ai": "AI"
+        "ai": "AI",
+        "organization": "Tổ chức",
+        "departments": "Phòng ban"
       }
     },
     "save": {
@@ -1072,7 +1075,24 @@
     "name": "Tên tổ chức",
     "slug": "Định danh tổ chức",
     "create": "Tạo tổ chức",
-    "switch": "Chuyển workspace"
+    "switch": "Chuyển workspace",
+    "members": {
+      "title": "Thành viên tổ chức",
+      "description": "Ai thuộc tổ chức, với vai trò nào, và còn được vào hay không.",
+      "change_role": "Đổi vai trò",
+      "role_updated": "Đã đổi vai trò",
+      "deactivate": "Vô hiệu hóa",
+      "deactivated": "Đã vô hiệu hóa thành viên",
+      "reactivate": "Kích hoạt lại",
+      "reactivated": "Đã kích hoạt lại thành viên",
+      "status_deactivated": "Đã vô hiệu hóa"
+    },
+    "leave": {
+      "title": "Rời tổ chức",
+      "description": "Bạn sẽ mất quyền truy cập mọi workspace trong tổ chức này. Chủ sở hữu phải chuyển quyền trước.",
+      "action": "Rời tổ chức",
+      "done": "Đã rời tổ chức"
+    }
   },
   "invitations": {
     "title": "Bạn có lời mời",
@@ -1592,5 +1612,61 @@
       "realtime": "Kết nối realtime",
       "build": "Bản {{version}} · {{commit}}"
     }
+  },
+  "people": {
+    "title": "Danh bạ",
+    "search": "Tìm người",
+    "search_placeholder": "Tên, email hoặc chức danh",
+    "filter_department": "Lọc theo phòng ban",
+    "filter_role": "Lọc theo vai trò",
+    "filter_status": "Lọc theo trạng thái",
+    "department": "Phòng ban",
+    "department_none": "Chưa có phòng ban",
+    "manager": "Quản lý trực tiếp",
+    "reports": "Báo cáo trực tiếp",
+    "role_any": "Mọi vai trò",
+    "role_owner": "Chủ sở hữu",
+    "role_admin": "Quản trị",
+    "role_member": "Thành viên",
+    "status_active": "Đang hoạt động",
+    "status_deactivated": "Đã vô hiệu hóa",
+    "status_all": "Tất cả",
+    "agent_badge": "Agent",
+    "export": "Xuất CSV",
+    "load_more": "Xem thêm",
+    "edit_profile": "Sửa hồ sơ",
+    "profile_saved": "Đã lưu hồ sơ",
+    "field_title": "Chức danh",
+    "field_employee_code": "Mã nhân viên",
+    "field_phone": "Điện thoại",
+    "field_phone_hint": "Chỉ đồng nghiệp thấy khi bạn bật hiển thị bên dưới.",
+    "field_phone_visible": "Cho đồng nghiệp xem số điện thoại",
+    "field_location": "Nơi làm việc",
+    "field_joined_on": "Ngày vào công ty",
+    "field_bio": "Giới thiệu",
+    "field_timezone": "Múi giờ",
+    "empty_title": "Chỉ có bạn trong tổ chức",
+    "empty_description": "Mời đồng nghiệp để danh bạ có người.",
+    "empty_filtered_title": "Không có ai khớp bộ lọc",
+    "empty_filtered_description": "Thử bỏ bớt bộ lọc hoặc đổi từ khóa tìm kiếm.",
+    "error_title": "Không tải được danh bạ",
+    "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, báo quản trị tổ chức.",
+    "not_found_title": "Không tìm thấy người này",
+    "not_found_description": "Có thể họ đã rời tổ chức hoặc bạn không có quyền xem."
+  },
+  "departments": {
+    "title": "Phòng ban",
+    "description": "Cơ cấu của tổ chức, tối đa hai cấp. Lưu trữ một phòng sẽ bỏ gán mọi thành viên trong phòng đó.",
+    "name": "Tên phòng ban",
+    "code": "Mã",
+    "parent": "Thuộc phòng",
+    "add": "Thêm phòng ban",
+    "add_title": "Thêm phòng ban",
+    "archive": "Lưu trữ",
+    "archived": "Đã lưu trữ phòng ban",
+    "created": "Đã tạo phòng ban",
+    "updated": "Đã cập nhật phòng ban",
+    "empty": "Chưa có phòng ban nào.",
+    "member_count": "{{count}} thành viên"
   }
 }

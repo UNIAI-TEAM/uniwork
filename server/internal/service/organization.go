@@ -54,6 +54,13 @@ func (s *OrganizationService) Create(ctx context.Context, userID, name, slug str
 	}); err != nil {
 		return db.Organization{}, err
 	}
+	founder, err := q.GetUserByID(ctx, userID)
+	if err != nil {
+		return db.Organization{}, err
+	}
+	if err := ensureMemberProfile(ctx, q, o.ID, userID, founder.DisplayName, founder.Email); err != nil {
+		return db.Organization{}, err
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: o.ID,
 		Actor:          audit.User(userID),

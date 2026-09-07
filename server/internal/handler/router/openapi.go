@@ -25,6 +25,9 @@ type apiOp struct {
 	sdo         any
 	status      int
 	auth        bool
+	// produces names a non-JSON success body (the CSV export). The route then
+	// has no SDO to reflect, so the content type is what documents it.
+	produces string
 }
 
 type apiCatalog struct {
@@ -78,8 +81,14 @@ func (c *apiCatalog) marshalJSON() ([]byte, error) {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		if op.sdo != nil {
+		switch {
+		case op.sdo != nil:
 			oc.AddRespStructure(op.sdo, func(cu *openapi.ContentUnit) { cu.HTTPStatus = status })
+		case op.produces != "":
+			oc.AddRespStructure(new(string), func(cu *openapi.ContentUnit) {
+				cu.HTTPStatus = status
+				cu.ContentType = op.produces
+			})
 		}
 		oc.AddRespStructure(new(sdo.ErrorSDO), func(cu *openapi.ContentUnit) { cu.HTTPStatus = http.StatusBadRequest })
 		if op.auth {
@@ -132,6 +141,11 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
 			MessageID   string `path:"messageID" description:"ULID tin nhắn" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "org,departmentId":
+		return struct {
+			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
+			DepartmentId string `path:"departmentId" description:"ULID phòng ban" example:"01J8X4DEPT0N1P2Q3R4S5T6U"`
 		}{}
 	case "org,userID":
 		return struct {

@@ -21,6 +21,7 @@
     "./notifications/*": "./notifications/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",
+    "./people": "./people/index.ts",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts"
   },
@@ -30,6 +31,7 @@
     "@livekit/components-styles": "^1.2.0",
     "@livekit/track-processors": "^0.5.8",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-virtual": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "livekit-client": "^2.21.0",

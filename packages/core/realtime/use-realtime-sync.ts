@@ -11,6 +11,8 @@ import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
+import { orgMemberRootKey } from "../organizations/hooks";
+import { peopleRootKey } from "../people/hooks";
 import { taskKeys } from "../tasks/hooks";
 import type { WSEventType } from "../types/events";
 import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./invalidate-scheduler";
@@ -154,6 +156,27 @@ function keysFor(
         push(meetingKeys.summary(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
       }
+      break;
+    }
+    case "profile.updated":
+    case "department.created":
+    case "department.updated":
+    case "department.archived":
+    case "member.deactivated":
+    case "member.reactivated":
+    case "member.left":
+    case "member.role_changed":
+    case "member.invited":
+    case "member.joined":
+    case "member.removed":
+    case "organization.ownership_transferred": {
+      // The directory and the membership list are keyed by organization SLUG,
+      // because that is what the routes carry, while the event payload names
+      // the organization by id. Invalidating the whole prefix is the honest
+      // translation: both caches are small, and refetching one directory beats
+      // showing a stale one.
+      push(peopleRootKey);
+      push(orgMemberRootKey);
       break;
     }
     case "recording.started":

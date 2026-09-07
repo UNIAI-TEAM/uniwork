@@ -25,6 +25,15 @@ const (
 	ActionMemberLeft                   = "member.left"
 	ActionOrganizationOwnershipChanged = "organization.ownership_transferred"
 
+	// People and departments (F-03). profile.updated covers both the self-edit
+	// and the administrator's edit; the row records which company-owned facts
+	// changed, never the person's own free text.
+	ActionProfileUpdated     = "profile.updated"
+	ActionDepartmentCreated  = "department.created"
+	ActionDepartmentUpdated  = "department.updated"
+	ActionDepartmentArchived = "department.archived"
+	ActionPeopleExported     = "people.exported"
+
 	ActionWorkspaceCreated = "workspace.created"
 	ActionWorkspaceUpdated = "workspace.updated"
 

@@ -143,7 +143,8 @@
     "settings": "Settings",
     "workspace_group": "Workspace navigation",
     "account": "Account",
-    "skip_to_content": "Skip to main content"
+    "skip_to_content": "Skip to main content",
+    "people": "People"
   },
   "topbar": {
     "search": "Search…",
@@ -221,7 +222,9 @@
         "integrations": "Integrations",
         "billing": "Billing",
         "audit": "Security & audit",
-        "ai": "AI"
+        "ai": "AI",
+        "organization": "Organization",
+        "departments": "Departments"
       }
     },
     "save": {
@@ -1073,7 +1076,24 @@
     "name": "Organization name",
     "slug": "Organization slug",
     "create": "Create organization",
-    "switch": "Switch workspace"
+    "switch": "Switch workspace",
+    "members": {
+      "title": "Organization members",
+      "description": "Who belongs to the organization, in what role, and whether they can still get in.",
+      "change_role": "Change role",
+      "role_updated": "Role updated",
+      "deactivate": "Deactivate",
+      "deactivated": "Member deactivated",
+      "reactivate": "Reactivate",
+      "reactivated": "Member reactivated",
+      "status_deactivated": "Deactivated"
+    },
+    "leave": {
+      "title": "Leave this organization",
+      "description": "You lose access to every workspace inside it. The owner must transfer ownership first.",
+      "action": "Leave organization",
+      "done": "You left the organization"
+    }
   },
   "invitations": {
     "title": "You have an invitation",
@@ -1596,5 +1616,61 @@
       "realtime": "Realtime connections",
       "build": "Build {{version}} · {{commit}}"
     }
+  },
+  "people": {
+    "title": "People",
+    "search": "Search people",
+    "search_placeholder": "Name, email or job title",
+    "filter_department": "Filter by department",
+    "filter_role": "Filter by role",
+    "filter_status": "Filter by status",
+    "department": "Department",
+    "department_none": "No department",
+    "manager": "Manager",
+    "reports": "Direct reports",
+    "role_any": "Any role",
+    "role_owner": "Owner",
+    "role_admin": "Admin",
+    "role_member": "Member",
+    "status_active": "Active",
+    "status_deactivated": "Deactivated",
+    "status_all": "All",
+    "agent_badge": "Agent",
+    "export": "Export CSV",
+    "load_more": "Load more",
+    "edit_profile": "Edit profile",
+    "profile_saved": "Profile saved",
+    "field_title": "Job title",
+    "field_employee_code": "Employee code",
+    "field_phone": "Phone",
+    "field_phone_hint": "Colleagues only see it once you turn on the switch below.",
+    "field_phone_visible": "Let colleagues see my phone number",
+    "field_location": "Location",
+    "field_joined_on": "Start date",
+    "field_bio": "About",
+    "field_timezone": "Time zone",
+    "empty_title": "You are the only person here",
+    "empty_description": "Invite colleagues to fill the directory.",
+    "empty_filtered_title": "Nobody matches these filters",
+    "empty_filtered_description": "Try removing a filter or changing the search term.",
+    "error_title": "The directory did not load",
+    "error_description": "Try again in a moment. If it keeps failing, tell an organization admin.",
+    "not_found_title": "This person was not found",
+    "not_found_description": "They may have left the organization, or you may not be allowed to see them."
+  },
+  "departments": {
+    "title": "Departments",
+    "description": "The organization's structure, at most two levels deep. Archiving a department moves its people out of it.",
+    "name": "Department name",
+    "code": "Code",
+    "parent": "Parent department",
+    "add": "Add department",
+    "add_title": "Add a department",
+    "archive": "Archive",
+    "archived": "Department archived",
+    "created": "Department created",
+    "updated": "Department updated",
+    "empty": "No departments yet.",
+    "member_count": "{{count}} members"
   }
 }
