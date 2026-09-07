@@ -240,6 +240,22 @@ func (s *TaskService) ListTaskViews(ctx context.Context, actor Actor, workspaceI
 	})
 }
 
+func (s *TaskService) loadReadableTaskView(ctx context.Context, q *db.Queries, orgID, workspaceID, viewID, userID string) (db.TaskView, error) {
+	view, err := q.GetTaskView(ctx, db.GetTaskViewParams{
+		ID: viewID, OrganizationID: orgID, WorkspaceID: workspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.TaskView{}, ErrNotFound
+	}
+	if err != nil {
+		return db.TaskView{}, err
+	}
+	if !canReadTaskView(view, userID) {
+		return db.TaskView{}, ErrNotFound
+	}
+	return view, nil
+}
+
 func (s *TaskService) GetTaskView(ctx context.Context, actor Actor, workspaceID, viewID string) (db.TaskView, error) {
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return db.TaskView{}, err
@@ -248,13 +264,7 @@ func (s *TaskService) GetTaskView(ctx context.Context, actor Actor, workspaceID,
 	if err != nil {
 		return db.TaskView{}, err
 	}
-	view, err := s.q.GetTaskView(ctx, db.GetTaskViewParams{
-		ID: viewID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-	})
-	if err != nil || !canReadTaskView(view, actor.ID) {
-		return db.TaskView{}, ErrNotFound
-	}
-	return view, nil
+	return s.loadReadableTaskView(ctx, s.q, ws.OrganizationID, workspaceID, viewID, actor.ID)
 }
 
 func (s *TaskService) UpdateTaskView(ctx context.Context, actor Actor, workspaceID, viewID string, in UpdateTaskViewInput) (db.TaskView, error) {
@@ -265,11 +275,9 @@ func (s *TaskService) UpdateTaskView(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return db.TaskView{}, err
 	}
-	view, err := s.q.GetTaskView(ctx, db.GetTaskViewParams{
-		ID: viewID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-	})
-	if err != nil || !canReadTaskView(view, actor.ID) {
-		return db.TaskView{}, ErrNotFound
+	view, err := s.loadReadableTaskView(ctx, s.q, ws.OrganizationID, workspaceID, viewID, actor.ID)
+	if err != nil {
+		return db.TaskView{}, err
 	}
 	if !s.canManageTaskView(ctx, view, actor) {
 		return db.TaskView{}, ErrForbidden
@@ -332,7 +340,20 @@ func (s *TaskService) UpdateTaskView(ctx context.Context, actor Actor, workspace
 		Query: query, Display: display, Revision: in.ExpectedRevision,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return db.TaskView{}, CheckTaskRevision(in.ExpectedRevision, view.Revision)
+		current, getErr := q.GetTaskView(ctx, db.GetTaskViewParams{
+			ID: viewID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		})
+		if errors.Is(getErr, pgx.ErrNoRows) {
+			return db.TaskView{}, ErrNotFound
+		}
+		if getErr != nil {
+			return db.TaskView{}, getErr
+		}
+		if cerr := CheckTaskRevision(in.ExpectedRevision, current.Revision); cerr != nil {
+			return db.TaskView{}, cerr
+		}
+		// Row still at expected revision but UPDATE missed — refuse empty success.
+		return db.TaskView{}, CheckTaskRevision(in.ExpectedRevision, current.Revision+1)
 	}
 	if err != nil {
 		return db.TaskView{}, err
@@ -360,11 +381,9 @@ func (s *TaskService) DeleteTaskView(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return err
 	}
-	view, err := s.q.GetTaskView(ctx, db.GetTaskViewParams{
-		ID: viewID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-	})
-	if err != nil || !canReadTaskView(view, actor.ID) {
-		return ErrNotFound
+	view, err := s.loadReadableTaskView(ctx, s.q, ws.OrganizationID, workspaceID, viewID, actor.ID)
+	if err != nil {
+		return err
 	}
 	if !s.canManageTaskView(ctx, view, actor) {
 		return ErrForbidden
@@ -379,7 +398,9 @@ func (s *TaskService) DeleteTaskView(ctx context.Context, actor Actor, workspace
 
 	if _, err := q.DeleteTaskView(ctx, db.DeleteTaskViewParams{
 		ID: viewID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-	}); err != nil {
+	}); errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	} else if err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{

@@ -153,7 +153,7 @@ func (q *Queries) ListTaskPins(ctx context.Context, arg ListTaskPinsParams) ([]T
 	return items, nil
 }
 
-const updateTaskPinPosition = `-- name: UpdateTaskPinPosition :exec
+const updateTaskPinPosition = `-- name: UpdateTaskPinPosition :execrows
 UPDATE task_pins SET position = $1, updated_at = now()
 WHERE id = $2
   AND organization_id = $3
@@ -169,13 +169,16 @@ type UpdateTaskPinPositionParams struct {
 	UserID         string  `json:"user_id"`
 }
 
-func (q *Queries) UpdateTaskPinPosition(ctx context.Context, arg UpdateTaskPinPositionParams) error {
-	_, err := q.db.Exec(ctx, updateTaskPinPosition,
+func (q *Queries) UpdateTaskPinPosition(ctx context.Context, arg UpdateTaskPinPositionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTaskPinPosition,
 		arg.Position,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.UserID,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

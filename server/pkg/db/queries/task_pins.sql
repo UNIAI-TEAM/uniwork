@@ -18,7 +18,7 @@ WHERE organization_id = $1
   AND item_id = $5
 RETURNING *;
 
--- name: UpdateTaskPinPosition :exec
+-- name: UpdateTaskPinPosition :execrows
 UPDATE task_pins SET position = $1, updated_at = now()
 WHERE id = $2
   AND organization_id = $3

@@ -6,6 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestCreateTaskViewAndPutPreferenceRoundTrip(t *testing.T) {
@@ -139,5 +142,119 @@ func TestCreatePinRoundTrip(t *testing.T) {
 	}
 	if !foundCreate || !foundDelete {
 		t.Fatalf("pin events missing in %#v", drained)
+	}
+}
+
+func TestUpdateTaskViewRaceOnUpdateMiss(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	cases := []struct {
+		name     string
+		mutate   string
+		wantErr  error
+		wantCode string
+	}{
+		{
+			name:    "deleted_under_lock",
+			mutate:  `DELETE FROM task_views WHERE id = $1`,
+			wantErr: ErrNotFound,
+		},
+		{
+			name:     "revision_bumped_under_lock",
+			mutate:   `UPDATE task_views SET revision = revision + 1, updated_at = now() WHERE id = $1`,
+			wantCode: "revision_conflict",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			view, err := s.CreateTaskView(ctx, actor, w.ID, CreateTaskViewInput{
+				Name:      "Race view",
+				ScopeType: "workspace",
+				Query:     json.RawMessage(`{}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			lockTx, err := s.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lockTx.Rollback(ctx)
+			if _, err := lockTx.Exec(ctx, `SELECT id FROM task_views WHERE id = $1 FOR UPDATE`, view.ID); err != nil {
+				t.Fatal(err)
+			}
+
+			type result struct {
+				view db.TaskView
+				err  error
+			}
+			ch := make(chan result, 1)
+			go func() {
+				name := "raced"
+				v, err := s.UpdateTaskView(ctx, actor, w.ID, view.ID, UpdateTaskViewInput{
+					Name:             &name,
+					ExpectedRevision: 1,
+				})
+				ch <- result{view: v, err: err}
+			}()
+
+			// Get succeeds unlocked; UPDATE blocks on our row lock.
+			time.Sleep(100 * time.Millisecond)
+			if _, err := lockTx.Exec(ctx, tc.mutate, view.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := lockTx.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			r := <-ch
+			if r.err == nil {
+				t.Fatalf("must not return (TaskView{}, nil); got %+v", r.view)
+			}
+			if r.view.ID != "" {
+				t.Fatalf("error path must not return a view body: %+v", r.view)
+			}
+			if tc.wantErr != nil && !errors.Is(r.err, tc.wantErr) {
+				t.Fatalf("want %v, got %v", tc.wantErr, r.err)
+			}
+			if tc.wantCode != "" {
+				var ce CodedError
+				if !errors.As(r.err, &ce) || ce.Code != tc.wantCode {
+					t.Fatalf("want code %s, got %v", tc.wantCode, r.err)
+				}
+			}
+		})
+	}
+}
+
+func TestReorderPinsRejectsMissingPin(t *testing.T) {
+	s, events, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	task, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "Pinned"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin, err := s.CreatePin(ctx, actor, w.ID, CreatePinInput{ItemType: "task", ItemID: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = events.drain(t)
+	events.pub.events = nil
+
+	err = s.ReorderPins(ctx, actor, w.ID, []ReorderPinItem{
+		{ID: pin.ID, Position: 1},
+		{ID: "01MISSINGPIN00000000000000", Position: 2},
+	})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("want ErrNotFound for missing pin, got %v", err)
+	}
+	if drained := events.drain(t); len(drained) != 0 {
+		t.Fatalf("missing-pin reorder must not audit/outbox; got %#v", drained)
 	}
 }

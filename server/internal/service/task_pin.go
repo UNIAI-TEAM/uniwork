@@ -85,11 +85,8 @@ func (s *TaskService) CreatePin(ctx context.Context, actor Actor, workspaceID st
 			return db.TaskPin{}, err
 		}
 	case "task_view":
-		view, err := s.q.GetTaskView(ctx, db.GetTaskViewParams{
-			ID: in.ItemID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-		})
-		if err != nil || !canReadTaskView(view, actor.ID) {
-			return db.TaskPin{}, ErrNotFound
+		if _, err := s.loadReadableTaskView(ctx, s.q, ws.OrganizationID, workspaceID, in.ItemID, actor.ID); err != nil {
+			return db.TaskPin{}, err
 		}
 	default:
 		return db.TaskPin{}, Invalid("item_type must be task, project or task_view")
@@ -206,11 +203,15 @@ func (s *TaskService) ReorderPins(ctx context.Context, actor Actor, workspaceID 
 		if it.ID == "" {
 			return Invalid("pin id is required")
 		}
-		if err := q.UpdateTaskPinPosition(ctx, db.UpdateTaskPinPositionParams{
+		n, err := q.UpdateTaskPinPosition(ctx, db.UpdateTaskPinPositionParams{
 			Position: it.Position, ID: it.ID,
 			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, UserID: actor.ID,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
+		}
+		if n == 0 {
+			return ErrNotFound
 		}
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
