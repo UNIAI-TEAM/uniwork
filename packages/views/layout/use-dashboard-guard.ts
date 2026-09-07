@@ -7,7 +7,11 @@ import { authStepPath, paths, pendingAuthStep } from "@uniwork/core/paths";
 import type { User, Workspace } from "@uniwork/core/types";
 import { useWorkspace } from "@uniwork/core/workspaces";
 import { useNavigation } from "../navigation";
-import { ORGANIZATION_SUSPENDED } from "./use-organization-suspended";
+import {
+  MEMBER_DEACTIVATED,
+  ORGANIZATION_SUSPENDED,
+  type OrganizationBlock,
+} from "./use-organization-suspended";
 
 /**
  * Auth + workspace gate for every /{org}/{ws}/* screen.
@@ -18,7 +22,8 @@ import { ORGANIZATION_SUSPENDED } from "./use-organization-suspended";
  *  - signed in, not onboarded   → /onboarding (onboarded_at is the single
  *                                 source of truth, never the workspace count)
  *    (both decided by pendingAuthStep, which owns the order)
- *  - organization suspended     → stay; the shell shows the notice
+ *  - organization suspended, or
+ *    membership deactivated     → stay; the shell shows the notice
  *  - URL pair does not resolve  → /workspaces
  *
  * Runs through the navigation adapter, so the same guard serves any host.
@@ -26,7 +31,7 @@ import { ORGANIZATION_SUSPENDED } from "./use-organization-suspended";
 export function useDashboardGuard(
   orgSlug: string,
   wsSlug: string,
-): { user: User | null; workspace: Workspace | null; isLoading: boolean; suspended: boolean } {
+): { user: User | null; workspace: Workspace | null; isLoading: boolean; block: OrganizationBlock } {
   const { pathname, replace } = useNavigation();
   const { user, status } = useSession();
   const {
@@ -46,7 +51,7 @@ export function useDashboardGuard(
       replace(authStepPath(step));
       return;
     }
-    if (errorCode(error) === ORGANIZATION_SUSPENDED) return;
+    if (blockFromError(error)) return;
     // A drifted response resolves to null rather than an error; both mean
     // "this URL is not a workspace you can see".
     if (error || (!workspaceLoading && workspace === null)) replace(paths.workspaces());
@@ -57,6 +62,18 @@ export function useDashboardGuard(
     user: ready ? user : null,
     workspace: ready ? workspace : null,
     isLoading: status === "loading" || workspaceLoading,
-    suspended: errorCode(error) === ORGANIZATION_SUSPENDED,
+    block: blockFromError(error),
   };
+}
+
+/**
+ * A 403 that means "you cannot be in here" rather than "this workspace is not
+ * yours": the shell shows a notice instead of redirecting to the picker, which
+ * would only bounce the person straight back.
+ */
+function blockFromError(error: unknown): OrganizationBlock {
+  const code = errorCode(error);
+  if (code === ORGANIZATION_SUSPENDED) return ORGANIZATION_SUSPENDED;
+  if (code === MEMBER_DEACTIVATED) return MEMBER_DEACTIVATED;
+  return null;
 }

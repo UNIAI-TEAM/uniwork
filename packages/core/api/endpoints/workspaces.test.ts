@@ -56,11 +56,27 @@ describe("workspaces endpoints", () => {
     });
   });
 
-  it("myInvitations and acceptInvite degrade to [] / null", async () => {
+  it("myInvitations degrades to []", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ invitations: [{ id: 1 }] }));
     await expect(myInvitations()).resolves.toEqual([]);
-    vi.mocked(fetch).mockResolvedValueOnce(json({}));
-    await expect(acceptInvite("tok")).resolves.toBeNull();
+  });
+
+  it("acceptInvite reports the organization, and a null workspace for an org-level invitation", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ organization: { id: "o1", slug: "acme", name: "Acme" } }),
+    );
+    const orgOnly = await acceptInvite("tok");
+    expect(orgOnly.organization?.slug).toBe("acme");
+    expect(orgOnly.workspace).toBeNull();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ organization: { id: "o1", slug: "acme", name: "Acme" }, workspace: ws }),
+    );
+    expect((await acceptInvite("tok")).workspace?.id).toBe("ws1");
+
+    // A malformed body degrades to "nothing joined" rather than throwing.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ organization: { id: 1 } }));
+    await expect(acceptInvite("tok")).resolves.toEqual({ organization: null, workspace: null });
   });
 
   it("patchWorkspace returns workspace or null on malformed response", async () => {

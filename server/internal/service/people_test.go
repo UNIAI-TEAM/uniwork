@@ -268,3 +268,56 @@ func TestExportCSVCarriesABOMAndOneRowPerPerson(t *testing.T) {
 		t.Fatalf("member export: got %v, want forbidden", err)
 	}
 }
+
+func TestOneOrganizationCannotReachAnother(t *testing.T) {
+	f := newPeopleFixture(t)
+	// A second organization with its own owner, its own department and its own
+	// people. Nothing about the first organization is reachable from it.
+	other, err := f.orgs.Create(f.ctx, f.other.ID, "Khác", "khac-tenant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine, err := f.depts.Create(f.ctx, f.owner.ID, f.org.ID, DepartmentInput{Name: strptr("Kỹ thuật")})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reading across the boundary is refused, not filtered.
+	if _, err := f.people.Search(f.ctx, f.other.ID, f.org.ID, PeopleFilter{}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider search: got %v", err)
+	}
+	if _, _, err := f.people.Get(f.ctx, f.other.ID, f.org.ID, f.member.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider profile read: got %v", err)
+	}
+	if _, err := f.depts.List(f.ctx, f.other.ID, f.org.ID, false); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider department list: got %v", err)
+	}
+	// Being an owner elsewhere buys nothing here.
+	if _, err := f.people.UpdateProfile(f.ctx, f.other.ID, f.org.ID, f.member.ID, ProfileInput{
+		Title: strptr("Kẻ xâm nhập"),
+	}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider profile write: got %v", err)
+	}
+	// A person from the other organization is not a directory entry here.
+	if _, _, err := f.people.Get(f.ctx, f.owner.ID, f.org.ID, f.other.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("reading a stranger: got %v", err)
+	}
+	// A department id is only meaningful inside its own organization, so it
+	// cannot be assigned across the boundary in either direction.
+	if _, err := f.depts.Update(f.ctx, f.other.ID, other.ID, mine.ID, DepartmentInput{Name: strptr("Cướp")}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("editing another organization's department: got %v", err)
+	}
+	theirs, err := f.depts.Create(f.ctx, f.other.ID, other.ID, DepartmentInput{Name: strptr("Của họ")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.people.UpdateProfile(f.ctx, f.owner.ID, f.org.ID, f.member.ID, ProfileInput{
+		DepartmentID: &theirs.ID,
+	}); err == nil {
+		t.Fatal("a member was filed under another organization's department")
+	}
+	// And the export stops at the boundary too.
+	if _, err := f.people.ExportCSV(f.ctx, f.other.ID, f.org.ID, io.Discard); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider export: got %v", err)
+	}
+}

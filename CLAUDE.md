@@ -190,8 +190,18 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   `TestTablesWithoutOrganizationIDAreTheKnownDebt` hold both.
 - Every query filters by `workspace_id`; membership is decided only in
   `WorkspaceService.RequireMember`, where organization owners/admins are
-  implicit workspace admins. `server/internal/arch_test.go` fails if any
+  implicit workspace admins, and only in `OrganizationService.RequireMember`
+  for the organization tier. `server/internal/arch_test.go` fails if any
   other file calls the membership queries.
+- Organization membership has a lifecycle (F-03). A member with
+  `organization_members.deactivated_at` set keeps every row they own —
+  workspace membership, authored content, history — and is refused by BOTH
+  membership gates: `RequireMember` answers 403 `member_deactivated`, and the
+  workspace gate reads the column too, because deactivation deliberately
+  leaves the workspace row in place. `TestDeactivationClosesTheWorkspaceGateToo`
+  holds it. An organization has exactly one owner at a time
+  (`idx_org_members_single_owner`); ownership moves only through
+  `TransferOwnership`, never through a role change.
 - `audit_events` is append-only. `REVOKE UPDATE, DELETE, TRUNCATE` plus a
   trigger that raises on both, so the rule holds even where the app owns the
   schema (ADR 0012). Retention never deletes; a wrong row is answered with
@@ -411,7 +421,7 @@ When adding a shared screen:
 | Shared screens, components | `packages/views/**/*.test.tsx` |
 | Primitives, tokens | `packages/ui/**/*.test.ts(x)` |
 | Repo contracts (catalog, usf leak, legacy tokens, turbo hash, governance, ADRs, plan status, env example, no-PII logs, alerts ↔ runbooks) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
-| Go layering, membership gate | `server/internal/arch_test.go` |
+| Go layering, membership gate, profile writes | `server/internal/arch_test.go` |
 | End-to-end flows | `e2e/*.spec.ts` |
 | Backend | `server/**/*_test.go` (test DB via `TEST_DATABASE_URL`, Redis via `REDIS_TEST_URL`) |
 

@@ -1112,6 +1112,11 @@
       "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
       "done": "Ownership transferred"
+    },
+    "deactivated": {
+      "title": "Your account in this organization has been deactivated",
+      "description": "An organization admin paused your access. Everything you created is still there. Ask an admin to restore it.",
+      "workspaces_link": "Go to your other organizations"
     }
   },
   "invitations": {

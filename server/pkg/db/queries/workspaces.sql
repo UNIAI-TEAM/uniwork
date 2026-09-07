@@ -33,8 +33,13 @@ ORDER BY w.created_at, w.id;
 
 -- name: GetWorkspaceAccess :one
 -- '' = không có quyền. Org owner/admin được coi là admin của mọi workspace trong org.
+-- organization_member_deactivated rides along so RequireMember can refuse a
+-- member the organization has switched off (F-03): their workspace rows stay,
+-- which is the point of deactivation, so the workspace join alone would still
+-- let them in.
 SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role,
-       w.organization_id, o.status AS organization_status
+       w.organization_id, o.status AS organization_status,
+       (om.deactivated_at IS NOT NULL)::boolean AS organization_member_deactivated
 FROM workspaces w
 JOIN organizations o ON o.id = w.organization_id
 LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $2

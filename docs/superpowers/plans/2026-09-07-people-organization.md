@@ -1,6 +1,6 @@
 # F-03 · Hồ sơ, phòng ban, danh bạ `/people`, quản trị thành viên org, transfer ownership — Plan triển khai
 
-> **Trạng thái:** in-progress
+> **Trạng thái:** shipped
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -69,35 +69,47 @@ apps/web/app/[orgSlug]/[workspaceSlug]/people/{page.tsx,[userId]/page.tsx}
 
 ## Lát 1 — Vòng đời thành viên org (nền)
 
-- [ ] 1.1 Migration `107` (`deactivated_at`, `deactivated_by`, `invited_by`, `updated_at` + DML hạ owner thừa) và `108` (unique 1 owner). Test migration: org 2 owner → 1 owner + 1 admin.
-- [ ] 1.2 `RequireMember` loại thành viên `deactivated_at IS NOT NULL` → `ErrMemberDeactivated` (403 `member_deactivated`); `WorkspaceService.RequireMember` hưởng theo.
-- [ ] 1.3 `OrganizationMemberService`: `Members`, `Membership`, `UpdateRole`, `Deactivate`, `Reactivate`, `Leave`. Audit + outbox. Quota `members.max` ±1.
-- [ ] 1.4 API `GET/PATCH /orgs/{org}/members*`, `POST .../deactivate|reactivate`, `POST /orgs/{org}/leave`.
-- [ ] 1.5 Test ma trận quyền §4.1 (table-driven), `Leave` của owner → `last_owner`.
+- [x] 1.1 Migration `107` (`deactivated_at`, `deactivated_by`, `invited_by`, `updated_at` + DML hạ owner thừa) và `108` (unique 1 owner). Test migration: org 2 owner → 1 owner + 1 admin.
+- [x] 1.2 `RequireMember` loại thành viên `deactivated_at IS NOT NULL` → `ErrMemberDeactivated` (403 `member_deactivated`); `WorkspaceService.RequireMember` hưởng theo.
+- [x] 1.3 `OrganizationMemberService`: `Members`, `Membership`, `UpdateRole`, `Deactivate`, `Reactivate`, `Leave`. Audit + outbox. Quota `members.max` ±1.
+- [x] 1.4 API `GET/PATCH /orgs/{org}/members*`, `POST .../deactivate|reactivate`, `POST /orgs/{org}/leave`.
+- [x] 1.5 Test ma trận quyền §4.1 (table-driven), `Leave` của owner → `last_owner`.
 
 ## Lát 2 — Hồ sơ và danh bạ `/people` (đọc + sửa)
 
-- [ ] 2.1 Migration `109`–`112`: `organization_member_profiles`, extension `pg_trgm`/`unaccent`, backfill 1 dòng/thành viên, 3 index.
-- [ ] 2.2 `PeopleService`: `Search` (keyset, `unaccent ILIKE`), `Get` (+ reports), `UpdateProfile` (tập trường theo vai trò), `RefreshSearchText`.
-- [ ] 2.3 API `GET /orgs/{org}/people`, `GET .../people/{userID}`, `PATCH .../people/{userID}/profile`; `PATCH /me` thêm `timezone`.
-- [ ] 2.4 `packages/core/people` (types, endpoints + test malformed, hooks, keys) và rule quyền.
-- [ ] 2.5 `packages/views/people`: `people-view`, `person-row`, `person-detail-view`, `profile-form`, `actor-chip`; route web; i18n vi/en; test.
+- [x] 2.1 Migration `109`–`112`: `organization_member_profiles`, extension `pg_trgm`/`unaccent`, backfill 1 dòng/thành viên, 3 index.
+- [x] 2.2 `PeopleService`: `Search` (keyset, `unaccent ILIKE`), `Get` (+ reports), `UpdateProfile` (tập trường theo vai trò), `RefreshSearchText`.
+- [x] 2.3 API `GET /orgs/{org}/people`, `GET .../people/{userID}`, `PATCH .../people/{userID}/profile`; `PATCH /me` thêm `timezone`.
+- [x] 2.4 `packages/core/people` (types, endpoints + test malformed, hooks, keys) và rule quyền.
+- [x] 2.5 `packages/views/people`: `people-view`, `person-row`, `person-detail-view`, `profile-form`, `actor-chip`; route web; i18n vi/en; test.
 
 ## Lát 3 — Phòng ban
 
-- [ ] 3.1 Migration `113`–`115` + `DepartmentService` (depth ≤ 2, archive dọn `department_id`, `code` unique trong org).
-- [ ] 3.2 API `GET/POST/PATCH /orgs/{org}/departments`, `POST .../archive`, `PUT .../order`.
-- [ ] 3.3 Core hooks + `department-picker`, tab Settings → Phòng ban.
+- [x] 3.1 Migration `113`–`115` + `DepartmentService` (depth ≤ 2, archive dọn `department_id`, `code` unique trong org).
+- [x] 3.2 API `GET/POST/PATCH /orgs/{org}/departments`, `POST .../archive`, `PUT .../order`.
+- [x] 3.3 Core hooks + `department-picker`, tab Settings → Phòng ban.
 
 ## Lát 4 — Mời vào org
 
-- [ ] 4.1 Migration `116`–`117`: `invitations.workspace_id` nullable, `organization_id`, `org_role`, `invited_by`, `revoked_at`; gỡ `invitations` khỏi `tenantBackfillDebt`.
-- [ ] 4.2 `InviteToOrg`, `AcceptOrgInvite` (gộp `AcceptInvite` cũ), `RevokeInvitation`, `ListOrgInvitations`.
-- [ ] 4.3 API + tab Settings → Tổ chức (danh sách thành viên, mời, đổi role, vô hiệu hóa).
+- [x] 4.1 Migration `116`–`117`: `invitations.workspace_id` nullable, `organization_id`, `org_role`, `invited_by`, `revoked_at`; gỡ `invitations` khỏi `tenantBackfillDebt`.
+- [x] 4.2 `InviteToOrg`, `AcceptOrgInvite` (gộp `AcceptInvite` cũ), `RevokeInvitation`, `ListOrgInvitations`.
+- [x] 4.3 API + tab Settings → Tổ chức (danh sách thành viên, mời, đổi role, vô hiệu hóa).
 
 ## Lát 5 — Transfer, CSV, realtime scope `org`
 
-- [ ] 5.1 `TransferOwnership` nguyên tử (`FOR UPDATE`, xác thực mật khẩu) + dialog gõ tên org.
-- [ ] 5.2 `ExportCSV` stream + BOM + audit `people.exported`.
-- [ ] 5.3 Scope realtime `org` ở hub + consumer + `use-realtime-sync` map 8 event.
-- [ ] 5.4 E2E `e2e/people.spec.ts`; roadmap `CÓ`; plan → `shipped`; spec → `Đã triển khai`.
+- [x] 5.1 `TransferOwnership` nguyên tử (`FOR UPDATE`, xác thực mật khẩu) + dialog gõ tên org.
+- [x] 5.2 `ExportCSV` stream + BOM + audit `people.exported`.
+- [x] 5.3 Scope realtime `org` ở hub + consumer + `use-realtime-sync` map 8 event.
+- [x] 5.4 E2E `e2e/people.spec.ts`; roadmap `CÓ`; plan → `shipped`; spec → `Đã triển khai`.
+
+## Sai khác với spec (ghi lại để người đọc sau không tưởng là sơ suất)
+
+| # | Spec nói | Đã làm | Vì sao |
+|---|---|---|---|
+| 1 | Sự kiện `session.revoked` gửi tới người bị vô hiệu hóa | Bỏ; `member.deactivated` (scope `user`, outbox) làm đúng việc đó | Một sự kiện bền, có trong catalogue, thay vì một sự kiện phù du trùng nghĩa |
+| 2 | `RequireOrgMember` loại người bị vô hiệu hóa, `WorkspaceService.RequireMember` "tự hưởng" | Phải sửa cả `GetWorkspaceAccess` | `RequireMember` của workspace đọc `workspace_members` trực tiếp, không đi qua gate tổ chức; vô hiệu hóa cố ý giữ dòng workspace nên chỉ sửa một chỗ là còn lối vào |
+| 3 | Mời email đã là "thành viên **active**" thì bỏ qua | Bỏ qua cả thành viên đã vô hiệu hóa | Gửi link cho họ là gửi một link mà `AcceptInvite` từ chối; cách sửa đúng là kích hoạt lại |
+| 4 | `search_text` chuẩn hóa bằng extension `unaccent` | Chuẩn hóa trong Go | `unaccent()` không IMMUTABLE nên không đứng được trong biểu thức index; một hàm ghi cột và đọc câu tìm |
+| 5 | Kéo thả sắp xếp phòng ban | `PUT .../departments/order` có, UI kéo thả chưa | Hợp đồng API đã đủ; kéo thả là việc UI riêng, mở issue khi cần |
+| 6 | Danh bạ ảo hóa từ 200 dòng | Ảo hóa ngay khi đo được viewport; chưa đo thì render hết | Đo ra 0 nghĩa là "không biết thấy gì"; render rỗng sẽ đọc thành danh bạ trống |
+| 7 | `GET /orgs/{org}/people/export` | `GET /orgs/{org}/people.csv` | Tránh trùng hình dạng với `{userID}` trên cùng một nhánh route |

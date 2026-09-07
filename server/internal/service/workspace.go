@@ -177,9 +177,11 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 		return WorkspaceView{}, err
 	}
 	if _, err := s.RequireMember(ctx, r.ID, userID); err != nil {
-		// A suspended tenant answers its own members honestly (they already
-		// know it exists); everything else is 404 so nothing leaks.
-		if errors.Is(err, ErrOrganizationSuspended) {
+		// A suspended tenant, and a member who has been switched off, both
+		// already know this workspace exists, so they get the honest answer
+		// and the client can draw the right notice; everything else is 404 so
+		// nothing leaks.
+		if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) {
 			return WorkspaceView{}, err
 		}
 		return WorkspaceView{}, ErrNotFound // không lộ sự tồn tại
@@ -202,6 +204,12 @@ func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userI
 	// platform admins reach it through /api/v1/admin, which never comes here.
 	if access.OrganizationStatus != OrganizationActive {
 		return db.WorkspaceMember{}, errOrganizationSuspended()
+	}
+	// Deactivation keeps the workspace rows, so the workspace join alone would
+	// still admit the person; the organization membership is what decides
+	// (F-03 §4.1).
+	if access.OrganizationMemberDeactivated {
+		return db.WorkspaceMember{}, errMemberDeactivated()
 	}
 	// The one place every workspace request passes through, so the span and
 	// the log lines of this request learn their tenant here (spec F-11 §6.1).

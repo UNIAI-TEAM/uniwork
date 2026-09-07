@@ -1111,6 +1111,11 @@
       "password_label": "Mật khẩu hiện tại của bạn",
       "no_candidate": "Chưa có thành viên nào đang hoạt động để nhận quyền.",
       "done": "Đã chuyển quyền chủ sở hữu"
+    },
+    "deactivated": {
+      "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
+      "description": "Quản trị tổ chức đã tạm dừng quyền truy cập của bạn. Dữ liệu bạn đã tạo vẫn còn. Liên hệ quản trị để được mở lại.",
+      "workspaces_link": "Xem tổ chức khác"
     }
   },
   "invitations": {

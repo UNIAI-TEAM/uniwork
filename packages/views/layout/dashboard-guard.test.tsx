@@ -43,3 +43,26 @@ describe("DashboardGuard when the organization is suspended", () => {
     expect(adapter.replace).not.toHaveBeenCalled();
   });
 });
+
+describe("DashboardGuard when the member has been deactivated", () => {
+  it("names the account rather than the organization, and does not bounce to the picker", async () => {
+    requestMock.mockRejectedValue(new ApiError("deactivated", "member_deactivated", 403));
+    const adapter = nav();
+    render(
+      wrapWithNav(
+        <DashboardGuard orgSlug="acme" wsSlug="team">
+          {() => <p>workspace body</p>}
+        </DashboardGuard>,
+        adapter,
+      ),
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này");
+    expect(alert).not.toHaveTextContent("Tổ chức đang tạm ngưng");
+    // Their other organizations are untouched, so the way out is the picker —
+    // as a link, not a redirect that would bounce them straight back here.
+    expect(screen.getByRole("link", { name: "Xem tổ chức khác" })).toHaveAttribute("href", "/workspaces");
+    expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
+    expect(adapter.replace).not.toHaveBeenCalled();
+  });
+});

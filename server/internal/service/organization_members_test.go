@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -27,6 +28,7 @@ type orgMembersFixture struct {
 	member db.User
 	other  db.User
 	auth   *AuthService
+	ws     *WorkspaceService
 }
 
 func newOrgMembersFixture(t *testing.T) *orgMembersFixture {
@@ -37,6 +39,7 @@ func newOrgMembersFixture(t *testing.T) *orgMembersFixture {
 	f := &orgMembersFixture{ctx: context.Background(), q: q, auth: as}
 	f.orgs = NewOrganizationService(pool, q)
 	f.svc = NewOrganizationMemberService(pool, q, f.orgs)
+	f.ws = NewWorkspaceService(pool, q, f.orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	f.owner = registerVerified(t, q, as, "owner@example.com", "Owner")
 	f.admin = registerVerified(t, q, as, "admin@example.com", "Admin")
 	f.member = registerVerified(t, q, as, "member@example.com", "Member")
@@ -253,5 +256,36 @@ func TestMembersStatusFilter(t *testing.T) {
 	}
 	if _, err := f.svc.Members(f.ctx, f.owner.ID, f.org.ID, "nonsense", "", 50); err == nil {
 		t.Fatal("unknown status accepted")
+	}
+}
+
+func TestDeactivationClosesTheWorkspaceGateToo(t *testing.T) {
+	f := newOrgMembersFixture(t)
+	ws := f.ws
+	view, err := ws.CreateInOrg(f.ctx, f.owner.ID, f.org.ID, "Đội", "doi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addWorkspaceMember(t, f.q, view.ID, f.member.ID)
+	if _, err := ws.RequireMember(f.ctx, view.ID, f.member.ID); err != nil {
+		t.Fatalf("before deactivation: %v", err)
+	}
+	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	// Deactivation deliberately keeps the workspace_members row, so the
+	// workspace gate has to read the organization membership or the person
+	// walks straight back in through any workspace URL.
+	if _, err := ws.RequireMember(f.ctx, view.ID, f.member.ID); !errors.Is(err, ErrMemberDeactivated) {
+		t.Fatalf("workspace gate after deactivation: got %v", err)
+	}
+	if _, err := ws.GetBySlugs(f.ctx, f.member.ID, "unicom", "doi"); !errors.Is(err, ErrMemberDeactivated) {
+		t.Fatalf("GetBySlugs after deactivation: got %v", err)
+	}
+	if _, err := f.svc.Reactivate(f.ctx, f.owner.ID, f.org.ID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.RequireMember(f.ctx, view.ID, f.member.ID); err != nil {
+		t.Fatalf("after reactivation: %v", err)
 	}
 }

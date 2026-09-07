@@ -100,6 +100,44 @@ func TestMembershipDecidedInOnePlace(t *testing.T) {
 	}
 }
 
+// The profile table is written in one place (spec F-03 §8). Every other
+// command that needs a profile row — creating an organization, accepting an
+// invitation, renaming yourself — goes through the helpers in people.go, so
+// the folded search column can never be written by a caller that forgot to
+// rebuild it.
+func TestMemberProfilesWrittenInOnePlace(t *testing.T) {
+	write := regexp.MustCompile(`\.(UpsertMemberProfile|UpdateMemberProfile|SetMemberProfileSearchText|ClearDepartmentFromProfiles)\(`)
+	owners := []string{
+		"internal/service/people.go",
+		"internal/service/department.go",
+	}
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") {
+			return nil
+		}
+		for _, owner := range owners {
+			if strings.HasSuffix(slash, owner) {
+				return nil
+			}
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if write.Match(src) {
+			t.Errorf("%s writes organization_member_profiles directly; go through people.go", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // An actor's kind is decided by the service layer (ADR 0007). A handler only
 // ever holds a signed-in person, so the only constructor it may call is
 // service.Human; building an agent or system actor anywhere else would let a

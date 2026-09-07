@@ -1,7 +1,7 @@
 # UniWork — Hồ sơ, phòng ban, danh bạ và quản trị thành viên tổ chức
 
 **Ngày:** 2026-09-04
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
+**Trạng thái:** Đã triển khai (2026-09-07, UNI-431). Duyệt 2026-09-04 (quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
 **Spec liên quan:** `2026-08-25-onboarding-organizations-design.md`, `2026-08-27-workspace-permissions-design.md`, `2026-08-27-settings-design.md`, `2026-08-28-transactional-email-design.md`, `2026-09-04-tenant-subscription-entitlement-design.md`
 **Tham chiếu:** Vision §5.2 (#3 Organization & People, #1 Identity), §6.1 (phân quyền server-side), §7.2 V6 (actor hạng nhất); bản cũ `unidigiwork` `src/lib/api/people.functions.ts` (`PersonDTO`, `tenant_member_profiles`), `docs/audit/UNIWORK_GAP_REGISTER.md` G6 (6 nút chết ở `/people`), Blueprint §5.1, §13.3
 
