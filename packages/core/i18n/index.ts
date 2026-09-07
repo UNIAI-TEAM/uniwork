@@ -1,7 +1,7 @@
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
-import en from "./locales/en.json";
 import vi from "./locales/vi.json";
+import type { SupportedLocale } from "./types";
 
 /**
  * Chỉ nạp locale nào THẬT SỰ có chuỗi. Đăng ký một file rỗng khiến i18next báo
@@ -23,12 +23,48 @@ export function initI18n() {
     void i18next.use(initReactI18next).init({
       lng: "vi",
       fallbackLng: "vi",
-      resources: withContent({ vi, en }),
+      resources: withContent({ vi }),
       interpolation: { escapeValue: false },
       compatibilityJSON: "v4",
     });
   }
   return i18next;
+}
+
+/**
+ * Vietnamese is the default and the fallback, so it is the only dictionary in
+ * the initial bundle; every other locale arrives on demand. Nothing is
+ * translated on the server (`./server.ts` is the only entry a server component
+ * may import, and it resolves the locale without rendering a string), so a
+ * locale that lands a tick after the first paint cannot mismatch server HTML.
+ * Shipping every dictionary to every route instead would put the whole set in
+ * the shared chunk — see scripts/bundle-budget.mjs.
+ */
+const loaders: Record<Exclude<SupportedLocale, "vi">, () => Promise<{ default: object }>> = {
+  en: () => import("./locales/en.json"),
+};
+
+const loaded = new Set<string>(["vi"]);
+
+export async function ensureLocale(locale: SupportedLocale): Promise<void> {
+  if (loaded.has(locale)) return;
+  const load = loaders[locale as Exclude<SupportedLocale, "vi">];
+  if (!load) return;
+  const dict = (await load()).default;
+  if (Object.keys(dict).length > 0) {
+    i18next.addResourceBundle(locale, "translation", dict, true, true);
+  }
+  loaded.add(locale);
+}
+
+/**
+ * The one way to switch language: load the dictionary, then switch. Calling
+ * `i18n.changeLanguage` directly would show the fallback until the bundle
+ * lands.
+ */
+export async function setLocale(locale: SupportedLocale): Promise<void> {
+  await ensureLocale(locale);
+  await i18next.changeLanguage(locale);
 }
 
 // The adapter layer ported from usf. `initI18n` above stays the app's entry

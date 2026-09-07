@@ -4,7 +4,7 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from "@uniwork/core/i18n";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -195,7 +195,7 @@ export function WorkspaceTopBar({
               if (!next || next === currentLocale) return;
               const locale = next as SupportedLocale;
               localeAdapter.persist(locale);
-              void i18n.changeLanguage(locale);
+              void setLocale(locale);
               document.documentElement.lang = locale;
               toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
             }}

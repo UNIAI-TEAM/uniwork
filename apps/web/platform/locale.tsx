@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@uniwork/core";
 import { useAuthStore } from "@uniwork/core/auth";
-import { createBrowserCookieLocaleAdapter, initI18n, type SupportedLocale } from "@uniwork/core/i18n";
+import { createBrowserCookieLocaleAdapter, initI18n, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 
 /**
@@ -33,7 +33,10 @@ export function WebLocaleProvider({
   });
   const [applied] = useState(() => {
     const i18n = initI18n();
-    if (i18n.language !== initialLocale) void i18n.changeLanguage(initialLocale);
+    // Only Vietnamese ships in the initial bundle; any other locale is fetched
+    // here, one tick after the first paint. Nothing is translated on the
+    // server, so that tick cannot produce a hydration mismatch.
+    if (i18n.language !== initialLocale) void setLocale(initialLocale);
     return initialLocale;
   });
   useEffect(() => {

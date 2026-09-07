@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
-import { ActiveVoiceCallSession, PreConnectFloatingCall } from "./voice-call-overlay-session";
+import { ActiveVoiceCallSession } from "./voice-call-overlay-session";
+import { PreConnectFloatingCall } from "./voice-call-pre-connect";
 
 const toggleCamera = vi.fn().mockResolvedValue(true);
 const toggleMute = vi.fn();

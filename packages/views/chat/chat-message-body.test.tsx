@@ -11,7 +11,9 @@ describe("ChatMessageBody", () => {
     expect(screen.getByText("hello world")).toBeInTheDocument();
   });
 
-  it("renders member mention with display name from context", () => {
+  // The markdown renderer is lazy (it carries KaTeX and Shiki), so these two
+  // wait for the chunk; the plain-text case above renders synchronously.
+  it("renders member mention with display name from context", async () => {
     render(
       <ChatMessageBody
         body="[@Binh](mention://member/u2) check this"
@@ -19,11 +21,11 @@ describe("ChatMessageBody", () => {
         nameContext={[{ user_id: "u2", display_name: "Binh" }]}
       />,
     );
-    expect(screen.getByText("@Binh")).toBeInTheDocument();
+    expect(await screen.findByText("@Binh")).toBeInTheDocument();
     expect(screen.getByText(/check this/)).toBeInTheDocument();
   });
 
-  it("renders sticker media messages as images", () => {
+  it("renders sticker media messages as images", async () => {
     render(
       <ChatMessageBody
         body="![sticker:cười](https://cdn.example/sticker.png)"
@@ -31,6 +33,6 @@ describe("ChatMessageBody", () => {
         nameContext={[]}
       />,
     );
-    expect(screen.getByRole("img")).toHaveAttribute("src", "https://cdn.example/sticker.png");
+    expect(await screen.findByRole("img")).toHaveAttribute("src", "https://cdn.example/sticker.png");
   });
 });
