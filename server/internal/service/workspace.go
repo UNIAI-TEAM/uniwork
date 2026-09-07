@@ -87,6 +87,15 @@ func (s *WorkspaceService) CreateInOrg(ctx context.Context, userID, orgID, name,
 	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: userID, Role: "owner"}); err != nil {
 		return WorkspaceView{}, err
 	}
+	w, err = q.UpdateWorkspaceTaskPrefix(ctx, db.UpdateWorkspaceTaskPrefixParams{
+		ID: w.ID, TaskPrefix: deriveTaskPrefix(w.Slug), OrganizationID: orgID,
+	})
+	if err != nil {
+		return WorkspaceView{}, err
+	}
+	if err := seedBuiltInTaskStatuses(ctx, q, w); err != nil {
+		return WorkspaceView{}, err
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID, WorkspaceID: w.ID,
 		Actor:        audit.User(userID),

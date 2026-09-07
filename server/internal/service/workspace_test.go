@@ -279,3 +279,35 @@ func TestOrgAdminCanManageMembersWithoutMembershipRow(t *testing.T) {
 		t.Fatalf("org admin remove: %v", err)
 	}
 }
+
+func TestWorkspaceCreateSeedsTaskStatuses(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Alpha", "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.TaskPrefix != "ALP" {
+		t.Fatalf("task_prefix = %q, want ALP", row.TaskPrefix)
+	}
+	statuses, err := f.q.ListTaskStatuses(ctx, db.ListTaskStatusesParams{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := BuiltInTaskStatuses()
+	if len(statuses) != len(want) {
+		t.Fatalf("len = %d, want %d", len(statuses), len(want))
+	}
+	for i, st := range statuses {
+		if !st.IsSystem || st.Key != want[i].Key || st.Category != want[i].Category ||
+			st.Position != want[i].Position || st.CreatedByKind != "system" || st.CreatedBy != w.CreatedBy {
+			t.Fatalf("status[%d] = %+v, want key=%s system created_by=%s", i, st, want[i].Key, w.CreatedBy)
+		}
+	}
+}
