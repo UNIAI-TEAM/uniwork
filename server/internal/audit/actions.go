@@ -42,6 +42,14 @@ const (
 	ActionTaskPropertyCreated = "task_property.created"
 	ActionTaskPropertyUpdated = "task_property.updated"
 
+	ActionTaskViewCreated           = "task_view.created"
+	ActionTaskViewUpdated           = "task_view.updated"
+	ActionTaskViewDeleted           = "task_view.deleted"
+	ActionTaskViewPreferenceUpdated = "task_view_preference.updated"
+	ActionTaskPinCreated            = "task_pin.created"
+	ActionTaskPinDeleted            = "task_pin.deleted"
+	ActionTaskPinReordered          = "task_pin.reordered"
+
 	ActionAuthLoginSucceeded         = "auth.login_succeeded"
 	ActionAuthLoginFailed            = "auth.login_failed"
 	ActionAuthPasswordResetRequested = "auth.password_reset_requested"

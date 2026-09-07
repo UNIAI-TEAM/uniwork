@@ -62,11 +62,18 @@ var catalogue = []EventDef{
 	{Topic: "task_label.created", Version: 1, Payload: []string{"label_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_label.deleted", Version: 1, Payload: []string{"label_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_label.updated", Version: 1, Payload: []string{"label_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task_pin.created", Version: 1, Payload: []string{"pin_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task_pin.deleted", Version: 1, Payload: []string{"pin_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task_pin.reordered", Version: 1, Payload: []string{"workspace_id", "user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_property.created", Version: 1, Payload: []string{"property_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_property.updated", Version: 1, Payload: []string{"property_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_status.created", Version: 1, Payload: []string{"status_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_status.deleted", Version: 1, Payload: []string{"status_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_status.updated", Version: 1, Payload: []string{"status_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task_view.created", Version: 1, Payload: []string{"view_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task_view.deleted", Version: 1, Payload: []string{"view_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task_view.updated", Version: 1, Payload: []string{"view_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task_view_preference.updated", Version: 1, Payload: []string{"workspace_id", "user_id", "scope_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Agents (ADR 0007): the picker in a workspace refreshes when one joins.
 	{Topic: "workspace_agent.added", Version: 1, Payload: []string{"workspace_id", "agent_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

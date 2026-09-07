@@ -283,5 +283,51 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			summary: "Clear task property value", description: "Xóa giá trị thuộc tính trên task. Flag tasks_work_management_parity.",
 			tags: []string{"tasks"}, sdo: sdo.TaskSDO{}, auth: true,
 		})
+
+		// Views + preferences + pins (catalogue group views).
+		suite.Get("/workspaces/{workspaceID}/task-views", h.ListTaskViews, apiOp{
+			summary: "List task views", description: "Saved views cho một scope. Query: scope_type, scope_id. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskViewListSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/task-views", h.CreateTaskView, apiOp{
+			summary: "Create task view", description: "Tạo saved view. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.CreateTaskViewSDI{}, sdo: sdo.TaskViewSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/task-views/{id}", h.GetTaskView, apiOp{
+			summary: "Get task view", description: "Chi tiết một saved view. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskViewSDO{}, auth: true,
+		})
+		suite.Patch("/workspaces/{workspaceID}/task-views/{id}", h.PatchTaskView, apiOp{
+			summary: "Update task view", description: "Sửa view với expected_revision. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.PatchTaskViewSDI{}, sdo: sdo.TaskViewSDO{}, auth: true,
+		})
+		suite.Delete("/workspaces/{workspaceID}/task-views/{id}", h.DeleteTaskView, apiOp{
+			summary: "Delete task view", description: "Xóa saved view và pin liên quan. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/task-view-preferences", h.GetTaskViewPreference, apiOp{
+			summary: "Get task view preferences", description: "Prefs thanh view theo scope. Query: scope_type, scope_id. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskViewPreferenceSDO{}, auth: true,
+		})
+		suite.Put("/workspaces/{workspaceID}/task-view-preferences", h.PutTaskViewPreference, apiOp{
+			summary: "Put task view preferences", description: "Ghi prefs thanh view (last-write-wins). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.PutTaskViewPreferenceSDI{}, sdo: sdo.TaskViewPreferenceSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/pins", h.ListPins, apiOp{
+			summary: "List pins", description: "Pin sidebar. Query include=task_view để gồm pin view. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskPinListSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/pins", h.CreatePin, apiOp{
+			summary: "Create pin", description: "Ghim task|project|task_view. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.CreatePinSDI{}, sdo: sdo.TaskPinSDO{}, auth: true,
+		})
+		suite.Put("/workspaces/{workspaceID}/pins/reorder", h.ReorderPins, apiOp{
+			summary: "Reorder pins", description: "Đặt lại position các pin. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.ReorderPinsSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Delete("/workspaces/{workspaceID}/pins/{itemType}/{itemID}", h.DeletePin, apiOp{
+			summary: "Delete pin", description: "Bỏ ghim theo item_type + item_id. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
 	})
 }

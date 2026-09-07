@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -217,6 +218,88 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 			name := "Story Points"
 			if _, err := f.tasks.UpdateTaskProperty(f.ctx, Human(f.owner.ID), w.ID, prop.ID, UpdateTaskPropertyInput{Name: &name}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskViewCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.tasks.CreateTaskView(f.ctx, Human(f.owner.ID), w.ID, CreateTaskViewInput{
+				Name: "Audit view", ScopeType: "workspace",
+				Query: json.RawMessage(`{}`),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskViewUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			view, err := f.tasks.CreateTaskView(f.ctx, Human(f.owner.ID), w.ID, CreateTaskViewInput{
+				Name: "Audit view", ScopeType: "workspace",
+				Query: json.RawMessage(`{}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "Renamed"
+			if _, err := f.tasks.UpdateTaskView(f.ctx, Human(f.owner.ID), w.ID, view.ID, UpdateTaskViewInput{
+				Name: &name, ExpectedRevision: view.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskViewDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			view, err := f.tasks.CreateTaskView(f.ctx, Human(f.owner.ID), w.ID, CreateTaskViewInput{
+				Name: "Temp", ScopeType: "workspace",
+				Query: json.RawMessage(`{}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteTaskView(f.ctx, Human(f.owner.ID), w.ID, view.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskViewPreferenceUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.tasks.PutTaskViewPreference(f.ctx, Human(f.owner.ID), w.ID, PutTaskViewPreferenceInput{
+				ScopeType: "workspace", Prefs: json.RawMessage(`{"order":[]}`),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskPinCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			task := f.newTask(t)
+			if _, err := f.tasks.CreatePin(f.ctx, Human(f.owner.ID), w.ID, CreatePinInput{
+				ItemType: "task", ItemID: task.ID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskPinDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			task := f.newTask(t)
+			if _, err := f.tasks.CreatePin(f.ctx, Human(f.owner.ID), w.ID, CreatePinInput{
+				ItemType: "task", ItemID: task.ID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeletePin(f.ctx, Human(f.owner.ID), w.ID, "task", task.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskPinReordered: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			task := f.newTask(t)
+			pin, err := f.tasks.CreatePin(f.ctx, Human(f.owner.ID), w.ID, CreatePinInput{
+				ItemType: "task", ItemID: task.ID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.ReorderPins(f.ctx, Human(f.owner.ID), w.ID, []ReorderPinItem{
+				{ID: pin.ID, Position: 2},
+			}); err != nil {
 				t.Fatal(err)
 			}
 		},

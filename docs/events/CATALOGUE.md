@@ -87,11 +87,18 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `task_label.created` | 1 | `label_id`, `workspace_id` | workspace | outbox |
 | `task_label.deleted` | 1 | `label_id`, `workspace_id` | workspace | outbox |
 | `task_label.updated` | 1 | `label_id`, `workspace_id` | workspace | outbox |
+| `task_pin.created` | 1 | `pin_id`, `workspace_id` | workspace | outbox |
+| `task_pin.deleted` | 1 | `pin_id`, `workspace_id` | workspace | outbox |
+| `task_pin.reordered` | 1 | `workspace_id`, `user_id` | workspace | outbox |
 | `task_property.created` | 1 | `property_id`, `workspace_id` | workspace | outbox |
 | `task_property.updated` | 1 | `property_id`, `workspace_id` | workspace | outbox |
 | `task_status.created` | 1 | `status_id`, `workspace_id` | workspace | outbox |
 | `task_status.deleted` | 1 | `status_id`, `workspace_id` | workspace | outbox |
 | `task_status.updated` | 1 | `status_id`, `workspace_id` | workspace | outbox |
+| `task_view.created` | 1 | `view_id`, `workspace_id` | workspace | outbox |
+| `task_view.deleted` | 1 | `view_id`, `workspace_id` | workspace | outbox |
+| `task_view.updated` | 1 | `view_id`, `workspace_id` | workspace | outbox |
+| `task_view_preference.updated` | 1 | `workspace_id`, `user_id`, `scope_id` | workspace | outbox |
 | `transcript.appended` | 1 | `meeting_id` | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | - | outbox |
 | `workspace.created` | 1 | `workspace_id`, `organization_id` | workspace | outbox |

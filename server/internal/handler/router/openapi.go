@@ -211,6 +211,12 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			ID          string `path:"id" description:"ULID mục catalog" example:"01J8X4CAT0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "workspaceID,itemType,itemID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ItemType    string `path:"itemType" description:"task|project|task_view" example:"task"`
+			ItemID      string `path:"itemID" description:"ULID mục ghim" example:"01J8X4TSK0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "taskID,labelID":
 		return struct {
 			TaskID  string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`

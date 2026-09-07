@@ -104,6 +104,18 @@ type Routes struct {
 	PutTaskPropertyValue    http.HandlerFunc
 	DeleteTaskPropertyValue http.HandlerFunc
 
+	ListTaskViews         http.HandlerFunc
+	CreateTaskView        http.HandlerFunc
+	GetTaskView           http.HandlerFunc
+	PatchTaskView         http.HandlerFunc
+	DeleteTaskView        http.HandlerFunc
+	GetTaskViewPreference http.HandlerFunc
+	PutTaskViewPreference http.HandlerFunc
+	ListPins              http.HandlerFunc
+	CreatePin             http.HandlerFunc
+	DeletePin             http.HandlerFunc
+	ReorderPins           http.HandlerFunc
+
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc

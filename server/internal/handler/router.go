@@ -188,6 +188,18 @@ func New(d Deps) http.Handler {
 		PutTaskPropertyValue:    h.putTaskPropertyValue,
 		DeleteTaskPropertyValue: h.deleteTaskPropertyValue,
 
+		ListTaskViews:         h.listTaskViews,
+		CreateTaskView:        h.createTaskView,
+		GetTaskView:           h.getTaskView,
+		PatchTaskView:         h.patchTaskView,
+		DeleteTaskView:        h.deleteTaskView,
+		GetTaskViewPreference: h.getTaskViewPreference,
+		PutTaskViewPreference: h.putTaskViewPreference,
+		ListPins:              h.listPins,
+		CreatePin:             h.createPin,
+		DeletePin:             h.deletePin,
+		ReorderPins:           h.reorderPins,
+
 		ListNotifications:          h.listNotifications,
 		UnreadNotificationCount:    h.unreadNotificationCount,
 		MarkNotificationsRead:      h.markNotificationsRead,
