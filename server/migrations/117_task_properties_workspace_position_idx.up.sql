@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY idx_task_properties_workspace_position ON task_properties(workspace_id, position);
