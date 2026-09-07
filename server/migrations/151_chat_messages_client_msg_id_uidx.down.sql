@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS uidx_chat_messages_room_sender_client_msg_id;

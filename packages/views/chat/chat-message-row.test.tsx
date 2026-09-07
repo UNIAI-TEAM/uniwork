@@ -59,6 +59,21 @@ describe("ChatMessageRow", () => {
     expect(screen.getByLabelText("Đã xem")).toBeInTheDocument();
   });
 
+  it("shows delivery status for pending messages", () => {
+    render(
+      wrap(
+        <ChatMessageRow
+          message={message({ deliveryStatus: "sending" })}
+          senderLabel="Me"
+          isOwn
+          showReadReceipt={false}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Đang gửi…")).toBeInTheDocument();
+  });
+
   it("invokes reply and react handlers from action buttons", () => {
     const onReply = vi.fn();
     const onReact = vi.fn();

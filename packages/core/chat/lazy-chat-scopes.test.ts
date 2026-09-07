@@ -10,6 +10,7 @@ function room(id: string, unread = 0): ChatRoomRecord {
     workspace_id: "ws1",
     member_user_ids: [],
     unread_count: unread,
+    mention_unread_count: 0,
   };
 }
 

@@ -107,6 +107,10 @@ var catalogue = []EventDef{
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A mention is addressed to the person mentioned, not to the room, so it
+	// goes out on that user's own scope alongside the room's message event.
+	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.typing", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},

@@ -144,6 +144,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		FeatureFlags:  flags,
 		Readiness:     readiness,
 		Meetings:      meetingSvc,
+		Chat:          chatSvc,
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.
 		Storage:       storage.NewLocalStorageFromEnv(),

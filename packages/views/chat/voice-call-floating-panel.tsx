@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 
-export type VoiceCallPanelMode = "expanded" | "minimized";
+export type VoiceCallPanelMode = "expanded" | "minimized" | "fullscreen";
 
 export function voiceCallInitialOf(name: string): string {
   const trimmed = name.trim();
@@ -47,6 +47,29 @@ function VoiceCallPeerAvatar({
   );
 }
 
+function VoiceCallPanelHeader({
+  peerName,
+  statusLabel,
+  pulse,
+  actions,
+}: {
+  peerName: string;
+  statusLabel: string;
+  pulse?: boolean;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 border-b border-border px-4 py-3">
+      <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className="truncate text-body font-semibold text-foreground">{peerName}</p>
+        <p className="mt-0.5 truncate text-caption tabular-nums text-muted-foreground">{statusLabel}</p>
+      </div>
+      {actions}
+    </div>
+  );
+}
+
 export function VoiceCallFloatingScrim({ children }: { children: ReactNode }) {
   return (
     <>
@@ -65,8 +88,9 @@ export function VoiceCallFloatingPanel({
   peerName,
   statusLabel,
   mode,
-  onToggleMode,
-  allowMinimize = true,
+  onMinimize,
+  onMaximize,
+  allowResize = true,
   pulse,
   footer,
   children,
@@ -74,8 +98,9 @@ export function VoiceCallFloatingPanel({
   peerName: string;
   statusLabel: string;
   mode: VoiceCallPanelMode;
-  onToggleMode: () => void;
-  allowMinimize?: boolean;
+  onMinimize?: () => void;
+  onMaximize?: () => void;
+  allowResize?: boolean;
   pulse?: boolean;
   footer?: ReactNode;
   children?: ReactNode;
@@ -91,18 +116,81 @@ export function VoiceCallFloatingPanel({
             <p className="truncate text-body font-medium text-foreground">{peerName}</p>
             <p className="truncate text-caption tabular-nums text-muted-foreground">{statusLabel}</p>
           </div>
+          {allowResize ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 rounded-full"
+              aria-label={t("chat.voice_call_expand")}
+              onClick={onMaximize}
+            >
+              <Maximize2 aria-hidden className="size-4" />
+            </Button>
+          ) : null}
+          {footer}
+        </div>
+      </div>
+    );
+  }
+
+  const headerActions =
+    allowResize && (onMinimize || onMaximize) ? (
+      <div className="flex shrink-0 items-center gap-0.5">
+        {mode === "expanded" && onMinimize ? (
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full"
-            aria-label={t("chat.voice_call_expand")}
-            onClick={onToggleMode}
+            className="rounded-full"
+            aria-label={t("chat.voice_call_minimize")}
+            onClick={onMinimize}
+          >
+            <Minimize2 aria-hidden className="size-4" />
+          </Button>
+        ) : null}
+        {mode === "expanded" && onMaximize ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full"
+            aria-label={t("chat.voice_call_fullscreen")}
+            onClick={onMaximize}
           >
             <Maximize2 aria-hidden className="size-4" />
           </Button>
-          {footer}
-        </div>
+        ) : null}
+        {mode === "fullscreen" && onMinimize ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full"
+            aria-label={t("chat.voice_call_restore")}
+            onClick={onMinimize}
+          >
+            <Minimize2 aria-hidden className="size-4" />
+          </Button>
+        ) : null}
+      </div>
+    ) : null;
+
+  if (mode === "fullscreen") {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-background">
+        <VoiceCallPanelHeader
+          peerName={peerName}
+          statusLabel={statusLabel}
+          pulse={pulse}
+          actions={headerActions}
+        />
+        {children ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6 sm:px-8">
+            <div className="flex w-full max-w-5xl flex-1 flex-col items-center justify-center">{children}</div>
+          </div>
+        ) : null}
+        {footer ? <div className="border-t border-border px-4 py-4 sm:px-8">{footer}</div> : null}
       </div>
     );
   }
@@ -111,28 +199,15 @@ export function VoiceCallFloatingPanel({
     <div
       className={cn(
         "overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--menu-shadow)]",
-        allowMinimize ? "" : "w-full",
+        allowResize ? "" : "w-full",
       )}
     >
-      <div className="flex items-start gap-3 border-b border-border px-4 py-3">
-        <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
-        <div className="min-w-0 flex-1 pt-0.5">
-          <p className="truncate text-body font-semibold text-foreground">{peerName}</p>
-          <p className="mt-0.5 truncate text-caption tabular-nums text-muted-foreground">{statusLabel}</p>
-        </div>
-        {allowMinimize ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 rounded-full"
-            aria-label={t("chat.voice_call_minimize")}
-            onClick={onToggleMode}
-          >
-            <Minimize2 aria-hidden className="size-4" />
-          </Button>
-        ) : null}
-      </div>
+      <VoiceCallPanelHeader
+        peerName={peerName}
+        statusLabel={statusLabel}
+        pulse={pulse}
+        actions={headerActions}
+      />
       {children ? <div className="px-4 py-4">{children}</div> : null}
       {footer ? <div className="border-t border-border px-4 py-3">{footer}</div> : null}
     </div>

@@ -9,7 +9,10 @@ import (
 )
 
 // redisTestDB keeps test keys away from any local dev data on the same server.
-const redisTestDB = 15
+// It must differ from every other package's test DB: `go test ./...` runs
+// packages in parallel and each helper FlushDBs before/after every test, so a
+// shared DB lets one package wipe another's rate-limit counters mid-test.
+const redisTestDB = 14
 
 // newRedisTestClient connects to REDIS_TEST_URL (skipping the test when it is
 // unset), selects an isolated database, and flushes it before and after the

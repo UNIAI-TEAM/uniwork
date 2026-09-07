@@ -213,6 +213,7 @@ func main() {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
+	chatSvc.TenorAPIKey = cfg.TenorAPIKey
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	// Directory and department events belong to the organization, so every

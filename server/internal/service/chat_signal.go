@@ -30,7 +30,7 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if callerName == "" {
 		callerName = u.Email
 	}
-	s.trackVoiceCallInvite(roomID, callID, userID)
+	s.trackVoiceCallInvite(room, callID, userID, callerName)
 	ev := Event{
 		Type: "chat.voice.invite",
 		Payload: map[string]string{
@@ -109,6 +109,9 @@ func (s *ChatService) SignalVoiceHangup(
 func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roomID string) error {
 	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
+		return err
+	}
+	if err := s.requireCanSendInRoom(ctx, userID, roomID, room); err != nil {
 		return err
 	}
 	if !shouldPublishTyping(userID, roomID, time.Now()) {

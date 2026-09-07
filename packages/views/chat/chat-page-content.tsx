@@ -1,22 +1,28 @@
 "use client";
 
-import { Hash, MessageSquare } from "lucide-react";
-import type { ChatContact } from "@uniwork/core/chat/contacts-store";
+import { MessageSquare } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
-import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
-import { AddGroupMembersDialog } from "./add-group-members-dialog";
-import { ChatComposer } from "./chat-composer";
-import type { ChatMessage } from "./chat-messages";
-import { ChatConversationHeader } from "./chat-conversation-header";
-import { DmChatToolbar, DmSettingsSheet } from "./dm-settings-sheet";
-import { GroupChatToolbar, GroupSettingsSheet } from "./group-settings-sheet";
+import { ChatComposer, type ComposerAttachAction } from "./chat-composer";
+import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
+import { DmChatToolbar } from "./dm-settings-sheet";
+import { GroupChatToolbar } from "./group-settings-sheet";
+import { WorkspaceChatToolbar } from "./workspace-settings-sheet";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import { ChatSidebar } from "./chat-sidebar";
-import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
+import { ChatPinnedMessagesBar } from "./chat-pinned-messages-bar";
+import { ChatMessageSearchBar } from "./chat-message-search-bar";
+import { ChatRealtimeStatusBanner } from "./chat-realtime-status-banner";
+import type { ChatMentionCandidate } from "./chat-mention-utils";
+import { buildChatMentionCandidates } from "./chat-mention-utils";
+import { memberDisplayLabel } from "./workspace-member-picker-utils";
+import type { ChatPageContentProps } from "./chat-page-content-props";
+import { ChatPageContentDialogs } from "./chat-page-content-dialogs";
 
 export function ChatPageContent({
   target,
@@ -32,17 +38,24 @@ export function ChatPageContent({
   activeRoomId,
   showLoading,
   connectError,
+  pendingOutboxCount = 0,
   isWorkspaceError,
   onRefetchWorkspace,
   workspaceRoomId,
   unreadByRoomId,
+  mentionUnreadByRoomId,
+  roomPreviewsByRoomId,
   unreadBadgesReady,
+  nicknamesByUserId,
   nameContext,
   replyTo,
   onReplyToChange,
   draft,
   onDraftChange,
+  composerPriority,
+  onComposerPriorityChange,
   onSend,
+  onSendMedia,
   groupSettingsOpen,
   onGroupSettingsOpenChange,
   dmSettingsOpen,
@@ -69,133 +82,213 @@ export function ChatPageContent({
   typingLabel,
   onVoiceCall,
   voiceCallDisabled,
+  onVideoCall,
+  videoCallDisabled,
+  workspaceMembers,
+  workspaceSettingsOpen,
+  onWorkspaceSettingsOpenChange,
+  messageSearchOpen,
+  onMessageSearchOpenChange,
+  jumpToMessageId,
+  onJumpToMessageIdChange,
+  chatSendRestricted,
+  chatSendMutedByModerator,
+  canPinMessages,
+  canCreatePolls,
+  canCreateNotes,
   t,
-}: {
-  target: ChatSidebarTarget;
-  setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
-  currentUserId: string;
-  headerTitle: string;
-  contacts: ChatContact[];
-  groups: GroupChat[];
-  activeContact: ChatContact | null;
-  activeGroup: GroupChat | null;
-  workspaceId: string;
-  messageRefreshKey?: number;
-  activeRoomId: string | null;
-  showLoading: boolean;
-  connectError: string | null;
-  isWorkspaceError: boolean;
-  onRefetchWorkspace: () => void;
-  workspaceRoomId: string | null;
-  unreadByRoomId: Record<string, number>;
-  unreadBadgesReady: boolean;
-  nameContext: ChatNameContextEntry[];
-  replyTo: ChatMessage | null;
-  onReplyToChange: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
-  draft: string;
-  onDraftChange: React.Dispatch<React.SetStateAction<string>>;
-  onSend: () => void;
-  groupSettingsOpen: boolean;
-  onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
-  dmSettingsOpen: boolean;
-  onDmSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
-  dmBlocked: boolean;
-  dmBlockedByMe: boolean;
-  dmBlockedMe: boolean;
-  onBlockContact: () => void;
-  onUnblockContact: () => void;
-  blockingContact: boolean;
-  unblockingContact: boolean;
-  addMembersOpen: boolean;
-  onAddMembersOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
-  createGroupOpen: boolean;
-  onCreateGroupOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
-  creatingGroup: boolean;
-  onCreateGroup: (members: ChatContact[], name: string) => void;
-  invitingMembers: boolean;
-  onAddGroupMembers: (members: ChatContact[]) => void;
-  leavingConversation: boolean;
-  onLeaveGroup: () => void;
-  onLeaveDm: () => void;
-  groupMemberProfiles: Record<string, GroupMemberProfile>;
-  typingLabel: string | null;
-  onVoiceCall: () => void;
-  voiceCallDisabled: boolean;
-  t: (key: string, options?: Record<string, string | number>) => string;
-}) {
+}: ChatPageContentProps) {
+  const [createPollOpen, setCreatePollOpen] = useState(false);
+  const [createReminderOpen, setCreateReminderOpen] = useState(false);
+  const [createNoteOpen, setCreateNoteOpen] = useState(false);
+  const [mobileListMode, setMobileListMode] = useState(false);
+
+  const showMobileList = mobileListMode || !activeRoomId;
+  const showMobileChat = Boolean(activeRoomId) && !mobileListMode;
+  const backToListLabel = t("common.back");
+
+  const handleTargetChange = (next: ChatSidebarTarget) => {
+    setTarget(next);
+    setMobileListMode(false);
+  };
+
+  const handleBackToConversationList = () => {
+    setMobileListMode(true);
+  };
+
+  const prevActiveRoomIdRef = useRef<string | null>(activeRoomId);
+
+  useEffect(() => {
+    const prev = prevActiveRoomIdRef.current;
+    prevActiveRoomIdRef.current = activeRoomId;
+    if (!prev && activeRoomId) {
+      setMobileListMode(false);
+    }
+  }, [activeRoomId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(min-width: 1024px)");
+    const keepChatWhenNarrow = () => {
+      if (!media.matches && activeRoomId) {
+        setMobileListMode(false);
+      }
+    };
+    keepChatWhenNarrow();
+    media.addEventListener("change", keepChatWhenNarrow);
+    return () => media.removeEventListener("change", keepChatWhenNarrow);
+  }, [activeRoomId]);
+
+  useEffect(() => {
+    if (!activeRoomId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        onMessageSearchOpenChange(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeRoomId, onMessageSearchOpenChange]);
+
+  const mentionCandidates = useMemo(
+    (): ChatMentionCandidate[] =>
+      buildChatMentionCandidates(
+        target.kind,
+        currentUserId,
+        workspaceMembers,
+        groupMemberProfiles,
+        memberDisplayLabel,
+      ),
+    [currentUserId, groupMemberProfiles, target.kind, workspaceMembers],
+  );
+
+  const handleAttachAction = (action: ComposerAttachAction) => {
+    if (action === "create_poll") {
+      if (target.kind === "dm") return;
+      if (!canCreatePolls) {
+        toast.error(t("chat.poll_create_forbidden"));
+        return;
+      }
+      if (!activeRoomId) return;
+      setCreatePollOpen(true);
+      return;
+    }
+    if (action === "create_reminder") {
+      if (!canCreateNotes) {
+        toast.error(t("chat.reminder_create_forbidden"));
+        return;
+      }
+      if (!activeRoomId) return;
+      setCreateReminderOpen(true);
+      return;
+    }
+    if (action === "create_note") {
+      if (!canCreateNotes) {
+        toast.error(t("chat.note_create_forbidden"));
+        return;
+      }
+      if (!activeRoomId) return;
+      setCreateNoteOpen(true);
+      return;
+    }
+    if (action === "mark_important") {
+      onComposerPriorityChange(toggleComposerPriority(composerPriority, "important"));
+      return;
+    }
+    if (action === "mark_urgent") {
+      onComposerPriorityChange(toggleComposerPriority(composerPriority, "urgent"));
+      return;
+    }
+    toast.info(t("chat.composer_coming_soon"));
+  };
+
   return (
     <>
-      {target.kind === "group" && activeGroup ? (
-        <>
-          <GroupSettingsSheet
-            open={groupSettingsOpen}
-            onOpenChange={onGroupSettingsOpenChange}
-            group={activeGroup}
-            currentUserId={currentUserId}
-            youLabel={t("chat.you")}
-            memberProfiles={groupMemberProfiles}
-            onAddMembers={() => onAddMembersOpenChange(true)}
-            leaving={leavingConversation}
-            leaveDisabled={!activeRoomId}
-            onLeave={onLeaveGroup}
-          />
-          <AddGroupMembersDialog
-            open={addMembersOpen}
-            onOpenChange={onAddMembersOpenChange}
-            workspaceId={workspaceId}
-            group={activeGroup}
-            currentUserId={currentUserId}
-            contacts={contacts}
-            inviting={invitingMembers}
-            onInvite={onAddGroupMembers}
-          />
-        </>
-      ) : null}
-      {target.kind === "dm" && activeContact ? (
-        <DmSettingsSheet
-          open={dmSettingsOpen}
-          onOpenChange={onDmSettingsOpenChange}
-          contact={
-            contacts.find((entry) => entry.user_id === activeContact.user_id) ?? activeContact
-          }
-          youLabel={t("chat.you")}
-          leaving={leavingConversation}
-          leaveDisabled={!activeRoomId}
-          onLeave={onLeaveDm}
-          blockedByMe={dmBlockedByMe}
-          blockedMe={dmBlockedMe}
-          onBlock={onBlockContact}
-          onUnblock={onUnblockContact}
-          blocking={blockingContact}
-          unblocking={unblockingContact}
-        />
-      ) : null}
+      <ChatPageContentDialogs
+        target={target}
+        workspaceId={workspaceId}
+        headerTitle={headerTitle}
+        contacts={contacts}
+        activeContact={activeContact}
+        activeGroup={activeGroup}
+        currentUserId={currentUserId}
+        workspaceRoomId={workspaceRoomId}
+        nicknamesByUserId={nicknamesByUserId}
+        groupMemberProfiles={groupMemberProfiles}
+        groupSettingsOpen={groupSettingsOpen}
+        onGroupSettingsOpenChange={onGroupSettingsOpenChange}
+        dmSettingsOpen={dmSettingsOpen}
+        onDmSettingsOpenChange={onDmSettingsOpenChange}
+        dmBlockedByMe={dmBlockedByMe}
+        dmBlockedMe={dmBlockedMe}
+        onBlockContact={onBlockContact}
+        onUnblockContact={onUnblockContact}
+        blockingContact={blockingContact}
+        unblockingContact={unblockingContact}
+        addMembersOpen={addMembersOpen}
+        onAddMembersOpenChange={onAddMembersOpenChange}
+        invitingMembers={invitingMembers}
+        onAddGroupMembers={onAddGroupMembers}
+        leavingConversation={leavingConversation}
+        onLeaveGroup={onLeaveGroup}
+        onLeaveDm={onLeaveDm}
+        workspaceMembers={workspaceMembers}
+        workspaceSettingsOpen={workspaceSettingsOpen}
+        onWorkspaceSettingsOpenChange={onWorkspaceSettingsOpenChange}
+        activeRoomId={activeRoomId}
+        canPinMessages={canPinMessages}
+        t={t}
+        createPollOpen={createPollOpen}
+        onCreatePollOpenChange={setCreatePollOpen}
+        createReminderOpen={createReminderOpen}
+        onCreateReminderOpenChange={setCreateReminderOpen}
+        createNoteOpen={createNoteOpen}
+        onCreateNoteOpenChange={setCreateNoteOpen}
+      />
 
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 px-4 pb-4 pt-2 md:px-6">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 px-2 pb-2 pt-2 md:px-6 md:pb-4">
         <div
           className={cn(
             "flex min-h-0 w-full flex-1 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm",
             "lg:grid lg:grid-cols-[280px_minmax(0,1fr)]",
           )}
         >
-          <ChatSidebar
-            currentUserId={currentUserId}
-            workspaceId={workspaceId}
-            target={target}
-            onTargetChange={setTarget}
-            contacts={contacts}
-            groups={groups}
-            onCreateGroup={onCreateGroup}
-            creatingGroup={creatingGroup}
-            createGroupOpen={createGroupOpen}
-            onCreateGroupOpenChange={onCreateGroupOpenChange}
-            workspaceRoomId={workspaceRoomId}
-            unreadByRoomId={unreadByRoomId}
-            unreadBadgesReady={unreadBadgesReady}
-            embedded
-          />
+          <div
+            className={cn(
+              "min-h-0 min-w-0 flex-col overflow-hidden",
+              showMobileList ? "flex w-full flex-1" : "hidden",
+              "lg:flex lg:w-auto lg:flex-none",
+            )}
+          >
+            <ChatSidebar
+              currentUserId={currentUserId}
+              workspaceId={workspaceId}
+              target={target}
+              onTargetChange={handleTargetChange}
+              contacts={contacts}
+              groups={groups}
+              onCreateGroup={onCreateGroup}
+              creatingGroup={creatingGroup}
+              createGroupOpen={createGroupOpen}
+              onCreateGroupOpenChange={onCreateGroupOpenChange}
+              workspaceRoomId={workspaceRoomId}
+              unreadByRoomId={unreadByRoomId}
+              mentionUnreadByRoomId={mentionUnreadByRoomId}
+              roomPreviewsByRoomId={roomPreviewsByRoomId}
+              unreadBadgesReady={unreadBadgesReady}
+              embedded
+            />
+          </div>
 
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15">
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15",
+              showMobileChat ? "flex flex-1" : "hidden",
+              "lg:flex lg:flex-1",
+            )}
+          >
+            <ChatRealtimeStatusBanner pendingOutboxCount={pendingOutboxCount} />
             {isWorkspaceError && target.kind === "workspace" ? (
               <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2">
                 <p className="text-caption text-muted-foreground">{t("chat.room_load_failed")}</p>
@@ -231,35 +324,65 @@ export function ChatPageContent({
               </div>
             ) : activeRoomId ? (
               <>
-                {target.kind === "workspace" ? (
-                  <ChatConversationHeader
-                    avatar={
-                      <span className="flex size-10 items-center justify-center rounded-full bg-brand/10 text-brand">
-                        <Hash className="size-5" aria-hidden />
-                      </span>
-                    }
-                    title={headerTitle}
-                    subtitle={t("chat.workspace_room_hint")}
+                {messageSearchOpen ? (
+                  <ChatMessageSearchBar
+                    workspaceId={workspaceId}
+                    roomId={activeRoomId}
+                    currentUserId={currentUserId}
+                    nameContext={nameContext}
+                    youLabel={t("chat.you")}
+                    onClose={() => onMessageSearchOpenChange(false)}
+                    onJumpToMessage={onJumpToMessageIdChange}
                   />
                 ) : null}
-                {target.kind === "group" && activeGroup ? (
+                {!messageSearchOpen && target.kind === "workspace" ? (
+                  <WorkspaceChatToolbar
+                    title={headerTitle}
+                    memberCount={workspaceMembers.length}
+                    backAriaLabel={backToListLabel}
+                    onBack={handleBackToConversationList}
+                    onOpenSettings={() => onWorkspaceSettingsOpenChange(true)}
+                    onOpenSearch={() => onMessageSearchOpenChange(true)}
+                  />
+                ) : null}
+                {!messageSearchOpen && target.kind === "group" && activeGroup ? (
                   <GroupChatToolbar
                     title={headerTitle}
                     memberCount={activeGroup.member_user_ids.length + 1}
+                    backAriaLabel={backToListLabel}
+                    onBack={handleBackToConversationList}
                     onOpenSettings={() => onGroupSettingsOpenChange(true)}
+                    onOpenSearch={() => onMessageSearchOpenChange(true)}
                     onVoiceCall={onVoiceCall}
                     voiceCallDisabled={voiceCallDisabled}
+                    onVideoCall={onVideoCall}
+                    videoCallDisabled={videoCallDisabled}
                   />
                 ) : null}
-                {target.kind === "dm" && activeContact ? (
+                {!messageSearchOpen && target.kind === "dm" && activeContact ? (
                   <DmChatToolbar
                     contact={
                       contacts.find((entry) => entry.user_id === activeContact.user_id) ??
                       activeContact
                     }
+                    nicknamesByUserId={nicknamesByUserId}
+                    backAriaLabel={backToListLabel}
+                    onBack={handleBackToConversationList}
                     onOpenSettings={() => onDmSettingsOpenChange(true)}
+                    onOpenSearch={() => onMessageSearchOpenChange(true)}
                     onVoiceCall={onVoiceCall}
                     voiceCallDisabled={voiceCallDisabled}
+                    onVideoCall={onVideoCall}
+                    videoCallDisabled={videoCallDisabled}
+                  />
+                ) : null}
+
+                {!messageSearchOpen ? (
+                  <ChatPinnedMessagesBar
+                    workspaceId={workspaceId}
+                    roomId={activeRoomId}
+                    canPinMessages={canPinMessages}
+                    onJumpToMessage={onJumpToMessageIdChange}
                   />
                 ) : null}
 
@@ -275,7 +398,7 @@ export function ChatPageContent({
                       : target.kind === "group"
                         ? t("chat.group_empty", { name: headerTitle })
                         : t("chat.dm_empty", {
-                            name: displayLabelForChatContact(target.contact),
+                            name: displayLabelForChatContact(target.contact, nicknamesByUserId),
                           })
                   }
                   replyTo={replyTo}
@@ -283,20 +406,36 @@ export function ChatPageContent({
                   refreshKey={messageRefreshKey}
                   showSenderName={target.kind === "workspace" || target.kind === "group"}
                   embedded
+                  anchorMessageId={jumpToMessageId}
+                  onClearAnchor={() => onJumpToMessageIdChange(null)}
+                  canPinMessages={canPinMessages}
                 />
 
                 <ChatComposer
+                  workspaceId={workspaceId}
                   draft={draft}
                   onDraftChange={onDraftChange}
+                  composerPriority={composerPriority}
+                  onComposerPriorityChange={onComposerPriorityChange}
                   onSend={onSend}
-                  disabled={showLoading || !activeRoomId || dmBlocked}
+                  onSendMedia={onSendMedia}
+                  disabled={showLoading || !activeRoomId || dmBlocked || chatSendRestricted}
+                  mentionCandidates={
+                    target.kind === "workspace" || target.kind === "group" ? mentionCandidates : undefined
+                  }
                   placeholder={
                     dmBlocked
                       ? t("chat.block_composer_placeholder")
-                      : t("chat.message_placeholder")
+                      : chatSendMutedByModerator
+                        ? t("chat.mute_composer_placeholder")
+                        : chatSendRestricted
+                          ? t("chat.room_send_forbidden_placeholder")
+                          : t("chat.message_placeholder")
                   }
                   sendLabel={t("chat.send")}
                   typingLabel={typingLabel}
+                  onAttachAction={handleAttachAction}
+                  showCreatePoll={canCreatePolls && target.kind !== "dm"}
                 />
               </>
             ) : (

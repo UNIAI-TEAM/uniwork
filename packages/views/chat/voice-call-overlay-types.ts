@@ -17,6 +17,7 @@ export type VoiceCallOverlayState =
       peerName: string;
       outgoing: true;
       callKind: VoiceCallKind;
+      withCamera?: boolean;
     }
   | {
       status: "connecting";
@@ -26,6 +27,7 @@ export type VoiceCallOverlayState =
       outgoing: boolean;
       callKind: VoiceCallKind;
       callerName?: string;
+      withCamera?: boolean;
     }
   | {
       status: "active";
@@ -37,4 +39,5 @@ export type VoiceCallOverlayState =
       outgoing: boolean;
       callKind: VoiceCallKind;
       callerName?: string;
+      withCamera?: boolean;
     };

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Phone, Settings } from "lucide-react";
+import { ChevronLeft, Phone, Search, Settings, Video } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -9,21 +9,35 @@ export function ChatConversationHeader({
   avatar,
   title,
   subtitle,
+  backAriaLabel,
+  onBack,
   settingsAriaLabel,
   onOpenSettings,
+  searchAriaLabel,
+  onOpenSearch,
   voiceCallAriaLabel,
   onVoiceCall,
   voiceCallDisabled,
+  videoCallAriaLabel,
+  onVideoCall,
+  videoCallDisabled,
   className,
 }: {
   avatar: ReactNode;
   title: string;
   subtitle?: string;
+  backAriaLabel?: string;
+  onBack?: () => void;
   settingsAriaLabel?: string;
   onOpenSettings?: () => void;
+  searchAriaLabel?: string;
+  onOpenSearch?: () => void;
   voiceCallAriaLabel?: string;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
+  videoCallAriaLabel?: string;
+  onVideoCall?: () => void;
+  videoCallDisabled?: boolean;
   className?: string;
 }) {
   return (
@@ -33,6 +47,18 @@ export function ChatConversationHeader({
         className,
       )}
     >
+      {onBack ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+          aria-label={backAriaLabel}
+          onClick={onBack}
+        >
+          <ChevronLeft className="size-5" aria-hidden />
+        </Button>
+      ) : null}
       <div className="shrink-0">{avatar}</div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-body font-semibold text-foreground">{title}</p>
@@ -41,6 +67,31 @@ export function ChatConversationHeader({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {onOpenSearch ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-10 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={searchAriaLabel}
+            onClick={onOpenSearch}
+          >
+            <Search className="size-5" aria-hidden />
+          </Button>
+        ) : null}
+        {onVideoCall ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-10 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={videoCallAriaLabel}
+            disabled={videoCallDisabled}
+            onClick={onVideoCall}
+          >
+            <Video className="size-5" aria-hidden />
+          </Button>
+        ) : null}
         {onVoiceCall ? (
           <Button
             type="button"

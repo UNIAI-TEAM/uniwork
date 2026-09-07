@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS uidx_chat_user_nicknames_owner_target;

@@ -1,7 +1,7 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { Member } from "@uniwork/core/types/workspace";
 
-export function memberToChatContact(member: Member): ChatContact {
+export function memberToChatContact(member: { user_id: string; email: string; display_name: string }): ChatContact {
   const name = member.display_name.trim();
   const display_name = name || member.email.split("@")[0]?.trim() || member.user_id;
   return {
@@ -11,7 +11,7 @@ export function memberToChatContact(member: Member): ChatContact {
   };
 }
 
-export function memberDisplayLabel(member: Member): string {
+export function memberDisplayLabel(member: { user_id: string; email: string; display_name: string }): string {
   return memberToChatContact(member).display_name;
 }
 

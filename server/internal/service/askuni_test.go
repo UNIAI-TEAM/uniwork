@@ -242,6 +242,42 @@ func TestConversationOwnershipAndUsage(t *testing.T) {
 	}
 }
 
+// The default window has no upper bound on purpose. `created_at` is written by
+// PostgreSQL and the window's end would be read from this process's clock; a
+// database whose clock sits a few milliseconds ahead — two hosts in production,
+// a VM on a laptop — would hide the row the caller just produced. A clock one
+// second behind the database stands in for that skew here.
+func TestUsageWindowSurvivesADatabaseClockAhead(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09", DueDate: &yesterday}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "task nào quá hạn?", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+	s.now = func() time.Time { return time.Now().Add(-time.Second) }
+
+	sum, err := s.WorkspaceUsage(ctx, ua.ID, w.ID, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sum.Rows) != 1 {
+		t.Fatalf("default window dropped the row the database had just written: %+v", sum)
+	}
+
+	// An upper bound the caller named is still honoured: it is a wall-clock
+	// date the caller chose, not this process's idea of "now".
+	bounded, err := s.WorkspaceUsage(ctx, ua.ID, w.ID, time.Time{}, time.Now().AddDate(0, 0, -1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bounded.Rows) != 0 {
+		t.Fatalf("window ending yesterday reported today's calls: %+v", bounded)
+	}
+}
+
 func TestSearchScoringOverdueAndMembers(t *testing.T) {
 	s, _, ua, ub, w := askFixture(t)
 	ctx := context.Background()

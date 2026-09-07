@@ -34,12 +34,14 @@
     "@tanstack/react-virtual": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
+    "@emoji-mart/data": "^1.2.1",
     "livekit-client": "^2.21.0",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
-    "sonner": "catalog:"
+    "sonner": "catalog:",
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",

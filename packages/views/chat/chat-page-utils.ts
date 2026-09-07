@@ -1,5 +1,5 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
+import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 
 export type GroupMemberProfile = {
@@ -46,6 +46,7 @@ export function chatHeaderTitle(
   groups: GroupChat[],
   workspaceTitle: string,
   dmWithLabel: (params: { name: string }) => string,
+  nicknamesByUserId: Readonly<Record<string, string>> = {},
 ): string {
   if (target.kind === "workspace") return workspaceTitle;
   if (target.kind === "group") {
@@ -54,6 +55,7 @@ export function chatHeaderTitle(
   return dmWithLabel({
     name: displayLabelForChatContact(
       contacts.find((c) => c.user_id === target.contact.user_id) ?? target.contact,
+      nicknamesByUserId,
     ),
   });
 }
@@ -64,19 +66,20 @@ export function buildChatNameContext(
   activeGroup: GroupChat | null,
   groupMemberProfiles: Record<string, GroupMemberProfile>,
   workspaceMembers: WorkspaceMemberLike[] = [],
+  nicknamesByUserId: Readonly<Record<string, string>> = {},
 ): ChatNameContextEntry[] {
   const nameContext: ChatNameContextEntry[] = [];
   const seen = new Set<string>();
 
   for (const c of contacts) {
-    pushNameEntry(nameContext, seen, c.user_id, displayLabelForChatContact(c));
+    pushNameEntry(nameContext, seen, c.user_id, displayLabelForChatContact(c, nicknamesByUserId));
   }
   if (activeContact) {
     pushNameEntry(
       nameContext,
       seen,
       activeContact.user_id,
-      displayLabelForChatContact(activeContact),
+      displayLabelForChatContact(activeContact, nicknamesByUserId),
     );
   }
   if (activeGroup) {
@@ -84,17 +87,28 @@ export function buildChatNameContext(
       if (seen.has(memberId)) continue;
       const profile = groupMemberProfiles[memberId];
       if (profile) {
-        pushNameEntry(nameContext, seen, profile.user_id, profile.display_name);
+        pushNameEntry(
+          nameContext,
+          seen,
+          profile.user_id,
+          resolveChatNicknameForUser(nicknamesByUserId, profile.user_id) || profile.display_name,
+        );
         continue;
       }
       const contact = contacts.find((entry) => entry.user_id === memberId);
       if (contact) {
-        pushNameEntry(nameContext, seen, contact.user_id, displayLabelForChatContact(contact));
+        pushNameEntry(nameContext, seen, contact.user_id, displayLabelForChatContact(contact, nicknamesByUserId));
       }
     }
   }
   for (const member of workspaceMembers) {
-    pushNameEntry(nameContext, seen, member.user_id, displayLabelForWorkspaceMember(member));
+    const nickname = resolveChatNicknameForUser(nicknamesByUserId, member.user_id);
+    pushNameEntry(
+      nameContext,
+      seen,
+      member.user_id,
+      nickname || displayLabelForWorkspaceMember(member),
+    );
   }
   return nameContext;
 }

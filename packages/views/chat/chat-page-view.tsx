@@ -7,6 +7,8 @@ import {
   mergeActiveDmContact,
   sidebarFromChatRooms,
   unreadMapFromRooms,
+  mentionUnreadMapFromRooms,
+  roomPreviewMapFromRooms,
   selectLazyChatScopeRoomIds,
   useBlockChatUser,
   useChatBlockStatus,
@@ -16,24 +18,38 @@ import {
   useEnsureWorkspaceChatRoom,
   useInviteChatGroupMembers,
   useLeaveChatRoom,
+  useChatRoomMembers,
+  useChatNicknames,
   useResolveDMRoom,
   useSendChatRoomMessage,
   useUnblockChatUser,
+  useChatSendOutboxFlush,
+  useChatSendOutboxCount,
 } from "@uniwork/core/chat";
+import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
+import { useChatTypingSync } from "@uniwork/core/chat/use-chat-typing-sync";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { useMembers } from "@uniwork/core/workspaces";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
+import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
+import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
+import { useChatReminderNotifications } from "./use-chat-reminder-notify";
 import { buildChatNameContext, chatHeaderTitle } from "./chat-page-utils";
+import { buildChatMentionCandidates } from "./chat-mention-utils";
+import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageContent } from "./chat-page-content";
 import { useChatPageActions } from "./use-chat-page-actions";
+import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
 import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
 import { useNativeTyping } from "./use-native-typing";
 import { useNativeVoiceCall } from "./use-native-voice-call";
+import { useMembers } from "@uniwork/core/workspaces";
+import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import { VoiceCallOverlay } from "./voice-call-overlay";
 
 export function ChatPageView({
@@ -44,8 +60,10 @@ export function ChatPageView({
   currentUserId: string;
 }) {
   const { t } = useTranslation();
+  useChatReminderNotifications(workspaceId);
   const authReady = useAuthStore((s) => s.status === "authed");
   const { data: rooms = [], isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
+  const { data: nicknamesByUserId = {} } = useChatNicknames(workspaceId);
   const { data: workspaceMembers = [] } = useMembers(workspaceId);
   const ensureRoom = useEnsureWorkspaceChatRoom(workspaceId);
   const resolveDM = useResolveDMRoom(workspaceId);
@@ -55,6 +73,8 @@ export function ChatPageView({
   const inviteMembers = useInviteChatGroupMembers(workspaceId);
   const leaveRoom = useLeaveChatRoom(workspaceId);
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
+  useChatSendOutboxFlush(workspaceId, currentUserId);
+  const pendingOutboxCount = useChatSendOutboxCount(workspaceId);
   const blockUser = useBlockChatUser(workspaceId);
   const unblockUser = useUnblockChatUser(workspaceId);
 
@@ -65,6 +85,8 @@ export function ChatPageView({
 
   const workspaceRoomId = workspaceRoom?.id ?? ensureRoom.data?.room_id ?? null;
   const unreadByRoomId = useMemo(() => unreadMapFromRooms(rooms), [rooms]);
+  const mentionUnreadByRoomId = useMemo(() => mentionUnreadMapFromRooms(rooms), [rooms]);
+  const roomPreviewsByRoomId = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
   const unreadBadgesReady = roomsLoaded;
 
   const [target, setTarget] = useState<ChatSidebarTarget>({ kind: "workspace" });
@@ -73,18 +95,27 @@ export function ChatPageView({
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [dmSettingsOpen, setDmSettingsOpen] = useState(false);
   const [leavingConversation, setLeavingConversation] = useState(false);
   const [blockingContact, setBlockingContact] = useState(false);
   const [unblockingContact, setUnblockingContact] = useState(false);
   const [invitingMembers, setInvitingMembers] = useState(false);
   const [draft, setDraft] = useState("");
+  const [composerPriority, setComposerPriority] = useState<ComposerMessagePriority | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const syncedRef = useRef(false);
 
+  const currentMember = useCurrentMember(workspaceId);
+
   const activeContact = target.kind === "dm" ? target.contact : null;
-  const activeGroup = target.kind === "group" ? target.group : null;
+  const activeGroup = useMemo(() => {
+    if (target.kind !== "group") return null;
+    return groups.find((group) => group.id === target.group.id) ?? target.group;
+  }, [groups, target]);
   const dmPeerUserId = activeContact?.user_id ?? null;
   const dmContactRoomId = activeContact?.dm_room_id ?? null;
   const { data: blockStatus } = useChatBlockStatus(
@@ -139,6 +170,42 @@ export function ChatPageView({
         ? (resolvedDmRoomId ?? activeContact?.dm_room_id ?? null)
         : (activeGroup?.room_id ?? null);
 
+  useEffect(() => {
+    setMessageSearchOpen(false);
+    setJumpToMessageId(null);
+    setComposerPriority(null);
+  }, [activeRoomId]);
+
+  useEffect(() => {
+    useActiveChatRoomStore.getState().setActiveRoom(workspaceId, activeRoomId);
+    return () => {
+      useActiveChatRoomStore.getState().setActiveRoom(null, null);
+    };
+  }, [workspaceId, activeRoomId]);
+
+  useChatMentionNotify({ currentUserId, activeRoomId });
+
+  const { data: activeRoomMembers = [] } = useChatRoomMembers(
+    workspaceId,
+    activeRoomId ?? "",
+    Boolean(activeRoomId),
+  );
+  const activeRoomRecord = useMemo(
+    () => (activeRoomId ? rooms.find((room) => room.id === activeRoomId) : undefined),
+    [activeRoomId, rooms],
+  );
+  const roomPermissions = useResolvedRoomPermissions({
+    room: activeRoomRecord,
+    members: activeRoomMembers,
+    currentUserId,
+    wsRole: currentMember.role,
+  });
+  const chatSendRestricted = !roomPermissions.canSendMessages;
+  const chatSendMutedByModerator = roomPermissions.sendRestricted;
+  const canPinMessages = roomPermissions.canPinContent;
+  const canCreatePolls = roomPermissions.canCreatePolls;
+  const canCreateNotes = roomPermissions.canCreateNotes;
+
   const voiceAllowedRoomIds = useMemo(() => {
     const ids = new Set<string>();
     for (const room of rooms) {
@@ -159,6 +226,7 @@ export function ChatPageView({
     [rooms, activeRoomId, target.kind],
   );
   useChatRoomScopes(chatScopeRoomIds);
+  useChatTypingSync(currentUserId);
 
   const showLoading =
     !authReady ||
@@ -172,8 +240,23 @@ export function ChatPageView({
     activeGroup,
   });
 
-  const { provisionAndSend, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation } =
+  const mentionCandidates = useMemo(
+    () =>
+      buildChatMentionCandidates(
+        target.kind,
+        currentUserId,
+        workspaceMembers,
+        groupMemberProfiles,
+        memberDisplayLabel,
+      ),
+    [currentUserId, groupMemberProfiles, target.kind, workspaceMembers],
+  );
+  const mentionAllLabel = t("chat.mention_all");
+
+  const { provisionAndSend, sendMessageBody, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation } =
     useChatPageActions({
+      workspaceId,
+      currentUserId,
       target,
       setTarget,
       activeRoomId,
@@ -197,6 +280,10 @@ export function ChatPageView({
       setInvitingMembers,
       setLeavingConversation,
       clearGroupMemberProfiles,
+      mentionCandidates,
+      mentionAllLabel,
+      composerPriority,
+      setComposerPriority,
     });
 
   useEffect(() => {
@@ -216,6 +303,7 @@ export function ChatPageView({
     groups,
     t("chat.title"),
     (params) => t("chat.dm_with", params),
+    nicknamesByUserId,
   );
   const nameContext = useMemo(
     () =>
@@ -225,8 +313,9 @@ export function ChatPageView({
         activeGroup,
         groupMemberProfiles,
         workspaceMembers,
+        nicknamesByUserId,
       ),
-    [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers],
+    [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId],
   );
 
   const chatVoiceToken = useChatVoiceToken();
@@ -240,7 +329,7 @@ export function ChatPageView({
     mintToken: mintVoiceToken,
     allowedRoomIds: voiceAllowedRoomIds,
   });
-  const { handleStartVoiceCall, handleAcceptVoiceCall } = useChatVoiceHandlers({
+  const { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall } = useChatVoiceHandlers({
     targetKind: target.kind,
     activeRoomId,
     activeContact,
@@ -255,7 +344,7 @@ export function ChatPageView({
     currentUserId,
     nameContext,
     draft,
-    enabled: target.kind !== "workspace" && Boolean(activeRoomId) && !showLoading && !dmBlocked,
+    enabled: Boolean(activeRoomId) && !showLoading && !dmBlocked,
   });
 
   const handleBlockContact = useCallback(async () => {
@@ -316,17 +405,24 @@ export function ChatPageView({
         activeRoomId={activeRoomId}
         showLoading={showLoading}
         connectError={connectError}
+        pendingOutboxCount={pendingOutboxCount}
         isWorkspaceError={isError}
         onRefetchWorkspace={() => void refetch()}
         workspaceRoomId={workspaceRoomId}
         unreadByRoomId={unreadByRoomId}
+        mentionUnreadByRoomId={mentionUnreadByRoomId}
+        roomPreviewsByRoomId={roomPreviewsByRoomId}
         unreadBadgesReady={unreadBadgesReady}
+        nicknamesByUserId={nicknamesByUserId}
         nameContext={nameContext}
         replyTo={replyTo}
         onReplyToChange={setReplyTo}
         draft={draft}
         onDraftChange={setDraft}
+        composerPriority={composerPriority}
+        onComposerPriorityChange={setComposerPriority}
         onSend={() => void provisionAndSend()}
+        onSendMedia={(body) => void sendMessageBody(body)}
         groupSettingsOpen={groupSettingsOpen}
         onGroupSettingsOpenChange={setGroupSettingsOpen}
         dmSettingsOpen={dmSettingsOpen}
@@ -370,6 +466,25 @@ export function ChatPageView({
           chatVoiceToken.isPending ||
           (target.kind === "dm" && dmBlocked)
         }
+        onVideoCall={() => void handleStartVideoCall()}
+        videoCallDisabled={
+          !activeRoomId ||
+          inCall ||
+          chatVoiceToken.isPending ||
+          (target.kind === "dm" && dmBlocked)
+        }
+        workspaceMembers={workspaceMembers}
+        workspaceSettingsOpen={workspaceSettingsOpen}
+        onWorkspaceSettingsOpenChange={setWorkspaceSettingsOpen}
+        messageSearchOpen={messageSearchOpen}
+        onMessageSearchOpenChange={setMessageSearchOpen}
+        jumpToMessageId={jumpToMessageId}
+        onJumpToMessageIdChange={setJumpToMessageId}
+        chatSendRestricted={chatSendRestricted}
+        chatSendMutedByModerator={chatSendMutedByModerator}
+        canPinMessages={canPinMessages}
+        canCreatePolls={canCreatePolls}
+        canCreateNotes={canCreateNotes}
         t={t}
       />
       <VoiceCallOverlay
