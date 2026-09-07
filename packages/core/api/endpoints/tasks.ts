@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ActorKind } from "../../types/audit";
 import {
   TaskCommentSchema,
   TaskSchema,
@@ -22,6 +23,8 @@ export interface TaskPatch {
   priority?: TaskPriority;
   position?: number;
   assignee_id?: string | null;
+  /** Read with assignee_id; omitted means human. */
+  assignee_kind?: ActorKind;
   due_date?: string | null;
 }
 
@@ -29,6 +32,8 @@ export interface CreateTaskBody {
   title: string;
   description?: string;
   priority?: TaskPriority;
+  assignee_id?: string;
+  assignee_kind?: ActorKind;
 }
 
 const enc = encodeURIComponent;

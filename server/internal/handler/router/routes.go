@@ -6,7 +6,24 @@ import "net/http"
 // from *handlers so route files stay in this package.
 type Routes struct {
 	Health http.HandlerFunc
+	Ready  http.HandlerFunc
 	WS     http.HandlerFunc
+
+	Config                     http.HandlerFunc
+	RUM                        http.HandlerFunc
+	AdminMe                    http.HandlerFunc
+	AdminListOrganizations     http.HandlerFunc
+	AdminGetOrganization       http.HandlerFunc
+	AdminSuspendOrganization   http.HandlerFunc
+	AdminUnsuspendOrganization http.HandlerFunc
+	AdminChangePlan            http.HandlerFunc
+	AdminTrace                 http.HandlerFunc
+	AdminSystem                http.HandlerFunc
+	AdminListFlags             http.HandlerFunc
+	AdminListFlagOverrides     http.HandlerFunc
+	AdminListAllFlagOverrides  http.HandlerFunc
+	AdminSetFlagOverride       http.HandlerFunc
+	AdminDeleteFlagOverride    http.HandlerFunc
 
 	Register       http.HandlerFunc
 	Login          http.HandlerFunc
@@ -33,6 +50,29 @@ type Routes struct {
 	ListOrgWorkspaces  http.HandlerFunc
 	CreateOrgWorkspace http.HandlerFunc
 
+	ListOrgMembers      http.HandlerFunc
+	GetOrgMembershipMe  http.HandlerFunc
+	PatchOrgMember      http.HandlerFunc
+	DeactivateOrgMember http.HandlerFunc
+	ReactivateOrgMember http.HandlerFunc
+	LeaveOrganization   http.HandlerFunc
+
+	InviteToOrganization http.HandlerFunc
+	ListOrgInvitations   http.HandlerFunc
+	RevokeOrgInvitation  http.HandlerFunc
+	TransferOrgOwnership http.HandlerFunc
+
+	ListPeople         http.HandlerFunc
+	GetPerson          http.HandlerFunc
+	PatchPersonProfile http.HandlerFunc
+	ExportPeople       http.HandlerFunc
+
+	ListDepartments    http.HandlerFunc
+	CreateDepartment   http.HandlerFunc
+	PatchDepartment    http.HandlerFunc
+	ArchiveDepartment  http.HandlerFunc
+	ReorderDepartments http.HandlerFunc
+
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
 	PatchWorkspace      http.HandlerFunc
@@ -52,6 +92,47 @@ type Routes struct {
 	DeleteTask    http.HandlerFunc
 	ListComments  http.HandlerFunc
 	CreateComment http.HandlerFunc
+
+	ListNotifications          http.HandlerFunc
+	UnreadNotificationCount    http.HandlerFunc
+	MarkNotificationsRead      http.HandlerFunc
+	MarkNotificationsUnread    http.HandlerFunc
+	ArchiveNotifications       http.HandlerFunc
+	GetNotificationPreferences http.HandlerFunc
+	PutNotificationPreferences http.HandlerFunc
+	PushConfig                 http.HandlerFunc
+	SubscribePush              http.HandlerFunc
+	UnsubscribePush            http.HandlerFunc
+
+	AiCapabilities       http.HandlerFunc
+	AskUni               http.HandlerFunc
+	ListAiConversations  http.HandlerFunc
+	ListAiMessages       http.HandlerFunc
+	DeleteAiConversation http.HandlerFunc
+	WorkspaceAiUsage     http.HandlerFunc
+	OrganizationAiUsage  http.HandlerFunc
+
+	ListPlans          http.HandlerFunc
+	GetSubscription    http.HandlerFunc
+	ChangePlan         http.HandlerFunc
+	CancelSubscription http.HandlerFunc
+	ResumeSubscription http.HandlerFunc
+	CreateCheckout     http.HandlerFunc
+
+	ListOrgAgents       http.HandlerFunc
+	CreateOrgAgent      http.HandlerFunc
+	PatchAgent          http.HandlerFunc
+	ListWorkspaceAgents http.HandlerFunc
+	AddWorkspaceAgent   http.HandlerFunc
+
+	ListAuditEvents     http.HandlerFunc
+	GetAuditEvent       http.HandlerFunc
+	ListResourceHistory http.HandlerFunc
+	GetAuditRetention   http.HandlerFunc
+	SetAuditRetention   http.HandlerFunc
+	ListAuditExports    http.HandlerFunc
+	CreateAuditExport   http.HandlerFunc
+	GetAuditExport      http.HandlerFunc
 
 	ListMeetings         http.HandlerFunc
 	CreateMeeting        http.HandlerFunc

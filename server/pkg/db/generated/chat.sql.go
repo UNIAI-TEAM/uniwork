@@ -13,10 +13,10 @@ import (
 
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, reply_to_message_id, client_msg_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id
 ) VALUES (
-  $1, $2, $3, $4, 'text', $5, $6, $7
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+  $1, $2, $3, $4, $5, 'text', $6, $7, $8
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type CreateChatMessageParams struct {
@@ -24,6 +24,7 @@ type CreateChatMessageParams struct {
 	RoomID           string      `json:"room_id"`
 	WorkspaceID      string      `json:"workspace_id"`
 	SenderID         string      `json:"sender_id"`
+	SenderKind       string      `json:"sender_kind"`
 	Body             string      `json:"body"`
 	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
@@ -35,6 +36,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		arg.RoomID,
 		arg.WorkspaceID,
 		arg.SenderID,
+		arg.SenderKind,
 		arg.Body,
 		arg.ReplyToMessageID,
 		arg.ClientMsgID,
@@ -52,6 +54,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -62,7 +65,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'note', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type CreateChatNoteMessageParams struct {
@@ -96,6 +99,7 @@ func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteM
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -106,7 +110,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'poll', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type CreateChatPollMessageParams struct {
@@ -140,6 +144,7 @@ func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollM
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -150,7 +155,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'reminder', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type CreateChatReminderMessageParams struct {
@@ -184,6 +189,7 @@ func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatR
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -241,7 +247,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'voice_call_log', '', $5
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type CreateChatVoiceCallLogParams struct {
@@ -273,6 +279,7 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -327,7 +334,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 }
 
 const getChatMessageByClientMsgID = `-- name: GetChatMessageByClientMsgID :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id FROM chat_messages
 WHERE room_id = $1
   AND sender_id = $2
   AND client_msg_id = $3
@@ -355,13 +362,14 @@ func (q *Queries) GetChatMessageByClientMsgID(ctx context.Context, arg GetChatMe
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
 }
 
 const getChatMessageInRoom = `-- name: GetChatMessageInRoom :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
 `
 
@@ -386,6 +394,7 @@ func (q *Queries) GetChatMessageInRoom(ctx context.Context, arg GetChatMessageIn
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -1091,7 +1100,7 @@ const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :one
 UPDATE chat_messages
 SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type SoftDeleteChatMessageParams struct {
@@ -1121,6 +1130,7 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -1139,7 +1149,7 @@ const updateChatMessageBody = `-- name: UpdateChatMessageBody :one
 UPDATE chat_messages
 SET body = $4, edited_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $5 AND kind = 'text' AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type UpdateChatMessageBodyParams struct {
@@ -1171,6 +1181,7 @@ func (q *Queries) UpdateChatMessageBody(ctx context.Context, arg UpdateChatMessa
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err
@@ -1180,7 +1191,7 @@ const updateChatMessageMetadata = `-- name: UpdateChatMessageMetadata :one
 UPDATE chat_messages
 SET metadata = $4
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, client_msg_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
 `
 
 type UpdateChatMessageMetadataParams struct {
@@ -1210,6 +1221,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 		&i.EditedAt,
 		&i.DeletedAt,
 		&i.CreatedAt,
+		&i.SenderKind,
 		&i.ClientMsgID,
 	)
 	return i, err

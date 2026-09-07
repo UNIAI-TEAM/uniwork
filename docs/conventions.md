@@ -85,10 +85,19 @@ a shared package; there is no "small enough to duplicate".
 - Membership is decided in one place: `WorkspaceService.RequireMember`.
   Organization owners/admins are implicit workspace admins there. No other
   service reads `workspace_members`.
-- Every mutation that other clients should see publishes a
-  `service.Event{Type, Payload}` through `EventPublisher`; event names are
-  `<entity>.<verb>` (`task.updated`, `meeting.deleted`) and the payload
-  carries ids only.
+- Every command that changes business state calls
+  `audit.Recorder.Record(ctx, q, Entry, emit…)` with the `q` bound to its own
+  transaction, so the change, its audit row and its events commit together.
+  Nothing outside `internal/audit` writes those two tables.
+- Domain events reach clients through the outbox, not `EventPublisher.Publish`.
+  Direct publish is reserved for ephemeral signals, and the test is one
+  sentence: **losing it costs nobody anything** — typing indicators, voice
+  signalling, a transcript line the next one supersedes. Anything a user might
+  ask about later goes through the outbox.
+- Event names are `<entity>.<verb>` (`task.updated`, `meeting.deleted`), the
+  payload carries ids only, and the version is the `event_version` column
+  rather than part of the name. Every event is listed in
+  [`docs/events/CATALOGUE.md`](events/CATALOGUE.md).
 - Handler errors go through `mapServiceError`; a new error kind is added there
   once, not translated per handler.
 - HTTP request/response types are SDI/SDO in
@@ -152,6 +161,11 @@ fails on drift. One flat namespace, keys nested by section:
 | member | **thành viên** | Member | `workspace.members = "Thành viên"` |
 | invitation | **lời mời** / **mời** | Invitation / Invite | `workspace.invite = "Mời thành viên"` |
 | comment | **bình luận** | Comment | |
+| inbox (the notification screen) | **hộp việc** | Inbox | `nav.inbox = "Hộp việc"`; route stays `/inbox` (OPEN_QUESTIONS N5) |
+| Ask UNI (the read-only copilot) | **Hỏi UNI** | Ask UNI | `ai.title = "Hỏi UNI"`; UNI is the assistant's name, never "trợ lý ảo" |
+| source / citation (what an answer points at) | **nguồn** / **trích dẫn** | source / citation | `ai.sources = "Nguồn"`; rendered as `[S1]` links |
+| notification | **thông báo** | Notification | `notifications.*`; one row in the inbox is a "thông báo" |
+| mention (@someone) | **nhắc** / **nhắc đến** | Mention | `notifications.kind.mentioned = "… đã nhắc đến bạn …"` |
 | note (meeting) | **ghi chú** | Note | |
 | onboarding | **onboarding** | Onboarding | section name stays English |
 

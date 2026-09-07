@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { paths } from "@uniwork/core/paths";
 import { useTaskPermissions } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -11,15 +12,27 @@ import {
   useTask,
   useUpdateTask,
 } from "@uniwork/core/tasks";
-import type { TaskPriority, TaskStatus } from "@uniwork/core/types";
+import type { ActorKind, TaskPriority, TaskStatus } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
+import { AgentBadge } from "../agents/agent-badge";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { useWorkspace } from "../layout/workspace-context";
+import { DateField } from "../common/date-field";
+import { TaskActivity } from "./task-activity";
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done", "cancelled"];
+
+// The assignee select carries the actor pair as one value so a person and an
+// agent with the same id space can never be confused (ADR 0007).
+const assigneeValue = (kind: string, id: string) => `${kind}:${id}`;
+function parseAssignee(v: string): { assignee_id: string | null; assignee_kind?: ActorKind } {
+  const i = v.indexOf(":");
+  if (i < 0) return { assignee_id: null };
+  return { assignee_id: v.slice(i + 1), assignee_kind: v.slice(0, i) === "agent" ? "agent" : "human" };
+}
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 export function TaskDetailView({
@@ -35,6 +48,7 @@ export function TaskDetailView({
   const { workspace } = useWorkspace();
   const { data: task } = useTask(taskId);
   const { data: members } = useMembers(workspaceId);
+  const { data: agents } = useWorkspaceAgents(workspaceId);
   const update = useUpdateTask(workspaceId);
   const del = useDeleteTask(workspaceId);
   const { canDelete } = useTaskPermissions(task ?? null, workspaceId);
@@ -106,7 +120,10 @@ export function TaskDetailView({
           <ul className="space-y-3">
             {(comments ?? []).map((c) => (
               <li key={c.id} className="rounded-lg border border-border bg-surface p-3">
-                <div className="mb-1 text-caption text-muted-foreground">{c.display_name ?? c.author_id}</div>
+                <div className="mb-1 flex items-center gap-2 text-caption text-muted-foreground">
+                  <span>{c.author?.display_name ?? c.display_name ?? c.author_id}</span>
+                  {c.author_kind === "agent" && <AgentBadge />}
+                </div>
                 <div className="whitespace-pre-wrap text-body text-foreground">{c.body}</div>
               </li>
             ))}
@@ -127,6 +144,11 @@ export function TaskDetailView({
               {t("common.save")}
             </Button>
           </form>
+
+          <h2 className="mb-2 mt-6 text-body font-semibold text-foreground">
+            {t("settings.audit.activity.title")}
+          </h2>
+          <TaskActivity workspaceId={workspaceId} taskId={taskId} />
         </div>
 
         <aside className="shrink-0 space-y-4 border-t border-border p-4 md:w-64 md:border-l md:border-t-0">
@@ -147,22 +169,28 @@ export function TaskDetailView({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>{t("tasks.assignee")}</Label>
+            <Label className="flex items-center gap-2">
+              {t("tasks.assignee")}
+              {task.assignee?.kind === "agent" && <AgentBadge />}
+            </Label>
             <Select
               items={[
                 { value: "", label: t("tasks.unassigned") },
-                ...(members ?? []).map((m) => ({ value: m.user_id, label: m.display_name })),
+                ...(members ?? []).map((m) => ({ value: assigneeValue("human", m.user_id), label: m.display_name })),
+                ...(agents ?? []).map((a) => ({
+                  value: assigneeValue("agent", a.id),
+                  label: `${a.name} · ${t("agents.badge")}`,
+                })),
               ]}
-              value={task.assignee_id ?? ""}
-              onValueChange={(v) => patch({ assignee_id: v ? v : null })}
+              value={task.assignee_id ? assigneeValue(task.assignee_kind, task.assignee_id) : ""}
+              onValueChange={(v) => patch(parseAssignee(v ?? ""))}
             />
           </div>
           <div className="space-y-1.5">
             <Label>{t("tasks.dueDate")}</Label>
-            <Input
-              type="date"
+            <DateField
               value={task.due_date ?? ""}
-              onChange={(e) => patch({ due_date: e.target.value || null })}
+              onChange={(v) => patch({ due_date: v || null })}
             />
           </div>
         </aside>

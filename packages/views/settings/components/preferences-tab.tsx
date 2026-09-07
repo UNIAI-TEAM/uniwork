@@ -1,11 +1,12 @@
 "use client";
 
-import type { ComponentType } from "react";
+import { useMemo, type ComponentType } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
+import { usePatchMe, useSession } from "@uniwork/core/auth";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import {
   Select,
@@ -44,6 +45,11 @@ export function PreferencesTab() {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings" });
   const { theme, setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
+  const { user } = useSession();
+  const patchMe = usePatchMe();
+  const timezone = user?.timezone ?? DEFAULT_TIMEZONE;
+  // timezoneOptions enumerates ~600 IANA zones; build the item list once per zone.
+  const zoneItems = useMemo(() => timezoneOptions(timezone).map((z) => ({ value: z, label: z })), [timezone]);
 
   const currentLocale: SupportedLocale = SUPPORTED_LOCALES.includes(i18n.language as SupportedLocale)
     ? (i18n.language as SupportedLocale)
@@ -127,8 +133,35 @@ export function PreferencesTab() {
               </SelectContent>
             </Select>
           </SettingsRow>
+          <SettingsRow label={t("preferences.timezone")} size="select">
+            <Select
+              aria-label={t("preferences.timezone")}
+              value={timezone}
+              disabled={patchMe.isPending}
+              items={zoneItems}
+              onValueChange={(next) => {
+                if (!next || next === timezone) return;
+                patchMe.mutate(
+                  { timezone: next },
+                  {
+                    onSuccess: () => toast.success(t("preferences.toastSaved"), { id: "settings-auto-save" }),
+                    onError: () => toast.error(t("preferences.toastError")),
+                  },
+                );
+              }}
+            />
+          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
     </SettingsTab>
   );
+}
+
+const DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh";
+
+/** Every IANA zone the engine knows, or a short list where Intl cannot say. */
+function timezoneOptions(current: string): string[] {
+  const intl = Intl as unknown as { supportedValuesOf?: (k: string) => string[] };
+  const all = intl.supportedValuesOf ? intl.supportedValuesOf("timeZone") : ["Asia/Ho_Chi_Minh", "Asia/Bangkok", "Asia/Singapore", "Asia/Tokyo", "UTC"];
+  return all.includes(current) ? all : [current, ...all];
 }

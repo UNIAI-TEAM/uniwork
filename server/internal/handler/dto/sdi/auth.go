@@ -17,6 +17,7 @@ type LoginSDI struct {
 type PatchMeSDI struct {
 	DisplayName *string `json:"display_name" description:"Tên hiển thị mới" example:"Nguyễn Văn An"`
 	Locale      *string `json:"locale" description:"Ngôn ngữ email: vi hoặc en" example:"vi"`
+	Timezone    *string `json:"timezone" description:"Múi giờ IANA cho email digest 08:00" example:"Asia/Ho_Chi_Minh"`
 }
 
 // UploadAvatarSDI is POST /api/v1/me/avatar (multipart).

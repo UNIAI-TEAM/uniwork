@@ -11,6 +11,8 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/events"
 	rt "github.com/unicomhub/uniwork/server/internal/handler/router"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
+	mw "github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/notification"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -29,9 +31,18 @@ type Deps struct {
 	// answers 503 and /auth/providers reports google=false.
 	Google        GoogleExchanger
 	Organizations *service.OrganizationService
+	OrgMembers    *service.OrganizationMemberService
+	People        *service.PeopleService
+	Departments   *service.DepartmentService
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
+	Agents        *service.AgentService
+	Actors        *service.ActorService
+	Audit         *service.AuditService
+	Billing       *service.BillingService
+	Notifications *notification.Service
+	AskUNI        *service.AskUNIService
 	Meetings      *service.MeetingService
 	Chat          *service.ChatService
 	Hub           *realtime.Hub
@@ -53,6 +64,15 @@ type Deps struct {
 	// HTTPMetrics is nil unless METRICS_ADDR is set; when present every request
 	// is counted and timed by chi route pattern.
 	HTTPMetrics *metrics.HTTPMetrics
+	// Readiness backs /readyz; nil (tests) answers 503.
+	Readiness *service.Readiness
+	// WebVitals is nil unless METRICS_ADDR is set; /rum then only answers 204.
+	WebVitals *metrics.WebVitals
+	// Admin is the platform console (F-11); nil leaves /api/v1/admin unmounted.
+	Admin *service.AdminService
+	// Version and Commit are the build stamps main.go carries into /admin/system.
+	Version string
+	Commit  string
 }
 
 type handlers struct {
@@ -64,14 +84,32 @@ type handlers struct {
 func New(d Deps) http.Handler {
 	h := &handlers{Deps: d}
 	return rt.New(rt.Deps{
-		Cfg:         d.Cfg,
-		Minter:      d.Minter,
-		Redis:       d.Redis,
-		Storage:     d.Storage,
-		HTTPMetrics: d.HTTPMetrics,
+		Cfg:           d.Cfg,
+		Minter:        d.Minter,
+		Redis:         d.Redis,
+		Storage:       d.Storage,
+		HTTPMetrics:   d.HTTPMetrics,
+		PlatformRoles: platformRoles(d.Admin),
 	}, rt.Routes{
 		Health: h.health,
-		WS:     h.ws,
+		Ready:  h.ready,
+
+		Config:                     h.config,
+		RUM:                        h.rum,
+		AdminMe:                    h.adminMe,
+		AdminListOrganizations:     h.adminListOrganizations,
+		AdminGetOrganization:       h.adminGetOrganization,
+		AdminSuspendOrganization:   h.adminSuspendOrganization,
+		AdminUnsuspendOrganization: h.adminUnsuspendOrganization,
+		AdminChangePlan:            h.adminChangePlan,
+		AdminTrace:                 h.adminTrace,
+		AdminSystem:                h.adminSystem,
+		AdminListFlags:             h.adminListFlags,
+		AdminListFlagOverrides:     h.adminListFlagOverrides,
+		AdminListAllFlagOverrides:  h.adminListAllFlagOverrides,
+		AdminSetFlagOverride:       h.adminSetFlagOverride,
+		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
+		WS:                         h.ws,
 
 		Register:       h.register,
 		Login:          h.login,
@@ -98,6 +136,29 @@ func New(d Deps) http.Handler {
 		ListOrgWorkspaces:  h.listOrgWorkspaces,
 		CreateOrgWorkspace: h.createOrgWorkspace,
 
+		ListOrgMembers:      h.listOrgMembers,
+		GetOrgMembershipMe:  h.getOrgMembershipMe,
+		PatchOrgMember:      h.patchOrgMember,
+		DeactivateOrgMember: h.deactivateOrgMember,
+		ReactivateOrgMember: h.reactivateOrgMember,
+		LeaveOrganization:   h.leaveOrganization,
+
+		InviteToOrganization: h.inviteToOrganization,
+		ListOrgInvitations:   h.listOrgInvitations,
+		RevokeOrgInvitation:  h.revokeOrgInvitation,
+		TransferOrgOwnership: h.transferOrgOwnership,
+
+		ListPeople:         h.listPeople,
+		GetPerson:          h.getPerson,
+		PatchPersonProfile: h.patchPersonProfile,
+		ExportPeople:       h.exportPeople,
+
+		ListDepartments:    h.listDepartments,
+		CreateDepartment:   h.createDepartment,
+		PatchDepartment:    h.patchDepartment,
+		ArchiveDepartment:  h.archiveDepartment,
+		ReorderDepartments: h.reorderDepartments,
+
 		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
 		ListWorkspaces:      h.listWorkspaces,
 		PatchWorkspace:      h.patchWorkspace,
@@ -110,13 +171,54 @@ func New(d Deps) http.Handler {
 
 		SeedWelcomeTask: h.seedWelcomeTask,
 
-		ListTasks:     h.listTasks,
-		CreateTask:    h.createTask,
-		GetTask:       h.getTask,
-		UpdateTask:    h.updateTask,
-		DeleteTask:    h.deleteTask,
-		ListComments:  h.listComments,
-		CreateComment: h.createComment,
+		ListTasks:    h.listTasks,
+		CreateTask:   h.createTask,
+		GetTask:      h.getTask,
+		UpdateTask:   h.updateTask,
+		DeleteTask:   h.deleteTask,
+		ListComments: h.listComments,
+
+		ListNotifications:          h.listNotifications,
+		UnreadNotificationCount:    h.unreadNotificationCount,
+		MarkNotificationsRead:      h.markNotificationsRead,
+		MarkNotificationsUnread:    h.markNotificationsUnread,
+		ArchiveNotifications:       h.archiveNotifications,
+		GetNotificationPreferences: h.getNotificationPreferences,
+		PutNotificationPreferences: h.putNotificationPreferences,
+		PushConfig:                 h.pushConfig,
+		SubscribePush:              h.subscribePush,
+		UnsubscribePush:            h.unsubscribePush,
+
+		AiCapabilities:       h.aiCapabilities,
+		AskUni:               h.askUni,
+		ListAiConversations:  h.listAiConversations,
+		ListAiMessages:       h.listAiMessages,
+		DeleteAiConversation: h.deleteAiConversation,
+		WorkspaceAiUsage:     h.workspaceAiUsage,
+		OrganizationAiUsage:  h.organizationAiUsage,
+
+		ListPlans:          h.listPlans,
+		GetSubscription:    h.getSubscription,
+		ChangePlan:         h.changePlan,
+		CancelSubscription: h.cancelSubscription,
+		ResumeSubscription: h.resumeSubscription,
+		CreateCheckout:     h.createCheckout,
+
+		ListOrgAgents:       h.listOrgAgents,
+		CreateOrgAgent:      h.createOrgAgent,
+		PatchAgent:          h.patchAgent,
+		ListWorkspaceAgents: h.listWorkspaceAgents,
+		AddWorkspaceAgent:   h.addWorkspaceAgent,
+
+		ListAuditEvents:     h.listAuditEvents,
+		GetAuditEvent:       h.getAuditEvent,
+		ListResourceHistory: h.listResourceHistory,
+		GetAuditRetention:   h.getAuditRetention,
+		SetAuditRetention:   h.setAuditRetention,
+		ListAuditExports:    h.listAuditExports,
+		CreateAuditExport:   h.createAuditExport,
+		GetAuditExport:      h.getAuditExport,
+		CreateComment:       h.createComment,
 
 		ListMeetings:         h.listMeetings,
 		CreateMeeting:        h.createMeeting,
@@ -204,4 +306,12 @@ func New(d Deps) http.Handler {
 		SignalChatVoiceHangup:       h.signalChatVoiceHangup,
 		SignalChatTyping:            h.signalChatTyping,
 	})
+}
+
+// platformRoles keeps a nil *AdminService from becoming a non-nil interface.
+func platformRoles(a *service.AdminService) mw.PlatformRoleSource {
+	if a == nil {
+		return nil
+	}
+	return a
 }

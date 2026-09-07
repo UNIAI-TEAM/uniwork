@@ -1,8 +1,8 @@
-# Four jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
+# Five jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
 # the two frontend jobs are split so the jsdom test suite and the Next build
 # do not starve each other on a 4-vCPU runner; `backend` runs Go against real
-# Postgres and Redis services. Playwright is not run here — it is the local
-# `make check` gate — because the e2e suite needs a running app and a browser.
+# Postgres and Redis services; `e2e` builds the server and a production Next
+# app against the same services and runs the Playwright suite.
 #
 # turbo.json lists this file in globalDependencies: the toolchain versions
 # pinned below are part of every task hash, so bumping Node can never replay
@@ -31,8 +31,16 @@ jobs:
       pull-requests: read
     outputs:
       frontend: ${{ steps.decide.outputs.frontend }}
+      gate: ${{ steps.gate.outputs.level }}
     steps:
       - uses: actions/checkout@v4
+      # docs/engineering/GATE_LEVELS.md — an unknown word resolves to strict.
+      - id: gate
+        run: |
+          level="$(tr -d '[:space:]' < GATE_LEVEL 2>/dev/null || true)"
+          case "$level" in fast|standard|strict) ;; *) level=strict ;; esac
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+          echo "GATE_LEVEL=$level"
       - id: filter
         uses: dorny/paths-filter@v3
         with:
@@ -53,6 +61,7 @@ jobs:
               # job that checks the ruleset.
               - 'CLAUDE.md'
               - 'AGENTS.md'
+              - 'GATE_LEVEL'
               - '.githooks/**'
       - id: decide
         # Always run on push (main/develop); on a PR only when frontend paths changed.
@@ -112,11 +121,15 @@ jobs:
         # wiring (AGENTS.md, hooks, doc/hook agreement), and the turbo
         # dependency-hash probe that proves `test` cannot replay a stale pass.
         run: |
-          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs
+          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs
           bash scripts/turbo-cache-check.sh
       - name: Build, typecheck, lint
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         run: pnpm exec turbo build typecheck lint
+      - name: Bundle size budget
+        # Initial JS ≤ 250 KB gzip, route chunks ≤ 150 KB (Vision §6.3, F-11).
+        if: ${{ needs.changes.outputs.frontend == 'true' }}
+        run: node scripts/bundle-budget.mjs --print
       - name: Known vulnerabilities (high+)
         if: ${{ needs.changes.outputs.frontend == 'true' }}
         run: pnpm audit --audit-level high
@@ -232,9 +245,11 @@ jobs:
   # production Next build, then the suite against localhost. LiveKit and
   # SMTP stay unset — the specs are written for that (mail goes to the
   # `emails` outbox table, meetings run without a provider).
+  # At GATE_LEVEL=fast the suite runs on push to develop/main only; a PR gets
+  # lint, typecheck, unit and Go. Above fast it runs on every PR too.
   e2e:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' && (needs.changes.outputs.gate != 'fast' || github.event_name != 'pull_request') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:

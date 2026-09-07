@@ -13,7 +13,12 @@ const (
 	KindVerificationCode = "verification_code"
 	KindPasswordReset    = "password_reset"
 	KindWorkspaceInvite  = "workspace_invite"
-	KindWelcome          = "welcome"
+	// An invitation to the organization itself, with no workspace behind it
+	// (F-03). Its own kind because the copy says "join the company", which is
+	// not what the workspace invitation says.
+	KindOrganizationInvite = "organization_invite"
+	KindWelcome            = "welcome"
+	KindNotificationDigest = "notification_digest"
 )
 
 type Message struct {
@@ -60,6 +65,6 @@ func (s LogSender) Send(_ context.Context, msg Message) error {
 	if log == nil {
 		log = slog.Default()
 	}
-	log.Info("mail not configured, printing message", "kind", msg.Kind, "to", msg.To, "subject", msg.Subject, "text", msg.Text)
+	log.Info("mail not configured, printing message", "kind", msg.Kind, "to", msg.To, "subject", msg.Subject, "text", msg.Text) // log-pii-ok: dev sink replaces SMTP; the address is the message
 	return nil
 }

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -24,9 +26,9 @@ func futureRemindAt() string {
 }
 
 // registerReminderPeer registers a verified user with org/workspace membership.
-func registerReminderPeer(t *testing.T, q *db.Queries, email, name, orgID, wsID string) db.User {
+func registerReminderPeer(t *testing.T, pool *pgxpool.Pool, q *db.Queries, email, name, orgID, wsID string) db.User {
 	t.Helper()
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	u := registerVerified(t, q, as, email, name)
 	addOrgMember(t, q, orgID, u.ID)
 	addWorkspaceMember(t, q, wsID, u.ID)
@@ -36,7 +38,7 @@ func registerReminderPeer(t *testing.T, q *db.Queries, email, name, orgID, wsID 
 // reminderGroup creates a group with ua as creator and ub+peer as members.
 func reminderGroup(t *testing.T, s *ChatService, ua, ub db.User, w db.Workspace, q *db.Queries, name, peerEmail string) string {
 	t.Helper()
-	peer := registerReminderPeer(t, q, peerEmail, "Peer", w.OrganizationID, w.ID)
+	peer := registerReminderPeer(t, s.pool, q, peerEmail, "Peer", w.OrganizationID, w.ID)
 	group, err := s.CreateGroup(context.Background(), ua.ID, w.ID, CreateGroupInput{
 		Name: name, MemberUserIDs: []string{ub.ID, peer.ID},
 	})
@@ -215,7 +217,7 @@ func TestChatReminderNotFoundAndForbidden(t *testing.T) {
 	}
 
 	groupID := reminderGroup(t, s, ua, ub, w, q, "Kín", "reminder-peer@example.com")
-	outsider := registerReminderPeer(t, q, "reminder-stranger@example.com", "Stranger", w.OrganizationID, w.ID)
+	outsider := registerReminderPeer(t, s.pool, q, "reminder-stranger@example.com", "Stranger", w.OrganizationID, w.ID)
 	if _, err := s.SendReminderMessage(ctx, outsider.ID, w.ID, groupID, SendReminderMessageInput{
 		Body: "Nhắc việc", RemindAt: futureRemindAt(),
 	}); !errors.Is(err, ErrForbidden) {
@@ -231,7 +233,7 @@ func TestChatReminderNonWorkspaceMemberForbidden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure room: %v", err)
 	}
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	outsider := registerVerified(t, q, as, "reminder-outsider@example.com", "Outsider")
 	if _, err := s.SendReminderMessage(ctx, outsider.ID, w.ID, wsRoom.RoomID, SendReminderMessageInput{
 		Body: "Nhắc việc", RemindAt: futureRemindAt(),

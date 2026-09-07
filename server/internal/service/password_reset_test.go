@@ -21,7 +21,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	q := db.New(pool)
 	out := &fakeOutbox{}
 	r := mail.Renderer{AppURL: "http://localhost:3000"}
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	s := NewPasswordResetService(pool, q, as, r, out)
 	ctx := context.Background()
 	u := registerVerified(t, q, as, "p@example.com", "P")
@@ -72,7 +72,7 @@ func TestPasswordResetIgnoresGoogleOnly(t *testing.T) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	out := &fakeOutbox{}
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "x"}, out)
 	ctx := context.Background()
 	if _, err := q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{ID: "g1", Email: "g@example.com", DisplayName: "G", GoogleID: pgtype.Text{String: "sub", Valid: true}, Locale: "vi"}); err != nil {
@@ -90,7 +90,7 @@ func TestPasswordResetResendWindowUsesInjectedClock(t *testing.T) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	out := &fakeOutbox{}
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
 	ctx := context.Background()
 	registerVerified(t, q, as, "clock@example.com", "C")
@@ -121,7 +121,7 @@ func TestPasswordResetExpiredTokenIsInvalid(t *testing.T) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	out := &fakeOutbox{}
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
 	ctx := context.Background()
 	registerVerified(t, q, as, "expired@example.com", "E")
@@ -144,7 +144,7 @@ func TestPasswordResetDailyCap(t *testing.T) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	out := &fakeOutbox{}
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
 	ctx := context.Background()
 	registerVerified(t, q, as, "cap@example.com", "Cap")

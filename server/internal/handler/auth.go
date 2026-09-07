@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
@@ -25,7 +26,7 @@ func requestLocale(r *http.Request) string {
 }
 
 func toUserDTO(u db.User) sdo.UserDTO {
-	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, OnboardingQuestionnaire: json.RawMessage("{}")}
+	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, Timezone: u.Timezone, OnboardingQuestionnaire: json.RawMessage("{}")}
 	if u.AvatarUrl.Valid {
 		out.AvatarURL = u.AvatarUrl.String
 	}
@@ -121,7 +122,7 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), in.DisplayName, in.Locale)
+	u, err := h.Auth.UpdateProfile(r.Context(), middleware.UserID(r.Context()), in.DisplayName, in.Locale, in.Timezone)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -132,11 +133,14 @@ func (h *handlers) patchMe(w http.ResponseWriter, r *http.Request) {
 func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 	var ve service.ValidationError
 	var ce service.CodedError
+	var aiErr *ai.Error
 	switch {
 	case errors.As(err, &ve):
 		respondError(w, 400, "invalid_request", ve.Msg)
 	case errors.As(err, &ce):
-		respondError(w, ce.Status, ce.Code, ce.Msg)
+		respondErrorFields(w, ce.Status, ce.Code, ce.Msg, ce.Fields)
+	case errors.As(err, &aiErr):
+		respondError(w, aiErr.Status, aiErr.Code, aiErr.Msg)
 	case errors.Is(err, service.ErrNotFound):
 		respondError(w, 404, "not_found", "not found")
 	case errors.Is(err, service.ErrForbidden):

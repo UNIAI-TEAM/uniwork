@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
+import { toastApiError } from "../../toast-api-error";
 import { EMAIL_RE, EmailChipsInput } from "../../workspace/email-chips-input";
 import { InviteRow, type SentInvite } from "../../workspace/invite-row";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
@@ -55,7 +56,7 @@ export function StepInvite({
           setSkipped(d.skipped);
           setEmails([]);
         },
-        onError: () => toast.error(t("onboarding.step_invite.send_failed")),
+        onError: (err) => toastApiError(err, t("onboarding.step_invite.send_failed")),
       },
     );
   };

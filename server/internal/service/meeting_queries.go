@@ -5,34 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-const (
-	outboxBatchSize    int32 = 20
-	outboxLeaseSeconds int32 = 120
-	outboxMaxAttempts  int32 = 10
-	outboxWorkerTick         = 2 * time.Second
-)
-
-var outboxBackoff = []time.Duration{
-	2 * time.Second,
-	4 * time.Second,
-	8 * time.Second,
-	16 * time.Second,
-	30 * time.Second,
-	time.Minute,
-	2 * time.Minute,
-	5 * time.Minute,
-}
+const outboxWorkerTick = 2 * time.Second
 
 type ProviderNeutralEvent struct {
 	Type            string
@@ -102,9 +87,51 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		if ev.Type == "conference.participant_connection_aborted" {
 			reason = "connection_aborted"
 		}
-		_, _ = s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: open.ID, LeaveReason: strText(reason)})
+		closed, err := s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: open.ID, LeaveReason: strText(reason)})
+		if err == nil {
+			s.meterAttendance(ctx, sess.MeetingID, closed)
+		}
 	}
 	return nil
+}
+
+// meterAttendance adds a closed attendance session to
+// meeting.participant_minutes, idempotent on the session id. Minutes already
+// spent cannot be refused, so this records rather than consumes; the counter
+// still moves and the threshold events still fire.
+//
+// ponytail: only the single-session close path is metered. The bulk closes on
+// room_finished and stale reconciliation are not; meter them when C-05 shows
+// people the number.
+func (s *MeetingService) meterAttendance(ctx context.Context, meetingID string, sess db.MeetingAttendanceSession) {
+	if !sess.LeftAt.Valid {
+		return
+	}
+	minutes := int64(math.Ceil(sess.LeftAt.Time.Sub(sess.JoinedAt.Time).Minutes()))
+	if minutes <= 0 {
+		return
+	}
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		return
+	}
+	orgID, err := s.organizationOf(ctx, m)
+	if err != nil {
+		return
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx)
+	if err := s.ent.RecordUsage(ctx, s.q.WithTx(tx), ConsumeInput{
+		OrganizationID: orgID, WorkspaceID: m.WorkspaceID, Meter: FeatureMeetingMinutes, Delta: minutes,
+		Actor: audit.System("meeting.attendance"), RefType: "meeting", RefID: meetingID,
+		IdempotencyKey: "attendance:" + sess.ID,
+	}); err != nil {
+		return
+	}
+	_ = tx.Commit(ctx)
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
@@ -113,80 +140,6 @@ func (s *MeetingService) sessionByRoom(ctx context.Context, room string) (db.Mee
 	// Room names are uw_mtg_{meetingID}; meeting id is the suffix.
 	id := strings.TrimPrefix(room, "uw_mtg_")
 	return s.q.GetOpenConferenceSession(ctx, id)
-}
-
-func (s *MeetingService) ProcessOutbox(ctx context.Context, limit int32) error {
-	if s.pool == nil {
-		return nil
-	}
-	if limit <= 0 {
-		limit = s.rt.OutboxBatch
-	}
-	if limit <= 0 {
-		limit = outboxBatchSize
-	}
-	_ = s.q.ReleaseStaleOutboxClaims(ctx)
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	rows, err := q.ClaimPendingOutbox(ctx, db.ClaimPendingOutboxParams{
-		LockedBy: strText(s.outboxNodeID), LeaseSeconds: float64(outboxLeaseSeconds), LimitN: limit,
-	})
-	if err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-
-	for _, row := range rows {
-		if err := s.applyOutbox(ctx, row); err != nil {
-			s.markOutboxFailed(ctx, row, err)
-			continue
-		}
-		_ = s.q.MarkOutboxDone(ctx, row.ID)
-		if s.metrics != nil {
-			s.metrics.IncOutboxDone()
-		}
-	}
-	return nil
-}
-
-func (s *MeetingService) markOutboxFailed(ctx context.Context, row db.OutboxEvent, err error) {
-	nextAt, status := outboxRetrySchedule(row.Attempts + 1)
-	if s.metrics != nil {
-		if status == "DEAD_LETTER" {
-			s.metrics.IncOutboxDeadLetter()
-		} else {
-			s.metrics.IncOutboxRetry()
-		}
-	}
-	_ = s.q.MarkOutboxFailed(ctx, db.MarkOutboxFailedParams{
-		ID: row.ID, LastError: strText(err.Error()),
-		AvailableAt: pgtype.Timestamptz{Time: nextAt, Valid: true},
-		Status:      status,
-	})
-}
-
-func outboxRetrySchedule(nextAttempt int32) (time.Time, string) {
-	status := "PENDING"
-	if nextAttempt >= outboxMaxAttempts {
-		status = "DEAD_LETTER"
-	}
-	idx := int(nextAttempt - 1)
-	if idx < 0 {
-		idx = 0
-	}
-	if idx >= len(outboxBackoff) {
-		idx = len(outboxBackoff) - 1
-	}
-	base := outboxBackoff[idx]
-	jitter := time.Duration(float64(base) * 0.2 * (rand.Float64()*2 - 1))
-	return time.Now().UTC().Add(base + jitter), status
 }
 
 func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) error {

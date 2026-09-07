@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Calendar, Plus } from "lucide-react";
+import { BarChart3, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
@@ -26,6 +26,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { DateTimeField } from "../common/datetime-field";
 
 const DEFAULT_OPTION_COUNT = 2;
 
@@ -175,18 +176,13 @@ export function ChatCreatePollDialog({
           <div className="space-y-5 px-5 py-4">
             <div className="space-y-2">
               <Label htmlFor="poll-deadline">{t("chat.poll_deadline_label")}</Label>
-              <div className="relative">
-                <Input
-                  id="poll-deadline"
-                  type="datetime-local"
-                  value={deadlineAt}
-                  onChange={(event) => setDeadlineAt(event.target.value)}
-                />
-                <Calendar
-                  className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-              </div>
+              <DateTimeField
+                id="poll-deadline"
+                value={deadlineAt}
+                onChange={setDeadlineAt}
+                hourLabel={t("common.hour")}
+                minuteLabel={t("common.minute")}
+              />
               <p className="text-caption text-muted-foreground">{t("chat.poll_no_deadline")}</p>
             </div>
 

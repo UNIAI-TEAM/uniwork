@@ -24,6 +24,8 @@
 | [`api-sdi-sdo.md`](api-sdi-sdo.md) | Viết HTTP API và Swagger |
 | [`engineering/FEATURE_WORKFLOW.md`](engineering/FEATURE_WORKFLOW.md) | Một tính năng đi từ roadmap đến release như thế nào |
 | [`engineering/DEFINITION_OF_DONE.md`](engineering/DEFINITION_OF_DONE.md) | Checklist dán vào PR; thiếu là chặn merge |
+| [`engineering/GATE_LEVELS.md`](engineering/GATE_LEVELS.md) | Nới hay siết quy trình theo giai đoạn: `GATE_LEVEL` = `fast` / `standard` / `strict` |
+| [`engineering/UNIAI_TRACKING.md`](engineering/UNIAI_TRACKING.md) | Gắn việc với UniAI qua `uniai` CLI: issue, nhánh, PR, trạng thái, `make issue-*` |
 
 ## Spec và plan
 

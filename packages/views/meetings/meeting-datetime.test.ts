@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { formatMeetingRange, formatMeetingTimes, formatRemaining } from "./meeting-datetime";
+import {
+  combineLocalIso,
+  defaultScheduleDraft,
+  formatMeetingDay,
+  formatMeetingRange,
+  formatMeetingTimes,
+  formatRemaining,
+  meetingDayKey,
+  meetingLocale,
+  splitIsoLocal,
+} from "./meeting-datetime";
 
 describe("formatRemaining", () => {
   it("returns a padded H:MM:SS countdown", () => {
@@ -26,11 +36,54 @@ describe("formatMeetingRange", () => {
 
   it("returns an empty string for unparseable stamps", () => {
     expect(formatMeetingRange("x", "y")).toBe("");
+    expect(formatMeetingRange("2026-08-28T02:00:00Z", "not-a-date")).toBe("");
   });
 });
 
 describe("formatMeetingTimes", () => {
   it("is time-only, in the viewer's zone", () => {
     expect(formatMeetingTimes("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "en-GB")).toMatch(/^\d{2}:\d{2}\s*[–-]\s*\d{2}:\d{2}$/);
+  });
+});
+
+describe("splitIsoLocal", () => {
+  it("splits valid timestamps and falls back for invalid input", () => {
+    expect(splitIsoLocal("2026-08-28T14:30:00Z").date).toBe("2026-08-28");
+    const invalid = splitIsoLocal("not-a-date");
+    expect(invalid.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(invalid.time).toMatch(/^\d{2}:\d{2}$/);
+  });
+});
+
+describe("combineLocalIso", () => {
+  it("combines date and time or falls back to now", () => {
+    expect(combineLocalIso("2026-08-28", "09:30")).toContain("2026-08-28");
+    expect(combineLocalIso("bad", "bad")).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe("meetingLocale", () => {
+  it("maps i18n language to a BCP 47 tag", () => {
+    expect(meetingLocale("en")).toBe("en-GB");
+    expect(meetingLocale("en-US")).toBe("en-GB");
+    expect(meetingLocale("vi")).toBe("vi-VN");
+    expect(meetingLocale(undefined)).toBe("vi-VN");
+  });
+});
+
+describe("meetingDayKey and formatMeetingDay", () => {
+  it("groups by local day and formats headings", () => {
+    expect(meetingDayKey("2026-08-28T23:30:00Z")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(formatMeetingDay("2026-08-28", "vi-VN")).toContain("28");
+    expect(formatMeetingDay("not-a-day")).toBe("not-a-day");
+  });
+});
+
+describe("defaultScheduleDraft", () => {
+  it("returns the next whole hour with a thirty-minute end", () => {
+    const draft = defaultScheduleDraft();
+    expect(draft.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(draft.start).toMatch(/^\d{2}:\d{2}$/);
+    expect(draft.end).toMatch(/^\d{2}:\d{2}$/);
   });
 });

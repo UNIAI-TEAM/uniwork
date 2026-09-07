@@ -5,7 +5,9 @@ import { useTranslation } from "react-i18next";
 import { useMeetingStatistics, useMeetings } from "@uniwork/core/meetings";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { PAGE_GUTTER } from "../layout/page-header";
 import { InstantMeetingDialog } from "./instant-meeting-dialog";
 import { MeetingFilters } from "./meeting-filters";
 import { MeetingList, MeetingListSkeleton } from "./meeting-list";
@@ -88,7 +90,7 @@ export function MeetingsPageView({
           }
         />
       ) : (
-        <div className="mx-auto w-full min-w-0 max-w-2xl flex-1 space-y-4 overflow-auto p-4 sm:p-6">
+        <div className={cn("flex min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-auto py-4", PAGE_GUTTER)}>
           <MeetingFilters
             status={status}
             query={query}

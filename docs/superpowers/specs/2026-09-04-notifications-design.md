@@ -1,7 +1,7 @@
 # UniWork — Notifications (in-app, push, email digest)
 
 **Ngày:** 2026-09-04
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
+**Trạng thái:** Đã triển khai (2026-09-06, UNI-427 — plan `docs/superpowers/plans/2026-09-06-notifications.md`). Duyệt 2026-09-04 (quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
 **Spec liên quan:** `2026-09-04-audit-domain-events-design.md` (outbox `Dispatcher`,
 `Consumer`, catalogue — **điều kiện tiên quyết**), `2026-08-28-transactional-email-design.md`
 (bảng `emails`, `mail.<Kind>`, worker gửi), `2026-08-27-workspace-permissions-design.md`

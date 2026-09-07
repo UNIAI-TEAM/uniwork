@@ -79,9 +79,9 @@ INSERT INTO chat_messages (
 
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, kind, body, reply_to_message_id, client_msg_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id
 ) VALUES (
-  $1, $2, $3, $4, 'text', $5, $6, sqlc.narg(client_msg_id)
+  $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id)
 ) RETURNING *;
 
 -- name: GetChatMessageByClientMsgID :one

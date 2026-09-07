@@ -1,6 +1,6 @@
 "use client";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useCreateJoinRequest } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 
@@ -17,7 +17,7 @@ export function lobbyMessage(t: (key: string) => string, decision: string | unde
     if (error.code === "invite_link_invalid" || error.code === "invite_link_limit_reached") {
       return t("meetings.publicInviteInvalidLink");
     }
-    return t("common.error");
+    return apiErrorMessage(error) ?? t("common.error");
   }
   switch (decision) {
     case "WAITING_FOR_HOST":

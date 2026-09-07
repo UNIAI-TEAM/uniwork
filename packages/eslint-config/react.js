@@ -30,7 +30,7 @@ export default [
       "jsx-a11y/no-autofocus": "off",
       // Our form controls are registry primitives, not bare <input>s.
       "jsx-a11y/label-has-associated-control": ["error", {
-        controlComponents: ["Input", "Textarea", "Select", "NativeSelect", "Checkbox", "Switch", "RadioGroup", "Slider"],
+        controlComponents: ["Input", "Textarea", "Select", "Checkbox", "Switch", "RadioGroup", "Slider"],
         // Label text may sit in a title/hint span pair: label > span > span.
         depth: 3,
       }],

@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -100,12 +101,11 @@ func (s *MeetingService) RevokeInviteLink(ctx context.Context, userID, meetingID
 	}
 	_ = q.RevokeGrantsByInviteLink(ctx, db.RevokeGrantsByInviteLinkParams{SourceID: strText(linkID), RevokedBy: strText(userID)})
 	_ = s.writeAudit(ctx, q, m.ID, "INVITE_LINK_REVOKED", userID, "", linkID, "{}")
+	s.record(ctx, q, m, audit.User(userID), "invite_link.revoked",
+		meetingRelatedPayload(m, map[string]string{"invite_link_id": linkID}), nil)
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "invite_link.revoked", Payload: meetingRelatedPayload(m, map[string]string{
-		"invite_link_id": linkID,
-	})})
 	return nil
 }
 

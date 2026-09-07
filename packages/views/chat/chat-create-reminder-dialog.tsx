@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Calendar, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -75,6 +75,8 @@ import {
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 
 import { cn } from "@uniwork/ui/lib/utils";
+
+import { DateTimeField } from "../common/datetime-field";
 
 
 
@@ -396,29 +398,19 @@ export function ChatCreateReminderDialog({
 
             {showCustomPicker ? (
 
-              <div className="relative">
+              <DateTimeField
 
-                <Input
+                id="reminder-at"
 
-                  id="reminder-at"
+                value={customAt}
 
-                  type="datetime-local"
+                onChange={setCustomAt}
 
-                  value={customAt}
+                hourLabel={t("common.hour")}
 
-                  onChange={(event) => setCustomAt(event.target.value)}
+                minuteLabel={t("common.minute")}
 
-                />
-
-                <Calendar
-
-                  className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-
-                  aria-hidden
-
-                />
-
-              </div>
+              />
 
             ) : (
 

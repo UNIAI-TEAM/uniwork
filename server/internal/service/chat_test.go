@@ -7,11 +7,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// deliverChatEvents drains the outbox into the fixture's publisher. Room
+// events leave through the outbox now, so a test asking "were the members
+// told" has to run the delivery path rather than read a synchronous publish.
+func deliverChatEvents(t *testing.T, pool *pgxpool.Pool, q *db.Queries, s *ChatService, pub *capturePublisher) {
+	t.Helper()
+	d := outbox.New(pool, q, outbox.Options{})
+	d.Register(outbox.NewRealtimeConsumer(RealtimePublisher{Pub: pub}).WithMembers(s))
+	if err := d.Process(context.Background(), 200); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func countEvents(events []Event, typ string) int {
 	n := 0
@@ -24,10 +39,17 @@ func countEvents(events []Event, typ string) int {
 }
 
 func chatFixture(t *testing.T) (*ChatService, *capturePublisher, *db.Queries, db.User, db.User, db.Workspace) {
+	s, pub, q, ua, ub, w, _ := chatFixtureWithPool(t)
+	return s, pub, q, ua, ub, w
+}
+
+// chatFixtureWithPool is chatFixture plus the pool, for the tests that build a
+// second service of their own.
+func chatFixtureWithPool(t *testing.T) (*ChatService, *capturePublisher, *db.Queries, db.User, db.User, db.Workspace, *pgxpool.Pool) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	orgs := NewOrganizationService(q)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	ctx := context.Background()
 	ua := registerVerified(t, q, as, "chat-a@example.com", "A")
@@ -35,7 +57,7 @@ func chatFixture(t *testing.T) (*ChatService, *capturePublisher, *db.Queries, db
 	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-chat")
 	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Chat WS", "chat-ws")
 	pub := &capturePublisher{}
-	return NewChatService(q, ws, pub), pub, q, ua, ub, v.Workspace
+	return NewChatService(pool, q, ws, pub), pub, q, ua, ub, v.Workspace, pool
 }
 
 func TestWorkspaceChatRoomAndMessages(t *testing.T) {
@@ -136,7 +158,7 @@ func TestChatRoomModerationPromoteMuteAndGroupKick(t *testing.T) {
 	ctx := context.Background()
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	uc := registerVerified(t, q, as, "chat-c@example.com", "C")
 	addOrgMember(t, q, w.OrganizationID, uc.ID)
 	addWorkspaceMember(t, q, w.ID, uc.ID)
@@ -253,7 +275,7 @@ func addOrgMember(t *testing.T, q *db.Queries, orgID, userID string) {
 }
 
 func TestResolveDM(t *testing.T) {
-	s, pub, q, ua, ub, w := chatFixture(t)
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
@@ -262,6 +284,7 @@ func TestResolveDM(t *testing.T) {
 	if err != nil || dm.Kind != "dm" || dm.ID == "" {
 		t.Fatalf("resolve dm: err=%v dm=%+v", err, dm)
 	}
+	deliverChatEvents(t, pool, q, s, pub)
 	if countEvents(pub.events, "chat.room.created") != 2 {
 		t.Fatalf("publish create: %+v", pub.events)
 	}
@@ -298,9 +321,9 @@ func TestResolveDM(t *testing.T) {
 }
 
 func TestCreateGroupAndInvite(t *testing.T) {
-	s, pub, q, ua, ub, w := chatFixture(t)
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	uc := registerVerified(t, q, as, "chat-c@example.com", "C")
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addOrgMember(t, q, w.OrganizationID, uc.ID)
@@ -314,6 +337,7 @@ func TestCreateGroupAndInvite(t *testing.T) {
 	if err != nil || group.Kind != "group" || group.ID == "" {
 		t.Fatalf("create group: err=%v group=%+v", err, group)
 	}
+	deliverChatEvents(t, pool, q, s, pub)
 	if countEvents(pub.events, "chat.room.created") != 3 {
 		t.Fatalf("publish create group: %+v", pub.events)
 	}
@@ -652,9 +676,9 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 }
 
 func TestGroupVoiceCall(t *testing.T) {
-	s, pub, q, ua, ub, w := chatFixture(t)
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 
@@ -718,9 +742,9 @@ func TestGroupVoiceCall(t *testing.T) {
 }
 
 func TestGroupVoiceTokenInvitedMember(t *testing.T) {
-	s, _, q, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 
@@ -749,9 +773,9 @@ func TestGroupVoiceTokenInvitedMember(t *testing.T) {
 }
 
 func TestGroupVoiceHangupOnlyCaller(t *testing.T) {
-	s, pub, q, ua, ub, w := chatFixture(t)
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 	uc := registerVerified(t, q, as, "chat-hangup-c@example.com", "C")
@@ -781,9 +805,9 @@ func TestGroupVoiceHangupOnlyCaller(t *testing.T) {
 }
 
 func TestVoiceCallStrangerCannotJoin(t *testing.T) {
-	s, _, q, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 
@@ -807,9 +831,9 @@ func TestVoiceCallStrangerCannotJoin(t *testing.T) {
 }
 
 func TestLookupUserDifferentOrg(t *testing.T) {
-	s, _, q, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()
-	orgs := NewOrganizationService(q)
+	orgs := NewOrganizationService(pool, q)
 	otherOrg, err := orgs.Create(ctx, ub.ID, "Other Org", "other-org")
 	if err != nil {
 		t.Fatal(err)

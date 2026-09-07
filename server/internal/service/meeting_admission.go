@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -187,12 +188,11 @@ func (s *MeetingService) evaluateInviteLink(ctx context.Context, m db.Meeting, i
 		if err != nil {
 			return AdmissionDecision{}, err
 		}
+		s.record(ctx, q, m, joinActor(in), "join_request.created",
+			meetingRelatedPayload(m, map[string]string{"join_request_id": jr.ID}), nil)
 		if err := tx.Commit(ctx); err != nil {
 			return AdmissionDecision{}, err
 		}
-		s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.created", Payload: meetingRelatedPayload(m, map[string]string{
-			"join_request_id": jr.ID,
-		})})
 		return AdmissionDecision{Decision: DecisionWaitingApproval, Reason: "JOIN_REQUEST_PENDING", Meeting: m, JoinRequestID: jr.ID}, nil
 	}
 	if errors.Is(perr, pgx.ErrNoRows) {
@@ -267,12 +267,11 @@ func (s *MeetingService) ensureJoinRequest(ctx context.Context, m db.Meeting, in
 	if err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
+	s.record(ctx, s.q.WithTx(tx), m, joinActor(in), "join_request.created",
+		meetingRelatedPayload(m, map[string]string{"join_request_id": jr.ID}), nil)
 	if err := tx.Commit(ctx); err != nil {
 		return db.MeetingJoinRequest{}, err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.created", Payload: meetingRelatedPayload(m, map[string]string{
-		"join_request_id": jr.ID,
-	})})
 	return jr, nil
 }
 
@@ -405,12 +404,12 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 		return err
 	}
 	_ = s.writeAudit(ctx, q, m.ID, "JOIN_REQUEST_APPROVED", actorID, JoinPending, JoinApproved, "{}")
+	s.record(ctx, q, m, audit.User(actorID), "join_request.approved",
+		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
+		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinApproved}))
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.approved", Payload: meetingRelatedPayload(m, map[string]string{
-		"join_request_id": requestID,
-	})})
 	return nil
 }
 
@@ -436,9 +435,9 @@ func (s *MeetingService) RejectJoinRequest(ctx context.Context, actorID, request
 		return err
 	}
 	_ = s.writeAudit(ctx, s.q, m.ID, "JOIN_REQUEST_REJECTED", actorID, JoinPending, JoinRejected, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.rejected", Payload: meetingRelatedPayload(m, map[string]string{
-		"join_request_id": requestID,
-	})})
+	s.record(ctx, s.q, m, audit.User(actorID), "join_request.rejected",
+		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
+		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinRejected}))
 	return nil
 }
 
@@ -470,8 +469,18 @@ func (s *MeetingService) CancelJoinRequest(ctx context.Context, in AdmissionCont
 	}
 	m, _ := s.q.GetMeeting(ctx, jr.MeetingID)
 	_ = s.writeAudit(ctx, s.q, jr.MeetingID, "JOIN_REQUEST_CANCELED", actorID(in), JoinPending, JoinCanceled, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "join_request.canceled", Payload: meetingRelatedPayload(m, map[string]string{
-		"join_request_id": requestID,
-	})})
+	s.record(ctx, s.q, m, joinActor(in), "join_request.canceled",
+		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
+		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinCanceled}))
 	return nil
+}
+
+// joinActor names who asked to join. A guest has no user row, so the audit
+// actor is the system with the guest id in the event payload rather than a
+// human id that does not exist.
+func joinActor(in AdmissionContext) audit.Actor {
+	if in.UserID != "" {
+		return audit.User(in.UserID)
+	}
+	return audit.System("meeting-guest")
 }

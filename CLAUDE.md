@@ -33,12 +33,13 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Seven modules came
+  Zustand stores, realtime sync, permissions, paths, i18n. Five modules came
   over with the port and no host reaches them yet: `packages/core/analytics/`,
   `packages/core/constants/`, `packages/core/diagnostics/`,
-  `packages/core/feature-flags/`, `packages/core/modals/`,
-  `packages/core/navigation/`, `packages/core/shortcuts/`. They import each
-  other, not the app. Wire one before relying on it;
+  `packages/core/modals/`, `packages/core/navigation/`. They import each
+  other, not the app (the shortcuts module left this list with F-09: ⌘J opens
+  Ask UNI; feature-flags with F-11: `GET /api/v1/config` feeds
+  `FeatureFlagsProvider`). Wire one before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
   2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
@@ -116,7 +117,9 @@ If logic would be needed by a second host, extract it now:
 ```bash
 make dev              # bootstrap this checkout and start everything
 make start            # app processes (migrates first); make stop leaves Postgres/Redis up
-make check            # typecheck → lint → unit + contract tests → Go tests → E2E
+make check            # typecheck → lint → unit + contract tests → Go tests → E2E (E2E above GATE_LEVEL=fast)
+make check-full       # the same at strict, E2E included, whatever GATE_LEVEL says
+make gate             # current gate level and what it changes
 make test-go          # Go: gofmt, vet, staticcheck, go test -race (ensures the test DB first)
 make e2e              # Playwright against E2E_BASE_URL (app must be running)
 make migrate-up       # apply migrations to this checkout's database
@@ -140,31 +143,21 @@ binary + production Next build against the same services).
 
 ## Accepted Decisions Awaiting Enforcement
 
-ADR 0007–0010 (`docs/adr/`) were accepted on 2026-09-04 and shape every
+ADR 0008 and 0010 (`docs/adr/`) were accepted on 2026-09-04 and shape every
 Phase F feature, but their guard tests do not exist yet. Until the named test
 lands, reviewers hold the rule by hand via `docs/engineering/DEFINITION_OF_DONE.md`;
 when it lands, move the rule into the section above it belongs to and name the
 test there. Planned guards are written without backticks on purpose: they are
 not paths yet.
 
-- ADR 0007 — every business table pairs `created_by` with `created_by_kind`
-  (`human` | `agent` | `system`); services take an Actor{ID, Kind} value.
-  Guard lands with F-10: migration lint for the `_kind` pair, arch test that
-  only `server/internal/service/` constructs an Actor.
-- ADR 0008 — every business table carries `organization_id NOT NULL`; every
-  query filters by it; membership still only via `RequireMember`. Guard lands
-  with F-08/F-02: migration lint for the column, a query-scope scanner over
+- ADR 0008 — every query filters by `organization_id`; membership still only
+  via `RequireMember`. The column rule itself is enforced (see Database and
+  Migration Rules). Still to land with F-08/F-02: a query-scope scanner over
   `server/pkg/db/queries/`, a two-organization isolation matrix test.
-- ADR 0009 — a command that changes business state writes `audit_events` and
-  `outbox_events` in the same transaction; services never publish realtime
-  directly except ephemeral signals. Guard lands with F-08: arch test that
-  `server/internal/service/` does not import the realtime publisher, an
-  events-contract test listing every command, a SQL test that UPDATE/DELETE
-  on `audit_events` is refused.
-- ADR 0010 — `server/internal/ai/` and the agent runtime never write business
-  tables; agent writes go proposal → human confirm → execute; `accepted` is
-  human-only. Guard lands with F-09/F-10: arch test on imports from `server/internal/ai/`,
-  a lifecycle test that the runtime cannot set `accepted`, a tool-registry test
+- ADR 0010 — the agent runtime never writes business tables; agent writes go
+  proposal → human confirm → execute; `accepted` is human-only. The gateway
+  half landed with F-09 (see Audit and Events); still to land with F-10: a
+  lifecycle test that the runtime cannot set `accepted`, a tool-registry test
   that every tool has undo or is not auto-executable.
 
 ## Database and Migration Rules
@@ -180,10 +173,107 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   (`server/migrations/embed.go`) applies files outside a transaction for
   exactly this reason.
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
+- Attribution is a pair (ADR 0007): a table created after migration `065`
+  that has `created_by` also has `created_by_kind` (`human` | `agent` |
+  `system`), and `tasks`, `task_comments`, `meetings`, `chat_messages` carry
+  their `_kind` beside the id. Commands that record a kind take a
+  `service.Actor`; handlers only ever build one with `service.Human`, and
+  agents join a workspace through `workspace_agent_members`
+  (`RequireAgentMember`, same file as `RequireMember`). `TestActorKindOnEveryCreatedBy`
+  (migration lint) and `TestActorConstructedOnlyInService` (arch test) hold it.
+- Every business table created after migration `065` declares
+  `organization_id TEXT NOT NULL` (ADR 0008); identity and infrastructure
+  tables are exempted by name, with a reason, in `tenantExemptTables`. The
+  older tables still missing the column are listed in `tenantBackfillDebt`
+  and the list only shrinks — a backfill migration removes its table there.
+  `TestNewTablesCarryOrganizationID` and
+  `TestTablesWithoutOrganizationIDAreTheKnownDebt` hold both.
 - Every query filters by `workspace_id`; membership is decided only in
   `WorkspaceService.RequireMember`, where organization owners/admins are
-  implicit workspace admins. `server/internal/arch_test.go` fails if any
+  implicit workspace admins, and only in `OrganizationService.RequireMember`
+  for the organization tier. `server/internal/arch_test.go` fails if any
   other file calls the membership queries.
+- Organization membership has a lifecycle (F-03). A member with
+  `organization_members.deactivated_at` set keeps every row they own —
+  workspace membership, authored content, history — and is refused by BOTH
+  membership gates: `RequireMember` answers 403 `member_deactivated`, and the
+  workspace gate reads the column too, because deactivation deliberately
+  leaves the workspace row in place. `TestDeactivationClosesTheWorkspaceGateToo`
+  holds it. An organization has exactly one owner at a time
+  (`idx_org_members_single_owner`); ownership moves only through
+  `TransferOwnership`, never through a role change.
+- `audit_events` is append-only. `REVOKE UPDATE, DELETE, TRUNCATE` plus a
+  trigger that raises on both, so the rule holds even where the app owns the
+  schema (ADR 0012). Retention never deletes; a wrong row is answered with
+  another row. `TestAuditEventsAreAppendOnly` proves it.
+
+## Audit and Events
+
+Every command that changes business state writes an `audit_events` row and its
+`outbox_events` rows in the same transaction as the change (ADR 0009, ADR 0012).
+
+- Only `server/internal/audit` writes those two tables. Services call
+  `audit.Recorder.Record(ctx, q, Entry, emit…)` with the `q` bound to their own
+  transaction; `Recorder.Emit` is the narrow path for infrastructure topics
+  (`provider.*`) that have no business command behind them.
+  `server/internal/arch_test.go` fails on a direct insert from anywhere else.
+- `server/internal/service/audit_coverage_test.go` lists every command that must
+  audit and fails in both directions — a missing command, and an action nobody
+  calls. Add the command and its row there together.
+- Domain events reach clients through the outbox, never `EventPublisher.Publish`.
+  Direct publish is only for ephemeral signals, and the bar is one sentence:
+  losing it costs nobody anything (typing, voice signalling, a transcript line
+  the next one supersedes). `docs/events/CATALOGUE.md` marks each one.
+- Event names are `<entity>.<verb>`; the version is the `event_version` column,
+  never part of the name; payloads carry ids only. The catalogue exists three
+  times — that file, `server/internal/outbox/catalogue.go`,
+  `packages/core/types/events.ts` — and `scripts/events-catalogue.test.mjs`
+  fails when they disagree.
+- Every request carries a `correlation_id` (`middleware.Correlation`), and it
+  reaches the audit row, the events and the access log. `docs/ops/RUNBOOK_OUTBOX.md`
+  is the runbook.
+- Every LLM call goes through `ai.Gateway` in `server/internal/ai/` (ADR 0010,
+  spec F-09). Only `server/internal/ai/provider` imports a vendor SDK or opens
+  a connection to a model host; `internal/ai` never imports `internal/service`
+  and only calls sqlc queries named `Ai*`, so the model side of the house
+  cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
+  `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
+  `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+
+## Platform Admin and Observability
+
+The console (`/admin`, F-11) reads metadata across tenants, so it lives
+behind its own gate and never reaches content.
+
+- `/api/v1/admin/*` is guarded only by `middleware.RequirePlatformRole`
+  (`users.platform_role`: `support` reads, `admin` writes; no role → 404). It
+  never goes through `RequireMember` and never returns task bodies, messages
+  or files. Only `server/internal/service/admin.go` and
+  `server/internal/service/admin_flags.go` call the queries in
+  `server/pkg/db/queries/admin.sql` and `server/pkg/db/queries/feature_flags.sql`, and neither
+  touches a content service
+  — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`.
+- Every admin write takes a `reason` (≥ 10 characters) and lands in
+  `admin_actions` and `audit_events` in one transaction, sharing the trace id.
+  A platform role is granted only by `server/cmd/uniwork-admin`; there is no UI.
+- A suspended organization is closed to its own members on both membership
+  gates with 403 `organization_suspended` (`TestSuspendClosesBothMembershipGates`).
+- `server/internal/telemetry` is the only OpenTelemetry seam: spans are always
+  created (no exporter without `OTEL_EXPORTER_OTLP_ENDPOINT`), every response
+  carries `X-Trace-Id`, and `correlation_id` is the trace id
+  (`TestCorrelationIDIsTheTraceID`). `RequireMember` stamps organization and
+  workspace on the span and the log fields. Log lines identify people by id,
+  never email or name (`scripts/no-pii-log.test.mjs`; `// log-pii-ok: <why>`
+  is the escape hatch).
+- `/healthz` is liveness only; `/readyz` checks DB, schema version and Redis.
+- Every variable the server reads is listed in `.env.example`
+  (`scripts/env-example.test.mjs`). Every alert in `deploy/alerts.yml` has a
+  runbook in `docs/runbooks/` with the four sections
+  (`scripts/alerts-runbooks.test.mjs`). Every flag is declared in
+  `server/internal/featureflags/keys.go` with a `review_at`;
+  `TestFlagsAreReviewed` fails once it passes. Overrides
+  (`feature_flag_overrides`, user > organization > global) win over the
+  static file and `FF_*` env; flags hide capability, never grant permission.
 
 ## Coding Rules
 
@@ -330,8 +420,8 @@ When adding a shared screen:
 | Shared logic, stores, endpoints, hooks | `packages/core/**/*.test.ts(x)` |
 | Shared screens, components | `packages/views/**/*.test.tsx` |
 | Primitives, tokens | `packages/ui/**/*.test.ts(x)` |
-| Repo contracts (catalog, usf leak, legacy tokens, turbo hash, governance, ADRs, plan status) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
-| Go layering, membership gate | `server/internal/arch_test.go` |
+| Repo contracts (catalog, usf leak, legacy tokens, turbo hash, governance, ADRs, plan status, env example, no-PII logs, alerts ↔ runbooks) | `scripts/*.test.mjs`, `scripts/turbo-cache-check.sh` |
+| Go layering, membership gate, profile writes | `server/internal/arch_test.go` |
 | End-to-end flows | `e2e/*.spec.ts` |
 | Backend | `server/**/*_test.go` (test DB via `TEST_DATABASE_URL`, Redis via `REDIS_TEST_URL`) |
 
@@ -358,6 +448,18 @@ if you skipped a check, say so. After changing a root provider
 (`apps/web/app/providers.tsx`), run e2e twice — the first run can land while
 Next is still recompiling.
 
+## Gate Level
+
+The process gates tighten or loosen with one word in `GATE_LEVEL` at the repo
+root: `fast`, `standard` or `strict`; anything else reads as `strict`.
+`docs/engineering/GATE_LEVELS.md` is the table of what each level changes and
+when to move. What it does not change: everything under Database and
+Migration Rules, Audit and Events, secrets scanning, coverage floors and the
+`commit-msg` hook — those are data safety, not process. Change the level with
+a PR that edits the file and says why in the commit body; `make gate` shows
+the current one. `scripts/governance.test.mjs` checks the file, the readers
+and this section agree.
+
 ## Local Gates
 
 `pnpm install` points `core.hooksPath` at `.githooks/` (the root `prepare`
@@ -365,7 +467,8 @@ script) — git hooks are not cloned, so this is the only moment every checkout
 is guaranteed to pass through. Two hooks then run unasked:
 
 - `pre-commit` — refuses any `.env` file, runs `gofmt` on staged Go files, and
-  runs `turbo lint typecheck` for the workspaces the commit touches. Seconds,
+  above `GATE_LEVEL=fast` runs `turbo lint typecheck` for the workspaces the
+  commit touches. Seconds,
   not minutes: it is not `make check`, it only stops a commit that cannot
   compile or that breaks a package boundary.
 - `commit-msg` — enforces the prefixes below.
@@ -377,6 +480,28 @@ the flag. There is no second ruleset for any editor — Cursor, Codex and
 Copilot read `AGENTS.md`; do not add an editor-specific rules tree beside it. `make doctor` reports whether the hooks are wired and
 whether your Node/Go/pnpm match what the repo pins (`.nvmrc`, `server/go.mod`,
 `packageManager`). `scripts/governance.test.mjs` pins the wiring itself.
+
+## Project Tracking (UniAI)
+
+Work state lives in UniAI (workspace `uni2026`, project UniWork), reached
+through the `uniai` CLI; the repo holds code and docs. The full rules are
+`docs/engineering/UNIAI_TRACKING.md`. The ones enforced here:
+
+- No issue, no code. A PR into `develop`/`main` must name its issue
+  (`UNI-nnn`) in the title or body — `.github/workflows/uniai-link.yml`
+  fails otherwise at every level (label `no-issue` downgrades it to a
+  warning at `fast`/`standard`; at `strict` it fails regardless of label).
+- Branches carry the key: `feature/UNI-423-<slug>`; `make issue-start
+  KEY=UNI-423` creates them and moves the issue to `in_progress`.
+- Commits on an issue branch get a `Refs: UNI-nnn` trailer from
+  `.githooks/prepare-commit-msg`; do not type or strip it.
+- `make issue-pr` opens the PR as `UNI-nnn: <title>` and sets `in_review`;
+  `make issue-done` runs after merge. Only a human sets `done`.
+- Agents open a session with `uniai issue get UNI-nnn --output json`, leave
+  a `[agent]` comment on every stop, and never create issues beyond
+  sub-issues of the one they hold.
+- `scripts/governance.test.mjs` checks that the script, hook, workflow and
+  Makefile targets behind these rules exist.
 
 ## Commits
 

@@ -1,7 +1,7 @@
 # UniWork — Audit bất biến & Domain Events (nền toàn hệ thống)
 
 **Ngày:** 2026-09-04
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
+**Trạng thái:** Đã triển khai (2026-09-04, UNI-423 — xem `docs/superpowers/plans/2026-09-04-audit-domain-events.md`). Duyệt trước đó: Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.
 **Spec liên quan:** `2026-08-24-uniwork-platform-design.md` (§5 realtime),
 `2026-08-28-transactional-email-design.md` (mẫu outbox một bảng + một goroutine),
 `2026-08-29-meeting-world-class-design.md` (`meeting_audit_logs`, `outbox_events`, `RunAutoEnd`),

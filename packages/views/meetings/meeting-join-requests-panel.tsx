@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useApproveJoinRequest, useJoinRequests, useRejectJoinRequest } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { MeetingPanelCard } from "./meeting-panel-card";
 
 export function MeetingJoinRequestsPanel({
@@ -37,7 +38,7 @@ export function MeetingJoinRequestsPanel({
             <Button
               size="sm"
               disabled={approve.isPending}
-              onClick={() => approve.mutate(r.id, { onError: () => toast.error(t("common.error")) })}
+              onClick={() => approve.mutate(r.id, { onError: (err) => toastApiError(err, t("common.error")) })}
             >
               {t("meetings.approve")}
             </Button>
@@ -45,7 +46,7 @@ export function MeetingJoinRequestsPanel({
               size="sm"
               variant="outline"
               disabled={reject.isPending}
-              onClick={() => reject.mutate({ requestId: r.id }, { onError: () => toast.error(t("common.error")) })}
+              onClick={() => reject.mutate({ requestId: r.id }, { onError: (err) => toastApiError(err, t("common.error")) })}
             >
               {t("meetings.reject")}
             </Button>

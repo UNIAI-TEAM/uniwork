@@ -1,51 +1,83 @@
 import { z } from "zod";
 
 /**
- * Realtime event names the server publishes for a workspace. This is the
- * domain's narrowing of the transport-level `WSEventType` (a bare string in
- * api/ws-types.ts): the client machinery stays ignorant of the domain, and
- * this list is what the realtime sync switches over.
+ * Every realtime event the server can deliver to this client, in the order the
+ * catalogue lists them.
  *
- * Kept in step with server/internal/service (the Publish call sites).
+ * This is one of three copies of the same contract: `docs/events/CATALOGUE.md`
+ * for people, `server/internal/outbox/catalogue.go` for the server, and this
+ * list for the client. `scripts/events-catalogue.test.mjs` fails when they stop
+ * agreeing — a client that silently predates an event it should be reacting to
+ * is a bug nobody notices until a screen is stale.
+ *
+ * Events with no realtime audience (`provider.*`, `webhook.deliver`) are in the
+ * catalogue but not here: nothing on the client listens for them.
  */
 export const WS_EVENT_TYPES = [
-  "task.created",
-  "task.updated",
-  "task.deleted",
-  "comment.created",
-  "chat.message.created",
-  "chat.message.updated",
-  "chat.message.deleted",
+  "ai.usage.updated",
+  "audit.exported",
   "chat.mention.created",
-  "chat.room.created",
-  "chat.room.updated",
+  "chat.message",
+  "chat.message.created",
+  "chat.message.deleted",
+  "chat.message.updated",
   "chat.room.activity",
+  "chat.room.created",
+  "chat.room.member_added",
+  "chat.room.member_removed",
+  "chat.room.updated",
   "chat.typing",
-  "chat.voice.invite",
   "chat.voice.accept",
   "chat.voice.hangup",
-  "meeting.created",
-  "meeting.updated",
-  "meeting.deleted",
-  "meeting.started",
-  "meeting.ended",
+  "chat.voice.invite",
+  "conference.session_ready",
+  "department.archived",
+  "department.created",
+  "department.updated",
+  "host.transferred",
+  "invitation.responded",
+  "invitation.revoked",
+  "invite_link.revoked",
+  "join_request.approved",
+  "join_request.canceled",
+  "join_request.created",
+  "join_request.rejected",
   "meeting.canceled",
+  "meeting.created",
+  "meeting.deleted",
+  "meeting.ended",
+  "meeting.started",
+  "meeting.updated",
+  "member.deactivated",
+  "member.invited",
+  "member.joined",
+  "member.left",
+  "member.reactivated",
+  "member.removed",
+  "member.role_changed",
+  "notification.created",
+  "organization.created",
+  "organization.ownership_transferred",
+  "organization.suspended",
+  "organization.unsuspended",
+  "organization.updated",
   "participant.invited",
   "participant.removed",
-  "invitation.responded",
-  "join_request.created",
-  "join_request.approved",
-  "join_request.rejected",
-  "join_request.canceled",
-  "host.transferred",
-  "invite_link.revoked",
-  "conference.session_ready",
-  "transcript.appended",
-  "chat.message",
-  "summary.created",
+  "profile.updated",
+  "quota.threshold",
+  "recording.ready",
   "recording.started",
   "recording.stopped",
-  "recording.ready",
+  "subscription.changed",
+  "summary.created",
+  "task.comment_added",
+  "task.created",
+  "task.deleted",
+  "task.updated",
+  "transcript.appended",
+  "workspace.created",
+  "workspace.updated",
+  "workspace_agent.added",
 ] as const;
 export type WSEventType = (typeof WS_EVENT_TYPES)[number];
 

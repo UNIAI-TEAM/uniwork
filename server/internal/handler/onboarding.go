@@ -49,7 +49,7 @@ func (h *handlers) seedWelcomeTask(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = 201
 	}
-	respondJSON(w, status, map[string]any{"task": toTaskDTO(task)})
+	h.respondTask(w, r, status, task)
 }
 
 func (h *handlers) myInvitations(w http.ResponseWriter, r *http.Request) {
@@ -60,13 +60,20 @@ func (h *handlers) myInvitations(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(rows))
 	for _, x := range rows {
-		out = append(out, map[string]any{
-			"id": x.ID, "role": x.Role, "token": x.Token,
+		row := map[string]any{
+			"id": x.ID, "role": x.Role, "org_role": x.OrgRole, "token": x.Token,
 			"expires_at":   x.ExpiresAt.Time.Format(time.RFC3339),
-			"workspace":    map[string]string{"id": x.WorkspaceID, "slug": x.WorkspaceSlug, "name": x.WorkspaceName},
 			"organization": map[string]string{"id": x.OrganizationID, "slug": x.OrganizationSlug, "name": x.OrganizationName},
-			"invited_by":   map[string]string{"display_name": x.InvitedByName},
-		})
+			"invited_by":   map[string]string{"display_name": pgText(x.InvitedByName)},
+		}
+		// An organization-level invitation names no workspace, so the key is
+		// absent rather than an object of empty strings (F-03).
+		if x.WorkspaceID.Valid {
+			row["workspace"] = map[string]string{
+				"id": x.WorkspaceID.String, "slug": pgText(x.WorkspaceSlug), "name": pgText(x.WorkspaceName),
+			}
+		}
+		out = append(out, row)
 	}
 	respondJSON(w, 200, map[string]any{"invitations": out})
 }

@@ -4,18 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	meetingspkg "github.com/unicomhub/uniwork/server/internal/meetings"
+	"github.com/unicomhub/uniwork/server/internal/notification"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -75,13 +80,46 @@ func newTestServerWithGoogle(t *testing.T, google GoogleExchanger) *httptest.Ser
 // newTestServerWithOutbox lets a test observe what password-reset mail was
 // queued (recordOutbox) instead of dropping it (discardOutbox).
 func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqueuer) *httptest.Server {
+	d, _ := newTestDeps(t, google, out)
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// newTestDeps builds every service on a fresh test database and returns the
+// pool too, for tests that need to drive a background consumer or seed rows
+// the HTTP surface deliberately cannot create.
+// testFlagOverrides is the DB provider of the last newTestDeps, so a test can
+// drop its cache the way the flag.updated consumer does in production.
+var testFlagOverrides *featureflags.DBProvider
+
+func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps, *pgxpool.Pool) {
+	t.Helper()
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	orgs := service.NewOrganizationService(q)
+	orgs := service.NewOrganizationService(pool, q)
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
 	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
-	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
+	authSvc := service.NewAuthService(pool, q, minter, time.Hour, verification)
+	tasks := service.NewTaskService(pool, q, ws)
+	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")})
+	chatSvc := service.NewChatService(pool, q, ws, service.NopPublisher{})
+	// AI_PROVIDER=fake in the test env turns the gateway on with the
+	// deterministic provider; unset leaves it disabled, as in production
+	// without a key.
+	aiProvider, aiOpts := ai.FromEnv(os.Getenv)
+	gateway := service.NewAIGateway(pool, q, aiProvider, aiOpts)
+	meetingSvc.AI = gateway
+	billingSvc := service.NewBillingService(pool, q, orgs, nil)
+	readiness := service.NewReadiness(pool, nil)
+	flags, flagOverrides, err := featureflags.NewService(q, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testFlagOverrides = flagOverrides
+	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
+	adminSvc.SetSystemSources(readiness, nil, nil)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
@@ -92,17 +130,28 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 		PasswordReset: service.NewPasswordResetService(pool, q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, out),
 		Google:        google,
 		Organizations: orgs,
+		OrgMembers:    service.NewOrganizationMemberService(pool, q, orgs),
+		People:        service.NewPeopleService(pool, q, orgs),
+		Departments:   service.NewDepartmentService(pool, q, orgs),
 		Workspaces:    ws,
-		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
-		Tasks:         service.NewTaskService(q, ws, service.NopPublisher{}),
-		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
+		Onboarding:    service.NewOnboardingService(q, ws, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
+		Tasks:         tasks,
+		Agents:        service.NewAgentService(pool, q, orgs, ws),
+		Actors:        service.NewActorService(q),
+		Audit:         service.NewAuditService(pool, q, orgs, ws),
+		Billing:       billingSvc,
+		Admin:         adminSvc,
+		FeatureFlags:  flags,
+		Readiness:     readiness,
+		Meetings:      meetingSvc,
+		Chat:          chatSvc,
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.
-		Storage: storage.NewLocalStorageFromEnv(),
+		Storage:       storage.NewLocalStorageFromEnv(),
+		Notifications: notification.NewService(q, notification.PushConfig{}),
+		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
 	}
-	srv := httptest.NewServer(New(d))
-	t.Cleanup(srv.Close)
-	return srv
+	return d, pool
 }
 
 func postJSON(t *testing.T, srv *httptest.Server, path string, body any) *http.Response {

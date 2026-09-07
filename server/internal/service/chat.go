@@ -8,7 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -21,14 +23,22 @@ const (
 )
 
 type ChatService struct {
+	pool        *pgxpool.Pool
 	q           *db.Queries
 	ws          *WorkspaceService
 	pub         EventPublisher
 	TenorAPIKey string
 }
 
-func NewChatService(q *db.Queries, ws *WorkspaceService, pub EventPublisher) *ChatService {
-	return &ChatService{q: q, ws: ws, pub: pub}
+func NewChatService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, pub EventPublisher) *ChatService {
+	return &ChatService{pool: pool, q: q, ws: ws, pub: pub}
+}
+
+// RoomMemberIDs answers outbox.MemberResolver so room membership events reach
+// each member's own connections, including the one just added who is not
+// subscribed to the room yet.
+func (s *ChatService) RoomMemberIDs(ctx context.Context, roomID string) ([]string, error) {
+	return s.q.ListChatRoomMemberUserIDs(ctx, roomID)
 }
 
 type WorkspaceChat struct {
@@ -167,38 +177,59 @@ func workspaceChatMemberRole(wsRole string) string {
 	return "member"
 }
 
+// syncRoomMember adds the member when absent and raises an existing member to
+// admin when the workspace role demands it; it never demotes.
 func (s *ChatService) syncRoomMember(ctx context.Context, roomID, workspaceID, userID, floorRole string) error {
 	existing, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	if err == nil {
-		nextRole := existing.Role
-		if floorRole == "admin" {
-			nextRole = "admin"
+		if floorRole != "admin" || existing.Role == "admin" {
+			return nil
 		}
-		if nextRole != existing.Role {
-			return s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
-				RoomID: roomID, UserID: userID, Role: nextRole,
-			})
-		}
-		return nil
+		return s.q.UpdateChatRoomMemberRole(ctx, db.UpdateChatRoomMemberRoleParams{
+			RoomID: roomID, UserID: userID, Role: "admin",
+		})
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	_, err = s.q.InsertChatRoomMember(ctx, db.InsertChatRoomMemberParams{
-		ID:          util.NewID(),
-		RoomID:      roomID,
-		WorkspaceID: workspaceID,
-		UserID:      userID,
-		Role:        floorRole,
-		Status:      "active",
-	})
+	_, err = s.addRoomMember(ctx, s.q, roomID, workspaceID, userID, floorRole)
 	return err
 }
 
 func (s *ChatService) ensureRoomMember(ctx context.Context, roomID, workspaceID, userID, role string) error {
-	return s.syncRoomMember(ctx, roomID, workspaceID, userID, role)
+	return s.ensureRoomMemberTx(ctx, s.q, roomID, workspaceID, userID, role)
+}
+
+// ensureRoomMemberTx adds the member inside the caller's transaction; it drops
+// the added flag for callers that have nothing to audit.
+func (s *ChatService) ensureRoomMemberTx(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) error {
+	_, err := s.addRoomMember(ctx, q, roomID, workspaceID, userID, role)
+	return err
+}
+
+// addRoomMember reports whether it added the row, so a caller inside a
+// transaction can audit exactly the members it actually added.
+func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, roomID, workspaceID, userID, role string) (bool, error) {
+	_, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: roomID, UserID: userID,
+	})
+	if err == nil {
+		return false, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	_, err = q.InsertChatRoomMember(ctx, db.InsertChatRoomMemberParams{
+		ID:          util.NewID(),
+		RoomID:      roomID,
+		WorkspaceID: workspaceID,
+		UserID:      userID,
+		Role:        role,
+		Status:      "active",
+	})
+	return err == nil, err
 }
 
 func (s *ChatService) authorizeWorkspaceRoom(ctx context.Context, userID, workspaceID string) (db.ChatRoom, error) {
@@ -414,6 +445,7 @@ func (s *ChatService) sendMessage(
 		RoomID:           room.ID,
 		WorkspaceID:      anchorWS,
 		SenderID:         userID,
+		SenderKind:       string(audit.KindHuman),
 		Body:             body,
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      clientMsg,

@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -88,8 +89,28 @@ type MeetingService struct {
 	metrics      MeetingMetrics
 	// AI and Tasks are optional collaborators set by main after construction;
 	// nil means the feature reports itself as unavailable.
-	AI    ai.Summarizer
+	AI    *ai.Gateway
 	Tasks *TaskService
+	// ent is the entitlement gate (F-02); built here so it can never be nil.
+	ent *EntitlementService
+}
+
+// organizationOf resolves the tenant a meeting belongs to, for the gate.
+func (s *MeetingService) organizationOf(ctx context.Context, m db.Meeting) (string, error) {
+	w, err := s.q.GetWorkspaceByID(ctx, m.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	return w.OrganizationID, nil
+}
+
+// requireFeature: the organization's plan must include the flag (spec §4.3).
+func (s *MeetingService) requireFeature(ctx context.Context, m db.Meeting, feature string) error {
+	orgID, err := s.organizationOf(ctx, m)
+	if err != nil {
+		return err
+	}
+	return s.ent.Can(ctx, orgID, feature)
 }
 
 func (s *MeetingService) SetMeetingMetrics(m MeetingMetrics) {
@@ -116,7 +137,7 @@ func NewMeetingService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, 
 		rt.WebhookConcurrency = 8
 	}
 	nodeID := util.NewID()
-	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID}
+	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID, ent: NewEntitlementService(pool, q)}
 }
 
 // GuestHMACKey exposes the guest cookie signing key for lobby WebSocket auth.
@@ -172,13 +193,13 @@ func (s *MeetingService) writeAudit(ctx context.Context, q *db.Queries, meetingI
 	})
 }
 
-func (s *MeetingService) enqueue(ctx context.Context, q *db.Queries, workspaceID, topic string, payload any) error {
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return q.InsertOutboxEvent(ctx, db.InsertOutboxEventParams{
-		ID: util.NewID(), WorkspaceID: workspaceID, Topic: topic, Payload: string(b),
+// enqueue writes one provider.* row on the outbox inside the caller's
+// transaction. These are infrastructure instructions to the conference
+// provider, not business commands, so they go through Emit and carry no audit
+// row — the meeting command that caused them wrote one already.
+func (s *MeetingService) enqueue(ctx context.Context, q *db.Queries, workspaceID, topic string, payload map[string]string) error {
+	return auditRecorder.Emit(ctx, q, audit.System("meeting"), audit.Event{
+		Topic: topic, Payload: payload, WorkspaceID: workspaceID,
 	})
 }
 
@@ -247,7 +268,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 		Title: strings.TrimSpace(in.Title), Description: in.Description,
 		StartsAt: pgtype.Timestamptz{Time: in.StartsAt, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: in.EndsAt, Valid: true},
-		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID,
+		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeScheduled,
 		HostUserID: userID, Timezone: tz, AllowJoinRequest: allow,
 		ProjectID: strText(in.ProjectID),
@@ -269,10 +290,11 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if err := s.writeAudit(ctx, q, m.ID, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
 		return db.Meeting{}, err
 	}
+	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil,
+		audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeScheduled, "title": m.Title}))
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
-	s.pub.Publish(ctx, workspaceID, Event{Type: "meeting.created", Payload: meetingEventPayload(m)})
 	return m, nil
 }
 
@@ -329,7 +351,10 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 		return db.Meeting{}, Invalid("thời gian kết thúc phải sau thời gian bắt đầu")
 	}
 	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "meeting.updated", Payload: meetingEventPayload(up)})
+	s.record(ctx, s.q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
+		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt)},
+		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt)},
+	))
 	return up, nil
 }
 
@@ -369,4 +394,66 @@ func (s *MeetingService) Notes(ctx context.Context, userID, meetingID string) ([
 		return nil, err
 	}
 	return s.q.ListMeetingNotes(ctx, meetingID)
+}
+
+// meetingActionFor maps a realtime topic to the audit action for the same
+// command. Meeting keeps its historical event names (the client switches on
+// them), and audit actions are `meeting.<verb>` per the audit spec, so the two
+// vocabularies meet here rather than in twenty call sites.
+var meetingActionFor = map[string]string{
+	"meeting.created":       "meeting.created",
+	"meeting.updated":       "meeting.updated",
+	"meeting.started":       "meeting.started",
+	"meeting.ended":         "meeting.ended",
+	"meeting.canceled":      "meeting.canceled",
+	"meeting.deleted":       "meeting.deleted",
+	"host.transferred":      "meeting.host_transferred",
+	"participant.invited":   "meeting.participant_invited",
+	"participant.removed":   "meeting.participant_removed",
+	"invitation.responded":  "meeting.invitation_responded",
+	"join_request.created":  "meeting.join_requested",
+	"join_request.approved": "meeting.join_request_approved",
+	"join_request.rejected": "meeting.join_request_rejected",
+	"join_request.canceled": "meeting.join_request_canceled",
+	"invite_link.revoked":   "meeting.invite_link_revoked",
+}
+
+// record writes the meeting command's audit row and puts its realtime event on
+// the outbox, using the caller's queries handle. Passing the transaction's
+// handle is what makes the two atomic with the change; the callers that still
+// pass s.q are the ones whose command was already committed by the time they
+// reach here, and they are the remaining work of migrating Meeting off its
+// own audit table.
+func (s *MeetingService) record(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, topic string, payload map[string]string, changes map[string]audit.Change) {
+	action, ok := meetingActionFor[topic]
+	if !ok {
+		return
+	}
+	orgID := ""
+	if w, err := s.q.GetWorkspaceByID(ctx, m.WorkspaceID); err == nil {
+		orgID = w.OrganizationID
+	}
+	if payload == nil {
+		payload = meetingEventPayload(m)
+	}
+	if payload["workspace_id"] == "" {
+		payload["workspace_id"] = m.WorkspaceID
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
+		Actor:        actor,
+		Action:       action,
+		ResourceType: "meeting", ResourceID: m.ID,
+		Changes: changes,
+	}, audit.Event{Topic: topic, Payload: payload, OrganizationID: orgID, WorkspaceID: m.WorkspaceID}); err != nil {
+		slog.Warn("audit: meeting command not recorded", "action", action, "meeting", m.ID, "err", err)
+	}
+}
+
+// tsOrNil normalizes a nullable timestamp for an audit change entry.
+func tsOrNil(t pgtype.Timestamptz) any {
+	if !t.Valid {
+		return nil
+	}
+	return t.Time.UTC().Format(time.RFC3339)
 }

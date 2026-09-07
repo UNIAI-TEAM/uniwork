@@ -54,6 +54,9 @@ catalogs:
     cmdk:
       specifier: ^1.1.1
       version: 1.1.1
+    date-fns:
+      specifier: ^4.1.0
+      version: 4.4.0
     eslint-plugin-i18next:
       specifier: ^6.1.4
       version: 6.1.5
@@ -173,6 +176,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.3(react@19.2.3)
+      web-vitals:
+        specifier: ^6.2.1
+        version: 6.2.1
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 'catalog:'
@@ -336,6 +342,9 @@ importers:
       cmdk:
         specifier: 'catalog:'
         version: 1.1.1(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      date-fns:
+        specifier: 'catalog:'
+        version: 4.4.0
       embla-carousel-react:
         specifier: ^8.6.0
         version: 8.6.0(react@19.2.3)
@@ -4468,6 +4477,9 @@ packages:
 
   web-vitals@6.0.0:
     resolution: {integrity: sha512-Guaibvy/+uNtL6Bsu4jmMJGzuSl91oeRH5iO9pPRbYftnFUr3yqT1TUNX/OE4o9HexuEMU3Kb/Wg7iKhlffZUA==}
+
+  web-vitals@6.2.1:
+    resolution: {integrity: sha512-rLcLXA2sx6+9dE88NHFubwTtGxpK4yYBLj6qHPdFoCaLr0cXGb4efOqtKLlm4loGA4OEKHIQKMKzZkKyOh5ctw==}
 
   webidl-conversions@7.0.0:
     resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
@@ -8803,6 +8815,8 @@ snapshots:
   web-vitals@5.3.0: {}
 
   web-vitals@6.0.0: {}
+
+  web-vitals@6.2.1: {}
 
   webidl-conversions@7.0.0: {}
 

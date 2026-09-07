@@ -106,6 +106,14 @@ describe("dedupePersistedChatMessages", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.id).toBe("a1");
   });
+
+  it("ignores rows without ids when deduping", () => {
+    const rows = dedupePersistedChatMessages([
+      { id: "", message: "orphan", sent_at: "2026-08-29T02:00:00Z" },
+      { id: "1", message: "kept", sent_at: "2026-08-29T02:00:01Z" },
+    ]);
+    expect(rows.map((m) => m.id)).toEqual(["1"]);
+  });
 });
 
 describe("toChatItems", () => {
@@ -133,6 +141,15 @@ describe("toChatItems", () => {
     expect(items[0]?.isLocal).toBe(true);
     expect(items[1]?.isLocal).toBe(false);
     expect(items.map((m) => m.message)).toEqual(["hello", "hi"]);
+  });
+
+  it("falls back to identity when sender_name is missing", () => {
+    const items = toChatItems(
+      [{ id: "db3", sender_identity: "guest-1", message: "hey", sent_at: "2026-08-29T02:00:02Z" }],
+      "",
+    );
+    expect(items[0]?.fromName).toBe("guest-1");
+    expect(items[0]?.isLocal).toBe(false);
   });
 });
 

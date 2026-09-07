@@ -4,8 +4,15 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
+import { agentKeys } from "../agents/hooks";
+import { aiKeys } from "../ai/hooks";
+import { auditKeys } from "../audit/hooks";
+import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { meetingKeys } from "../meetings/hooks";
+import { notificationKeys } from "../notifications/hooks";
+import { orgMemberRootKey } from "../organizations/hooks";
+import { peopleRootKey } from "../people/hooks";
 import { taskKeys } from "../tasks/hooks";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
@@ -32,15 +39,50 @@ function keysFor(
     case "task.updated":
     case "task.deleted": {
       push(taskKeys.list(wsId));
-      if (payload.task_id) push(taskKeys.detail(payload.task_id));
+      if (payload.task_id) {
+        push(taskKeys.detail(payload.task_id));
+        // The task's Activity list is the audit log's slice of this task, so
+        // the same event that changed the task also made its history stale.
+        push(auditKeys.history(wsId, "task", payload.task_id));
+      }
       break;
     }
-    case "comment.created": {
-      if (payload.task_id) push(taskKeys.comments(payload.task_id));
+    case "task.comment_added": {
+      if (payload.task_id) {
+        push(taskKeys.comments(payload.task_id));
+        push(auditKeys.history(wsId, "task", payload.task_id));
+      }
+      break;
+    }
+    case "workspace_agent.added": {
+      push(agentKeys.workspace(wsId));
+      break;
+    }
+    case "notification.created": {
+      // Arrives on the user scope, from any workspace: refresh every cached
+      // list and the account-level badge. Payload is ids only; the row itself
+      // comes back from the API.
+      push(notificationKeys.lists());
+      push(notificationKeys.unreadCount());
+      break;
+    }
+    case "ai.usage.updated": {
+      // A gateway call finished somewhere in the workspace: Settings → AI
+      // and the quota line refetch; the payload is ids only.
+      push(aiKeys.usages());
+      if (payload.workspace_id) push(aiKeys.capabilities(payload.workspace_id));
+      break;
+    }
+    case "subscription.changed":
+    case "quota.threshold": {
+      // Both are organization-scoped; the payload names the organization.
+      if (payload.organization_id) push(billingKeys.current(payload.organization_id));
       break;
     }
     case "chat.room.created":
-    case "chat.room.updated": {
+    case "chat.room.updated":
+    case "chat.room.member_added":
+    case "chat.room.member_removed": {
       push(chatKeys.rooms(wsId));
       push(chatKeys.room(wsId));
       if (payload.room_id) {
@@ -108,6 +150,28 @@ function keysFor(
       }
       break;
     }
+    case "profile.updated":
+    case "department.created":
+    case "department.updated":
+    case "department.archived":
+    case "member.deactivated":
+    case "member.reactivated":
+    case "member.left":
+    case "member.role_changed":
+    case "invitation.revoked":
+    case "member.invited":
+    case "member.joined":
+    case "member.removed":
+    case "organization.ownership_transferred": {
+      // The directory and the membership list are keyed by organization SLUG,
+      // because that is what the routes carry, while the event payload names
+      // the organization by id. Invalidating the whole prefix is the honest
+      // translation: both caches are small, and refetching one directory beats
+      // showing a stale one.
+      push(peopleRootKey);
+      push(orgMemberRootKey);
+      break;
+    }
     case "recording.started":
     case "recording.stopped":
     case "recording.ready": {
@@ -163,6 +227,16 @@ function handleChatRealtimeEvent(
   }
 }
 
+/**
+ * `comment.created` was renamed to `task.comment_added` when the catalogue
+ * landed. The old name is accepted for one release so a client that reconnects
+ * to a server mid-deploy still refreshes its comments; drop this map once both
+ * sides are past that release.
+ */
+const RENAMED_EVENTS: Record<string, WSEventType> = {
+  "comment.created": "task.comment_added",
+};
+
 /** Keys that could have gone stale while the socket was down. */
 function allWorkspaceKeys(wsId: string) {
   return [
@@ -172,6 +246,8 @@ function allWorkspaceKeys(wsId: string) {
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),
     meetingKeys.joinRequestsRoot,
+    notificationKeys.lists(),
+    notificationKeys.unreadCount(),
   ];
 }
 
@@ -190,7 +266,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
-      const eventType = msg.type as WSEventType;
+      const eventType = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
         return;
       }

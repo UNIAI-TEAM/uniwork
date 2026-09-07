@@ -1,7 +1,7 @@
 # UniWork — AI Platform Gateway (bounded context AI, đợt F)
 
 **Ngày:** 2026-09-04  
-**Trạng thái:** Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
+**Trạng thái:** Đã triển khai (2026-09-06, UNI-428 — plan `docs/superpowers/plans/2026-09-06-ai-gateway-ask-uni.md`; khác spec: quota là entitlement `ai.tokens` thay cho `ai_quotas`, audit gộp vào `ai_usage_events`, một package `internal/ai` + `provider`). Duyệt trước đó: Đã duyệt (2026-09-04, quangpd — UNI-421). Câu hỏi mở đã chốt trong `docs/roadmap/OPEN_QUESTIONS.md`; ADR 0007–0010 accepted.  
 **Spec liên quan:** `2026-08-24-uniwork-platform-design.md`, `2026-08-29-meeting-world-class-design.md`, `2026-09-04-agent-actor-model-design.md`  
 **Tham chiếu:** `server/internal/ai/summarizer.go` (port LLM hiện có); bản cũ `unidigiwork`: `docs/architecture/ADR_AI_PERMISSION_AWARE_CONTEXT.md`, `docs/ai/AI_ACTION_GOVERNANCE_V1.md`, `docs/ai/WEE2_AI_WORKER_GOVERNANCE.md`, `docs/ai/UNI_WORKSPACE_COPILOT_V1.md`, `src/domain/ai-policy/model-policy.ts`, Blueprint v1.0 §19
 

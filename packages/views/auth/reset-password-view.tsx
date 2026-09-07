@@ -2,7 +2,7 @@
 import { Link2Off, Loader2 } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useResetPassword } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { SessionResponse } from "@uniwork/core/types";
@@ -39,7 +39,7 @@ export function ResetPasswordView({
   const errorMsg = clientError
     ? t(`auth.reset.${clientError}`, { min: MIN })
     : reset.error
-      ? t("common.error")
+      ? (apiErrorMessage(reset.error) ?? t("common.error"))
       : null;
   // The message sits under the field that owns it: the first for length, the
   // second for the pair. A server error belongs to neither and marks both.

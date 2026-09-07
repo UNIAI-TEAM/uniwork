@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -28,9 +30,9 @@ func requireNoteValidationError(t *testing.T, err error, what string) {
 }
 
 // registerNotePeer registers a verified user with org/workspace membership.
-func registerNotePeer(t *testing.T, q *db.Queries, email, name, orgID, wsID string) db.User {
+func registerNotePeer(t *testing.T, pool *pgxpool.Pool, q *db.Queries, email, name, orgID, wsID string) db.User {
 	t.Helper()
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	u := registerVerified(t, q, as, email, name)
 	addOrgMember(t, q, orgID, u.ID)
 	addWorkspaceMember(t, q, wsID, u.ID)
@@ -40,7 +42,7 @@ func registerNotePeer(t *testing.T, q *db.Queries, email, name, orgID, wsID stri
 // noteGroup creates a group with ua as creator and ub+peer as members.
 func noteGroup(t *testing.T, s *ChatService, ua, ub db.User, w db.Workspace, q *db.Queries, name, peerEmail string) string {
 	t.Helper()
-	peer := registerNotePeer(t, q, peerEmail, "Peer", w.OrganizationID, w.ID)
+	peer := registerNotePeer(t, s.pool, q, peerEmail, "Peer", w.OrganizationID, w.ID)
 	group, err := s.CreateGroup(context.Background(), ua.ID, w.ID, CreateGroupInput{
 		Name: name, MemberUserIDs: []string{ub.ID, peer.ID},
 	})
@@ -176,7 +178,7 @@ func TestChatNoteNotFoundAndForbidden(t *testing.T) {
 	}
 
 	groupID := noteGroup(t, s, ua, ub, w, q, "Kín", "note-peer@example.com")
-	outsider := registerNotePeer(t, q, "note-stranger@example.com", "Stranger", w.OrganizationID, w.ID)
+	outsider := registerNotePeer(t, s.pool, q, "note-stranger@example.com", "Stranger", w.OrganizationID, w.ID)
 	if _, err := s.SendNoteMessage(ctx, outsider.ID, w.ID, groupID, SendNoteMessageInput{
 		Body: "Ghi chú",
 	}); !errors.Is(err, ErrForbidden) {
@@ -192,7 +194,7 @@ func TestChatNoteNonWorkspaceMemberForbidden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure room: %v", err)
 	}
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	outsider := registerVerified(t, q, as, "note-outsider@example.com", "Outsider")
 	if _, err := s.SendNoteMessage(ctx, outsider.ID, w.ID, wsRoom.RoomID, SendNoteMessageInput{
 		Body: "Ghi chú",

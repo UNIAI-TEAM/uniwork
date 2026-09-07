@@ -1,31 +1,36 @@
+## UniAI
+
+Issue: UNI-___ <!-- bắt buộc; workflow uniai-link chặn PR thiếu mã. make issue-pr KEY=UNI-123 điền sẵn. -->
+
 ## Thay đổi gì
 
 <!-- Một đoạn: thay đổi này làm gì, và tại sao. Phần "tại sao" quan trọng hơn. -->
 
 ## Đã cố ý bỏ ra ngoài
 
-<!-- Thứ bạn đã cân nhắc rồi quyết định không làm trong PR này, kèm lý do.
-     Để trống nếu không có. -->
+<!-- Thứ đã cân nhắc rồi quyết định không làm trong PR này, kèm lý do. Ghi "không có" nếu không có. -->
 
-## Kiểm chứng
+## Kiểm chứng (bắt buộc)
 
-<!-- Ghi lệnh đã CHẠY THẬT, không phải lệnh lẽ ra nên chạy.
-     CLAUDE.md § Verification: không tuyên bố đã kiểm nếu chưa chạy. -->
+<!-- Ghi lệnh đã CHẠY THẬT và kết quả, không phải lệnh lẽ ra nên chạy.
+     Bỏ qua bước nào thì nêu tên bước và lý do. Reviewer đối chiếu với CI. -->
 
-- [ ] `make check` xanh (typecheck → lint → unit + contract → Go -race → Playwright)
-- [ ] Nếu bỏ qua bước nào, đã nói rõ bước nào và vì sao:
+- Đã chạy:
+- Đã bỏ qua, vì:
 
-## Checklist theo vùng chạm tới
+## Definition of Done
 
-<!-- Chỉ tick dòng thuộc vùng PR này chạm vào; xoá phần còn lại. -->
+<!-- docs/engineering/DEFINITION_OF_DONE.md. Máy đã giữ phần còn lại (CI đỏ = chưa xong).
+     Ô không áp dụng: tick và ghi "n/a — lý do" một dòng.
+     GATE_LEVEL=fast: chỉ bốn ô [fast] bắt buộc; các ô khác tick "n/a — fast" là đủ. -->
 
-- [ ] **Endpoint mới/đổi** — có schema, có `parseWithFallback`, và có case
-      malformed-response trong `api/endpoints/<domain>.test.ts`
-- [ ] **Migration** — không FK/cascade, index đứng một mình với `CONCURRENTLY`,
-      có file `.down.sql`
-- [ ] **Màn hình dùng chung** — nằm ở `packages/views/`, dùng header của shell,
-      mọi chuỗi qua `t()`, có khoá ở cả `vi.json` lẫn `en.json`
-- [ ] **Đổi màu/token** — khai ở cả `:root` và `.dark`, đã kiểm tương phản ở cả
-      hai chế độ bằng `e2e/onboarding-contrast.spec.ts`
-- [ ] **Đổi hành vi** — test thất bại được viết trước, ở đúng package
-- [ ] **Reserved slug** — đã chạy `pnpm generate:reserved-slugs` và commit file sinh ra
+- [ ] **Issue và phạm vi** `[fast]` — issue ở `in_review`; PR không rộng hơn issue
+- [ ] **Kiểm chứng thật** `[fast]` — mục trên ghi lệnh đã chạy; CI xanh trước khi merge
+- [ ] **Test đi trước hành vi** `[fast]` — test ở đúng package, fail nếu revert code
+- [ ] **Cách ly tenant** `[fast]` — query mới lọc tenant qua `RequireMember`; có test org B bị 403/404
+- [ ] **Quyền hai phía** — rule Go có mirror trong `permissions/rules.ts`
+- [ ] **Giao diện dùng được** — sáng/tối, bàn phím, không mock, empty state có bước tiếp
+- [ ] **Agent là actor** — attribution, `created_by_kind`, đề xuất → xác nhận
+- [ ] **Luật mới có ADR** — ADR + dòng `CLAUDE.md` + tên test giữ
+- [ ] **Nền có runbook** — `docs/ops/` và chuỗi shutdown trong `main.go`
+- [ ] **Tài liệu đóng vòng** — spec, plan, roadmap cập nhật hoặc nêu PR docs tiếp theo

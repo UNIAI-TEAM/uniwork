@@ -14,6 +14,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/storage"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 )
 
 // Deps is the subset of handler.Deps the mux needs: middleware, CORS,
@@ -24,6 +25,9 @@ type Deps struct {
 	Redis       *redis.Client
 	Storage     storage.Storage
 	HTTPMetrics *metrics.HTTPMetrics
+	// PlatformRoles resolves users.platform_role for /api/v1/admin; nil
+	// (tests without an admin service) makes every admin route 404.
+	PlatformRoles mw.PlatformRoleSource
 }
 
 // New wires middleware and registers routes by OpenAPI tag (auth.go, me.go, …).
@@ -39,7 +43,14 @@ func New(d Deps, h Routes) http.Handler {
 	// bucket with one header). Each consumer that needs the client address —
 	// the rate limiter, the WebSocket origin check — applies TRUSTED_PROXIES
 	// itself. handler/router_test.go pins this.
+	proxies := mw.ParseTrustedProxies(d.Cfg.TrustedProxies)
+	// The server span comes first so every middleware below, the access log
+	// and the audit row share one trace id (X-Trace-Id).
+	r.Use(telemetry.HTTP)
 	r.Use(chimw.RequestID)
+	// Correlation before the logger so every access-log line carries the id
+	// the audit rows of that request will carry.
+	r.Use(mw.Correlation(proxies))
 	r.Use(mw.ClientMetadata)
 	r.Use(mw.RequestLogger)
 	r.Use(chimw.Recoverer)
@@ -47,7 +58,6 @@ func New(d Deps, h Routes) http.Handler {
 	if d.HTTPMetrics != nil {
 		r.Use(d.HTTPMetrics.Middleware)
 	}
-	proxies := mw.ParseTrustedProxies(d.Cfg.TrustedProxies)
 	if d.Redis != nil {
 		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, proxies))
 	}
@@ -57,7 +67,8 @@ func New(d Deps, h Routes) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader, telemetry.DebugTraceHeader},
+		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader},
 		AllowCredentials: true,
 	}))
 	cat := &apiCatalog{}
@@ -69,18 +80,32 @@ func New(d Deps, h Routes) http.Handler {
 		v1.Group(func(pub api) {
 			pub.Use(mw.OptionalAuth(d.Minter))
 			registerPublicMeetings(pub, h, credentialLimit, joinLimit, lobbyWSLimit)
+			registerConfig(pub, h, mw.RateLimit(d.Redis, 60, time.Minute, proxies))
 		})
 		v1.Group(func(authed api) {
 			authed.Use(mw.RequireAuth(d.Minter))
 			registerMe(authed, h, credentialLimit)
 			registerOrganizations(authed, h)
+			registerPeople(authed, h)
+			registerDepartments(authed, h)
 			registerWorkspaces(authed, h)
+			registerAgents(authed, h)
+			registerBilling(authed, h)
+			registerNotifications(authed, h)
+			registerAI(authed, h)
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
+			registerAudit(authed, h)
 			registerMeetings(authed, h)
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 			chatTypingLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
+			if d.PlatformRoles != nil {
+				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)
+				registerAdmin(authed, h, adminLimit,
+					mw.RequirePlatformRole(d.PlatformRoles, "support"),
+					mw.RequirePlatformRole(d.PlatformRoles, "admin"))
+			}
 		})
 	})
 	if d.Cfg.EnableSwagger {

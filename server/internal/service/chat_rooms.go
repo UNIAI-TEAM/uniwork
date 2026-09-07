@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -270,6 +271,12 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	if len(ids) == 0 {
 		return ChatRoomSummary{}, Invalid("cần ít nhất một thành viên để mời")
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
 	for _, id := range ids {
 		if id == userID {
 			continue
@@ -277,11 +284,29 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 		if err := s.requireOrgPeer(ctx, orgID, id); err != nil {
 			return ChatRoomSummary{}, err
 		}
-		if err := s.ensureRoomMember(ctx, roomID, anchorWS, id, "member"); err != nil {
+		added, err := s.addRoomMember(ctx, q, roomID, anchorWS, id, "member")
+		if err != nil {
+			return ChatRoomSummary{}, err
+		}
+		if !added {
+			continue // already a member; re-inviting is not a state change
+		}
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: orgID, WorkspaceID: anchorWS,
+			Actor:        audit.User(userID),
+			Action:       audit.ActionChatRoomMemberAdded,
+			ResourceType: "chat_room", ResourceID: roomID,
+			Metadata: map[string]any{"member_id": id},
+		}, audit.Event{Topic: "chat.room.member_added", Payload: map[string]string{
+			"room_id": roomID, "user_id": id,
+		}}); err != nil {
 			return ChatRoomSummary{}, err
 		}
 	}
-	_ = s.q.TouchChatRoomUpdatedAt(ctx, roomID)
+	_ = q.TouchChatRoomUpdatedAt(ctx, roomID)
+	if err := tx.Commit(ctx); err != nil {
+		return ChatRoomSummary{}, err
+	}
 	s.publishChatRoomMembersEvent(ctx, roomID, Event{
 		Type: "chat.room.updated", Payload: map[string]string{"room_id": roomID},
 	})
@@ -331,9 +356,29 @@ func (s *ChatService) LeaveChatRoom(ctx context.Context, userID, workspaceID, ro
 	if room.Kind == chatRoomKindWorkspace {
 		return Invalid("không thể rời phòng workspace")
 	}
-	if err := s.q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	if err := q.LeaveChatRoomMember(ctx, db.LeaveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	}); err != nil {
+		return err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: roomOrganizationID(room), WorkspaceID: roomAnchorWorkspaceID(room),
+		Actor:        audit.User(userID),
+		Action:       audit.ActionChatRoomMemberRemoved,
+		ResourceType: "chat_room", ResourceID: roomID,
+		Metadata: map[string]any{"member_id": userID, "self_service": true},
+	}, audit.Event{Topic: "chat.room.member_removed", Payload: map[string]string{
+		"room_id": roomID, "user_id": userID,
+	}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	s.publishChatRoomMembersEvent(ctx, roomID, Event{
@@ -348,7 +393,14 @@ func (s *ChatService) createChatRoom(
 	allMemberIDs []string,
 ) (db.ChatRoom, error) {
 	roomID := util.NewID()
-	room, err := s.q.CreateChatRoom(ctx, db.CreateChatRoomParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.ChatRoom{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	room, err := q.CreateChatRoom(ctx, db.CreateChatRoomParams{
 		ID:              roomID,
 		Kind:            kind,
 		WorkspaceID:     pgtype.Text{String: anchorWorkspaceID, Valid: true},
@@ -366,13 +418,28 @@ func (s *ChatService) createChatRoom(
 		if id == creatorID {
 			role = "admin"
 		}
-		if err := s.ensureRoomMember(ctx, roomID, anchorWorkspaceID, id, role); err != nil {
+		if err := s.ensureRoomMemberTx(ctx, q, roomID, anchorWorkspaceID, id, role); err != nil {
 			return db.ChatRoom{}, err
 		}
 	}
-	s.publishChatRoomMembersEvent(ctx, roomID, Event{
-		Type: "chat.room.created", Payload: map[string]string{"room_id": roomID},
-	})
+	// Only room administration is audited; message traffic is not
+	// (OPEN_QUESTIONS A4). The realtime notice now leaves through the outbox,
+	// which is why there is no Publish call here any more.
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: orgID, WorkspaceID: anchorWorkspaceID,
+		Actor:        audit.User(creatorID),
+		Action:       audit.ActionChatRoomCreated,
+		ResourceType: "chat_room", ResourceID: roomID,
+		Changes:  audit.Diff(nil, map[string]any{"kind": kind}),
+		Metadata: map[string]any{"member_count": len(uniqueUserIDs(allMemberIDs))},
+	}, audit.Event{Topic: "chat.room.created", Payload: map[string]string{
+		"room_id": roomID, "workspace_id": anchorWorkspaceID,
+	}}); err != nil {
+		return db.ChatRoom{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.ChatRoom{}, err
+	}
 	return room, nil
 }
 

@@ -7,6 +7,7 @@ export const RESERVED_SLUGS = [
   "auth",
   "forgot-password",
   "healthz",
+  "inbox",
   "invitations",
   "invite",
   "login",

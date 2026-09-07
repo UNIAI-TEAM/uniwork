@@ -90,7 +90,7 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string) (MeetingSummary, error) {
@@ -105,6 +105,7 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.Model,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.UsageEventID,
 	)
 	return i, err
 }
@@ -144,19 +145,20 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 }
 
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id
 `
 
 type InsertMeetingSummaryParams struct {
-	ID          string `json:"id"`
-	MeetingID   string `json:"meeting_id"`
-	Summary     string `json:"summary"`
-	Decisions   string `json:"decisions"`
-	ActionItems string `json:"action_items"`
-	Model       string `json:"model"`
-	CreatedBy   string `json:"created_by"`
+	ID           string      `json:"id"`
+	MeetingID    string      `json:"meeting_id"`
+	Summary      string      `json:"summary"`
+	Decisions    string      `json:"decisions"`
+	ActionItems  string      `json:"action_items"`
+	Model        string      `json:"model"`
+	CreatedBy    string      `json:"created_by"`
+	UsageEventID pgtype.Text `json:"usage_event_id"`
 }
 
 func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSummaryParams) (MeetingSummary, error) {
@@ -168,6 +170,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		arg.ActionItems,
 		arg.Model,
 		arg.CreatedBy,
+		arg.UsageEventID,
 	)
 	var i MeetingSummary
 	err := row.Scan(
@@ -179,6 +182,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.Model,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.UsageEventID,
 	)
 	return i, err
 }
@@ -254,7 +258,7 @@ func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) (
 }
 
 const listOverdueInProgressMeetings = `-- name: ListOverdueInProgressMeetings :many
-SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id FROM meetings m
+SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
 LIMIT 50
@@ -294,6 +298,7 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, endsAt pgty
 			&i.CanceledAt,
 			&i.CancelReason,
 			&i.ProjectID,
+			&i.CreatedByKind,
 		); err != nil {
 			return nil, err
 		}

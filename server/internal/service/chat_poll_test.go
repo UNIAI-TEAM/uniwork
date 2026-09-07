@@ -541,7 +541,7 @@ func TestChatPollSendGroupRoom(t *testing.T) {
 	ctx := context.Background()
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	uc := registerVerified(t, q, as, "chat-poll-group@example.com", "G")
 	addOrgMember(t, q, w.OrganizationID, uc.ID)
 	addWorkspaceMember(t, q, w.ID, uc.ID)
@@ -571,7 +571,7 @@ func TestChatPollSendForbiddenPaths(t *testing.T) {
 	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
 	in := SendPollMessageInput{Question: "Q?", Options: []string{"A", "B"}}
 
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	uc := registerVerified(t, q, as, "chat-poll-outsider@example.com", "Outsider")
 	if _, err := s.SendPollMessage(ctx, uc.ID, w.ID, roomID, in); err == nil {
 		t.Fatal("outsider send should fail")
@@ -613,7 +613,7 @@ func TestChatPollVoteForbiddenAndCorrupt(t *testing.T) {
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
 
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	uc := registerVerified(t, q, as, "chat-poll-vote-outsider@example.com", "Outsider")
 	poll := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
 		Question: "Q?", Options: []string{"A", "B"},

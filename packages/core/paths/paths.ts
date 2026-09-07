@@ -23,6 +23,16 @@ export const paths = {
   invite: (token: string) => `/invite/${token}`,
   meetingInvite: (linkId: string) => `/invite/meeting/${linkId}`,
   meetingInviteRoom: (linkId: string) => `/invite/meeting/${linkId}/room`,
+  /** Platform-admin console: outside every organization, guarded by GET /admin/me. */
+  admin: {
+    root: () => "/admin",
+    organizations: () => "/admin/organizations",
+    organization: (id: string) => `/admin/organizations/${id}`,
+    flags: () => "/admin/flags",
+    trace: (traceId?: string) => (traceId ? `/admin/trace?id=${encodeURIComponent(traceId)}` : "/admin/trace"),
+    quota: () => "/admin/quota",
+    system: () => "/admin/system",
+  },
   workspace: (orgSlug: string, wsSlug: string) => {
     const base = `/${orgSlug}/${wsSlug}`;
     return {
@@ -33,7 +43,10 @@ export const paths = {
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
+      inbox: () => `${base}/inbox`,
       members: () => `${base}/members`,
+      people: () => `${base}/people`,
+      person: (userId: string) => `${base}/people/${userId}`,
       settings: () => `${base}/settings`,
     };
   },
@@ -61,6 +74,7 @@ export const GLOBAL_PREFIXES = [
   "/invitations",
   "/workspaces",
   "/invite/",
+  "/admin",
 ] as const;
 
 export function isGlobalPath(path: string): boolean {

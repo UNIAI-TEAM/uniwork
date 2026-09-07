@@ -32,11 +32,11 @@ type wsFix struct {
 func wsFixture(t *testing.T) wsFix {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	ctx := context.Background()
 	reg := func(email, name string) db.User { return registerVerified(t, q, as, email, name) }
 	ua, ub, uc := reg("a@example.com", "A"), reg("b@example.com", "B"), reg("c@example.com", "C")
-	orgs := NewOrganizationService(q)
+	orgs := NewOrganizationService(pool, q)
 	org, err := orgs.Create(ctx, ua.ID, "Unicom", "unicom")
 	if err != nil {
 		t.Fatal(err)
@@ -146,8 +146,11 @@ func TestInviteManyAndAccept(t *testing.T) {
 		t.Fatal("B should not be onboarded before accept")
 	}
 	got, err := f.ws.AcceptInvite(ctx, f.ub.ID, pend[0].Token)
-	if err != nil || got.ID != w.ID {
-		t.Fatalf("accept: %v", err)
+	if err != nil || got.Workspace == nil || got.Workspace.ID != w.ID {
+		t.Fatalf("accept: %v %+v", err, got)
+	}
+	if got.Organization.ID != f.org.ID {
+		t.Fatalf("accept should name the organization too: %+v", got.Organization)
 	}
 	if _, err := f.ws.RequireMember(ctx, w.ID, f.ub.ID); err != nil {
 		t.Fatal("ws member not added")
@@ -277,5 +280,40 @@ func TestOrgAdminCanManageMembersWithoutMembershipRow(t *testing.T) {
 	}
 	if err := f.ws.RemoveMember(ctx, f.uc.ID, w.ID, f.ub.ID); err != nil {
 		t.Fatalf("org admin remove: %v", err)
+	}
+}
+
+func TestWorkspaceCreateSeedsTaskStatuses(t *testing.T) {
+	f := wsFixture(t)
+	ctx := context.Background()
+	w, err := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Alpha", "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.TaskPrefix != "ALP" {
+		t.Fatalf("WorkspaceView.TaskPrefix = %q, want ALP", w.TaskPrefix)
+	}
+	row, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.TaskPrefix != "ALP" {
+		t.Fatalf("task_prefix = %q, want ALP", row.TaskPrefix)
+	}
+	statuses, err := f.q.ListTaskStatuses(ctx, db.ListTaskStatusesParams{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := BuiltInTaskStatuses()
+	if len(statuses) != len(want) {
+		t.Fatalf("len = %d, want %d", len(statuses), len(want))
+	}
+	for i, st := range statuses {
+		if !st.IsSystem || st.Key != want[i].Key || st.Category != want[i].Category ||
+			st.Position != want[i].Position || st.CreatedByKind != "system" || st.CreatedBy != w.CreatedBy {
+			t.Fatalf("status[%d] = %+v, want key=%s system created_by=%s", i, st, want[i].Key, w.CreatedBy)
+		}
 	}
 }

@@ -10,14 +10,18 @@
   },
   "exports": {
     "./auth/*": "./auth/*.tsx",
+    "./admin/*": "./admin/*.tsx",
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
     "./meetings/meeting-invite-session": "./meetings/meeting-invite-session.ts",
     "./meetings/*": "./meetings/*.tsx",
     "./chat/*": "./chat/*.tsx",
+    "./ai/*": "./ai/*.tsx",
+    "./notifications/*": "./notifications/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",
+    "./people": "./people/index.ts",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts"
   },

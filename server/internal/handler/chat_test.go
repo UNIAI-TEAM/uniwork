@@ -2,54 +2,12 @@ package handler
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/unicomhub/uniwork/server/internal/auth"
-	"github.com/unicomhub/uniwork/server/internal/config"
-	"github.com/unicomhub/uniwork/server/internal/mail"
-	meetingspkg "github.com/unicomhub/uniwork/server/internal/meetings"
-	"github.com/unicomhub/uniwork/server/internal/realtime"
-	"github.com/unicomhub/uniwork/server/internal/service"
-	"github.com/unicomhub/uniwork/server/internal/storage"
-	"github.com/unicomhub/uniwork/server/internal/testutil"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
-
-func newChatTestServer(t *testing.T) *httptest.Server {
-	t.Helper()
-	pool := testutil.DB(t)
-	q := db.New(pool)
-	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	orgs := service.NewOrganizationService(q)
-	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
-	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
-	authSvc := service.NewAuthService(q, minter, time.Hour, verification)
-	d := Deps{
-		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
-		Log:           slog.Default(),
-		Minter:        minter,
-		Auth:          authSvc,
-		GoogleAuth:    service.NewGoogleAuthService(q, authSvc),
-		Verification:  verification,
-		PasswordReset: service.NewPasswordResetService(pool, q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
-		Organizations: orgs,
-		Workspaces:    ws,
-		Onboarding:    service.NewOnboardingService(q, ws, service.NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
-		Tasks:         service.NewTaskService(q, ws, service.NopPublisher{}),
-		Meetings:      service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")}),
-		Chat:          service.NewChatService(q, ws, service.NopPublisher{}),
-		Hub:           realtime.NewHub(),
-		Storage:       storage.NewLocalStorageFromEnv(),
-	}
-	srv := httptest.NewServer(New(d))
-	t.Cleanup(srv.Close)
-	return srv
-}
 
 type chatFixture struct {
 	srv             *httptest.Server
@@ -79,7 +37,7 @@ func registerChatUser(t *testing.T, srv *httptest.Server, email, name string) (s
 
 func setupChatFixture(t *testing.T, tag string) *chatFixture {
 	t.Helper()
-	srv := newChatTestServer(t)
+	srv := newTestServer(t)
 	f := &chatFixture{srv: srv, tokens: map[string]string{}, ids: map[string]string{}, emails: map[string]string{}}
 	users := []struct{ key, email, name string }{
 		{"a", "ca-" + tag + "@example.com", "Chat A"},

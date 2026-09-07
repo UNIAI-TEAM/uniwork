@@ -25,6 +25,9 @@ type apiOp struct {
 	sdo         any
 	status      int
 	auth        bool
+	// produces names a non-JSON success body (the CSV export). The route then
+	// has no SDO to reflect, so the content type is what documents it.
+	produces string
 }
 
 type apiCatalog struct {
@@ -78,8 +81,14 @@ func (c *apiCatalog) marshalJSON() ([]byte, error) {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		if op.sdo != nil {
+		switch {
+		case op.sdo != nil:
 			oc.AddRespStructure(op.sdo, func(cu *openapi.ContentUnit) { cu.HTTPStatus = status })
+		case op.produces != "":
+			oc.AddRespStructure(new(string), func(cu *openapi.ContentUnit) {
+				cu.HTTPStatus = status
+				cu.ContentType = op.produces
+			})
 		}
 		oc.AddRespStructure(new(sdo.ErrorSDO), func(cu *openapi.ContentUnit) { cu.HTTPStatus = http.StatusBadRequest })
 		if op.auth {
@@ -118,6 +127,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "conversationID":
+		return struct {
+			ConversationID string `path:"conversationID" description:"ULID hội thoại Ask UNI" example:"01K4AICONV000000000000001"`
+		}{}
 	case "workspaceID,roomID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
@@ -134,6 +147,21 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
 			UserID      string `path:"userID" description:"ULID người dùng" example:"01J8X4USER0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "org,departmentId":
+		return struct {
+			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
+			DepartmentId string `path:"departmentId" description:"ULID phòng ban" example:"01J8X4DEPT0N1P2Q3R4S5T6U"`
+		}{}
+	case "org,invitationId":
+		return struct {
+			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
+			InvitationId string `path:"invitationId" description:"ULID lời mời" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+		}{}
+	case "org,userID":
+		return struct {
+			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`
+			UserID string `path:"userID" description:"ULID thành viên" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 		}{}
 	case "workspaceID,userID":
 		return struct {
@@ -170,6 +198,38 @@ func pathParamSDI(path string) any {
 	case "requestId":
 		return struct {
 			RequestId string `path:"requestId" description:"ULID join request" example:"01J8X4JREQN1P2Q3R4S5"`
+		}{}
+	case "agentID":
+		return struct {
+			AgentID string `path:"agentID" description:"ULID agent" example:"01J8X4AGENT0N1P2Q3R4S5T6"`
+		}{}
+	case "orgID":
+		return struct {
+			OrgID string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+		}{}
+	case "traceID":
+		return struct {
+			TraceID string `path:"traceID" description:"Trace id (X-Trace-Id) hoặc correlation id" example:"0af7651916cd43dd8448eb211c80319c"`
+		}{}
+	case "key":
+		return struct {
+			Key string `path:"key" description:"Khóa feature flag" example:"agents_assignee"`
+		}{}
+	case "orgID,eventID":
+		return struct {
+			OrgID   string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			EventID string `path:"eventID" description:"ULID bản ghi nhật ký" example:"01J8X4AUDIT0N1P2Q3R4S5T6"`
+		}{}
+	case "orgID,exportID":
+		return struct {
+			OrgID    string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			ExportID string `path:"exportID" description:"ULID bản xuất nhật ký" example:"01J8X4EXPORT0N1P2Q3R4S5T"`
+		}{}
+	case "workspaceID,resourceType,resourceID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task hoặc meeting" example:"task"`
+			ResourceID   string `path:"resourceID" description:"ULID tài nguyên" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 		}{}
 	case "token":
 		return struct {

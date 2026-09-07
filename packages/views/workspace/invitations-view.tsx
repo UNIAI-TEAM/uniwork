@@ -1,39 +1,55 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { appHost } from "@uniwork/core/config";
 import type { Workspace } from "@uniwork/core/types";
 import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 
 /** Danh sách lời mời đang chờ của user; chấp nhận từng cái hoặc tất cả. */
-export function InvitationsView({ onJoined, onEmpty }: { onJoined: (ws: Workspace) => void; onEmpty: () => void }) {
+export function InvitationsView({
+  onJoined,
+  onEmpty,
+}: {
+  /**
+   * `workspace` is null when the invitation was to the organization itself:
+   * the person is in the company but in no team yet (F-03).
+   */
+  onJoined: (workspace: Workspace | null) => void;
+  onEmpty: () => void;
+}) {
   const { t } = useTranslation();
   const { data: invites, isFetched } = useMyInvitations();
   const accept = useAcceptInvite();
+  // Once a join succeeded the list empties by design; onEmpty must not
+  // override the navigation onJoined already started.
+  const joined = useRef(false);
   useEffect(() => {
-    if (isFetched && invites && invites.length === 0) onEmpty();
+    if (!joined.current && isFetched && invites && invites.length === 0) onEmpty();
   }, [isFetched, invites, onEmpty]);
   if (!invites?.length) return null;
 
   const join = (token: string) =>
     accept.mutate(token, {
-      onSuccess: (workspace) => {
-        if (workspace) onJoined(workspace);
+      onSuccess: (result) => {
+        joined.current = true;
+        onJoined(result.workspace);
       },
-      onError: () => toast.error(t("common.error")),
+      onError: (err) => toastApiError(err, t("common.error")),
     });
   const joinAll = async () => {
     let last: Workspace | null = null;
     for (const i of invites) {
       try {
-        last = (await accept.mutateAsync(i.token)) ?? last;
-      } catch {
-        toast.error(t("common.error"));
+        last = (await accept.mutateAsync(i.token)).workspace ?? last;
+      } catch (err) {
+        toastApiError(err, t("common.error"));
       }
     }
-    if (last) onJoined(last);
+    joined.current = true;
+    onJoined(last);
   };
 
   return (

@@ -14,21 +14,45 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 type AuthService struct {
+	pool         *pgxpool.Pool
 	q            *db.Queries
 	minter       auth.TokenMinter
 	refreshTTL   time.Duration
 	verification *VerificationService
 }
 
-func NewAuthService(q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
-	return &AuthService{q: q, minter: minter, refreshTTL: refreshTTL, verification: verification}
+func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
+	return &AuthService{pool: pool, q: q, minter: minter, refreshTTL: refreshTTL, verification: verification}
+}
+
+// recordAuth writes a credential event. These rows carry audit.NoOrganization:
+// signing in happens before any organization context exists, and a user may
+// belong to none or several (OPEN_QUESTIONS A1). They emit no outbox event —
+// nothing in the product reacts to a login, and a topic with no consumer is
+// noise on a shared queue.
+//
+// A failure to write the audit row must not fail the request it describes: the
+// person still logged in, and a log that can refuse a login is a worse
+// availability risk than a gap in the log. It is logged instead.
+func (s *AuthService) recordAuth(ctx context.Context, action, userID string, meta map[string]any) {
+	if err := auditRecorder.Record(ctx, s.q, audit.Entry{
+		OrganizationID: audit.NoOrganization,
+		Actor:          audit.User(userID),
+		Action:         action,
+		ResourceType:   "user", ResourceID: userID,
+		Metadata: meta,
+	}); err != nil {
+		slog.Warn("audit: credential event not recorded", "action", action, "err", err)
+	}
 }
 
 type Session struct {
@@ -98,9 +122,15 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 		return Session{}, err
 	}
 	if !u.PasswordHash.Valid || !auth.CheckPassword(u.PasswordHash.String, password) {
+		s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, map[string]any{"reason": "bad_password"})
 		return Session{}, ErrInvalidCredentials
 	}
-	return s.mintSession(ctx, u)
+	sess, err := s.mintSession(ctx, u)
+	if err != nil {
+		return Session{}, err
+	}
+	s.recordAuth(ctx, audit.ActionAuthLoginSucceeded, u.ID, nil)
+	return sess, nil
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {
@@ -122,7 +152,17 @@ func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, er
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
-	return s.q.RevokeRefreshToken(ctx, hashToken(rawToken))
+	hash := hashToken(rawToken)
+	// Read the owner before revoking so the audit row names a user rather than
+	// a token hash nobody can resolve afterwards.
+	rt, err := s.q.GetRefreshTokenByHash(ctx, hash)
+	if err := s.q.RevokeRefreshToken(ctx, hash); err != nil {
+		return err
+	}
+	if err == nil {
+		s.recordAuth(ctx, audit.ActionAuthSessionRevoked, rt.UserID, nil)
+	}
+	return nil
 }
 
 func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
@@ -135,9 +175,9 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 
 const maxDisplayNameRunes = 100
 
-func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale *string) (db.User, error) {
-	if displayName == nil && locale == nil {
-		return db.User{}, Invalid("cần display_name hoặc locale")
+func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayName, locale, timezone *string) (db.User, error) {
+	if displayName == nil && locale == nil && timezone == nil {
+		return db.User{}, Invalid("cần display_name, locale hoặc timezone")
 	}
 	var name string
 	if displayName != nil {
@@ -152,15 +192,32 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 	if locale != nil && *locale != "vi" && *locale != "en" {
 		return db.User{}, Invalid("locale phải là vi hoặc en")
 	}
+	if timezone != nil {
+		if _, err := time.LoadLocation(*timezone); err != nil || *timezone == "" || *timezone == "Local" {
+			return db.User{}, Invalid("timezone phải là tên IANA, ví dụ Asia/Ho_Chi_Minh")
+		}
+	}
 	u, err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
 		ID:          userID,
 		DisplayName: pgtype.Text{String: name, Valid: displayName != nil},
 		Locale:      pgtype.Text{String: ptrString(locale), Valid: locale != nil},
+		Timezone:    pgtype.Text{String: ptrString(timezone), Valid: timezone != nil},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.User{}, ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return db.User{}, err
+	}
+	// The directory searches over a folded copy of the display name, so a
+	// rename has to reach every organization this person belongs to or they
+	// stay findable only under the old name (F-03 §3.3).
+	if displayName != nil {
+		if err := refreshSearchText(ctx, s.q, RefreshSearchTextInput{UserID: userID}); err != nil {
+			return db.User{}, err
+		}
+	}
+	return u, nil
 }
 
 func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.User, error) {

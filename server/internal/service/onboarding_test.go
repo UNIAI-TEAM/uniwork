@@ -13,7 +13,7 @@ func TestQuestionnaireAndComplete(t *testing.T) {
 	f := wsFixture(t)
 	ctx := context.Background()
 	out := &fakeOutbox{}
-	s := NewOnboardingService(f.q, f.ws, NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, out)
+	s := NewOnboardingService(f.q, f.ws, mail.Renderer{AppURL: "http://localhost:3000"}, out)
 
 	u, err := s.PatchQuestionnaire(ctx, f.ua.ID, json.RawMessage(`{"version":1,"role":"engineer","use_case":["team_tasks","other"],"use_case_other":"khác"}`))
 	if err != nil || !strings.Contains(string(u.OnboardingQuestionnaire), `"engineer"`) {
@@ -70,7 +70,7 @@ func TestQuestionnaireAndComplete(t *testing.T) {
 func TestSeedWelcomeTask(t *testing.T) {
 	f := wsFixture(t)
 	ctx := context.Background()
-	s := NewOnboardingService(f.q, f.ws, NopPublisher{}, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	s := NewOnboardingService(f.q, f.ws, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	w, _ := f.ws.CreateInOrg(ctx, f.ua.ID, f.org.ID, "Đội Alpha", "doi-alpha")
 
 	task, created, err := s.SeedWelcomeTask(ctx, f.ua.ID, w.ID)
@@ -80,9 +80,23 @@ func TestSeedWelcomeTask(t *testing.T) {
 	if !task.AssigneeID.Valid || task.AssigneeID.String != f.ua.ID {
 		t.Fatal("welcome task must be assigned to caller")
 	}
+	afterCreate, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	again, created2, err := s.SeedWelcomeTask(ctx, f.ua.ID, w.ID)
 	if err != nil || created2 || again.ID != task.ID {
 		t.Fatalf("seed twice: %v created=%v", err, created2)
+	}
+	afterIdempotent, err := f.q.GetWorkspaceByID(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterIdempotent.TaskCounter != afterCreate.TaskCounter {
+		t.Fatalf("idempotent seed bumped counter: %d → %d", afterCreate.TaskCounter, afterIdempotent.TaskCounter)
+	}
+	if task.Number == 0 || task.CreatorID != "onboarding" || task.CreatorType != "system" {
+		t.Fatalf("welcome attribution: %+v", task)
 	}
 	if _, _, err := s.SeedWelcomeTask(ctx, f.ub.ID, w.ID); err != ErrForbidden {
 		t.Fatalf("outsider seed: %v", err)

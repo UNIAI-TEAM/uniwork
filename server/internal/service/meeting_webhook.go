@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -112,7 +113,7 @@ func (s *MeetingService) processWebhookRow(ctx context.Context, row db.WebhookIn
 }
 
 func (s *MeetingService) markWebhookFailed(ctx context.Context, row db.WebhookInbox, err error) {
-	nextAt, status := outboxRetrySchedule(row.AttemptCount + 1)
+	nextAt, status := outbox.RetryAt(row.AttemptCount+1), "PENDING"
 	if row.AttemptCount+1 >= webhookMaxAttempts {
 		status = "DEAD_LETTER"
 	}
@@ -153,7 +154,6 @@ func (s *MeetingService) RunWorkers(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-outboxTick.C:
-			_ = s.ProcessOutbox(ctx, s.rt.OutboxBatch)
 			_ = s.ProcessWebhookInbox(ctx, s.rt.WebhookBatch)
 		case <-reconTick.C:
 			_ = s.ReconcileStaleAttendance(ctx, 50)

@@ -16,8 +16,8 @@ import (
 func meetingFixture(t *testing.T) (*MeetingService, db.User, db.User, db.Workspace) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	orgs := NewOrganizationService(q)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	ctx := context.Background()
 	ua := registerVerified(t, q, as, "a@example.com", "A")

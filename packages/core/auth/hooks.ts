@@ -98,7 +98,7 @@ export function useAuthProviders() {
 
 export function usePatchMe() {
   return useMutation({
-    mutationFn: (body: { display_name?: string; locale?: "vi" | "en" }) => auth.patchMe(body),
+    mutationFn: (body: { display_name?: string; locale?: "vi" | "en"; timezone?: string }) => auth.patchMe(body),
     onSuccess: (user) => {
       if (user) setSessionUser(user);
     },

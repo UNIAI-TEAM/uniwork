@@ -72,6 +72,17 @@ test("AGENTS.md is CLAUDE.md, not a shorter copy of it", () => {
   assert.ok(agentsMdMatchesClaude(), "AGENTS.md must resolve to CLAUDE.md content");
 });
 
+test("no editor-specific rules tree is tracked beside AGENTS.md", () => {
+  // CLAUDE.md § Local Gates: Cursor, Codex and Copilot read AGENTS.md; a second
+  // ruleset beside it drifts silently. .cursor/ came back once as 825 tracked
+  // files under a .gitignore entry that already excluded it (`git add -f`).
+  const tracked = execFileSync("git", ["ls-files", "--", ".cursor", ".cursorrules", ".wsl-*.sh"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+  assert.equal(tracked, "", `tracked editor/personal files:\n${tracked}`);
+});
+
 test("pnpm install wires core.hooksPath at .githooks", () => {
   // Git hooks are not cloned. Without this line in `prepare`, .githooks/ is a
   // directory of shell scripts nobody runs, and every gate below it is theatre.
@@ -84,7 +95,7 @@ test("pnpm install wires core.hooksPath at .githooks", () => {
 });
 
 test("both hooks exist and are executable", () => {
-  for (const hook of ["pre-commit", "commit-msg"]) {
+  for (const hook of ["pre-commit", "commit-msg", "prepare-commit-msg"]) {
     const p = path.join(root, ".githooks", hook);
     assert.ok(fs.existsSync(p), `.githooks/${hook} is missing`);
     // Git will not run a hook without the execute bit, and it says nothing when
@@ -149,6 +160,40 @@ test("the docs a newcomer is pointed at exist", () => {
                    ".github/CODEOWNERS", ".github/pull_request_template.md"]) {
     assert.ok(fs.existsSync(path.join(root, f)), `${f} is missing`);
   }
+});
+
+test("GATE_LEVEL is one word and every gate that claims to read it does", () => {
+  // docs/engineering/GATE_LEVELS.md lists which files loosen with the level.
+  // A reader that stops reading the file keeps enforcing one level forever
+  // while the doc says otherwise; a fourth word in the file would resolve to
+  // strict everywhere and nobody would notice why.
+  const level = read("GATE_LEVEL").trim();
+  assert.ok(["fast", "standard", "strict"].includes(level), `GATE_LEVEL is "${level}"; expected fast | standard | strict`);
+  for (const f of [".githooks/pre-commit", "scripts/check.sh", ".github/workflows/ci.yml",
+                   ".github/workflows/uniai-link.yml", "docs/engineering/DEFINITION_OF_DONE.md",
+                   "docs/engineering/FEATURE_WORKFLOW.md"]) {
+    assert.match(read(f), /GATE_LEVEL/, `${f} is listed in GATE_LEVELS.md as a reader but never mentions GATE_LEVEL`);
+    assert.ok(read("docs/engineering/GATE_LEVELS.md").includes(`\`${f}\``), `GATE_LEVELS.md does not list ${f}`);
+  }
+  assert.match(read("CLAUDE.md"), /\n## Gate Level\n/, "CLAUDE.md needs a Gate Level section");
+  for (const w of ["fast", "standard", "strict"]) {
+    assert.ok(read("CLAUDE.md").split("\n## Gate Level\n")[1].split("\n## ")[0].includes(`\`${w}\``), `CLAUDE.md § Gate Level does not name ${w}`);
+  }
+  // The four [fast] items are the floor; they are the same in both files.
+  const fast = (t) => [...t.matchAll(/\*\*([^*]+)\*\* `\[fast\]`/g)].map((m) => m[1]).sort();
+  assert.equal(fast(read("docs/engineering/DEFINITION_OF_DONE.md")).length, 4, "DoD marks exactly four [fast] items");
+  assert.deepEqual(fast(read(".github/pull_request_template.md")), fast(read("docs/engineering/DEFINITION_OF_DONE.md")));
+});
+
+test("the PR template ticks exactly the DoD items the DoD page lists", () => {
+  // DEFINITION_OF_DONE.md explains each item and how to check it; the PR
+  // template is where it is actually ticked. Two lists drift the moment one
+  // is edited alone, and the one people read is the template.
+  const labels = (text, re) => [...text.matchAll(re)].map((m) => m[1]).sort();
+  const page = labels(read("docs/engineering/DEFINITION_OF_DONE.md"), /^\d+\. \*\*([^*]+)\*\*/gm);
+  const template = labels(read(".github/pull_request_template.md"), /^- \[ \] \*\*([^*]+)\*\*/gm);
+  assert.ok(page.length >= 8 && page.length <= 12, `DoD has ${page.length} items; keep it around ten`);
+  assert.deepEqual(template, page, "PR template and DEFINITION_OF_DONE.md list different DoD items");
 });
 
 test("every ADR is numbered once and carries a status", () => {
@@ -287,5 +332,21 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
       `packages/core still has unreachable modules after ${ORPHANS_DEADLINE}: ` +
       `${orphans.join(", ")}. Wire them or delete them.`,
     );
+  }
+});
+
+test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
+  // docs/engineering/UNIAI_TRACKING.md says every PR names a UNI-nnn issue and
+  // every issue-branch commit carries a Refs trailer. Those claims rest on
+  // three files; if any goes missing the doc keeps promising what nothing does.
+  assert.ok(isExecutable("scripts/uniai.sh"), "scripts/uniai.sh is not executable");
+  assert.ok(fs.existsSync(path.join(root, ".github/workflows/uniai-link.yml")), "uniai-link workflow is missing");
+  assert.match(read(".github/workflows/uniai-link.yml"), /UNI-\[0-9\]\+/, "uniai-link must grep for UNI-nnn");
+  // No issue, no code, at every level: fast must not turn a missing key into a warning.
+  assert.doesNotMatch(read(".github/workflows/uniai-link.yml"), /=\s*fast\b/, "uniai-link must not special-case fast");
+  assert.match(read(".githooks/prepare-commit-msg"), /Refs: /, "prepare-commit-msg must add the Refs trailer");
+  assert.match(read("CLAUDE.md"), /\n## Project Tracking \(UniAI\)\n/, "CLAUDE.md needs a Project Tracking (UniAI) section");
+  for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {
+    assert.match(read("Makefile"), new RegExp(`^${t}:`, "m"), `Makefile target ${t} is missing`);
   }
 });

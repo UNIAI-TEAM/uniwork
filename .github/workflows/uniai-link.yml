@@ -1,0 +1,47 @@
+name: UniAI link
+
+# Every PR into develop/main must name its UniAI issue (UNI-nnn) in the title
+# or body — docs/engineering/UNIAI_TRACKING.md § 1 rule 1. What happens when it
+# does not depends on GATE_LEVEL (docs/engineering/GATE_LEVELS.md):
+#   fast      failure, unless the PR carries the `no-issue` label (maintainers)
+#   standard  same as fast
+#   strict    failure, label or not
+# No level makes a missing key a warning: no issue, no code, even while building.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, labeled, unlabeled]
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: GATE_LEVEL
+          sparse-checkout-cone-mode: false
+      - name: PR names a UniAI issue
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          level="$(tr -d '[:space:]' < GATE_LEVEL 2>/dev/null || true)"
+          case "$level" in fast|standard|strict) ;; *) level=strict ;; esac
+          echo "GATE_LEVEL=$level"
+          if printf '%s\n%s' "$TITLE" "$BODY" | grep -qE '\bUNI-[0-9]+\b'; then
+            echo "ok: $(printf '%s\n%s' "$TITLE" "$BODY" | grep -oE '\bUNI-[0-9]+\b' | sort -u | tr '\n' ' ')"
+            exit 0
+          fi
+          msg="PR title or body must contain the UniAI issue key (UNI-nnn). Run: make issue-pr KEY=UNI-nnn, or add 'Issue: UNI-nnn' to the description."
+          if [ "$level" != strict ] && printf '%s' "$LABELS" | tr ',' '\n' | grep -qx 'no-issue'; then
+            echo "::warning::PR has no UniAI issue; allowed only because it is labelled no-issue"
+            exit 0
+          fi
+          echo "::error::$msg"
+          exit 1

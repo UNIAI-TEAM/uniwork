@@ -31,6 +31,7 @@ type Config struct {
 	LiveKitEmptyTimeout       time.Duration
 	LiveKitDepartureTimeout   time.Duration
 	MeetingProvider           string
+	BillingProvider           string
 	MeetingWorkerTick         time.Duration
 	MeetingOutboxBatch        int32
 	MeetingWebhookBatch       int32
@@ -66,6 +67,23 @@ type Config struct {
 	MailFrom           string
 	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
 	TenorAPIKey string
+	// VAPID keys enable Web Push (F-07). Both empty turns push off: the push
+	// consumer acknowledges rows without sending and the client hides the
+	// option. VAPID_SUBJECT is a mailto: or https origin the push service can
+	// contact about abuse; it defaults to the frontend origin.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	VAPIDSubject    string
+	// RUMSampleRate is the share of web sessions that report web-vitals to
+	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
+	RUMSampleRate float64
+	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
+	AdminRateLimitPerMin int
+}
+
+// PushEnabled: both VAPID keys present.
+func (c Config) PushEnabled() bool {
+	return c.VAPIDPublicKey != "" && c.VAPIDPrivateKey != ""
 }
 
 // DevVerificationCode is the code accepted in place of a mailed one. Empty
@@ -113,6 +131,7 @@ func Load() (Config, error) {
 		LiveKitEmptyTimeout:       parseDuration(os.Getenv("LIVEKIT_ROOM_EMPTY_TIMEOUT"), 0),
 		LiveKitDepartureTimeout:   parseDuration(os.Getenv("LIVEKIT_ROOM_DEPARTURE_TIMEOUT"), 20*time.Second),
 		MeetingProvider:           getenv("MEETING_PROVIDER", "livekit"),
+		BillingProvider:           getenv("BILLING_PROVIDER", "manual"),
 		MeetingWorkerTick:         parseDuration(os.Getenv("MEETING_WORKER_TICK"), time.Second),
 		MeetingOutboxBatch:        parseInt32(os.Getenv("MEETING_OUTBOX_BATCH"), 50),
 		MeetingWebhookBatch:       parseInt32(os.Getenv("MEETING_WEBHOOK_BATCH"), 50),
@@ -134,6 +153,14 @@ func Load() (Config, error) {
 		SMTPEHLOName:              os.Getenv("SMTP_EHLO_NAME"),
 		MailFrom:                  getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
 		TenorAPIKey:               os.Getenv("TENOR_API_KEY"),
+		VAPIDPublicKey:            os.Getenv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey:           os.Getenv("VAPID_PRIVATE_KEY"),
+		VAPIDSubject:              os.Getenv("VAPID_SUBJECT"),
+		RUMSampleRate:             parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
+		AdminRateLimitPerMin:      int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
+	}
+	if c.VAPIDSubject == "" {
+		c.VAPIDSubject = c.FrontendOrigin
 	}
 	if c.DatabaseURL == "" {
 		return c, fmt.Errorf("DATABASE_URL is required")
@@ -173,6 +200,17 @@ func parseDuration(raw string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+func parseRatio(raw string, fallback float64) float64 {
+	if raw == "" {
+		return fallback
+	}
+	var f float64
+	if _, err := fmt.Sscanf(raw, "%g", &f); err != nil || f < 0 || f > 1 {
+		return fallback
+	}
+	return f
 }
 
 func parseInt32(raw string, fallback int32) int32 {

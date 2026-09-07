@@ -21,6 +21,7 @@ import {
 } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { toast } from "sonner";
+import { toastApiError } from "../toast-api-error";
 import { MemberMultiPicker } from "./member-multi-picker";
 
 export function InstantMeetingDialog({
@@ -68,11 +69,11 @@ export function InstantMeetingDialog({
                   const results = await Promise.allSettled(
                     attendees.map((id) => inviteParticipant(m.id, id)),
                   );
-                  if (results.some((r) => r.status === "rejected"))
-                    toast.error(t("common.error"));
+                  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+                  if (failed) toastApiError(failed.reason, t("common.error"));
                 }
               },
-              onError: () => toast.error(t("common.error")),
+              onError: (err) => toastApiError(err, t("common.error")),
             });
           }}
         >

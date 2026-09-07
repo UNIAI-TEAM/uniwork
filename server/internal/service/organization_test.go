@@ -13,10 +13,10 @@ import (
 func orgFixture(t *testing.T) (*db.Queries, *OrganizationService, db.User, db.User) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
-	as := NewAuthService(q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	ua := registerVerified(t, q, as, "a@example.com", "A")
 	ub := registerVerified(t, q, as, "b@example.com", "B")
-	return q, NewOrganizationService(q), ua, ub
+	return q, NewOrganizationService(pool, q), ua, ub
 }
 
 func TestOrganizationCreateAndAccess(t *testing.T) {

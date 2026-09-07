@@ -73,7 +73,12 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
-      className={cn("flex-1 text-body outline-none", className)}
+      className={cn(
+        "flex-1 text-body outline-none",
+        // Tailwind `flex` on a panel overrides the native `[hidden]` display rule.
+        "[hidden]:!hidden",
+        className,
+      )}
       {...props}
     />
   )
