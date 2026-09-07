@@ -103,6 +103,7 @@ func New(d Deps) http.Handler {
 		AdminSystem:                h.adminSystem,
 		AdminListFlags:             h.adminListFlags,
 		AdminListFlagOverrides:     h.adminListFlagOverrides,
+		AdminListAllFlagOverrides:  h.adminListAllFlagOverrides,
 		AdminSetFlagOverride:       h.adminSetFlagOverride,
 		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
 		WS:                         h.ws,

@@ -13,7 +13,8 @@ import { WorkspaceLoader } from "../layout/workspace-loader";
 import { AppLink, useNavigation } from "../navigation";
 
 const NAV = [
-  { key: "organizations", href: paths.admin.root() },
+  { key: "overview", href: paths.admin.root() },
+  { key: "organizations", href: paths.admin.organizations() },
   { key: "flags", href: paths.admin.flags() },
   { key: "trace", href: paths.admin.trace() },
   { key: "quota", href: paths.admin.quota() },
@@ -21,7 +22,8 @@ const NAV = [
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === paths.admin.root()) return pathname === href || pathname.startsWith("/admin/organizations");
+  // The console home is the only exact match; every other entry owns its subtree.
+  if (href === paths.admin.root()) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

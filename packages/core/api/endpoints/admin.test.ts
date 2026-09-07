@@ -10,7 +10,7 @@ import {
   getAdminTrace,
   listAdminFlags,
   listAdminOrganizations,
-  listFlagOverrides,
+  listAllFlagOverrides,
   setFlagOverride,
   suspendOrganization,
   unsuspendOrganization,
@@ -54,16 +54,26 @@ describe("admin endpoints", () => {
     await expect(getAdminMe()).rejects.toMatchObject({ status: 404 });
   });
 
-  it("listAdminOrganizations builds the query string and degrades to []", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ organizations: [{ ...org, status: "mystery" }] }));
-    const rows = await listAdminOrganizations({ q: "ac me", status: "active", limit: 20, offset: 40 });
-    expect(rows[0]!.status).toBe("mystery");
+  it("listAdminOrganizations builds the query string and carries the page meta", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ organizations: [{ ...org, status: "mystery" }], total: 128, limit: 20, offset: 40 }));
+    const page = await listAdminOrganizations({ q: "ac me", status: "active", sort: "activity_desc", limit: 20, offset: 40 });
+    expect(page.organizations[0]!.status).toBe("mystery");
+    expect(page.total).toBe(128);
     expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
-      "http://api.test/api/v1/admin/organizations?q=ac+me&status=active&limit=20&offset=40",
+      "http://api.test/api/v1/admin/organizations?q=ac+me&status=active&sort=activity_desc&limit=20&offset=40",
     );
+  });
+
+  it("listAdminOrganizations degrades to an empty page", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ organizations: [{ id: 1 }] }));
-    await expect(listAdminOrganizations()).resolves.toEqual([]);
-    expect(vi.mocked(fetch).mock.calls[1]![0]).toBe("http://api.test/api/v1/admin/organizations");
+    await expect(listAdminOrganizations()).resolves.toEqual({ organizations: [], total: 0, limit: 0, offset: 0 });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/admin/organizations");
+  });
+
+  it("listAdminOrganizations survives a response without the paging fields", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ organizations: [org, org] }));
+    const page = await listAdminOrganizations({ limit: 50, offset: 50 });
+    expect(page).toMatchObject({ total: 52, limit: 50, offset: 50 });
   });
 
   it("getAdminOrganization fills optional lists and returns null when malformed", async () => {
@@ -133,6 +143,14 @@ describe("admin endpoints", () => {
     await expect(getAdminSystem()).resolves.toBeNull();
   });
 
+  it("listAllFlagOverrides reads every override at once and degrades to []", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ overrides: [override] }));
+    expect((await listAllFlagOverrides())[0]!.flag_key).toBe("agents_assignee");
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/admin/flags/overrides");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ overrides: [{ id: 1 }] }));
+    await expect(listAllFlagOverrides()).resolves.toEqual([]);
+  });
+
   it("listAdminFlags degrades to []", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: [{ key: "agents_assignee", default: false }] }));
     expect((await listAdminFlags())[0]!.override_count).toBe(0);
@@ -140,20 +158,16 @@ describe("admin endpoints", () => {
     await expect(listAdminFlags()).resolves.toEqual([]);
   });
 
-  it("override list/set/delete send the right method and degrade to []", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ overrides: [override] }));
-    expect((await listFlagOverrides("agents_assignee"))[0]!.enabled).toBe(true);
-    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/admin/flags/agents_assignee/overrides");
+  it("override set/delete send the right method and degrade to []", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ overrides: [override] }));
     const body = { scope_type: "global" as const, scope_id: "", enabled: true, reason: "Bật thử cho pilot" };
     expect(await setFlagOverride("agents_assignee", body)).toHaveLength(1);
-    expect(vi.mocked(fetch).mock.calls[1]![1]?.method).toBe("PUT");
-    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]![1]?.body))).toEqual(body);
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/admin/flags/agents_assignee/overrides");
+    expect(vi.mocked(fetch).mock.calls[0]![1]?.method).toBe("PUT");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual(body);
     vi.mocked(fetch).mockResolvedValueOnce(json({ overrides: [] }));
     expect(await deleteFlagOverride("agents_assignee", { scope_type: "global", scope_id: "", reason: "Hết pilot rồi" })).toEqual([]);
-    expect(vi.mocked(fetch).mock.calls[2]![1]?.method).toBe("DELETE");
-    vi.mocked(fetch).mockResolvedValueOnce(json({ overrides: [{ id: 1 }] }));
-    await expect(listFlagOverrides("k")).resolves.toEqual([]);
+    expect(vi.mocked(fetch).mock.calls[1]![1]?.method).toBe("DELETE");
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: 1 }));
     await expect(setFlagOverride("k", body)).resolves.toEqual([]);
     vi.mocked(fetch).mockResolvedValueOnce(json(null));

@@ -11,6 +11,43 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adminListAllFlagOverrides = `-- name: AdminListAllFlagOverrides :many
+SELECT id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind, created_at, expires_at FROM feature_flag_overrides ORDER BY flag_key, scope_type, scope_id
+`
+
+// The console's Flags screen: every override in one round trip, so a
+// catalogue of N flags costs one query instead of N.
+func (q *Queries) AdminListAllFlagOverrides(ctx context.Context) ([]FeatureFlagOverride, error) {
+	rows, err := q.db.Query(ctx, adminListAllFlagOverrides)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FeatureFlagOverride{}
+	for rows.Next() {
+		var i FeatureFlagOverride
+		if err := rows.Scan(
+			&i.ID,
+			&i.FlagKey,
+			&i.ScopeType,
+			&i.ScopeID,
+			&i.Enabled,
+			&i.Note,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countFlagOverridesByKey = `-- name: CountFlagOverridesByKey :many
 SELECT flag_key, count(*)::bigint AS n FROM feature_flag_overrides
 WHERE expires_at IS NULL OR expires_at > now()

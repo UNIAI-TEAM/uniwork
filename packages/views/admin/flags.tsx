@@ -2,7 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { AlertCircle, Flag } from "lucide-react";
-import { useAdminFlags } from "@uniwork/core/admin";
+import { useAdminFlags, useAllFlagOverrides } from "@uniwork/core/admin";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@uniwork/ui/components/ui/table";
@@ -13,10 +13,11 @@ import { FlagOverrideRow } from "./flag-override-row";
 export function AdminFlagsView() {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.flags" });
   const flags = useAdminFlags();
+  const overrides = useAllFlagOverrides();
   return (
     <>
       <CollectionPageHeader icon={Flag} title={t("title")} count={flags.data?.length} description={t("description")} />
-      {flags.isPending ? (
+      {flags.isPending || overrides.isPending ? (
         <div className="flex flex-col gap-2 p-4">
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
@@ -51,7 +52,7 @@ export function AdminFlagsView() {
           </TableHeader>
           <TableBody>
             {flags.data.map((flag) => (
-              <FlagOverrideRow key={flag.key} flag={flag} scopeType="global" full />
+              <FlagOverrideRow key={flag.key} flag={flag} scopeType="global" overrides={overrides.data ?? []} full />
             ))}
           </TableBody>
         </Table>

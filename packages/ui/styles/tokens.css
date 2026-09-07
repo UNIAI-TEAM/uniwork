@@ -42,14 +42,20 @@
 
   /* Colour is a signal, not decoration. The signal slots double as text
      colours, so they hold the ≥ 4.5:1 text-safe value on every light surface
-     (success 4.6:1, warning 4.6:1, destructive 4.5:1 on white). */
+     (success 4.6:1, warning 4.6:1). --destructive is measured one step
+     further: the pattern it is actually used in is `text-destructive` on
+     `bg-destructive/10`, with `/20` as the hover of the destructive button,
+     and #dc2626 fell to 3.94:1 there — passing on white, failing everywhere
+     it ships. #ad1a1a holds 4.5:1 on its own /10 and /20 tint over
+     background, surface and muted; e2e/admin-contrast.spec.ts measures it on
+     the suspended banner. */
   /* The mark's own deep blue, flattened and lightened until it clears the
      4.5:1 text floor: hue 262 against the logo gradient's 263. The previous
      #2f5aff sat at hue 266 and measured 5.00 on --background; this reads 5.25
      on the same surface, so the realignment costs no contrast. */
   --brand: #0b5bf5;
   --brand-foreground: #ffffff;
-  --destructive: #dc2626;
+  --destructive: #ad1a1a;
   --success: #15803d;
   --warning: #a1580a;
   --info: #0b5bf5;

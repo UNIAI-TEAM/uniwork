@@ -1,6 +1,6 @@
 "use client";
-import { AdminOrganizationsView } from "@uniwork/views/admin/organizations";
+import { AdminOverviewView } from "@uniwork/views/admin/overview";
 
 export default function AdminPage() {
-  return <AdminOrganizationsView />;
+  return <AdminOverviewView />;
 }

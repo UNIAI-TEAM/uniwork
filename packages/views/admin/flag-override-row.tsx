@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useDeleteFlagOverride, useFlagOverrides, useSetFlagOverride } from "@uniwork/core/admin";
+import { useDeleteFlagOverride, useSetFlagOverride } from "@uniwork/core/admin";
 import { apiErrorMessage } from "@uniwork/core/api";
-import type { AdminFlag } from "@uniwork/core/types";
+import type { AdminFlag, AdminFlagOverride } from "@uniwork/core/types";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
@@ -17,6 +17,8 @@ interface FlagOverrideRowProps {
   /** global on /admin/flags, organization on the org detail's Flags tab. */
   scopeType: "global" | "organization";
   scopeId?: string;
+  /** Every override in the console, fetched once by the screen above. */
+  overrides: AdminFlagOverride[];
   /** Catalogue columns shown only on the full catalogue. */
   full?: boolean;
 }
@@ -24,16 +26,17 @@ interface FlagOverrideRowProps {
 /**
  * One flag with the override for one scope. The switch never flips on its
  * own: it opens the reason dialog and the server's answer is what the row
- * shows next (spec §9: not optimistic).
+ * shows next (spec §9: not optimistic). The overrides arrive from the screen,
+ * so a catalogue of N flags costs one request, not N.
  */
-// ponytail: one overrides query per row (5 flags today); a batched endpoint if the catalogue grows.
-export function FlagOverrideRow({ flag, scopeType, scopeId = "", full }: FlagOverrideRowProps) {
+export function FlagOverrideRow({ flag, scopeType, scopeId = "", overrides, full }: FlagOverrideRowProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.flags" });
-  const overrides = useFlagOverrides(flag.key);
   const set = useSetFlagOverride(flag.key);
   const remove = useDeleteFlagOverride(flag.key);
   const [pending, setPending] = useState<"on" | "off" | "remove" | null>(null);
-  const override = overrides.data?.find((o) => o.scope_type === scopeType && o.scope_id === scopeId);
+  const override = overrides.find(
+    (o) => o.flag_key === flag.key && o.scope_type === scopeType && o.scope_id === scopeId,
+  );
   const effective = override ? override.enabled : flag.default;
   const busy = set.isPending || remove.isPending;
   const fail = (err: unknown) => toast.error(apiErrorMessage(err) ?? t("error_write"));
@@ -71,7 +74,7 @@ export function FlagOverrideRow({ flag, scopeType, scopeId = "", full }: FlagOve
         <span className="flex items-center gap-2">
           <Switch
             checked={effective}
-            disabled={busy || overrides.isPending}
+            disabled={busy}
             aria-label={t("toggle_label", { key: flag.key })}
             onCheckedChange={(next) => setPending(next ? "on" : "off")}
           />

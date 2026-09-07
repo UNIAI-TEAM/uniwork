@@ -21,6 +21,7 @@ import (
 //	GET  /api/v1/admin/trace/{traceID}
 //	GET  /api/v1/admin/system
 //	GET  /api/v1/admin/flags
+//	GET  /api/v1/admin/flags/overrides
 //	GET  /api/v1/admin/flags/{key}/overrides
 //	PUT  /api/v1/admin/flags/{key}/overrides
 //	DELETE /api/v1/admin/flags/{key}/overrides
@@ -30,11 +31,12 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 		a.Use(limit)
 		a.Use(support)
 		a.Get("/me", h.AdminMe, apiOp{summary: "Admin: my platform role", description: "Vai trò platform của người gọi; 404 khi không có.", tags: tags, sdo: sdo.AdminMeSDO{}, auth: true})
-		a.Get("/organizations", h.AdminListOrganizations, apiOp{summary: "Admin: list organizations", description: "Danh sách tổ chức kèm gói, số thành viên/workspace, hoạt động gần nhất. Query: q, status, limit, offset.", tags: tags, sdo: sdo.AdminOrganizationListSDO{}, auth: true})
+		a.Get("/organizations", h.AdminListOrganizations, apiOp{summary: "Admin: list organizations", description: "Danh sách tổ chức kèm gói, số thành viên/workspace, hoạt động gần nhất. Query: q, status, limit (mặc định 50, tối đa 200), offset, sort (created_desc | activity_desc | activity_asc). Trả kèm total của cả tập lọc.", tags: tags, sdo: sdo.AdminOrganizationListSDO{}, auth: true})
 		a.Get("/organizations/{orgID}", h.AdminGetOrganization, apiOp{summary: "Admin: organization detail", description: "Chi tiết, quota (entitlement snapshot) và 20 thao tác admin gần nhất.", tags: tags, sdo: sdo.AdminOrganizationDetailSDO{}, auth: true})
 		a.Get("/trace/{traceID}", h.AdminTrace, apiOp{summary: "Admin: trace lookup", description: "Audit, outbox và admin_actions mang cùng trace id (tối đa 500 dòng mỗi bảng).", tags: tags, sdo: sdo.AdminTraceSDO{}, auth: true})
 		a.Get("/system", h.AdminSystem, apiOp{summary: "Admin: system", description: "Phiên bản build, migration nhúng, readiness, outbox pending/dead-letter, realtime connections, chuỗi flag provider.", tags: tags, sdo: sdo.AdminSystemSDO{}, auth: true})
 		a.Get("/flags", h.AdminListFlags, apiOp{summary: "Admin: flag catalogue", description: "Mọi flag đã khai báo: mô tả, mặc định, public, ngày review, số override.", tags: tags, sdo: sdo.AdminFlagListSDO{}, auth: true})
+		a.Get("/flags/overrides", h.AdminListAllFlagOverrides, apiOp{summary: "Admin: list every override", description: "Toàn bộ override của mọi flag trong một lượt, cho màn Flags của console.", tags: tags, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 		a.Get("/flags/{key}/overrides", h.AdminListFlagOverrides, apiOp{summary: "Admin: list overrides", description: "Override của một flag theo scope.", tags: tags, sdo: sdo.AdminFlagOverrideListSDO{}, auth: true})
 		a.Group(func(w api) {
 			w.Use(admin)

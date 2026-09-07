@@ -49,9 +49,13 @@ test("a platform admin suspends and unsuspends an organization from /admin", asy
   grantPlatformAdmin(email);
 
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "Tổ chức" })).toBeVisible({ timeout: 15_000 });
+  // The console opens on platform health, and the nav is the way to the tenants.
+  await expect(page.getByRole("heading", { name: "Tổng quan" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Sẵn sàng", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("link", { name: "Tổ chức", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/organizations$/, { timeout: 15_000 });
   await page.getByLabel("Tìm tổ chức").fill(orgSlug);
-  await page.getByRole("row", { name: new RegExp(`Nền tảng ${stamp}`) }).click();
+  await page.getByRole("link", { name: `Nền tảng ${stamp}` }).click();
   await expect(page).toHaveURL(/\/admin\/organizations\/[0-9A-Z]+$/, { timeout: 15_000 });
 
   await page.getByRole("button", { name: "Tạm ngưng" }).click();

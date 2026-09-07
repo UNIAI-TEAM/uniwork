@@ -98,13 +98,18 @@ Mọi route ghi yêu cầu body `reason` ≥ 10 ký tự. Rate‑limit riêng nh
 
 ### 5.4 Console `/admin` (web)
 
+> **Cập nhật 2026-09-07 (ADR 0013):** trần lên 7 màn hình. `/admin` là màn Tổng
+> quan; danh sách tổ chức chuyển sang `/admin/organizations`. Màn hình thứ tám
+> vẫn cần ADR.
+
 | Màn hình | Route | Nội dung |
 |---|---|---|
-| Organizations | `/admin` | Bảng có tìm kiếm, lọc status/plan, sắp xếp last_activity; hàng bấm vào detail. Số liệu inline, không hero KPI (PRODUCT.md). |
+| Overview | `/admin` | Readiness, outbox pending/dead, số tổ chức và số đang tạm ngưng, kết nối realtime; mỗi ô link sang nơi trả lời tiếp. Chỉ đọc endpoint đã có. |
+| Organizations | `/admin/organizations` | Bảng có tìm kiếm (debounce), lọc status, sắp xếp last_activity phía server, phân trang 50 dòng kèm tổng; tên tổ chức là link vào detail. Số liệu inline, không hero KPI (PRODUCT.md). |
 | Organization detail | `/admin/organizations/{id}` | Header status + plan; tab: Tổng quan (members/workspaces/usage), Flags (override có `reason`), Lịch sử (admin_actions). Nút Suspend/Unsuspend/Change plan mở dialog bắt `reason`. |
 | Flags | `/admin/flags` | Catalogue; mỗi key: mô tả, default, public?, override global toggle. |
 | Trace | `/admin/trace` | Ô nhập trace id → timeline (log, audit, outbox, admin_actions) theo thời gian; copy link. Một component ≤ 500 dòng; không filter builder. |
-| Quota | `/admin/quota` | Top organization theo usage/quota %; link sang detail. (Dữ liệu từ spec subscription; nếu chưa ship, màn hình ẩn sau flag `admin_quota`.) |
+| Quota | `/admin/quota` | Chọn tổ chức (200 tổ chức hoạt động gần nhất) → bảng hạn mức có thanh đo mức dùng. (Dữ liệu từ spec subscription; nếu chưa ship, màn hình ẩn sau flag `admin_quota`.) |
 | System | `/admin/system` | Readiness, versions, outbox, realtime, provider chain. |
 
 Guard: `apps/web/app/admin/layout.tsx` gọi `GET /api/v1/admin/me`; 404 → redirect `/`. Layout riêng, không dùng sidebar workspace. i18n keys `admin.*`; vi/en.

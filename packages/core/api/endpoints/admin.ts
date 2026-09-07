@@ -26,7 +26,12 @@ import { parseWithFallback } from "../schema";
  */
 
 const MeResponse = z.object({ platform_role: z.string() });
-const OrganizationsResponse = z.object({ organizations: z.array(AdminOrganizationSchema) });
+const OrganizationsResponse = z.object({
+  organizations: z.array(AdminOrganizationSchema),
+  total: z.number().optional(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
+});
 const OrganizationResponse = z.object({ organization: AdminOrganizationSchema });
 const SubscriptionResponse = z.object({ subscription: SubscriptionSchema });
 const FlagsResponse = z.object({ flags: z.array(AdminFlagSchema) });
@@ -42,24 +47,48 @@ export async function getAdminMe(): Promise<string> {
   }).platform_role;
 }
 
+/** Server-side orders; the browser never re-sorts a page it only partly holds. */
+export type AdminOrganizationSort = "created_desc" | "activity_desc" | "activity_asc";
+
 export interface AdminOrganizationQuery {
   q?: string;
   status?: string;
+  sort?: AdminOrganizationSort;
   limit?: number;
   offset?: number;
 }
 
-export async function listAdminOrganizations(query: AdminOrganizationQuery = {}): Promise<AdminOrganization[]> {
+/** One page plus the size of the whole filtered set, so the console can page. */
+export interface AdminOrganizationPage {
+  organizations: AdminOrganization[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export async function listAdminOrganizations(query: AdminOrganizationQuery = {}): Promise<AdminOrganizationPage> {
   const params = new URLSearchParams();
   if (query.q) params.set("q", query.q);
   if (query.status) params.set("status", query.status);
+  if (query.sort) params.set("sort", query.sort);
   if (query.limit) params.set("limit", String(query.limit));
   if (query.offset) params.set("offset", String(query.offset));
   const qs = params.toString();
   const raw = await request(`/api/v1/admin/organizations${qs ? `?${qs}` : ""}`);
-  return parseWithFallback<{ organizations: AdminOrganization[] }>(raw, OrganizationsResponse, { organizations: [] }, {
-    endpoint: "GET /api/v1/admin/organizations",
-  }).organizations;
+  const parsed = parseWithFallback<{
+    organizations: AdminOrganization[];
+    total?: number;
+    limit?: number;
+    offset?: number;
+  }>(raw, OrganizationsResponse, { organizations: [] }, { endpoint: "GET /api/v1/admin/organizations" });
+  return {
+    organizations: parsed.organizations,
+    // A server that dropped the field still gets a pager that can move: the
+    // page it returned is at least that many rows.
+    total: parsed.total ?? parsed.organizations.length + (query.offset ?? 0),
+    limit: parsed.limit ?? query.limit ?? parsed.organizations.length,
+    offset: parsed.offset ?? query.offset ?? 0,
+  };
 }
 
 export async function getAdminOrganization(orgId: string): Promise<AdminOrganizationDetail | null> {
@@ -125,9 +154,10 @@ function parseOverrides(raw: unknown, endpoint: string): AdminFlagOverride[] {
     .overrides;
 }
 
-export async function listFlagOverrides(key: string): Promise<AdminFlagOverride[]> {
-  const raw = await request(`/api/v1/admin/flags/${enc(key)}/overrides`);
-  return parseOverrides(raw, "GET /api/v1/admin/flags/{key}/overrides");
+/** Every override in one request; the Flags screen renders N rows from it. */
+export async function listAllFlagOverrides(): Promise<AdminFlagOverride[]> {
+  const raw = await request("/api/v1/admin/flags/overrides");
+  return parseOverrides(raw, "GET /api/v1/admin/flags/overrides");
 }
 
 export async function setFlagOverride(key: string, body: FlagOverrideInput): Promise<AdminFlagOverride[]> {

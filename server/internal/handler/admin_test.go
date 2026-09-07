@@ -42,6 +42,14 @@ func TestAdminRoutesGuardedByPlatformRole(t *testing.T) {
 	if res.StatusCode != 200 || len(out["organizations"].([]any)) != 1 {
 		t.Fatalf("support list: %d %v", res.StatusCode, out)
 	}
+	// The page carries the size of the whole filtered set, not of the page.
+	if out["total"].(float64) != 1 || out["limit"].(float64) != 50 || out["offset"].(float64) != 0 {
+		t.Fatalf("support list paging: %v", out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/admin/organizations?limit=1&offset=1&sort=activity_desc", w.token, nil)
+	if res.StatusCode != 200 || len(out["organizations"].([]any)) != 0 || out["total"].(float64) != 1 {
+		t.Fatalf("support list page 2: %d %v", res.StatusCode, out)
+	}
 	res, out = doJSON(t, srv, "POST", "/api/v1/admin/organizations/"+w.orgID+"/suspend", w.token, map[string]string{"reason": "support cannot do this"})
 	if res.StatusCode != 403 || out["error"].(map[string]any)["code"] != "platform_role_insufficient" {
 		t.Fatalf("support write: %d %v", res.StatusCode, out)
@@ -106,6 +114,10 @@ func TestFlagOverridesReachPublicConfig(t *testing.T) {
 	res, out := doJSON(t, srv, "GET", "/api/v1/config?organization_id="+w.orgID, "", nil)
 	if res.StatusCode != 200 || out["flags"].(map[string]any)["agents_assignee"] != false || out["rum_sample_rate"] == nil {
 		t.Fatalf("config before: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/admin/flags/overrides", w.token, nil)
+	if res.StatusCode != 200 || out["overrides"] == nil {
+		t.Fatalf("all overrides: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/admin/flags", w.token, nil)
 	if res.StatusCode != 200 || len(out["flags"].([]any)) != 5 {
