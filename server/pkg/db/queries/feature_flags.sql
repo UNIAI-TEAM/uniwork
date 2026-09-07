@@ -27,3 +27,8 @@ RETURNING *;
 
 -- name: DeleteFlagOverride :execrows
 DELETE FROM feature_flag_overrides WHERE flag_key = $1 AND scope_type = $2 AND scope_id = $3;
+
+-- name: AdminListAllFlagOverrides :many
+-- The console's Flags screen: every override in one round trip, so a
+-- catalogue of N flags costs one query instead of N.
+SELECT * FROM feature_flag_overrides ORDER BY flag_key, scope_type, scope_id;

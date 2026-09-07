@@ -43,6 +43,12 @@ func (s *AdminService) ListFlags(ctx context.Context) ([]FlagWithCount, error) {
 	return out, nil
 }
 
+// ListAllFlagOverrides is what the Flags screen reads: one round trip for the
+// whole catalogue instead of one request per row.
+func (s *AdminService) ListAllFlagOverrides(ctx context.Context) ([]db.FeatureFlagOverride, error) {
+	return s.q.AdminListAllFlagOverrides(ctx)
+}
+
 func (s *AdminService) ListFlagOverrides(ctx context.Context, key string) ([]db.FeatureFlagOverride, error) {
 	if _, ok := featureflags.Lookup(key); !ok {
 		return nil, ErrNotFound

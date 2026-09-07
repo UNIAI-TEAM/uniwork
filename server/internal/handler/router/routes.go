@@ -21,6 +21,7 @@ type Routes struct {
 	AdminSystem                http.HandlerFunc
 	AdminListFlags             http.HandlerFunc
 	AdminListFlagOverrides     http.HandlerFunc
+	AdminListAllFlagOverrides  http.HandlerFunc
 	AdminSetFlagOverride       http.HandlerFunc
 	AdminDeleteFlagOverride    http.HandlerFunc
 

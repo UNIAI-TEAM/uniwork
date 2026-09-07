@@ -29,6 +29,18 @@ func (h *handlers) adminListFlags(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.AdminFlagListSDO{Flags: out})
 }
 
+// adminListAllFlagOverrides answers the Flags screen in one request: the
+// catalogue is small, and a request per row put the console's own rate limit
+// between the admin and the switch they came to flip.
+func (h *handlers) adminListAllFlagOverrides(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Admin.ListAllFlagOverrides(r.Context())
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, toOverrideList(rows))
+}
+
 func (h *handlers) adminListFlagOverrides(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.Admin.ListFlagOverrides(r.Context(), chi.URLParam(r, "key"))
 	if err != nil {

@@ -3,18 +3,36 @@
 -- message, no file ever leaves through here.
 
 -- name: AdminListOrganizations :many
-SELECT o.id, o.slug, o.name, o.status, o.created_at,
-  COALESCE(p.code, '')::text AS plan_code,
-  (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
-  (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.id)::bigint AS workspace_count,
-  (SELECT max(a.occurred_at) FROM audit_events a WHERE a.organization_id = o.id)::timestamptz AS last_activity_at
-FROM organizations o
-LEFT JOIN subscriptions s ON s.organization_id = o.id AND s.status <> 'canceled'
-LEFT JOIN plans p ON p.id = s.plan_id
+-- total_count is the window count over the filtered set, so the console can
+-- paginate without a second round trip. Sorting is decided here, never in the
+-- browser: a client-side sort would only order the page it happens to hold.
+SELECT t.id, t.slug, t.name, t.status, t.created_at, t.plan_code,
+  t.member_count, t.workspace_count, t.last_activity_at, t.total_count
+FROM (
+  SELECT o.id, o.slug, o.name, o.status, o.created_at,
+    COALESCE(p.code, '')::text AS plan_code,
+    (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
+    (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.id)::bigint AS workspace_count,
+    (SELECT max(a.occurred_at) FROM audit_events a WHERE a.organization_id = o.id)::timestamptz AS last_activity_at,
+    count(*) OVER ()::bigint AS total_count
+  FROM organizations o
+  LEFT JOIN subscriptions s ON s.organization_id = o.id AND s.status <> 'canceled'
+  LEFT JOIN plans p ON p.id = s.plan_id
+  WHERE (sqlc.narg('status')::text IS NULL OR o.status = sqlc.narg('status')::text)
+    AND (sqlc.narg('q')::text IS NULL OR o.name ILIKE '%' || sqlc.narg('q')::text || '%' OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%')
+) t
+ORDER BY
+  CASE WHEN sqlc.arg('sort')::text = 'activity_asc' THEN t.last_activity_at END ASC NULLS LAST,
+  CASE WHEN sqlc.arg('sort')::text = 'activity_desc' THEN t.last_activity_at END DESC NULLS LAST,
+  t.created_at DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: AdminCountOrganizations :one
+-- Only for a page that came back empty: the window count above has no row to
+-- ride on there, and "page 3 of 0" is worse than one extra query.
+SELECT count(*)::bigint FROM organizations o
 WHERE (sqlc.narg('status')::text IS NULL OR o.status = sqlc.narg('status')::text)
-  AND (sqlc.narg('q')::text IS NULL OR o.name ILIKE '%' || sqlc.narg('q')::text || '%' OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%')
-ORDER BY o.created_at DESC
-LIMIT $1 OFFSET $2;
+  AND (sqlc.narg('q')::text IS NULL OR o.name ILIKE '%' || sqlc.narg('q')::text || '%' OR o.slug ILIKE '%' || sqlc.narg('q')::text || '%');
 
 -- name: AdminGetOrganization :one
 SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.created_at,

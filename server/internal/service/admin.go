@@ -79,22 +79,69 @@ func checkReason(reason string) error {
 	return nil
 }
 
-// ListOrganizationsInput filters the console's first screen.
+// Sort orders accepted by the organizations screen. Anything else falls back
+// to the newest first, so a stale client can never ask for an unknown column.
+const (
+	SortOrganizationsCreated      = "created_desc"
+	SortOrganizationsActivityDesc = "activity_desc"
+	SortOrganizationsActivityAsc  = "activity_asc"
+)
+
+// ListOrganizationsInput filters the console's organizations screen.
 type ListOrganizationsInput struct {
 	Query  string
 	Status string
+	Sort   string
 	Limit  int32
 	Offset int32
 }
 
-func (s *AdminService) ListOrganizations(ctx context.Context, in ListOrganizationsInput) ([]db.AdminListOrganizationsRow, error) {
+// OrganizationPage is one page of the list plus the size of the whole
+// filtered set, so the console can say "1-50 of 128" and disable Next.
+type OrganizationPage struct {
+	Organizations []db.AdminListOrganizationsRow
+	Total         int64
+	Limit         int32
+	Offset        int32
+}
+
+func normalizeOrganizationSort(sort string) string {
+	switch sort {
+	case SortOrganizationsActivityDesc, SortOrganizationsActivityAsc:
+		return sort
+	default:
+		return SortOrganizationsCreated
+	}
+}
+
+func (s *AdminService) ListOrganizations(ctx context.Context, in ListOrganizationsInput) (OrganizationPage, error) {
 	if in.Limit <= 0 || in.Limit > 200 {
 		in.Limit = 50
 	}
-	return s.q.AdminListOrganizations(ctx, db.AdminListOrganizationsParams{
-		Limit: in.Limit, Offset: in.Offset,
+	if in.Offset < 0 {
+		in.Offset = 0
+	}
+	rows, err := s.q.AdminListOrganizations(ctx, db.AdminListOrganizationsParams{
+		Limit: in.Limit, Offset: in.Offset, Sort: normalizeOrganizationSort(in.Sort),
 		Status: nullText(in.Status), Q: nullText(strings.TrimSpace(in.Query)),
 	})
+	if err != nil {
+		return OrganizationPage{}, err
+	}
+	out := OrganizationPage{Organizations: rows, Limit: in.Limit, Offset: in.Offset}
+	if len(rows) > 0 {
+		out.Total = rows[0].TotalCount
+		return out, nil
+	}
+	// An offset past the end returns no row to carry the window count, and a
+	// console that lost its total cannot draw the pager it needs to get back.
+	out.Total, err = s.q.AdminCountOrganizations(ctx, db.AdminCountOrganizationsParams{
+		Status: nullText(in.Status), Q: nullText(strings.TrimSpace(in.Query)),
+	})
+	if err != nil {
+		return OrganizationPage{}, err
+	}
+	return out, nil
 }
 
 // OrganizationDetail is the detail screen: metadata, the entitlement snapshot

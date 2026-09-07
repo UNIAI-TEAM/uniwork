@@ -258,7 +258,7 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 // fenced: only service/admin.go calls Admin* queries, and admin.go never
 // reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
-	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride)\(`)
+	adminQueries := regexp.MustCompile(`\bq\.(AdminListOrganizations|AdminCountOrganizations|AdminGetOrganization|AdminSetOrganizationStatus|InsertAdminAction|ListAdminActionsByTarget|ListAdminActionsByTrace|AdminListAuditEventsByCorrelation|AdminListOutboxEventsByCorrelation|AdminOutboxSummary|SetUserPlatformRole|ListPlatformRoleUsers|ListFlagOverridesByKey|AdminListAllFlagOverrides|CountFlagOverridesByKey|GetFlagOverride|UpsertFlagOverride|DeleteFlagOverride)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err

@@ -11,6 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adminCountOrganizations = `-- name: AdminCountOrganizations :one
+SELECT count(*)::bigint FROM organizations o
+WHERE ($1::text IS NULL OR o.status = $1::text)
+  AND ($2::text IS NULL OR o.name ILIKE '%' || $2::text || '%' OR o.slug ILIKE '%' || $2::text || '%')
+`
+
+type AdminCountOrganizationsParams struct {
+	Status pgtype.Text `json:"status"`
+	Q      pgtype.Text `json:"q"`
+}
+
+// Only for a page that came back empty: the window count above has no row to
+// ride on there, and "page 3 of 0" is worse than one extra query.
+func (q *Queries) AdminCountOrganizations(ctx context.Context, arg AdminCountOrganizationsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, adminCountOrganizations, arg.Status, arg.Q)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const adminGetOrganization = `-- name: AdminGetOrganization :one
 SELECT o.id, o.slug, o.name, o.status, o.suspended_at, o.suspended_reason, o.created_at,
   COALESCE(p.code, '')::text AS plan_code,
@@ -107,25 +127,34 @@ func (q *Queries) AdminListAuditEventsByCorrelation(ctx context.Context, correla
 
 const adminListOrganizations = `-- name: AdminListOrganizations :many
 
-SELECT o.id, o.slug, o.name, o.status, o.created_at,
-  COALESCE(p.code, '')::text AS plan_code,
-  (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
-  (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.id)::bigint AS workspace_count,
-  (SELECT max(a.occurred_at) FROM audit_events a WHERE a.organization_id = o.id)::timestamptz AS last_activity_at
-FROM organizations o
-LEFT JOIN subscriptions s ON s.organization_id = o.id AND s.status <> 'canceled'
-LEFT JOIN plans p ON p.id = s.plan_id
-WHERE ($3::text IS NULL OR o.status = $3::text)
-  AND ($4::text IS NULL OR o.name ILIKE '%' || $4::text || '%' OR o.slug ILIKE '%' || $4::text || '%')
-ORDER BY o.created_at DESC
-LIMIT $1 OFFSET $2
+SELECT t.id, t.slug, t.name, t.status, t.created_at, t.plan_code,
+  t.member_count, t.workspace_count, t.last_activity_at, t.total_count
+FROM (
+  SELECT o.id, o.slug, o.name, o.status, o.created_at,
+    COALESCE(p.code, '')::text AS plan_code,
+    (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count,
+    (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.id)::bigint AS workspace_count,
+    (SELECT max(a.occurred_at) FROM audit_events a WHERE a.organization_id = o.id)::timestamptz AS last_activity_at,
+    count(*) OVER ()::bigint AS total_count
+  FROM organizations o
+  LEFT JOIN subscriptions s ON s.organization_id = o.id AND s.status <> 'canceled'
+  LEFT JOIN plans p ON p.id = s.plan_id
+  WHERE ($1::text IS NULL OR o.status = $1::text)
+    AND ($2::text IS NULL OR o.name ILIKE '%' || $2::text || '%' OR o.slug ILIKE '%' || $2::text || '%')
+) t
+ORDER BY
+  CASE WHEN $3::text = 'activity_asc' THEN t.last_activity_at END ASC NULLS LAST,
+  CASE WHEN $3::text = 'activity_desc' THEN t.last_activity_at END DESC NULLS LAST,
+  t.created_at DESC
+LIMIT $5 OFFSET $4
 `
 
 type AdminListOrganizationsParams struct {
-	Limit  int32       `json:"limit"`
-	Offset int32       `json:"offset"`
 	Status pgtype.Text `json:"status"`
 	Q      pgtype.Text `json:"q"`
+	Sort   string      `json:"sort"`
+	Offset int32       `json:"offset"`
+	Limit  int32       `json:"limit"`
 }
 
 type AdminListOrganizationsRow struct {
@@ -138,17 +167,22 @@ type AdminListOrganizationsRow struct {
 	MemberCount    int64              `json:"member_count"`
 	WorkspaceCount int64              `json:"workspace_count"`
 	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
+	TotalCount     int64              `json:"total_count"`
 }
 
 // Platform admin (F-11). Only service/admin.go calls these (arch test
 // TestAdminQueriesStayInAdminService). Metadata only: no task body, no
 // message, no file ever leaves through here.
+// total_count is the window count over the filtered set, so the console can
+// paginate without a second round trip. Sorting is decided here, never in the
+// browser: a client-side sort would only order the page it happens to hold.
 func (q *Queries) AdminListOrganizations(ctx context.Context, arg AdminListOrganizationsParams) ([]AdminListOrganizationsRow, error) {
 	rows, err := q.db.Query(ctx, adminListOrganizations,
-		arg.Limit,
-		arg.Offset,
 		arg.Status,
 		arg.Q,
+		arg.Sort,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
@@ -167,6 +201,7 @@ func (q *Queries) AdminListOrganizations(ctx context.Context, arg AdminListOrgan
 			&i.MemberCount,
 			&i.WorkspaceCount,
 			&i.LastActivityAt,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}
