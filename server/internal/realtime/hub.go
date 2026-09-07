@@ -224,6 +224,8 @@ type Client struct {
 	send        chan []byte
 	userID      string
 	workspaceID string
+	// lobbyMeetingID is set for public meeting lobby sockets; subscribed after register.
+	lobbyMeetingID string
 
 	// subscriptions is guarded by hub.mu. Tracks the scopes this client is
 	// currently in. Used to clean up rooms on disconnect.
@@ -327,9 +329,14 @@ func (h *Hub) Run() {
 			M.ConnectsTotal.Add(1)
 			M.ActiveConnections.Add(1)
 			// Auto-subscribe to the workspace and user scopes.
-			h.subscribe(client, ScopeWorkspace, client.workspaceID)
-			if client.userID != "" {
+			if client.workspaceID != "" {
+				h.subscribe(client, ScopeWorkspace, client.workspaceID)
+			}
+			if client.userID != "" && client.workspaceID != "" {
 				h.subscribe(client, ScopeUser, client.userID)
+			}
+			if client.lobbyMeetingID != "" {
+				h.subscribe(client, ScopeMeeting, client.lobbyMeetingID)
 			}
 			slog.Info("ws client connected", "workspace_id", client.workspaceID, "user_id", client.userID, "total_clients", total)
 

@@ -6,7 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/meetings"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestMeetingStateMachine(t *testing.T) {
@@ -71,7 +75,7 @@ func TestHostTransferAndRemove(t *testing.T) {
 	if _, err := s.Invite(ctx, ua.ID, m.ID, ub.ID); err != nil {
 		t.Fatal("invite", err)
 	}
-	ps, _ := s.ListParticipants(ctx, ua.ID, m.ID)
+	ps, _ := s.ListParticipants(ctx, ua.ID, "", m.ID)
 	var hostPID string
 	for _, p := range ps {
 		if p.UserID.String == ua.ID {
@@ -132,7 +136,7 @@ func TestJoinRequestApproveReject(t *testing.T) {
 	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err == nil {
 		t.Fatal("second approve")
 	}
-	ps, _ := s.ListParticipants(ctx, ua.ID, m.ID)
+	ps, _ := s.ListParticipants(ctx, ua.ID, "", m.ID)
 	found := false
 	for _, p := range ps {
 		if p.UserID.String == ub.ID && p.Status == ParticipantActive {
@@ -151,11 +155,101 @@ func TestJoinRequestApproveReject(t *testing.T) {
 	if err := s.RejectJoinRequest(ctx, ua.ID, jr3.ID, "no"); err != nil {
 		t.Fatal(err)
 	}
-	ps2, _ := s.ListParticipants(ctx, ua.ID, m2.ID)
+	ps2, _ := s.ListParticipants(ctx, ua.ID, "", m2.ID)
 	for _, p := range ps2 {
 		if p.UserID.String == ub.ID {
 			t.Fatal("reject created participant")
 		}
+	}
+}
+
+func TestGuestJoinRequestApproveWithExistingParticipant(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	start := time.Now().Add(time.Hour)
+	m, _ := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Guest approve", StartsAt: start, EndsAt: start.Add(time.Hour)})
+
+	guestID := util.NewID()
+	if _, err := s.q.CreateMeetingGuest(ctx, guestID); err != nil {
+		t.Fatal(err)
+	}
+	participantID := util.NewID()
+	if _, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
+		ID: participantID, MeetingID: m.ID, PrincipalType: PrincipalGuest,
+		GuestID: strText(guestID), DisplayNameSnapshot: "Guest",
+		Role: RoleAttendee, SourceType: GrantInviteLink, SourceID: strText("link1"), AddedBy: guestID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	jr, err := s.q.CreateJoinRequest(ctx, db.CreateJoinRequestParams{
+		ID: util.NewID(), MeetingID: m.ID, RequesterGuestID: strText(guestID),
+		DisplayNameSnapshot: "Guest", ExpiresAt: pgtype.Timestamptz{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err != nil {
+		t.Fatalf("approve guest with existing participant: %v", err)
+	}
+	grants, err := s.q.ListActiveGrantsForParticipant(ctx, participantID)
+	if err != nil || len(grants) == 0 {
+		t.Fatalf("expected grant after approve, grants=%d err=%v", len(grants), err)
+	}
+	ps, _ := s.ListParticipants(ctx, ua.ID, "", m.ID)
+	active := 0
+	for _, p := range ps {
+		if p.GuestID.String == guestID && p.Status == ParticipantActive {
+			active++
+		}
+	}
+	if active != 1 {
+		t.Fatalf("expected one active guest participant, got %d", active)
+	}
+}
+
+func TestInviteLinkRequestApprovalAdmitsAfterApprove(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	start := time.Now().Add(-time.Minute)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{
+		Title: "Approval link", StartsAt: start, EndsAt: start.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Start(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "guest", LinkRequestApproval, time.Now().Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	guestID := util.NewID()
+	if _, err := s.q.CreateMeetingGuest(ctx, guestID); err != nil {
+		t.Fatal(err)
+	}
+	in := AdmissionContext{
+		MeetingID: m.ID, GuestID: guestID, DisplayName: "Guest",
+		InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+	}
+
+	dec, err := s.Evaluate(ctx, in)
+	if err != nil || dec.Decision != DecisionWaitingApproval {
+		t.Fatalf("first evaluate: %+v %v", dec, err)
+	}
+	if err := s.ApproveJoinRequest(ctx, ua.ID, dec.JoinRequestID); err != nil {
+		t.Fatal(err)
+	}
+
+	dec, err = s.Evaluate(ctx, in)
+	if err != nil || dec.Decision != DecisionAdmit {
+		t.Fatalf("after approve: %+v %v", dec, err)
+	}
+	join, err := s.Join(ctx, in)
+	if err != nil || join.Decision != DecisionAdmit || join.Credential == nil {
+		t.Fatalf("join after approve: %+v %v", join, err)
 	}
 }
 
@@ -252,5 +346,86 @@ func TestWebhookDoesNotChangeMeetingStatus(t *testing.T) {
 		Type: "conference.room_finished", RoomName: meetings.RoomNameForMeeting(m.ID), ProviderEventID: "e1",
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGuestAutoAdmitViaInviteLink(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Guest auto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "guest", LinkAutoAdmit, time.Now().Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dec, err := s.Evaluate(ctx, AdmissionContext{
+		MeetingID: m.ID, DisplayName: "Guest Visitor",
+		InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+	})
+	if err != nil || dec.Decision != DecisionAdmit || dec.Participant.ID == "" {
+		t.Fatalf("auto admit guest: %+v err=%v", dec, err)
+	}
+	if !dec.Participant.GuestID.Valid {
+		t.Fatalf("expected guest participant, got %+v", dec.Participant)
+	}
+}
+
+func TestListJoinRequests(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	addMember(t, s, w.ID, ub.ID)
+	ctx := context.Background()
+	start := time.Now().Add(time.Hour)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "List JR", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RequestJoin(ctx, AdmissionContext{MeetingID: m.ID, UserID: ub.ID, DisplayName: "B"}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.ListJoinRequests(ctx, ua.ID, m.ID)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("host list: len=%d err=%v", len(list), err)
+	}
+	if _, err := s.ListJoinRequests(ctx, ub.ID, m.ID); err == nil {
+		t.Fatal("non-host list accepted")
+	}
+}
+
+func TestCancelJoinRequest(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	start := time.Now().Add(time.Hour)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Cancel JR", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "guest", LinkRequestApproval, time.Now().Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guestID := util.NewID()
+	if _, err := s.q.CreateMeetingGuest(ctx, guestID); err != nil {
+		t.Fatal(err)
+	}
+	in := AdmissionContext{
+		MeetingID: m.ID, GuestID: guestID, DisplayName: "Guest",
+		InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+	}
+	dec, err := s.Evaluate(ctx, in)
+	if err != nil || dec.Decision != DecisionWaitingApproval {
+		t.Fatalf("pending request: %+v err=%v", dec, err)
+	}
+	if err := s.CancelJoinRequest(ctx, in, dec.JoinRequestID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CancelJoinRequest(ctx, in, dec.JoinRequestID); err == nil {
+		t.Fatal("second cancel accepted")
+	}
+	other := AdmissionContext{MeetingID: m.ID, GuestID: util.NewID(), DisplayName: "Other"}
+	if err := s.CancelJoinRequest(ctx, other, dec.JoinRequestID); err != ErrForbidden {
+		t.Fatalf("outsider cancel: %v", err)
 	}
 }

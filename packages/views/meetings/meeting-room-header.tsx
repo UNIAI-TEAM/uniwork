@@ -10,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
+import { MeetingAdmitGuestsButton } from "./meeting-admit-guests-button";
 import {
   formatMeetingRange,
   formatRemaining,
@@ -31,6 +32,8 @@ export function MeetingRoomHeader({
   sidebarOpen,
   onToggleSidebar,
   onOpenSidebar,
+  onOpenJoinRequests,
+  onOpenJoinOverlay,
 }: {
   meeting?: Meeting;
   meetingTitle?: string;
@@ -42,6 +45,8 @@ export function MeetingRoomHeader({
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   onOpenSidebar?: () => void;
+  onOpenJoinRequests?: () => void;
+  onOpenJoinOverlay?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const participants = useParticipants();
@@ -103,6 +108,10 @@ export function MeetingRoomHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {showHostActions && meeting?.id ? (
+            <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenOverlay={onOpenJoinOverlay} />
+          ) : null}
+
           <span className="hidden items-center gap-1 rounded-full border border-border px-2 py-1 text-caption text-muted-foreground sm:inline-flex">
             <Users aria-hidden className="size-3.5" />
             {t("meetings.participantCount", { count: participants.length })}
@@ -176,9 +185,14 @@ export function MeetingRoomHeader({
           ) : null}
 
           {showInvite ? (
-            <Button type="button" size="sm" onClick={() => setInviteOpen(true)}>
+            <Button
+              type="button"
+              size="sm"
+              aria-label={t("meetings.shareGuestLink")}
+              onClick={() => setInviteOpen(true)}
+            >
               <UserPlus aria-hidden className="size-4" />
-              <span className="hidden sm:inline">{t("meetings.inviteToMeeting")}</span>
+              <span className="hidden sm:inline">{t("meetings.shareGuestLink")}</span>
             </Button>
           ) : null}
 

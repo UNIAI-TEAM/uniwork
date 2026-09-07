@@ -19,7 +19,6 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/util"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func main() {
@@ -36,8 +35,8 @@ func main() {
 		fail(err.Error())
 	}
 	defer pool.Close()
-	plan, err := db.New(pool).GetDefaultPlan(ctx)
-	if err != nil {
+	var planID string
+	if err := pool.QueryRow(ctx, `SELECT id FROM plans WHERE is_default LIMIT 1`).Scan(&planID); err != nil {
 		fail("default plan (run migrations first): " + err.Error())
 	}
 	hash, err := auth.HashPassword("password123")
@@ -66,7 +65,7 @@ func main() {
 		owner := userIDs[o*perOrg]
 		orgRows = append(orgRows, []any{orgIDs[o], fmt.Sprintf("perf-org-%d", o), fmt.Sprintf("Perf Org %d", o), owner})
 		wsRows = append(wsRows, []any{wsIDs[o], fmt.Sprintf("perf-ws-%d", o), fmt.Sprintf("Perf WS %d", o), owner, orgIDs[o]})
-		subRows = append(subRows, []any{util.NewID(), orgIDs[o], plan.ID, "active", "manual", owner, "system", owner, "system"})
+		subRows = append(subRows, []any{util.NewID(), orgIDs[o], planID, "active", "manual", owner, "system", owner, "system"})
 		for u := o * perOrg; u < (o+1)*perOrg && u < *users; u++ {
 			role := "member"
 			if u == o*perOrg {

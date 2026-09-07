@@ -141,7 +141,7 @@ func TestRecordingLifecycle(t *testing.T) {
 	if fp.StopRecordCalls != 1 {
 		t.Fatalf("stop calls %d", fp.StopRecordCalls)
 	}
-	recs, _ := s.Recordings(ctx, ua.ID, m.ID)
+	recs, _ := s.Recordings(ctx, ua.ID, "", m.ID)
 	if len(recs) != 1 || recs[0].Status != RecordingProcessing {
 		t.Fatalf("%+v", recs)
 	}
@@ -151,7 +151,7 @@ func TestRecordingLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	recs, _ = s.Recordings(ctx, ua.ID, m.ID)
+	recs, _ = s.Recordings(ctx, ua.ID, "", m.ID)
 	if recs[0].Status != RecordingComplete || recs[0].FileUrl.String != "https://bucket/rec.mp4" {
 		t.Fatalf("%+v", recs[0])
 	}

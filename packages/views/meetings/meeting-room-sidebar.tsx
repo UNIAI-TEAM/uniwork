@@ -3,9 +3,12 @@ import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
 import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
+import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
+import { usePendingJoinRequests } from "./use-pending-join-requests";
 
 export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "files";
 
@@ -35,6 +38,9 @@ export function MeetingRoomSidebar({
   onTabChange: (tab: MeetingSidebarTab) => void;
 }) {
   const { t } = useTranslation();
+  const { count: pendingJoinCount } = usePendingJoinRequests(
+    canHost && meetingId ? meetingId : undefined,
+  );
 
   function tabLabel(id: MeetingSidebarTab): string {
     switch (id) {
@@ -48,6 +54,10 @@ export function MeetingRoomSidebar({
         return t("meetings.filesTab");
     }
   }
+
+  const sidebarTabs = guestMode
+    ? SIDEBAR_TABS.filter((id) => id !== "copilot")
+    : SIDEBAR_TABS;
 
   return (
     <aside
@@ -63,14 +73,25 @@ export function MeetingRoomSidebar({
       >
         <div className="shrink-0 border-b border-border px-2 py-2">
           <TabsList className="flex h-auto w-full items-center gap-0.5 rounded-xl bg-muted p-1 dark:bg-secondary">
-            {SIDEBAR_TABS.map((id) => (
+            {sidebarTabs.map((id) => (
               <TabsTrigger
                 key={id}
                 value={id}
                 title={tabLabel(id)}
                 className={MEETING_SIDEBAR_TAB_TRIGGER}
               >
-                {tabLabel(id)}
+                <span className="inline-flex min-w-0 items-center gap-1">
+                  <span className="truncate">{tabLabel(id)}</span>
+                  {id === "participants" && pendingJoinCount > 0 ? (
+                    <Badge
+                      variant="destructive"
+                      className="h-4 min-w-4 shrink-0 px-1 tabular-nums"
+                      aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
+                    >
+                      {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
+                    </Badge>
+                  ) : null}
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -106,9 +127,13 @@ export function MeetingRoomSidebar({
         </TabsContent>
 
         <TabsContent value="files" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3">
-          <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-            <p className="text-label text-muted-foreground">{t("meetings.filesEmpty")}</p>
-          </div>
+          {meetingId ? (
+            <MeetingRoomFilesTab meetingId={meetingId} />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+              <p className="text-label text-muted-foreground">{t("meetings.filesEmpty")}</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </aside>

@@ -1,4 +1,5 @@
 import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
+import { setGuestSession } from "@uniwork/core/api/guest-session";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 
 export function inviteStorageKey(linkId: string, suffix: string): string {
@@ -28,6 +29,32 @@ export function readCachedJoinDecision(linkId: string): JoinDecision | undefined
 
 export function writeCachedJoinDecision(linkId: string, decision: JoinDecision): void {
   sessionStorage.setItem(inviteStorageKey(linkId, "joinDecision"), JSON.stringify(decision));
+  if (decision.guest_session) {
+    writeGuestSession(linkId, decision.guest_session);
+  }
+}
+
+export function writeGuestSession(linkId: string, guestSession: string): void {
+  const value = guestSession.trim();
+  if (!value) return;
+  sessionStorage.setItem(inviteStorageKey(linkId, "guestSession"), value);
+  setGuestSession(value);
+}
+
+export function readGuestSession(linkId: string): string | undefined {
+  let stored = sessionStorage.getItem(inviteStorageKey(linkId, "guestSession")) ?? "";
+  if (!stored) {
+    stored = readCachedJoinDecision(linkId)?.guest_session ?? "";
+    if (stored) {
+      sessionStorage.setItem(inviteStorageKey(linkId, "guestSession"), stored);
+    }
+  }
+  if (stored) setGuestSession(stored);
+  return stored || undefined;
+}
+
+export function writeInviteDisplayName(linkId: string, displayName: string): void {
+  sessionStorage.setItem(inviteStorageKey(linkId, "displayName"), displayName.trim());
 }
 
 export function clearCachedJoinDecision(linkId: string): void {

@@ -163,12 +163,11 @@ function EphemeralMeetingRoomChatTab() {
 
 export function MeetingRoomChatTab({
   meetingId,
-  guestMode,
 }: {
   meetingId?: string;
   guestMode?: boolean;
 }) {
-  if (guestMode || !meetingId) {
+  if (!meetingId) {
     return <EphemeralMeetingRoomChatTab />;
   }
   return <PersistedMeetingRoomChatTab meetingId={meetingId} />;

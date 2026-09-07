@@ -27,6 +27,12 @@ WHERE meeting_id = $1 AND principal_type = 'USER' AND user_id = $2
 ORDER BY added_at DESC
 LIMIT 1;
 
+-- name: GetGuestParticipantAnyStatus :one
+SELECT * FROM meeting_participants
+WHERE meeting_id = $1 AND principal_type = 'GUEST' AND guest_id = $2
+ORDER BY added_at DESC
+LIMIT 1;
+
 -- name: RemoveMeetingParticipant :one
 UPDATE meeting_participants SET
   status = 'REMOVED',

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { getGuestSession } from "../api/guest-session";
 import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
 import { WSClient } from "../api/ws-client";
 import { useAuthStore } from "../auth/store";
@@ -36,9 +37,13 @@ export function MeetingLobbyWSProvider({
       return;
     }
     const url = `${runtimeConfig().wsUrl}/api/v1/meetings/${encodeURIComponent(meetingId)}/lobby-ws`;
+    const guestSession = authStatus !== "authed" ? getGuestSession() : null;
     const ws = new WSClient(url, {
       logger: createLogger("meeting-lobby-ws"),
-      cookieAuth: authStatus !== "authed",
+      // Prefer first-frame guest_session over cookies — cross-origin dev often
+      // has X-Guest-Session on HTTP but no uw_guest on the WS upgrade.
+      cookieAuth: authStatus !== "authed" && !guestSession,
+      guestSession,
       identity: { platform: "web" },
     });
     if (authStatus === "authed" && token) {

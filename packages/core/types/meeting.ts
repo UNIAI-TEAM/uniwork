@@ -41,6 +41,7 @@ export const JoinDecisionSchema = z.object({
   participant_token: z.string().optional(),
   expires_at: z.string().optional(),
   join_request_id: z.string().optional(),
+  guest_session: z.string().optional(),
 });
 export type JoinDecision = z.infer<typeof JoinDecisionSchema>;
 

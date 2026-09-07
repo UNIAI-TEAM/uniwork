@@ -12,6 +12,10 @@ import (
 
 const GuestCookieName = "uw_guest"
 
+// GuestSessionHeader carries the signed uw_guest value when cross-origin
+// fetches cannot attach HttpOnly cookies (localhost:3000 → :8080 dev).
+const GuestSessionHeader = "X-Guest-Session"
+
 const guestCookieMaxAge = 30 * 24 * time.Hour
 
 // SignGuestCookie returns a signed cookie value for a guest ULID.
@@ -37,10 +41,16 @@ func VerifyGuestCookie(value string, key []byte) (string, bool) {
 	return guestID, true
 }
 
-// GuestIDFromRequest reads and verifies the uw_guest cookie when present.
+// GuestIDFromRequest reads and verifies the guest session from the HttpOnly
+// cookie or X-Guest-Session header when present.
 func GuestIDFromRequest(r *http.Request, key []byte) string {
 	if len(key) == 0 {
 		return ""
+	}
+	if h := strings.TrimSpace(r.Header.Get(GuestSessionHeader)); h != "" {
+		if id, ok := VerifyGuestCookie(h, key); ok {
+			return id
+		}
 	}
 	c, err := r.Cookie(GuestCookieName)
 	if err != nil || c.Value == "" {

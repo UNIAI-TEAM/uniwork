@@ -83,8 +83,8 @@ func (s *MeetingService) Invite(ctx context.Context, actorID, meetingID, userID 
 	return p, nil
 }
 
-func (s *MeetingService) ListParticipants(ctx context.Context, userID, meetingID string) ([]db.MeetingParticipant, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+func (s *MeetingService) ListParticipants(ctx context.Context, userID, guestID, meetingID string) ([]db.MeetingParticipant, error) {
+	if _, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID); err != nil {
 		return nil, err
 	}
 	return s.q.ListMeetingParticipants(ctx, meetingID)
