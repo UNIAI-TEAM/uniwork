@@ -206,5 +206,82 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			sdo:         sdo.TableFacetsSDO{},
 			auth:        true,
 		})
+
+		// Catalog: statuses, labels, properties. Reorder before {id}.
+		suite.Get("/workspaces/{workspaceID}/task-statuses", h.ListTaskStatuses, apiOp{
+			summary: "List task statuses", description: "Catalog trạng thái workspace. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskStatusListSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/task-statuses", h.CreateTaskStatus, apiOp{
+			summary: "Create task status", description: "Thêm trạng thái tùy chỉnh. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.CreateTaskStatusSDI{}, sdo: sdo.TaskStatusSDO{}, auth: true,
+		})
+		suite.Patch("/workspaces/{workspaceID}/task-statuses/reorder", h.ReorderTaskStatuses, apiOp{
+			summary: "Reorder task statuses", description: "Sắp xếp custom status trong một category. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.ReorderTaskStatusesSDI{}, sdo: sdo.TaskStatusListSDO{}, auth: true,
+		})
+		suite.Patch("/workspaces/{workspaceID}/task-statuses/{id}", h.PatchTaskStatus, apiOp{
+			summary: "Update task status", description: "Sửa trạng thái tùy chỉnh; built-in → 422 system_status_immutable.",
+			tags: []string{"tasks"}, sdi: sdi.PatchTaskStatusSDI{}, sdo: sdo.TaskStatusSDO{}, auth: true,
+		})
+		suite.Delete("/workspaces/{workspaceID}/task-statuses/{id}", h.DeleteTaskStatus, apiOp{
+			summary: "Archive task status", description: "Archive trạng thái tùy chỉnh; built-in → 422 system_status_immutable.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+
+		suite.Get("/workspaces/{workspaceID}/task-labels", h.ListTaskLabels, apiOp{
+			summary: "List task labels", description: "Danh sách nhãn workspace. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskLabelListSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/task-labels", h.CreateTaskLabel, apiOp{
+			summary: "Create task label", description: "Tạo nhãn. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.CreateTaskLabelSDI{}, sdo: sdo.TaskLabelSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/task-labels/{id}", h.GetTaskLabel, apiOp{
+			summary: "Get task label", description: "Chi tiết một nhãn. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskLabelSDO{}, auth: true,
+		})
+		suite.Put("/workspaces/{workspaceID}/task-labels/{id}", h.PutTaskLabel, apiOp{
+			summary: "Update task label", description: "Sửa nhãn. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.PutTaskLabelSDI{}, sdo: sdo.TaskLabelSDO{}, auth: true,
+		})
+		suite.Delete("/workspaces/{workspaceID}/task-labels/{id}", h.DeleteTaskLabel, apiOp{
+			summary: "Delete task label", description: "Xóa nhãn và gỡ khỏi task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+
+		suite.Get("/workspaces/{workspaceID}/task-properties", h.ListTaskProperties, apiOp{
+			summary: "List task properties", description: "Định nghĩa thuộc tính tùy chỉnh. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskPropertyListSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/task-properties", h.CreateTaskProperty, apiOp{
+			summary: "Create task property", description: "Tạo thuộc tính tùy chỉnh. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.CreateTaskPropertySDI{}, sdo: sdo.TaskPropertySDO{}, auth: true,
+		})
+		suite.Patch("/workspaces/{workspaceID}/task-properties/{id}", h.PatchTaskProperty, apiOp{
+			summary: "Update task property", description: "Sửa hoặc archive thuộc tính. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.PatchTaskPropertySDI{}, sdo: sdo.TaskPropertySDO{}, auth: true,
+		})
+
+		suite.Get("/tasks/{taskID}/labels", h.ListTaskLabelsOnTask, apiOp{
+			summary: "List labels on task", description: "Nhãn gắn trên một task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskLabelListSDO{}, auth: true,
+		})
+		suite.Post("/tasks/{taskID}/labels", h.AttachTaskLabel, apiOp{
+			summary: "Attach label to task", description: "Gắn nhãn vào task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.AttachTaskLabelSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Delete("/tasks/{taskID}/labels/{labelID}", h.DetachTaskLabel, apiOp{
+			summary: "Detach label from task", description: "Gỡ nhãn khỏi task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Put("/tasks/{taskID}/properties/{propertyID}", h.PutTaskPropertyValue, apiOp{
+			summary: "Set task property value", description: "Ghi giá trị thuộc tính trên task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.PutTaskPropertyValueSDI{}, sdo: sdo.TaskSDO{}, auth: true,
+		})
+		suite.Delete("/tasks/{taskID}/properties/{propertyID}", h.DeleteTaskPropertyValue, apiOp{
+			summary: "Clear task property value", description: "Xóa giá trị thuộc tính trên task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.TaskSDO{}, auth: true,
+		})
 	})
 }

@@ -206,6 +206,21 @@ func pathParamSDI(path string) any {
 			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task hoặc meeting" example:"task"`
 			ResourceID   string `path:"resourceID" description:"ULID tài nguyên" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 		}{}
+	case "workspaceID,id":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ID          string `path:"id" description:"ULID mục catalog" example:"01J8X4CAT0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "taskID,labelID":
+		return struct {
+			TaskID  string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			LabelID string `path:"labelID" description:"ULID nhãn" example:"01J8X4LBL0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "taskID,propertyID":
+		return struct {
+			TaskID     string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			PropertyID string `path:"propertyID" description:"ULID thuộc tính" example:"01J8X4PROP0N1P2Q3R4S5T6U7"`
+		}{}
 	case "token":
 		return struct {
 			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`

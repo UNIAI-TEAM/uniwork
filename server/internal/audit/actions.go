@@ -33,6 +33,15 @@ const (
 	ActionTaskDeleted      = "task.deleted"
 	ActionTaskCommentAdded = "task.comment_added"
 
+	ActionTaskStatusCreated   = "task_status.created"
+	ActionTaskStatusUpdated   = "task_status.updated"
+	ActionTaskStatusDeleted   = "task_status.deleted"
+	ActionTaskLabelCreated    = "task_label.created"
+	ActionTaskLabelUpdated    = "task_label.updated"
+	ActionTaskLabelDeleted    = "task_label.deleted"
+	ActionTaskPropertyCreated = "task_property.created"
+	ActionTaskPropertyUpdated = "task_property.updated"
+
 	ActionAuthLoginSucceeded         = "auth.login_succeeded"
 	ActionAuthLoginFailed            = "auth.login_failed"
 	ActionAuthPasswordResetRequested = "auth.password_reset_requested"

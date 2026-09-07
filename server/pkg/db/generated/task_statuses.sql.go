@@ -7,7 +7,48 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const archiveTaskStatus = `-- name: ArchiveTaskStatus :one
+UPDATE task_statuses SET
+  archived_at = now(),
+  updated_at = now()
+WHERE organization_id = $1 AND workspace_id = $2 AND id = $3
+  AND is_system = FALSE
+  AND archived_at IS NULL
+RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at
+`
+
+type ArchiveTaskStatusParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ID             string `json:"id"`
+}
+
+func (q *Queries) ArchiveTaskStatus(ctx context.Context, arg ArchiveTaskStatusParams) (TaskStatus, error) {
+	row := q.db.QueryRow(ctx, archiveTaskStatus, arg.OrganizationID, arg.WorkspaceID, arg.ID)
+	var i TaskStatus
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Category,
+		&i.Color,
+		&i.IsSystem,
+		&i.Position,
+		&i.ArchivedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const createTaskStatus = `-- name: CreateTaskStatus :one
 INSERT INTO task_statuses (
@@ -68,6 +109,40 @@ func (q *Queries) CreateTaskStatus(ctx context.Context, arg CreateTaskStatusPara
 	return i, err
 }
 
+const getTaskStatusByID = `-- name: GetTaskStatusByID :one
+SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
+WHERE organization_id = $1 AND workspace_id = $2 AND id = $3
+`
+
+type GetTaskStatusByIDParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ID             string `json:"id"`
+}
+
+func (q *Queries) GetTaskStatusByID(ctx context.Context, arg GetTaskStatusByIDParams) (TaskStatus, error) {
+	row := q.db.QueryRow(ctx, getTaskStatusByID, arg.OrganizationID, arg.WorkspaceID, arg.ID)
+	var i TaskStatus
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Category,
+		&i.Color,
+		&i.IsSystem,
+		&i.Position,
+		&i.ArchivedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTaskStatusByKey = `-- name: GetTaskStatusByKey :one
 SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
 WHERE organization_id = $1 AND workspace_id = $2 AND key = $3
@@ -102,19 +177,22 @@ func (q *Queries) GetTaskStatusByKey(ctx context.Context, arg GetTaskStatusByKey
 	return i, err
 }
 
-const listTaskStatuses = `-- name: ListTaskStatuses :many
+const listActiveCustomTaskStatusesInCategory = `-- name: ListActiveCustomTaskStatusesInCategory :many
 SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
-WHERE organization_id = $1 AND workspace_id = $2
-ORDER BY position, created_at, id
+WHERE organization_id = $1 AND workspace_id = $2 AND category = $3
+  AND is_system = FALSE
+  AND archived_at IS NULL
+ORDER BY position, key
 `
 
-type ListTaskStatusesParams struct {
+type ListActiveCustomTaskStatusesInCategoryParams struct {
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
+	Category       string `json:"category"`
 }
 
-func (q *Queries) ListTaskStatuses(ctx context.Context, arg ListTaskStatusesParams) ([]TaskStatus, error) {
-	rows, err := q.db.Query(ctx, listTaskStatuses, arg.OrganizationID, arg.WorkspaceID)
+func (q *Queries) ListActiveCustomTaskStatusesInCategory(ctx context.Context, arg ListActiveCustomTaskStatusesInCategoryParams) ([]TaskStatus, error) {
+	rows, err := q.db.Query(ctx, listActiveCustomTaskStatusesInCategory, arg.OrganizationID, arg.WorkspaceID, arg.Category)
 	if err != nil {
 		return nil, err
 	}
@@ -147,4 +225,155 @@ func (q *Queries) ListTaskStatuses(ctx context.Context, arg ListTaskStatusesPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const listTaskStatuses = `-- name: ListTaskStatuses :many
+SELECT id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at FROM task_statuses
+WHERE organization_id = $1 AND workspace_id = $2
+  AND ($3::bool OR archived_at IS NULL)
+ORDER BY position, created_at, id
+`
+
+type ListTaskStatusesParams struct {
+	OrganizationID  string `json:"organization_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	IncludeArchived bool   `json:"include_archived"`
+}
+
+func (q *Queries) ListTaskStatuses(ctx context.Context, arg ListTaskStatusesParams) ([]TaskStatus, error) {
+	rows, err := q.db.Query(ctx, listTaskStatuses, arg.OrganizationID, arg.WorkspaceID, arg.IncludeArchived)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TaskStatus{}
+	for rows.Next() {
+		var i TaskStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.Key,
+			&i.Name,
+			&i.Description,
+			&i.Category,
+			&i.Color,
+			&i.IsSystem,
+			&i.Position,
+			&i.ArchivedAt,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const maxTaskStatusPositionInCategory = `-- name: MaxTaskStatusPositionInCategory :one
+SELECT COALESCE(MAX(position), -1)::float8 AS max_position
+FROM task_statuses
+WHERE organization_id = $1 AND workspace_id = $2 AND category = $3
+  AND archived_at IS NULL
+`
+
+type MaxTaskStatusPositionInCategoryParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	Category       string `json:"category"`
+}
+
+func (q *Queries) MaxTaskStatusPositionInCategory(ctx context.Context, arg MaxTaskStatusPositionInCategoryParams) (float64, error) {
+	row := q.db.QueryRow(ctx, maxTaskStatusPositionInCategory, arg.OrganizationID, arg.WorkspaceID, arg.Category)
+	var max_position float64
+	err := row.Scan(&max_position)
+	return max_position, err
+}
+
+const reorderTaskStatuses = `-- name: ReorderTaskStatuses :execrows
+UPDATE task_statuses s
+SET position = v.ordinality::float8,
+    updated_at = now()
+FROM unnest($3::text[]) WITH ORDINALITY AS v(id, ordinality)
+WHERE s.id = v.id
+  AND s.organization_id = $1
+  AND s.workspace_id = $2
+  AND s.is_system = FALSE
+  AND s.archived_at IS NULL
+`
+
+type ReorderTaskStatusesParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+}
+
+func (q *Queries) ReorderTaskStatuses(ctx context.Context, arg ReorderTaskStatusesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, reorderTaskStatuses, arg.OrganizationID, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTaskStatus = `-- name: UpdateTaskStatus :one
+UPDATE task_statuses SET
+  name = COALESCE($1, name),
+  description = COALESCE($2, description),
+  color = COALESCE($3, color),
+  position = COALESCE($4, position),
+  updated_at = now()
+WHERE organization_id = $5
+  AND workspace_id = $6
+  AND id = $7
+  AND is_system = FALSE
+  AND archived_at IS NULL
+RETURNING id, organization_id, workspace_id, key, name, description, category, color, is_system, position, archived_at, created_by, created_by_kind, created_at, updated_at
+`
+
+type UpdateTaskStatusParams struct {
+	Name           pgtype.Text   `json:"name"`
+	Description    pgtype.Text   `json:"description"`
+	Color          pgtype.Text   `json:"color"`
+	Position       pgtype.Float8 `json:"position"`
+	OrganizationID string        `json:"organization_id"`
+	WorkspaceID    string        `json:"workspace_id"`
+	ID             string        `json:"id"`
+}
+
+func (q *Queries) UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusParams) (TaskStatus, error) {
+	row := q.db.QueryRow(ctx, updateTaskStatus,
+		arg.Name,
+		arg.Description,
+		arg.Color,
+		arg.Position,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ID,
+	)
+	var i TaskStatus
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.Description,
+		&i.Category,
+		&i.Color,
+		&i.IsSystem,
+		&i.Position,
+		&i.ArchivedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

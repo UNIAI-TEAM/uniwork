@@ -133,6 +133,93 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionTaskStatusCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.tasks.CreateTaskStatus(f.ctx, Human(f.owner.ID), w.ID, CreateTaskStatusInput{
+				Name: "Waiting QA", Category: "in_review", Color: "#22c55e",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskStatusUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			st, err := f.tasks.CreateTaskStatus(f.ctx, Human(f.owner.ID), w.ID, CreateTaskStatusInput{
+				Name: "Waiting QA", Category: "in_review", Color: "#22c55e",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "QA Gate"
+			if _, err := f.tasks.UpdateTaskStatus(f.ctx, Human(f.owner.ID), w.ID, st.ID, UpdateTaskStatusInput{Name: &name}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskStatusDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			st, err := f.tasks.CreateTaskStatus(f.ctx, Human(f.owner.ID), w.ID, CreateTaskStatusInput{
+				Name: "Temp", Category: "todo", Color: "#6b7280",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteTaskStatus(f.ctx, Human(f.owner.ID), w.ID, st.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskLabelCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.tasks.CreateTaskLabel(f.ctx, Human(f.owner.ID), w.ID, CreateTaskLabelInput{
+				Name: "Bug", Color: "#ef4444",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskLabelUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			label, err := f.tasks.CreateTaskLabel(f.ctx, Human(f.owner.ID), w.ID, CreateTaskLabelInput{
+				Name: "Bug", Color: "#ef4444",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "Defect"
+			if _, err := f.tasks.UpdateTaskLabel(f.ctx, Human(f.owner.ID), w.ID, label.ID, UpdateTaskLabelInput{Name: &name}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskLabelDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			label, err := f.tasks.CreateTaskLabel(f.ctx, Human(f.owner.ID), w.ID, CreateTaskLabelInput{
+				Name: "Temp", Color: "#ef4444",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteTaskLabel(f.ctx, Human(f.owner.ID), w.ID, label.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskPropertyCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.tasks.CreateTaskProperty(f.ctx, Human(f.owner.ID), w.ID, CreateTaskPropertyInput{
+				Name: "Points", Type: "number",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskPropertyUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			prop, err := f.tasks.CreateTaskProperty(f.ctx, Human(f.owner.ID), w.ID, CreateTaskPropertyInput{
+				Name: "Points", Type: "number",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := "Story Points"
+			if _, err := f.tasks.UpdateTaskProperty(f.ctx, Human(f.owner.ID), w.ID, prop.ID, UpdateTaskPropertyInput{Name: &name}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionAuthLoginSucceeded: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			if _, err := f.auth.Login(f.ctx, f.owner.Email, auditPassword); err != nil {

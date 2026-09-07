@@ -84,6 +84,14 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `task.created` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.deleted` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.updated` | 1 | `task_id`, `workspace_id` | workspace | outbox |
+| `task_label.created` | 1 | `label_id`, `workspace_id` | workspace | outbox |
+| `task_label.deleted` | 1 | `label_id`, `workspace_id` | workspace | outbox |
+| `task_label.updated` | 1 | `label_id`, `workspace_id` | workspace | outbox |
+| `task_property.created` | 1 | `property_id`, `workspace_id` | workspace | outbox |
+| `task_property.updated` | 1 | `property_id`, `workspace_id` | workspace | outbox |
+| `task_status.created` | 1 | `status_id`, `workspace_id` | workspace | outbox |
+| `task_status.deleted` | 1 | `status_id`, `workspace_id` | workspace | outbox |
+| `task_status.updated` | 1 | `status_id`, `workspace_id` | workspace | outbox |
 | `transcript.appended` | 1 | `meeting_id` | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | - | outbox |
 | `workspace.created` | 1 | `workspace_id`, `organization_id` | workspace | outbox |

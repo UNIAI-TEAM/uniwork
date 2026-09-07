@@ -85,6 +85,25 @@ type Routes struct {
 	TableRows             http.HandlerFunc
 	TableFacets           http.HandlerFunc
 
+	ListTaskStatuses        http.HandlerFunc
+	CreateTaskStatus        http.HandlerFunc
+	PatchTaskStatus         http.HandlerFunc
+	DeleteTaskStatus        http.HandlerFunc
+	ReorderTaskStatuses     http.HandlerFunc
+	ListTaskLabels          http.HandlerFunc
+	GetTaskLabel            http.HandlerFunc
+	CreateTaskLabel         http.HandlerFunc
+	PutTaskLabel            http.HandlerFunc
+	DeleteTaskLabel         http.HandlerFunc
+	ListTaskLabelsOnTask    http.HandlerFunc
+	AttachTaskLabel         http.HandlerFunc
+	DetachTaskLabel         http.HandlerFunc
+	ListTaskProperties      http.HandlerFunc
+	CreateTaskProperty      http.HandlerFunc
+	PatchTaskProperty       http.HandlerFunc
+	PutTaskPropertyValue    http.HandlerFunc
+	DeleteTaskPropertyValue http.HandlerFunc
+
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc
