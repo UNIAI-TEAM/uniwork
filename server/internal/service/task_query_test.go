@@ -5,6 +5,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/testutil"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestQueryTasksFiltersByStatusAndPaginates(t *testing.T) {
@@ -91,5 +97,59 @@ func TestGetTaskByIdentifier(t *testing.T) {
 	byID, err := s.GetByRef(ctx, actor, task.ID)
 	if err != nil || byID.ID != task.ID {
 		t.Fatalf("GetByRef(ULID): err=%v id=%s", err, byID.ID)
+	}
+}
+
+// Colliding PREFIX-N across two membership-visible workspaces must not
+// arbitrarily pick one task — GetByRef returns ErrNotFound.
+func TestGetTaskByIdentifierAmbiguousAcrossWorkspaces(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	orgs := NewOrganizationService(pool, q)
+	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	s := NewTaskService(pool, q, ws)
+	ctx := context.Background()
+
+	ua := registerVerified(t, q, as, "ambig@example.com", "Ambig")
+	actor := Human(ua.ID)
+
+	org1, err := orgs.Create(ctx, ua.ID, "Org One", "org-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	org2, err := orgs.Create(ctx, ua.ID, "Org Two", "org-two")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Slug "alpha" → task_prefix ALP in both orgs (prefix unique only per workspace).
+	v1, err := ws.CreateInOrg(ctx, ua.ID, org1.ID, "Alpha", "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2, err := ws.CreateInOrg(ctx, ua.ID, org2.ID, "Alpha", "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v1.TaskPrefix != v2.TaskPrefix || v1.TaskPrefix == "" {
+		t.Fatalf("prefixes = %q / %q, want same non-empty", v1.TaskPrefix, v2.TaskPrefix)
+	}
+
+	t1, err := s.Create(ctx, actor, v1.ID, CreateTaskInput{Title: "In org1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t2, err := s.Create(ctx, actor, v2.ID, CreateTaskInput{Title: "In org2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if t1.Number != t2.Number {
+		t.Fatalf("numbers = %d / %d, want same for colliding ref", t1.Number, t2.Number)
+	}
+	ref := v1.TaskPrefix + "-" + strconv.FormatInt(t1.Number, 10)
+
+	got, err := s.GetByRef(ctx, actor, ref)
+	if err != ErrNotFound {
+		t.Fatalf("GetByRef(%q) = id=%s err=%v, want ErrNotFound", ref, got.ID, err)
 	}
 }

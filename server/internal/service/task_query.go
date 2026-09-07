@@ -72,6 +72,8 @@ func (s *TaskService) QueryTasks(ctx context.Context, actor Actor, workspaceID s
 
 // GetByRef loads a task by ULID or workspace identifier PREFIX-N.
 // Prefix matching is case-insensitive (alp-1 == ALP-1).
+// When PREFIX-N matches more than one membership-visible task (colliding
+// prefixes across workspaces), returns ErrNotFound rather than picking one.
 func (s *TaskService) GetByRef(ctx context.Context, actor Actor, ref string) (db.Task, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
@@ -85,13 +87,23 @@ func (s *TaskService) GetByRef(ctx context.Context, actor Actor, ref string) (db
 		if err != nil {
 			return db.Task{}, err
 		}
-		for _, task := range rows {
+		var match *db.Task
+		for i := range rows {
+			task := rows[i]
 			if err := s.ws.requireActorMember(ctx, task.WorkspaceID, actor); err != nil {
 				continue
 			}
-			return task, nil
+			if match != nil {
+				// Ambiguous across workspaces the caller can see — do not leak
+				// which row would have been chosen.
+				return db.Task{}, ErrNotFound
+			}
+			match = &task
 		}
-		return db.Task{}, ErrNotFound
+		if match == nil {
+			return db.Task{}, ErrNotFound
+		}
+		return *match, nil
 	}
 	return s.authorizeActor(ctx, actor, ref)
 }
