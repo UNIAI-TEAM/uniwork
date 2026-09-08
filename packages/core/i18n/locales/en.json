@@ -150,6 +150,7 @@
   "nav": {
     "inbox": "Inbox",
     "tasks": "Tasks",
+    "my_tasks": "My tasks",
     "meetings": "Meetings",
     "chat": "Chat",
     "members": "Members",
@@ -803,6 +804,25 @@
         "child_progress": "Sub-task progress",
         "creator": "Creator"
       }
+    }
+  },
+  "myTasks": {
+    "page": {
+      "title": "My tasks",
+      "empty_title": "No tasks for you yet",
+      "empty_description": "Tasks you create or are assigned to will appear here."
+    },
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "My tasks opens when work-management parity is enabled for this workspace.",
+    "scope": {
+      "all_label": "All",
+      "all_description": "Assigned to me, created by me, or involving my agents",
+      "assigned_label": "Assigned",
+      "assigned_description": "Tasks assigned to me",
+      "created_label": "Created",
+      "created_description": "Tasks I created",
+      "involved_label": "My agents",
+      "involved_description": "Tasks involving my agents"
     }
   },
   "capabilities": {

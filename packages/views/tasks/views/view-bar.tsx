@@ -39,6 +39,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ManageViewsDialog } from "./manage-views-dialog";
 import {
@@ -53,6 +58,9 @@ export interface ViewBarBuiltin {
   description?: string;
   active: boolean;
   onSelect: () => void;
+  disabled?: boolean;
+  disabledReason?: string;
+  testId?: string;
 }
 
 const TAB_MAX_W = "max-w-40";
@@ -207,18 +215,36 @@ export function ViewBar({
                   : !!builtin?.active;
               return (
                 <SortableBarTab key={item.barItemId} id={item.barItemId}>
-                  <Button
-                    type="button"
-                    variant={active ? "secondary" : "ghost"}
-                    size="sm"
-                    className={cn(TAB_MAX_W, "truncate")}
-                    onClick={() => {
-                      if (item.kind === "builtin") builtin?.onSelect();
-                      else onSelectView(item.view ?? null);
-                    }}
-                  >
-                    {item.label}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant={active ? "secondary" : "ghost"}
+                          size="sm"
+                          data-testid={builtin?.testId}
+                          aria-disabled={builtin?.disabled || undefined}
+                          className={cn(
+                            TAB_MAX_W,
+                            "truncate",
+                            builtin?.disabled && "opacity-60",
+                          )}
+                          onClick={() => {
+                            if (builtin?.disabled) return;
+                            if (item.kind === "builtin") builtin?.onSelect();
+                            else onSelectView(item.view ?? null);
+                          }}
+                        />
+                      }
+                    >
+                      {item.label}
+                    </TooltipTrigger>
+                    {builtin?.disabled && builtin.disabledReason ? (
+                      <TooltipContent side="bottom">
+                        {builtin.disabledReason}
+                      </TooltipContent>
+                    ) : null}
+                  </Tooltip>
                 </SortableBarTab>
               );
             })}
@@ -246,9 +272,11 @@ export function ViewBar({
             onSelect={(item) => {
               setMoreOpen(false);
               if (item.kind === "builtin") {
-                builtins
-                  .find((b) => `builtin:${b.key}` === item.barItemId)
-                  ?.onSelect();
+                const b = builtins.find(
+                  (x) => `builtin:${x.key}` === item.barItemId,
+                );
+                if (b?.disabled) return;
+                b?.onSelect();
               } else {
                 onSelectView(item.view ?? null);
               }

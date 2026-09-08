@@ -41,6 +41,9 @@ describe("paths", () => {
     expect(paths.workspace("unicom", "alpha").task("T1")).toBe("/unicom/alpha/tasks/T1");
     expect(paths.workspace("unicom", "alpha").room("M1")).toBe("/unicom/alpha/meetings/M1/room");
   });
+  it("builds my-tasks under the workspace", () => {
+    expect(paths.workspace("acme", "team").myTasks()).toBe("/acme/team/my-tasks");
+  });
   it("builds the auth pages and the absolute Google start url", () => {
     configureRuntime({ apiUrl: "http://api.test" });
     try {

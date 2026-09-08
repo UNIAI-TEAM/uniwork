@@ -149,6 +149,7 @@
   "nav": {
     "inbox": "Hộp việc",
     "tasks": "Công việc",
+    "my_tasks": "Việc của tôi",
     "meetings": "Cuộc họp",
     "chat": "Trò chuyện",
     "members": "Thành viên",
@@ -802,6 +803,25 @@
         "child_progress": "Tiến độ công việc con",
         "creator": "Người tạo"
       }
+    }
+  },
+  "myTasks": {
+    "page": {
+      "title": "Việc của tôi",
+      "empty_title": "Chưa có việc nào của bạn",
+      "empty_description": "Việc bạn tạo hoặc được giao sẽ hiện ở đây."
+    },
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Việc của tôi mở khi parity quản lý công việc được bật cho workspace này.",
+    "scope": {
+      "all_label": "Tất cả",
+      "all_description": "Được giao cho tôi, do tôi tạo, hoặc liên quan đến agent của tôi",
+      "assigned_label": "Được giao",
+      "assigned_description": "Công việc được giao cho tôi",
+      "created_label": "Đã tạo",
+      "created_description": "Công việc do tôi tạo",
+      "involved_label": "Agent của tôi",
+      "involved_description": "Công việc liên quan đến agent của tôi"
     }
   },
   "capabilities": {

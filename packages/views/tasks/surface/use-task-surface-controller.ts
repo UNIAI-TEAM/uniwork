@@ -114,10 +114,14 @@ export function useTaskSurfaceController({
   const tableEnabled = effectiveViewMode === "table";
   const ganttEnabled = effectiveViewMode === "gantt";
   const swimlaneEnabled = effectiveViewMode === "swimlane";
+  // My-scope board has no relation-aware grouped endpoint yet — feed the
+  // board from listMyTasks so columns never show other people's work.
+  const myBoardUsesList = boardEnabled && scope.type === "my";
   const listQueryEnabled =
     (effectiveViewMode === "list" ||
       swimlaneEnabled ||
-      ganttEnabled) &&
+      ganttEnabled ||
+      myBoardUsesList) &&
     queryPlan.kind !== "table";
 
   const data = useTaskSurfaceData({
@@ -136,9 +140,12 @@ export function useTaskSurfaceController({
   const statusesQuery = useTaskStatuses(
     boardEnabled || swimlaneEnabled ? workspaceId : "",
   );
-  const groupedQuery = useGroupedTasks(boardEnabled ? workspaceId : "", {
-    group_by: "status",
-  });
+  const groupedQuery = useGroupedTasks(
+    boardEnabled && scope.type !== "my" ? workspaceId : "",
+    {
+      group_by: "status",
+    },
+  );
   const updateTask = useUpdateTask(workspaceId);
   const batchUpdateTasks = useBatchUpdateTasks(workspaceId);
   const batchDeleteTasks = useBatchDeleteTasks(workspaceId);
@@ -182,9 +189,10 @@ export function useTaskSurfaceController({
 
   const boardTasks = useMemo(() => {
     if (!boardEnabled) return data.surfaceTasks;
+    if (scope.type === "my") return data.surfaceTasks;
     const groups = groupedQuery.data ?? [];
     return groups.flatMap((group) => group.tasks);
-  }, [boardEnabled, data.surfaceTasks, groupedQuery.data]);
+  }, [boardEnabled, data.surfaceTasks, groupedQuery.data, scope.type]);
 
   const projectsCapability = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
@@ -313,13 +321,18 @@ export function useTaskSurfaceController({
   );
 
   const isLoading = boardEnabled
-    ? statusesQuery.isLoading || groupedQuery.isLoading
+    ? scope.type === "my"
+      ? data.isLoading || statusesQuery.isLoading
+      : statusesQuery.isLoading || groupedQuery.isLoading
     : tableEnabled
       ? false
       : data.isLoading;
   const isRefreshing = boardEnabled
-    ? (statusesQuery.isFetching && !statusesQuery.isLoading) ||
-      (groupedQuery.isFetching && !groupedQuery.isLoading)
+    ? scope.type === "my"
+      ? data.isRefreshing ||
+        (statusesQuery.isFetching && !statusesQuery.isLoading)
+      : (statusesQuery.isFetching && !statusesQuery.isLoading) ||
+        (groupedQuery.isFetching && !groupedQuery.isLoading)
     : tableEnabled
       ? false
       : data.isRefreshing;
