@@ -16,6 +16,7 @@ import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { planSurfaceQuery } from "@uniwork/core/tasks/surface/query-plan";
 import { taskScopeKey, type TaskScope } from "@uniwork/core/tasks/surface/scope";
 import { TASK_STATUSES, type Task, type TaskStatus } from "@uniwork/core/types";
+import type { ActorKind } from "@uniwork/core/types/audit";
 import {
   type TaskTableFacetSpec,
 } from "../modes/table-view-model";
@@ -30,6 +31,8 @@ import {
 } from "./selection-context";
 import type { TaskSurfaceMode } from "./types";
 import { useTaskSurfaceData } from "./use-task-surface-data";
+import { useTaskGroupBranches } from "./use-task-group-branches";
+import { ganttCanvasRows } from "../modes/gantt-canvas";
 
 const EMPTY_CONFIG = {
   flags: {},
@@ -37,15 +40,22 @@ const EMPTY_CONFIG = {
   work_management_capabilities: {},
 } as const;
 
+const EMPTY_TASKS: Task[] = [];
+
 export interface TaskSurfaceController {
   scopeKey: string;
   viewMode: TaskSurfaceMode;
   setViewMode: (mode: TaskSurfaceMode) => void;
   surfaceTasks: Task[];
+  /** Gantt canvas projection (dated ± showCompleted). Empty ≠ surface empty. */
+  ganttTasks: Task[];
   /** Ordered status-category keys for board columns (catalog / seven built-ins). */
   boardCategories: readonly string[];
   projectGroupingDisabled: boolean;
   projectGroupingReasonKey: string;
+  parentGroupingDisabled: boolean;
+  parentGroupingReasonKey: string;
+  groupBranches: ReturnType<typeof useTaskGroupBranches>;
   /** Open filter-submenu facet for table (and grouped) surfaces. */
   activeTableFacet: TaskTableFacetSpec | null;
   setActiveTableFacet: (facet: TaskTableFacetSpec | null) => void;
@@ -100,8 +110,12 @@ export function useTaskSurfaceController({
 
   const boardEnabled = effectiveViewMode === "board";
   const tableEnabled = effectiveViewMode === "table";
+  const ganttEnabled = effectiveViewMode === "gantt";
+  const swimlaneEnabled = effectiveViewMode === "swimlane";
   const listQueryEnabled =
-    (effectiveViewMode === "list" || effectiveViewMode === "swimlane") &&
+    (effectiveViewMode === "list" ||
+      swimlaneEnabled ||
+      ganttEnabled) &&
     queryPlan.kind !== "table";
 
   const data = useTaskSurfaceData({
@@ -110,7 +124,16 @@ export function useTaskSurfaceController({
     enabled: listQueryEnabled,
   });
 
-  const statusesQuery = useTaskStatuses(boardEnabled ? workspaceId : "");
+  const ganttShowCompleted = useViewStore((s) => s.ganttShowCompleted);
+
+  const groupBranches = useTaskGroupBranches({
+    workspaceId,
+    enabled: false,
+  });
+
+  const statusesQuery = useTaskStatuses(
+    boardEnabled || swimlaneEnabled ? workspaceId : "",
+  );
   const groupedQuery = useGroupedTasks(boardEnabled ? workspaceId : "", {
     group_by: "status",
   });
@@ -166,6 +189,9 @@ export function useTaskSurfaceController({
   const projectGroupingDisabled = projectsCapability.status !== "available";
   const projectGroupingReasonKey =
     projectsCapability.explanation_key || "capabilities.unknown";
+  // Parent swimlanes need parent_task_id on list DTO + hierarchy chrome.
+  const parentGroupingDisabled = true;
+  const parentGroupingReasonKey = "tasks.swimlane.parent_unavailable";
 
   const scopeKey = taskScopeKey(scope);
   const selection = useCreateTaskSurfaceSelection(
@@ -188,13 +214,41 @@ export function useTaskSurfaceController({
         typeof updates.status === "string" ? updates.status : undefined;
       const position =
         typeof updates.position === "number" ? updates.position : undefined;
-      if (status === undefined && position === undefined) return;
+      const assigneeId =
+        updates.assignee_id === null || typeof updates.assignee_id === "string"
+          ? (updates.assignee_id as string | null)
+          : undefined;
+      const assigneeKindRaw =
+        typeof updates.assignee_kind === "string"
+          ? updates.assignee_kind
+          : undefined;
+      const assigneeKind =
+        assigneeKindRaw === "human" ||
+        assigneeKindRaw === "agent" ||
+        assigneeKindRaw === "system"
+          ? (assigneeKindRaw as ActorKind)
+          : undefined;
+      if (
+        status === undefined &&
+        position === undefined &&
+        assigneeId === undefined
+      ) {
+        return;
+      }
       updateTask.mutate(
         {
           taskId,
           patch: {
             ...(status !== undefined ? { status: status as TaskStatus } : {}),
             ...(position !== undefined ? { position } : {}),
+            ...(assigneeId !== undefined
+              ? {
+                  assignee_id: assigneeId,
+                  ...(assigneeKind !== undefined
+                    ? { assignee_kind: assigneeKind }
+                    : {}),
+                }
+              : {}),
           },
         },
         {
@@ -245,9 +299,19 @@ export function useTaskSurfaceController({
       ? false
       : data.isRefreshing;
   const surfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
-  // Table owns its empty state inside TableView (groups total). Surface empty
-  // only for list/board list-shaped windows.
+  const ganttTasks = useMemo(
+    () =>
+      ganttEnabled
+        ? ganttCanvasRows(surfaceTasks, ganttShowCompleted)
+        : EMPTY_TASKS,
+    [ganttEnabled, ganttShowCompleted, surfaceTasks],
+  );
+  // isEmpty asserts "this window has no tasks". Gantt's scheduled subset is a
+  // projection — an empty canvas cannot prove the window is empty (Multica).
+  // Table owns its own empty state. Swimlane/list/board use the full window.
   const isEmpty =
+    !ganttEnabled &&
+    !tableEnabled &&
     (boardEnabled || listQueryEnabled) &&
     !isLoading &&
     surfaceTasks.length === 0;
@@ -257,9 +321,13 @@ export function useTaskSurfaceController({
     viewMode: effectiveViewMode,
     setViewMode,
     surfaceTasks,
+    ganttTasks,
     boardCategories,
     projectGroupingDisabled,
     projectGroupingReasonKey,
+    parentGroupingDisabled,
+    parentGroupingReasonKey,
+    groupBranches,
     activeTableFacet,
     setActiveTableFacet,
     tableFacetCounts:

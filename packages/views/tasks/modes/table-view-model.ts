@@ -217,7 +217,7 @@ function sortValue(task: Task, field: SortField): string | number | null {
     case "position":
       return task.position;
     case "start_date":
-      return null;
+      return task.start_date ?? "";
     default:
       return null;
   }

@@ -640,6 +640,24 @@
       "agent_chip_stub": "Agent",
       "vcs_chip_stub": "VCS"
     },
+    "gantt": {
+      "header_task": "Công việc",
+      "zoom_day": "Ngày",
+      "zoom_week": "Tuần",
+      "zoom_month": "Tháng",
+      "show_completed": "Hiện đã hoàn thành",
+      "empty": "Chưa có task đã lên lịch — đặt ngày bắt đầu hoặc hạn trên bất kỳ task nào để hiện trên timeline.",
+      "inverted_dates_warning": "Ngày bắt đầu sau hạn — thanh vẽ từ ngày sớm đến muộn."
+    },
+    "swimlane": {
+      "no_parent": "Không có cha",
+      "other_parents": "Cha khác",
+      "no_project": "Không có dự án",
+      "no_assignee": "Chưa giao",
+      "open_parent": "Mở task cha",
+      "toggle_collapse": "Thu/mở lane",
+      "parent_unavailable": "Swimlane theo cha chưa khả dụng."
+    },
     "table": {
       "search_placeholder": "Tìm công việc…",
       "search_clear": "Xóa tìm kiếm",

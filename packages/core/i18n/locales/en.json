@@ -641,6 +641,24 @@
       "agent_chip_stub": "Agent",
       "vcs_chip_stub": "VCS"
     },
+    "gantt": {
+      "header_task": "Task",
+      "zoom_day": "Day",
+      "zoom_week": "Week",
+      "zoom_month": "Month",
+      "show_completed": "Show completed",
+      "empty": "No scheduled tasks yet — set a start or due date on any task to see it on the timeline.",
+      "inverted_dates_warning": "Start date is after due date — bar shown from min to max."
+    },
+    "swimlane": {
+      "no_parent": "No parent",
+      "other_parents": "Other parents",
+      "no_project": "No project",
+      "no_assignee": "Unassigned",
+      "open_parent": "Open parent task",
+      "toggle_collapse": "Toggle lane",
+      "parent_unavailable": "Parent swimlanes are not available yet."
+    },
     "table": {
       "search_placeholder": "Search tasks…",
       "search_clear": "Clear search",

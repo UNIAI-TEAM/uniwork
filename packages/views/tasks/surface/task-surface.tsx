@@ -11,7 +11,9 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
 import { BoardView } from "../modes/board-view";
+import { GanttView } from "../modes/gantt-view";
 import { ListView } from "../modes/list-view";
+import { SwimLaneView } from "../modes/swimlane-view";
 import { TableView } from "../modes/table-view";
 import { TaskSurfaceActionsProvider } from "./actions-context";
 import { TaskSurfaceSelectionProvider } from "./selection-context";
@@ -97,6 +99,18 @@ function TaskSurfaceContent({
                   workspaceId={workspaceId}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                />
+              ) : controller.viewMode === "gantt" ? (
+                <GanttView tasks={controller.ganttTasks} />
+              ) : controller.viewMode === "swimlane" ? (
+                <SwimLaneView
+                  tasks={controller.surfaceTasks}
+                  categories={controller.boardCategories}
+                  groupBranches={controller.groupBranches}
+                  projectGroupingDisabled={controller.projectGroupingDisabled}
+                  projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                  parentGroupingDisabled={controller.parentGroupingDisabled}
+                  parentGroupingReasonKey={controller.parentGroupingReasonKey}
                 />
               ) : (
                 <ModePlaceholder />

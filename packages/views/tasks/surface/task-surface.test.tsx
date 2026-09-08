@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { requestMock, wrap } from "../../test/api-mock";
 import { TaskSurface } from "./task-surface";
 
@@ -22,10 +23,12 @@ const task = (over: Record<string, unknown>) => ({
 
 let tableRowsTotal = 1;
 let tableChildCount = 0;
+let queryTasks: Array<Record<string, unknown>> = [task({})];
 
 beforeEach(() => {
   tableRowsTotal = 1;
   tableChildCount = 0;
+  queryTasks = [task({})];
   requestMock.mockReset();
   requestMock.mockImplementation(async (path: string, init?: { body?: unknown }) => {
     if (typeof path === "string" && path.includes("/tasks/table/groups")) {
@@ -78,8 +81,8 @@ beforeEach(() => {
       };
     }
     return {
-      tasks: [task({})],
-      total: 1,
+      tasks: queryTasks,
+      total: queryTasks.length,
       limit: 50,
       offset: 0,
     };
@@ -175,5 +178,66 @@ describe("TaskSurface", () => {
         }),
       ).toBe(true);
     });
+  });
+
+  it("does not mark the surface empty in gantt when only undated tasks exist", async () => {
+    queryTasks = [task({ id: "undated", title: "No dates yet" })];
+    const store = getTaskSurfaceViewStore("test-ws-gantt-empty");
+    store.getState().setViewMode("gantt");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["gantt", "list"]}
+          surfaceKey="test-ws-gantt-empty"
+        />,
+      ),
+    );
+
+    expect(
+      await screen.findByText(/chưa có task đã lên lịch|no scheduled tasks/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Chưa có công việc nào")).not.toBeInTheDocument();
+    expect(screen.queryByText("No tasks yet")).not.toBeInTheDocument();
+  });
+
+  it("renders swimlane assignee lanes from surface tasks", async () => {
+    queryTasks = [
+      task({
+        id: "a1",
+        title: "Assigned work",
+        assignee_id: "user-1",
+        assignee_kind: "human",
+        status: "todo",
+      }),
+      task({
+        id: "u1",
+        title: "Unassigned work",
+        status: "in_progress",
+      }),
+    ];
+    const store = getTaskSurfaceViewStore("test-ws-swimlane");
+    store.getState().setViewMode("swimlane");
+    store.getState().setSwimlaneGrouping("assignee");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["swimlane", "list"]}
+          surfaceKey="test-ws-swimlane"
+        />,
+      ),
+    );
+
+    expect(await screen.findByTestId("swimlane-view")).toBeInTheDocument();
+    expect(await screen.findByText("Assigned work")).toBeInTheDocument();
+    expect(screen.getByText("Unassigned work")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("swimlane-lane-assignee:none"),
+    ).toBeInTheDocument();
   });
 });
