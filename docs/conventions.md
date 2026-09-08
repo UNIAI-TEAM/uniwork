@@ -195,6 +195,8 @@ workspace already. Do not translate it in one place and not another.
 | Email / Password / Display name | Email / Mật khẩu / Tên hiển thị |
 | Title / Description / Status / Priority | Tiêu đề / Mô tả / Trạng thái / Độ ưu tiên |
 | Board / List | Bảng / Danh sách |
+| Table / Cards | Bảng / Thẻ |
+| Filter / Display / View | Bộ lọc / Hiển thị / Chế độ xem |
 | Upcoming / Past | Sắp diễn ra / Đã diễn ra |
 | Loading… / Error / Empty | Đang tải… / Có lỗi xảy ra / Chưa có dữ liệu |
 

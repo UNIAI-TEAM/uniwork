@@ -80,7 +80,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await expect(owner.getByText("1 thành viên", { exact: false })).toHaveCount(0);
 
   await owner.goto(`/${orgSlug}/doi-danh-ba/people`);
-  await owner.getByRole("button", { name: /Nguyễn Văn Ân/ }).click();
+  await owner.getByRole("link", { name: /Nguyễn Văn Ân/ }).click();
   await owner.getByRole("button", { name: "Sửa hồ sơ" }).click();
   await owner.getByLabel("Chức danh").fill("Trưởng nhóm");
   await owner.getByLabel("Phòng ban").click();
@@ -91,7 +91,12 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   // The colleague finds them without typing a single diacritic.
   await member.goto(`/${orgSlug}/doi-danh-ba/people`);
   await member.getByRole("textbox", { name: "Tìm người" }).fill("nguyen van an");
-  await expect(member.getByText("Trưởng nhóm · Kỹ thuật", { exact: false })).toBeVisible({ timeout: 15_000 });
+  // The card carries the job title and the department as separate lines; only
+  // the name is the link, so the card itself is the list item around it.
+  const card = member.getByRole("listitem").filter({ hasText: "Nguyễn Văn Ân" });
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card.getByText("Trưởng nhóm")).toBeVisible();
+  await expect(card.getByText("Kỹ thuật")).toBeVisible();
 
   // Switching the colleague off closes the whole organization to them, even
   // though their workspace membership row is deliberately left in place. This

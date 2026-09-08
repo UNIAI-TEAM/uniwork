@@ -301,7 +301,7 @@ func TestWorkspaceCreateSeedsTaskStatuses(t *testing.T) {
 		t.Fatalf("task_prefix = %q, want ALP", row.TaskPrefix)
 	}
 	statuses, err := f.q.ListTaskStatuses(ctx, db.ListTaskStatusesParams{
-		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID, IncludeArchived: false,
 	})
 	if err != nil {
 		t.Fatal(err)

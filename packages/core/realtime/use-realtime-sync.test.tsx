@@ -59,6 +59,25 @@ describe("useRealtimeSync", () => {
     );
   });
 
+  it("invalidates Work Management list roots on task.updated via planCacheUpdate", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task.updated", payload: { task_id: "t1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["tasks", "ws1"]),
+        JSON.stringify(["my-tasks", "ws1"]),
+        JSON.stringify(["tasks-query", "ws1"]),
+        JSON.stringify(["tasks-table", "ws1"]),
+        JSON.stringify(["task", "t1"]),
+        JSON.stringify(["task-children", "t1"]),
+      ]),
+    );
+  });
+
   it("refreshes the task's activity list on task.updated", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -69,6 +88,61 @@ describe("useRealtimeSync", () => {
     // The Activity tab reads the audit log's slice of this task, so the event
     // that changed the task made its history stale too.
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["audit", "history", "ws1", "task", "t1"]));
+  });
+
+  it("invalidates projects on project.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "project.created", payload: { project_id: "p1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["projects", "ws1"]),
+        JSON.stringify(["project", "ws1", "p1"]),
+      ]),
+    );
+  });
+
+  it("invalidates catalog statuses on task_status.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task_status.created", payload: { status_id: "s1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["task-statuses", "ws1"]));
+  });
+
+  it("invalidates view prefs on task_view_preference.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task_view_preference.updated", payload: {} });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["task-view-prefs", "ws1"]));
+  });
+
+  it("invalidates subscribers on task.subscribed without writing the frame", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    client.emit({
+      type: "task.subscribed",
+      payload: { task_id: "t1", user_id: "smuggled-user" },
+    });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["task", "t1"]),
+        JSON.stringify(["task-subscribers", "t1"]),
+      ]),
+    );
+    expect(qc.getQueryData(["task", "t1"])).toBeUndefined();
+    expect(qc.getQueryData(["task-subscribers", "t1"])).toBeUndefined();
   });
 
   it("refreshes the inbox lists and the badge on notification.created", () => {
@@ -255,6 +329,11 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toEqual(
       expect.arrayContaining([
         JSON.stringify(["tasks", "ws1"]),
+        JSON.stringify(["my-tasks", "ws1"]),
+        JSON.stringify(["tasks-query", "ws1"]),
+        JSON.stringify(["tasks-table", "ws1"]),
+        JSON.stringify(["task-statuses", "ws1"]),
+        JSON.stringify(["projects", "ws1"]),
         JSON.stringify(["chat", "rooms", "ws1"]),
         JSON.stringify(["chat", "room", "ws1"]),
         JSON.stringify(["meetings", "ws1"]),
