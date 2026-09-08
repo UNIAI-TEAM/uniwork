@@ -1,6 +1,6 @@
 # UniWork — Tasks Work Management parity
 
-> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-07; lát cắt 1 (UNI-495) foundation shipped; lát cắt 2 (UNI-497) API + client core shipped (flag `tasks_work_management_parity`, catalogue routes, revision/idempotency, `@uniwork/core` endpoints/hooks/realtime, stubs `capability_unavailable`) theo plan `../plans/2026-09-07-tasks-api-client-core.md`. UNI-426 / F-05 còn slices UI / collection / Projects surfaces tiếp theo — không đánh dấu F-05 xong.
+> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-07; lát cắt 1 (UNI-495) foundation shipped; lát cắt 2 (UNI-497) API + client core shipped; lát cắt 3 collection surfaces spec+plan sẵn (`2026-09-08-tasks-collection-surfaces-design.md`, `../plans/2026-09-08-tasks-collection-surfaces.md`) — chờ issue KEY. UNI-426 / F-05 còn Projects UI / detail / hosts / cutover — không đánh dấu F-05 xong.
 
 **Ngày:** 2026-09-07
 **Issue:** UNI-426 · F-05
