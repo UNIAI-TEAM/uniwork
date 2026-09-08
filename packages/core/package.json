@@ -80,6 +80,7 @@
     "./i18n/types": "./i18n/types.ts",
     "./types/*": "./types/*.ts",
     "./api/http": "./api/http.ts",
+    "./api/guest-session": "./api/guest-session.ts",
     "./api/endpoints/*": "./api/endpoints/*.ts",
     "./permissions": "./permissions/index.ts",
     "./navigation": "./navigation/store.ts",

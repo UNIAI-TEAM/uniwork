@@ -51,6 +51,19 @@ describe("WSClient scoped subscribe", () => {
     });
   });
 
+  it("sends guest_session as the first auth frame for lobby sockets", () => {
+    const ws = new WSClient("ws://example.test/lobby-ws", {
+      guestSession: "guest-id.sig",
+    });
+    ws.connect();
+    FakeWebSocket.lastInstance!.onopen?.();
+
+    expect(JSON.parse(FakeWebSocket.sent[0]!)).toEqual({
+      type: "auth",
+      payload: { guest_session: "guest-id.sig" },
+    });
+  });
+
   it("replays scoped subscriptions after reconnect", () => {
     vi.useFakeTimers();
     const ws = new WSClient("ws://example.test/ws");

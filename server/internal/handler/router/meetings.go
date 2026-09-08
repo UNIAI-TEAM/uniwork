@@ -56,9 +56,6 @@ func registerMeetings(r api, h Routes) {
 		summary: "Mint LiveKit token (deprecated; uses admission)", tags: []string{"meetings"},
 		sdo: sdo.MeetingTokenSDO{}, auth: true,
 	})
-	r.Get("/meetings/{meetingID}/participants", h.ListParticipants, apiOp{
-		summary: "List participants", tags: []string{"meetings"}, sdo: sdo.ParticipantListSDO{}, auth: true,
-	})
 	r.Post("/meetings/{meetingID}/invitations", h.InviteParticipant, apiOp{
 		summary: "Invite a workspace member", tags: []string{"meetings"},
 		sdi: sdi.InviteParticipantSDI{}, sdo: sdo.ParticipantListSDO{}, auth: true,
@@ -106,13 +103,6 @@ func registerMeetings(r api, h Routes) {
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
 	})
-	r.Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
-		summary: "List persisted in-room chat messages", tags: []string{"meetings"}, sdo: sdo.MeetingChatListSDO{}, auth: true,
-	})
-	r.Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
-		summary: "Send an in-room chat message", tags: []string{"meetings"},
-		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{}, auth: true,
-	})
 	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
 		summary: "Latest AI summary", tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
@@ -123,9 +113,6 @@ func registerMeetings(r api, h Routes) {
 	r.Post("/meetings/{meetingID}/summary/tasks", h.CreateSummaryTasks, apiOp{
 		summary: "Create tasks from summary action items", tags: []string{"meetings"},
 		sdi: sdi.SummaryTasksSDI{}, sdo: sdo.TaskIDListSDO{}, auth: true,
-	})
-	r.Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
-		summary: "List recordings", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/recording/start", h.StartRecording, apiOp{
 		summary: "Start recording", tags: []string{"meetings"}, sdo: sdo.RecordingSDO{}, auth: true,
@@ -155,6 +142,19 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Cancel own join request (member or guest)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{},
 	})
 	r.With(lobbyWSLimit).Get("/meetings/{meetingID}/lobby-ws", h.MeetingLobbyWS, apiOp{})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/participants", h.ListParticipants, apiOp{
+		summary: "List participants (member or active guest)", tags: []string{"meetings"}, sdo: sdo.ParticipantListSDO{},
+	})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/chat", h.ListChatMessages, apiOp{
+		summary: "List persisted in-room chat messages (member or active guest)", tags: []string{"meetings"}, sdo: sdo.MeetingChatListSDO{},
+	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
+		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
+		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
+	})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
+		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},
+	})
 	r.Post("/integrations/livekit/webhook", h.LiveKitWebhook, apiOp{
 		summary: "LiveKit webhook (signature required)", tags: []string{"integrations"},
 		sdo: sdo.StatusSDO{},

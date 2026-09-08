@@ -27,7 +27,7 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   // visit compiles /meetings/[meetingId], which alone can take longer than
   // the 5s default.
   await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/, { timeout: 15_000 });
-  await expect(page.getByRole("heading", { name: "Họp AI e2e" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Họp AI e2e" })).toBeVisible();
 
   // Scheduled: no summary panel yet, calendar available.
   await expect(page.getByTestId("meeting-summary-panel")).toHaveCount(0);

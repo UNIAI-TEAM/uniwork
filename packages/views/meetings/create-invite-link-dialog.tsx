@@ -87,8 +87,9 @@ export function CreateInviteLinkDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("meetings.newInviteLink")}</DialogTitle>
+          <DialogTitle>{t("meetings.externalGuestLinks")}</DialogTitle>
           <DialogDescription>{t("meetings.createInviteLinkDescription")}</DialogDescription>
+          <p className="text-caption text-muted-foreground">{t("meetings.createInviteLinkGuestHint")}</p>
         </DialogHeader>
 
         {freshUrl ? (
@@ -164,7 +165,7 @@ export function CreateInviteLinkDialog({
                 <Select value={days} onValueChange={(v) => v && setDays(v)} items={expiryItems} />
               </Field>
               <Field>
-                <FieldLabel>{t("meetings.linkAccess")}</FieldLabel>
+                <FieldLabel>{t("meetings.linkGuestAccess")}</FieldLabel>
                 <Select
                   value={mode}
                   onValueChange={(v) => v && setMode(v)}
@@ -173,6 +174,11 @@ export function CreateInviteLinkDialog({
                     { value: "REQUEST_APPROVAL", label: t("meetings.linkNeedApproval") },
                   ]}
                 />
+                <p className="text-caption text-muted-foreground">
+                  {mode === "REQUEST_APPROVAL"
+                    ? t("meetings.linkNeedApprovalGuestHint")
+                    : t("meetings.linkAutoAdmitGuestHint")}
+                </p>
               </Field>
               <Field>
                 <FieldLabel htmlFor="link-max">{t("meetings.linkMaxUses")}</FieldLabel>

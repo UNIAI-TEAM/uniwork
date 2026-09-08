@@ -716,6 +716,42 @@ func (q *Queries) GetConferenceSession(ctx context.Context, id string) (MeetingC
 	return i, err
 }
 
+const getGuestParticipantAnyStatus = `-- name: GetGuestParticipantAnyStatus :one
+SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason FROM meeting_participants
+WHERE meeting_id = $1 AND principal_type = 'GUEST' AND guest_id = $2
+ORDER BY added_at DESC
+LIMIT 1
+`
+
+type GetGuestParticipantAnyStatusParams struct {
+	MeetingID string      `json:"meeting_id"`
+	GuestID   pgtype.Text `json:"guest_id"`
+}
+
+func (q *Queries) GetGuestParticipantAnyStatus(ctx context.Context, arg GetGuestParticipantAnyStatusParams) (MeetingParticipant, error) {
+	row := q.db.QueryRow(ctx, getGuestParticipantAnyStatus, arg.MeetingID, arg.GuestID)
+	var i MeetingParticipant
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.PrincipalType,
+		&i.UserID,
+		&i.GuestID,
+		&i.DisplayNameSnapshot,
+		&i.EmailSnapshot,
+		&i.Role,
+		&i.Status,
+		&i.SourceType,
+		&i.SourceID,
+		&i.AddedBy,
+		&i.AddedAt,
+		&i.RemovedBy,
+		&i.RemovedAt,
+		&i.RemoveReason,
+	)
+	return i, err
+}
+
 const getInvitationByParticipant = `-- name: GetInvitationByParticipant :one
 SELECT id, meeting_id, participant_id, response_status, invited_by, invited_at, responded_at, delivery_status, last_notified_at FROM meeting_invitations WHERE participant_id = $1
 `

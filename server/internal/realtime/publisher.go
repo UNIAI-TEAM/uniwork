@@ -16,6 +16,10 @@ var meetingLobbyEventTypes = map[string]struct{}{
 	"meeting.canceled":         {},
 	"join_request.approved":    {},
 	"conference.session_ready": {},
+	"chat.message":             {},
+	"participant.invited":      {},
+	"participant.removed":      {},
+	"recording.ready":          {},
 }
 
 // publisher adapts the service-layer EventPublisher contract onto a

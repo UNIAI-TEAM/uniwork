@@ -183,6 +183,12 @@ func (s *MeetingService) evaluateInviteLink(ctx context.Context, m db.Meeting, i
 		return AdmissionDecision{Decision: DecisionDeny, Reason: "PARTICIPANT_REMOVED", Meeting: m},
 			coded(http.StatusForbidden, "participant_removed", "bạn đã bị gỡ khỏi cuộc họp")
 	}
+	if perr == nil {
+		grants, gerr := s.q.ListActiveGrantsForParticipant(ctx, p.ID)
+		if gerr == nil && len(grants) > 0 {
+			return s.decisionForStatus(m, p, "GRANT")
+		}
+	}
 	if link.AccessMode == LinkRequestApproval {
 		jr, err := s.ensureJoinRequestTx(ctx, q, m, in, link.ID)
 		if err != nil {
@@ -387,13 +393,23 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 			}
 		}
 	} else {
-		p, err = q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
-			ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalGuest,
-			GuestID: decided.RequesterGuestID, DisplayNameSnapshot: decided.DisplayNameSnapshot,
-			Role: RoleAttendee, SourceType: GrantJoinApproval, SourceID: strText(requestID), AddedBy: actorID,
+		existing, eerr := q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{
+			MeetingID: m.ID, GuestID: decided.RequesterGuestID,
 		})
-		if err != nil {
-			return err
+		if eerr == nil && existing.Status == ParticipantRemoved {
+			return coded(http.StatusConflict, "participant_removed", "không tự khôi phục người đã bị gỡ")
+		}
+		if eerr == nil && existing.Status == ParticipantActive {
+			p = existing
+		} else {
+			p, err = q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
+				ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalGuest,
+				GuestID: decided.RequesterGuestID, DisplayNameSnapshot: decided.DisplayNameSnapshot,
+				Role: RoleAttendee, SourceType: GrantJoinApproval, SourceID: strText(requestID), AddedBy: actorID,
+			})
+			if err != nil {
+				return err
+			}
 		}
 	}
 	_, err = q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{

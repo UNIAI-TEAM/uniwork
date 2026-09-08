@@ -114,7 +114,9 @@ describe("MeetingLobby", () => {
       ),
     );
 
-    expect(screen.getByText("Đã gửi yêu cầu. Đang chờ chủ trì.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Vui lòng đợi cho đến khi người chủ trì đưa bạn vào cuộc họp. Trang này sẽ tự cập nhật."),
+    ).toBeInTheDocument();
   });
 
   it("renders without a title line when none is provided", () => {

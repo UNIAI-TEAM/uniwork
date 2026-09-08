@@ -11,6 +11,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -71,7 +72,7 @@ func New(d Deps, h Routes) http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader, telemetry.DebugTraceHeader},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader, telemetry.DebugTraceHeader, meetings.GuestSessionHeader},
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader},
 		AllowCredentials: true,
 	}))

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"net/http"
 	"testing"
 )
 
@@ -40,5 +41,16 @@ func TestGuestCookieUsesHMAC(t *testing.T) {
 	}
 	if subtle.ConstantTimeCompare([]byte("a"), []byte("b")) != 0 {
 		t.Fatal("sanity")
+	}
+}
+
+func TestGuestIDFromRequestHeader(t *testing.T) {
+	key := []byte("test-secret-key")
+	signed := SignGuestCookie("guest-header", key)
+	r, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)
+	r.Header.Set(GuestSessionHeader, signed)
+	got := GuestIDFromRequest(r, key)
+	if got != "guest-header" {
+		t.Fatalf("header guest id = %q", got)
 	}
 }

@@ -369,14 +369,13 @@ export function useAppendMeetingChat(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (message: string) => meetings.appendMeetingChat(meetingId, message),
-    onMutate: async () => {
-      await qc.cancelQueries({ queryKey: meetingKeys.chat(meetingId) });
-    },
-    onSuccess: async () => {
-      await qc.fetchQuery({
-        queryKey: meetingKeys.chat(meetingId),
-        queryFn: () => meetings.listMeetingChat(meetingId),
-      });
+    onSuccess: (saved) => {
+      if (saved) {
+        qc.setQueryData<MeetingChatMessage[]>(meetingKeys.chat(meetingId), (prev) =>
+          upsertMeetingChatMessage(prev, saved),
+        );
+      }
+      void qc.invalidateQueries({ queryKey: meetingKeys.chat(meetingId) });
     },
   });
 }

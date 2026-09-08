@@ -292,8 +292,8 @@ func (s *MeetingService) stopActiveRecording(ctx context.Context, m db.Meeting, 
 	return rec, nil
 }
 
-func (s *MeetingService) Recordings(ctx context.Context, userID, meetingID string) ([]db.MeetingRecording, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+func (s *MeetingService) Recordings(ctx context.Context, userID, guestID, meetingID string) ([]db.MeetingRecording, error) {
+	if _, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID); err != nil {
 		return nil, err
 	}
 	return s.q.ListMeetingRecordings(ctx, meetingID)

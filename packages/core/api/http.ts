@@ -2,6 +2,7 @@ import { runtimeConfig } from "../runtime-config";
 import { SessionResponseSchema, type SessionResponse } from "../types/user";
 import { parseWithFallback } from "./schema";
 import { getAccessToken, setAccessToken } from "./session";
+import { GUEST_SESSION_HEADER, getGuestSession } from "./guest-session";
 
 /**
  * HTTP transport only: base URL, bearer header, one refresh-and-retry on 401,
@@ -107,7 +108,12 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     ...opts.headers,
   };
   const token = getAccessToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    const guest = getGuestSession();
+    if (guest) headers[GUEST_SESSION_HEADER] = guest;
+  }
 
   let body: BodyInit | undefined;
   if (opts.body instanceof FormData) {
@@ -132,7 +138,7 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
  */
 export async function request(path: string, opts: RequestOpts = {}): Promise<unknown> {
   let res = await rawFetch(path, opts);
-  if (res.status === 401 && !opts.skipRefresh && !path.startsWith("/api/v1/auth/")) {
+  if (res.status === 401 && !opts.skipRefresh && !path.startsWith("/api/v1/auth/") && getAccessToken()) {
     const refreshed = await refreshSession();
     if (refreshed) res = await rawFetch(path, opts);
   }
@@ -157,7 +163,7 @@ export async function request(path: string, opts: RequestOpts = {}): Promise<unk
  */
 export async function requestText(path: string): Promise<string> {
   let res = await rawFetch(path, {});
-  if (res.status === 401) {
+  if (res.status === 401 && getAccessToken()) {
     const refreshed = await refreshSession();
     if (refreshed) res = await rawFetch(path, {});
   }

@@ -39,6 +39,7 @@ import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingHostPanel } from "./host-panel";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
+import { MeetingPanelCard } from "./meeting-panel-card";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 import { MeetingRsvpBar } from "./meeting-rsvp-bar";
 import { MeetingCalendarButton, MeetingSummaryPanel } from "./meeting-summary-panel";
@@ -92,44 +93,37 @@ export function MeetingDetailView({
   const highlightJoinRequests = canHost.allowed && pendingJoins > 0;
 
   const notesSection = (
-    <section className="rounded-xl border border-border bg-surface" aria-labelledby="notes-heading">
-      <div className="border-b border-border px-4 py-3">
-        <h2 id="notes-heading" className="text-label font-semibold text-foreground">
-          {t("meetings.notes")}
-        </h2>
-      </div>
-      <div className="p-4">
-        {(notes ?? []).length === 0 ? (
-          <p className="mb-3 text-label text-muted-foreground">{t("meetings.notesEmpty")}</p>
-        ) : (
-          <ul className="mb-3 space-y-2">
-            {(notes ?? []).map((n) => (
-              <li key={n.id} className="rounded-lg border border-border bg-surface-hover/50 p-3">
-                <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
-                <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <form
-          className="flex min-w-0 flex-col gap-2 sm:flex-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
-          }}
-        >
-          <Input
-            className="min-w-0 flex-1"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder={t("meetings.notesPlaceholder")}
-          />
-          <Button type="submit" className="shrink-0" disabled={addNote.isPending}>
-            {t("common.save")}
-          </Button>
-        </form>
-      </div>
-    </section>
+    <MeetingPanelCard id="notes-heading" title={t("meetings.notes")}>
+      {(notes ?? []).length === 0 ? (
+        <p className="mb-3 text-label text-muted-foreground">{t("meetings.notesEmpty")}</p>
+      ) : (
+        <ul className="mb-3 space-y-2">
+          {(notes ?? []).map((n) => (
+            <li key={n.id} className="rounded-lg border border-border bg-surface-hover/50 p-3">
+              <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
+              <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex min-w-0 flex-col gap-2 sm:flex-row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
+        }}
+      >
+        <Input
+          className="min-w-0 flex-1 rounded-xl"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={t("meetings.notesPlaceholder")}
+        />
+        <Button type="submit" className="shrink-0" disabled={addNote.isPending}>
+          {t("common.save")}
+        </Button>
+      </form>
+    </MeetingPanelCard>
   );
 
   const summarySection = showSummary ? (

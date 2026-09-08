@@ -6,6 +6,7 @@ import {
   readCachedJoinDecision,
   readInviteJoinBody,
   writeCachedJoinDecision,
+  writeInviteDisplayName,
 } from "./meeting-invite-session";
 
 const LINK_ID = "link-123";
@@ -53,6 +54,17 @@ describe("meeting-invite-session", () => {
       invite_link_id: LINK_ID,
       secret: "s3cr3t",
       display_name: "Guest One",
+    });
+  });
+
+  it("persists display name via writeInviteDisplayName", () => {
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "secret"), "abc");
+    writeInviteDisplayName(LINK_ID, "  Guest Name  ");
+    expect(sessionStorage.getItem(inviteStorageKey(LINK_ID, "displayName"))).toBe("Guest Name");
+    expect(readInviteJoinBody(LINK_ID)).toEqual({
+      invite_link_id: LINK_ID,
+      secret: "abc",
+      display_name: "Guest Name",
     });
   });
 

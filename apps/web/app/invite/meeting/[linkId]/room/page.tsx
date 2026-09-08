@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { getGuestSession } from "@uniwork/core/api/guest-session";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -9,6 +10,7 @@ import { useNavigation } from "@uniwork/views/navigation";
 import {
   inviteStorageKey,
   readCachedJoinDecision,
+  readGuestSession,
   readInviteJoinBody,
 } from "@uniwork/views/meetings/meeting-invite-session";
 
@@ -21,52 +23,75 @@ const MeetingRoomView = lazy(() =>
   import("@uniwork/views/meetings/room-view").then((m) => ({ default: m.MeetingRoomView })),
 );
 
-function meetingInviteLoginUrl(linkId: string): string {
-  return `${paths.login()}?next=${encodeURIComponent(paths.meetingInvite(linkId))}&reason=meeting_invite`;
+type InviteRoomSession = {
+  hydrated: boolean;
+  meetingId: string;
+  joinBody: ReturnType<typeof readInviteJoinBody>;
+  initialJoinDecision: JoinDecision | undefined;
+  meetingTitle: string;
+};
+
+const EMPTY_INVITE_ROOM_SESSION: InviteRoomSession = {
+  hydrated: false,
+  meetingId: "",
+  joinBody: undefined,
+  initialJoinDecision: undefined,
+  meetingTitle: "",
+};
+
+function loadInviteRoomSession(linkId: string): InviteRoomSession {
+  readGuestSession(linkId);
+  return {
+    hydrated: true,
+    meetingId: sessionStorage.getItem(inviteStorageKey(linkId, "meetingId")) ?? "",
+    joinBody: readInviteJoinBody(linkId),
+    initialJoinDecision: readCachedJoinDecision(linkId),
+    meetingTitle: sessionStorage.getItem(inviteStorageKey(linkId, "title")) ?? "",
+  };
 }
 
 export default function MeetingInviteRoomPage() {
   const { linkId } = useParams<{ linkId: string }>();
   const nav = useNavigation();
   const authStatus = useAuthStore((s) => s.status);
-  const [meetingId, setMeetingId] = useState("");
-  const [joinBody, setJoinBody] = useState<ReturnType<typeof readInviteJoinBody>>();
-  const [initialJoinDecision, setInitialJoinDecision] = useState<JoinDecision | undefined>();
-  const [meetingTitle, setMeetingTitle] = useState("");
+  const [session, setSession] = useState<InviteRoomSession>(EMPTY_INVITE_ROOM_SESSION);
 
   useEffect(() => {
-    const mid = sessionStorage.getItem(inviteStorageKey(linkId, "meetingId")) ?? "";
-    setMeetingId(mid);
-    setJoinBody(readInviteJoinBody(linkId));
-    setInitialJoinDecision(readCachedJoinDecision(linkId));
-    setMeetingTitle(sessionStorage.getItem(inviteStorageKey(linkId, "title")) ?? "");
+    setSession(loadInviteRoomSession(linkId));
   }, [linkId]);
 
-  const ready = useMemo(() => meetingId !== "" && Boolean(joinBody?.secret), [meetingId, joinBody?.secret]);
+  const isGuest = authStatus === "anon";
+
+  const ready = useMemo(() => {
+    if (!session.hydrated || authStatus === "loading") return false;
+    if (session.meetingId === "" || !session.joinBody?.secret) return false;
+    if (isGuest) return Boolean(getGuestSession());
+    return authStatus === "authed";
+  }, [session.hydrated, session.meetingId, session.joinBody?.secret, authStatus, isGuest]);
 
   useEffect(() => {
-    if (authStatus === "loading") return;
-    if (authStatus === "anon") {
-      nav.replace(meetingInviteLoginUrl(linkId));
-      return;
-    }
+    if (!session.hydrated || authStatus === "loading") return;
     if (!ready) {
-      nav.replace(`${paths.meetingInvite(linkId)}?reason=login_required`);
+      nav.replace(`${paths.meetingInvite(linkId)}?reason=missing_session`);
     }
-  }, [authStatus, ready, nav, linkId]);
+  }, [session.hydrated, authStatus, ready, nav, linkId]);
 
-  if (authStatus !== "authed" || !ready) {
+  if (!ready || !session.joinBody?.secret) {
     return null;
   }
 
+  const inviteSecret = session.joinBody.secret;
+
   return (
-    <MeetingLobbyWSProvider meetingId={meetingId}>
+    <MeetingLobbyWSProvider meetingId={session.meetingId}>
       <Suspense fallback={null}>
         <MeetingRoomView
-          meetingId={meetingId}
-          joinBody={joinBody}
-          meetingTitle={meetingTitle}
-          initialJoinDecision={initialJoinDecision}
+          meetingId={session.meetingId}
+          guestMode={isGuest}
+          joinBody={session.joinBody}
+          invite={isGuest ? { linkId, secret: inviteSecret } : undefined}
+          meetingTitle={session.meetingTitle}
+          initialJoinDecision={session.initialJoinDecision}
           onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
         />
       </Suspense>

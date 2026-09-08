@@ -25,8 +25,8 @@ func normalizeChatMessage(text string) (string, error) {
 	return text, nil
 }
 
-func (s *MeetingService) AppendChatMessage(ctx context.Context, userID, meetingID, message string) (db.MeetingChatMessage, error) {
-	m, _, err := s.authorize(ctx, userID, meetingID)
+func (s *MeetingService) AppendChatMessage(ctx context.Context, userID, guestID, meetingID, message string) (db.MeetingChatMessage, error) {
+	m, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID)
 	if err != nil {
 		return db.MeetingChatMessage{}, err
 	}
@@ -41,14 +41,22 @@ func (s *MeetingService) AppendChatMessage(ctx context.Context, userID, meetingI
 	senderName := ""
 	pid := pgtype.Text{}
 	senderIdentity := ""
-	if p, err := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: meetingID, UserID: strText(userID)}); err == nil {
-		pid = strText(p.ID)
-		senderIdentity = meetings.IdentityForParticipant(p.ID)
-		senderName = p.DisplayNameSnapshot
-	}
-	if senderName == "" {
-		if u, err := s.q.GetUserByID(ctx, userID); err == nil {
-			senderName = u.DisplayName
+	if userID != "" {
+		if p, err := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: meetingID, UserID: strText(userID)}); err == nil {
+			pid = strText(p.ID)
+			senderIdentity = meetings.IdentityForParticipant(p.ID)
+			senderName = p.DisplayNameSnapshot
+		}
+		if senderName == "" {
+			if u, err := s.q.GetUserByID(ctx, userID); err == nil {
+				senderName = u.DisplayName
+			}
+		}
+	} else if guestID != "" {
+		if p, err := s.q.GetActiveGuestParticipant(ctx, db.GetActiveGuestParticipantParams{MeetingID: meetingID, GuestID: strText(guestID)}); err == nil {
+			pid = strText(p.ID)
+			senderIdentity = meetings.IdentityForParticipant(p.ID)
+			senderName = p.DisplayNameSnapshot
 		}
 	}
 	if senderIdentity == "" {
@@ -72,8 +80,8 @@ func (s *MeetingService) AppendChatMessage(ctx context.Context, userID, meetingI
 	return msg, nil
 }
 
-func (s *MeetingService) ChatMessages(ctx context.Context, userID, meetingID string) ([]db.MeetingChatMessage, error) {
-	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
+func (s *MeetingService) ChatMessages(ctx context.Context, userID, guestID, meetingID string) ([]db.MeetingChatMessage, error) {
+	if _, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID); err != nil {
 		return nil, err
 	}
 	return s.q.ListMeetingChatMessages(ctx, db.ListMeetingChatMessagesParams{MeetingID: meetingID, Limit: chatMessageLimit})

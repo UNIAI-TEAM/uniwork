@@ -18,7 +18,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/compon
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
-import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
+import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingParticipantRow } from "./meeting-participant-row";
 import { useMeetingSignals } from "./use-meeting-signals";
 
@@ -66,7 +66,7 @@ export function MeetingRoomPeopleTab({
   const liveParticipants = useLiveKitParticipants();
   const { hands } = useMeetingSignals();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
-  const { data: apiParticipants } = useParticipants(guestMode ? "" : (meetingId ?? ""));
+  const { data: apiParticipants } = useParticipants(meetingId ?? "");
   const remove = useRemoveParticipant(meetingId ?? "");
   const [search, setSearch] = useState("");
   const [contributorsOpen, setContributorsOpen] = useState(true);
@@ -128,6 +128,10 @@ export function MeetingRoomPeopleTab({
         <h2 className="text-title-sm font-semibold text-foreground">{t("meetings.people")}</h2>
       </div>
 
+      {canHost && meetingId ? (
+        <MeetingJoinRequestsSection meetingId={meetingId} />
+      ) : null}
+
       {canHost && meetingId && workspaceId && !guestMode ? (
         <Button
           type="button"
@@ -151,12 +155,6 @@ export function MeetingRoomPeopleTab({
           className="bg-transparent"
         />
       </InputGroup>
-
-      {canHost && meetingId ? (
-        <div className="mb-3 shrink-0">
-          <MeetingJoinRequestsPanel meetingId={meetingId} compact />
-        </div>
-      ) : null}
 
       {hands.length > 0 ? (
         <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-surface-selected px-3 py-2 text-label text-brand">

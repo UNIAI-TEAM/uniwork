@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@uniwork/ui/components/ui/dialog";
+import { InfoHint } from "@uniwork/ui/components/common/info-hint";
 import { Field, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select } from "@uniwork/ui/components/ui/select";
@@ -158,9 +159,22 @@ export function MeetingEditDialog({
               {t("meetings.editSectionAccess")}
             </h3>
             <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3">
-              <span className="min-w-0 text-pretty text-body text-foreground">{t("meetings.allowJoinRequest")}</span>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="text-pretty text-body text-foreground">{t("meetings.allowJoinRequest")}</span>
+                <InfoHint label={t("meetings.allowJoinRequestHint")}>
+                  {t("meetings.allowJoinRequestHint")}
+                </InfoHint>
+              </div>
               <Switch className="shrink-0" checked={allowJoin} onCheckedChange={setAllowJoin} />
             </label>
+            <div className="flex items-center gap-1.5">
+              <span className="text-caption text-muted-foreground">
+                {t("meetings.externalGuestLinks")}
+              </span>
+              <InfoHint label={t("meetings.externalGuestLinkWhere")}>
+                {t("meetings.externalGuestLinkWhere")}
+              </InfoHint>
+            </div>
           </div>
 
           <DialogFooter>

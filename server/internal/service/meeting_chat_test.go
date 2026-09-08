@@ -16,17 +16,17 @@ func TestMeetingChat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := s.AppendChatMessage(ctx, ua.ID, m.ID, "   "); err == nil {
+	if _, err := s.AppendChatMessage(ctx, ua.ID, "", m.ID, "   "); err == nil {
 		t.Fatal("empty chat accepted")
 	}
-	msg, err := s.AppendChatMessage(ctx, ua.ID, m.ID, "Xin chào\nmọi người")
+	msg, err := s.AppendChatMessage(ctx, ua.ID, "", m.ID, "Xin chào\nmọi người")
 	if err != nil || !strings.Contains(msg.Message, "\n") || msg.SenderName != "A" {
 		t.Fatalf("%+v %v", msg, err)
 	}
-	if _, err := s.AppendChatMessage(ctx, ub.ID, m.ID, "x"); err == nil {
+	if _, err := s.AppendChatMessage(ctx, ub.ID, "", m.ID, "x"); err == nil {
 		t.Fatal("non-member sent chat")
 	}
-	msgs, err := s.ChatMessages(ctx, ua.ID, m.ID)
+	msgs, err := s.ChatMessages(ctx, ua.ID, "", m.ID)
 	if err != nil || len(msgs) != 1 {
 		t.Fatalf("%d %v", len(msgs), err)
 	}
@@ -34,10 +34,10 @@ func TestMeetingChat(t *testing.T) {
 	if _, err := s.End(ctx, ua.ID, m.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AppendChatMessage(ctx, ua.ID, m.ID, "late"); err == nil {
+	if _, err := s.AppendChatMessage(ctx, ua.ID, "", m.ID, "late"); err == nil {
 		t.Fatal("chat after end")
 	}
-	if hist, err := s.ChatMessages(ctx, ua.ID, m.ID); err != nil || len(hist) != 1 {
+	if hist, err := s.ChatMessages(ctx, ua.ID, "", m.ID); err != nil || len(hist) != 1 {
 		t.Fatalf("history unreadable after end: %d %v", len(hist), err)
 	}
 }
@@ -49,7 +49,7 @@ func TestMeetingChatTruncation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg, err := s.AppendChatMessage(ctx, ua.ID, m.ID, strings.Repeat("a", 5000))
+	msg, err := s.AppendChatMessage(ctx, ua.ID, "", m.ID, strings.Repeat("a", 5000))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestMeetingChatRequiresJoin(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ve ValidationError
-	if _, err := s.AppendChatMessage(ctx, ub.ID, m.ID, "hi"); !errors.As(err, &ve) || ve.Msg != "chưa tham gia phòng họp" {
+	if _, err := s.AppendChatMessage(ctx, ub.ID, "", m.ID, "hi"); !errors.As(err, &ve) || ve.Msg != "chưa tham gia phòng họp" {
 		t.Fatalf("want join validation, got %v", err)
 	}
 }
@@ -82,10 +82,10 @@ func TestMeetingChatBeforeStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AppendChatMessage(ctx, ua.ID, m.ID, "early"); err == nil {
+	if _, err := s.AppendChatMessage(ctx, ua.ID, "", m.ID, "early"); err == nil {
 		t.Fatal("chat before start accepted")
 	}
-	if _, err := s.ChatMessages(ctx, ub.ID, m.ID); err != ErrForbidden {
+	if _, err := s.ChatMessages(ctx, ub.ID, "", m.ID); err != ErrForbidden {
 		t.Fatalf("non-member list chat: %v", err)
 	}
 }

@@ -10,6 +10,7 @@
 // `request` directly, so the compiler is what keeps every response behind a
 // schema.
 export { ApiError, apiErrorMessage, correlationIdOf, errorCode, refreshSession } from "./http";
+export { GUEST_SESSION_HEADER, getGuestSession, setGuestSession } from "./guest-session";
 export type { RequestOpts } from "./http";
 export { parseWithFallback, setSchemaLogger } from "./schema";
 export type { ParseOptions } from "./schema";
