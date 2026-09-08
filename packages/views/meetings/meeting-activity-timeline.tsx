@@ -1,13 +1,15 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, History } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { activityLabelKey, useMeetingActivity } from "@uniwork/core/meetings";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
+import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingPanelCard } from "./meeting-panel-card";
+import { MeetingPersonAvatar } from "./meeting-person";
 import { meetingLocale } from "./meeting-datetime";
 
 const VISIBLE_ACTIVITY_LIMIT = 5;
@@ -35,13 +37,18 @@ export function MeetingActivityTimeline({
     <Collapsible open={open} onOpenChange={setOpen}>
       <MeetingPanelCard
         id="activity-heading"
+        icon={History}
         title={t("meetings.activity")}
+        flush
         action={
           <CollapsibleTrigger
             render={
-              <Button type="button" size="sm" variant="ghost" className="h-8 gap-1 px-2 text-muted-foreground">
+              <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">
                 {open ? t("meetings.hideActivity") : t("meetings.showActivity", { count: all.length })}
-                <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+                <ChevronDown
+                  className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")}
+                  aria-hidden
+                />
               </Button>
             }
           />
@@ -49,29 +56,35 @@ export function MeetingActivityTimeline({
       >
         <CollapsibleContent>
           {all.length === 0 ? (
-            <p className="text-label text-muted-foreground">{t("meetings.activityEmpty")}</p>
+            <p className="px-4 py-6 text-center text-label text-muted-foreground">{t("meetings.activityEmpty")}</p>
           ) : (
-            <>
-              <ol className="-mx-4 -mt-4 divide-y divide-border">
+            <div className="px-4 py-4">
+              <ol className="relative space-y-4 before:absolute before:bottom-3 before:left-3 before:top-3 before:w-px before:bg-border">
                 {visible.map((item) => {
                   const from = item.from_state;
                   const to = item.to_state;
                   const showStates = Boolean(from && to && !from.startsWith("01") && !to.startsWith("01"));
+                  const actor = nameOf(item.actor_id);
                   return (
-                    <li key={item.id} className="px-4 py-2.5">
-                      <div className="text-body text-foreground">
-                        {nameOf(item.actor_id)} {t(activityLabelKey(item.event_type))}
-                      </div>
-                      {showStates ? (
-                        <div className="text-caption text-muted-foreground">
-                          {from} → {to}
-                        </div>
-                      ) : null}
-                      <div className="text-caption tabular-nums text-muted-foreground">
-                        {new Date(item.occurred_at).toLocaleString(meetingLocale(i18n.language), {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
+                    <li key={item.id} className="relative flex min-w-0 items-start gap-3">
+                      <MeetingPersonAvatar name={actor} size="sm" className="relative ring-4 ring-surface" />
+                      <div className="min-w-0 flex-1 pt-0.5">
+                        <p className="text-body text-foreground">
+                          <span className="font-medium">{actor}</span> {t(activityLabelKey(item.event_type))}
+                        </p>
+                        <p className="mt-0.5 flex flex-wrap gap-x-2 text-caption tabular-nums text-muted-foreground">
+                          <span>
+                            {new Date(item.occurred_at).toLocaleString(meetingLocale(i18n.language), {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </span>
+                          {showStates ? (
+                            <span>
+                              {from} → {to}
+                            </span>
+                          ) : null}
+                        </p>
                       </div>
                     </li>
                   );
@@ -82,13 +95,13 @@ export function MeetingActivityTimeline({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="mt-2 h-8 px-0 text-muted-foreground hover:text-foreground"
+                  className="mt-3 ml-9 px-2 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowAll(true)}
                 >
                   {t("meetings.showAllActivity", { count: all.length })}
                 </Button>
               ) : null}
-            </>
+            </div>
           )}
         </CollapsibleContent>
       </MeetingPanelCard>

@@ -6,6 +6,7 @@ import { RoomEvent, Track } from "livekit-client";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import {
   applyMeetingBackgroundProcessor,
+  meetingBackgroundActive,
   supportsBackgroundProcessors,
 } from "./meeting-background-processor";
 
@@ -19,9 +20,10 @@ export function MeetingCameraBackgroundSync() {
   );
 
   useEffect(() => {
-    if (!supportsBackgroundProcessors()) return;
-
     const applyToCamera = async () => {
+      // The library (and its support check) is only fetched once a background
+      // is wanted; "none" just stops whatever processor may be running.
+      if (meetingBackgroundActive(background) && !(await supportsBackgroundProcessors())) return;
       const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
       const track = pub?.videoTrack;
       if (!track) return;

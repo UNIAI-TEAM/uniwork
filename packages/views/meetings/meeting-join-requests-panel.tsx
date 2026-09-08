@@ -1,5 +1,6 @@
 "use client";
 import { useTranslation } from "react-i18next";
+import { UserRoundCheck } from "lucide-react";
 import { useJoinRequests } from "@uniwork/core/meetings";
 import { MeetingJoinRequestRow } from "./meeting-join-request-row";
 import { MeetingPanelCard } from "./meeting-panel-card";
@@ -39,7 +40,7 @@ export function MeetingJoinRequestsPanel({
 
   if (compact) {
     return (
-      <MeetingPanelCard id="join-requests-heading" title={title}>
+      <MeetingPanelCard id="join-requests-heading" icon={UserRoundCheck} tone="warning" title={title}>
         {list}
       </MeetingPanelCard>
     );
