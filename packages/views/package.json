@@ -14,6 +14,8 @@
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
+    "./tasks/surface/*": "./tasks/surface/*.tsx",
+    "./tasks/modes/*": "./tasks/modes/*.tsx",
     "./meetings/meeting-invite-session": "./meetings/meeting-invite-session.ts",
     "./meetings/*": "./meetings/*.tsx",
     "./chat/*": "./chat/*.tsx",

@@ -624,7 +624,10 @@
     "priority_low": "Thấp",
     "priority_medium": "Trung bình",
     "priority_high": "Cao",
-    "priority_urgent": "Khẩn cấp"
+    "priority_urgent": "Khẩn cấp",
+    "surface": {
+      "mode_placeholder": "Kiểu hiển thị này chưa sẵn sàng."
+    }
   },
   "agents": {
     "badge": "Agent"

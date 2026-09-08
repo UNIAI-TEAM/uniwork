@@ -625,7 +625,10 @@
     "priority_low": "Low",
     "priority_medium": "Medium",
     "priority_high": "High",
-    "priority_urgent": "Urgent"
+    "priority_urgent": "Urgent",
+    "surface": {
+      "mode_placeholder": "This view mode is not available yet."
+    }
   },
   "agents": {
     "badge": "Agent"
