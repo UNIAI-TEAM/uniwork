@@ -180,6 +180,31 @@ describe("TaskSurface", () => {
     });
   });
 
+  it("shows surface empty with create in gantt when zero tasks exist", async () => {
+    queryTasks = [];
+    const store = getTaskSurfaceViewStore("test-ws-gantt-surface-empty");
+    store.getState().setViewMode("gantt");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["gantt", "list"]}
+          surfaceKey="test-ws-gantt-surface-empty"
+        />,
+      ),
+    );
+
+    expect(
+      await screen.findByText(/Chưa có công việc nào|No tasks yet/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("gantt-empty")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/chưa có task đã lên lịch|no scheduled tasks/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not mark the surface empty in gantt when only undated tasks exist", async () => {
     queryTasks = [task({ id: "undated", title: "No dates yet" })];
     const store = getTaskSurfaceViewStore("test-ws-gantt-empty");
