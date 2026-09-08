@@ -1,6 +1,6 @@
 # UniWork — Documents (soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage)
 
-> **Trạng thái:** in-progress — Đề xuất, chờ duyệt (chủ sở hữu sản phẩm + kiến trúc sư trưởng duyệt PR spec). Spec đầu tiên của Giai đoạn C (epic UNI-416); chưa có plan, chưa có sub-issue.
+> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11).
 
 **Ngày:** 2026-09-08
 **Issue:** UNI-437 · C-01 · Bounded context Document · P0
