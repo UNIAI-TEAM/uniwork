@@ -4,7 +4,8 @@ import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { myTasksViewStore } from "@uniwork/core/tasks/stores/my-tasks-view-store";
 import { requestMock, wrap } from "../test/api-mock";
-import { MyTasksPageView, MyTasksUnavailable } from "./my-tasks-page";
+import { MyTasksPageView } from "./my-tasks-page";
+import { MyTasksUnavailable } from "./my-tasks-unavailable";
 
 initI18n();
 

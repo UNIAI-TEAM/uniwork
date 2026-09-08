@@ -71,16 +71,3 @@ export function MyTasksPageView({
     </div>
   );
 }
-
-/** Deep-link / flag-off shell — visible empty state, no crash. */
-export function MyTasksUnavailable() {
-  const { t } = useTranslation();
-  return (
-    <CollectionPageState
-      icon={ListTodo}
-      title={t("myTasks.unavailable_title")}
-      description={t("myTasks.unavailable_description")}
-      role="status"
-    />
-  );
-}
