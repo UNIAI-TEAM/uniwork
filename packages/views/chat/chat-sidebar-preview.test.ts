@@ -64,6 +64,26 @@ describe("chat-sidebar-preview", () => {
     expect(text).toBe("xin chao");
   });
 
+  it("uses the localized voice message preview", () => {
+    const text = formatChatSidebarPreviewText(
+      {
+        body: "",
+        kind: "voice",
+        senderId: "u2",
+        senderName: "Binh",
+        createdAt: "2026-03-26T10:00:00Z",
+      },
+      {
+        currentUserId: "self",
+        isGroup: false,
+        youLabel: "Bạn",
+        voiceCallLabel: "Cuộc gọi",
+        voiceMessageLabel: "Tin nhắn thoại",
+      },
+    );
+    expect(text).toBe("Tin nhắn thoại");
+  });
+
   it("sorts previews by recency", () => {
     const newer = {
       body: "b",

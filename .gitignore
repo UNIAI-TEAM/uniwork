@@ -18,6 +18,9 @@ multica/
 
 # local upload storage (LOCAL_UPLOAD_DIR default)
 server/data/
+data/uploads/**
+!data/uploads/**/
+!data/uploads/**/.keep
 .env.worktree
 
 # OS / editor noise

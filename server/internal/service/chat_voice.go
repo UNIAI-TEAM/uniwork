@@ -436,20 +436,7 @@ func (s *ChatService) finalizeVoiceCall(
 		return err
 	}
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID)
 	return nil
 }
 
@@ -514,6 +501,7 @@ func chatMessageRowFromMessageFields(
 		Pinned:           pinFromMetadata(metadata),
 		MentionedUserIDs: mentionedUserIDsFromMetadata(metadata),
 		VoiceCall:        voiceCallLogFromMetadata(kind, metadata),
+		Voice:            voiceMessageFromMetadata(kind, metadata),
 		Poll:             pollFromMetadata(kind, metadata, viewerID),
 		Reminder:         reminderFromMetadata(kind, metadata),
 		Note:             noteFromMetadata(kind, metadata, body),

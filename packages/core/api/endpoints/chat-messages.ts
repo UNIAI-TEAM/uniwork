@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { request } from "../http";
+import { request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 import { ChatMessageEnvelopeSchema, ChatMessagesListSchema, enc } from "./chat-schemas";
 import type { ChatMessageRecord } from "./chat-schemas";
@@ -111,6 +111,43 @@ export async function sendChatRoomMessage(
     endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages",
   });
   return parsed.message ?? null;
+}
+
+export async function sendChatVoiceMessage(
+  workspaceId: string,
+  roomId: string,
+  input: {
+    file: Blob;
+    duration_ms: number;
+    client_msg_id: string;
+    reply_to_message_id?: string;
+  },
+): Promise<ChatMessageRecord | null> {
+  const form = new FormData();
+  form.set("file", input.file, `voice.${input.file.type.includes("ogg") ? "ogg" : input.file.type.includes("mp4") ? "m4a" : "webm"}`);
+  form.set("duration_ms", String(input.duration_ms));
+  form.set("client_msg_id", input.client_msg_id);
+  if (input.reply_to_message_id) {
+    form.set("reply_to_message_id", input.reply_to_message_id);
+  }
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/voice`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/voice",
+  });
+  return parsed.message ?? null;
+}
+
+export function loadChatVoiceBlob(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+): Promise<Blob> {
+  return requestBlob(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/voice`,
+  );
 }
 
 export async function voteChatPollMessage(

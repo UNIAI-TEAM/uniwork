@@ -53,6 +53,26 @@ export function useSendChatRoomMessage(workspaceId: string) {
   });
 }
 
+export function useSendChatVoiceMessage(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      roomId: string;
+      file: Blob;
+      duration_ms: number;
+      client_msg_id: string;
+      reply_to_message_id?: string;
+    }) => chat.sendChatVoiceMessage(workspaceId, input.roomId, input),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({
+        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
+      });
+      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
 export function useVoteChatPollMessage(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({

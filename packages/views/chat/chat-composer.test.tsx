@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
@@ -111,5 +111,52 @@ describe("ChatComposer", () => {
     expect(screen.getByText("Khẩn cấp")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Bỏ đánh dấu"));
     expect(onPriorityChange).toHaveBeenCalledWith(null);
+  });
+
+  it("starts voice recording on click and shows cancel and send", async () => {
+    const stopTrack = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [{ stop: stopTrack }],
+        }),
+      },
+    });
+    class Recorder {
+      static isTypeSupported = () => true;
+      state: RecordingState = "inactive";
+      mimeType = "audio/webm;codecs=opus";
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        this.onstop?.();
+      }
+    }
+    vi.stubGlobal("MediaRecorder", Recorder);
+
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendVoice={vi.fn()}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByLabelText("Tin nhắn thoại"));
+    expect(await screen.findByRole("button", { name: "Hủy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gửi" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(stopTrack).toHaveBeenCalled());
   });
 });
