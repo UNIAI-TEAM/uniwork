@@ -36,7 +36,9 @@ function task(over: Partial<Task> & { id: string; title: string }): Task {
 
 describe("table-view-model", () => {
   it("maps grouping to suite group_by and stubs project when unavailable", () => {
+    // Default store value "none" is status grouping; label is tasks.table.grouping.none.
     expect(tableGroupBy("none")).toBe("status");
+    expect(tableGroupBy("status")).toBe("status");
     expect(tableGroupBy("assignee")).toBe("assignee");
     expect(tableGroupBy("project", { projectsAvailable: false })).toBe("status");
     expect(tableGroupBy("project", { projectsAvailable: true })).toBe("project");

@@ -62,7 +62,7 @@ export function TableViewToolbar({
           }
         >
           <Layers className="size-3.5" aria-hidden />
-          {t(`tasks.table.grouping.${tableGrouping === "none" ? "none" : tableGrouping}`)}
+          {t(`tasks.table.grouping.${tableGrouping}`)}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuRadioGroup

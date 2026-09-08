@@ -657,7 +657,7 @@
       "showing_of_total": "Hiển thị {{shown}}/{{total}}",
       "unavailable_cell": "Chưa có",
       "grouping": {
-        "none": "Không nhóm",
+        "none": "Trạng thái (mặc định)",
         "status": "Trạng thái",
         "assignee": "Người phụ trách",
         "project": "Dự án"

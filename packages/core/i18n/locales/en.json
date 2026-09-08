@@ -658,7 +658,7 @@
       "showing_of_total": "Showing {{shown}} of {{total}}",
       "unavailable_cell": "Unavailable",
       "grouping": {
-        "none": "No grouping",
+        "none": "Status (default)",
         "status": "Status",
         "assignee": "Assignee",
         "project": "Project"
