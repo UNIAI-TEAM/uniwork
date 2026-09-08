@@ -14,6 +14,7 @@ export const RESERVED_SLUGS = [
   "me",
   "meetings",
   "members",
+  "my-tasks",
   "new",
   "onboarding",
   "orgs",

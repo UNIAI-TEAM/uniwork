@@ -1,6 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
+import {
+  FeatureFlagsProvider,
+  FeatureFlagService,
+  StaticProvider,
+} from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
@@ -19,18 +24,23 @@ const workspace: Workspace = {
   organization_slug: "acme", organization_name: "Acme",
 };
 
-function renderSidebar(pathname: string) {
+function renderSidebar(pathname: string, parity = false) {
   const nav = {
     push: vi.fn(), replace: vi.fn(), back: vi.fn(),
     pathname, searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
   };
+  const service = new FeatureFlagService(
+    new StaticProvider({ tasks_work_management_parity: { default: parity } }),
+  );
   render(
     wrapWithNav(
-      <WorkspaceProvider workspace={workspace} user={user}>
-        <SidebarProvider>
-          <AppSidebar />
-        </SidebarProvider>
-      </WorkspaceProvider>,
+      <FeatureFlagsProvider service={service}>
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <SidebarProvider>
+            <AppSidebar />
+          </SidebarProvider>
+        </WorkspaceProvider>
+      </FeatureFlagsProvider>,
       nav,
     ),
   );
@@ -89,6 +99,13 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trò chuyện" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Thành viên" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Việc của tôi" })).toBeNull();
+  });
+
+  it("shows my-tasks in the nav only when the parity flag is on", () => {
+    renderSidebar("/acme/team/tasks", true);
+    const myTasks = screen.getByRole("link", { name: "Việc của tôi" });
+    expect(myTasks).toHaveAttribute("href", "/acme/team/my-tasks");
   });
 
   it("keeps icon controls visible when collapsed to the icon rail", () => {

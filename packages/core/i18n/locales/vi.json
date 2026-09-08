@@ -149,6 +149,7 @@
   "nav": {
     "inbox": "Hộp việc",
     "tasks": "Công việc",
+    "my_tasks": "Việc của tôi",
     "meetings": "Cuộc họp",
     "chat": "Trò chuyện",
     "members": "Thành viên",
@@ -617,14 +618,215 @@
     "comments": "Bình luận",
     "addComment": "Viết bình luận…",
     "unassigned": "Chưa giao",
+    "status_backlog": "Backlog",
     "status_todo": "Cần làm",
     "status_in_progress": "Đang làm",
+    "status_in_review": "Đang review",
     "status_done": "Hoàn thành",
+    "status_blocked": "Đang chặn",
     "status_cancelled": "Đã hủy",
     "priority_low": "Thấp",
     "priority_medium": "Trung bình",
     "priority_high": "Cao",
-    "priority_urgent": "Khẩn cấp"
+    "priority_urgent": "Khẩn cấp",
+    "surface": {
+      "mode_placeholder": "Kiểu hiển thị này chưa sẵn sàng.",
+      "group_by_project": "Nhóm theo dự án",
+      "empty_column": "Chưa có task",
+      "hide_column": "Ẩn cột",
+      "show_column": "Hiện cột",
+      "hidden_columns": "Cột đã ẩn",
+      "column_menu": "Menu cột",
+      "add_task": "Thêm task",
+      "agent_chip_stub": "Agent",
+      "vcs_chip_stub": "VCS"
+    },
+    "view": {
+      "section": "Kiểu hiển thị",
+      "board": "Bảng",
+      "list": "Danh sách",
+      "table": "Bảng tính",
+      "gantt": "Timeline",
+      "swimlane": "Swimlane",
+      "tooltip_board": "Xem dạng bảng",
+      "tooltip_list": "Xem dạng danh sách",
+      "tooltip_table": "Xem dạng bảng tính",
+      "tooltip_gantt": "Xem dạng timeline",
+      "tooltip_swimlane": "Xem dạng swimlane"
+    },
+    "scope": {
+      "all_label": "Tất cả",
+      "members_label": "Người",
+      "agents_label": "Agent",
+      "all_description": "Task của mọi người",
+      "members_description": "Task có người tham gia",
+      "agents_description": "Task có agent tham gia"
+    },
+    "filters": {
+      "add": "Lọc",
+      "unavailable": "Bộ lọc chưa gắn vào truy vấn — sẽ mở khi filter.ts sẵn sàng.",
+      "clear": "Xóa bộ lọc",
+      "status": "Trạng thái",
+      "priority": "Độ ưu tiên",
+      "assignee": "Người nhận",
+      "date": "Ngày",
+      "count_values": "{{count}} đã chọn",
+      "remove_chip": "Gỡ bộ lọc {{label}}",
+      "chip_save": "Lưu view",
+      "chip_save_as": "Lưu thành view",
+      "chip_edit": "Cập nhật view"
+    },
+    "batch": {
+      "selected": "Đã chọn {{count}}",
+      "clear_selection": "Bỏ chọn",
+      "status": "Trạng thái",
+      "priority": "Độ ưu tiên",
+      "assignee": "Người nhận",
+      "assignee_mixed": "Khác nhau",
+      "delete": "Xóa",
+      "cancel": "Hủy",
+      "update_success": "Đã cập nhật {{count}} task",
+      "update_failed": "Không cập nhật được task",
+      "delete_success": "Đã xóa {{count}} task",
+      "delete_failed": "Không xóa được task",
+      "delete_dialog_title": "Xóa {{count}} task?",
+      "delete_dialog_desc": "Các task này sẽ bị xóa vĩnh viễn.",
+      "delete_dialog_warning": "Không hoàn tác được."
+    },
+    "save_view": {
+      "title": "Lưu view",
+      "edit_title": "Sửa view",
+      "name": "Tên",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "visibility": "Hiển thị",
+      "visibility_private": "Chỉ mình tôi",
+      "visibility_workspace": "Workspace",
+      "hint_workspace": "Lưu cho workspace này.",
+      "hint_my": "Lưu trong Task của tôi.",
+      "hint_project": "Lưu cho dự án này.",
+      "toast_created": "Đã lưu view",
+      "toast_updated": "Đã cập nhật view",
+      "toast_failed": "Không lưu được view"
+    },
+    "view_bar": {
+      "more": "Thêm view",
+      "new": "View mới",
+      "manage": "Quản lý view",
+      "manage_title": "Quản lý view",
+      "manage_hint": "Sắp xếp, ẩn, sửa hoặc xóa view trên thanh này.",
+      "builtin_tag": "Mặc định",
+      "drag_handle": "Kéo để sắp xếp",
+      "visible_toggle": "Hiện trên thanh",
+      "edit": "Sửa view",
+      "delete": "Xóa view",
+      "delete_title": "Xóa view này?",
+      "delete_description": "“{{name}}” sẽ bị gỡ. Task không bị xóa.",
+      "toast_deleted": "Đã xóa view"
+    },
+    "view_selector": {
+      "unavailable": "View đó không còn khả dụng."
+    },
+    "display": {
+      "title": "Hiển thị",
+      "list_options": "Tùy chọn danh sách",
+      "show_subtasks": "Hiện sub-task",
+      "card_properties_section": "Trường trên thẻ",
+      "card_priority": "Độ ưu tiên",
+      "card_assignee": "Người nhận",
+      "card_dueDate": "Hạn",
+      "card_labels": "Nhãn"
+    },
+    "header": {
+      "attachments_unavailable": "Đính kèm"
+    },
+    "agent_activity": {
+      "filter_active_label": "Agent đang chạy"
+    },
+    "gantt": {
+      "header_task": "Công việc",
+      "zoom_day": "Ngày",
+      "zoom_week": "Tuần",
+      "zoom_month": "Tháng",
+      "show_completed": "Hiện đã hoàn thành",
+      "empty": "Chưa có task đã lên lịch — đặt ngày bắt đầu hoặc hạn trên bất kỳ task nào để hiện trên timeline.",
+      "inverted_dates_warning": "Ngày bắt đầu sau hạn — thanh vẽ từ ngày sớm đến muộn."
+    },
+    "swimlane": {
+      "no_parent": "Không có cha",
+      "other_parents": "Cha khác",
+      "no_project": "Không có dự án",
+      "no_assignee": "Chưa giao",
+      "open_parent": "Mở task cha",
+      "toggle_collapse": "Thu/mở lane",
+      "parent_unavailable": "Swimlane theo cha chưa khả dụng."
+    },
+    "table": {
+      "search_placeholder": "Tìm công việc…",
+      "search_clear": "Xóa tìm kiếm",
+      "select_all": "Chọn tất cả công việc",
+      "select_row": "Chọn công việc",
+      "rename": "Đổi tên",
+      "expand_children": "Mở công việc con",
+      "collapse_children": "Thu công việc con",
+      "hierarchy_unavailable": "Chưa khả dụng",
+      "empty": "Không có công việc trong bảng này",
+      "load_error": "Không tải được bảng",
+      "load_more": "Tải thêm",
+      "loading_more": "Đang tải…",
+      "load_more_retry": "Thử lại",
+      "showing_of_total": "Hiển thị {{shown}}/{{total}}",
+      "unavailable_cell": "Chưa có",
+      "grouping": {
+        "none": "Trạng thái (mặc định)",
+        "status": "Trạng thái",
+        "assignee": "Người phụ trách",
+        "project": "Dự án"
+      },
+      "columns": {
+        "trigger": "Cột",
+        "search_placeholder": "Tìm cột…",
+        "system_section": "Hệ thống",
+        "property_section": "Thuộc tính",
+        "properties_stub": "Thuộc tính tùy chỉnh chưa sẵn sàng",
+        "no_results": "Không có cột khớp",
+        "title": "Tiêu đề",
+        "identifier": "Mã",
+        "status": "Trạng thái",
+        "priority": "Độ ưu tiên",
+        "assignee": "Người phụ trách",
+        "labels": "Nhãn",
+        "project": "Dự án",
+        "start_date": "Ngày bắt đầu",
+        "due_date": "Hạn",
+        "created_at": "Tạo lúc",
+        "updated_at": "Cập nhật",
+        "child_progress": "Tiến độ công việc con",
+        "creator": "Người tạo"
+      }
+    }
+  },
+  "myTasks": {
+    "page": {
+      "title": "Việc của tôi",
+      "empty_title": "Chưa có việc nào của bạn",
+      "empty_description": "Việc bạn tạo hoặc được giao sẽ hiện ở đây."
+    },
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Việc của tôi mở khi parity quản lý công việc được bật cho workspace này.",
+    "scope": {
+      "all_label": "Tất cả",
+      "all_description": "Được giao cho tôi, do tôi tạo, hoặc liên quan đến agent của tôi",
+      "assigned_label": "Được giao",
+      "assigned_description": "Công việc được giao cho tôi",
+      "created_label": "Đã tạo",
+      "created_description": "Công việc do tôi tạo",
+      "involved_label": "Agent của tôi",
+      "involved_description": "Công việc liên quan đến agent của tôi"
+    }
+  },
+  "capabilities": {
+    "unknown": "Tính năng này chưa khả dụng."
   },
   "agents": {
     "badge": "Agent"

@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "owner_issue": "UNI-500",
+  "note": "Deterministic verification overlay for slice-3-owned collection UI entries only. Regeneration merges this with slice1/slice2; do not invent verification for later UNI-426 slices.",
+  "entries": [
+    {
+      "source_path": "packages/views/issues/components/batch-action-toolbar.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/batch-action-toolbar.test.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/batch-action-toolbar.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/batch-action-toolbar.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/board-view.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/board-view.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/filter-chips-bar.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/filter-chips-bar.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/gantt-view.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/gantt-view.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/issues-header.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/tasks-header.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/issues-page.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/task-surface-page.test.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/issues-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/task-surface-page.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/list-view.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/list-view.test.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/list-view.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/list-view.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/manage-views-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/manage-views-dialog.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/save-view-dialog.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/save-view-dialog.test.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/save-view-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/save-view-dialog.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/swimlane-view.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/swimlane-view.test.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/swimlane-view.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/swimlane-view.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/table-view-model.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/table-view-model.test.ts",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/table-view-model.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/table-view-model.ts",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/table-view.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/modes/table-view.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/view-bar-popover.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/view-bar-popover.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/components/view-bar.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/views/view-bar.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/actions-context.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/actions-context.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/issue-surface.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/task-surface.test.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/issue-surface.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/task-surface.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/selection-context.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/selection-context.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/types.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/types.ts",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-group-branches.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/use-task-group-branches.ts",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-surface-controller.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/use-task-surface-controller.ts",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-surface-data.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/surface/use-task-surface-data.ts",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/my-issues/components/my-issues-header.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/my-tasks/my-tasks-header.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/my-issues/components/my-issues-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/my-tasks/my-tasks-page.tsx",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    },
+    {
+      "source_path": "packages/views/my-issues/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/my-tasks/index.ts",
+      "evidence_commit": "65864095ccb493bbe525ca8e0c5ee97978f5d95f"
+    }
+  ]
+}

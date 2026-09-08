@@ -1,0 +1,432 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "3d37828e9",
+  "owner_issue": "UNI-500",
+  "entries": [
+    {
+      "source_path": "packages/views/issues/surface/issue-surface.tsx",
+      "target_path": "packages/views/tasks/surface/task-surface.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/issue-surface.test.tsx",
+      "target_path": "packages/views/tasks/surface/task-surface.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-surface-controller.ts",
+      "target_path": "packages/views/tasks/surface/use-task-surface-controller.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-surface-controller.test.tsx",
+      "target_path": "packages/views/tasks/surface/use-task-surface-controller.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-surface-data.ts",
+      "target_path": "packages/views/tasks/surface/use-task-surface-data.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-surface-actions.ts",
+      "target_path": "packages/views/tasks/surface/use-task-surface-actions.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/types.ts",
+      "target_path": "packages/views/tasks/surface/types.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/actions-context.tsx",
+      "target_path": "packages/views/tasks/surface/actions-context.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/selection-context.tsx",
+      "target_path": "packages/views/tasks/surface/selection-context.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/selection-context.test.tsx",
+      "target_path": "packages/views/tasks/surface/selection-context.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/view-baseline-context.tsx",
+      "target_path": "packages/views/tasks/surface/view-baseline-context.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-group-branches.ts",
+      "target_path": "packages/views/tasks/surface/use-task-group-branches.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-group-branches.test.tsx",
+      "target_path": "packages/views/tasks/surface/use-task-group-branches.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-group-branches.category.test.tsx",
+      "target_path": "packages/views/tasks/surface/use-task-group-branches.category.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-status-branches.ts",
+      "target_path": "packages/views/tasks/surface/use-task-status-branches.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-status-branches.test.tsx",
+      "target_path": "packages/views/tasks/surface/use-task-status-branches.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-status-branches.category.test.tsx",
+      "target_path": "packages/views/tasks/surface/use-task-status-branches.category.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/use-issue-surface-catalog.test.tsx",
+      "target_path": "packages/views/tasks/surface/use-task-surface-catalog.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/surface/activity.ts",
+      "target_path": "packages/views/tasks/surface/activity.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/surface/activity.test.ts",
+      "target_path": "packages/views/tasks/surface/activity.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/board-view.tsx",
+      "target_path": "packages/views/tasks/modes/board-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/list-view.tsx",
+      "target_path": "packages/views/tasks/modes/list-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/list-view.test.tsx",
+      "target_path": "packages/views/tasks/modes/list-view.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/table-view.tsx",
+      "target_path": "packages/views/tasks/modes/table-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/table-view-model.ts",
+      "target_path": "packages/views/tasks/modes/table-view-model.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/table-view-model.test.ts",
+      "target_path": "packages/views/tasks/modes/table-view-model.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/table-view-editing.test.tsx",
+      "target_path": "packages/views/tasks/modes/table-view-editing.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/gantt-view.tsx",
+      "target_path": "packages/views/tasks/modes/gantt-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/gantt-view.test.tsx",
+      "target_path": "packages/views/tasks/modes/gantt-view.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/swimlane-view.tsx",
+      "target_path": "packages/views/tasks/modes/swimlane-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/swimlane-view.test.tsx",
+      "target_path": "packages/views/tasks/modes/swimlane-view.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issues-header.tsx",
+      "target_path": "packages/views/tasks/views/tasks-header.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/issues-header.status-filter.test.tsx",
+      "target_path": "packages/views/tasks/views/tasks-header.status-filter.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/filter-chips-bar.tsx",
+      "target_path": "packages/views/tasks/views/filter-chips-bar.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/filter-chips-bar.test.ts",
+      "target_path": "packages/views/tasks/views/filter-chips-bar.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/view-bar.tsx",
+      "target_path": "packages/views/tasks/views/view-bar.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/view-bar-popover.tsx",
+      "target_path": "packages/views/tasks/views/view-bar-popover.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/save-view-dialog.tsx",
+      "target_path": "packages/views/tasks/views/save-view-dialog.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/save-view-dialog.test.tsx",
+      "target_path": "packages/views/tasks/views/save-view-dialog.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/manage-views-dialog.tsx",
+      "target_path": "packages/views/tasks/views/manage-views-dialog.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/batch-action-toolbar.tsx",
+      "target_path": "packages/views/tasks/views/batch-action-toolbar.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/components/batch-action-toolbar.test.tsx",
+      "target_path": "packages/views/tasks/views/batch-action-toolbar.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/batch-action-toolbar.confirm.test.tsx",
+      "target_path": "packages/views/tasks/views/batch-action-toolbar.confirm.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/my-issues/components/my-issues-page.tsx",
+      "target_path": "packages/views/my-tasks/my-tasks-page.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/my-issues/components/my-issues-header.tsx",
+      "target_path": "packages/views/my-tasks/my-tasks-header.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/my-issues/index.ts",
+      "target_path": "packages/views/my-tasks/index.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/issues/stores/surface-view-store.ts",
+      "target_path": "packages/core/tasks/stores/surface-view-store.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/core/issues/stores/surface-view-store.test.tsx",
+      "target_path": "packages/core/tasks/stores/surface-view-store.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/issues/stores/view-store.ts",
+      "target_path": "packages/core/tasks/stores/view-store.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/core/issues/stores/view-store-context.tsx",
+      "target_path": "packages/core/tasks/stores/view-store-context.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/core/issues/stores/view-store-status.test.ts",
+      "target_path": "packages/core/tasks/stores/view-store-status.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/issues/stores/my-issues-view-store.ts",
+      "target_path": "packages/core/tasks/stores/my-tasks-view-store.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/core/issues/stores/my-issues-view-store.test.ts",
+      "target_path": "packages/core/tasks/stores/my-tasks-view-store.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/issues/surface/scope.ts",
+      "target_path": "packages/core/tasks/surface/scope.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/core/issues/surface/scope.test.ts",
+      "target_path": "packages/core/tasks/surface/scope.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/issues/surface/query-plan.ts",
+      "target_path": "packages/core/tasks/surface/query-plan.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/utils/filter.ts",
+      "target_path": "packages/views/tasks/utils/filter.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/utils/filter.test.ts",
+      "target_path": "packages/views/tasks/utils/filter.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/utils/sort.ts",
+      "target_path": "packages/views/tasks/utils/sort.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/utils/sort.test.ts",
+      "target_path": "packages/views/tasks/utils/sort.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/utils/drag-utils.ts",
+      "target_path": "packages/views/tasks/utils/drag-utils.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/utils/drag-utils.test.ts",
+      "target_path": "packages/views/tasks/utils/drag-utils.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail.tsx",
+      "target_path": "packages/views/tasks/components/task-detail.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail.test.tsx",
+      "target_path": "packages/views/tasks/components/task-detail.test.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail-route.tsx",
+      "target_path": "packages/views/tasks/components/task-detail-route.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail-route.test.tsx",
+      "target_path": "packages/views/tasks/components/task-detail-route.test.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card.tsx",
+      "target_path": "packages/views/tasks/components/comment-card.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card.test.tsx",
+      "target_path": "packages/views/tasks/components/comment-card.test.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-input.tsx",
+      "target_path": "packages/views/tasks/components/comment-input.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-composers.test.tsx",
+      "target_path": "packages/views/tasks/components/comment-composers.test.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/use-comment-uploads.ts",
+      "target_path": "packages/views/tasks/components/use-comment-uploads.ts",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.tsx",
+      "target_path": "packages/views/tasks/components/pull-request-list.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.test.tsx",
+      "target_path": "packages/views/tasks/components/pull-request-list.test.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.tsx",
+      "target_path": "packages/views/tasks/components/task-agent-activity-indicator.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.test.tsx",
+      "target_path": "packages/views/tasks/components/task-agent-activity-indicator.test.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.tsx",
+      "target_path": "packages/views/tasks/components/task-agent-header-chip.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.test.tsx",
+      "target_path": "packages/views/tasks/components/task-agent-header-chip.test.tsx",
+      "disposition": "skip_detail"
+    },
+    {
+      "source_path": "packages/views/issues/components/issues-page.tsx",
+      "target_path": "packages/views/tasks/task-surface-page.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issues-page.test.tsx",
+      "target_path": "packages/views/tasks/task-surface-page.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/issues/stores/comment-draft-store.ts",
+      "target_path": "packages/core/tasks/stores/comment-draft-store.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/issues/stores/comment-composer-store.ts",
+      "target_path": "packages/core/tasks/stores/comment-composer-store.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/issues/stores/draft-store.ts",
+      "target_path": "packages/core/tasks/stores/draft-store.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/issues/stores/create-mode-store.ts",
+      "target_path": "packages/core/tasks/stores/create-mode-store.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/issues/stores/sub-issue-display-store.ts",
+      "target_path": "packages/core/tasks/stores/sub-task-display-store.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/issues/stores/recent-issues-store.ts",
+      "target_path": "packages/core/tasks/stores/recent-tasks-store.ts",
+      "disposition": "skip_later_slice"
+    }
+  ]
+}

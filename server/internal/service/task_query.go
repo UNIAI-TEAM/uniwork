@@ -15,9 +15,10 @@ const (
 
 // TaskQuery filters and pages workspace tasks for the flagged suite.
 type TaskQuery struct {
-	Status string
-	Limit  int32
-	Offset int32
+	Status   string
+	Relation string // my-tasks: all | assigned | created | involved
+	Limit    int32
+	Offset   int32
 }
 
 // TaskPage is one filtered window plus the total matching count.

@@ -12,6 +12,7 @@ import { applyVerificationOverlay } from "./generate-task-parity-manifest.mjs";
 const path = new URL("../docs/parity/tasks-work-management.json", import.meta.url);
 const overlayPath = new URL("../docs/parity/tasks-work-management.slice1-verification.json", import.meta.url);
 const slice2OverlayPath = new URL("../docs/parity/tasks-work-management.slice2-verification.json", import.meta.url);
+const slice3OverlayPath = new URL("../docs/parity/tasks-work-management.slice3-verification.json", import.meta.url);
 const generator = fileURLToPath(new URL("./generate-task-parity-manifest.mjs", import.meta.url));
 const execFile = promisify(execFileCallback);
 const capabilityIDs = [
@@ -41,6 +42,39 @@ const slice2ApiSources = [
   "server/internal/handler/project.go",
   "server/internal/service/issue.go",
 ];
+const slice3UiSources = [
+  "packages/views/issues/components/batch-action-toolbar.test.tsx",
+  "packages/views/issues/components/batch-action-toolbar.tsx",
+  "packages/views/issues/components/board-view.tsx",
+  "packages/views/issues/components/filter-chips-bar.tsx",
+  "packages/views/issues/components/gantt-view.tsx",
+  "packages/views/issues/components/issues-header.tsx",
+  "packages/views/issues/components/issues-page.test.tsx",
+  "packages/views/issues/components/issues-page.tsx",
+  "packages/views/issues/components/list-view.test.tsx",
+  "packages/views/issues/components/list-view.tsx",
+  "packages/views/issues/components/manage-views-dialog.tsx",
+  "packages/views/issues/components/save-view-dialog.test.tsx",
+  "packages/views/issues/components/save-view-dialog.tsx",
+  "packages/views/issues/components/swimlane-view.test.tsx",
+  "packages/views/issues/components/swimlane-view.tsx",
+  "packages/views/issues/components/table-view-model.test.ts",
+  "packages/views/issues/components/table-view-model.ts",
+  "packages/views/issues/components/table-view.tsx",
+  "packages/views/issues/components/view-bar-popover.tsx",
+  "packages/views/issues/components/view-bar.tsx",
+  "packages/views/issues/surface/actions-context.tsx",
+  "packages/views/issues/surface/issue-surface.test.tsx",
+  "packages/views/issues/surface/issue-surface.tsx",
+  "packages/views/issues/surface/selection-context.tsx",
+  "packages/views/issues/surface/types.ts",
+  "packages/views/issues/surface/use-issue-group-branches.ts",
+  "packages/views/issues/surface/use-issue-surface-controller.ts",
+  "packages/views/issues/surface/use-issue-surface-data.ts",
+  "packages/views/my-issues/components/my-issues-header.tsx",
+  "packages/views/my-issues/components/my-issues-page.tsx",
+  "packages/views/my-issues/index.ts",
+];
 const pendingKeys = [
   "disposition",
   "kind",
@@ -64,6 +98,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   const manifest = JSON.parse(await readFile(path, "utf8"));
   const overlay = JSON.parse(await readFile(overlayPath, "utf8"));
   const slice2Overlay = JSON.parse(await readFile(slice2OverlayPath, "utf8"));
+  const slice3Overlay = JSON.parse(await readFile(slice3OverlayPath, "utf8"));
   assert.equal(manifest.schema_version, 1);
   assert.equal(manifest.baseline_commit, "3d37828e9");
   assert.equal(manifest.entries.length, 1531);
@@ -79,6 +114,12 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     slice2Overlay.entries.map((entry) => entry.source_path).sort(),
     [...slice2ApiSources].sort(),
   );
+  assert.equal(slice3Overlay.schema_version, 1);
+  assert.equal(slice3Overlay.owner_issue, "UNI-500");
+  assert.deepEqual(
+    slice3Overlay.entries.map((entry) => entry.source_path).sort(),
+    [...slice3UiSources].sort(),
+  );
 
   const sources = manifest.entries.map((entry) => entry.source_path);
   const sourceEntries = manifest.entries.filter((entry) => entry.kind !== "capability");
@@ -90,8 +131,9 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   const verifiedSources = new Set([
     ...overlay.entries.map((entry) => entry.source_path),
     ...slice2Overlay.entries.map((entry) => entry.source_path),
+    ...slice3Overlay.entries.map((entry) => entry.source_path),
   ]);
-  for (const entry of [...overlay.entries, ...slice2Overlay.entries]) {
+  for (const entry of [...overlay.entries, ...slice2Overlay.entries, ...slice3Overlay.entries]) {
     assert.equal(entry.verification_state, "verified");
     assert.match(entry.evidence_path, /\S/);
     assert.match(entry.evidence_commit, /^[0-9a-f]{7,40}$/);
@@ -117,7 +159,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   }
   assert.equal(
     createHash("sha256").update(JSON.stringify(manifest.entries)).digest("hex"),
-    "a14b32387144fd9ab7dfe482ec3fe3ad5d4aaca43b68df6f14f421478c7d107c",
+    "aa0f0d9ca3c967c4111686594fbec88b4492313765bdc5422c92302e4ffc8cd7",
   );
 
   for (const route of [
@@ -239,4 +281,30 @@ test("slice-2 verification overlay marks only owned API entries", async () => {
   assert.equal(merged[1].verification_state, "verified");
   assert.equal(merged[1].evidence_path, "docs/parity/tasks-api-client-core-routes.json");
   assert.equal(merged[1].evidence_commit, "eacfb8e90dbe017adeb200d4e284a4f4a051262a");
+});
+
+test("slice-3 verification overlay marks only owned UI entries", async () => {
+  const overlay = JSON.parse(await readFile(slice3OverlayPath, "utf8"));
+  const pending = {
+    source_path: "packages/core/api/client.ts",
+    target_path: "packages/core/api/client.ts",
+    kind: "source",
+    disposition: "adapted",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const ui = {
+    source_path: "packages/views/issues/surface/issue-surface.tsx",
+    target_path: "packages/views/tasks/surface/task-surface.tsx",
+    kind: "source",
+    disposition: "adapted",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const merged = applyVerificationOverlay([pending, ui], overlay);
+  assert.equal(merged[0].verification_state, "pending");
+  assert.equal(merged[0].evidence_path, undefined);
+  assert.equal(merged[1].verification_state, "verified");
+  assert.equal(merged[1].evidence_path, "packages/views/tasks/surface/task-surface.tsx");
+  assert.match(merged[1].evidence_commit, /^[0-9a-f]{7,40}$/);
 });

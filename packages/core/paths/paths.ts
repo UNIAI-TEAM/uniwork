@@ -39,6 +39,7 @@ export const paths = {
       root: () => base,
       tasks: () => `${base}/tasks`,
       task: (id: string) => `${base}/tasks/${id}`,
+      myTasks: () => `${base}/my-tasks`,
       meetings: () => `${base}/meetings`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,

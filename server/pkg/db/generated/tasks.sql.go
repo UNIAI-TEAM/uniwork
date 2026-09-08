@@ -57,13 +57,22 @@ const countMyTasks = `-- name: CountMyTasks :one
 SELECT count(*)::bigint FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
-  AND (assignee_id = $3 OR created_by = $3)
-  AND ($4::text IS NULL OR status = $4)
+  AND (
+    (
+      ($3::text IS NULL OR $3::text IN ('', 'all'))
+      AND (assignee_id = $4 OR created_by = $4)
+    )
+    OR ($3::text = 'assigned' AND assignee_id = $4)
+    OR ($3::text = 'created' AND created_by = $4)
+    OR ($3::text = 'involved' AND FALSE)
+  )
+  AND ($5::text IS NULL OR status = $5)
 `
 
 type CountMyTasksParams struct {
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    string      `json:"workspace_id"`
+	Relation       pgtype.Text `json:"relation"`
 	ActorID        pgtype.Text `json:"actor_id"`
 	Status         pgtype.Text `json:"status"`
 }
@@ -72,6 +81,7 @@ func (q *Queries) CountMyTasks(ctx context.Context, arg CountMyTasksParams) (int
 	row := q.db.QueryRow(ctx, countMyTasks,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.Relation,
 		arg.ActorID,
 		arg.Status,
 	)
@@ -924,26 +934,37 @@ const listMyTasks = `-- name: ListMyTasks :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
-  AND (assignee_id = $3 OR created_by = $3)
-  AND ($4::text IS NULL OR status = $4)
+  AND (
+    (
+      ($3::text IS NULL OR $3::text IN ('', 'all'))
+      AND (assignee_id = $4 OR created_by = $4)
+    )
+    OR ($3::text = 'assigned' AND assignee_id = $4)
+    OR ($3::text = 'created' AND created_by = $4)
+    OR ($3::text = 'involved' AND FALSE)
+  )
+  AND ($5::text IS NULL OR status = $5)
 ORDER BY status, position, created_at
-LIMIT $6 OFFSET $5
+LIMIT $7 OFFSET $6
 `
 
 type ListMyTasksParams struct {
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    string      `json:"workspace_id"`
+	Relation       pgtype.Text `json:"relation"`
 	ActorID        pgtype.Text `json:"actor_id"`
 	Status         pgtype.Text `json:"status"`
 	OffsetN        int32       `json:"offset_n"`
 	LimitN         int32       `json:"limit_n"`
 }
 
-// Actor's tasks: assigned to them or created by them in this workspace.
+// Actor's tasks filtered by relation (all|assigned|created|involved).
+// relation NULL/'all' → assignee OR created_by; 'involved' → empty until agent links exist.
 func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Task, error) {
 	rows, err := q.db.Query(ctx, listMyTasks,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.Relation,
 		arg.ActorID,
 		arg.Status,
 		arg.OffsetN,

@@ -49,6 +49,60 @@ func TestListMyTasksReturnsOnlyActorsTasks(t *testing.T) {
 	}
 }
 
+func TestListMyTasksRelationFilters(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	actorA := Human(ua.ID)
+	actorB := Human(ub.ID)
+
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+
+	assigned, err := s.Create(ctx, actorA, w.ID, CreateTaskInput{
+		Title: "Assigned to A", AssigneeID: &ua.ID, AssigneeKind: "human",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.Create(ctx, actorA, w.ID, CreateTaskInput{Title: "Created by A, unassigned"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create(ctx, actorB, w.ID, CreateTaskInput{
+		Title: "B's task", AssigneeID: &ub.ID, AssigneeKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	assignedPage, err := s.ListMyTasks(ctx, actorA, w.ID, TaskQuery{Relation: "assigned"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(assignedPage.Tasks) != 1 || assignedPage.Tasks[0].ID != assigned.ID {
+		t.Fatalf("assigned: want only %s, got %+v", assigned.ID, assignedPage.Tasks)
+	}
+
+	createdPage, err := s.ListMyTasks(ctx, actorA, w.ID, TaskQuery{Relation: "created"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, task := range createdPage.Tasks {
+		ids[task.ID] = true
+	}
+	if !ids[created.ID] {
+		t.Fatalf("created: missing %s in %+v", created.ID, ids)
+	}
+
+	involvedPage, err := s.ListMyTasks(ctx, actorA, w.ID, TaskQuery{Relation: "involved"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(involvedPage.Tasks) != 0 || involvedPage.Total != 0 {
+		t.Fatalf("involved must be empty, got tasks=%d total=%d", len(involvedPage.Tasks), involvedPage.Total)
+	}
+}
+
 func TestSetDependencyCycleReturnsParentCycle(t *testing.T) {
 	s, _, ua, _, w := taskFixture(t)
 	ctx := context.Background()

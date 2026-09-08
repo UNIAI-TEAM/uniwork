@@ -150,6 +150,7 @@
   "nav": {
     "inbox": "Inbox",
     "tasks": "Tasks",
+    "my_tasks": "My tasks",
     "meetings": "Meetings",
     "chat": "Chat",
     "members": "Members",
@@ -618,14 +619,215 @@
     "comments": "Comments",
     "addComment": "Write a comment…",
     "unassigned": "Unassigned",
+    "status_backlog": "Backlog",
     "status_todo": "To do",
     "status_in_progress": "In progress",
+    "status_in_review": "In review",
     "status_done": "Done",
+    "status_blocked": "Blocked",
     "status_cancelled": "Cancelled",
     "priority_low": "Low",
     "priority_medium": "Medium",
     "priority_high": "High",
-    "priority_urgent": "Urgent"
+    "priority_urgent": "Urgent",
+    "surface": {
+      "mode_placeholder": "This view mode is not available yet.",
+      "group_by_project": "Group by project",
+      "empty_column": "No tasks",
+      "hide_column": "Hide column",
+      "show_column": "Show column",
+      "hidden_columns": "Hidden columns",
+      "column_menu": "Column menu",
+      "add_task": "Add task",
+      "agent_chip_stub": "Agent",
+      "vcs_chip_stub": "VCS"
+    },
+    "view": {
+      "section": "View mode",
+      "board": "Board",
+      "list": "List",
+      "table": "Table",
+      "gantt": "Timeline",
+      "swimlane": "Swimlane",
+      "tooltip_board": "Board view",
+      "tooltip_list": "List view",
+      "tooltip_table": "Table view",
+      "tooltip_gantt": "Timeline view",
+      "tooltip_swimlane": "Swimlane view"
+    },
+    "scope": {
+      "all_label": "All",
+      "members_label": "People",
+      "agents_label": "Agents",
+      "all_description": "Everyone's tasks",
+      "members_description": "Tasks involving people",
+      "agents_description": "Tasks involving agents"
+    },
+    "filters": {
+      "add": "Filter",
+      "unavailable": "Filters are not wired to queries yet — available once filter.ts lands.",
+      "clear": "Clear filters",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "date": "Date",
+      "count_values": "{{count}} selected",
+      "remove_chip": "Remove {{label}} filter",
+      "chip_save": "Save view",
+      "chip_save_as": "Save as view",
+      "chip_edit": "Update view"
+    },
+    "batch": {
+      "selected": "{{count}} selected",
+      "clear_selection": "Clear selection",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "assignee_mixed": "Mixed",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "update_success": "Updated {{count}} tasks",
+      "update_failed": "Could not update tasks",
+      "delete_success": "Deleted {{count}} tasks",
+      "delete_failed": "Could not delete tasks",
+      "delete_dialog_title": "Delete {{count}} tasks?",
+      "delete_dialog_desc": "These tasks will be permanently deleted.",
+      "delete_dialog_warning": "This cannot be undone."
+    },
+    "save_view": {
+      "title": "Save view",
+      "edit_title": "Edit view",
+      "name": "Name",
+      "save": "Save",
+      "cancel": "Cancel",
+      "visibility": "Visibility",
+      "visibility_private": "Only me",
+      "visibility_workspace": "Workspace",
+      "hint_workspace": "Saved for this workspace.",
+      "hint_my": "Saved under My tasks.",
+      "hint_project": "Saved for this project.",
+      "toast_created": "View saved",
+      "toast_updated": "View updated",
+      "toast_failed": "Could not save the view"
+    },
+    "view_bar": {
+      "more": "More views",
+      "new": "New view",
+      "manage": "Manage views",
+      "manage_title": "Manage views",
+      "manage_hint": "Reorder, hide, edit, or delete views for this surface.",
+      "builtin_tag": "Built-in",
+      "drag_handle": "Drag to reorder",
+      "visible_toggle": "Show on bar",
+      "edit": "Edit view",
+      "delete": "Delete view",
+      "delete_title": "Delete this view?",
+      "delete_description": "“{{name}}” will be removed. Tasks are not deleted.",
+      "toast_deleted": "View deleted"
+    },
+    "view_selector": {
+      "unavailable": "That view is no longer available."
+    },
+    "display": {
+      "title": "Display",
+      "list_options": "List options",
+      "show_subtasks": "Show sub-tasks",
+      "card_properties_section": "Card fields",
+      "card_priority": "Priority",
+      "card_assignee": "Assignee",
+      "card_dueDate": "Due date",
+      "card_labels": "Labels"
+    },
+    "header": {
+      "attachments_unavailable": "Attachments"
+    },
+    "agent_activity": {
+      "filter_active_label": "Agents running"
+    },
+    "gantt": {
+      "header_task": "Task",
+      "zoom_day": "Day",
+      "zoom_week": "Week",
+      "zoom_month": "Month",
+      "show_completed": "Show completed",
+      "empty": "No scheduled tasks yet — set a start or due date on any task to see it on the timeline.",
+      "inverted_dates_warning": "Start date is after due date — bar shown from min to max."
+    },
+    "swimlane": {
+      "no_parent": "No parent",
+      "other_parents": "Other parents",
+      "no_project": "No project",
+      "no_assignee": "Unassigned",
+      "open_parent": "Open parent task",
+      "toggle_collapse": "Toggle lane",
+      "parent_unavailable": "Parent swimlanes are not available yet."
+    },
+    "table": {
+      "search_placeholder": "Search tasks…",
+      "search_clear": "Clear search",
+      "select_all": "Select all tasks",
+      "select_row": "Select task",
+      "rename": "Rename",
+      "expand_children": "Expand sub-tasks",
+      "collapse_children": "Collapse sub-tasks",
+      "hierarchy_unavailable": "Not available yet",
+      "empty": "No tasks in this table",
+      "load_error": "Could not load the table",
+      "load_more": "Load more",
+      "loading_more": "Loading…",
+      "load_more_retry": "Retry",
+      "showing_of_total": "Showing {{shown}} of {{total}}",
+      "unavailable_cell": "Unavailable",
+      "grouping": {
+        "none": "Status (default)",
+        "status": "Status",
+        "assignee": "Assignee",
+        "project": "Project"
+      },
+      "columns": {
+        "trigger": "Columns",
+        "search_placeholder": "Search columns…",
+        "system_section": "System",
+        "property_section": "Properties",
+        "properties_stub": "Custom properties unavailable",
+        "no_results": "No columns match",
+        "title": "Title",
+        "identifier": "ID",
+        "status": "Status",
+        "priority": "Priority",
+        "assignee": "Assignee",
+        "labels": "Labels",
+        "project": "Project",
+        "start_date": "Start date",
+        "due_date": "Due date",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "child_progress": "Sub-task progress",
+        "creator": "Creator"
+      }
+    }
+  },
+  "myTasks": {
+    "page": {
+      "title": "My tasks",
+      "empty_title": "No tasks for you yet",
+      "empty_description": "Tasks you create or are assigned to will appear here."
+    },
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "My tasks opens when work-management parity is enabled for this workspace.",
+    "scope": {
+      "all_label": "All",
+      "all_description": "Assigned to me, created by me, or involving my agents",
+      "assigned_label": "Assigned",
+      "assigned_description": "Tasks assigned to me",
+      "created_label": "Created",
+      "created_description": "Tasks I created",
+      "involved_label": "My agents",
+      "involved_description": "Tasks involving my agents"
+    }
+  },
+  "capabilities": {
+    "unknown": "This capability is not available yet."
   },
   "agents": {
     "badge": "Agent"
