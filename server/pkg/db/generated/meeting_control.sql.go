@@ -1590,6 +1590,36 @@ func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxE
 	return items, nil
 }
 
+const markConferenceSessionResyncing = `-- name: MarkConferenceSessionResyncing :one
+UPDATE meeting_conference_sessions SET
+  provider_sync_status = 'PENDING',
+  updated_at = now()
+WHERE id = $1 AND status = 'IDLE' AND provider_sync_status = 'SYNCED'
+RETURNING id, meeting_id, provider_key, provider_room_name, provider_room_sid, status, provider_sync_status, started_at, ended_at, provider_metadata, created_at, updated_at
+`
+
+// Claims an IDLE session for one re-ensure. The WHERE clause is the lock that
+// keeps concurrent joins from queueing the same instruction twice.
+func (q *Queries) MarkConferenceSessionResyncing(ctx context.Context, id string) (MeetingConferenceSession, error) {
+	row := q.db.QueryRow(ctx, markConferenceSessionResyncing, id)
+	var i MeetingConferenceSession
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.ProviderKey,
+		&i.ProviderRoomName,
+		&i.ProviderRoomSid,
+		&i.Status,
+		&i.ProviderSyncStatus,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.ProviderMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const markOutboxDone = `-- name: MarkOutboxDone :exec
 UPDATE outbox_events SET
   status = 'DONE',
