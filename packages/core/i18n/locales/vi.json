@@ -630,7 +630,15 @@
     "priority_urgent": "Khẩn cấp",
     "surface": {
       "mode_placeholder": "Kiểu hiển thị này chưa sẵn sàng.",
-      "group_by_project": "Nhóm theo dự án"
+      "group_by_project": "Nhóm theo dự án",
+      "empty_column": "Chưa có task",
+      "hide_column": "Ẩn cột",
+      "show_column": "Hiện cột",
+      "hidden_columns": "Cột đã ẩn",
+      "column_menu": "Menu cột",
+      "add_task": "Thêm task",
+      "agent_chip_stub": "Agent",
+      "vcs_chip_stub": "VCS"
     }
   },
   "capabilities": {

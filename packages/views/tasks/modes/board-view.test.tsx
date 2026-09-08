@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
+import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { TASK_STATUSES, type Task } from "@uniwork/core/types";
 import { wrap } from "../../test/api-mock";
 import { BoardView } from "./board-view";
@@ -29,14 +31,17 @@ const sample: Task = {
 
 describe("modes/BoardView", () => {
   it("renders backlog through cancelled columns from catalog", async () => {
+    const store = getTaskSurfaceViewStore("board-view-test");
     render(
       wrap(
-        <BoardView
-          categories={[...TASK_STATUSES]}
-          tasks={[sample]}
-          projectGroupingDisabled
-          projectGroupingReasonKey="capabilities.unknown"
-        />,
+        <ViewStoreProvider store={store}>
+          <BoardView
+            categories={[...TASK_STATUSES]}
+            tasks={[sample]}
+            projectGroupingDisabled
+            projectGroupingReasonKey="capabilities.unknown"
+          />
+        </ViewStoreProvider>,
       ),
     );
 

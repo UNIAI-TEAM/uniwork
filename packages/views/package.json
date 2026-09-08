@@ -44,7 +44,10 @@
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
     "sonner": "catalog:",
-    "zustand": "catalog:"
+    "zustand": "catalog:",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "react-virtuoso": "catalog:"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",

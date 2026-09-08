@@ -631,7 +631,15 @@
     "priority_urgent": "Urgent",
     "surface": {
       "mode_placeholder": "This view mode is not available yet.",
-      "group_by_project": "Group by project"
+      "group_by_project": "Group by project",
+      "empty_column": "No tasks",
+      "hide_column": "Hide column",
+      "show_column": "Show column",
+      "hidden_columns": "Hidden columns",
+      "column_menu": "Column menu",
+      "add_task": "Add task",
+      "agent_chip_stub": "Agent",
+      "vcs_chip_stub": "VCS"
     }
   },
   "capabilities": {
