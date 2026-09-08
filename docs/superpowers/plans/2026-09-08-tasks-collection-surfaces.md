@@ -756,16 +756,16 @@ EOF
 - Modify: umbrella § status line (lát cắt 3 shipped; còn 4–8)
 - Modify: roadmap F-05 note vẫn `MỘT PHẦN`
 
-- [ ] **Step 1: `make check-worktree` (hoặc `make check`) — must PASS**
+- [x] **Step 1: `make check-worktree` (hoặc `make check`) — must PASS**
 
-- [ ] **Step 2: `[agent]` comment trên issue; `make issue-pr`**
+- [x] **Step 2: `[agent]` comment trên issue; `make issue-pr`**
 
 ```bash
 make issue-pr
 # title: <KEY>: Task collection surfaces (UNI-426.3)
 ```
 
-- [ ] **Step 3: Không `make issue-done` — chỉ human**
+- [x] **Step 3: Không `make issue-done` — chỉ human**
 
 ---
 
