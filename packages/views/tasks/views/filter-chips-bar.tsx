@@ -32,13 +32,20 @@ const CHIP_ICON = "size-3 shrink-0 text-muted-foreground";
 function getActiveFilterCount(
   snapshot: FilterSnapshot,
   dateFilter: TaskDateFilter | null,
+  lockProjectFilter: boolean,
 ): number {
   let n = 0;
   if (snapshot.statusFilters.length) n += 1;
   if (snapshot.priorityFilters.length) n += 1;
   if (snapshot.assigneeFilters.length || snapshot.includeNoAssignee) n += 1;
   if (snapshot.creatorFilters.length) n += 1;
-  if (snapshot.projectFilters.length || snapshot.includeNoProject) n += 1;
+  // Project scope already filters server-side — do not count/clear that chip.
+  if (
+    !lockProjectFilter &&
+    (snapshot.projectFilters.length || snapshot.includeNoProject)
+  ) {
+    n += 1;
+  }
   if (snapshot.labelFilters.length) n += 1;
   n += Object.values(snapshot.propertyFilters).filter((v) => v.length > 0)
     .length;
@@ -52,12 +59,15 @@ export function FilterChipsBar({
   onSave,
   saveLabel,
   filterMenu,
+  lockProjectFilter = false,
 }: {
   dateFilter?: TaskDateFilter | null;
   onDateFilterChange?: (filter: TaskDateFilter | null) => void;
   onSave?: () => void;
   saveLabel?: string;
   filterMenu?: ReactNode;
+  /** When true, project filter is server-scoped — hide from count/clear. */
+  lockProjectFilter?: boolean;
 }) {
   const { t } = useTranslation();
   const statusFilters = useViewStore((s) => s.statusFilters);
@@ -160,7 +170,11 @@ export function FilterChipsBar({
     t,
   ]);
 
-  const activeCount = getActiveFilterCount(snapshot, dateFilter);
+  const activeCount = getActiveFilterCount(
+    snapshot,
+    dateFilter,
+    lockProjectFilter,
+  );
   // Filter entry lives in TaskDisplayControls; chips bar only shows active
   // chips / clear / save (plus an optional working filterMenu if a host passes one).
   if (activeCount === 0 && !filterMenu && !onSave) return null;

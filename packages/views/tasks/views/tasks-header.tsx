@@ -37,12 +37,15 @@ export function TasksHeader({
   scopedTasks,
   isRefreshing = false,
   saveViewScope = { kind: "workspace" },
+  lockProjectFilter = false,
 }: {
   workspaceId: string;
   modes: TaskSurfaceMode[];
   scopedTasks: Task[];
   isRefreshing?: boolean;
   saveViewScope?: SaveViewScope | null;
+  /** When true, hide/lock project filter chips (server already scopes by project). */
+  lockProjectFilter?: boolean;
 }) {
   const { t } = useTranslation();
   void scopedTasks;
@@ -176,6 +179,7 @@ export function TasksHeader({
       </div>
 
       <FilterChipsBar
+        lockProjectFilter={lockProjectFilter}
         onSave={
           saveViewScope
             ? () => {

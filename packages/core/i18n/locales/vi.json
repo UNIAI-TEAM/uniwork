@@ -2294,7 +2294,19 @@
       "none": "Không ưu tiên"
     },
     "lead": {
-      "no_lead": "Chưa có phụ trách"
+      "no_lead": "Chưa có phụ trách",
+      "assign_placeholder": "Gán phụ trách…",
+      "no_results": "Không có kết quả"
+    },
+    "detail": {
+      "not_found": "Không tìm thấy dự án",
+      "breadcrumb_fallback": "Dự án",
+      "title_placeholder": "Tiêu đề dự án",
+      "section_properties": "Thuộc tính",
+      "prop_start_date": "Ngày bắt đầu",
+      "prop_due_date": "Ngày hết hạn",
+      "description_placeholder": "Thêm mô tả…",
+      "description_hint": "Được chia sẻ với agent làm ngữ cảnh cho mọi công việc trong dự án này."
     },
     "delete_dialog": {
       "title": "Xóa dự án",

@@ -151,6 +151,7 @@ export function useTaskSurfaceController({
     boardEnabled && scope.type !== "my" ? workspaceId : "",
     {
       group_by: "status",
+      ...(scope.type === "project" ? { project_id: scope.projectId } : {}),
     },
   );
   const updateTask = useUpdateTask(workspaceId);

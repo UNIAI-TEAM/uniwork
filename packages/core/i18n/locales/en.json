@@ -2298,7 +2298,19 @@
       "none": "No priority"
     },
     "lead": {
-      "no_lead": "No lead"
+      "no_lead": "No lead",
+      "assign_placeholder": "Assign lead…",
+      "no_results": "No results"
+    },
+    "detail": {
+      "not_found": "Project not found",
+      "breadcrumb_fallback": "Projects",
+      "title_placeholder": "Project title",
+      "section_properties": "Properties",
+      "prop_start_date": "Start date",
+      "prop_due_date": "Due date",
+      "description_placeholder": "Add description…",
+      "description_hint": "Shared with agents as context for every task in this project."
     },
     "delete_dialog": {
       "title": "Delete project",
