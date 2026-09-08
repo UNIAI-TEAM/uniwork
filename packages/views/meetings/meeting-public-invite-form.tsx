@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { CalendarDays, Loader2, ShieldCheck, Zap } from "lucide-react";
+import { Suspense, lazy, useCallback, useState } from "react";
+import { CalendarDays, Loader2, ShieldCheck, VideoOff, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { InfoHint } from "@uniwork/ui/components/common/info-hint";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -9,10 +9,34 @@ import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { CameraPreviewStatus } from "./meeting-camera-preview";
-import { MeetingCameraPreview } from "./meeting-camera-preview";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { MeetingInviteShell } from "./meeting-invite-shell";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
+
+// Camera preview pulls livekit-client (~130 KB gzip). Lazy-load it so the public
+// invite entry chunk stays under the route budget (scripts/bundle-budget.mjs).
+const MeetingCameraPreview = lazy(() =>
+  import("./meeting-camera-preview").then((m) => ({ default: m.MeetingCameraPreview })),
+);
+
+function CameraPreviewFallback({ className }: { className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      className={cn(
+        "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-rail ring-1 ring-border",
+        className,
+      )}
+    >
+      <div className="flex max-w-xs flex-col items-center gap-2 px-4 text-center">
+        <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <VideoOff aria-hidden className="size-6" />
+        </span>
+        <p className="text-body text-foreground">{t("meetings.devicePreviewEmpty")}</p>
+      </div>
+    </div>
+  );
+}
 
 export function MeetingPublicInviteForm({
   title,
@@ -54,11 +78,13 @@ export function MeetingPublicInviteForm({
       <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-12">
         <section aria-label={t("meetings.devicePreviewTitle")} className="min-w-0">
           <div className="relative">
-            <MeetingCameraPreview
-              active={video}
-              className="aspect-video min-h-52 rounded-2xl shadow-[var(--floating-shadow)] sm:min-h-60"
-              onStatusChange={onPreviewStatus}
-            />
+            <Suspense fallback={<CameraPreviewFallback className="aspect-video min-h-52 rounded-2xl shadow-[var(--floating-shadow)] sm:min-h-60" />}>
+              <MeetingCameraPreview
+                active={video}
+                className="aspect-video min-h-52 rounded-2xl shadow-[var(--floating-shadow)] sm:min-h-60"
+                onStatusChange={onPreviewStatus}
+              />
+            </Suspense>
             {trimmedName ? (
               <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-lg bg-black/55 px-3 py-1.5 text-label font-medium text-white backdrop-blur-sm">
                 {trimmedName}
