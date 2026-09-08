@@ -15,6 +15,8 @@ import { GanttView } from "../modes/gantt-view";
 import { ListView } from "../modes/list-view";
 import { SwimLaneView } from "../modes/swimlane-view";
 import { TableView } from "../modes/table-view";
+import { BatchActionToolbar } from "../views/batch-action-toolbar";
+import { TasksHeader } from "../views/tasks-header";
 import { TaskSurfaceActionsProvider } from "./actions-context";
 import { TaskSurfaceSelectionProvider } from "./selection-context";
 import type { TaskSurfaceProps } from "./types";
@@ -28,6 +30,7 @@ export function TaskSurface({
   scope,
   modes,
   surfaceKey,
+  batchToolbar = "never",
   renderHeader,
   renderEmpty,
 }: TaskSurfaceProps) {
@@ -45,6 +48,7 @@ export function TaskSurface({
         workspaceId={workspaceId}
         scope={scope}
         modes={modes}
+        batchToolbar={batchToolbar}
         renderHeader={renderHeader}
         renderEmpty={renderEmpty}
       />
@@ -56,9 +60,10 @@ function TaskSurfaceContent({
   workspaceId,
   scope,
   modes,
+  batchToolbar = "never",
   renderHeader,
   renderEmpty,
-}: Omit<TaskSurfaceProps, "surfaceKey" | "batchToolbar">) {
+}: Omit<TaskSurfaceProps, "surfaceKey">) {
   const controller = useTaskSurfaceController({
     workspaceId,
     scope,
@@ -70,11 +75,37 @@ function TaskSurfaceContent({
     [controller],
   );
 
+  const showBatchToolbar =
+    batchToolbar === "always" ||
+    (batchToolbar === "list" && controller.viewMode === "list");
+
+  const header =
+    renderHeader?.(renderContext) ??
+    (
+      <TasksHeader
+        workspaceId={workspaceId}
+        modes={modes}
+        scopedTasks={controller.surfaceTasks}
+        isRefreshing={controller.isRefreshing}
+        saveViewScope={
+          scope.type === "workspace"
+            ? { kind: "workspace" }
+            : scope.type === "my"
+              ? {
+                  kind: "my",
+                  variant:
+                    scope.relation === "all" ? "any" : scope.relation,
+                }
+              : null
+        }
+      />
+    );
+
   return (
     <TaskSurfaceActionsProvider actions={controller.actions}>
       <TaskSurfaceSelectionProvider selection={controller.selection}>
         <div className="flex min-h-0 flex-1 flex-col">
-          {renderHeader ? renderHeader(renderContext) : null}
+          {header}
           {controller.isLoading ? (
             <TaskSurfaceSkeleton />
           ) : controller.isEmpty ? (
@@ -117,6 +148,12 @@ function TaskSurfaceContent({
               )}
             </div>
           )}
+          {showBatchToolbar ? (
+            <BatchActionToolbar
+              workspaceId={workspaceId}
+              tasks={controller.surfaceTasks}
+            />
+          ) : null}
           <NewTaskDialog
             workspaceId={workspaceId}
             open={controller.createOpen}

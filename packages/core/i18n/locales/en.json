@@ -641,6 +641,107 @@
       "agent_chip_stub": "Agent",
       "vcs_chip_stub": "VCS"
     },
+    "view": {
+      "section": "View mode",
+      "board": "Board",
+      "list": "List",
+      "table": "Table",
+      "gantt": "Timeline",
+      "swimlane": "Swimlane",
+      "tooltip_board": "Board view",
+      "tooltip_list": "List view",
+      "tooltip_table": "Table view",
+      "tooltip_gantt": "Timeline view",
+      "tooltip_swimlane": "Swimlane view"
+    },
+    "scope": {
+      "all_label": "All",
+      "members_label": "People",
+      "agents_label": "Agents",
+      "all_description": "Everyone's tasks",
+      "members_description": "Tasks involving people",
+      "agents_description": "Tasks involving agents"
+    },
+    "filters": {
+      "add": "Filter",
+      "clear": "Clear filters",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "date": "Date",
+      "count_values": "{{count}} selected",
+      "remove_chip": "Remove {{label}} filter",
+      "chip_save": "Save view",
+      "chip_save_as": "Save as view",
+      "chip_edit": "Update view"
+    },
+    "batch": {
+      "selected": "{{count}} selected",
+      "clear_selection": "Clear selection",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "assignee_mixed": "Mixed",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "update_success": "Updated {{count}} tasks",
+      "update_failed": "Could not update tasks",
+      "delete_success": "Deleted {{count}} tasks",
+      "delete_failed": "Could not delete tasks",
+      "delete_dialog_title": "Delete {{count}} tasks?",
+      "delete_dialog_desc": "These tasks will be permanently deleted.",
+      "delete_dialog_warning": "This cannot be undone."
+    },
+    "save_view": {
+      "title": "Save view",
+      "edit_title": "Edit view",
+      "name": "Name",
+      "save": "Save",
+      "cancel": "Cancel",
+      "visibility": "Visibility",
+      "visibility_private": "Only me",
+      "visibility_workspace": "Workspace",
+      "hint_workspace": "Saved for this workspace.",
+      "hint_my": "Saved under My tasks.",
+      "hint_project": "Saved for this project.",
+      "toast_created": "View saved",
+      "toast_updated": "View updated",
+      "toast_failed": "Could not save the view"
+    },
+    "view_bar": {
+      "more": "More views",
+      "new": "New view",
+      "manage": "Manage views",
+      "manage_title": "Manage views",
+      "manage_hint": "Reorder, hide, edit, or delete views for this surface.",
+      "builtin_tag": "Built-in",
+      "drag_handle": "Drag to reorder",
+      "visible_toggle": "Show on bar",
+      "edit": "Edit view",
+      "delete": "Delete view",
+      "delete_title": "Delete this view?",
+      "delete_description": "“{{name}}” will be removed. Tasks are not deleted.",
+      "toast_deleted": "View deleted"
+    },
+    "view_selector": {
+      "unavailable": "That view is no longer available."
+    },
+    "display": {
+      "title": "Display",
+      "list_options": "List options",
+      "show_subtasks": "Show sub-tasks",
+      "card_properties_section": "Card fields",
+      "card_priority": "Priority",
+      "card_assignee": "Assignee",
+      "card_dueDate": "Due date",
+      "card_labels": "Labels"
+    },
+    "header": {
+      "attachments_unavailable": "Attachments"
+    },
+    "agent_activity": {
+      "filter_active_label": "Agents running"
+    },
     "gantt": {
       "header_task": "Task",
       "zoom_day": "Day",

@@ -640,6 +640,107 @@
       "agent_chip_stub": "Agent",
       "vcs_chip_stub": "VCS"
     },
+    "view": {
+      "section": "Kiểu hiển thị",
+      "board": "Bảng",
+      "list": "Danh sách",
+      "table": "Bảng tính",
+      "gantt": "Timeline",
+      "swimlane": "Swimlane",
+      "tooltip_board": "Xem dạng bảng",
+      "tooltip_list": "Xem dạng danh sách",
+      "tooltip_table": "Xem dạng bảng tính",
+      "tooltip_gantt": "Xem dạng timeline",
+      "tooltip_swimlane": "Xem dạng swimlane"
+    },
+    "scope": {
+      "all_label": "Tất cả",
+      "members_label": "Người",
+      "agents_label": "Agent",
+      "all_description": "Task của mọi người",
+      "members_description": "Task có người tham gia",
+      "agents_description": "Task có agent tham gia"
+    },
+    "filters": {
+      "add": "Lọc",
+      "clear": "Xóa bộ lọc",
+      "status": "Trạng thái",
+      "priority": "Độ ưu tiên",
+      "assignee": "Người nhận",
+      "date": "Ngày",
+      "count_values": "{{count}} đã chọn",
+      "remove_chip": "Gỡ bộ lọc {{label}}",
+      "chip_save": "Lưu view",
+      "chip_save_as": "Lưu thành view",
+      "chip_edit": "Cập nhật view"
+    },
+    "batch": {
+      "selected": "Đã chọn {{count}}",
+      "clear_selection": "Bỏ chọn",
+      "status": "Trạng thái",
+      "priority": "Độ ưu tiên",
+      "assignee": "Người nhận",
+      "assignee_mixed": "Khác nhau",
+      "delete": "Xóa",
+      "cancel": "Hủy",
+      "update_success": "Đã cập nhật {{count}} task",
+      "update_failed": "Không cập nhật được task",
+      "delete_success": "Đã xóa {{count}} task",
+      "delete_failed": "Không xóa được task",
+      "delete_dialog_title": "Xóa {{count}} task?",
+      "delete_dialog_desc": "Các task này sẽ bị xóa vĩnh viễn.",
+      "delete_dialog_warning": "Không hoàn tác được."
+    },
+    "save_view": {
+      "title": "Lưu view",
+      "edit_title": "Sửa view",
+      "name": "Tên",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "visibility": "Hiển thị",
+      "visibility_private": "Chỉ mình tôi",
+      "visibility_workspace": "Workspace",
+      "hint_workspace": "Lưu cho workspace này.",
+      "hint_my": "Lưu trong Task của tôi.",
+      "hint_project": "Lưu cho dự án này.",
+      "toast_created": "Đã lưu view",
+      "toast_updated": "Đã cập nhật view",
+      "toast_failed": "Không lưu được view"
+    },
+    "view_bar": {
+      "more": "Thêm view",
+      "new": "View mới",
+      "manage": "Quản lý view",
+      "manage_title": "Quản lý view",
+      "manage_hint": "Sắp xếp, ẩn, sửa hoặc xóa view trên thanh này.",
+      "builtin_tag": "Mặc định",
+      "drag_handle": "Kéo để sắp xếp",
+      "visible_toggle": "Hiện trên thanh",
+      "edit": "Sửa view",
+      "delete": "Xóa view",
+      "delete_title": "Xóa view này?",
+      "delete_description": "“{{name}}” sẽ bị gỡ. Task không bị xóa.",
+      "toast_deleted": "Đã xóa view"
+    },
+    "view_selector": {
+      "unavailable": "View đó không còn khả dụng."
+    },
+    "display": {
+      "title": "Hiển thị",
+      "list_options": "Tùy chọn danh sách",
+      "show_subtasks": "Hiện sub-task",
+      "card_properties_section": "Trường trên thẻ",
+      "card_priority": "Độ ưu tiên",
+      "card_assignee": "Người nhận",
+      "card_dueDate": "Hạn",
+      "card_labels": "Nhãn"
+    },
+    "header": {
+      "attachments_unavailable": "Đính kèm"
+    },
+    "agent_activity": {
+      "filter_active_label": "Agent đang chạy"
+    },
     "gantt": {
       "header_task": "Công việc",
       "zoom_day": "Ngày",

@@ -7,6 +7,8 @@ import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   taskKeys,
+  useBatchDeleteTasks,
+  useBatchUpdateTasks,
   useGroupedTasks,
   useTableFacets,
   useTaskStatuses,
@@ -138,6 +140,8 @@ export function useTaskSurfaceController({
     group_by: "status",
   });
   const updateTask = useUpdateTask(workspaceId);
+  const batchUpdateTasks = useBatchUpdateTasks(workspaceId);
+  const batchDeleteTasks = useBatchDeleteTasks(workspaceId);
   const { data: publicConfig } = usePublicConfig();
 
   const [activeTableFacet, setActiveTableFacetState] =
@@ -270,14 +274,35 @@ export function useTaskSurfaceController({
 
   const actions = useMemo<TaskSurfaceActions>(
     () => ({
-      isPending: updateTask.isPending,
+      isPending:
+        updateTask.isPending ||
+        batchUpdateTasks.isPending ||
+        batchDeleteTasks.isPending,
       createTask: (defaults) => openCreateTask(defaults),
       updateTask: () => {},
       moveTask,
-      batchUpdate: async () => {},
-      batchDelete: async () => {},
+      batchUpdate: async (taskIds, updates) => {
+        await batchUpdateTasks.mutateAsync({
+          task_ids: taskIds,
+          updates: updates as {
+            status?: string;
+            priority?: string;
+            assignee_id?: string | null;
+            assignee_kind?: string;
+          },
+        });
+      },
+      batchDelete: async (taskIds) => {
+        await batchDeleteTasks.mutateAsync(taskIds);
+      },
     }),
-    [moveTask, openCreateTask, updateTask.isPending],
+    [
+      batchDeleteTasks,
+      batchUpdateTasks,
+      moveTask,
+      openCreateTask,
+      updateTask.isPending,
+    ],
   );
 
   const setViewMode = useCallback(
