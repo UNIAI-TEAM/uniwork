@@ -13,6 +13,9 @@ describe("ChatMessageBody", () => {
 
   // The markdown renderer is lazy (it carries KaTeX and Shiki), so these two
   // wait for the chunk; the plain-text case above renders synchronously.
+  // Loading that chunk takes longer than the one-second default while the
+  // whole suite runs in parallel under coverage, which made both cases flaky.
+  const CHUNK_LOAD = { timeout: 5_000 };
   it("renders member mention with display name from context", async () => {
     render(
       <ChatMessageBody
@@ -21,7 +24,7 @@ describe("ChatMessageBody", () => {
         nameContext={[{ user_id: "u2", display_name: "Binh" }]}
       />,
     );
-    expect(await screen.findByText("@Binh")).toBeInTheDocument();
+    expect(await screen.findByText("@Binh", undefined, CHUNK_LOAD)).toBeInTheDocument();
     expect(screen.getByText(/check this/)).toBeInTheDocument();
   });
 
@@ -33,6 +36,9 @@ describe("ChatMessageBody", () => {
         nameContext={[]}
       />,
     );
-    expect(await screen.findByRole("img")).toHaveAttribute("src", "https://cdn.example/sticker.png");
+    expect(await screen.findByRole("img", undefined, CHUNK_LOAD)).toHaveAttribute(
+      "src",
+      "https://cdn.example/sticker.png",
+    );
   });
 });
