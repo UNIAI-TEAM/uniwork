@@ -1,6 +1,16 @@
 "use client";
 
-import { Bell, BellOff, ChevronLeft, Hash, Pin, Search, Settings } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  ChevronLeft,
+  Hash,
+  PanelLeft,
+  PanelLeftClose,
+  Pin,
+  Search,
+  Settings,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -291,6 +301,8 @@ export function WorkspaceChatToolbar({
   memberCount,
   backAriaLabel,
   onBack,
+  sidebarCollapsed,
+  onToggleSidebar,
   onOpenSettings,
   onOpenSearch,
 }: {
@@ -298,6 +310,8 @@ export function WorkspaceChatToolbar({
   memberCount: number;
   backAriaLabel?: string;
   onBack?: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
   onOpenSettings: () => void;
   onOpenSearch?: () => void;
 }) {
@@ -315,6 +329,27 @@ export function WorkspaceChatToolbar({
           onClick={onBack}
         >
           <ChevronLeft className="size-5" aria-hidden />
+        </Button>
+      ) : null}
+      {/* Narrow screens swap list and thread with the back control above, so
+          the collapse toggle is a desktop-only affordance. */}
+      {onToggleSidebar ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="hidden size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex"
+          aria-label={
+            sidebarCollapsed ? t("chat.show_conversations") : t("chat.hide_conversations")
+          }
+          aria-expanded={!sidebarCollapsed}
+          onClick={onToggleSidebar}
+        >
+          {sidebarCollapsed ? (
+            <PanelLeft className="size-5" aria-hidden />
+          ) : (
+            <PanelLeftClose className="size-5" aria-hidden />
+          )}
         </Button>
       ) : null}
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">

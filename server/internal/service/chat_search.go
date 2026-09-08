@@ -149,22 +149,28 @@ func (s *ChatService) ListRoomMessagesAround(
 }
 
 func chatMessageRowFromSearchRow(row db.SearchChatMessagesByRoomRow, viewerID string) ChatMessageRow {
-	return chatMessageRowFromMessageFields(
+	out := chatMessageRowFromMessageFields(
 		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
 		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
 	)
+	out.ClientMsgID = row.ClientMsgID.String
+	return out
 }
 
 func chatMessageRowFromBeforeOrAtRow(row db.ListChatMessagesBeforeOrAtInRoomRow, viewerID string) ChatMessageRow {
-	return chatMessageRowFromMessageFields(
+	out := chatMessageRowFromMessageFields(
 		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
 		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
 	)
+	out.ClientMsgID = row.ClientMsgID.String
+	return out
 }
 
 func chatMessageRowFromAfterRow(row db.ListChatMessagesAfterInRoomRow, viewerID string) ChatMessageRow {
-	return chatMessageRowFromMessageFields(
+	out := chatMessageRowFromMessageFields(
 		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
 		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
 	)
+	out.ClientMsgID = row.ClientMsgID.String
+	return out
 }

@@ -479,10 +479,12 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 }
 
 func chatMessageRowFromListRow(row db.ListChatMessagesByRoomRow, viewerID string) ChatMessageRow {
-	return chatMessageRowFromMessageFields(
+	out := chatMessageRowFromMessageFields(
 		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
 		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
 	)
+	out.ClientMsgID = row.ClientMsgID.String
+	return out
 }
 
 func chatMessageRowFromMessageFields(

@@ -15,8 +15,9 @@ subject="$(head -n1 "$1")"
 [ -n "$subject" ] || exit 0
 
 # Git writes these itself; they are not ours to reformat.
+# GitHub squash-merges of `make issue-pr` land as `UNI-nnn: … (#N)`.
 case "$subject" in
-  Merge*|Revert*|fixup!*|squash!*|amend!*|"#"*) exit 0 ;;
+  Merge*|Revert*|fixup!*|squash!*|amend!*|"#"*|UNI-[0-9]*:*) exit 0 ;;
 esac
 
 if printf '%s' "$subject" | grep -qE "^($TYPES)(\([a-z0-9._/-]+\))?: .+"; then

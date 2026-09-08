@@ -230,6 +230,8 @@ export function DmChatToolbar({
   nicknamesByUserId = {},
   backAriaLabel,
   onBack,
+  sidebarCollapsed,
+  onToggleSidebar,
   onOpenSettings,
   onOpenSearch,
   onVoiceCall,
@@ -241,6 +243,8 @@ export function DmChatToolbar({
   nicknamesByUserId?: Record<string, string>;
   backAriaLabel?: string;
   onBack?: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
   onOpenSettings: () => void;
   onOpenSearch?: () => void;
   onVoiceCall?: () => void;
@@ -260,6 +264,8 @@ export function DmChatToolbar({
       subtitle={contact.email || t("chat.dm_direct_message")}
       backAriaLabel={backAriaLabel}
       onBack={onBack}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={onToggleSidebar}
       settingsAriaLabel={t("chat.dm_settings")}
       onOpenSettings={onOpenSettings}
       onOpenSearch={onOpenSearch}

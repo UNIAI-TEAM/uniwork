@@ -64,6 +64,7 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
       record.priority === "important" || record.priority === "urgent"
         ? record.priority
         : undefined,
+    clientMsgId: record.client_msg_id,
   };
 }
 
