@@ -1,13 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { capabilityState } from "@uniwork/core/capabilities";
+import { usePublicConfig } from "@uniwork/core/feature-flags";
+import {
+  taskKeys,
+  useGroupedTasks,
+  useTaskStatuses,
+  useUpdateTask,
+} from "@uniwork/core/tasks";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { planSurfaceQuery } from "@uniwork/core/tasks/surface/query-plan";
 import { taskScopeKey, type TaskScope } from "@uniwork/core/tasks/surface/scope";
-import type { Task } from "@uniwork/core/types";
+import { TASK_STATUSES, type Task, type TaskStatus } from "@uniwork/core/types";
 import {
   type TaskCreateDefaults,
   type TaskSurfaceActions,
+  type TaskSurfaceMutationOptions,
 } from "./actions-context";
 import {
   useCreateTaskSurfaceSelection,
@@ -16,11 +26,21 @@ import {
 import type { TaskSurfaceMode } from "./types";
 import { useTaskSurfaceData } from "./use-task-surface-data";
 
+const EMPTY_CONFIG = {
+  flags: {},
+  rum_sample_rate: 0,
+  work_management_capabilities: {},
+} as const;
+
 export interface TaskSurfaceController {
   scopeKey: string;
   viewMode: TaskSurfaceMode;
   setViewMode: (mode: TaskSurfaceMode) => void;
   surfaceTasks: Task[];
+  /** Ordered status-category keys for board columns (catalog / seven built-ins). */
+  boardCategories: readonly string[];
+  projectGroupingDisabled: boolean;
+  projectGroupingReasonKey: string;
   isLoading: boolean;
   isEmpty: boolean;
   isRefreshing: boolean;
@@ -29,6 +49,14 @@ export interface TaskSurfaceController {
   openCreateTask: (defaults?: TaskCreateDefaults) => void;
   createOpen: boolean;
   setCreateOpen: (open: boolean) => void;
+}
+
+function orderBoardCategories(raw: string[]): string[] {
+  if (raw.length === 0) return [...TASK_STATUSES];
+  const known = new Set(TASK_STATUSES);
+  const ordered = TASK_STATUSES.filter((category) => raw.includes(category));
+  const extras = raw.filter((category) => !known.has(category as TaskStatus));
+  return [...ordered, ...extras];
 }
 
 export function useTaskSurfaceController({
@@ -42,6 +70,7 @@ export function useTaskSurfaceController({
 }): TaskSurfaceController {
   const viewMode = useViewStore((s) => s.viewMode);
   const setViewModeStore = useViewStore((s) => s.setViewMode);
+  const queryClient = useQueryClient();
 
   const allowedModes = useMemo(() => new Set<TaskSurfaceMode>(modes), [modes]);
   const fallbackMode = modes[0] ?? "list";
@@ -60,16 +89,48 @@ export function useTaskSurfaceController({
     [effectiveViewMode, scope],
   );
 
-  const listEnabled =
-    effectiveViewMode === "list" ||
-    effectiveViewMode === "board" ||
-    effectiveViewMode === "swimlane";
+  const boardEnabled = effectiveViewMode === "board";
+  const listQueryEnabled =
+    (effectiveViewMode === "list" || effectiveViewMode === "swimlane") &&
+    queryPlan.kind !== "table";
 
   const data = useTaskSurfaceData({
     workspaceId,
     queryPlan,
-    enabled: listEnabled && queryPlan.kind !== "table",
+    enabled: listQueryEnabled,
   });
+
+  const statusesQuery = useTaskStatuses(boardEnabled ? workspaceId : "");
+  const groupedQuery = useGroupedTasks(boardEnabled ? workspaceId : "", {
+    group_by: "status",
+  });
+  const updateTask = useUpdateTask(workspaceId);
+  const { data: publicConfig } = usePublicConfig();
+
+  const boardCategories = useMemo(() => {
+    const catalog = statusesQuery.data;
+    const fromCategories = catalog?.categories ?? [];
+    const fromStatuses = [
+      ...new Set((catalog?.statuses ?? []).map((row) => row.category)),
+    ];
+    return orderBoardCategories(
+      fromCategories.length > 0 ? fromCategories : fromStatuses,
+    );
+  }, [statusesQuery.data]);
+
+  const boardTasks = useMemo(() => {
+    if (!boardEnabled) return data.surfaceTasks;
+    const groups = groupedQuery.data ?? [];
+    return groups.flatMap((group) => group.tasks);
+  }, [boardEnabled, data.surfaceTasks, groupedQuery.data]);
+
+  const projectsCapability = capabilityState(
+    publicConfig ?? EMPTY_CONFIG,
+    "tasks.projects",
+  );
+  const projectGroupingDisabled = projectsCapability.status !== "available";
+  const projectGroupingReasonKey =
+    projectsCapability.explanation_key || "capabilities.unknown";
 
   const scopeKey = taskScopeKey(scope);
   const selection = useCreateTaskSurfaceSelection(
@@ -82,16 +143,52 @@ export function useTaskSurfaceController({
     setCreateOpen(true);
   }, []);
 
+  const moveTask = useCallback(
+    (
+      taskId: string,
+      updates: Record<string, unknown>,
+      options?: TaskSurfaceMutationOptions,
+    ) => {
+      const status =
+        typeof updates.status === "string" ? updates.status : undefined;
+      const position =
+        typeof updates.position === "number" ? updates.position : undefined;
+      if (status === undefined && position === undefined) return;
+      updateTask.mutate(
+        {
+          taskId,
+          patch: {
+            ...(status !== undefined ? { status: status as TaskStatus } : {}),
+            ...(position !== undefined ? { position } : {}),
+          },
+        },
+        {
+          onSuccess: (task) => {
+            if (task) options?.onSuccess?.(task);
+          },
+          onError: (err) => options?.onError?.(err),
+          onSettled: () => {
+            void queryClient.invalidateQueries({
+              queryKey: taskKeys.groupedRoot(workspaceId),
+            });
+            options?.onSettled?.();
+          },
+        },
+      );
+    },
+    [queryClient, updateTask, workspaceId],
+  );
+
   const actions = useMemo<TaskSurfaceActions>(
     () => ({
-      isPending: false,
+      isPending: updateTask.isPending,
       createTask: (defaults) => openCreateTask(defaults),
       updateTask: () => {},
-      moveTask: () => {},
+      moveTask,
       batchUpdate: async () => {},
       batchDelete: async () => {},
     }),
-    [openCreateTask],
+    [moveTask, openCreateTask, updateTask.isPending],
   );
 
   const setViewMode = useCallback(
@@ -101,14 +198,30 @@ export function useTaskSurfaceController({
     [allowedModes, setViewModeStore],
   );
 
+  const isLoading = boardEnabled
+    ? statusesQuery.isLoading || groupedQuery.isLoading
+    : data.isLoading;
+  const isRefreshing = boardEnabled
+    ? (statusesQuery.isFetching && !statusesQuery.isLoading) ||
+      (groupedQuery.isFetching && !groupedQuery.isLoading)
+    : data.isRefreshing;
+  const surfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
+  const isEmpty =
+    (boardEnabled || listQueryEnabled) &&
+    !isLoading &&
+    surfaceTasks.length === 0;
+
   return {
     scopeKey,
     viewMode: effectiveViewMode,
     setViewMode,
-    surfaceTasks: data.surfaceTasks,
-    isLoading: data.isLoading,
-    isEmpty: data.isEmpty,
-    isRefreshing: data.isRefreshing,
+    surfaceTasks,
+    boardCategories,
+    projectGroupingDisabled,
+    projectGroupingReasonKey,
+    isLoading,
+    isEmpty,
+    isRefreshing,
     actions,
     selection,
     openCreateTask,

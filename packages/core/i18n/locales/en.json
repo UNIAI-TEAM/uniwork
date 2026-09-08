@@ -618,17 +618,24 @@
     "comments": "Comments",
     "addComment": "Write a comment…",
     "unassigned": "Unassigned",
+    "status_backlog": "Backlog",
     "status_todo": "To do",
     "status_in_progress": "In progress",
+    "status_in_review": "In review",
     "status_done": "Done",
+    "status_blocked": "Blocked",
     "status_cancelled": "Cancelled",
     "priority_low": "Low",
     "priority_medium": "Medium",
     "priority_high": "High",
     "priority_urgent": "Urgent",
     "surface": {
-      "mode_placeholder": "This view mode is not available yet."
+      "mode_placeholder": "This view mode is not available yet.",
+      "group_by_project": "Group by project"
     }
+  },
+  "capabilities": {
+    "unknown": "This capability is not available yet."
   },
   "agents": {
     "badge": "Agent"

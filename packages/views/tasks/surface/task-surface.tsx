@@ -10,6 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
+import { BoardView } from "../modes/board-view";
 import { ListView } from "../modes/list-view";
 import { TaskSurfaceActionsProvider } from "./actions-context";
 import { TaskSurfaceSelectionProvider } from "./selection-context";
@@ -83,6 +84,13 @@ function TaskSurfaceContent({
             <div className={cn("flex min-h-0 flex-1 flex-col")}>
               {controller.viewMode === "list" ? (
                 <ListView tasks={controller.surfaceTasks} />
+              ) : controller.viewMode === "board" ? (
+                <BoardView
+                  categories={controller.boardCategories}
+                  tasks={controller.surfaceTasks}
+                  projectGroupingDisabled={controller.projectGroupingDisabled}
+                  projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                />
               ) : (
                 <ModePlaceholder />
               )}

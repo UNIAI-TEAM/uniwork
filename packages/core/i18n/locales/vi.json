@@ -617,17 +617,24 @@
     "comments": "Bình luận",
     "addComment": "Viết bình luận…",
     "unassigned": "Chưa giao",
+    "status_backlog": "Backlog",
     "status_todo": "Cần làm",
     "status_in_progress": "Đang làm",
+    "status_in_review": "Đang review",
     "status_done": "Hoàn thành",
+    "status_blocked": "Đang chặn",
     "status_cancelled": "Đã hủy",
     "priority_low": "Thấp",
     "priority_medium": "Trung bình",
     "priority_high": "Cao",
     "priority_urgent": "Khẩn cấp",
     "surface": {
-      "mode_placeholder": "Kiểu hiển thị này chưa sẵn sàng."
+      "mode_placeholder": "Kiểu hiển thị này chưa sẵn sàng.",
+      "group_by_project": "Nhóm theo dự án"
     }
+  },
+  "capabilities": {
+    "unknown": "Tính năng này chưa khả dụng."
   },
   "agents": {
     "badge": "Agent"
