@@ -66,4 +66,16 @@ test("tasks collection: flag off MVP board/list; flag on suite mode controls", a
   await page.goto(`/${orgSlug}/${wsSlug}/my-tasks`);
   await expect(page.getByRole("heading", { name: "Việc của tôi" })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("task-mode-switcher")).toBeVisible();
+
+  // My-tasks must not expose workspace table mode (no relation filter on /tasks/table/*).
+  await page.getByTestId("task-mode-switcher").click();
+  await expect(page.getByTestId("task-mode-list")).toBeVisible();
+  await expect(page.getByTestId("task-mode-board")).toBeVisible();
+  await expect(page.getByTestId("task-mode-swimlane")).toBeVisible();
+  await expect(page.getByTestId("task-mode-table")).toHaveCount(0);
+
+  const filterAdd = page.getByTestId("task-filter-add");
+  await expect(filterAdd).toBeVisible();
+  await expect(filterAdd).toBeDisabled();
+  await expect(filterAdd).toHaveAttribute("data-reason-code", "filters_not_wired");
 });

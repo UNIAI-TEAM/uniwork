@@ -664,6 +664,7 @@
     },
     "filters": {
       "add": "Lọc",
+      "unavailable": "Bộ lọc chưa gắn vào truy vấn — sẽ mở khi filter.ts sẵn sàng.",
       "clear": "Xóa bộ lọc",
       "status": "Trạng thái",
       "priority": "Độ ưu tiên",

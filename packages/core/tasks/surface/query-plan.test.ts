@@ -18,4 +18,13 @@ describe("planSurfaceQuery", () => {
     });
     expect(plan.kind).toBe("table");
   });
+
+  it("keeps my scope on my_tasks even when viewMode is table", () => {
+    const plan = planSurfaceQuery({
+      scope: { type: "my", userId: "u1", relation: "all" },
+      viewMode: "table",
+    });
+    expect(plan.kind).toBe("my_tasks");
+    expect(plan.tableBody).toBeUndefined();
+  });
 });

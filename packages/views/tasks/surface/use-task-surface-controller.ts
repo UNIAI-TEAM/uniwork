@@ -93,8 +93,15 @@ export function useTaskSurfaceController({
   const setViewModeStore = useViewStore((s) => s.setViewMode);
   const queryClient = useQueryClient();
 
-  const allowedModes = useMemo(() => new Set<TaskSurfaceMode>(modes), [modes]);
-  const fallbackMode = modes[0] ?? "list";
+  // My-scope must never mount workspace table groups/rows (no relation filter).
+  const allowedModes = useMemo(() => {
+    const next = new Set<TaskSurfaceMode>(modes);
+    if (scope.type === "my") next.delete("table");
+    return next;
+  }, [modes, scope.type]);
+  const fallbackMode =
+    (modes.find((mode) => allowedModes.has(mode)) as TaskSurfaceMode | undefined) ??
+    "list";
   const effectiveViewMode = allowedModes.has(viewMode as TaskSurfaceMode)
     ? (viewMode as TaskSurfaceMode)
     : fallbackMode;
@@ -111,7 +118,7 @@ export function useTaskSurfaceController({
   );
 
   const boardEnabled = effectiveViewMode === "board";
-  const tableEnabled = effectiveViewMode === "table";
+  const tableEnabled = effectiveViewMode === "table" && scope.type !== "my";
   const ganttEnabled = effectiveViewMode === "gantt";
   const swimlaneEnabled = effectiveViewMode === "swimlane";
   // My-scope board has no relation-aware grouped endpoint yet — feed the

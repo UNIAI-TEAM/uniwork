@@ -11,12 +11,8 @@ import { TaskSurface } from "../tasks/surface/task-surface";
 import type { TaskSurfaceMode } from "../tasks/surface/types";
 import { MyTasksHeader } from "./my-tasks-header";
 
-const MY_TASKS_MODES: TaskSurfaceMode[] = [
-  "board",
-  "list",
-  "table",
-  "swimlane",
-];
+/** Table omitted: workspace `/tasks/table/*` has no my-relation filter yet. */
+const MY_TASKS_MODES: TaskSurfaceMode[] = ["board", "list", "swimlane"];
 
 /**
  * Flag-on `/my-tasks` host body: my-scoped TaskSurface with four relation tabs.

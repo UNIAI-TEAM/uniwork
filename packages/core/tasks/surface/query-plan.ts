@@ -12,6 +12,7 @@ export function planSurfaceQuery(input: {
   scope: TaskScope;
   viewMode: "board" | "list" | "table" | "gantt" | "swimlane";
 }): SurfaceQueryPlan {
+  // My-scope never plans table: `/tasks/table/*` is workspace-wide today.
   if (input.scope.type === "my") {
     return {
       kind: "my_tasks",

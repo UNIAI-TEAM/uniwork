@@ -89,6 +89,11 @@ function CapabilityStubButton({
   );
 }
 
+/**
+ * Status/priority menu UI. Kept for when `tasks/utils/filter.ts` lands and
+ * surface queries honor the store; until then {@link TaskDisplayControls}
+ * shows a disabled stub so the chrome does not pretend to filter.
+ */
 export function TaskFilterMenu({
   trigger,
 }: {
@@ -134,6 +139,10 @@ export function TaskFilterMenu({
   );
 }
 
+/** Until client filter wiring exists, Add filter must not mutate visible rows. */
+const TASK_FILTERS_WIRED = false;
+const FILTERS_UNAVAILABLE_REASON_CODE = "filters_not_wired";
+
 export function TaskDisplayControls({
   modes,
   isRefreshing = false,
@@ -153,16 +162,49 @@ export function TaskDisplayControls({
   const cardProperties = useViewStore((s) => s.cardProperties);
   const toggleCardProperty = useViewStore((s) => s.toggleCardProperty);
 
+  const filterLabel = t("tasks.filters.add");
+  const filterUnavailableReason = t("tasks.filters.unavailable");
+
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <TaskFilterMenu
-        trigger={
-          <Button type="button" variant="outline" size="sm" className="gap-1.5">
+      {TASK_FILTERS_WIRED ? (
+        <TaskFilterMenu
+          trigger={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              data-testid="task-filter-add"
+            >
+              <Filter className="size-3.5" aria-hidden />
+              <span className="hidden md:inline">{filterLabel}</span>
+            </Button>
+          }
+        />
+      ) : (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled
+                aria-disabled
+                aria-label={filterLabel}
+                className="gap-1.5 opacity-60"
+                data-testid="task-filter-add"
+                data-reason-code={FILTERS_UNAVAILABLE_REASON_CODE}
+              />
+            }
+          >
             <Filter className="size-3.5" aria-hidden />
-            <span className="hidden md:inline">{t("tasks.filters.add")}</span>
-          </Button>
-        }
-      />
+            <span className="hidden md:inline">{filterLabel}</span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{filterUnavailableReason}</TooltipContent>
+        </Tooltip>
+      )}
 
       <CapabilityStubButton
         icon={<GitBranch className="size-3.5" aria-hidden />}

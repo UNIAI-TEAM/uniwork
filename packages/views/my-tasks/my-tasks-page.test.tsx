@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { myTasksViewStore } from "@uniwork/core/tasks/stores/my-tasks-view-store";
 import { requestMock, wrap } from "../test/api-mock";
 import { MyTasksPageView, MyTasksUnavailable } from "./my-tasks-page";
@@ -92,7 +93,7 @@ describe("MyTasksPageView", () => {
     expect(myTasksViewStore.getState().scope).toBe("all");
   });
 
-  it("exposes board list table swimlane without gantt", async () => {
+  it("exposes board list swimlane without table or gantt", async () => {
     myTasksViewStore.setState({ scope: "assigned" });
     render(
       wrap(
@@ -109,9 +110,39 @@ describe("MyTasksPageView", () => {
       expect(screen.getByTestId("task-mode-list")).toBeInTheDocument();
     });
     expect(screen.getByTestId("task-mode-board")).toBeInTheDocument();
-    expect(screen.getByTestId("task-mode-table")).toBeInTheDocument();
     expect(screen.getByTestId("task-mode-swimlane")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-mode-table")).toBeNull();
     expect(screen.queryByTestId("task-mode-gantt")).toBeNull();
+  });
+
+  it("does not request workspace table groups on my-scope", async () => {
+    const store = getTaskSurfaceViewStore("my:u1:all");
+    store.getState().setViewMode("table");
+
+    render(
+      wrap(
+        <MyTasksPageView
+          workspaceId="w1"
+          userId="u1"
+          onOpenTask={() => {}}
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(
+        requestMock.mock.calls.some(
+          ([path]) =>
+            typeof path === "string" && path.includes("/my-tasks"),
+        ),
+      ).toBe(true);
+    });
+    expect(
+      requestMock.mock.calls.some(
+        ([path]) =>
+          typeof path === "string" && path.includes("/tasks/table/groups"),
+      ),
+    ).toBe(false);
   });
 });
 

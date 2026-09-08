@@ -665,6 +665,7 @@
     },
     "filters": {
       "add": "Filter",
+      "unavailable": "Filters are not wired to queries yet — available once filter.ts lands.",
       "clear": "Clear filters",
       "status": "Status",
       "priority": "Priority",

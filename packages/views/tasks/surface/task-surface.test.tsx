@@ -125,6 +125,37 @@ describe("TaskSurface", () => {
     expect(await screen.findByText("Task 1")).toBeInTheDocument();
   });
 
+  it("does not request table groups for my-scope even if table is in modes", async () => {
+    const store = getTaskSurfaceViewStore("test-my-no-table");
+    store.getState().setViewMode("table");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "my", userId: "u1", relation: "all" }}
+          modes={["board", "list", "table", "swimlane"]}
+          surfaceKey="test-my-no-table"
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(
+        requestMock.mock.calls.some(
+          ([path]) =>
+            typeof path === "string" && path.includes("/my-tasks"),
+        ),
+      ).toBe(true);
+    });
+    expect(
+      requestMock.mock.calls.some(
+        ([path]) =>
+          typeof path === "string" && path.includes("/tasks/table/groups"),
+      ),
+    ).toBe(false);
+  });
+
   it("disables hierarchy chevron when children fetch is unavailable", async () => {
     tableChildCount = 2;
     render(

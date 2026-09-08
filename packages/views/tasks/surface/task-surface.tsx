@@ -68,10 +68,16 @@ function TaskSurfaceContent({
   renderHeader,
   renderEmpty,
 }: Omit<TaskSurfaceProps, "surfaceKey">) {
+  // Workspace table endpoints have no my-relation filter — omit table on my-scope.
+  const availableModes = useMemo(
+    () =>
+      scope.type === "my" ? modes.filter((mode) => mode !== "table") : modes,
+    [modes, scope.type],
+  );
   const controller = useTaskSurfaceController({
     workspaceId,
     scope,
-    modes,
+    modes: availableModes,
   });
   const { data: membersData } = useMembers(workspaceId);
   const batchMembers = useMemo(
@@ -97,7 +103,7 @@ function TaskSurfaceContent({
     (
       <TasksHeader
         workspaceId={workspaceId}
-        modes={modes}
+        modes={availableModes}
         scopedTasks={controller.surfaceTasks}
         isRefreshing={controller.isRefreshing}
         saveViewScope={
