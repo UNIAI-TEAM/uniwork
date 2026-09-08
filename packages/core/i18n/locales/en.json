@@ -158,7 +158,8 @@
     "workspace_group": "Workspace navigation",
     "account": "Account",
     "skip_to_content": "Skip to main content",
-    "people": "People"
+    "people": "People",
+    "projects": "Projects"
   },
   "topbar": {
     "search": "Search…",
@@ -2253,5 +2254,78 @@
     "updated": "Department updated",
     "empty": "No departments yet.",
     "member_count": "{{count}} members"
+  },
+  "projects": {
+    "page": {
+      "title": "Projects",
+      "new_project": "New project",
+      "empty": "No projects yet",
+      "create_first": "Create your first project",
+      "search_placeholder": "Search projects…",
+      "view_table": "Table",
+      "view_cards": "Cards",
+      "row_menu": "Project actions",
+      "open": "Open",
+      "pin": "Pin to sidebar",
+      "unpin": "Unpin",
+      "delete": "Delete",
+      "no_matches": "No projects match",
+      "no_tasks_yet": "No tasks yet",
+      "selected": "{{count}} selected",
+      "clear_selection": "Clear selection"
+    },
+    "table": {
+      "name": "Name",
+      "priority": "Priority",
+      "status": "Status",
+      "progress": "Progress",
+      "lead": "Lead",
+      "created": "Created",
+      "tasks": "Tasks"
+    },
+    "status": {
+      "planned": "Planned",
+      "in_progress": "In Progress",
+      "paused": "Paused",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "urgent": "Urgent",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "none": "No priority"
+    },
+    "lead": {
+      "no_lead": "No lead"
+    },
+    "delete_dialog": {
+      "title": "Delete project",
+      "description": "This will delete the project. Tasks will not be deleted but will be unlinked.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "create_dialog": {
+      "title": "New project",
+      "description": "Give the project a short title. You can edit details after creating it.",
+      "title_placeholder": "Project title",
+      "confirm": "Create",
+      "cancel": "Cancel"
+    },
+    "toolbar": {
+      "result_count_title": "Matching projects / all projects",
+      "filter_label": "Filter",
+      "filter_active_count": "{{count}} filters",
+      "clear_filters": "Clear filters",
+      "section_status": "Status",
+      "section_priority": "Priority",
+      "display": "Display",
+      "sort_by": "Sort by",
+      "direction_asc": "Ascending",
+      "direction_desc": "Descending",
+      "section_columns": "Columns",
+      "view": "View"
+    }
   }
 }

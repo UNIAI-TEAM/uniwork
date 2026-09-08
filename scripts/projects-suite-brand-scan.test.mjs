@@ -1,25 +1,34 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
 
-const ROOTS = ["packages/views/projects"];
-const BAD = [/multica/i, /@multica\//, /\bIssue\b/];
+const roots = ["packages/views/projects"];
 
-function walk(dir, out = []) {
-  if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) return out;
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(tsx?|jsx?)$/.test(name)) out.push(p);
+const BAD = [/multica/i, /@multica\//, /\bIssue\b/, /\bIssues\b/];
+
+async function walk(dir, out = []) {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of entries) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) await walk(p, out);
+    else if (/\.(tsx?|json)$/.test(e.name)) out.push(p);
   }
   return out;
 }
 
-for (const root of ROOTS) {
-  for (const file of walk(root)) {
-    const text = readFileSync(file, "utf8");
+test("projects suite UI has no source brand or Issue domain", async () => {
+  const files = (await Promise.all(roots.map((r) => walk(r)))).flat();
+  assert.ok(files.length > 0, "expected suite files under packages/views/projects/");
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
     for (const re of BAD) {
       assert.equal(re.test(text), false, `${file} matched ${re}`);
     }
   }
-}
+});

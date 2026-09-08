@@ -157,7 +157,8 @@
     "workspace_group": "Điều hướng workspace",
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính",
-    "people": "Danh bạ"
+    "people": "Danh bạ",
+    "projects": "Dự án"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -2249,5 +2250,78 @@
     "updated": "Đã cập nhật phòng ban",
     "empty": "Chưa có phòng ban nào.",
     "member_count": "{{count}} thành viên"
+  },
+  "projects": {
+    "page": {
+      "title": "Dự án",
+      "new_project": "Dự án mới",
+      "empty": "Chưa có dự án",
+      "create_first": "Tạo dự án đầu tiên",
+      "search_placeholder": "Tìm dự án…",
+      "view_table": "Bảng",
+      "view_cards": "Thẻ",
+      "row_menu": "Thao tác dự án",
+      "open": "Mở",
+      "pin": "Ghim vào sidebar",
+      "unpin": "Bỏ ghim",
+      "delete": "Xóa",
+      "no_matches": "Không có dự án khớp",
+      "no_tasks_yet": "Chưa có công việc",
+      "selected": "{{count}} đã chọn",
+      "clear_selection": "Bỏ chọn"
+    },
+    "table": {
+      "name": "Tên",
+      "priority": "Độ ưu tiên",
+      "status": "Trạng thái",
+      "progress": "Tiến độ",
+      "lead": "Phụ trách",
+      "created": "Ngày tạo",
+      "tasks": "Công việc"
+    },
+    "status": {
+      "planned": "Đã lên kế hoạch",
+      "in_progress": "Đang làm",
+      "paused": "Tạm dừng",
+      "completed": "Hoàn thành",
+      "cancelled": "Đã hủy"
+    },
+    "priority": {
+      "urgent": "Khẩn cấp",
+      "high": "Cao",
+      "medium": "Trung bình",
+      "low": "Thấp",
+      "none": "Không ưu tiên"
+    },
+    "lead": {
+      "no_lead": "Chưa có phụ trách"
+    },
+    "delete_dialog": {
+      "title": "Xóa dự án",
+      "description": "Dự án sẽ bị xóa. Công việc không bị xóa nhưng sẽ được gỡ liên kết.",
+      "confirm": "Xóa",
+      "cancel": "Hủy"
+    },
+    "create_dialog": {
+      "title": "Dự án mới",
+      "description": "Đặt tiêu đề ngắn. Bạn có thể chỉnh chi tiết sau khi tạo.",
+      "title_placeholder": "Tiêu đề dự án",
+      "confirm": "Tạo",
+      "cancel": "Hủy"
+    },
+    "toolbar": {
+      "result_count_title": "Dự án khớp / tất cả dự án",
+      "filter_label": "Bộ lọc",
+      "filter_active_count": "{{count}} bộ lọc",
+      "clear_filters": "Xóa bộ lọc",
+      "section_status": "Trạng thái",
+      "section_priority": "Độ ưu tiên",
+      "display": "Hiển thị",
+      "sort_by": "Sắp xếp theo",
+      "direction_asc": "Tăng dần",
+      "direction_desc": "Giảm dần",
+      "section_columns": "Cột",
+      "view": "Chế độ xem"
+    }
   }
 }
