@@ -17,7 +17,9 @@ export default function InvitationsPage() {
   if (status !== "authed" || step === "verify") return null;
   return (
     <InvitationsView
-      onJoined={(ws) => replace(paths.workspace(ws.organization_slug, ws.slug).tasks())}
+      onJoined={(ws) =>
+        replace(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces())
+      }
       onEmpty={onEmpty}
     />
   );

@@ -45,15 +45,15 @@ describe("chat room helpers", () => {
 
   it("unreadMapFromRooms only includes positive counts", () => {
     const rooms: ChatRoomRecord[] = [
-      { id: "a", kind: "dm", name: "a", workspace_id: "ws", member_user_ids: [], unread_count: 2 },
-      { id: "b", kind: "dm", name: "b", workspace_id: "ws", member_user_ids: [], unread_count: 0 },
+      { id: "a", kind: "dm", name: "a", workspace_id: "ws", member_user_ids: [], unread_count: 2, mention_unread_count: 0 },
+      { id: "b", kind: "dm", name: "b", workspace_id: "ws", member_user_ids: [], unread_count: 0, mention_unread_count: 0 },
     ];
     expect(unreadMapFromRooms(rooms)).toEqual({ a: 2 });
   });
 
   it("sidebarFromChatRooms splits workspace, dm, and group rooms", () => {
     const rooms: ChatRoomRecord[] = [
-      { id: "w", kind: "workspace", name: "General", workspace_id: "ws", member_user_ids: [], unread_count: 0 },
+      { id: "w", kind: "workspace", name: "General", workspace_id: "ws", member_user_ids: [], unread_count: 0, mention_unread_count: 0 },
       {
         id: "d",
         kind: "dm",
@@ -63,8 +63,9 @@ describe("chat room helpers", () => {
         peer_user_id: "u1",
         peer_display_name: "Peer",
         unread_count: 1,
+        mention_unread_count: 0,
       },
-      { id: "g", kind: "group", name: "Team", workspace_id: "ws", member_user_ids: ["u1", "u2"], unread_count: 0 },
+      { id: "g", kind: "group", name: "Team", workspace_id: "ws", member_user_ids: ["u1", "u2"], unread_count: 0, mention_unread_count: 0 },
     ];
     const sidebar = sidebarFromChatRooms(rooms);
     expect(sidebar.workspaceRoom?.id).toBe("w");

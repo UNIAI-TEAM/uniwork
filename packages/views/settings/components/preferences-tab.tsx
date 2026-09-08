@@ -4,7 +4,7 @@ import { useMemo, type ComponentType } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from "@uniwork/core/i18n";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { usePatchMe, useSession } from "@uniwork/core/auth";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
@@ -75,7 +75,7 @@ export function PreferencesTab() {
   const handleLanguageChange = (next: SupportedLocale) => {
     if (next === currentLocale) return;
     localeAdapter.persist(next);
-    void i18n.changeLanguage(next);
+    void setLocale(next);
     document.documentElement.lang = next;
     toast.success(t("preferences.toastSaved"), { id: "settings-auto-save" });
   };

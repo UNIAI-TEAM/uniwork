@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -25,8 +26,7 @@ import (
 // reviewer reads instead of guessing why coverage has a hole.
 var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationUpdated:  "no organization rename command exists yet",
-	audit.ActionMemberRoleChanged:    "organization roles change only through workspace membership today",
-	audit.ActionMemberRemoved:        "no organization member removal command exists yet",
+	audit.ActionMemberRemoved:        "deactivation replaced removal by an admin; leaving writes member.left",
 	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
 	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
 }
@@ -56,6 +56,76 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			w := f.build(t)
 			f.addMember(t)
 			if err := f.ws.RemoveMember(f.ctx, f.owner.ID, w.ID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberRoleChanged: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.UpdateRole(f.ctx, f.owner.ID, f.orgID, f.member.ID, OrgRoleAdmin); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberDeactivated: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberReactivated: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.orgMem.Reactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMemberLeft: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if err := f.orgMem.Leave(f.ctx, f.member.ID, f.orgID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProfileUpdated: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			title := "Kỹ sư"
+			if _, err := f.people.UpdateProfile(f.ctx, f.owner.ID, f.orgID, f.member.ID, ProfileInput{Title: &title}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDepartmentCreated: func(t *testing.T, f *auditFixture) { f.newDepartment(t) },
+		audit.ActionDepartmentUpdated: func(t *testing.T, f *auditFixture) {
+			d := f.newDepartment(t)
+			name := "Công nghệ"
+			if _, err := f.depts.Update(f.ctx, f.owner.ID, f.orgID, d.ID, DepartmentInput{Name: &name}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDepartmentArchived: func(t *testing.T, f *auditFixture) {
+			d := f.newDepartment(t)
+			if _, err := f.depts.Archive(f.ctx, f.owner.ID, f.orgID, d.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionPeopleExported: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionInvitationRevoked: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			invs, _, err := f.orgMem.InviteToOrg(f.ctx, f.owner.ID, f.orgID, []string{"revoke-me@example.com"}, OrgRoleMember)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.orgMem.RevokeInvitation(f.ctx, f.owner.ID, f.orgID, invs[0].ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
+			f.addMember(t)
+			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -509,7 +579,24 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionAuthPasswordChanged: func(t *testing.T, f *auditFixture) { f.resetPassword(t) },
-		audit.ActionChatRoomCreated:     func(t *testing.T, f *auditFixture) { f.newDM(t) },
+		audit.ActionAuthMFAEnabled: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			enrol(t, f.auth, f.ctx, f.member.ID)
+		},
+		audit.ActionAuthMFADisabled: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			_, codes := enrol(t, f.auth, f.ctx, f.member.ID)
+			if _, err := f.auth.DisableTOTP(f.ctx, f.member.ID, codes[0]); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionUserDeleted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if err := f.auth.DeleteAccount(f.ctx, f.member.ID, DeleteAccountInput{Password: auditPassword}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatRoomCreated: func(t *testing.T, f *auditFixture) { f.newDM(t) },
 		audit.ActionChatRoomMemberAdded: func(t *testing.T, f *auditFixture) {
 			// A group needs three organization members; inviting the third is
 			// the command that adds a room member.
@@ -557,6 +644,16 @@ func auditActions() []string {
 		audit.ActionMemberJoined,
 		audit.ActionMemberRoleChanged,
 		audit.ActionMemberRemoved,
+		audit.ActionMemberDeactivated,
+		audit.ActionMemberReactivated,
+		audit.ActionMemberLeft,
+		audit.ActionProfileUpdated,
+		audit.ActionDepartmentCreated,
+		audit.ActionDepartmentUpdated,
+		audit.ActionDepartmentArchived,
+		audit.ActionPeopleExported,
+		audit.ActionInvitationRevoked,
+		audit.ActionOrganizationOwnershipChanged,
 		audit.ActionWorkspaceCreated,
 		audit.ActionWorkspaceUpdated,
 		audit.ActionWorkspaceMemberAdded,
@@ -581,6 +678,9 @@ func auditActions() []string {
 		audit.ActionAuthPasswordResetRequested,
 		audit.ActionAuthPasswordChanged,
 		audit.ActionAuthSessionRevoked,
+		audit.ActionAuthMFAEnabled,
+		audit.ActionAuthMFADisabled,
+		audit.ActionUserDeleted,
 		audit.ActionChatRoomCreated,
 		audit.ActionChatRoomMemberAdded,
 		audit.ActionChatRoomMemberRemoved,
@@ -598,6 +698,9 @@ type auditFixture struct {
 	q       *db.Queries
 	auth    *AuthService
 	orgs    *OrganizationService
+	orgMem  *OrganizationMemberService
+	people  *PeopleService
+	depts   *DepartmentService
 	ws      *WorkspaceService
 	tasks   *TaskService
 	agents  *AgentService
@@ -623,9 +726,12 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	auth := NewAuthService(pool, q, minter, time.Hour, nil)
 	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
+	orgMembers := NewOrganizationMemberService(pool, q, orgs)
+	orgMembers.SetMail(renderer, &fakeOutbox{})
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
-		auth: auth, orgs: orgs, ws: ws,
+		auth: auth, orgs: orgs, orgMem: orgMembers,
+		people: NewPeopleService(pool, q, orgs), depts: NewDepartmentService(pool, q, orgs), ws: ws,
 		tasks:   NewTaskService(pool, q, ws),
 		agents:  NewAgentService(pool, q, orgs, ws),
 		billing: NewBillingService(pool, q, orgs, nil),
@@ -633,6 +739,18 @@ func newAuditFixture(t *testing.T) *auditFixture {
 		reset:   NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
 		admin:   NewAdminService(pool, q, NewBillingService(pool, q, orgs, nil), NewEntitlementService(pool, q)),
 	}
+}
+
+// newDepartment creates one department for the cases that need a target.
+func (f *auditFixture) newDepartment(t *testing.T) db.Department {
+	t.Helper()
+	f.build(t)
+	name := "Kỹ thuật"
+	d, err := f.depts.Create(f.ctx, f.owner.ID, f.orgID, DepartmentInput{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
 }
 
 // override sets (or deletes) the organization override of agents_assignee.

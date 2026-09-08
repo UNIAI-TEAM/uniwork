@@ -30,7 +30,7 @@ func (h *handlers) resetPassword(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	sess, err := h.PasswordReset.Reset(r.Context(), in.Token, in.Password)
+	sess, err := h.PasswordReset.Reset(h.authCtx(r).Context(), in.Token, in.Password)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

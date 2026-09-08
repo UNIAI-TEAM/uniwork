@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -30,9 +31,16 @@ type VoiceCallLogInfo struct {
 
 type voiceCallSession struct {
 	roomID     string
+	callID     string
 	callerID   string
+	callerName string
+	callKind   string
+	roomName   string
+	invitedAt  time.Time
 	acceptedAt *time.Time
 }
+
+const voiceCallInvitePendingTTL = 5 * time.Minute
 
 var voiceCallSessions sync.Map // key: roomID|callID
 
@@ -40,9 +48,15 @@ func voiceCallSessionKey(roomID, callID string) string {
 	return roomID + "|" + callID
 }
 
-func (s *ChatService) trackVoiceCallInvite(roomID, callID, callerID string) {
-	voiceCallSessions.Store(voiceCallSessionKey(roomID, callID), voiceCallSession{
-		roomID: roomID, callerID: callerID,
+func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string) {
+	voiceCallSessions.Store(voiceCallSessionKey(room.ID, callID), voiceCallSession{
+		roomID:     room.ID,
+		callID:     callID,
+		callerID:   callerID,
+		callerName: callerName,
+		callKind:   room.Kind,
+		roomName:   strings.TrimSpace(room.Name),
+		invitedAt:  time.Now(),
 	})
 }
 
@@ -250,6 +264,80 @@ func (s *ChatService) userInVoiceRoomMemberSet(room db.ChatRoom, userID string) 
 	return false
 }
 
+// PendingVoiceInvite is an unanswered voice/video call waiting for the callee.
+type PendingVoiceInvite struct {
+	RoomID     string
+	CallID     string
+	CallerID   string
+	CallerName string
+	CallKind   string
+	RoomName   string
+	InvitedAt  time.Time
+}
+
+// ListPendingVoiceInvites returns active ring invites the caller may have missed while offline.
+func (s *ChatService) ListPendingVoiceInvites(
+	ctx context.Context, userID, workspaceID string,
+) ([]PendingVoiceInvite, error) {
+	w, err := s.workspaceForChat(ctx, userID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	out := make([]PendingVoiceInvite, 0)
+	voiceCallSessions.Range(func(_ any, value any) bool {
+		sess, ok := value.(voiceCallSession)
+		if !ok || sess.acceptedAt != nil || sess.callerID == userID {
+			return true
+		}
+		if now.Sub(sess.invitedAt) > voiceCallInvitePendingTTL {
+			return true
+		}
+		room, err := s.q.GetChatRoomByID(ctx, sess.roomID)
+		if err != nil {
+			return true
+		}
+		if !room.OrganizationID.Valid || room.OrganizationID.String != w.OrganizationID {
+			return true
+		}
+		if !s.userIsVoiceInviteRecipient(ctx, room, userID, sess.callerID) {
+			return true
+		}
+		if blockErr := s.requireDMVoiceAllowed(ctx, room, userID); blockErr != nil {
+			return true
+		}
+		out = append(out, PendingVoiceInvite{
+			RoomID:     sess.roomID,
+			CallID:     sess.callID,
+			CallerID:   sess.callerID,
+			CallerName: sess.callerName,
+			CallKind:   sess.callKind,
+			RoomName:   sess.roomName,
+			InvitedAt:  sess.invitedAt,
+		})
+		return true
+	})
+	return out, nil
+}
+
+func (s *ChatService) userIsVoiceInviteRecipient(
+	ctx context.Context, room db.ChatRoom, userID, callerID string,
+) bool {
+	switch room.Kind {
+	case chatRoomKindDM:
+		peerID, err := dmPeerUserID(room, callerID)
+		return err == nil && peerID == userID
+	case chatRoomKindGroup:
+		if !s.userInVoiceRoomMemberSet(room, userID) {
+			return false
+		}
+		canJoin, err := s.userCanJoinVoiceRoom(ctx, room, userID)
+		return err == nil && canJoin
+	default:
+		return false
+	}
+}
+
 func (s *ChatService) publishVoiceRoomSignal(ctx context.Context, room db.ChatRoom, actorID string, ev Event) error {
 	switch room.Kind {
 	case chatRoomKindDM:
@@ -403,21 +491,40 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 	}
 }
 
-func chatMessageRowFromListRow(row db.ListChatMessagesByRoomRow) ChatMessageRow {
+func chatMessageRowFromListRow(row db.ListChatMessagesByRoomRow, viewerID string) ChatMessageRow {
+	return chatMessageRowFromMessageFields(
+		row.ID, row.RoomID, row.WorkspaceID, row.SenderID, row.SenderDisplayName,
+		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
+	)
+}
+
+func chatMessageRowFromMessageFields(
+	id, roomID, workspaceID, senderID, senderDisplayName, kind, body string,
+	metadata []byte,
+	replyToMessageID pgtype.Text,
+	editedAt, createdAt pgtype.Timestamptz,
+	viewerID string,
+) ChatMessageRow {
 	msg := ChatMessageRow{
-		ID:                row.ID,
-		RoomID:            row.RoomID,
-		WorkspaceID:       row.WorkspaceID,
-		SenderID:          row.SenderID,
-		SenderDisplayName: row.SenderDisplayName,
-		Body:              row.Body,
-		Kind:              row.Kind,
-		CreatedAt:         row.CreatedAt.Time,
-		Reactions:         reactionCountsFromMetadata(row.Metadata),
-		VoiceCall:         voiceCallLogFromMetadata(row.Kind, row.Metadata),
+		ID: id, RoomID: roomID, WorkspaceID: workspaceID,
+		SenderID: senderID, SenderDisplayName: senderDisplayName,
+		Body: body, Kind: kind,
+		CreatedAt:        createdAt.Time,
+		Reactions:        reactionCountsFromMetadata(metadata),
+		Pinned:           pinFromMetadata(metadata),
+		MentionedUserIDs: mentionedUserIDsFromMetadata(metadata),
+		VoiceCall:        voiceCallLogFromMetadata(kind, metadata),
+		Poll:             pollFromMetadata(kind, metadata, viewerID),
+		Reminder:         reminderFromMetadata(kind, metadata),
+		Note:             noteFromMetadata(kind, metadata, body),
+		Priority:         priorityFromMetadata(metadata),
 	}
-	if row.ReplyToMessageID.Valid {
-		s := row.ReplyToMessageID.String
+	if editedAt.Valid {
+		t := editedAt.Time
+		msg.EditedAt = &t
+	}
+	if replyToMessageID.Valid {
+		s := replyToMessageID.String
 		msg.ReplyToMessageID = &s
 	}
 	return msg

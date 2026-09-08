@@ -1,0 +1,13 @@
+Subject: Đăng nhập mới vào tài khoản UniWork
+
+Đăng nhập từ thiết bị mới
+
+Tài khoản UniWork của bạn vừa được đăng nhập từ một trình duyệt chưa dùng trước đây.
+
+    Trình duyệt: {{.Data.UserAgent}}
+    Địa chỉ IP: {{.Data.IP}}
+    Thời điểm: {{.Data.At.Format "02/01/2006 15:04 MST"}}
+
+Xem các phiên đang mở: {{.Data.SessionsURL}}
+
+Nếu đó là bạn, không cần làm gì. Nếu không, hãy thu hồi phiên lạ trong Cài đặt → Bảo mật và đổi mật khẩu ngay.

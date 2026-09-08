@@ -6,6 +6,8 @@ dist/
 .env
 *.local
 server/bin/
+# Ad-hoc builds land beside the source on Windows; `make` never produces these.
+*.exe
 coverage/
 .go-cache/
 .go-tmp/

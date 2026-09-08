@@ -33,7 +33,9 @@ RETURNING *;
 -- name: AiUsageByDay :many
 -- One row per (day, capability, actor_kind) for a workspace or, with
 -- workspace_id NULL, the whole organization. Rejected/failed rows count as
--- calls but carry no tokens.
+-- calls but carry no tokens. to_at NULL means "everything so far": created_at
+-- is this database's clock and no row can be in the future, so an open end is
+-- both correct and immune to a caller whose clock lags this server's.
 SELECT
   date_trunc('day', created_at)::timestamptz AS day,
   capability,
@@ -46,7 +48,8 @@ SELECT
 FROM ai_usage_events
 WHERE organization_id = $1
   AND (sqlc.narg('workspace_id')::text IS NULL OR workspace_id = sqlc.narg('workspace_id')::text)
-  AND created_at >= sqlc.arg('from_at') AND created_at < sqlc.arg('to_at')
+  AND created_at >= sqlc.arg('from_at')
+  AND (sqlc.narg('to_at')::timestamptz IS NULL OR created_at < sqlc.narg('to_at')::timestamptz)
 GROUP BY 1, 2, 3, 4
 ORDER BY 1, 2, 3, 4;
 

@@ -188,9 +188,11 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 		return WorkspaceView{}, err
 	}
 	if _, err := s.RequireMember(ctx, r.ID, userID); err != nil {
-		// A suspended tenant answers its own members honestly (they already
-		// know it exists); everything else is 404 so nothing leaks.
-		if errors.Is(err, ErrOrganizationSuspended) {
+		// A suspended tenant, and a member who has been switched off, both
+		// already know this workspace exists, so they get the honest answer
+		// and the client can draw the right notice; everything else is 404 so
+		// nothing leaks.
+		if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrMemberDeactivated) {
 			return WorkspaceView{}, err
 		}
 		return WorkspaceView{}, ErrNotFound // không lộ sự tồn tại
@@ -213,6 +215,12 @@ func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userI
 	// platform admins reach it through /api/v1/admin, which never comes here.
 	if access.OrganizationStatus != OrganizationActive {
 		return db.WorkspaceMember{}, errOrganizationSuspended()
+	}
+	// Deactivation keeps the workspace rows, so the workspace join alone would
+	// still admit the person; the organization membership is what decides
+	// (F-03 §4.1).
+	if access.OrganizationMemberDeactivated {
+		return db.WorkspaceMember{}, errMemberDeactivated()
 	}
 	// The one place every workspace request passes through, so the span and
 	// the log lines of this request learn their tenant here (spec F-11 §6.1).
@@ -526,9 +534,13 @@ func (s *WorkspaceService) InviteMany(ctx context.Context, userID, workspaceID s
 			continue
 		}
 		inv, err := q.CreateInvitation(ctx, db.CreateInvitationParams{
-			ID: util.NewID(), WorkspaceID: workspaceID, Email: email, Role: role,
+			ID:             util.NewID(),
+			OrganizationID: ws.OrganizationID,
+			WorkspaceID:    pgtype.Text{String: workspaceID, Valid: true},
+			Email:          email, Role: role, OrgRole: OrgRoleMember,
 			Token:     util.NewID() + util.NewID(),
 			ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(inviteTTL), Valid: true},
+			InvitedBy: pgtype.Text{String: userID, Valid: true},
 		})
 		if err != nil {
 			return nil, nil, err
@@ -576,63 +588,135 @@ func (s *WorkspaceService) PendingInvitations(ctx context.Context, userID string
 	return s.q.ListInvitationsForEmail(ctx, u.Email)
 }
 
-// AcceptInvite: một transaction — org member (nếu chưa) + workspace member +
-// đánh dấu lời mời + MarkUserOnboarded. Không bao giờ có trạng thái "là thành
-// viên nhưng chưa onboard".
-func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token string) (WorkspaceView, error) {
+// AcceptResult is what accepting an invitation produced. Workspace is nil for
+// an organization-level invitation: the person is in the company but not yet
+// in any team, and the client sends them to the workspace picker.
+type AcceptResult struct {
+	Organization db.Organization
+	Workspace    *WorkspaceView
+}
+
+// AcceptInvite turns one invitation into membership, in a single transaction:
+// organization member (if new), profile, workspace member when the invitation
+// named one, the invitation marked accepted, and the user marked onboarded.
+// There is never a state where somebody is a member but not onboarded.
+func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token string) (AcceptResult, error) {
 	inv, err := s.q.GetInvitationByToken(ctx, token)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return WorkspaceView{}, ErrNotFound
+		return AcceptResult{}, ErrNotFound
 	}
 	if err != nil {
-		return WorkspaceView{}, err
+		return AcceptResult{}, err
 	}
-	w, err := s.q.GetWorkspaceByID(ctx, inv.WorkspaceID)
+	org, err := s.q.GetOrganizationByID(ctx, inv.OrganizationID)
 	if err != nil {
-		return WorkspaceView{}, err
+		return AcceptResult{}, err
 	}
+	var ws db.Workspace
+	if inv.WorkspaceID.Valid {
+		ws, err = s.q.GetWorkspaceByID(ctx, inv.WorkspaceID.String)
+		if err != nil {
+			return AcceptResult{}, err
+		}
+	}
+	// A membership that was switched off is not reopened by an invitation:
+	// only an owner or admin can let that person back in (spec F-03 §4.2).
+	existing, err := s.orgs.RequireMember(ctx, org.ID, userID)
+	isNewMember := errors.Is(err, ErrForbidden)
+	switch {
+	case errors.Is(err, ErrMemberDeactivated):
+		return AcceptResult{}, err
+	case isNewMember:
+	case err != nil:
+		return AcceptResult{}, err
+	}
+	_ = existing
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return WorkspaceView{}, err
+		return AcceptResult{}, err
 	}
 	defer tx.Rollback(ctx)
 	qtx := s.q.WithTx(tx)
 	// members.max counts organization members, so only a person new to the
 	// organization consumes a seat; an existing member joining another
 	// workspace does not (spec F-02 §4.3).
-	if _, err := s.orgs.RequireMember(ctx, w.OrganizationID, userID); errors.Is(err, ErrForbidden) {
-		if err := s.ent.Consume(ctx, qtx, ConsumeInput{OrganizationID: w.OrganizationID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(userID)}); err != nil {
-			return WorkspaceView{}, err
+	if isNewMember {
+		if err := s.ent.Consume(ctx, qtx, ConsumeInput{OrganizationID: org.ID, Meter: FeatureMembersMax, Delta: 1, Actor: Human(userID)}); err != nil {
+			return AcceptResult{}, err
 		}
-	} else if err != nil {
-		return WorkspaceView{}, err
 	}
-	if err := qtx.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{OrganizationID: w.OrganizationID, UserID: userID, Role: "member"}); err != nil {
-		return WorkspaceView{}, err
+	if err := qtx.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+		OrganizationID: org.ID, UserID: userID, Role: orgRoleOrMember(inv.OrgRole),
+	}); err != nil {
+		return AcceptResult{}, err
 	}
-	if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: userID, Role: inv.Role}); err != nil {
-		return WorkspaceView{}, err
+	joiner, err := qtx.GetUserByID(ctx, userID)
+	if err != nil {
+		return AcceptResult{}, err
+	}
+	if err := ensureMemberProfile(ctx, qtx, org.ID, userID, joiner.DisplayName, joiner.Email); err != nil {
+		return AcceptResult{}, err
+	}
+	if inv.WorkspaceID.Valid {
+		if err := qtx.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: ws.ID, UserID: userID, Role: inv.Role}); err != nil {
+			return AcceptResult{}, err
+		}
 	}
 	if err := qtx.MarkInvitationAccepted(ctx, inv.ID); err != nil {
-		return WorkspaceView{}, err
+		return AcceptResult{}, err
 	}
 	if _, err := qtx.MarkUserOnboarded(ctx, userID); err != nil {
-		return WorkspaceView{}, err
+		return AcceptResult{}, err
 	}
-	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
-		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
-		Actor:        audit.User(userID),
-		Action:       audit.ActionMemberJoined,
-		ResourceType: "workspace_member", ResourceID: userID,
-		Changes:  audit.Diff(nil, map[string]any{"role": inv.Role}),
+	entry := audit.Entry{
+		OrganizationID: org.ID,
+		Actor:          audit.User(userID),
+		Action:         audit.ActionMemberJoined,
+		ResourceType:   "organization_member", ResourceID: userID,
+		Changes:  audit.Diff(nil, map[string]any{"role": orgRoleOrMember(inv.OrgRole)}),
 		Metadata: map[string]any{"invitation_id": inv.ID},
-	}, audit.Event{Topic: "member.joined", Payload: map[string]string{
-		"organization_id": w.OrganizationID, "workspace_id": w.ID, "user_id": userID,
-	}}); err != nil {
-		return WorkspaceView{}, err
+	}
+	payload := map[string]string{"organization_id": org.ID, "user_id": userID}
+	if inv.WorkspaceID.Valid {
+		entry.WorkspaceID = ws.ID
+		entry.ResourceType = "workspace_member"
+		entry.Changes = audit.Diff(nil, map[string]any{"role": inv.Role})
+		payload["workspace_id"] = ws.ID
+	}
+	if err := auditRecorder.Record(ctx, qtx, entry, audit.Event{Topic: "member.joined", Payload: payload}); err != nil {
+		return AcceptResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return WorkspaceView{}, err
+		return AcceptResult{}, err
 	}
-	return s.GetView(ctx, userID, w.ID)
+	out := AcceptResult{Organization: org}
+	if inv.WorkspaceID.Valid {
+		view, err := s.GetView(ctx, userID, ws.ID)
+		if err != nil {
+			return AcceptResult{}, err
+		}
+		out.Workspace = &view
+	}
+	return out, nil
+}
+
+// orgRoleOrMember keeps an unknown role out of the membership row: the column
+// has a CHECK constraint, and "member" is the safe reading of anything else.
+func orgRoleOrMember(role string) string {
+	if role == OrgRoleAdmin || role == OrgRoleOwner {
+		return role
+	}
+	return OrgRoleMember
+}
+
+// OrganizationOf names the organization a workspace belongs to. The realtime
+// hub uses it to put a connection into its organization scope without the
+// client having to say which organization it is in.
+func (s *WorkspaceService) OrganizationOf(ctx context.Context, workspaceID string) (string, error) {
+	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return w.OrganizationID, nil
 }

@@ -10,11 +10,17 @@ import (
 )
 
 const (
-	KindVerificationCode   = "verification_code"
-	KindPasswordReset      = "password_reset"
-	KindWorkspaceInvite    = "workspace_invite"
+	KindVerificationCode = "verification_code"
+	KindPasswordReset    = "password_reset"
+	KindWorkspaceInvite  = "workspace_invite"
+	// An invitation to the organization itself, with no workspace behind it
+	// (F-03). Its own kind because the copy says "join the company", which is
+	// not what the workspace invitation says.
+	KindOrganizationInvite = "organization_invite"
 	KindWelcome            = "welcome"
 	KindNotificationDigest = "notification_digest"
+	// A sign-in from a browser the account has never used (F-01).
+	KindNewLogin = "new_login"
 )
 
 type Message struct {

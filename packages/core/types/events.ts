@@ -16,8 +16,10 @@ import { z } from "zod";
 export const WS_EVENT_TYPES = [
   "ai.usage.updated",
   "audit.exported",
+  "chat.mention.created",
   "chat.message",
   "chat.message.created",
+  "chat.message.deleted",
   "chat.message.updated",
   "chat.room.activity",
   "chat.room.created",
@@ -29,8 +31,12 @@ export const WS_EVENT_TYPES = [
   "chat.voice.hangup",
   "chat.voice.invite",
   "conference.session_ready",
+  "department.archived",
+  "department.created",
+  "department.updated",
   "host.transferred",
   "invitation.responded",
+  "invitation.revoked",
   "invite_link.revoked",
   "join_request.approved",
   "join_request.canceled",
@@ -42,17 +48,22 @@ export const WS_EVENT_TYPES = [
   "meeting.ended",
   "meeting.started",
   "meeting.updated",
+  "member.deactivated",
   "member.invited",
   "member.joined",
+  "member.left",
+  "member.reactivated",
   "member.removed",
   "member.role_changed",
   "notification.created",
   "organization.created",
+  "organization.ownership_transferred",
   "organization.suspended",
   "organization.unsuspended",
   "organization.updated",
   "participant.invited",
   "participant.removed",
+  "profile.updated",
   "quota.threshold",
   "recording.ready",
   "recording.started",
@@ -103,8 +114,9 @@ export type WSEventType = (typeof WS_EVENT_TYPES)[number];
 
 /**
  * Frame shape. `type` stays `z.string()` so an event this client predates is
- * ignored rather than rejected; `payload` carries ids only — the cache is
- * refreshed from the API, never patched from the socket.
+ * ignored rather than rejected; `payload` carries ids only — chat message
+ * events fetch one row from the API and patch the cache instead of refetching
+ * full lists.
  */
 export const WorkspaceEventSchema = z.object({
   type: z.string(),

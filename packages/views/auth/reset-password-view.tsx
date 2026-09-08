@@ -5,11 +5,11 @@ import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useResetPassword } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
-import type { SessionResponse } from "@uniwork/core/types";
+import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { cn } from "@uniwork/ui/lib/utils";
-import { AppLink } from "../navigation";
+import { AppLink, useNavigation } from "../navigation";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
 import { PasswordField } from "./password-field";
@@ -27,6 +27,7 @@ export function ResetPasswordView({
   onSuccess: (sess: SessionResponse) => void;
 }) {
   const { t } = useTranslation();
+  const { push } = useNavigation();
   const reset = useResetPassword();
   const errorId = useId();
   const hintId = useId();
@@ -96,7 +97,13 @@ export function ResetPasswordView({
             return;
           }
           setClientError(null);
-          reset.mutate({ token, password }, { onSuccess });
+          reset.mutate(
+            { token, password },
+            {
+              // MFA on: the challenge is in the cookie; the login page finishes it.
+              onSuccess: (out) => (isMFAChallenge(out) ? push(`${paths.login()}?mfa=1`) : onSuccess(out)),
+            },
+          );
         }}
       >
         <FieldGroup>

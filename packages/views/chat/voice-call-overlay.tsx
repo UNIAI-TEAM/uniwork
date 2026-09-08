@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Phone, PhoneOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useCallRingtone } from "./use-call-ringtone";
 import { VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-floating-panel";
-import {
-  ActiveVoiceCallSession,
-  PreConnectFloatingCall,
-} from "./voice-call-overlay-session";
+import { PreConnectFloatingCall } from "./voice-call-pre-connect";
 import type { VoiceCallOverlayState } from "./voice-call-overlay-types";
+
+// livekit-client is 130 KB gzip and only a connected call needs it, so it
+// loads on the transition to "active" rather than with the chat route
+// (scripts/bundle-budget.mjs). Ringing and incoming render without it: the
+// pre-connect panel is a sibling module that imports no SDK.
+const ActiveVoiceCallSession = lazy(() =>
+  import("./voice-call-overlay-session").then((m) => ({ default: m.ActiveVoiceCallSession })),
+);
 
 export type { VoiceCallKind, VoiceCallOverlayState } from "./voice-call-overlay-types";
 
@@ -60,6 +65,22 @@ export function VoiceCallOverlay({
   const ringtoneKind =
     state.status === "incoming" ? "incoming" : state.status === "ringing" ? "outgoing" : null;
   useCallRingtone(ringtoneKind);
+
+  const handleMinimize = () => {
+    setPanelMode((current) => {
+      if (current === "fullscreen") return "expanded";
+      if (current === "expanded") return "minimized";
+      return current;
+    });
+  };
+
+  const handleMaximize = () => {
+    setPanelMode((current) => {
+      if (current === "minimized") return "expanded";
+      if (current === "expanded") return "fullscreen";
+      return current;
+    });
+  };
 
   if (state.status === "incoming") {
     const statusLabel =
@@ -134,18 +155,22 @@ export function VoiceCallOverlay({
   if (state.status !== "active") return null;
 
   return (
-    <ActiveVoiceCallSession
-      peerName={state.peerName}
-      callKind={state.callKind}
-      isCaller={state.outgoing}
-      url={state.url}
-      token={state.token}
-      panelMode={panelMode}
-      onTogglePanelMode={() => setPanelMode((current) => (current === "expanded" ? "minimized" : "expanded"))}
-      onLeave={onLeave}
-      onEndForAll={onEndForAll}
-      onConnected={onConnected}
-      onConnectFailed={handleConnectFailed}
-    />
+    <Suspense fallback={null}>
+      <ActiveVoiceCallSession
+        peerName={state.peerName}
+        callKind={state.callKind}
+        isCaller={state.outgoing}
+        url={state.url}
+        token={state.token}
+        initialCameraEnabled={state.withCamera ?? false}
+        panelMode={panelMode}
+        onMinimize={handleMinimize}
+        onMaximize={handleMaximize}
+        onLeave={onLeave}
+        onEndForAll={onEndForAll}
+        onConnected={onConnected}
+        onConnectFailed={handleConnectFailed}
+      />
+    </Suspense>
   );
 }

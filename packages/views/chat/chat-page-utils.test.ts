@@ -36,6 +36,20 @@ describe("buildChatNameContext", () => {
     expect(context).toEqual([{ user_id: "u1", display_name: "Long (DM)" }]);
   });
 
+  it("prefers nickname over contact display name", () => {
+    const contacts = [contact("u1", "Tran Hoang Long", "long@example.com")];
+    const context = buildChatNameContext(
+      contacts,
+      null,
+      null,
+      {},
+      [],
+      { u1: "Long bạn thân" },
+    );
+
+    expect(context).toEqual([{ user_id: "u1", display_name: "Long bạn thân" }]);
+  });
+
   it("falls back to email local part when workspace display name is empty", () => {
     const context = buildChatNameContext(
       [],
@@ -87,6 +101,20 @@ describe("chatHeaderTitle", () => {
     const dm = contact("u1", "Long", "long@example.com");
     expect(
       chatHeaderTitle({ kind: "dm", contact: dm }, [dm], [], "General", ({ name }) => `Chat with ${name}`),
+    ).toBe("Chat with Long");
+  });
+
+  it("formats dm header with nickname when set", () => {
+    const dm = contact("u1", "Tran Hoang Long", "long@example.com");
+    expect(
+      chatHeaderTitle(
+        { kind: "dm", contact: dm },
+        [dm],
+        [],
+        "General",
+        ({ name }) => `Chat with ${name}`,
+        { u1: "Long" },
+      ),
     ).toBe("Chat with Long");
   });
 });

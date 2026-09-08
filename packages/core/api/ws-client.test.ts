@@ -76,4 +76,35 @@ describe("WSClient scoped subscribe", () => {
     });
     vi.useRealTimers();
   });
+
+  it("notifies connection state listeners", () => {
+    const ws = new WSClient("ws://example.test/ws");
+    const states: string[] = [];
+    ws.onConnectionStateChange((state) => states.push(state));
+
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    expect(states).toContain("connecting");
+
+    FakeWebSocket.lastInstance!.onmessage?.({
+      data: JSON.stringify({ type: "auth_ack" }),
+    });
+    expect(states).toContain("connected");
+
+    FakeWebSocket.lastInstance!.onclose?.();
+    expect(states.at(-1)).toBe("disconnected");
+  });
+
+  it("reconnectNow starts a fresh connection attempt", () => {
+    vi.useFakeTimers();
+    const ws = new WSClient("ws://example.test/ws");
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    FakeWebSocket.lastInstance!.onclose?.();
+    FakeWebSocket.lastUrl = null;
+
+    ws.reconnectNow();
+    expect(FakeWebSocket.lastUrl).toContain("ws://example.test/ws");
+    vi.useRealTimers();
+  });
 });

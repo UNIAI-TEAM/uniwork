@@ -16,6 +16,24 @@ const (
 	ActionMemberJoined      = "member.joined"
 	ActionMemberRoleChanged = "member.role_changed"
 	ActionMemberRemoved     = "member.removed"
+	// Organization membership lifecycle (F-03). Deactivation is reversible and
+	// keeps the row; leaving is voluntary and deletes it. Ownership transfer is
+	// its own action because it is the one change that cannot be undone by the
+	// person who made it.
+	ActionMemberDeactivated            = "member.deactivated"
+	ActionMemberReactivated            = "member.reactivated"
+	ActionMemberLeft                   = "member.left"
+	ActionOrganizationOwnershipChanged = "organization.ownership_transferred"
+
+	// People and departments (F-03). profile.updated covers both the self-edit
+	// and the administrator's edit; the row records which company-owned facts
+	// changed, never the person's own free text.
+	ActionProfileUpdated     = "profile.updated"
+	ActionDepartmentCreated  = "department.created"
+	ActionDepartmentUpdated  = "department.updated"
+	ActionDepartmentArchived = "department.archived"
+	ActionPeopleExported     = "people.exported"
+	ActionInvitationRevoked  = "invitation.revoked"
 
 	ActionWorkspaceCreated = "workspace.created"
 	ActionWorkspaceUpdated = "workspace.updated"
@@ -73,6 +91,11 @@ const (
 	ActionAuthPasswordResetRequested = "auth.password_reset_requested"
 	ActionAuthPasswordChanged        = "auth.password_changed"
 	ActionAuthSessionRevoked         = "auth.session_revoked"
+	ActionAuthMFAEnabled             = "auth.mfa_enabled"
+	ActionAuthMFADisabled            = "auth.mfa_disabled"
+	// The person asked for their account to be erased (Nghị định 13); the
+	// row is anonymised and this is the last event that names it (F-01).
+	ActionUserDeleted = "user.deleted"
 
 	ActionChatRoomCreated       = "chat.room.created"
 	ActionChatRoomMemberAdded   = "chat.room.member_added"

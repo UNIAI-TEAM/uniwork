@@ -17,9 +17,14 @@ import (
 //	POST /api/v1/workspaces/{workspaceID}/chat/dm
 //	POST /api/v1/workspaces/{workspaceID}/chat/groups
 //	POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave
-//	POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members
+//	GET    /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members
+//	POST   /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members
+//	PATCH  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
+//	DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/messages
 //	POST /api/v1/workspaces/{workspaceID}/chat/messages
+//	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search
+//	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages
 //	POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages
 func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Handler) http.Handler) {
@@ -51,12 +56,69 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/chat/nicknames", h.ListChatNicknames, apiOp{
+		summary:     "List chat nicknames",
+		description: "Biệt danh cá nhân mà caller đặt cho thành viên trong tổ chức.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatNicknameMapSDO{},
+		auth:        true,
+	})
+	r.Put("/workspaces/{workspaceID}/chat/users/{userID}/nickname", h.SetChatNickname, apiOp{
+		summary:     "Set chat nickname",
+		description: "Đặt hoặc xóa biệt danh cá nhân cho một thành viên (chỉ caller thấy).",
+		tags:        []string{"chat"},
+		sdi:         sdi.SetChatNicknameSDI{},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/gifs/search", h.SearchChatGifs, apiOp{
+		summary:     "Search chat GIFs",
+		description: "Tìm GIF qua Tenor cho composer chat; không có TENOR_API_KEY thì trả catalog mặc định.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatGifListSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/gifs/trending", h.TrendingChatGifs, apiOp{
+		summary:     "Trending chat GIFs",
+		description: "GIF nổi bật từ Tenor cho composer chat.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatGifListSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/stickers/search", h.SearchChatStickers, apiOp{
+		summary:     "Search chat stickers",
+		description: "Tìm sticker minh họa qua Tenor; cần TENOR_API_KEY.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatGifListSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/stickers/trending", h.TrendingChatStickers, apiOp{
+		summary:     "Trending chat stickers",
+		description: "Sticker nổi bật từ Tenor cho composer chat.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatGifListSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/media/status", h.GetChatMediaStatus, apiOp{
+		summary:     "Chat media library status",
+		description: "Tenor đã cấu hình trên server hay đang dùng catalog offline.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatMediaStatusSDO{},
+		auth:        true,
+	})
 	r.Post("/chat/voice/token", h.MintChatVoiceToken, apiOp{
 		summary:     "Mint chat voice token",
 		description: "Cấp token LiveKit cho cuộc gọi thoại trong phòng chat.",
 		tags:        []string{"chat"},
 		sdi:         sdi.MintChatVoiceTokenSDI{},
 		sdo:         sdo.MeetingTokenSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/voice/pending", h.ListPendingChatVoiceInvites, apiOp{
+		summary:     "List pending chat voice invites",
+		description: "Cuộc gọi đang đổ chuông mà callee có thể bỏ lỡ khi offline.",
+		tags:        []string{"chat"},
+		sdo:         sdo.PendingVoiceInviteSDO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/room", h.GetWorkspaceChatRoom, apiOp{
@@ -104,12 +166,42 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/members", h.ListChatRoomMembers, apiOp{
+		summary:     "List chat room members",
+		description: "Danh sách thành viên phòng chat kèm role và trạng thái cấm gửi.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatRoomMemberDTO{},
+		auth:        true,
+	})
 	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/members", h.InviteChatGroupMembers, apiOp{
 		summary:     "Invite group members",
 		description: "Mời thêm thành viên vào nhóm chat.",
 		tags:        []string{"chat"},
 		sdi:         sdi.InviteGroupMembersSDI{},
 		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
+	r.Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.PatchChatRoom, apiOp{
+		summary:     "Update chat room settings",
+		description: "Đổi tên phòng hoặc cấu hình quyền thành viên (admin).",
+		tags:        []string{"chat"},
+		sdi:         sdi.PatchChatRoomSDI{},
+		sdo:         sdo.ChatRoomMemberPermissionsDTO{},
+		auth:        true,
+	})
+	r.Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
+		summary:     "Update chat room member",
+		description: "Thăng/giáng admin phòng hoặc cấm/bỏ cấm gửi tin.",
+		tags:        []string{"chat"},
+		sdi:         sdi.PatchChatRoomMemberSDI{},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.RemoveChatRoomMember, apiOp{
+		summary:     "Remove chat room member",
+		description: "Kick khỏi nhóm hoặc xóa khỏi workspace (phòng workspace).",
+		tags:        []string{"chat"},
+		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/messages", h.ListWorkspaceChatMessages, apiOp{
@@ -127,6 +219,27 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search", h.SearchChatRoomMessages, apiOp{
+		summary:     "Search chat room messages",
+		description: "Tìm tin nhắn văn bản trong phòng chat (không đánh dấu đã đọc).",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}", h.ListChatRoomMessagesAround, apiOp{
+		summary:     "List chat messages around message",
+		description: "Lấy tin nhắn quanh một tin cụ thể để nhảy tới vị trí tìm kiếm.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.GetChatRoomMessage, apiOp{
+		summary:     "Get chat room message",
+		description: "Lấy một tin nhắn trong phòng (realtime patch, không refetch cả trang).",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", h.ListChatRoomMessages, apiOp{
 		summary:     "List chat room messages",
 		description: "Danh sách tin nhắn phòng DM/nhóm.",
@@ -136,9 +249,17 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 	})
 	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", h.SendChatRoomMessage, apiOp{
 		summary:     "Send chat room message",
-		description: "Gửi tin nhắn vào phòng DM/nhóm.",
+		description: "Gửi tin nhắn hoặc bình chọn vào phòng DM/nhóm.",
 		tags:        []string{"chat"},
 		sdi:         sdi.SendChatMessageSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote", h.VoteChatPollMessage, apiOp{
+		summary:     "Vote on chat poll",
+		description: "Bỏ phiếu trên tin nhắn bình chọn.",
+		tags:        []string{"chat"},
+		sdi:         sdi.VoteChatPollSDI{},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
@@ -147,6 +268,28 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		description: "Thêm hoặc gỡ biểu cảm trên tin nhắn.",
 		tags:        []string{"chat"},
 		sdi:         sdi.ToggleChatReactionSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.With(chatWriteLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.EditChatMessage, apiOp{
+		summary:     "Edit chat message",
+		description: "Sửa nội dung tin nhắn văn bản của chính mình.",
+		tags:        []string{"chat"},
+		sdi:         sdi.EditChatMessageSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.With(chatWriteLimit).Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.DeleteChatMessage, apiOp{
+		summary:     "Delete chat message",
+		description: "Xóa mềm tin nhắn của chính mình.",
+		tags:        []string{"chat"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/pin", h.ToggleChatMessagePin, apiOp{
+		summary:     "Toggle chat message pin",
+		description: "Ghim hoặc bỏ ghim tin nhắn trong phòng.",
+		tags:        []string{"chat"},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})

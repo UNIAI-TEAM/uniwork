@@ -26,6 +26,11 @@ const (
 	// to a room is not subscribed to it yet, so ScopeChat would deliver the
 	// event to everyone except the person it is about.
 	ScopeRoom Scope = "room"
+	// ScopeOrganization fans out to everyone connected from anywhere in one
+	// organization. Directory and department changes belong to the company,
+	// not to a workspace, so a per-workspace fan-out would both miss people
+	// and repeat itself (F-03 §6.4).
+	ScopeOrganization Scope = "organization"
 	// ScopeNone is infrastructure work with no client to notify.
 	ScopeNone Scope = ""
 )
@@ -104,6 +109,23 @@ var catalogue = []EventDef{
 	{Topic: "member.joined", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.role_changed", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "member.removed", Version: 1, Payload: []string{"organization_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Organization membership lifecycle (F-03). Each one reaches the person it
+	// is about on their user scope, so a deactivated member's own tabs switch
+	// to the blocked screen without waiting for a poll.
+	{Topic: "invitation.revoked", Version: 1, Payload: []string{"organization_id", "invitation_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "member.deactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "member.reactivated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "member.left", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "organization.ownership_transferred", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+
+	// Directory and departments (F-03): everyone in the organization sees the
+	// same list, so they refresh on the organization scope.
+	{Topic: "profile.updated", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "department.created", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "department.updated", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "department.archived", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	// Exporting the directory is an audited act with nothing to redraw.
+	{Topic: "people.exported", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "workspace.created", Version: 1, Payload: []string{"workspace_id", "organization_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "workspace.updated", Version: 1, Payload: []string{"workspace_id", "organization_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
@@ -116,6 +138,10 @@ var catalogue = []EventDef{
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A mention is addressed to the person mentioned, not to the room, so it
+	// goes out on that user's own scope alongside the room's message event.
+	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.typing", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},

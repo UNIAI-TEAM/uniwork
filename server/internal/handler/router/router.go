@@ -90,6 +90,8 @@ func New(d Deps, h Routes) http.Handler {
 			authed.Use(mw.RequireAuth(d.Minter))
 			registerMe(authed, h, credentialLimit)
 			registerOrganizations(authed, h)
+			registerPeople(authed, h)
+			registerDepartments(authed, h)
 			registerWorkspaces(authed, h)
 			registerAgents(authed, h)
 			registerBilling(authed, h)

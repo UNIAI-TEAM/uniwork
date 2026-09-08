@@ -17,6 +17,8 @@ func TestAdminRoutesGuardedByPlatformRole(t *testing.T) {
 	t.Cleanup(srv.Close)
 	w := buildAuditWorld(t, srv)
 	q := db.New(pool)
+	// Platform roles require MFA (F-01); enrol before the grants below.
+	enrolMFA(t, srv, w.token)
 
 	res, _ := doJSON(t, srv, "GET", "/api/v1/admin/me", w.token, nil)
 	if res.StatusCode != 404 {
@@ -108,6 +110,7 @@ func TestFlagOverridesReachPublicConfig(t *testing.T) {
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 	w := buildAuditWorld(t, srv)
+	enrolMFA(t, srv, w.token)
 	if _, err := d.Admin.SetPlatformRole(context.Background(), service.CLIActor, "audit@example.com", "admin", "test fixture grant"); err != nil {
 		t.Fatal(err)
 	}

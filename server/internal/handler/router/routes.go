@@ -31,24 +31,55 @@ type Routes struct {
 	ResetPassword  http.HandlerFunc
 	Refresh        http.HandlerFunc
 	Logout         http.HandlerFunc
+	MFAVerify      http.HandlerFunc
 	AuthProviders  http.HandlerFunc
 	GoogleStart    http.HandlerFunc
 	GoogleCallback http.HandlerFunc
 
-	Me                 http.HandlerFunc
-	PatchMe            http.HandlerFunc
-	UploadAvatar       http.HandlerFunc
-	VerifyEmail        http.HandlerFunc
-	ResendVerification http.HandlerFunc
-	PatchOnboarding    http.HandlerFunc
-	CompleteOnboarding http.HandlerFunc
-	MyInvitations      http.HandlerFunc
+	Me                  http.HandlerFunc
+	PatchMe             http.HandlerFunc
+	UploadAvatar        http.HandlerFunc
+	VerifyEmail         http.HandlerFunc
+	ResendVerification  http.HandlerFunc
+	MFASetup            http.HandlerFunc
+	MFAConfirm          http.HandlerFunc
+	MFADisable          http.HandlerFunc
+	ListSessions        http.HandlerFunc
+	RevokeSession       http.HandlerFunc
+	RevokeOtherSessions http.HandlerFunc
+	DeleteAccount       http.HandlerFunc
+	PatchOnboarding     http.HandlerFunc
+	CompleteOnboarding  http.HandlerFunc
+	MyInvitations       http.HandlerFunc
 
 	ListOrganizations  http.HandlerFunc
 	CreateOrganization http.HandlerFunc
 	GetOrganization    http.HandlerFunc
 	ListOrgWorkspaces  http.HandlerFunc
 	CreateOrgWorkspace http.HandlerFunc
+
+	ListOrgMembers      http.HandlerFunc
+	GetOrgMembershipMe  http.HandlerFunc
+	PatchOrgMember      http.HandlerFunc
+	DeactivateOrgMember http.HandlerFunc
+	ReactivateOrgMember http.HandlerFunc
+	LeaveOrganization   http.HandlerFunc
+
+	InviteToOrganization http.HandlerFunc
+	ListOrgInvitations   http.HandlerFunc
+	RevokeOrgInvitation  http.HandlerFunc
+	TransferOrgOwnership http.HandlerFunc
+
+	ListPeople         http.HandlerFunc
+	GetPerson          http.HandlerFunc
+	PatchPersonProfile http.HandlerFunc
+	ExportPeople       http.HandlerFunc
+
+	ListDepartments    http.HandlerFunc
+	CreateDepartment   http.HandlerFunc
+	PatchDepartment    http.HandlerFunc
+	ArchiveDepartment  http.HandlerFunc
+	ReorderDepartments http.HandlerFunc
 
 	GetWorkspaceBySlugs http.HandlerFunc
 	ListWorkspaces      http.HandlerFunc
@@ -233,25 +264,44 @@ type Routes struct {
 	LiveKitWebhook       http.HandlerFunc
 	MeetingLobbyWS       http.HandlerFunc
 
-	LookupChatUser            http.HandlerFunc
-	GetChatBlockStatus        http.HandlerFunc
-	BlockChatUser             http.HandlerFunc
-	UnblockChatUser           http.HandlerFunc
-	MintChatVoiceToken        http.HandlerFunc
-	GetWorkspaceChatRoom      http.HandlerFunc
-	EnsureWorkspaceChatRoom   http.HandlerFunc
-	ListChatRooms             http.HandlerFunc
-	ResolveDM                 http.HandlerFunc
-	CreateChatGroup           http.HandlerFunc
-	InviteChatGroupMembers    http.HandlerFunc
-	LeaveChatRoom             http.HandlerFunc
-	ListWorkspaceChatMessages http.HandlerFunc
-	SendWorkspaceChatMessage  http.HandlerFunc
-	ListChatRoomMessages      http.HandlerFunc
-	SendChatRoomMessage       http.HandlerFunc
-	ToggleChatMessageReaction http.HandlerFunc
-	SignalChatVoiceInvite     http.HandlerFunc
-	SignalChatVoiceAccept     http.HandlerFunc
-	SignalChatVoiceHangup     http.HandlerFunc
-	SignalChatTyping          http.HandlerFunc
+	LookupChatUser              http.HandlerFunc
+	GetChatBlockStatus          http.HandlerFunc
+	BlockChatUser               http.HandlerFunc
+	UnblockChatUser             http.HandlerFunc
+	ListChatNicknames           http.HandlerFunc
+	SetChatNickname             http.HandlerFunc
+	SearchChatGifs              http.HandlerFunc
+	TrendingChatGifs            http.HandlerFunc
+	SearchChatStickers          http.HandlerFunc
+	TrendingChatStickers        http.HandlerFunc
+	GetChatMediaStatus          http.HandlerFunc
+	MintChatVoiceToken          http.HandlerFunc
+	ListPendingChatVoiceInvites http.HandlerFunc
+	GetWorkspaceChatRoom        http.HandlerFunc
+	EnsureWorkspaceChatRoom     http.HandlerFunc
+	ListChatRooms               http.HandlerFunc
+	ResolveDM                   http.HandlerFunc
+	CreateChatGroup             http.HandlerFunc
+	InviteChatGroupMembers      http.HandlerFunc
+	ListChatRoomMembers         http.HandlerFunc
+	PatchChatRoomMember         http.HandlerFunc
+	PatchChatRoom               http.HandlerFunc
+	RemoveChatRoomMember        http.HandlerFunc
+	LeaveChatRoom               http.HandlerFunc
+	ListWorkspaceChatMessages   http.HandlerFunc
+	SendWorkspaceChatMessage    http.HandlerFunc
+	ListChatRoomMessages        http.HandlerFunc
+	GetChatRoomMessage          http.HandlerFunc
+	SearchChatRoomMessages      http.HandlerFunc
+	ListChatRoomMessagesAround  http.HandlerFunc
+	SendChatRoomMessage         http.HandlerFunc
+	VoteChatPollMessage         http.HandlerFunc
+	ToggleChatMessageReaction   http.HandlerFunc
+	EditChatMessage             http.HandlerFunc
+	DeleteChatMessage           http.HandlerFunc
+	ToggleChatMessagePin        http.HandlerFunc
+	SignalChatVoiceInvite       http.HandlerFunc
+	SignalChatVoiceAccept       http.HandlerFunc
+	SignalChatVoiceHangup       http.HandlerFunc
+	SignalChatTyping            http.HandlerFunc
 }

@@ -8,7 +8,7 @@ vi.mock("./use-call-ringtone", () => ({
   useCallRingtone: vi.fn(),
 }));
 
-vi.mock("./voice-call-overlay-session", () => ({
+vi.mock("./voice-call-pre-connect", () => ({
   PreConnectFloatingCall: ({
     peerName,
     statusLabel,
@@ -24,6 +24,10 @@ vi.mock("./voice-call-overlay-session", () => ({
       {children}
     </div>
   ),
+}));
+
+// The active session arrives through React.lazy, so its assertion waits.
+vi.mock("./voice-call-overlay-session", () => ({
   ActiveVoiceCallSession: () => <div data-testid="active-session" />,
 }));
 
@@ -105,7 +109,7 @@ describe("VoiceCallOverlay", () => {
     expect(handlers.onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it("renders active session shell", () => {
+  it("renders active session shell", async () => {
     render(
       wrap(
         <VoiceCallOverlay
@@ -124,7 +128,7 @@ describe("VoiceCallOverlay", () => {
       ),
     );
 
-    expect(screen.getByTestId("active-session")).toBeInTheDocument();
+    expect(await screen.findByTestId("active-session")).toBeInTheDocument();
   });
 
   it("returns null while idle", () => {

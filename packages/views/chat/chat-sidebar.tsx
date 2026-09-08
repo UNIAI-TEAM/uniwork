@@ -1,43 +1,27 @@
 "use client";
 
 import { Hash, Search, UserPlus, Users } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
-import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import {
+  comparePinnedRoomOrder,
+  useChatRoomPreferencesStore,
+} from "@uniwork/core/chat/room-preferences-store";
 import type { PendingInvitation } from "@uniwork/core/types";
 import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CreateGroupDialog } from "./create-group-dialog";
 import { StartDmDialog } from "./start-dm-dialog";
+import { compareRoomPreviewRecency } from "./chat-sidebar-preview";
+import { SidebarNavItem } from "./chat-sidebar-rows";
+import type { ChatSidebarProps, ChatSidebarTarget } from "./chat-sidebar-types";
 
-export type ChatSidebarTarget =
-  | { kind: "workspace" }
-  | { kind: "dm"; contact: ChatContact }
-  | { kind: "group"; group: GroupChat };
-
-interface ChatSidebarProps {
-  currentUserId: string;
-  workspaceId: string;
-  target: ChatSidebarTarget;
-  onTargetChange: (target: ChatSidebarTarget) => void;
-  contacts: ChatContact[];
-  groups: GroupChat[];
-  onCreateGroup?: (members: ChatContact[], name: string) => void;
-  creatingGroup?: boolean;
-  createGroupOpen?: boolean;
-  onCreateGroupOpenChange?: (open: boolean) => void;
-  onJoinedWorkspace?: () => void;
-  workspaceRoomId?: string | null;
-  unreadByRoomId?: Record<string, number>;
-  unreadBadgesReady?: boolean;
-  embedded?: boolean;
-}
+export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
 function initialOf(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || "?";
@@ -62,7 +46,10 @@ export function ChatSidebar({
   onJoinedWorkspace,
   workspaceRoomId = null,
   unreadByRoomId = {},
+  mentionUnreadByRoomId = {},
+  roomPreviewsByRoomId = {},
   unreadBadgesReady = false,
+  nicknamesByUserId = {},
   embedded = false,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
@@ -75,25 +62,54 @@ export function ChatSidebar({
   const accept = useAcceptInvite();
 
   const filterText = filterQuery.trim().toLowerCase();
+  const pinnedByRoomId = useChatRoomPreferencesStore((state) => state.byRoomId);
+  const isRoomPinned = (roomId: string | null | undefined) =>
+    Boolean(roomId && pinnedByRoomId[roomId]?.pinned);
+  const isRoomNotificationsMuted = (roomId: string | null | undefined) =>
+    Boolean(roomId && pinnedByRoomId[roomId]?.notificationsMuted);
   const workspaceTitle = t("chat.workspace_room");
   const workspaceHint = t("chat.workspace_room_hint");
 
   const filteredGroups = useMemo(
-    () => groups.filter((group) => matchesConversationFilter(group.name, filterText)),
-    [groups, filterText],
+    () =>
+      groups
+        .filter((group) => matchesConversationFilter(group.name, filterText))
+        .sort((a, b) => {
+          const pinOrder = comparePinnedRoomOrder(a.room_id, b.room_id, pinnedByRoomId);
+          if (pinOrder !== 0) return pinOrder;
+          return compareRoomPreviewRecency(
+            roomPreviewsByRoomId[a.room_id],
+            roomPreviewsByRoomId[b.room_id],
+          );
+        }),
+    [groups, filterText, pinnedByRoomId, roomPreviewsByRoomId],
   );
 
   const filteredContacts = useMemo(
     () =>
-      contacts.filter((contact) => {
-        const label = displayLabelForChatContact(contact);
-        return (
-          matchesConversationFilter(label, filterText) ||
-          matchesConversationFilter(contact.email, filterText)
-        );
-      }),
-    [contacts, filterText],
+      contacts
+        .filter((contact) => {
+          const label = displayLabelForChatContact(contact, nicknamesByUserId);
+          return (
+            matchesConversationFilter(label, filterText) ||
+            matchesConversationFilter(contact.email, filterText)
+          );
+        })
+        .sort((a, b) => {
+          const leftRoomId = a.dm_room_id ?? "";
+          const rightRoomId = b.dm_room_id ?? "";
+          const pinOrder = comparePinnedRoomOrder(leftRoomId, rightRoomId, pinnedByRoomId);
+          if (pinOrder !== 0) return pinOrder;
+          const leftPreview = a.dm_room_id ? roomPreviewsByRoomId[a.dm_room_id] : null;
+          const rightPreview = b.dm_room_id ? roomPreviewsByRoomId[b.dm_room_id] : null;
+          return compareRoomPreviewRecency(leftPreview, rightPreview);
+        }),
+    [contacts, filterText, pinnedByRoomId, roomPreviewsByRoomId, nicknamesByUserId],
   );
+
+  const youLabel = t("chat.you");
+  const voiceCallPreviewLabel = t("chat.sidebar_voice_call_preview");
+  const yesterdayLabel = t("chat.sidebar_yesterday");
 
   const showWorkspace =
     !filterText ||
@@ -119,7 +135,7 @@ export function ChatSidebar({
       <aside
         className={cn(
           "flex min-h-0 flex-col gap-3 bg-surface p-3",
-          embedded ? "border-r border-border" : "gap-4 rounded-lg border border-border",
+          embedded ? "h-full min-w-0 flex-1 border-r border-border" : "gap-4 rounded-lg border border-border",
         )}
       >
         <div className="flex items-center gap-1.5">
@@ -209,9 +225,25 @@ export function ChatSidebar({
                   </span>
                 }
                 title={workspaceTitle}
-                subtitle={workspaceHint}
+                fallbackSubtitle={workspaceHint}
+                preview={
+                  workspaceRoomId ? roomPreviewsByRoomId[workspaceRoomId] : undefined
+                }
+                roomId={workspaceRoomId}
+                contacts={contacts}
+                previewOptions={{
+                  currentUserId,
+                  isGroup: true,
+                  youLabel,
+                  voiceCallLabel: voiceCallPreviewLabel,
+                  yesterdayLabel,
+                  nicknamesByUserId,
+                }}
                 unread={workspaceRoomId ? (unreadByRoomId[workspaceRoomId] ?? 0) : 0}
+                mentionUnread={workspaceRoomId ? (mentionUnreadByRoomId[workspaceRoomId] ?? 0) : 0}
                 unreadBadgesReady={unreadBadgesReady}
+                pinned={isRoomPinned(workspaceRoomId)}
+                notificationsMuted={isRoomNotificationsMuted(workspaceRoomId)}
               />
             </section>
           ) : null}
@@ -225,6 +257,7 @@ export function ChatSidebar({
                 {filteredGroups.map((group) => {
                   const active = target.kind === "group" && target.group.id === group.id;
                   const unread = unreadByRoomId[group.room_id] ?? 0;
+                  const mentionUnread = mentionUnreadByRoomId[group.room_id] ?? 0;
                   return (
                     <li key={group.id}>
                       <SidebarNavItem
@@ -234,11 +267,25 @@ export function ChatSidebar({
                           <ActorAvatar name={group.name} initials={initialOf(group.name)} size="sm" />
                         }
                         title={group.name}
-                        subtitle={t("chat.group_member_count", {
+                        fallbackSubtitle={t("chat.group_member_count", {
                           count: group.member_user_ids.length + 1,
                         })}
+                        preview={roomPreviewsByRoomId[group.room_id]}
+                        roomId={group.room_id}
+                        contacts={contacts}
+                        previewOptions={{
+                          currentUserId,
+                          isGroup: true,
+                          youLabel,
+                          voiceCallLabel: voiceCallPreviewLabel,
+                          yesterdayLabel,
+                          nicknamesByUserId,
+                        }}
                         unread={unread}
+                        mentionUnread={mentionUnread}
                         unreadBadgesReady={unreadBadgesReady}
+                        pinned={isRoomPinned(group.room_id)}
+                        notificationsMuted={isRoomNotificationsMuted(group.room_id)}
                       />
                     </li>
                   );
@@ -264,7 +311,8 @@ export function ChatSidebar({
                   const active = target.kind === "dm" && target.contact.user_id === contact.user_id;
                   const dmRoomId = contact.dm_room_id ?? null;
                   const unread = dmRoomId ? (unreadByRoomId[dmRoomId] ?? 0) : 0;
-                  const label = displayLabelForChatContact(contact);
+                  const mentionUnread = dmRoomId ? (mentionUnreadByRoomId[dmRoomId] ?? 0) : 0;
+                  const label = displayLabelForChatContact(contact, nicknamesByUserId);
                   return (
                     <li key={contact.user_id}>
                       <SidebarNavItem
@@ -274,9 +322,23 @@ export function ChatSidebar({
                           <ActorAvatar name={label} initials={initialOf(label)} size="sm" />
                         }
                         title={label}
-                        subtitle={contact.email}
+                        fallbackSubtitle={contact.email}
+                        preview={dmRoomId ? roomPreviewsByRoomId[dmRoomId] : undefined}
+                        roomId={dmRoomId}
+                        contacts={contacts}
+                        previewOptions={{
+                          currentUserId,
+                          isGroup: false,
+                          youLabel,
+                          voiceCallLabel: voiceCallPreviewLabel,
+                          yesterdayLabel,
+                          nicknamesByUserId,
+                        }}
                         unread={unread}
+                        mentionUnread={mentionUnread}
                         unreadBadgesReady={unreadBadgesReady}
+                        pinned={isRoomPinned(dmRoomId)}
+                        notificationsMuted={isRoomNotificationsMuted(dmRoomId)}
                       />
                     </li>
                   );
@@ -312,58 +374,5 @@ export function ChatSidebar({
         onCreate={handleCreateGroup}
       />
     </>
-  );
-}
-
-function SidebarNavItem({
-  active,
-  onClick,
-  avatar,
-  title,
-  subtitle,
-  unread,
-  unreadBadgesReady,
-}: {
-  active: boolean;
-  onClick: () => void;
-  avatar: ReactNode;
-  title: string;
-  subtitle?: string;
-  unread: number;
-  unreadBadgesReady: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors",
-        active ? "bg-brand/10 ring-1 ring-brand/20" : "hover:bg-muted/80",
-      )}
-      onClick={onClick}
-    >
-      {avatar}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-body font-medium text-foreground">{title}</span>
-        {subtitle ? (
-          <span className="block truncate text-caption text-muted-foreground">{subtitle}</span>
-        ) : null}
-      </span>
-      <UnreadBadge count={unread} ready={unreadBadgesReady} />
-    </button>
-  );
-}
-
-function UnreadBadge({ count, ready }: { count: number; ready: boolean }) {
-  const { t } = useTranslation();
-  if (!ready || count <= 0) return <span className="min-w-5 shrink-0" aria-hidden />;
-  const display = count > 99 ? "99+" : String(count);
-  return (
-    <Badge
-      variant="default"
-      className="min-w-5 shrink-0 rounded-full px-1.5 tabular-nums"
-      aria-label={t("chat.unread_badge_aria", { count })}
-    >
-      {display}
-    </Badge>
   );
 }

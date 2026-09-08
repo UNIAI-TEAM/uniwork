@@ -54,19 +54,20 @@ func (s *AdminService) SetSystemSources(r *Readiness, conns func() int64, flagCh
 	s.readiness, s.connsCount, s.flagChain = r, conns, flagChain
 }
 
-// PlatformRole answers the middleware: "" when the user holds none.
-func (s *AdminService) PlatformRole(ctx context.Context, userID string) (string, error) {
+// PlatformRole answers the middleware: "" when the user holds none, and
+// whether MFA is on (a role without MFA is refused at the gate, F-01).
+func (s *AdminService) PlatformRole(ctx context.Context, userID string) (string, bool, error) {
 	u, err := s.q.GetUserByID(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", nil
+		return "", false, nil
 	}
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if !u.PlatformRole.Valid {
-		return "", nil
+		return "", false, nil
 	}
-	return u.PlatformRole.String, nil
+	return u.PlatformRole.String, u.MfaEnabledAt.Valid, nil
 }
 
 // ErrReasonTooShort: every admin write carries a reason a reader can act on.

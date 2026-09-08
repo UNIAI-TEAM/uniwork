@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import { createTask, deleteTask, listComments, listTasks, getTask, updateTask } from "./tasks";
+import { addComment, createTask, deleteTask, listComments, listTasks, getTask, seedWelcomeTask, updateTask } from "./tasks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -73,5 +73,30 @@ describe("tasks endpoints", () => {
   it("listComments returns [] on drift", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ comments: "nope" }));
     await expect(listComments("t1")).resolves.toEqual([]);
+  });
+
+  it("addComment posts the body and returns the comment", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ comment: { id: "c1", task_id: "t1", author_id: "u1", body: "nice" } }),
+    );
+    const comment = await addComment("t1", "nice");
+    expect(comment?.id).toBe("c1");
+    const init = vi.mocked(fetch).mock.calls[0]![1]!;
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ body: "nice" });
+  });
+
+  it("addComment returns null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ comment: { nope: true } }));
+    await expect(addComment("t1", "nice")).resolves.toBeNull();
+  });
+
+  it("seedWelcomeTask returns the task and null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ task: validTask }));
+    expect((await seedWelcomeTask("ws1"))?.id).toBe("t1");
+    const init = vi.mocked(fetch).mock.calls[0]![1]!;
+    expect(init.method).toBe("POST");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ task: { nope: true } }));
+    await expect(seedWelcomeTask("ws1")).resolves.toBeNull();
   });
 });

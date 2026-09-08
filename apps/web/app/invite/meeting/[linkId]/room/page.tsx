@@ -1,17 +1,25 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { useNavigation } from "@uniwork/views/navigation";
-import { MeetingRoomView } from "@uniwork/views/meetings/room-view";
 import {
   inviteStorageKey,
   readCachedJoinDecision,
   readInviteJoinBody,
 } from "@uniwork/views/meetings/meeting-invite-session";
+
+// The room view carries the LiveKit SDK (~130 KB gzip). Turbopack groups it
+// with this segment, so importing it eagerly puts the SDK in the entry chunk of
+// the public invite page too, where nobody has joined a call yet. Behind lazy()
+// it becomes an async chunk that neither entry lists
+// (scripts/bundle-budget.mjs).
+const MeetingRoomView = lazy(() =>
+  import("@uniwork/views/meetings/room-view").then((m) => ({ default: m.MeetingRoomView })),
+);
 
 function meetingInviteLoginUrl(linkId: string): string {
   return `${paths.login()}?next=${encodeURIComponent(paths.meetingInvite(linkId))}&reason=meeting_invite`;
@@ -53,13 +61,15 @@ export default function MeetingInviteRoomPage() {
 
   return (
     <MeetingLobbyWSProvider meetingId={meetingId}>
-      <MeetingRoomView
-        meetingId={meetingId}
-        joinBody={joinBody}
-        meetingTitle={meetingTitle}
-        initialJoinDecision={initialJoinDecision}
-        onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
-      />
+      <Suspense fallback={null}>
+        <MeetingRoomView
+          meetingId={meetingId}
+          joinBody={joinBody}
+          meetingTitle={meetingTitle}
+          initialJoinDecision={initialJoinDecision}
+          onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
+        />
+      </Suspense>
     </MeetingLobbyWSProvider>
   );
 }

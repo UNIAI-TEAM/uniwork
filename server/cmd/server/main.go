@@ -78,6 +78,7 @@ func main() {
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte(cfg.JWTSecret), TTL: cfg.AccessTokenTTL}
 	orgSvc := service.NewOrganizationService(pool, q)
+	orgMemberSvc := service.NewOrganizationMemberService(pool, q, orgSvc)
 	var rdb *redis.Client
 	if cfg.RedisURL != "" {
 		opt, err := redis.ParseURL(cfg.RedisURL)
@@ -164,8 +165,10 @@ func main() {
 	}
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, mailOutbox)
+	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
+	authSvc.SetMail(renderer, mailOutbox)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
@@ -211,8 +214,12 @@ func main() {
 		meetingSvc.SetMeetingMetrics(reg.Meetings)
 	}
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
+	chatSvc.TenorAPIKey = cfg.TenorAPIKey
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
+	// Directory and department events belong to the organization, so every
+	// connection joins its organization scope at connect time (F-03 §6.4).
+	hub.SetOrganizationResolver(wsSvc.OrganizationOf)
 	auditSvc := service.NewAuditService(pool, q, orgSvc, wsSvc)
 	// One dispatcher drains outbox_events for the whole process. Registering a
 	// consumer is the only thing a new bounded context has to do to receive
@@ -284,6 +291,9 @@ func main() {
 		GoogleAuth:      service.NewGoogleAuthService(q, authSvc),
 		Google:          google,
 		Organizations:   orgSvc,
+		OrgMembers:      orgMemberSvc,
+		People:          service.NewPeopleService(pool, q, orgSvc),
+		Departments:     service.NewDepartmentService(pool, q, orgSvc),
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,

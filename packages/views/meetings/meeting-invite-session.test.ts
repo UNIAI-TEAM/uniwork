@@ -8,45 +8,70 @@ import {
   writeCachedJoinDecision,
 } from "./meeting-invite-session";
 
+const LINK_ID = "link-123";
+
 describe("meeting-invite-session", () => {
   beforeEach(() => {
     sessionStorage.clear();
   });
 
-  it("builds stable storage keys per link and suffix", () => {
-    expect(inviteStorageKey("link-1", "secret")).toBe("uw.meeting-invite.link-1.secret");
+  it("builds namespaced storage keys", () => {
+    expect(inviteStorageKey(LINK_ID, "secret")).toBe("uw.meeting-invite.link-123.secret");
+    expect(inviteStorageKey(LINK_ID, "joinDecision")).toBe(
+      "uw.meeting-invite.link-123.joinDecision",
+    );
   });
 
-  it("reads join body when secret is stored", () => {
-    sessionStorage.setItem(inviteStorageKey("link-1", "secret"), "abc");
-    sessionStorage.setItem(inviteStorageKey("link-1", "displayName"), "Guest");
-    expect(readInviteJoinBody("link-1")).toEqual({
-      invite_link_id: "link-1",
-      secret: "abc",
-      display_name: "Guest",
-    });
+  it("returns undefined when no secret is stored", () => {
+    expect(readInviteJoinBody(LINK_ID)).toBeUndefined();
   });
 
-  it("returns undefined when secret is missing or display name is blank", () => {
-    expect(readInviteJoinBody("link-1")).toBeUndefined();
-    sessionStorage.setItem(inviteStorageKey("link-1", "secret"), "abc");
-    expect(readInviteJoinBody("link-1")).toEqual({
-      invite_link_id: "link-1",
-      secret: "abc",
+  it("returns undefined when the stored secret is blank", () => {
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "secret"), "");
+    expect(readInviteJoinBody(LINK_ID)).toBeUndefined();
+  });
+
+  it("omits display_name when none is stored", () => {
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "secret"), "s3cr3t");
+    expect(readInviteJoinBody(LINK_ID)).toEqual({
+      invite_link_id: LINK_ID,
+      secret: "s3cr3t",
       display_name: undefined,
     });
   });
 
-  it("round-trips cached join decisions and clears them", () => {
-    const decision = { decision: "ADMIT", participant_token: "tok" } as JoinDecision;
-    writeCachedJoinDecision("link-1", decision);
-    expect(readCachedJoinDecision("link-1")).toEqual(decision);
-    clearCachedJoinDecision("link-1");
-    expect(readCachedJoinDecision("link-1")).toBeUndefined();
+  it("omits display_name when the stored name is blank", () => {
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "secret"), "s3cr3t");
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "displayName"), "");
+    expect(readInviteJoinBody(LINK_ID)?.display_name).toBeUndefined();
   });
 
-  it("ignores malformed cached join decisions", () => {
-    sessionStorage.setItem(inviteStorageKey("link-1", "joinDecision"), "{not json");
-    expect(readCachedJoinDecision("link-1")).toBeUndefined();
+  it("includes display_name when a non-blank name is stored", () => {
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "secret"), "s3cr3t");
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "displayName"), "Guest One");
+    expect(readInviteJoinBody(LINK_ID)).toEqual({
+      invite_link_id: LINK_ID,
+      secret: "s3cr3t",
+      display_name: "Guest One",
+    });
+  });
+
+  it("returns undefined when no join decision is cached", () => {
+    expect(readCachedJoinDecision(LINK_ID)).toBeUndefined();
+  });
+
+  it("returns undefined for blank or corrupted cached decisions", () => {
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "joinDecision"), "");
+    expect(readCachedJoinDecision(LINK_ID)).toBeUndefined();
+    sessionStorage.setItem(inviteStorageKey(LINK_ID, "joinDecision"), "{not-json");
+    expect(readCachedJoinDecision(LINK_ID)).toBeUndefined();
+  });
+
+  it("round-trips cached join decisions through write and clear", () => {
+    const decision: JoinDecision = { decision: "JOIN" };
+    writeCachedJoinDecision(LINK_ID, decision);
+    expect(readCachedJoinDecision(LINK_ID)).toEqual(decision);
+    clearCachedJoinDecision(LINK_ID);
+    expect(readCachedJoinDecision(LINK_ID)).toBeUndefined();
   });
 });

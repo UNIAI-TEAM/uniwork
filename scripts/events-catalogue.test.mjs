@@ -12,7 +12,14 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 // and it is only affordable because drift fails here rather than in production,
 // where it looks like a screen that quietly stops updating.
 
-const SCOPES = { Workspace: "workspace", User: "user", Chat: "chat", Room: "room", None: "-" };
+const SCOPES = {
+  Workspace: "workspace",
+  Organization: "organization",
+  User: "user",
+  Chat: "chat",
+  Room: "room",
+  None: "-",
+};
 
 /** Rows of `server/internal/outbox/catalogue.go`, the machine source of truth. */
 function goCatalogue() {
@@ -103,7 +110,7 @@ test("event names follow <entity>.<verb> and carry no version", () => {
 test("every event has a scope or is explicitly infrastructure", () => {
   for (const { topic, scope, delivery } of goCatalogue()) {
     assert.ok(
-      ["workspace", "user", "chat", "room", "-"].includes(scope),
+      ["workspace", "organization", "user", "chat", "room", "-"].includes(scope),
       `${topic} has an unknown scope "${scope}"`,
     );
     assert.ok(["outbox", "ephemeral"].includes(delivery), `${topic} has an unknown delivery "${delivery}"`);

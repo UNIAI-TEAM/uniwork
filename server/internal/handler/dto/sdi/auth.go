@@ -52,3 +52,24 @@ type GoogleCallbackSDI struct {
 	State string `query:"state" description:"CSRF state khớp cookie uniwork_oauth_state"`
 	Error string `query:"error" description:"Lỗi OAuth khi người dùng từ chối, ví dụ access_denied"`
 }
+
+// MFAVerifySDI is POST /api/v1/auth/mfa/verify. mfa_token may be omitted
+// when the challenge arrived as the uniwork_mfa cookie (Google, reset).
+type MFAVerifySDI struct {
+	MFAToken string `json:"mfa_token" description:"Token thử thách từ bước đăng nhập; bỏ trống nếu đã có cookie uniwork_mfa" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.mfa"`
+	Code     string `json:"code" minLength:"6" description:"Mã 6 số từ ứng dụng xác thực, hoặc mã khôi phục dạng xxxxx-xxxxx" example:"123456"`
+}
+
+// MFACodeSDI is POST /api/v1/me/mfa/confirm and /me/mfa/disable.
+type MFACodeSDI struct {
+	Code string `json:"code" minLength:"6" description:"Mã 6 số từ ứng dụng xác thực (disable cũng nhận mã khôi phục)" example:"123456"`
+}
+
+// DeleteAccountSDI is POST /api/v1/me/delete. Exactly one proof is read:
+// password when the account has one, else code when MFA is on, else the
+// typed email address.
+type DeleteAccountSDI struct {
+	Password          string `json:"password" description:"Mật khẩu hiện tại (tài khoản có mật khẩu)" example:"password123"`
+	Code              string `json:"code" description:"Mã TOTP hoặc mã khôi phục (tài khoản chỉ Google, có MFA)" example:"123456"`
+	EmailConfirmation string `json:"email_confirmation" description:"Gõ lại email (tài khoản chỉ Google, không MFA)" example:"an@acme.vn"`
+}

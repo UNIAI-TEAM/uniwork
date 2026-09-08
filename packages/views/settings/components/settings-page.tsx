@@ -1,7 +1,7 @@
 "use client";
 
-import { Bell, CreditCard, Plug, ScrollText, Settings, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
-import { useMemo } from "react";
+import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
+import { Suspense, lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
@@ -12,15 +12,22 @@ import { AccountTab } from "./account-tab";
 import { AiTab } from "./ai-tab";
 import { AuditTab } from "./audit-tab";
 import { BillingTab } from "./billing-tab";
+import { DepartmentsTab } from "./departments-tab";
 import { IntegrationsTab } from "./integrations-tab";
 import { MembersTab } from "./members-tab";
 import { NotificationsTab } from "./notifications-tab";
+import { OrganizationTab } from "./organization-tab";
 import { PreferencesTab } from "./preferences-tab";
+
+// The security tab (MFA enrolment, sessions, deletion) loads when opened so
+// the settings route stays inside its bundle ceiling.
+const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
 import { WorkspaceTab } from "./workspace-tab";
 
-const ACCOUNT_TAB_KEYS = ["profile", "preferences", "notifications"] as const;
+const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
 const ACCOUNT_TAB_ICONS = {
   profile: User,
+  security: ShieldCheck,
   preferences: SlidersHorizontal,
   notifications: Bell,
 } as const;
@@ -43,6 +50,15 @@ const WORKSPACE_TAB_ICONS = {
   audit: ScrollText,
 } as const;
 
+// The organization group is a third tier beside "my account" and the current
+// workspace: departments and org-level membership belong to the company, not
+// to one workspace (F-03).
+const ORGANIZATION_TAB_KEYS = ["organization", "departments"] as const;
+const ORGANIZATION_TAB_ICONS = {
+  organization: Building2,
+  departments: Network,
+} as const;
+
 const DEFAULT_TAB = "profile";
 const TAB_QUERY_KEY = "tab";
 
@@ -61,6 +77,7 @@ export function SettingsPage() {
     () =>
       new Set<string>([
         ...ACCOUNT_TAB_KEYS,
+        ...ORGANIZATION_TAB_KEYS,
         ...WORKSPACE_TAB_KEYS.map((key) => WORKSPACE_TAB_VALUES[key]),
       ]),
     [],
@@ -106,6 +123,19 @@ export function SettingsPage() {
           })}
 
           <span className="hidden truncate px-2 pt-4 pb-1 text-caption font-medium text-muted-foreground md:block">
+            {workspace.organization_name}
+          </span>
+          {ORGANIZATION_TAB_KEYS.map((key) => {
+            const Icon = ORGANIZATION_TAB_ICONS[key];
+            return (
+              <TabsTrigger key={key} value={key} className={SETTINGS_TAB_TRIGGER_CLASS}>
+                <Icon className="h-4 w-4" aria-hidden />
+                {t(`page.tabs.${key}`)}
+              </TabsTrigger>
+            );
+          })}
+
+          <span className="hidden truncate px-2 pt-4 pb-1 text-caption font-medium text-muted-foreground md:block">
             {workspace.name}
           </span>
           {WORKSPACE_TAB_KEYS.map((key) => {
@@ -129,11 +159,22 @@ export function SettingsPage() {
           <TabsContent value="profile">
             <AccountTab />
           </TabsContent>
+          <TabsContent value="security">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <SecurityTab />
+            </Suspense>
+          </TabsContent>
           <TabsContent value="preferences">
             <PreferencesTab />
           </TabsContent>
           <TabsContent value="notifications">
             <NotificationsTab />
+          </TabsContent>
+          <TabsContent value="organization">
+            <OrganizationTab />
+          </TabsContent>
+          <TabsContent value="departments">
+            <DepartmentsTab />
           </TabsContent>
           <TabsContent value="workspace">
             <WorkspaceTab />

@@ -26,7 +26,7 @@ func requestLocale(r *http.Request) string {
 }
 
 func toUserDTO(u db.User) sdo.UserDTO {
-	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, Timezone: u.Timezone, OnboardingQuestionnaire: json.RawMessage("{}")}
+	out := sdo.UserDTO{ID: u.ID, Email: u.Email, DisplayName: u.DisplayName, Locale: u.Locale, Timezone: u.Timezone, OnboardingQuestionnaire: json.RawMessage("{}"), HasPassword: u.PasswordHash.Valid}
 	if u.AvatarUrl.Valid {
 		out.AvatarURL = u.AvatarUrl.String
 	}
@@ -37,6 +37,13 @@ func toUserDTO(u db.User) sdo.UserDTO {
 	if u.EmailVerifiedAt.Valid {
 		s := u.EmailVerifiedAt.Time.Format(time.RFC3339)
 		out.EmailVerifiedAt = &s
+	}
+	if u.MfaEnabledAt.Valid {
+		s := u.MfaEnabledAt.Time.Format(time.RFC3339)
+		out.MFAEnabledAt = &s
+	}
+	if u.PlatformRole.Valid {
+		out.PlatformRole = u.PlatformRole.String
 	}
 	if len(u.OnboardingQuestionnaire) > 0 {
 		out.OnboardingQuestionnaire = json.RawMessage(u.OnboardingQuestionnaire)
@@ -53,6 +60,10 @@ func (h *handlers) setRefreshCookie(w http.ResponseWriter, token string, exp tim
 }
 
 func (h *handlers) sessionResponse(w http.ResponseWriter, sess service.Session) {
+	if sess.MFAPending() {
+		h.mfaChallenge(w, sess)
+		return
+	}
 	h.setRefreshCookie(w, sess.RefreshToken, sess.RefreshExpiresAt)
 	out := sdo.SessionSDO{
 		User: toUserDTO(sess.User), AccessToken: sess.AccessToken,
@@ -65,7 +76,7 @@ func (h *handlers) register(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	sess, err := h.Auth.Register(r.Context(), in.Email, in.Password, in.DisplayName, requestLocale(r))
+	sess, err := h.Auth.Register(h.authCtx(r).Context(), in.Email, in.Password, in.DisplayName, requestLocale(r))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -78,7 +89,7 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	sess, err := h.Auth.Login(r.Context(), in.Email, in.Password)
+	sess, err := h.Auth.Login(h.authCtx(r).Context(), in.Email, in.Password)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -92,7 +103,7 @@ func (h *handlers) refresh(w http.ResponseWriter, r *http.Request) {
 		respondError(w, 401, "unauthorized", "missing refresh token")
 		return
 	}
-	sess, err := h.Auth.Refresh(r.Context(), c.Value)
+	sess, err := h.Auth.Refresh(h.authCtx(r).Context(), c.Value)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

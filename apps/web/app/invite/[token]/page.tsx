@@ -10,7 +10,9 @@ export default function InvitePage() {
   return (
     <AcceptInviteView
       token={token}
-      onAccepted={(ws) => replace(paths.workspace(ws.organization_slug, ws.slug).tasks())}
+      onAccepted={(ws) =>
+        replace(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces())
+      }
       onAnon={() => replace(`${paths.login()}?next=${encodeURIComponent(paths.invite(token))}`)}
     />
   );

@@ -71,6 +71,20 @@ describe("auth store", () => {
     expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
   });
 
+  it("does not downgrade authed session when a stale refresh completes", async () => {
+    let resolveRefresh: (value: null) => void = () => undefined;
+    vi.mocked(auth.refreshSession).mockReturnValueOnce(
+      new Promise<null>((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    const initPromise = useAuthStore.getState().initialize();
+    useAuthStore.getState().setUser(user);
+    resolveRefresh(null);
+    await initPromise;
+    expect(useAuthStore.getState()).toMatchObject({ user, status: "authed" });
+  });
+
   it("selectors return stable references between renders", () => {
     useAuthStore.getState().setUser(user);
     const a = useAuthStore.getState().user;
