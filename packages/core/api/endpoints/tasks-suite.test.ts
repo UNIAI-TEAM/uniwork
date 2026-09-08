@@ -46,11 +46,16 @@ describe("tasks-suite endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ tasks: [validTask], total: 1, limit: 50, offset: 0 }),
     );
-    const page = await queryTasks("ws1", { status: "todo", limit: 50 });
+    const page = await queryTasks("ws1", { status: "todo", project_id: "proj1", limit: 50 });
     expect(page.tasks[0]?.identifier).toBe("ALP-1");
     expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
       "http://api.test/api/v1/workspaces/ws1/tasks/query",
     );
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toMatchObject({
+      status: "todo",
+      project_id: "proj1",
+      limit: 50,
+    });
     vi.mocked(fetch).mockResolvedValueOnce(json({ tasks: [{ id: 1 }] }));
     await expect(queryTasks("ws1")).resolves.toEqual({
       tasks: [],

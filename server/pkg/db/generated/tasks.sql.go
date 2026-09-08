@@ -98,6 +98,7 @@ WHERE organization_id = $1
   AND (NOT $3::bool OR status = ANY($4::text[]))
   AND (NOT $5::bool OR priority = ANY($6::text[]))
   AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+  AND (NOT $9::bool OR project_id = ANY($10::text[]))
 `
 
 type CountTableTasksParams struct {
@@ -109,6 +110,8 @@ type CountTableTasksParams struct {
 	Priorities        []string `json:"priorities"`
 	HasAssigneeFilter bool     `json:"has_assignee_filter"`
 	AssigneeIds       []string `json:"assignee_ids"`
+	HasProjectFilter  bool     `json:"has_project_filter"`
+	ProjectIds        []string `json:"project_ids"`
 }
 
 // Table mode (groups / rows / facets). Empty filter arrays are ignored when
@@ -123,6 +126,8 @@ func (q *Queries) CountTableTasks(ctx context.Context, arg CountTableTasksParams
 		arg.Priorities,
 		arg.HasAssigneeFilter,
 		arg.AssigneeIds,
+		arg.HasProjectFilter,
+		arg.ProjectIds,
 	)
 	var column_1 int64
 	err := row.Scan(&column_1)
@@ -137,6 +142,7 @@ WHERE organization_id = $1
   AND (NOT $3::bool OR status = ANY($4::text[]))
   AND (NOT $5::bool OR priority = ANY($6::text[]))
   AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+  AND (NOT $9::bool OR project_id = ANY($10::text[]))
 GROUP BY COALESCE(assignee_id, '')
 ORDER BY 1
 `
@@ -150,6 +156,8 @@ type CountTableTasksByAssigneeParams struct {
 	Priorities        []string `json:"priorities"`
 	HasAssigneeFilter bool     `json:"has_assignee_filter"`
 	AssigneeIds       []string `json:"assignee_ids"`
+	HasProjectFilter  bool     `json:"has_project_filter"`
+	ProjectIds        []string `json:"project_ids"`
 }
 
 type CountTableTasksByAssigneeRow struct {
@@ -167,6 +175,8 @@ func (q *Queries) CountTableTasksByAssignee(ctx context.Context, arg CountTableT
 		arg.Priorities,
 		arg.HasAssigneeFilter,
 		arg.AssigneeIds,
+		arg.HasProjectFilter,
+		arg.ProjectIds,
 	)
 	if err != nil {
 		return nil, err
@@ -194,6 +204,7 @@ WHERE organization_id = $1
   AND (NOT $3::bool OR status = ANY($4::text[]))
   AND (NOT $5::bool OR priority = ANY($6::text[]))
   AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+  AND (NOT $9::bool OR project_id = ANY($10::text[]))
 GROUP BY priority
 ORDER BY priority
 `
@@ -207,6 +218,8 @@ type CountTableTasksByPriorityParams struct {
 	Priorities        []string `json:"priorities"`
 	HasAssigneeFilter bool     `json:"has_assignee_filter"`
 	AssigneeIds       []string `json:"assignee_ids"`
+	HasProjectFilter  bool     `json:"has_project_filter"`
+	ProjectIds        []string `json:"project_ids"`
 }
 
 type CountTableTasksByPriorityRow struct {
@@ -224,6 +237,8 @@ func (q *Queries) CountTableTasksByPriority(ctx context.Context, arg CountTableT
 		arg.Priorities,
 		arg.HasAssigneeFilter,
 		arg.AssigneeIds,
+		arg.HasProjectFilter,
+		arg.ProjectIds,
 	)
 	if err != nil {
 		return nil, err
@@ -251,6 +266,7 @@ WHERE organization_id = $1
   AND (NOT $3::bool OR status = ANY($4::text[]))
   AND (NOT $5::bool OR priority = ANY($6::text[]))
   AND (NOT $7::bool OR assignee_id = ANY($8::text[]))
+  AND (NOT $9::bool OR project_id = ANY($10::text[]))
 GROUP BY status
 ORDER BY status
 `
@@ -264,6 +280,8 @@ type CountTableTasksByStatusParams struct {
 	Priorities        []string `json:"priorities"`
 	HasAssigneeFilter bool     `json:"has_assignee_filter"`
 	AssigneeIds       []string `json:"assignee_ids"`
+	HasProjectFilter  bool     `json:"has_project_filter"`
+	ProjectIds        []string `json:"project_ids"`
 }
 
 type CountTableTasksByStatusRow struct {
@@ -281,6 +299,8 @@ func (q *Queries) CountTableTasksByStatus(ctx context.Context, arg CountTableTas
 		arg.Priorities,
 		arg.HasAssigneeFilter,
 		arg.AssigneeIds,
+		arg.HasProjectFilter,
+		arg.ProjectIds,
 	)
 	if err != nil {
 		return nil, err
@@ -305,16 +325,23 @@ SELECT count(*)::bigint FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
   AND ($3::text IS NULL OR status = $3)
+  AND ($4::text IS NULL OR project_id = $4)
 `
 
 type CountTasksParams struct {
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    string      `json:"workspace_id"`
 	Status         pgtype.Text `json:"status"`
+	ProjectID      pgtype.Text `json:"project_id"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countTasks, arg.OrganizationID, arg.WorkspaceID, arg.Status)
+	row := q.db.QueryRow(ctx, countTasks,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Status,
+		arg.ProjectID,
+	)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -1041,16 +1068,17 @@ WHERE t.organization_id = $1
   AND (NOT $3::bool OR t.status = ANY($4::text[]))
   AND (NOT $5::bool OR t.priority = ANY($6::text[]))
   AND (NOT $7::bool OR t.assignee_id = ANY($8::text[]))
+  AND (NOT $9::bool OR t.project_id = ANY($10::text[]))
   AND (
-    NOT $9::bool
-    OR CASE $10::text
+    NOT $11::bool
+    OR CASE $12::text
          WHEN 'priority' THEN t.priority
          WHEN 'assignee' THEN COALESCE(t.assignee_id, '')
          ELSE t.status
-       END = $11
+       END = $13
   )
 ORDER BY t.status, t.position, t.created_at
-LIMIT $13 OFFSET $12
+LIMIT $15 OFFSET $14
 `
 
 type ListTableTaskRowsParams struct {
@@ -1062,6 +1090,8 @@ type ListTableTaskRowsParams struct {
 	Priorities        []string `json:"priorities"`
 	HasAssigneeFilter bool     `json:"has_assignee_filter"`
 	AssigneeIds       []string `json:"assignee_ids"`
+	HasProjectFilter  bool     `json:"has_project_filter"`
+	ProjectIds        []string `json:"project_ids"`
 	HasGroupKey       bool     `json:"has_group_key"`
 	GroupBy           string   `json:"group_by"`
 	GroupKey          string   `json:"group_key"`
@@ -1116,6 +1146,8 @@ func (q *Queries) ListTableTaskRows(ctx context.Context, arg ListTableTaskRowsPa
 		arg.Priorities,
 		arg.HasAssigneeFilter,
 		arg.AssigneeIds,
+		arg.HasProjectFilter,
+		arg.ProjectIds,
 		arg.HasGroupKey,
 		arg.GroupBy,
 		arg.GroupKey,
@@ -1465,14 +1497,16 @@ SELECT id, workspace_id, title, description, status, priority, assignee_id, due_
 WHERE organization_id = $1
   AND workspace_id = $2
   AND ($3::text IS NULL OR status = $3)
+  AND ($4::text IS NULL OR project_id = $4)
 ORDER BY status, position, created_at
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type QueryTasksParams struct {
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    string      `json:"workspace_id"`
 	Status         pgtype.Text `json:"status"`
+	ProjectID      pgtype.Text `json:"project_id"`
 	OffsetN        int32       `json:"offset_n"`
 	LimitN         int32       `json:"limit_n"`
 }
@@ -1482,6 +1516,7 @@ func (q *Queries) QueryTasks(ctx context.Context, arg QueryTasksParams) ([]Task,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.Status,
+		arg.ProjectID,
 		arg.OffsetN,
 		arg.LimitN,
 	)

@@ -26,9 +26,10 @@ type PatchTaskSDI struct {
 
 // QueryTasksSDI is POST /api/v1/workspaces/{workspaceID}/tasks/query (flagged suite).
 type QueryTasksSDI struct {
-	Status string `json:"status" description:"Lọc theo status; bỏ trống = mọi status" example:"todo"`
-	Limit  int32  `json:"limit" description:"Kích thước trang (mặc định 50, tối đa 200)" example:"50"`
-	Offset int32  `json:"offset" description:"Offset phân trang" example:"0"`
+	Status    string `json:"status" description:"Lọc theo status; bỏ trống = mọi status" example:"todo"`
+	ProjectID string `json:"project_id" description:"Lọc theo project ULID; bỏ trống = mọi project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+	Limit     int32  `json:"limit" description:"Kích thước trang (mặc định 50, tối đa 200)" example:"50"`
+	Offset    int32  `json:"offset" description:"Offset phân trang" example:"0"`
 }
 
 // PutTaskSDI is PUT /api/v1/tasks/{taskID} (flagged suite). Revision may also
@@ -76,6 +77,7 @@ type TableFilterSDI struct {
 	Statuses    []string `json:"statuses" description:"Lọc status; bỏ trống = mọi status" example:"[\"todo\",\"in_progress\"]"`
 	Priorities  []string `json:"priorities" description:"Lọc priority" example:"[\"high\"]"`
 	AssigneeIDs []string `json:"assignee_ids" description:"Lọc assignee ULID" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	ProjectIDs  []string `json:"project_ids" description:"Lọc project ULID" example:"[\"01J8X4PROJ0N1P2Q3R4S5T6U7\"]"`
 }
 
 // TableGroupsSDI is POST .../tasks/table/groups (flagged suite).

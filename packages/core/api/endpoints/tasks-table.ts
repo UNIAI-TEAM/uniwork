@@ -68,6 +68,7 @@ export interface TableFilter {
   statuses?: string[];
   priorities?: string[];
   assignee_ids?: string[];
+  project_ids?: string[];
 }
 
 export interface TableGroupsBody {

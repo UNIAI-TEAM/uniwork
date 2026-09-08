@@ -40,8 +40,14 @@ describe("tasks-table endpoints", () => {
         next_cursor: null,
       }),
     );
-    const res = await tableGroups("ws1", { group_by: "status", filter: { statuses: ["todo"] } });
+    const res = await tableGroups("ws1", {
+      group_by: "status",
+      filter: { statuses: ["todo"], project_ids: ["proj1"] },
+    });
     expect(res.groups[0]?.key).toBe("todo");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toMatchObject({
+      filter: { statuses: ["todo"], project_ids: ["proj1"] },
+    });
     vi.mocked(fetch).mockResolvedValueOnce(json({ groups: "nope" }));
     await expect(tableGroups("ws1", { group_by: "status" })).resolves.toMatchObject({
       groups: [],

@@ -65,6 +65,65 @@ func TestQueryTasksFiltersByStatusAndPaginates(t *testing.T) {
 	}
 }
 
+// Two projects in one workspace: QueryTasks / TableGroups with a project
+// filter must return only that project's tasks.
+func TestQueryAndTableFilterByProjectID(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	projectA, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Project A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectB, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Project B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	taskA, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "In A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskB, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "In B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkTask := func(taskID, projectID string) {
+		t.Helper()
+		if _, err := s.pool.Exec(ctx,
+			`UPDATE tasks SET project_id = $1 WHERE id = $2 AND organization_id = $3 AND workspace_id = $4`,
+			projectID, taskID, w.OrganizationID, w.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	linkTask(taskA.ID, projectA.ID)
+	linkTask(taskB.ID, projectB.ID)
+
+	page, err := s.QueryTasks(ctx, actor, w.ID, TaskQuery{ProjectID: projectA.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 {
+		t.Fatalf("QueryTasks total = %d, want 1", page.Total)
+	}
+	if len(page.Tasks) != 1 || page.Tasks[0].ID != taskA.ID {
+		t.Fatalf("QueryTasks = %+v, want only task A %s", page.Tasks, taskA.ID)
+	}
+
+	groups, err := s.TableGroups(ctx, actor, w.ID, TableInput{
+		Filter:  TableFilter{ProjectIDs: []string{projectA.ID}},
+		GroupBy: "status",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if groups.Total != 1 {
+		t.Fatalf("TableGroups total = %d, want 1", groups.Total)
+	}
+}
+
 func TestGetTaskByIdentifier(t *testing.T) {
 	s, _, ua, _, w := taskFixture(t)
 	ctx := context.Background()
