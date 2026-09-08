@@ -227,43 +227,29 @@ func (h *handlers) unsubscribeTaskSubtree(w http.ResponseWriter, r *http.Request
 }
 
 func (h *handlers) listTaskAttachments(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.ListTaskAttachments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")); err != nil {
-		h.mapServiceError(w, err)
-	}
+	h.mapServiceError(w, h.Tasks.ListTaskAttachments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
 }
 
 func (h *handlers) getAttachment(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.GetAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")); err != nil {
-		h.mapServiceError(w, err)
-	}
+	h.mapServiceError(w, h.Tasks.GetAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")))
 }
 
 func (h *handlers) deleteAttachment(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.DeleteAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")); err != nil {
-		h.mapServiceError(w, err)
-	}
+	h.mapServiceError(w, h.Tasks.DeleteAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")))
 }
 
 func (h *handlers) getTaskTimeline(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.GetTaskTimeline(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")); err != nil {
-		h.mapServiceError(w, err)
-	}
+	h.mapServiceError(w, h.Tasks.GetTaskTimeline(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
 }
 
 func (h *handlers) commentSubTaskPreview(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.CommentSubTaskPreview(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID")); err != nil {
-		h.mapServiceError(w, err)
-	}
+	h.mapServiceError(w, h.Tasks.CommentSubTaskPreview(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID")))
 }
 
 func (h *handlers) createCommentSubTasks(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.CreateCommentSubTasks(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID")); err != nil {
-		h.mapServiceError(w, err)
-	}
+	h.mapServiceError(w, h.Tasks.CreateCommentSubTasks(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID")))
 }
 
 func (h *handlers) previewCommentTriggers(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.PreviewCommentTriggers(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")); err != nil {
-		h.mapServiceError(w, err)
-	}
+	h.mapServiceError(w, h.Tasks.PreviewCommentTriggers(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
 }
