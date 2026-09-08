@@ -99,6 +99,7 @@ function ProjectTableRow({
   onToggleSelect,
   onOpenProject,
   locale,
+  resolveLeadName,
 }: {
   workspaceId: string;
   project: Project;
@@ -109,7 +110,9 @@ function ProjectTableRow({
   onToggleSelect: () => void;
   onOpenProject: (projectId: string) => void;
   locale: string;
+  resolveLeadName: (project: Project) => string | null;
 }) {
+  const { t } = useTranslation();
   const putProject = usePutProject(workspaceId);
   const handleUpdate = useCallback(
     (patch: { status?: string; priority?: string }) =>
@@ -167,7 +170,7 @@ function ProjectTableRow({
       {isColVisible("lead") ? (
         <ListGridCell className="hidden @2xl:flex">
           <span className="min-w-0 truncate text-caption text-muted-foreground">
-            {project.lead_id ?? "—"}
+            {resolveLeadName(project) ?? t("projects.lead.no_lead")}
           </span>
         </ListGridCell>
       ) : (
@@ -319,6 +322,7 @@ export function ProjectsListTable({
   onSort,
   onOpenProject,
   locale,
+  resolveLeadName,
 }: {
   workspaceId: string;
   projects: Project[];
@@ -333,6 +337,7 @@ export function ProjectsListTable({
   onSort: (field: ProjectSortField) => void;
   onOpenProject: (projectId: string) => void;
   locale: string;
+  resolveLeadName: (project: Project) => string | null;
 }) {
   const selectedCount = projects.filter((p) => selectedIds.has(p.id)).length;
   const allSelected = projects.length > 0 && selectedCount === projects.length;
@@ -368,6 +373,7 @@ export function ProjectsListTable({
             onToggleSelect={() => onToggleSelect(project.id)}
             onOpenProject={onOpenProject}
             locale={locale}
+            resolveLeadName={resolveLeadName}
           />
         ))}
       </ListGrid>

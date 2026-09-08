@@ -45,6 +45,7 @@ import { ProjectsListToolbar } from "./projects-list-toolbar";
 import {
   leadFilterValue,
   projectProgressRatio,
+  resolveProjectLeadName,
 } from "./project-row-metrics";
 
 const PRIORITY_ORDER: Record<ProjectPriority, number> = {
@@ -250,6 +251,17 @@ export function ProjectsListPage({
     return s;
   }, [pins]);
 
+  const memberNamesByUserId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of members) {
+      map.set(m.user_id, m.display_name);
+    }
+    return map;
+  }, [members]);
+
+  const resolveLeadName = (project: Project) =>
+    resolveProjectLeadName(project, memberNamesByUserId);
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = projects.filter((p) => {
@@ -396,6 +408,7 @@ export function ProjectsListPage({
               onSort={toggleSort}
               onOpenProject={onOpenProject}
               locale={locale}
+              resolveLeadName={resolveLeadName}
             />
           ) : (
             <ProjectsListGrid
@@ -405,6 +418,7 @@ export function ProjectsListPage({
               canDelete={isWorkspaceAdmin}
               onOpenProject={onOpenProject}
               locale={locale}
+              resolveLeadName={resolveLeadName}
             />
           )}
 

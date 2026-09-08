@@ -20,6 +20,7 @@ function ProjectCard({
   canDelete,
   onOpenProject,
   locale,
+  resolveLeadName,
 }: {
   workspaceId: string;
   project: Project;
@@ -27,6 +28,7 @@ function ProjectCard({
   canDelete: boolean;
   onOpenProject: (projectId: string) => void;
   locale: string;
+  resolveLeadName: (project: Project) => string | null;
 }) {
   const { t } = useTranslation();
   const putProject = usePutProject(workspaceId);
@@ -80,7 +82,7 @@ function ProjectCard({
 
       <div className="mt-0 flex items-center justify-between border-t px-3 pb-3 pt-2">
         <span className="max-w-[80px] truncate text-caption text-muted-foreground">
-          {project.lead_id ?? t("projects.lead.no_lead")}
+          {resolveLeadName(project) ?? t("projects.lead.no_lead")}
         </span>
         <div className="flex items-center gap-2">
           <ProjectPriorityBadge
@@ -104,6 +106,7 @@ export function ProjectsListGrid({
   canDelete,
   onOpenProject,
   locale,
+  resolveLeadName,
 }: {
   workspaceId: string;
   projects: Project[];
@@ -111,6 +114,7 @@ export function ProjectsListGrid({
   canDelete: boolean;
   onOpenProject: (projectId: string) => void;
   locale: string;
+  resolveLeadName: (project: Project) => string | null;
 }) {
   return (
     <div className={cn("min-h-0 flex-1 overflow-y-auto pt-4", PAGE_GUTTER)}>
@@ -127,6 +131,7 @@ export function ProjectsListGrid({
             canDelete={canDelete}
             onOpenProject={onOpenProject}
             locale={locale}
+            resolveLeadName={resolveLeadName}
           />
         ))}
       </div>

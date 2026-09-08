@@ -23,7 +23,7 @@ export function ProjectProgressRing({ project }: { project: Project }) {
             cy="8"
           />
           <circle
-            className="text-emerald-500"
+            className="text-success"
             strokeWidth="2"
             stroke="currentColor"
             fill="none"

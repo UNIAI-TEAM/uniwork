@@ -38,3 +38,15 @@ export function leadFilterValue(
     ? `${project.lead_type}:${project.lead_id}`
     : null;
 }
+
+/** Human/member leads resolve via workspace members; agents and missing ids stay null. */
+export function resolveProjectLeadName(
+  project: Pick<Project, "lead_type" | "lead_id">,
+  memberNamesByUserId: ReadonlyMap<string, string>,
+): string | null {
+  if (!project.lead_id) return null;
+  if (project.lead_type !== "member" && project.lead_type !== "human") {
+    return null;
+  }
+  return memberNamesByUserId.get(project.lead_id) ?? null;
+}
