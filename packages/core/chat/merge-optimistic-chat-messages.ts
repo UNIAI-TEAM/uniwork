@@ -16,13 +16,13 @@ export type OptimisticChatMessage = {
   deliveryStatus: "sending" | "queued";
 };
 
-const SERVER_DEDUP_WINDOW_MS = 30_000;
-
 type ServerLikeMessage = {
   id: string;
   sender: string;
   body: string;
   ts: number;
+  /** Echo of the sender's idempotency key; absent on messages sent elsewhere. */
+  clientMsgId?: string;
 };
 
 export function pendingToOptimisticChatMessage(
@@ -58,18 +58,19 @@ export function outboxToOptimisticChatMessage(
   };
 }
 
+/**
+ * The server echoes the idempotency key, so the local copy disappears on an
+ * exact match. Matching on body and a timestamp window instead left a
+ * duplicate bubble on screen forever whenever the browser clock drifted from
+ * the server or the queued entry outlived the window.
+ */
 export function shouldHideOptimisticMessage<T extends ServerLikeMessage>(
   optimistic: OptimisticChatMessage,
   serverMessages: T[],
   currentUserId: string,
 ): boolean {
   if (optimistic.sender !== currentUserId) return false;
-  return serverMessages.some(
-    (message) =>
-      message.sender === currentUserId &&
-      message.body === optimistic.body &&
-      Math.abs(message.ts - optimistic.ts) <= SERVER_DEDUP_WINDOW_MS,
-  );
+  return serverMessages.some((message) => message.clientMsgId === optimistic.clientMsgId);
 }
 
 export function mergeOptimisticChatMessages<T extends ServerLikeMessage>(

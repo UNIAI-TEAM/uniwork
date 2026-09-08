@@ -46,6 +46,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
@@ -253,6 +254,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
@@ -277,6 +279,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
@@ -299,6 +302,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id

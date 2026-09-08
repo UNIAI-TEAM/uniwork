@@ -1312,6 +1312,8 @@
     "search_members": "Tìm thành viên…",
     "search_email": "Tìm theo email…",
     "search_conversations": "Tìm kiếm",
+    "hide_conversations": "Ẩn danh sách trò chuyện",
+    "show_conversations": "Hiện danh sách trò chuyện",
     "search_messages": "Tìm tin nhắn trong cuộc trò chuyện",
     "search_messages_placeholder": "Tìm trong cuộc trò chuyện…",
     "search_messages_no_results": "Không tìm thấy tin nhắn phù hợp",

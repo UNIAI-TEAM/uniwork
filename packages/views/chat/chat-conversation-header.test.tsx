@@ -58,6 +58,27 @@ describe("ChatConversationHeader", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it("reports the sidebar state on the collapse toggle", () => {
+    const onToggleSidebar = vi.fn();
+
+    render(
+      wrap(
+        <ChatConversationHeader
+          avatar={<span>A</span>}
+          title="General"
+          sidebarCollapsed
+          sidebarToggleAriaLabel="Hiện danh sách trò chuyện"
+          onToggleSidebar={onToggleSidebar}
+        />,
+      ),
+    );
+
+    const toggle = screen.getByLabelText("Hiện danh sách trò chuyện");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(onToggleSidebar).toHaveBeenCalledTimes(1);
+  });
+
   it("omits optional actions when handlers are missing", () => {
     render(
       wrap(

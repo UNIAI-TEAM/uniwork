@@ -178,7 +178,6 @@ export function useChatRoomMessages(workspaceId: string, roomId: string | null, 
     queryFn: () => listChatRoomMessages(workspaceId, roomId!, { limit }),
     enabled: !!workspaceId && !!roomId && authReady,
     staleTime: 5_000,
-    refetchOnMount: "always",
   });
 }
 

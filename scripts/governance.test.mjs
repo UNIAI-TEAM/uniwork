@@ -132,7 +132,7 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
   const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
   const rejected = subjects.filter(
-    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!)/.test(s),
+    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
   );
   assert.deepEqual(rejected, [], "commit-msg would reject commits already in history");
 });

@@ -1313,6 +1313,8 @@
     "search_members": "Search members…",
     "search_email": "Search by email…",
     "search_conversations": "Search",
+    "hide_conversations": "Hide conversation list",
+    "show_conversations": "Show conversation list",
     "search_messages": "Search in conversation",
     "search_messages_placeholder": "Search in conversation…",
     "search_messages_no_results": "No matching messages",

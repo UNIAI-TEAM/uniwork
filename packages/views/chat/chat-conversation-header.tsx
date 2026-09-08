@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronLeft, Phone, Search, Settings, Video } from "lucide-react";
+import { ChevronLeft, PanelLeft, PanelLeftClose, Phone, Search, Settings, Video } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -11,6 +11,9 @@ export function ChatConversationHeader({
   subtitle,
   backAriaLabel,
   onBack,
+  sidebarCollapsed,
+  sidebarToggleAriaLabel,
+  onToggleSidebar,
   settingsAriaLabel,
   onOpenSettings,
   searchAriaLabel,
@@ -28,6 +31,9 @@ export function ChatConversationHeader({
   subtitle?: string;
   backAriaLabel?: string;
   onBack?: () => void;
+  sidebarCollapsed?: boolean;
+  sidebarToggleAriaLabel?: string;
+  onToggleSidebar?: () => void;
   settingsAriaLabel?: string;
   onOpenSettings?: () => void;
   searchAriaLabel?: string;
@@ -57,6 +63,25 @@ export function ChatConversationHeader({
           onClick={onBack}
         >
           <ChevronLeft className="size-5" aria-hidden />
+        </Button>
+      ) : null}
+      {/* Narrow screens swap list and thread with the back control above, so
+          the collapse toggle is a desktop-only affordance. */}
+      {onToggleSidebar ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="hidden size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex"
+          aria-label={sidebarToggleAriaLabel}
+          aria-expanded={!sidebarCollapsed}
+          onClick={onToggleSidebar}
+        >
+          {sidebarCollapsed ? (
+            <PanelLeft className="size-5" aria-hidden />
+          ) : (
+            <PanelLeftClose className="size-5" aria-hidden />
+          )}
         </Button>
       ) : null}
       <div className="shrink-0">{avatar}</div>

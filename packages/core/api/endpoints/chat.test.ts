@@ -156,6 +156,27 @@ describe("chat endpoints", () => {
     expect(await getChatRoomMessage("ws1", "room1", "m1")).toBeNull();
   });
 
+  it("listChatRoomMessages keeps the client_msg_id echo", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            id: "m1",
+            room_id: "room1",
+            workspace_id: "ws1",
+            sender_id: "u1",
+            sender_display_name: "A",
+            body: "hi",
+            created_at: "2026-09-05T00:00:00Z",
+            client_msg_id: "550e8400-e29b-41d4-a716-446655440000",
+          },
+        ],
+      }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1");
+    expect(messages[0]?.client_msg_id).toBe("550e8400-e29b-41d4-a716-446655440000");
+  });
+
   it("sendChatRoomMessage forwards client_msg_id in request body", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({

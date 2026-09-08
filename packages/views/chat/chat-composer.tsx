@@ -435,6 +435,12 @@ export function ChatComposer({
               rows={1}
               className="max-h-32 min-h-9 w-full resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:ring-0 md:text-body"
               onKeyDown={(e) => {
+                // A Vietnamese IME commits the pending syllable on Enter and the
+                // browser reports that commit as its own keydown, so acting on
+                // both sends the message twice under two client_msg_ids. A held
+                // key repeats for the same reason.
+                if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
+
                 if (mentionPickerOpen) {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();

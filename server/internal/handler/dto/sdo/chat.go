@@ -81,6 +81,7 @@ type ChatMessageDTO struct {
 	Reminder          *ChatReminderDTO `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
 	Note              *ChatNoteDTO     `json:"note,omitempty" description:"Note payload when kind is note"`
 	Priority          string           `json:"priority,omitempty" description:"important or urgent message flag" example:"important"`
+	ClientMsgID       string           `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // ChatRoomDTO is a dm or group chat room.

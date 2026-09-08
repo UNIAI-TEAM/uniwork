@@ -103,6 +103,7 @@ export function ChatPageContent({
   const [createReminderOpen, setCreateReminderOpen] = useState(false);
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
   const [mobileListMode, setMobileListMode] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const showMobileList = mobileListMode || !activeRoomId;
   const showMobileChat = Boolean(activeRoomId) && !mobileListMode;
@@ -115,6 +116,10 @@ export function ChatPageContent({
 
   const handleBackToConversationList = () => {
     setMobileListMode(true);
+  };
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => !collapsed);
   };
 
   const prevActiveRoomIdRef = useRef<string | null>(activeRoomId);
@@ -248,18 +253,22 @@ export function ChatPageContent({
         onCreateNoteOpenChange={setCreateNoteOpen}
       />
 
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-1 px-2 pb-2 pt-2 md:px-6 md:pb-4">
+      {/* Chat fills the content inset: the message list is the screen here, so
+          no centred card and no gutter — the panels reach the shell edges. */}
+      <div className="flex h-full min-h-0 w-full flex-1">
         <div
           className={cn(
-            "flex min-h-0 w-full flex-1 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm",
-            "lg:grid lg:grid-cols-[280px_minmax(0,1fr)]",
+            "flex min-h-0 w-full flex-1 overflow-hidden bg-surface",
+            sidebarCollapsed
+              ? "lg:grid lg:grid-cols-[minmax(0,1fr)]"
+              : "lg:grid lg:grid-cols-[300px_minmax(0,1fr)]",
           )}
         >
           <div
             className={cn(
               "min-h-0 min-w-0 flex-col overflow-hidden",
               showMobileList ? "flex w-full flex-1" : "hidden",
-              "lg:flex lg:w-auto lg:flex-none",
+              sidebarCollapsed ? "lg:hidden" : "lg:flex lg:w-auto lg:flex-none",
             )}
           >
             <ChatSidebar
@@ -342,6 +351,8 @@ export function ChatPageContent({
                     memberCount={workspaceMembers.length}
                     backAriaLabel={backToListLabel}
                     onBack={handleBackToConversationList}
+                    sidebarCollapsed={sidebarCollapsed}
+                    onToggleSidebar={handleToggleSidebar}
                     onOpenSettings={() => onWorkspaceSettingsOpenChange(true)}
                     onOpenSearch={() => onMessageSearchOpenChange(true)}
                   />
@@ -352,6 +363,8 @@ export function ChatPageContent({
                     memberCount={activeGroup.member_user_ids.length + 1}
                     backAriaLabel={backToListLabel}
                     onBack={handleBackToConversationList}
+                    sidebarCollapsed={sidebarCollapsed}
+                    onToggleSidebar={handleToggleSidebar}
                     onOpenSettings={() => onGroupSettingsOpenChange(true)}
                     onOpenSearch={() => onMessageSearchOpenChange(true)}
                     onVoiceCall={onVoiceCall}
@@ -369,6 +382,8 @@ export function ChatPageContent({
                     nicknamesByUserId={nicknamesByUserId}
                     backAriaLabel={backToListLabel}
                     onBack={handleBackToConversationList}
+                    sidebarCollapsed={sidebarCollapsed}
+                    onToggleSidebar={handleToggleSidebar}
                     onOpenSettings={() => onDmSettingsOpenChange(true)}
                     onOpenSearch={() => onMessageSearchOpenChange(true)}
                     onVoiceCall={onVoiceCall}

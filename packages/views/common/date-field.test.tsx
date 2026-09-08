@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { initI18n } from "@uniwork/core/i18n";
 import { DateField, dateOnlyToLocalDate, toDateOnly } from "./date-field";
@@ -14,11 +14,14 @@ describe("date-only transport", () => {
 });
 
 describe("DateField", () => {
-  // The calendar is behind React.lazy (it carries react-day-picker + date-fns),
-  // so the grid arrives only after that module loads — a generous timeout
-  // because vitest compiles it on demand. 5s was not generous enough once the
-  // chat suites joined this package: three suites run in parallel under
-  // `make check` and the on-demand compile has been measured past 8s.
+  // The calendar is behind React.lazy (it carries react-day-picker + date-fns).
+  // Warming the chunk here matches ChatMessageBody: the assertion then waits
+  // only for Suspense, not for the on-demand compile that races other suites
+  // under coverage.
+  beforeAll(async () => {
+    await import("@uniwork/ui/components/ui/calendar");
+  }, 60_000);
+
   it("opens a calendar, emits the picked day and clears it", async () => {
     const onChange = vi.fn();
     render(<DateField id="d" value="2026-09-06" onChange={onChange} />);
