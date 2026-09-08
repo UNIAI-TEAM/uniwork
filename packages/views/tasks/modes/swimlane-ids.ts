@@ -8,7 +8,7 @@ import type { SwimlaneGrouping } from "@uniwork/core/tasks/stores/view-store-typ
 export const COLUMN_WIDTH = 280;
 export const COLUMN_GAP = 16;
 export const SWIMLANE_LANE_SEED_COUNT = 6;
-export const LANE_ID_PREFIX = "lane:";
+const LANE_ID_PREFIX = "lane:";
 export const NONE_LANE_ID = "none";
 export const ORPHAN_LANE_ID = "__orphans__";
 
@@ -16,7 +16,7 @@ export function cellId(laneKey: string, status: string): string {
   return `${laneKey}::${status}`;
 }
 
-export function parseCellId(
+function parseCellId(
   id: string,
 ): { laneKey: string; status: string } | null {
   const idx = id.lastIndexOf("::");

@@ -2,18 +2,13 @@ import type { SwimlaneGrouping } from "@uniwork/core/tasks/stores/view-store-typ
 import type { Task, TaskStatus } from "@uniwork/core/types";
 import { NONE_LANE_ID, ORPHAN_LANE_ID } from "./swimlane-ids";
 
-export type SwimLaneMoveTargetUpdates = {
+type SwimLaneMoveTargetUpdates = {
   parent_task_id?: string | null;
   project_id?: string | null;
   assignee_id?: string | null;
   assignee_kind?: string | null;
   status?: string;
   position?: number;
-};
-
-export type SwimLaneMoveUpdates = SwimLaneMoveTargetUpdates & {
-  before_id: string | null;
-  after_id: string | null;
 };
 
 export interface LaneGroup {
@@ -32,7 +27,7 @@ export interface LaneGroup {
   serverCellKeys?: Partial<Record<TaskStatus, string>>;
 }
 
-export function buildParentLanes(
+function buildParentLanes(
   visibleTasks: Task[],
   metadataTasks: Task[],
   storedOrder: string[],
@@ -116,7 +111,7 @@ export function buildParentLanes(
   return lanes;
 }
 
-export function buildProjectLanes(
+function buildProjectLanes(
   visibleTasks: Task[],
   projectTitles: Map<string, string>,
   storedOrder: string[],
@@ -172,7 +167,7 @@ export function buildProjectLanes(
   ];
 }
 
-export function buildAssigneeLanes(
+function buildAssigneeLanes(
   visibleTasks: Task[],
   getActorName: (kind: string, id: string) => string,
   storedOrder: string[],

@@ -11,15 +11,6 @@ import {
   type Task,
 } from "@uniwork/core/types";
 
-/** Export must fail closed when paged table responses cannot prove the full
- * query window was collected. The UI translates this marker. */
-export class TaskTableExportIntegrityError extends Error {
-  constructor() {
-    super("Table export response was incomplete");
-    this.name = "TaskTableExportIntegrityError";
-  }
-}
-
 export type TaskTableDisplayRow =
   | {
       kind: "group";
@@ -46,7 +37,7 @@ export type TaskTableDisplayRow =
       onLoad?: () => void;
     };
 
-export type TaskTableFacetKind =
+type TaskTableFacetKind =
   | "status"
   | "priority"
   | "assignee"
