@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { TableFacetsResult } from "@uniwork/core/api/endpoints/tasks-table";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   taskKeys,
   useGroupedTasks,
+  useTableFacets,
   useTaskStatuses,
   useUpdateTask,
 } from "@uniwork/core/tasks";
@@ -14,6 +16,9 @@ import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { planSurfaceQuery } from "@uniwork/core/tasks/surface/query-plan";
 import { taskScopeKey, type TaskScope } from "@uniwork/core/tasks/surface/scope";
 import { TASK_STATUSES, type Task, type TaskStatus } from "@uniwork/core/types";
+import {
+  type TaskTableFacetSpec,
+} from "../modes/table-view-model";
 import {
   type TaskCreateDefaults,
   type TaskSurfaceActions,
@@ -41,6 +46,10 @@ export interface TaskSurfaceController {
   boardCategories: readonly string[];
   projectGroupingDisabled: boolean;
   projectGroupingReasonKey: string;
+  /** Open filter-submenu facet for table (and grouped) surfaces. */
+  activeTableFacet: TaskTableFacetSpec | null;
+  setActiveTableFacet: (facet: TaskTableFacetSpec | null) => void;
+  tableFacetCounts: TableFacetsResult | undefined;
   isLoading: boolean;
   isEmpty: boolean;
   isRefreshing: boolean;
@@ -90,6 +99,7 @@ export function useTaskSurfaceController({
   );
 
   const boardEnabled = effectiveViewMode === "board";
+  const tableEnabled = effectiveViewMode === "table";
   const listQueryEnabled =
     (effectiveViewMode === "list" || effectiveViewMode === "swimlane") &&
     queryPlan.kind !== "table";
@@ -106,6 +116,31 @@ export function useTaskSurfaceController({
   });
   const updateTask = useUpdateTask(workspaceId);
   const { data: publicConfig } = usePublicConfig();
+
+  const [activeTableFacet, setActiveTableFacetState] =
+    useState<TaskTableFacetSpec | null>(null);
+
+  useEffect(() => {
+    if (!tableEnabled) setActiveTableFacetState(null);
+  }, [tableEnabled]);
+
+  const setActiveTableFacet = useCallback(
+    (facet: TaskTableFacetSpec | null) => {
+      setActiveTableFacetState(tableEnabled ? facet : null);
+    },
+    [tableEnabled],
+  );
+
+  const facetsBody = useMemo(() => {
+    if (!tableEnabled || !activeTableFacet) return null;
+    return {
+      filter: undefined,
+      facets: [activeTableFacet.kind],
+      columns: undefined,
+    };
+  }, [activeTableFacet, tableEnabled]);
+
+  const facetsQuery = useTableFacets(tableEnabled ? workspaceId : "", facetsBody);
 
   const boardCategories = useMemo(() => {
     const catalog = statusesQuery.data;
@@ -200,12 +235,18 @@ export function useTaskSurfaceController({
 
   const isLoading = boardEnabled
     ? statusesQuery.isLoading || groupedQuery.isLoading
-    : data.isLoading;
+    : tableEnabled
+      ? false
+      : data.isLoading;
   const isRefreshing = boardEnabled
     ? (statusesQuery.isFetching && !statusesQuery.isLoading) ||
       (groupedQuery.isFetching && !groupedQuery.isLoading)
-    : data.isRefreshing;
+    : tableEnabled
+      ? false
+      : data.isRefreshing;
   const surfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
+  // Table owns its empty state inside TableView (groups total). Surface empty
+  // only for list/board list-shaped windows.
   const isEmpty =
     (boardEnabled || listQueryEnabled) &&
     !isLoading &&
@@ -219,6 +260,12 @@ export function useTaskSurfaceController({
     boardCategories,
     projectGroupingDisabled,
     projectGroupingReasonKey,
+    activeTableFacet,
+    setActiveTableFacet,
+    tableFacetCounts:
+      tableEnabled && activeTableFacet !== null
+        ? facetsQuery.data
+        : undefined,
     isLoading,
     isEmpty,
     isRefreshing,

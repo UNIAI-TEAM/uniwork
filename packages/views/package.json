@@ -29,11 +29,14 @@
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@emoji-mart/data": "^1.2.1",
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
     "@livekit/track-processors": "^0.5.8",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-table": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
@@ -43,11 +46,9 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
+    "react-virtuoso": "catalog:",
     "sonner": "catalog:",
-    "zustand": "catalog:",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
-    "react-virtuoso": "catalog:"
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",

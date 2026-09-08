@@ -4,7 +4,7 @@ export interface SurfaceQueryPlan {
   kind: "workspace_query" | "my_tasks" | "table";
   queryBody?: { status?: string; limit?: number; offset?: number };
   myTasksOpts?: { relation?: MyTasksRelation; limit?: number; offset?: number };
-  /** TableGroupsBody | null until modes wire facets. */
+  /** TableGroupsBody once modes wire filters; null until then. */
   tableBody?: unknown;
 }
 

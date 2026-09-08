@@ -12,6 +12,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
 import { BoardView } from "../modes/board-view";
 import { ListView } from "../modes/list-view";
+import { TableView } from "../modes/table-view";
 import { TaskSurfaceActionsProvider } from "./actions-context";
 import { TaskSurfaceSelectionProvider } from "./selection-context";
 import type { TaskSurfaceProps } from "./types";
@@ -88,6 +89,12 @@ function TaskSurfaceContent({
                 <BoardView
                   categories={controller.boardCategories}
                   tasks={controller.surfaceTasks}
+                  projectGroupingDisabled={controller.projectGroupingDisabled}
+                  projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                />
+              ) : controller.viewMode === "table" ? (
+                <TableView
+                  workspaceId={workspaceId}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
                 />

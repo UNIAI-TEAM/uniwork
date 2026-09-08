@@ -639,6 +639,45 @@
       "add_task": "Thêm task",
       "agent_chip_stub": "Agent",
       "vcs_chip_stub": "VCS"
+    },
+    "table": {
+      "search_placeholder": "Tìm công việc…",
+      "search_clear": "Xóa tìm kiếm",
+      "select_all": "Chọn tất cả công việc",
+      "select_row": "Chọn công việc",
+      "rename": "Đổi tên",
+      "expand_children": "Mở công việc con",
+      "collapse_children": "Thu công việc con",
+      "empty": "Không có công việc trong bảng này",
+      "load_error": "Không tải được bảng",
+      "unavailable_cell": "Chưa có",
+      "grouping": {
+        "none": "Không nhóm",
+        "status": "Trạng thái",
+        "assignee": "Người phụ trách",
+        "project": "Dự án"
+      },
+      "columns": {
+        "trigger": "Cột",
+        "search_placeholder": "Tìm cột…",
+        "system_section": "Hệ thống",
+        "property_section": "Thuộc tính",
+        "properties_stub": "Thuộc tính tùy chỉnh chưa sẵn sàng",
+        "no_results": "Không có cột khớp",
+        "title": "Tiêu đề",
+        "identifier": "Mã",
+        "status": "Trạng thái",
+        "priority": "Độ ưu tiên",
+        "assignee": "Người phụ trách",
+        "labels": "Nhãn",
+        "project": "Dự án",
+        "start_date": "Ngày bắt đầu",
+        "due_date": "Hạn",
+        "created_at": "Tạo lúc",
+        "updated_at": "Cập nhật",
+        "child_progress": "Tiến độ công việc con",
+        "creator": "Người tạo"
+      }
     }
   },
   "capabilities": {

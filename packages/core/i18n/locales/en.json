@@ -640,6 +640,45 @@
       "add_task": "Add task",
       "agent_chip_stub": "Agent",
       "vcs_chip_stub": "VCS"
+    },
+    "table": {
+      "search_placeholder": "Search tasks…",
+      "search_clear": "Clear search",
+      "select_all": "Select all tasks",
+      "select_row": "Select task",
+      "rename": "Rename",
+      "expand_children": "Expand sub-tasks",
+      "collapse_children": "Collapse sub-tasks",
+      "empty": "No tasks in this table",
+      "load_error": "Could not load the table",
+      "unavailable_cell": "Unavailable",
+      "grouping": {
+        "none": "No grouping",
+        "status": "Status",
+        "assignee": "Assignee",
+        "project": "Project"
+      },
+      "columns": {
+        "trigger": "Columns",
+        "search_placeholder": "Search columns…",
+        "system_section": "System",
+        "property_section": "Properties",
+        "properties_stub": "Custom properties unavailable",
+        "no_results": "No columns match",
+        "title": "Title",
+        "identifier": "ID",
+        "status": "Status",
+        "priority": "Priority",
+        "assignee": "Assignee",
+        "labels": "Labels",
+        "project": "Project",
+        "start_date": "Start date",
+        "due_date": "Due date",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "child_progress": "Sub-task progress",
+        "creator": "Creator"
+      }
     }
   },
   "capabilities": {
