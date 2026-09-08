@@ -459,7 +459,8 @@ SELECT
 FROM ai_usage_events
 WHERE organization_id = $1
   AND ($2::text IS NULL OR workspace_id = $2::text)
-  AND created_at >= $3 AND created_at < $4
+  AND created_at >= $3
+  AND ($4::timestamptz IS NULL OR created_at < $4::timestamptz)
 GROUP BY 1, 2, 3, 4
 ORDER BY 1, 2, 3, 4
 `
@@ -484,7 +485,9 @@ type AiUsageByDayRow struct {
 
 // One row per (day, capability, actor_kind) for a workspace or, with
 // workspace_id NULL, the whole organization. Rejected/failed rows count as
-// calls but carry no tokens.
+// calls but carry no tokens. to_at NULL means "everything so far": created_at
+// is this database's clock and no row can be in the future, so an open end is
+// both correct and immune to a caller whose clock lags this server's.
 func (q *Queries) AiUsageByDay(ctx context.Context, arg AiUsageByDayParams) ([]AiUsageByDayRow, error) {
 	rows, err := q.db.Query(ctx, aiUsageByDay,
 		arg.OrganizationID,

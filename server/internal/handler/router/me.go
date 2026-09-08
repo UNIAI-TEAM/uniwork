@@ -17,6 +17,13 @@ import (
 //	PATCH /api/v1/me/onboarding
 //	POST  /api/v1/me/onboarding/complete
 //	GET   /api/v1/me/invitations
+//	POST  /api/v1/me/mfa/setup
+//	POST  /api/v1/me/mfa/confirm    (credential rate limit)
+//	POST  /api/v1/me/mfa/disable    (credential rate limit)
+//	GET   /api/v1/me/sessions
+//	DELETE /api/v1/me/sessions/{sessionId}
+//	POST  /api/v1/me/sessions/revoke-others
+//	POST  /api/v1/me/delete         (credential rate limit)
 func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	r.Get("/me", h.Me, apiOp{
 		summary:     "Current user",
@@ -77,6 +84,58 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		description: "Lời mời gửi tới email hiện tại và vẫn còn hiệu lực.",
 		tags:        []string{"me"},
 		sdo:         sdo.PendingInvitationListSDO{},
+		auth:        true,
+	})
+	r.Post("/me/mfa/setup", h.MFASetup, apiOp{
+		summary:     "Start MFA enrolment",
+		description: "Sinh bí mật TOTP mới; chưa bật cho đến khi confirm. 409 khi MFA đang bật.",
+		tags:        []string{"me"},
+		sdo:         sdo.MFASetupSDO{},
+		auth:        true,
+	})
+	r.With(credentialLimit).Post("/me/mfa/confirm", h.MFAConfirm, apiOp{
+		summary:     "Confirm MFA",
+		description: "Xác nhận mã từ ứng dụng, bật MFA và trả 8 mã khôi phục (chỉ một lần).",
+		tags:        []string{"me"},
+		sdi:         sdi.MFACodeSDI{},
+		sdo:         sdo.MFARecoveryCodesSDO{},
+		auth:        true,
+	})
+	r.With(credentialLimit).Post("/me/mfa/disable", h.MFADisable, apiOp{
+		summary:     "Disable MFA",
+		description: "Tắt MFA bằng mã TOTP hoặc mã khôi phục.",
+		tags:        []string{"me"},
+		sdi:         sdi.MFACodeSDI{},
+		sdo:         sdo.UserSDO{},
+		auth:        true,
+	})
+	r.Get("/me/sessions", h.ListSessions, apiOp{
+		summary:     "List sessions",
+		description: "Các phiên đang mở của người dùng hiện tại; current đánh dấu phiên đang gọi.",
+		tags:        []string{"me"},
+		sdo:         sdo.SessionListSDO{},
+		auth:        true,
+	})
+	r.Delete("/me/sessions/{sessionId}", h.RevokeSession, apiOp{
+		summary:     "Revoke session",
+		description: "Thu hồi một phiên. Access token của phiên đó còn hiệu lực tối đa 15 phút.",
+		tags:        []string{"me"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Post("/me/sessions/revoke-others", h.RevokeOtherSessions, apiOp{
+		summary:     "Revoke other sessions",
+		description: "Thu hồi mọi phiên trừ phiên đang gọi.",
+		tags:        []string{"me"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.With(credentialLimit).Post("/me/delete", h.DeleteAccount, apiOp{
+		summary:     "Delete account",
+		description: "Ẩn danh hóa tài khoản theo Nghị định 13: cần mật khẩu, hoặc mã MFA, hoặc gõ lại email. 409 owner_must_transfer khi còn là chủ sở hữu tổ chức.",
+		tags:        []string{"me"},
+		sdi:         sdi.DeleteAccountSDI{},
+		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
 }

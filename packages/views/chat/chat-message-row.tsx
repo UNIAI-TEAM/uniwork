@@ -2,16 +2,26 @@
 
 import type { ReactNode } from "react";
 import {
+  Copy,
   MessageSquareText,
   MoreHorizontal,
   Pencil,
   Pin,
   Reply,
   SmilePlus,
+  Trash2,
+  Bell,
+  CircleAlert,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -21,7 +31,9 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { Check } from "lucide-react";
 import type { ChatMessage } from "./chat-messages";
+import { ChatMessageBody } from "./chat-message-body";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
+import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
 
 /** Fixed gutter matching sidebar avatar column — keeps grouped bubbles aligned. */
@@ -31,11 +43,13 @@ function MessageActionButton({
   label,
   onClick,
   disabled,
+  pressed,
   children,
 }: {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  pressed?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -44,10 +58,11 @@ function MessageActionButton({
         render={
           <Button
             type="button"
-            variant="ghost"
+            variant={pressed ? "secondary" : "ghost"}
             size="icon-sm"
             className="size-8 shrink-0"
             aria-label={label}
+            aria-pressed={pressed ? true : undefined}
             disabled={disabled}
             onClick={onClick}
           >
@@ -68,32 +83,54 @@ export function ChatMessageRow({
   replyPreview,
   onReply,
   onReact,
+  onThread,
+  onEdit,
+  onPin,
+  onCopy,
+  onDelete,
   showSenderName = false,
   compactTop = false,
   showAvatar = true,
+  highlighted = false,
+  nameContext = [],
 }: {
   message: ChatMessage;
   senderLabel: string;
   isOwn: boolean;
   showReadReceipt: boolean;
   replyPreview?: string;
-  onReply: (message: ChatMessage) => void;
-  onReact: (message: ChatMessage) => void;
+  onReply?: (message: ChatMessage) => void;
+  onReact?: (message: ChatMessage) => void;
+  onThread?: (message: ChatMessage) => void;
+  onEdit?: (message: ChatMessage) => void;
+  onPin?: (message: ChatMessage) => void;
+  onCopy?: (message: ChatMessage) => void;
+  onDelete?: (message: ChatMessage) => void;
   showSenderName?: boolean;
   compactTop?: boolean;
   showAvatar?: boolean;
+  highlighted?: boolean;
+  nameContext?: ChatNameContextEntry[];
 }) {
   const { t } = useTranslation();
   const reactionEntries = Object.entries(message.reactions);
   const nameClass = senderNameClass(message.sender, isOwn);
   const avatarInitial = senderLabel.trim().slice(0, 1).toUpperCase() || "?";
+  const isPending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
+  const canEdit = isOwn && !isPending && message.kind !== "voice_call_log" && !message.voiceCall;
+  const canDelete = isOwn && !isPending && message.kind !== "voice_call_log" && !message.voiceCall;
+  const canInteract = !isPending && Boolean(onReply && onReact);
+  const pinLabel = message.pinned ? t("chat.action_unpin") : t("chat.action_pin");
 
   return (
     <article
+      id={`chat-msg-${message.id}`}
       className={cn(
-        "flex w-full max-w-full",
+        "flex w-full max-w-full rounded-lg transition-colors",
         compactTop ? "mt-1" : "mt-3",
         isOwn ? "justify-end" : "justify-start gap-2",
+        highlighted && "bg-brand/10 ring-2 ring-brand/40",
+        isPending && "opacity-80",
       )}
     >
       {!isOwn ? (
@@ -119,35 +156,91 @@ export function ChatMessageRow({
           className={cn(
             "pointer-events-none absolute -top-9 z-10 flex items-center gap-0.5 rounded-full border border-border bg-surface px-1 py-0.5 opacity-0 shadow-md transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100",
             isOwn ? "right-0" : "left-0",
+            !canInteract && "hidden",
           )}
         >
           <TooltipProvider delay={300}>
             <MessageActionButton
               label={t("chat.action_react")}
-              onClick={() => onReact(message)}
+              onClick={() => onReact?.(message)}
             >
               <SmilePlus className="size-4" aria-hidden />
             </MessageActionButton>
-            <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply(message)}>
+            <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)}>
               <Reply className="size-4" aria-hidden />
             </MessageActionButton>
-            <MessageActionButton label={t("chat.action_thread")} disabled>
+            <MessageActionButton
+              label={t("chat.action_thread")}
+              onClick={() => onThread?.(message)}
+              disabled={!onThread}
+            >
               <MessageSquareText className="size-4" aria-hidden />
             </MessageActionButton>
-            <MessageActionButton label={t("chat.action_edit")} disabled>
+            <MessageActionButton
+              label={t("chat.action_edit")}
+              onClick={() => onEdit?.(message)}
+              disabled={!canEdit || !onEdit}
+            >
               <Pencil className="size-4" aria-hidden />
             </MessageActionButton>
-            <MessageActionButton label={t("chat.action_pin")} disabled>
+            <MessageActionButton
+              label={pinLabel}
+              onClick={() => onPin?.(message)}
+              disabled={!onPin}
+              pressed={message.pinned}
+            >
               <Pin className="size-4" aria-hidden />
             </MessageActionButton>
-            <MessageActionButton label={t("chat.action_more")} disabled>
-              <MoreHorizontal className="size-4" aria-hidden />
-            </MessageActionButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-8 shrink-0"
+                    aria-label={t("chat.action_more")}
+                  >
+                    <MoreHorizontal className="size-4" aria-hidden />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align={isOwn ? "end" : "start"}>
+                <DropdownMenuItem
+                  onClick={() => onCopy?.(message)}
+                  disabled={!onCopy}
+                >
+                  <Copy className="size-4" aria-hidden />
+                  {t("chat.action_copy")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => onDelete?.(message)}
+                  disabled={!canDelete || !onDelete}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  {t("chat.action_delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </TooltipProvider>
         </div>
 
         {!isOwn && showSenderName && showAvatar ? (
           <p className={cn("px-1 text-caption font-medium", nameClass)}>{senderLabel}</p>
+        ) : null}
+
+        {message.priority === "important" || message.priority === "urgent" ? (
+          <span className="inline-flex items-center gap-1 px-1 text-caption font-medium text-destructive">
+            {message.priority === "important" ? (
+              <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+            ) : (
+              <Bell className="size-3.5 shrink-0" aria-hidden />
+            )}
+            {message.priority === "important"
+              ? t("chat.message_flag_important")
+              : t("chat.message_flag_urgent")}
+          </span>
         ) : null}
 
         <div
@@ -171,14 +264,17 @@ export function ChatMessageRow({
             </p>
           ) : null}
 
-          <p
-            className={cn(
-              "whitespace-pre-wrap break-words text-body leading-relaxed",
-              isOwn ? "text-brand-foreground" : "text-foreground",
-            )}
-          >
-            {message.body}
-          </p>
+          <ChatMessageBody body={message.body} isOwn={isOwn} nameContext={nameContext} />
+          {message.editedAt ? (
+            <p
+              className={cn(
+                "mt-1 text-caption",
+                isOwn ? "text-brand-foreground/75" : "text-muted-foreground",
+              )}
+            >
+              {t("chat.edited_label")}
+            </p>
+          ) : null}
         </div>
 
         {reactionEntries.length > 0 ? (
@@ -202,6 +298,13 @@ export function ChatMessageRow({
             title={t("chat.read_receipt")}
           >
             <Check className="size-3.5" aria-hidden />
+          </span>
+        ) : null}
+        {isPending ? (
+          <span className="px-1 text-caption text-muted-foreground">
+            {message.deliveryStatus === "queued"
+              ? t("chat.message_queued")
+              : t("chat.message_sending")}
           </span>
         ) : null}
       </div>

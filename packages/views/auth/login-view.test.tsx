@@ -281,4 +281,44 @@ describe("LoginView", () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
   });
+
+  it("switches to the MFA step on a challenge and finishes sign-in with the code", async () => {
+    const onSuccess = vi.fn();
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/auth/login") return Promise.resolve({ mfa_required: true, mfa_token: "chal" });
+      if (path === "/api/v1/auth/mfa/verify") return Promise.resolve(SESSION);
+      return Promise.resolve({ google: false });
+    });
+    render(wrap(<LoginView onSuccess={onSuccess} />));
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    const code = await screen.findByLabelText("Mã xác thực");
+    expect(onSuccess).not.toHaveBeenCalled();
+    fireEvent.change(code, { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+
+    // mutate-level onSuccess also receives variables/context; only the session matters.
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(onSuccess.mock.calls[0]?.[0]).toMatchObject({ access_token: "tok" });
+    const verify = requestMock.mock.calls.find(([path]) => path === "/api/v1/auth/mfa/verify");
+    expect(verify?.[1]).toMatchObject({ body: { mfa_token: "chal", code: "123456" } });
+  });
+
+  it("opens on the code step for /login?mfa=1 and sends the cookie-only shape", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/auth/mfa/verify" ? SESSION : { google: false }),
+    );
+    render(wrap(<LoginView onSuccess={() => {}} initialMfa />));
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "abcde-fghij" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() =>
+      expect(requestMock.mock.calls.find(([path]) => path === "/api/v1/auth/mfa/verify")?.[1]).toMatchObject({
+        body: { mfa_token: "", code: "abcde-fghij" },
+      }),
+    );
+    // Back returns to the password form.
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại đăng nhập" }));
+    expect(screen.getByLabelText("Mật khẩu")).toBeInTheDocument();
+  });
 });

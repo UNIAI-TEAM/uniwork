@@ -54,4 +54,30 @@ describe("displayLabelForChatContact", () => {
       }),
     ).toBe("long@example.com");
   });
+
+  it("prefers nickname over display name", () => {
+    expect(
+      displayLabelForChatContact(
+        {
+          user_id: "u1",
+          display_name: "Tran Hoang Long",
+          email: "long@example.com",
+        },
+        { u1: "  Long đồng nghiệp  " },
+      ),
+    ).toBe("Long đồng nghiệp");
+  });
+
+  it("matches nicknames regardless of user id casing", () => {
+    expect(
+      displayLabelForChatContact(
+        {
+          user_id: "01abcdefghjk0123456789012",
+          display_name: "Tran Hoang Long",
+          email: "long@example.com",
+        },
+        { "01ABCDEFGHJK0123456789012": "Long" },
+      ),
+    ).toBe("Long");
+  });
 });

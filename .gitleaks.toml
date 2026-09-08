@@ -10,3 +10,7 @@ useDefault = true
 # api-design skill carried example `X-API-Key:` headers in prose; the files
 # are gone from HEAD but stay in history.
 paths = ['''^\.cursor/''']
+# RFC 6238 appendix B test vector (base32 of the ASCII seed
+# "12345678901234567890"); it is printed in the RFC and cannot be a
+# credential. totp_test.go no longer spells it out, but commit e44d7c4 did.
+regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']

@@ -36,3 +36,25 @@ func TestWrongSecretRejected(t *testing.T) {
 		t.Fatal("token with wrong secret accepted")
 	}
 }
+
+func TestMFATokenNeverPassesAsAccessToken(t *testing.T) {
+	m := TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
+	challenge, err := m.MintMFA("user_123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Parse(challenge); err == nil {
+		t.Fatal("a challenge token must not open RequireAuth")
+	}
+	if uid, err := m.ParseMFA(challenge); err != nil || uid != "user_123" {
+		t.Fatalf("ParseMFA: %q %v", uid, err)
+	}
+	access, _ := m.MintSession("user_123", "sess_1")
+	if _, err := m.ParseMFA(access); err == nil {
+		t.Fatal("an access token must not verify MFA")
+	}
+	uid, sid, err := m.ParseSession(access)
+	if err != nil || uid != "user_123" || sid != "sess_1" {
+		t.Fatalf("ParseSession: %q %q %v", uid, sid, err)
+	}
+}

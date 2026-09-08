@@ -327,6 +327,8 @@ type AIUsageSummary struct {
 	Rows     []AIUsageRow
 }
 
+// usageRange fills in the window the caller left open. The end is only ever
+// reported, never queried with, when the caller named none — see usage.
 func usageRange(now, from, to time.Time) (time.Time, time.Time) {
 	if to.IsZero() {
 		to = now
@@ -338,10 +340,19 @@ func usageRange(now, from, to time.Time) (time.Time, time.Time) {
 }
 
 func (s *AskUNIService) usage(ctx context.Context, orgID, workspaceID string, from, to time.Time) (AIUsageSummary, error) {
+	// "Everything so far" is asked of the database as an open end, not as this
+	// process's clock. `created_at` comes from PostgreSQL, so an app host whose
+	// clock lags the database's by milliseconds — two machines in production, a
+	// VM on a laptop — would otherwise hide the call the caller just made. An
+	// end the caller named is a date they chose and is still applied.
+	toAt := pgtype.Timestamptz{}
+	if !to.IsZero() {
+		toAt = pgtype.Timestamptz{Time: to, Valid: true}
+	}
 	from, to = usageRange(s.now(), from, to)
 	rows, err := s.q.AiUsageByDay(ctx, db.AiUsageByDayParams{
 		OrganizationID: orgID, WorkspaceID: strText(workspaceID),
-		FromAt: pgtype.Timestamptz{Time: from, Valid: true}, ToAt: pgtype.Timestamptz{Time: to, Valid: true},
+		FromAt: pgtype.Timestamptz{Time: from, Valid: true}, ToAt: toAt,
 	})
 	if err != nil {
 		return AIUsageSummary{}, err

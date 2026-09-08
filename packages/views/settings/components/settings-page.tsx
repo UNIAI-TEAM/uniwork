@@ -1,7 +1,7 @@
 "use client";
 
-import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
-import { useMemo } from "react";
+import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
+import { Suspense, lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
@@ -18,11 +18,16 @@ import { MembersTab } from "./members-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { OrganizationTab } from "./organization-tab";
 import { PreferencesTab } from "./preferences-tab";
+
+// The security tab (MFA enrolment, sessions, deletion) loads when opened so
+// the settings route stays inside its bundle ceiling.
+const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
 import { WorkspaceTab } from "./workspace-tab";
 
-const ACCOUNT_TAB_KEYS = ["profile", "preferences", "notifications"] as const;
+const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
 const ACCOUNT_TAB_ICONS = {
   profile: User,
+  security: ShieldCheck,
   preferences: SlidersHorizontal,
   notifications: Bell,
 } as const;
@@ -153,6 +158,11 @@ export function SettingsPage() {
         <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 md:p-8">
           <TabsContent value="profile">
             <AccountTab />
+          </TabsContent>
+          <TabsContent value="security">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <SecurityTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="preferences">
             <PreferencesTab />

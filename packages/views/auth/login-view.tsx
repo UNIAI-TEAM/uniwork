@@ -5,13 +5,14 @@ import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogin } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
-import type { SessionResponse } from "@uniwork/core/types";
+import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink } from "../navigation";
 import { AuthShell } from "./auth-shell";
 import { GoogleButton } from "./google-button";
+import { MFAStep } from "./mfa-step";
 import { PasswordField } from "./password-field";
 
 /** Inline text link with the same 44px coarse-pointer floor the Button primitive carries. */
@@ -41,15 +42,21 @@ export function LoginView({
   next,
   initialError,
   reason,
+  initialMfa = false,
 }: {
   onSuccess: (sess: SessionResponse) => void;
   /** Same-origin path to return to after any sign-in; forwarded to Google too. */
   next?: string | null;
   initialError?: GoogleLoginError | null;
   reason?: LoginReason | null;
+  /** `/login?mfa=1`: a redirect flow left the MFA challenge in a cookie; open on the code step. */
+  initialMfa?: boolean;
 }) {
   const { t } = useTranslation();
   const login = useLogin();
+  // The challenge token from a password login; null while on the code step
+  // after a cookie-borne challenge; undefined on the password step.
+  const [challenge, setChallenge] = useState<string | null | undefined>(initialMfa ? null : undefined);
   const noticeId = useId();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -122,7 +129,7 @@ export function LoginView({
     login.mutate(
       { email: trimmed, password },
       {
-        onSuccess,
+        onSuccess: (out) => (isMFAChallenge(out) ? setChallenge(out.mfa_token) : onSuccess(out)),
         // The email is almost always right and the password is what gets
         // retyped, so the retry starts there, with the old value selected: the
         // next keystroke replaces it. Other failures keep focus on the button:
@@ -136,6 +143,14 @@ export function LoginView({
       },
     );
   };
+
+  if (challenge !== undefined) {
+    return (
+      <AuthShell title={t("auth.mfa.title")} description={t("auth.mfa.subtitle")}>
+        <MFAStep mfaToken={challenge} onSuccess={onSuccess} onCancel={() => setChallenge(undefined)} />
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell title={t("auth.login")} description={t("auth.loginSubtitle")}>

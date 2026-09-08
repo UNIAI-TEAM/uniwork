@@ -39,8 +39,26 @@ var chatMigrationRenames = map[string]string{
 	"045_matrix_ids":                         "057_matrix_ids",
 }
 
-func reconcileRenamedMigrations(ctx context.Context, conn *pgxpool.Conn) error {
-	for oldV, newV := range chatMigrationRenames {
+// chatMigrationRenumbers records the second renumber. The chat DDL written on
+// the long-dev-chat branch took 058–066 while audit, outbox and agents took the
+// same prefixes on develop; merging the two put nine numbers in use twice, so
+// the chat half moves to 143–151. These versions are deliberately absent from
+// the backfill above: a database that never applied the branch names has not
+// run the DDL, and marking it applied would skip it.
+var chatMigrationRenumbers = map[string]string{
+	"058_chat_room_send_restricted":             "143_chat_room_send_restricted",
+	"059_chat_room_member_permissions":          "144_chat_room_member_permissions",
+	"060_chat_messages_poll_kind":               "145_chat_messages_poll_kind",
+	"061_chat_messages_reminder_kind":           "146_chat_messages_reminder_kind",
+	"062_chat_messages_note_kind":               "147_chat_messages_note_kind",
+	"063_chat_user_nicknames":                   "148_chat_user_nicknames",
+	"064_chat_user_nicknames_owner_target_uidx": "149_chat_user_nicknames_owner_target_uidx",
+	"065_chat_messages_client_msg_id":           "150_chat_messages_client_msg_id",
+	"066_chat_messages_client_msg_id_uidx":      "151_chat_messages_client_msg_id_uidx",
+}
+
+func renameMigrationVersions(ctx context.Context, conn *pgxpool.Conn, renames map[string]string) error {
+	for oldV, newV := range renames {
 		if _, err := conn.Exec(ctx, `
 			DELETE FROM schema_migrations
 			WHERE version = $1
@@ -56,6 +74,13 @@ func reconcileRenamedMigrations(ctx context.Context, conn *pgxpool.Conn) error {
 		}
 	}
 	return nil
+}
+
+func reconcileRenamedMigrations(ctx context.Context, conn *pgxpool.Conn) error {
+	if err := renameMigrationVersions(ctx, conn, chatMigrationRenames); err != nil {
+		return err
+	}
+	return renameMigrationVersions(ctx, conn, chatMigrationRenumbers)
 }
 
 func renamedChatVersions() []string {

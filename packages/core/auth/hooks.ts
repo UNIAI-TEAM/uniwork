@@ -4,13 +4,14 @@ import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import * as auth from "../api/endpoints/auth";
 import { ApiError } from "../api/http";
-import type { SessionResponse, User } from "../types/user";
+import { isMFAChallenge, type MFAChallenge, type SessionResponse, type User, type UserSession } from "../types/user";
 import { useAuthStore, type SessionStatus } from "./store";
 
 export type { SessionStatus };
 
 export const authKeys = {
   providers: () => ["auth", "providers"] as const,
+  sessions: () => ["auth", "sessions"] as const,
 };
 
 /** Update the session user (after PATCH onboarding/complete). */
@@ -43,11 +44,86 @@ function applyAuthSession(sess: SessionResponse): void {
   setSessionUser(sess.user);
 }
 
+/** Resolves to a session, or to the MFA challenge the login screen must answer with `useVerifyMfa`. */
 export function useLogin() {
   return useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) =>
-      requireSession(await auth.login(email, password)),
+    mutationFn: async ({ email, password }: { email: string; password: string }): Promise<SessionResponse | MFAChallenge> => {
+      const out = await auth.login(email, password);
+      return isMFAChallenge(out) ? out : requireSession(out);
+    },
+    onSuccess: (out) => {
+      if (!isMFAChallenge(out)) applyAuthSession(out);
+    },
+  });
+}
+
+export function useVerifyMfa() {
+  return useMutation({
+    mutationFn: async ({ mfaToken, code }: { mfaToken: string | null; code: string }) =>
+      requireSession(await auth.verifyMfa(mfaToken, code)),
     onSuccess: applyAuthSession,
+  });
+}
+
+export function useMfaSetup() {
+  return useMutation({ mutationFn: () => auth.mfaSetup() });
+}
+
+/**
+ * Deliberately does not refresh the session user: the recovery codes are
+ * shown once, and swapping the user (MFA on) would unmount the screen that
+ * shows them. The screen calls `useRefreshSessionUser` when the person is done.
+ */
+export function useMfaConfirm() {
+  return useMutation({ mutationFn: (code: string) => auth.mfaConfirm(code) });
+}
+
+export function useRefreshSessionUser() {
+  return useMutation({
+    mutationFn: () => auth.me(),
+    onSuccess: (user) => {
+      if (user) setSessionUser(user);
+    },
+  });
+}
+
+export function useMfaDisable() {
+  return useMutation({
+    mutationFn: (code: string) => auth.mfaDisable(code),
+    onSuccess: (user) => {
+      if (user) setSessionUser(user);
+    },
+  });
+}
+
+export function useSessions() {
+  return useQuery<UserSession[]>({ queryKey: authKeys.sessions(), queryFn: auth.listSessions });
+}
+
+export function useRevokeSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => auth.revokeSession(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.sessions() }),
+  });
+}
+
+export function useRevokeOtherSessions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => auth.revokeOtherSessions(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.sessions() }),
+  });
+}
+
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: auth.DeleteAccountBody) => auth.deleteAccount(body),
+    onSuccess: async () => {
+      await useAuthStore.getState().logout();
+      qc.clear();
+    },
   });
 }
 
@@ -109,11 +185,16 @@ export function useForgotPassword() {
   return useMutation({ mutationFn: (email: string) => auth.forgotPassword(email) });
 }
 
+/** Like useLogin: an MFA account gets the challenge (cookie-borne) instead of a session. */
 export function useResetPassword() {
   return useMutation({
-    mutationFn: async ({ token, password }: { token: string; password: string }) =>
-      requireSession(await auth.resetPassword(token, password)),
-    onSuccess: (sess) => setSessionUser(sess.user),
+    mutationFn: async ({ token, password }: { token: string; password: string }): Promise<SessionResponse | MFAChallenge> => {
+      const out = await auth.resetPassword(token, password);
+      return isMFAChallenge(out) ? out : requireSession(out);
+    },
+    onSuccess: (out) => {
+      if (!isMFAChallenge(out)) setSessionUser(out.user);
+    },
   });
 }
 

@@ -41,9 +41,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     initInFlight ??= (async () => {
       try {
         const sess = await auth.refreshSession();
+        // Login/register may finish while refresh is still in flight; do not downgrade.
+        if (useAuthStore.getState().status === "authed") return;
         set(sess ? { user: sess.user, status: "authed" } : { user: null, status: "anon" });
       } catch {
-        set({ user: null, status: "anon" });
+        if (useAuthStore.getState().status !== "authed") {
+          set({ user: null, status: "anon" });
+        }
       } finally {
         initialized = true;
         initInFlight = null;

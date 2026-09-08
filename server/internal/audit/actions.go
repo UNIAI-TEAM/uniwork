@@ -56,6 +56,11 @@ const (
 	ActionAuthPasswordResetRequested = "auth.password_reset_requested"
 	ActionAuthPasswordChanged        = "auth.password_changed"
 	ActionAuthSessionRevoked         = "auth.session_revoked"
+	ActionAuthMFAEnabled             = "auth.mfa_enabled"
+	ActionAuthMFADisabled            = "auth.mfa_disabled"
+	// The person asked for their account to be erased (Nghị định 13); the
+	// row is anonymised and this is the last event that names it (F-01).
+	ActionUserDeleted = "user.deleted"
 
 	ActionChatRoomCreated       = "chat.room.created"
 	ActionChatRoomMemberAdded   = "chat.room.member_added"

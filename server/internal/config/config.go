@@ -65,6 +65,8 @@ type Config struct {
 	SMTPTLSInsecure    bool
 	SMTPEHLOName       string
 	MailFrom           string
+	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
+	TenorAPIKey string
 	// VAPID keys enable Web Push (F-07). Both empty turns push off: the push
 	// consumer acknowledges rows without sending and the client hides the
 	// option. VAPID_SUBJECT is a mailto: or https origin the push service can
@@ -150,6 +152,7 @@ func Load() (Config, error) {
 		SMTPTLSInsecure:           strings.EqualFold(os.Getenv("SMTP_TLS_INSECURE"), "true"),
 		SMTPEHLOName:              os.Getenv("SMTP_EHLO_NAME"),
 		MailFrom:                  getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
+		TenorAPIKey:               os.Getenv("TENOR_API_KEY"),
 		VAPIDPublicKey:            os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey:           os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:              os.Getenv("VAPID_SUBJECT"),

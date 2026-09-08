@@ -15,6 +15,7 @@ export type { RequestOpts } from "./http";
 export { parseWithFallback, setSchemaLogger } from "./schema";
 export type { ParseOptions } from "./schema";
 export { WSClient } from "./ws-client";
+export type { WSClientIdentity, WSConnectionState } from "./ws-client";
 export type { WSEventType as WSTransportEventType, WSMessage } from "./ws-types";
 
 export * as auth from "./endpoints/auth";

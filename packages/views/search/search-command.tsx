@@ -3,7 +3,7 @@
 import { CalendarDays, Monitor, Moon, Settings, SquareCheckBig, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from "@uniwork/core/i18n";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { paths } from "@uniwork/core/paths";
 import { useSearchStore } from "@uniwork/core/search";
@@ -39,7 +39,7 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
 
   const changeLanguage = (next: SupportedLocale) => {
     localeAdapter.persist(next);
-    void i18n.changeLanguage(next);
+    void setLocale(next);
     document.documentElement.lang = next;
     toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
   };

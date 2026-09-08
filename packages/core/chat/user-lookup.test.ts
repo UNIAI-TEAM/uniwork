@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   lookupChatUserByIdCached,
   lookupChatUserCached,
+  peekCachedChatUserByEmail,
+  peekCachedChatUserById,
   resetChatUserLookupCacheForTests,
 } from "./user-lookup";
 import * as chat from "../api/endpoints/chat";
@@ -48,6 +50,26 @@ describe("user-lookup", () => {
     await lookupChatUserByIdCached(WS, "01ABC");
 
     expect(chat.lookupChatUserById).toHaveBeenCalledTimes(1);
+  });
+
+  it("peekCachedChatUserById returns the cached lookup and null on miss", async () => {
+    expect(peekCachedChatUserById(WS, "01ABC")).toBeNull();
+
+    vi.mocked(chat.lookupChatUserById).mockResolvedValue(sample);
+    await lookupChatUserByIdCached(WS, "01abc");
+
+    expect(peekCachedChatUserById(WS, "01ABC")).toEqual(sample);
+    expect(peekCachedChatUserById("OTHER_WS", "01ABC")).toBeNull();
+  });
+
+  it("peekCachedChatUserByEmail returns the cached lookup and null on miss", async () => {
+    expect(peekCachedChatUserByEmail(WS, "a@b.com")).toBeNull();
+
+    vi.mocked(chat.lookupChatUser).mockResolvedValue(sample);
+    await lookupChatUserCached(WS, "A@B.COM");
+
+    expect(peekCachedChatUserByEmail(WS, "a@b.com")).toEqual(sample);
+    expect(peekCachedChatUserByEmail("OTHER_WS", "a@b.com")).toBeNull();
   });
 
   it("lookupChatUserCached shares cache with user id lookups per workspace", async () => {

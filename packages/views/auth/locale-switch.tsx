@@ -1,6 +1,6 @@
 "use client";
 import { useTranslation } from "react-i18next";
-import type { SupportedLocale } from "@uniwork/core/i18n";
+import { setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { Button } from "@uniwork/ui/components/ui/button";
 
@@ -31,7 +31,7 @@ export function LocaleSwitch({ className }: { className?: string }) {
       className={className}
       onClick={() => {
         localeAdapter.persist(target);
-        void i18n.changeLanguage(target);
+        void setLocale(target);
         document.documentElement.lang = target;
       }}
     >

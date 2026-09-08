@@ -13,6 +13,7 @@ import (
 //	POST /api/v1/auth/login      (credential rate limit)
 //	POST /api/v1/auth/password/forgot  (credential rate limit)
 //	POST /api/v1/auth/password/reset   (credential rate limit)
+//	POST /api/v1/auth/mfa/verify   (credential rate limit)
 //	POST /api/v1/auth/refresh
 //	POST /api/v1/auth/logout
 //	GET  /api/v1/auth/providers
@@ -28,7 +29,7 @@ func registerAuth(v1 api, h Routes, credentialLimit func(http.Handler) http.Hand
 	})
 	v1.With(credentialLimit).Post("/auth/login", h.Login, apiOp{
 		summary:     "Login",
-		description: "Đổi email và mật khẩu lấy access token cùng cookie refresh.",
+		description: "Đổi email và mật khẩu lấy access token cùng cookie refresh. Tài khoản bật MFA nhận {mfa_required:true, mfa_token} thay cho phiên.",
 		tags:        []string{"auth"},
 		sdi:         sdi.LoginSDI{},
 		sdo:         sdo.SessionSDO{},
@@ -45,6 +46,13 @@ func registerAuth(v1 api, h Routes, credentialLimit func(http.Handler) http.Hand
 		description: "Đổi mật khẩu bằng token trong link email, thu hồi mọi refresh token và trả về phiên mới.",
 		tags:        []string{"auth"},
 		sdi:         sdi.ResetPasswordSDI{},
+		sdo:         sdo.SessionSDO{},
+	})
+	v1.With(credentialLimit).Post("/auth/mfa/verify", h.MFAVerify, apiOp{
+		summary:     "Verify MFA",
+		description: "Bước hai của đăng nhập: đổi mfa_token (body hoặc cookie uniwork_mfa) cùng mã TOTP hoặc mã khôi phục lấy phiên.",
+		tags:        []string{"auth"},
+		sdi:         sdi.MFAVerifySDI{},
 		sdo:         sdo.SessionSDO{},
 	})
 	v1.Post("/auth/refresh", h.Refresh, apiOp{

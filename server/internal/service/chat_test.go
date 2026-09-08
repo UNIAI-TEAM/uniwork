@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -106,6 +107,152 @@ func TestWorkspaceChatRoomAndMessages(t *testing.T) {
 
 	if _, err := s.ListWorkspaceMessages(ctx, ub.ID, w.ID, ListChatMessagesInput{}); err != ErrForbidden {
 		t.Fatalf("non-member list: %v", err)
+	}
+}
+
+func TestWorkspaceRoomMemberRolesAndKick(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatalf("ensure room: %v", err)
+	}
+	ownerMember, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: room.RoomID, UserID: ua.ID,
+	})
+	if err != nil || ownerMember.Role != "admin" {
+		t.Fatalf("owner chat role: err=%v role=%q", err, ownerMember.Role)
+	}
+	memberRow, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: room.RoomID, UserID: ub.ID,
+	})
+	if err != nil || memberRow.Role != "member" {
+		t.Fatalf("member chat role: err=%v role=%q", err, memberRow.Role)
+	}
+
+	if err := s.RemoveWorkspaceRoomMember(ctx, ub.ID, w.ID, room.RoomID, ua.ID); err != ErrForbidden {
+		t.Fatalf("member kick owner: %v", err)
+	}
+	pub.events = nil
+	if err := s.RemoveWorkspaceRoomMember(ctx, ua.ID, w.ID, room.RoomID, ub.ID); err != nil {
+		t.Fatalf("owner kick member: %v", err)
+	}
+	if len(pub.events) != 1 || pub.events[0].Type != "chat.room.updated" {
+		t.Fatalf("kick publish: %+v", pub.events)
+	}
+	if _, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: room.RoomID, UserID: ub.ID,
+	}); err == nil {
+		t.Fatal("kicked member still active in chat room")
+	}
+	if _, err := s.ListWorkspaceMessages(ctx, ub.ID, w.ID, ListChatMessagesInput{}); err != ErrForbidden {
+		t.Fatalf("kicked member still reads workspace chat: %v", err)
+	}
+}
+
+func TestChatRoomModerationPromoteMuteAndGroupKick(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	as := NewAuthService(s.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	uc := registerVerified(t, q, as, "chat-c@example.com", "C")
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
+
+	wsRoom, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatalf("ensure workspace room: %v", err)
+	}
+	adminRole := "admin"
+	if err := s.UpdateChatRoomMember(ctx, ua.ID, w.ID, wsRoom.RoomID, ub.ID, UpdateChatRoomMemberInput{
+		Role: &adminRole,
+	}); err != nil {
+		t.Fatalf("promote workspace chat admin: %v", err)
+	}
+	restricted := true
+	if err := s.UpdateChatRoomMember(ctx, ub.ID, w.ID, wsRoom.RoomID, uc.ID, UpdateChatRoomMemberInput{
+		SendRestricted: &restricted,
+	}); err != nil {
+		t.Fatalf("mute member: %v", err)
+	}
+	if _, err := s.SendWorkspaceMessage(ctx, uc.ID, w.ID, SendChatMessageInput{Body: "blocked"}); err == nil {
+		t.Fatal("muted member should not send in workspace room")
+	}
+	if _, err := s.ListWorkspaceMessages(ctx, uc.ID, w.ID, ListChatMessagesInput{}); err != nil {
+		t.Fatalf("muted member should still read: %v", err)
+	}
+
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
+		Name: "Mod group", MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	creatorMember, err := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+		RoomID: group.ID, UserID: ua.ID,
+	})
+	if err != nil || creatorMember.Role != "admin" {
+		t.Fatalf("creator admin: err=%v role=%q", err, creatorMember.Role)
+	}
+	pub.events = nil
+	if err := s.RemoveChatRoomMember(ctx, ua.ID, w.ID, group.ID, uc.ID); err != nil {
+		t.Fatalf("kick from group: %v", err)
+	}
+	// Kick fans out to each remaining member's user channel (ua and ub).
+	if len(pub.events) != 2 || countEvents(pub.events, "chat.room.updated") != 2 {
+		t.Fatalf("kick publish: %+v", pub.events)
+	}
+	if _, err := s.ListRoomMessages(ctx, uc.ID, w.ID, group.ID, ListChatMessagesInput{}); err != ErrForbidden {
+		t.Fatalf("kicked member still reads group: %v", err)
+	}
+}
+
+func TestChatMessageEditDeletePin(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	sent, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "Original"})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	edited, err := s.EditChatMessage(ctx, ua.ID, w.ID, sent.RoomID, sent.ID, "Edited body")
+	if err != nil || edited.Body != "Edited body" || edited.EditedAt == nil {
+		t.Fatalf("edit: err=%v msg=%+v", err, edited)
+	}
+	if pub.events[len(pub.events)-1].Type != "chat.message.updated" {
+		t.Fatalf("edit publish: %+v", pub.events)
+	}
+
+	pinned, err := s.ToggleChatMessagePin(ctx, ub.ID, w.ID, sent.RoomID, sent.ID)
+	if err != nil || !pinned.Pinned {
+		t.Fatalf("pin: err=%v msg=%+v", err, pinned)
+	}
+	pinned, err = s.ToggleChatMessagePin(ctx, ub.ID, w.ID, sent.RoomID, sent.ID)
+	if err != nil || pinned.Pinned {
+		t.Fatalf("unpin: err=%v msg=%+v", err, pinned)
+	}
+
+	if _, err := s.EditChatMessage(ctx, ub.ID, w.ID, sent.RoomID, sent.ID, "Hijack"); err != ErrForbidden {
+		t.Fatalf("edit other user: %v", err)
+	}
+
+	if err := s.DeleteChatMessage(ctx, ua.ID, w.ID, sent.RoomID, sent.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if pub.events[len(pub.events)-1].Type != "chat.message.deleted" {
+		t.Fatalf("delete publish: %+v", pub.events[len(pub.events)-1])
+	}
+
+	msgs, err := s.ListWorkspaceMessages(ctx, ua.ID, w.ID, ListChatMessagesInput{})
+	if err != nil || len(msgs) != 0 {
+		t.Fatalf("list after delete: err=%v len=%d", err, len(msgs))
 	}
 }
 
@@ -696,4 +843,120 @@ func TestLookupUserDifferentOrg(t *testing.T) {
 		t.Fatalf("lookup across orgs: err=%v want not found", err)
 	}
 	_ = otherOrg
+}
+
+func TestSearchRoomMessages(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "Xin chào team UniWork"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendRoomMessage(ctx, ub.ID, w.ID, dm.ID, SendChatMessageInput{Body: "Hello world"}); err != nil {
+		t.Fatal(err)
+	}
+
+	hits, err := s.SearchRoomMessages(ctx, ua.ID, w.ID, dm.ID, SearchChatMessagesInput{Query: "UniWork"})
+	if err != nil || len(hits) != 1 || hits[0].Body != "Xin chào team UniWork" {
+		t.Fatalf("search uniwork: err=%v hits=%+v", err, hits)
+	}
+	if _, err := s.SearchRoomMessages(ctx, ua.ID, w.ID, dm.ID, SearchChatMessagesInput{Query: "a"}); err == nil {
+		t.Fatal("expected short query error")
+	}
+
+	around, err := s.ListRoomMessagesAround(ctx, ua.ID, w.ID, dm.ID, hits[0].ID, 50)
+	if err != nil || len(around) < 2 {
+		t.Fatalf("around: err=%v len=%d", err, len(around))
+	}
+}
+
+func TestSendRoomMessageIdempotentClientMsgID(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clientID := "550e8400-e29b-41d4-a716-446655440000"
+	first, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
+		Body:        "once",
+		ClientMsgID: clientID,
+	})
+	if err != nil || first.Body != "once" {
+		t.Fatalf("first send: err=%v msg=%+v", err, first)
+	}
+	eventCount := len(pub.events)
+
+	second, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
+		Body:        "once retry",
+		ClientMsgID: clientID,
+	})
+	if err != nil {
+		t.Fatalf("second send: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("expected same message id: first=%s second=%s", first.ID, second.ID)
+	}
+	if len(pub.events) != eventCount {
+		t.Fatalf("duplicate send must not publish again: events=%+v", pub.events)
+	}
+
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	textCount := 0
+	for _, m := range msgs {
+		if m.Body == "once" {
+			textCount++
+		}
+	}
+	if textCount != 1 {
+		t.Fatalf("expected one stored message, got %d in %+v", textCount, msgs)
+	}
+}
+
+func TestSendRoomMessageRejectsLongBody(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	longBody := strings.Repeat("a", maxChatMessageBodyLen+1)
+	_, err = s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: longBody})
+	var ve ValidationError
+	if !errors.As(err, &ve) || ve.Msg != "tin nhắn quá dài" {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+func TestSendWorkspaceMessageRejectsLongBody(t *testing.T) {
+	s, _, _, ua, _, w := chatFixture(t)
+	ctx := context.Background()
+
+	if _, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	longBody := strings.Repeat("a", maxChatMessageBodyLen+1)
+	_, err := s.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: longBody})
+	var ve ValidationError
+	if !errors.As(err, &ve) || ve.Msg != "tin nhắn quá dài" {
+		t.Fatalf("expected validation error, got %v", err)
+	}
 }

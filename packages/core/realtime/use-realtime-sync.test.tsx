@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach } from "vitest";
+import * as chatApi from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
@@ -169,37 +170,69 @@ describe("useRealtimeSync", () => {
     expect(qc.getQueryData(["task", "t1"])).toBeUndefined();
   });
 
-  it("refreshes only the affected room on chat.message.created", () => {
+  it("patches room messages on chat.message.created without list invalidation", async () => {
     vi.useFakeTimers();
-    const { invalidate, client } = setup();
-    client.emit({ type: "chat.message.created", payload: { room_id: "dm1", message_id: "m1" } });
-    act(() => {
-      vi.advanceTimersByTime(250);
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
+      id: "m1",
+      room_id: "dm1",
+      workspace_id: "ws1",
+      sender_id: "u2",
+      sender_display_name: "Bob",
+      kind: "text",
+      body: "hi",
+      created_at: "2026-01-01T10:00:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
     });
-    expect(keysCalled(invalidate)).toEqual(
-      expect.arrayContaining([
-        JSON.stringify(["chat", "rooms", "ws1"]),
-        JSON.stringify(["chat", "room", "ws1"]),
-        JSON.stringify(["chat", "room-messages", "ws1", "dm1"]),
-      ]),
-    );
-    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["chat", "messages", "ws1"]));
+    const qc = new QueryClient();
+    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), []);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const client = fakeClient();
+    renderHook(() => useRealtimeSync(client, "ws1"), {
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    client.emit({ type: "chat.message.created", payload: { room_id: "dm1", message_id: "m1" } });
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))).toHaveLength(1);
+    vi.useRealTimers();
   });
 
-  it("refreshes workspace messages when the event targets the workspace room", () => {
+  it("patches workspace messages when the event targets the workspace room", async () => {
     vi.useFakeTimers();
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
+      id: "m1",
+      room_id: "ws-room",
+      workspace_id: "ws1",
+      sender_id: "u2",
+      sender_display_name: "Bob",
+      kind: "text",
+      body: "hi",
+      created_at: "2026-01-01T10:00:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
+    });
     const qc = new QueryClient();
     qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
+    qc.setQueryData(chatKeys.messages("ws1"), []);
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const client = fakeClient();
     renderHook(() => useRealtimeSync(client, "ws1"), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
     });
     client.emit({ type: "chat.message.created", payload: { room_id: "ws-room", message_id: "m1" } });
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(250);
+      await Promise.resolve();
     });
-    expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "messages", "ws1"]));
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.messages("ws1"))).toHaveLength(1);
+    vi.useRealTimers();
   });
 
   it("refreshes the room list on chat.room.activity", () => {

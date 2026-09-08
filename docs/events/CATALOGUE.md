@@ -34,8 +34,10 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | workspace | outbox |
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | user | outbox |
+| `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id` | user | ephemeral |
 | `chat.message` | 1 | `meeting_id` | workspace | ephemeral |
 | `chat.message.created` | 1 | `room_id`, `message_id` | chat | ephemeral |
+| `chat.message.deleted` | 1 | `room_id`, `message_id` | chat | ephemeral |
 | `chat.message.updated` | 1 | `room_id`, `message_id` | chat | ephemeral |
 | `chat.room.activity` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
 | `chat.room.created` | 1 | `room_id` | room | outbox |

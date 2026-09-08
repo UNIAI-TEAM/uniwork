@@ -1,0 +1,13 @@
+Subject: New sign-in to your UniWork account
+
+New device sign-in
+
+Your UniWork account was just signed in from a browser it has not used before.
+
+    Browser: {{.Data.UserAgent}}
+    IP address: {{.Data.IP}}
+    When: {{.Data.At.Format "2006-01-02 15:04 MST"}}
+
+Review active sessions: {{.Data.SessionsURL}}
+
+If this was you, nothing to do. If not, revoke the session under Settings → Security and change your password now.
