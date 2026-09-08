@@ -51,7 +51,7 @@ func TestOpenAttendanceIdempotent(t *testing.T) {
 	if _, err := s.Invite(ctx, ua.ID, m.ID, ub.ID); err != nil {
 		t.Fatal(err)
 	}
-	ps, _ := s.ListParticipants(ctx, ua.ID, m.ID)
+	ps, _ := s.ListParticipants(ctx, ua.ID, "", m.ID)
 	var pid string
 	for _, p := range ps {
 		if p.UserID.String == ub.ID {

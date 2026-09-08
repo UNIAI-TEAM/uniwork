@@ -1,10 +1,9 @@
 "use client";
 import { useTranslation } from "react-i18next";
-import { useApproveJoinRequest, useJoinRequests, useRejectJoinRequest } from "@uniwork/core/meetings";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { toast } from "sonner";
-import { toastApiError } from "../toast-api-error";
+import { useJoinRequests } from "@uniwork/core/meetings";
+import { MeetingJoinRequestRow } from "./meeting-join-request-row";
 import { MeetingPanelCard } from "./meeting-panel-card";
+import { useJoinRequestActions } from "./use-join-request-actions";
 
 export function MeetingJoinRequestsPanel({
   meetingId,
@@ -15,8 +14,7 @@ export function MeetingJoinRequestsPanel({
 }) {
   const { t } = useTranslation();
   const { data: requests } = useJoinRequests(meetingId);
-  const approve = useApproveJoinRequest(meetingId);
-  const reject = useRejectJoinRequest(meetingId);
+  const { approveOne, rejectOne, approving, rejecting } = useJoinRequestActions(meetingId);
   const pending = (requests ?? []).filter((r) => r.status === "PENDING");
   if (pending.length === 0) return null;
 
@@ -25,32 +23,15 @@ export function MeetingJoinRequestsPanel({
   const list = (
     <ul className={compact ? "space-y-2" : "-mx-4 -mt-4 divide-y divide-border"}>
       {pending.map((r) => (
-        <li
-          key={r.id}
-          className={
-            compact
-              ? "flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2"
-              : "flex flex-wrap items-center justify-between gap-2 px-4 py-2.5"
-          }
-        >
-          <span className="min-w-0 truncate text-body">{r.display_name_snapshot || r.requester_user_id}</span>
-          <div className="flex shrink-0 gap-2">
-            <Button
-              size="sm"
-              disabled={approve.isPending}
-              onClick={() => approve.mutate(r.id, { onError: (err) => toastApiError(err, t("common.error")) })}
-            >
-              {t("meetings.approve")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={reject.isPending}
-              onClick={() => reject.mutate({ requestId: r.id }, { onError: (err) => toastApiError(err, t("common.error")) })}
-            >
-              {t("meetings.reject")}
-            </Button>
-          </div>
+        <li key={r.id} className={compact ? undefined : "px-4 py-2.5"}>
+          <MeetingJoinRequestRow
+            request={r}
+            variant="compact"
+            approving={approving}
+            rejecting={rejecting}
+            onApprove={() => approveOne(r.id)}
+            onReject={() => rejectOne(r.id)}
+          />
         </li>
       ))}
     </ul>

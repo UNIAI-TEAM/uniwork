@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactElement } from "react";
+import { Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
@@ -23,6 +24,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 import { MemberMultiPicker } from "./member-multi-picker";
+import { MeetingDialogHeader } from "./meeting-dialog-header";
 
 export function InstantMeetingDialog({
   workspaceId,
@@ -52,7 +54,8 @@ export function InstantMeetingDialog({
         }
       />
       <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto">
-        <DialogTitle>{t("meetings.instant")}</DialogTitle>
+        <MeetingDialogHeader icon={Zap} title={t("meetings.instant")} description={t("meetings.instantHint")} className="mb-4" />
+        <DialogTitle className="sr-only">{t("meetings.instant")}</DialogTitle>
         <form
           className="space-y-4"
           onSubmit={(e) => {

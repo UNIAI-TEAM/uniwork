@@ -63,6 +63,7 @@ type JoinDecisionSDO struct {
 	ParticipantToken    string `json:"participant_token,omitempty"`
 	ExpiresAt           string `json:"expires_at,omitempty"`
 	JoinRequestID       string `json:"join_request_id,omitempty"`
+	GuestSession        string `json:"guest_session,omitempty"`
 }
 
 type ParticipantDTO struct {
@@ -113,12 +114,13 @@ type InviteLinkListSDO struct {
 }
 
 type PublicInviteLinkSDO struct {
-	LinkID     string `json:"link_id"`
-	MeetingID  string `json:"meeting_id,omitempty"`
-	Title      string `json:"title"`
-	StartsAt   string `json:"starts_at"`
-	AccessMode string `json:"access_mode"`
-	Expired    bool   `json:"expired"`
+	LinkID       string `json:"link_id"`
+	MeetingID    string `json:"meeting_id,omitempty"`
+	Title        string `json:"title"`
+	StartsAt     string `json:"starts_at"`
+	AccessMode   string `json:"access_mode"`
+	Expired      bool   `json:"expired"`
+	GuestSession string `json:"guest_session,omitempty"`
 }
 
 type JoinRequestDTO struct {

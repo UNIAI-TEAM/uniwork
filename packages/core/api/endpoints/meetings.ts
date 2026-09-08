@@ -30,6 +30,7 @@ import {
   type MeetingStatistics,
 } from "../../types/meeting";
 import { ApiError, request, requestText } from "../http";
+import { setGuestSession } from "../guest-session";
 import { parseWithFallback } from "../schema";
 
 export type { MeetingInvitation, MeetingInviteLink } from "../../types/meeting";
@@ -171,9 +172,11 @@ export async function meetingToken(meetingId: string): Promise<MeetingToken | nu
 
 export async function joinMeeting(meetingId: string, body?: JoinMeetingBody): Promise<JoinDecision | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/join`, { method: "POST", body: body ?? {} });
-  return parseWithFallback<JoinDecision | null>(raw, JoinDecisionSchema, null, {
+  const decision = parseWithFallback<JoinDecision | null>(raw, JoinDecisionSchema, null, {
     endpoint: "POST /api/v1/meetings/{id}/join",
   });
+  if (decision?.guest_session) setGuestSession(decision.guest_session);
+  return decision;
 }
 
 export async function startMeeting(meetingId: string): Promise<Meeting | null> {
@@ -243,6 +246,7 @@ const PublicInviteLinkSchema = z.object({
   starts_at: z.string(),
   access_mode: z.string(),
   expired: z.boolean(),
+  guest_session: z.string().optional(),
 });
 export type PublicInviteLink = z.infer<typeof PublicInviteLinkSchema>;
 
@@ -251,9 +255,11 @@ export async function resolveInviteLink(linkId: string, secret: string): Promise
     method: "POST",
     body: { link_id: linkId, secret },
   });
-  return parseWithFallback<PublicInviteLink | null>(raw, PublicInviteLinkSchema, null, {
+  const resolved = parseWithFallback<PublicInviteLink | null>(raw, PublicInviteLinkSchema, null, {
     endpoint: "POST /api/v1/public/meeting-invite-links/resolve",
   });
+  if (resolved?.guest_session) setGuestSession(resolved.guest_session);
+  return resolved;
 }
 
 export async function createInstantMeeting(workspaceId: string, title?: string): Promise<Meeting | null> {

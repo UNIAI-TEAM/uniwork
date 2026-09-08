@@ -65,6 +65,17 @@ export function formatMeetingRange(startsAt: string, endsAt: string, locale = "v
   return safeRange(startsAt, endsAt, locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** Single start timestamp for invite and lobby screens: "7 thg 9, 2026, 13:30". */
+export function formatMeetingStart(startsAt: string, locale = "vi-VN"): string {
+  const start = new Date(startsAt);
+  if (Number.isNaN(start.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(start);
+  } catch {
+    return start.toLocaleString(locale);
+  }
+}
+
 /** Time-only span for rows that already sit under a day heading: "09:00 – 09:30". */
 export function formatMeetingTimes(startsAt: string, endsAt: string, locale = "vi-VN"): string {
   return safeRange(startsAt, endsAt, locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });

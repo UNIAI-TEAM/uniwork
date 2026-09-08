@@ -2,9 +2,13 @@ package realtime
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 )
 
@@ -20,7 +24,7 @@ type MeetingLobbyChecker interface {
 //
 // GET /api/v1/meetings/{meetingID}/lobby-ws
 //
-// Auth: uw_guest cookie on the upgrade, or first-frame JWT (same as workspace WS).
+// Auth: uw_guest cookie on the upgrade, or first-frame JWT / guest_session.
 func HandleMeetingLobbyWebSocket(
 	hub *Hub,
 	checker MeetingLobbyChecker,
@@ -46,7 +50,9 @@ func HandleMeetingLobbyWebSocket(
 	userID := ""
 
 	if guestID == "" {
-		tokenStr, errMsg, closed := firstMessageAuth(conn)
+		var errMsg string
+		var closed bool
+		userID, guestID, errMsg, closed = firstMessageLobbyAuth(conn, guestKey, parse)
 		if closed {
 			return
 		}
@@ -54,12 +60,6 @@ func HandleMeetingLobbyWebSocket(
 			writeWSAuthErrorAndClose(conn, []byte(errMsg), "meeting_id", meetingID)
 			return
 		}
-		uid, authErr := authenticateToken(tokenStr, parse)
-		if authErr != "" {
-			writeWSAuthErrorAndClose(conn, []byte(authErr), "meeting_id", meetingID)
-			return
-		}
-		userID = uid
 	}
 
 	if userID == "" && guestID == "" {
@@ -112,15 +112,68 @@ func HandleMeetingLobbyWebSocket(
 	)
 
 	client := &Client{
-		hub:         hub,
-		conn:        conn,
-		send:        make(chan []byte, 256),
-		userID:      identity,
-		workspaceID: "",
+		hub:            hub,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		userID:         identity,
+		workspaceID:    "",
+		lobbyMeetingID: meetingID,
 	}
-	hub.subscribe(client, ScopeMeeting, meetingID)
 	hub.register <- client
 
 	go client.writePump()
 	go client.readPump()
+}
+
+// firstMessageLobbyAuth reads the first WebSocket frame for a lobby client
+// without a uw_guest cookie. Accepts a signed guest_session or a JWT token.
+func firstMessageLobbyAuth(
+	conn *websocket.Conn,
+	guestKey []byte,
+	parse TokenParser,
+) (userID, guestID, errMsg string, closed bool) {
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	defer conn.SetReadDeadline(time.Time{})
+
+	_, raw, err := conn.ReadMessage()
+	if err != nil {
+		if errors.Is(err, websocket.ErrReadLimit) {
+			M.InboundTooLargeTotal.Add(1)
+			slog.Warn("ws: pre-auth frame exceeded read limit", "limit_bytes", inboundReadLimit)
+			conn.Close()
+			return "", "", "", true
+		}
+		return "", "", `{"error":"auth timeout or read error"}`, false
+	}
+
+	var msg struct {
+		Type    string `json:"type"`
+		Payload struct {
+			Token        string `json:"token"`
+			GuestSession string `json:"guest_session"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &msg); err != nil || msg.Type != "auth" {
+		return "", "", `{"error":"expected auth message as first frame"}`, false
+	}
+
+	if gs := msg.Payload.GuestSession; gs != "" {
+		if len(guestKey) == 0 {
+			return "", "", `{"error":"guest session unavailable"}`, false
+		}
+		if id, ok := meetings.VerifyGuestCookie(gs, guestKey); ok && id != "" {
+			return "", id, "", false
+		}
+		return "", "", `{"error":"invalid guest session"}`, false
+	}
+
+	if token := msg.Payload.Token; token != "" {
+		uid, authErr := authenticateToken(token, parse)
+		if authErr != "" {
+			return "", "", authErr, false
+		}
+		return uid, "", "", false
+	}
+
+	return "", "", `{"error":"expected auth message as first frame"}`, false
 }

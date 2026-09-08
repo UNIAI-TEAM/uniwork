@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactElement } from "react";
+import { CalendarDays } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCreateMeeting } from "@uniwork/core/meetings";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -9,15 +10,12 @@ import {
   DialogClose,
   DialogContent,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@uniwork/ui/components/ui/dialog";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@uniwork/ui/components/ui/field";
+import { InfoHint } from "@uniwork/ui/components/common/info-hint";
+import { Field, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
@@ -30,6 +28,7 @@ import {
   MeetingScheduleFields,
   scheduleValid,
 } from "./meeting-schedule-fields";
+import { MeetingDialogHeader } from "./meeting-dialog-header";
 
 export function NewMeetingDialog({
   workspaceId,
@@ -75,8 +74,11 @@ export function NewMeetingDialog({
       <DialogTrigger
         render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>}
       />
-      <DialogContent className="flex max-h-[min(90dvh,44rem)] flex-col overflow-hidden sm:max-w-md">
-        <DialogTitle className="shrink-0">{t("meetings.new")}</DialogTitle>
+      <DialogContent className="flex max-h-[min(90dvh,44rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="shrink-0 space-y-0 border-b border-border bg-muted/20 px-5 py-4">
+          <MeetingDialogHeader icon={CalendarDays} title={t("meetings.new")} />
+          <DialogTitle className="sr-only">{t("meetings.new")}</DialogTitle>
+        </DialogHeader>
         <form
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onSubmit={(e) => {
@@ -108,7 +110,7 @@ export function NewMeetingDialog({
             );
           }}
         >
-          <FieldGroup className="min-h-0 flex-1 gap-4 overflow-x-hidden overflow-y-auto overscroll-contain">
+          <FieldGroup className="min-h-0 flex-1 gap-4 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-4">
             <Field>
               <FieldLabel htmlFor="m-title">
                 {t("meetings.meetingTitle")}
@@ -143,32 +145,50 @@ export function NewMeetingDialog({
               onEnd={setEnd}
             />
             <Field>
-              <FieldLabel>{t("meetings.attendees")}</FieldLabel>
+              <FieldLabel className="inline-flex items-center gap-1.5">
+                {t("meetings.attendees")}
+                <InfoHint label={t("meetings.youAreHost")}>
+                  {t("meetings.youAreHost")}
+                </InfoHint>
+              </FieldLabel>
               <MemberMultiPicker
                 workspaceId={workspaceId}
                 value={attendees}
                 onChange={setAttendees}
                 excludeUserIds={userId ? [userId] : []}
               />
-              <FieldDescription>{t("meetings.youAreHost")}</FieldDescription>
             </Field>
             <label className="flex min-h-11 items-center justify-between gap-3">
-              <span className="min-w-0 text-pretty text-body text-foreground">
-                {t("meetings.allowJoinRequest")}
-              </span>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="text-pretty text-body text-foreground">
+                  {t("meetings.allowJoinRequest")}
+                </span>
+                <InfoHint label={t("meetings.allowJoinRequestHint")}>
+                  {t("meetings.allowJoinRequestHint")}
+                </InfoHint>
+              </div>
               <Switch
                 className="shrink-0"
                 checked={allowJoin}
                 onCheckedChange={setAllowJoin}
               />
             </label>
+            <div className="flex items-center gap-1.5">
+              <span className="text-caption text-muted-foreground">
+                {t("meetings.externalGuestLinks")}
+              </span>
+              <InfoHint label={t("meetings.externalGuestLinkAfterCreate")}>
+                {t("meetings.externalGuestLinkAfterCreate")}
+              </InfoHint>
+            </div>
           </FieldGroup>
-          <DialogFooter className="shrink-0">
-            <DialogClose render={<Button type="button" variant="ghost" />}>
+          <DialogFooter className="mx-0 mb-0 shrink-0 gap-3 rounded-none border-t border-border bg-muted/10 px-5 py-4 sm:flex-row sm:justify-end">
+            <DialogClose render={<Button type="button" variant="outline" className="min-w-24" />}>
               {t("common.cancel")}
             </DialogClose>
             <Button
               type="submit"
+              className="min-w-24"
               disabled={
                 create.isPending || !title.trim() || !date || !scheduleValid(start, end)
               }

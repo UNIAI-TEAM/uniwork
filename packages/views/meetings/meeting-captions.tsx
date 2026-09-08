@@ -121,10 +121,13 @@ export function MeetingCaptionsOverlay({
   interim,
   lastFinal,
   className,
+  embedded = false,
 }: {
   interim: string;
   lastFinal: string;
   className?: string;
+  /** When true, sits in the stage footer stack instead of absolute positioning. */
+  embedded?: boolean;
 }) {
   const { t } = useTranslation();
   const text = interim || lastFinal;
@@ -137,12 +140,14 @@ export function MeetingCaptionsOverlay({
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-0 bottom-16 z-10 flex justify-center px-4",
+          embedded
+            ? "pointer-events-none w-full max-w-3xl"
+            : "pointer-events-none absolute inset-x-0 bottom-16 z-10 flex justify-center px-4",
           className,
         )}
         data-testid="meeting-captions"
       >
-        <p className="max-w-3xl rounded-xl bg-background/85 px-4 py-2 text-center text-body text-foreground ring-1 ring-border backdrop-blur">
+        <p className="rounded-xl bg-background/90 px-4 py-2 text-center text-body text-foreground ring-1 ring-border backdrop-blur-md">
           {text || t("meetings.captionsListening")}
         </p>
       </div>

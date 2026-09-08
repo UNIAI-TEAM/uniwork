@@ -24,7 +24,7 @@ export function MeetingScheduleBanner({ endsAt }: { endsAt?: string }) {
   return (
     <div
       role="status"
-      className="absolute inset-x-3 top-3 z-20 flex items-center justify-center gap-2 rounded-lg border border-destructive/40 bg-destructive/95 px-3 py-2 text-center text-body font-medium text-destructive-foreground shadow-sm sm:inset-x-4"
+      className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-2 rounded-lg border border-destructive/40 bg-destructive/95 px-3 py-2 text-center text-body font-medium text-destructive-foreground shadow-sm"
       data-testid="meeting-schedule-banner"
     >
       <Clock aria-hidden className="size-4 shrink-0" />

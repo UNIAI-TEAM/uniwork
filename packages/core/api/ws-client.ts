@@ -40,6 +40,8 @@ export class WSClient {
   private token: string | null = null;
   private workspaceSlug: string | null = null;
   private cookieAuth = false;
+  /** Signed uw_guest value when HttpOnly cookies are unavailable on the upgrade. */
+  private guestSession: string | null = null;
   private identity: WSClientIdentity | undefined;
   private handlers = new Map<WSEventType, Set<EventHandler>>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -64,12 +66,14 @@ export class WSClient {
     options?: {
       logger?: Logger;
       cookieAuth?: boolean;
+      guestSession?: string | null;
       identity?: WSClientIdentity;
     },
   ) {
     this.baseUrl = url;
     this.logger = options?.logger ?? noopLogger;
     this.cookieAuth = options?.cookieAuth ?? false;
+    this.guestSession = options?.guestSession?.trim() ? options.guestSession.trim() : null;
     this.identity = options?.identity;
   }
 
@@ -104,11 +108,19 @@ export class WSClient {
     this.ws = new WebSocket(url.toString());
 
     this.ws.onopen = () => {
+      if (this.guestSession) {
+        this.ws!.send(
+          JSON.stringify({
+            type: "auth",
+            payload: { guest_session: this.guestSession },
+          }),
+        );
+        return;
+      }
       if (!this.cookieAuth && this.token) {
         this.ws!.send(
           JSON.stringify({ type: "auth", payload: { token: this.token } }),
         );
-        return;
       }
     };
 

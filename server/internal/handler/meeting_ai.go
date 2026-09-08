@@ -32,11 +32,15 @@ func toSummaryDTO(s db.MeetingSummary) sdo.MeetingSummaryDTO {
 	return d
 }
 
-func toRecordingDTO(r db.MeetingRecording) sdo.RecordingDTO {
-	return sdo.RecordingDTO{
+func toRecordingDTO(r db.MeetingRecording, redactHostFields bool) sdo.RecordingDTO {
+	d := sdo.RecordingDTO{
 		ID: r.ID, MeetingID: r.MeetingID, Status: r.Status, FileURL: r.FileUrl.String,
 		StartedBy: r.StartedBy, StartedAt: rfc3339(r.StartedAt), EndedAt: rfc3339(r.EndedAt),
 	}
+	if redactHostFields {
+		d.StartedBy = ""
+	}
+	return d
 }
 
 func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +134,7 @@ func (h *handlers) startRecording(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.RecordingSDO{Recording: toRecordingDTO(rec)})
+	respondJSON(w, 200, sdo.RecordingSDO{Recording: toRecordingDTO(rec, false)})
 }
 
 func (h *handlers) stopRecording(w http.ResponseWriter, r *http.Request) {
@@ -139,18 +143,26 @@ func (h *handlers) stopRecording(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.RecordingSDO{Recording: toRecordingDTO(rec)})
+	respondJSON(w, 200, sdo.RecordingSDO{Recording: toRecordingDTO(rec, false)})
 }
 
 func (h *handlers) listRecordings(w http.ResponseWriter, r *http.Request) {
-	recs, err := h.Meetings.Recordings(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	recs, err := h.Meetings.Recordings(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	out := make([]sdo.RecordingDTO, 0, len(recs))
 	for _, rec := range recs {
-		out = append(out, toRecordingDTO(rec))
+		if guestID != "" && !rec.FileUrl.Valid {
+			continue
+		}
+		out = append(out, toRecordingDTO(rec, guestID != ""))
 	}
 	respondJSON(w, 200, sdo.RecordingListSDO{Recordings: out})
 }

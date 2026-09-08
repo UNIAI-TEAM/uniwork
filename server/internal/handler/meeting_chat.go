@@ -7,7 +7,6 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
-	"github.com/unicomhub/uniwork/server/internal/middleware"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -24,7 +23,12 @@ func (h *handlers) appendChatMessage(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	msg, err := h.Meetings.AppendChatMessage(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Message)
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	msg, err := h.Meetings.AppendChatMessage(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"), in.Message)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -33,7 +37,12 @@ func (h *handlers) appendChatMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listChatMessages(w http.ResponseWriter, r *http.Request) {
-	msgs, err := h.Meetings.ChatMessages(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	msgs, err := h.Meetings.ChatMessages(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

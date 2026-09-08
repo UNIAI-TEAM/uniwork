@@ -7,7 +7,7 @@ import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import { isJoinAdmitted, useJoinMeeting, useMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
-import { useWorkspaceEvents } from "@uniwork/core/realtime";
+import { useMeetingLobbySync, useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
@@ -31,7 +31,7 @@ function MeetingRoomShell({
 }) {
   return (
     <div
-      className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden bg-app-shell"
+      className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-testid={testId}
     >
       {children}
@@ -71,6 +71,7 @@ export function MeetingRoomView({
   const start = useStartMeeting(resolvedWorkspaceId);
   const { canHost } = useMeetingPermissions(guestMode ? null : (meeting ?? null), resolvedWorkspaceId);
   useWorkspaceEvents(guestMode ? "" : resolvedWorkspaceId);
+  useMeetingLobbySync(meetingId, guestMode === true);
   const joinOnce = useRef(false);
   const admittedRef = useRef(false);
   const credentialRefreshAttempts = useRef(0);

@@ -49,7 +49,7 @@ describe("MeetingControlBar", () => {
     );
     expect(screen.getByRole("button", { name: "Mic", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ghi hình", pressed: false })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Thêm" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thêm" })).toBeInTheDocument();
   });
 
   it("folds reactions, captions and recording behind More on phones", () => {
@@ -179,5 +179,18 @@ describe("MeetingControlBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
     expect(screen.getByRole("button", { name: "Phụ đề" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ghi hình" })).toBeInTheDocument();
+  });
+
+  it("opens AI copilot panel when the sparkles control is pressed", () => {
+    mobile = false;
+    handRaised = false;
+    const onOpenCopilot = vi.fn();
+    render(
+      wrapWithNav(
+        <MeetingControlBar onLeave={() => {}} onOpenCopilot={onOpenCopilot} copilotActive={false} />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mở panel AI" }));
+    expect(onOpenCopilot).toHaveBeenCalledOnce();
   });
 });
