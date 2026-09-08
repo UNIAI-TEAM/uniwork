@@ -13,6 +13,7 @@ import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
 import { orgMemberRootKey } from "../organizations/hooks";
 import { peopleRootKey } from "../people/hooks";
+import { planCacheUpdate } from "../tasks/cache-coordinator";
 import { taskKeys } from "../tasks/hooks";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
@@ -25,6 +26,9 @@ import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./inva
  * refetching full lists. Other domains still invalidate and refetch from API.
  * Meeting detail skips invalidation when the cached version is already >= the
  * event version. Bursts coalesce into one debounced wave per ~250ms.
+ *
+ * Work Management events go through `planCacheUpdate` (invalidate + refetch).
+ * Frames carry ids only — never write the payload into query data or Zustand.
  */
 function keysFor(
   wsId: string,
@@ -34,26 +38,29 @@ function keysFor(
 ) {
   const keys: readonly unknown[][] = [];
   const push = (k: readonly unknown[]) => (keys as unknown[][]).push([...k]);
+
+  const workMgmt = planCacheUpdate(wsId, { type, payload });
+  if (workMgmt.keys.length > 0) {
+    for (const k of workMgmt.keys) push(k);
+    // Activity tab is the audit slice of this task; keep it in sync with
+    // task/comment mutations that the coordinator maps.
+    if (
+      payload.task_id &&
+      (type === "task.created" ||
+        type === "task.updated" ||
+        type === "task.deleted" ||
+        type === "task.comment_added" ||
+        type === "task.comment_updated" ||
+        type === "task.comment_deleted" ||
+        type === "task.comment_resolved" ||
+        type === "task.comment_unresolved")
+    ) {
+      push(auditKeys.history(wsId, "task", payload.task_id));
+    }
+    return keys;
+  }
+
   switch (type) {
-    case "task.created":
-    case "task.updated":
-    case "task.deleted": {
-      push(taskKeys.list(wsId));
-      if (payload.task_id) {
-        push(taskKeys.detail(payload.task_id));
-        // The task's Activity list is the audit log's slice of this task, so
-        // the same event that changed the task also made its history stale.
-        push(auditKeys.history(wsId, "task", payload.task_id));
-      }
-      break;
-    }
-    case "task.comment_added": {
-      if (payload.task_id) {
-        push(taskKeys.comments(payload.task_id));
-        push(auditKeys.history(wsId, "task", payload.task_id));
-      }
-      break;
-    }
     case "workspace_agent.added": {
       push(agentKeys.workspace(wsId));
       break;
@@ -241,6 +248,16 @@ const RENAMED_EVENTS: Record<string, WSEventType> = {
 function allWorkspaceKeys(wsId: string) {
   return [
     taskKeys.list(wsId),
+    taskKeys.myTasks(wsId),
+    taskKeys.queryRoot(wsId),
+    taskKeys.tableRoot(wsId),
+    taskKeys.statuses(wsId),
+    taskKeys.labels(wsId),
+    taskKeys.properties(wsId),
+    taskKeys.views(wsId),
+    taskKeys.viewPrefs(wsId),
+    taskKeys.pins(wsId),
+    taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
     meetingKeys.list(wsId),
