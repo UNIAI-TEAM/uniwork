@@ -93,13 +93,93 @@ type Routes struct {
 
 	SeedWelcomeTask http.HandlerFunc
 
-	ListTasks     http.HandlerFunc
-	CreateTask    http.HandlerFunc
-	GetTask       http.HandlerFunc
-	UpdateTask    http.HandlerFunc
-	DeleteTask    http.HandlerFunc
-	ListComments  http.HandlerFunc
-	CreateComment http.HandlerFunc
+	ListTasks             http.HandlerFunc
+	CreateTask            http.HandlerFunc
+	GetTask               http.HandlerFunc
+	UpdateTask            http.HandlerFunc
+	PutTaskSuite          http.HandlerFunc
+	DeleteTask            http.HandlerFunc
+	ListComments          http.HandlerFunc
+	CreateComment         http.HandlerFunc
+	QueryTasks            http.HandlerFunc
+	GroupedTasks          http.HandlerFunc
+	BatchUpdateTasks      http.HandlerFunc
+	BatchDeleteTasks      http.HandlerFunc
+	ListMyTasks           http.HandlerFunc
+	ListTaskChildren      http.HandlerFunc
+	ListChildrenByParents http.HandlerFunc
+	ChildTaskProgress     http.HandlerFunc
+	SetTaskParent         http.HandlerFunc
+	SetTaskDependency     http.HandlerFunc
+	RemoveTaskDependency  http.HandlerFunc
+	TableGroups           http.HandlerFunc
+	TableRows             http.HandlerFunc
+	TableFacets           http.HandlerFunc
+
+	ListTaskStatuses        http.HandlerFunc
+	CreateTaskStatus        http.HandlerFunc
+	PatchTaskStatus         http.HandlerFunc
+	DeleteTaskStatus        http.HandlerFunc
+	ReorderTaskStatuses     http.HandlerFunc
+	ListTaskLabels          http.HandlerFunc
+	GetTaskLabel            http.HandlerFunc
+	CreateTaskLabel         http.HandlerFunc
+	PutTaskLabel            http.HandlerFunc
+	DeleteTaskLabel         http.HandlerFunc
+	ListTaskLabelsOnTask    http.HandlerFunc
+	AttachTaskLabel         http.HandlerFunc
+	DetachTaskLabel         http.HandlerFunc
+	ListTaskProperties      http.HandlerFunc
+	CreateTaskProperty      http.HandlerFunc
+	PatchTaskProperty       http.HandlerFunc
+	PutTaskPropertyValue    http.HandlerFunc
+	DeleteTaskPropertyValue http.HandlerFunc
+
+	ListTaskViews         http.HandlerFunc
+	CreateTaskView        http.HandlerFunc
+	GetTaskView           http.HandlerFunc
+	PatchTaskView         http.HandlerFunc
+	DeleteTaskView        http.HandlerFunc
+	GetTaskViewPreference http.HandlerFunc
+	PutTaskViewPreference http.HandlerFunc
+	ListPins              http.HandlerFunc
+	CreatePin             http.HandlerFunc
+	DeletePin             http.HandlerFunc
+	ReorderPins           http.HandlerFunc
+
+	ListProjects          http.HandlerFunc
+	SearchProjects        http.HandlerFunc
+	CreateProject         http.HandlerFunc
+	GetProject            http.HandlerFunc
+	PutProject            http.HandlerFunc
+	DeleteProject         http.HandlerFunc
+	ListProjectResources  http.HandlerFunc
+	CreateProjectResource http.HandlerFunc
+	PutProjectResource    http.HandlerFunc
+	DeleteProjectResource http.HandlerFunc
+
+	UpdateComment          http.HandlerFunc
+	DeleteComment          http.HandlerFunc
+	ResolveComment         http.HandlerFunc
+	UnresolveComment       http.HandlerFunc
+	AddCommentReaction     http.HandlerFunc
+	RemoveCommentReaction  http.HandlerFunc
+	AddTaskReaction        http.HandlerFunc
+	RemoveTaskReaction     http.HandlerFunc
+	ListTaskSubscribers    http.HandlerFunc
+	SubscribeTask          http.HandlerFunc
+	UnsubscribeTask        http.HandlerFunc
+	UnsubscribeTaskSubtree http.HandlerFunc
+	ListTaskAttachments    http.HandlerFunc
+	GetAttachment          http.HandlerFunc
+	DeleteAttachment       http.HandlerFunc
+	GetTaskTimeline        http.HandlerFunc
+	CommentSubTaskPreview  http.HandlerFunc
+	CreateCommentSubTasks  http.HandlerFunc
+	PreviewCommentTriggers http.HandlerFunc
+
+	// WorkManagementCapabilityStub backs every catalogue disposition:stubbed route.
+	WorkManagementCapabilityStub http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc

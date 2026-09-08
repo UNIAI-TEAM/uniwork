@@ -109,23 +109,8 @@ func (h *handlers) listTasks(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]any{"tasks": out})
 }
 
-func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
-	var in sdi.CreateTaskSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	t, err := h.Tasks.Create(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
-		service.CreateTaskInput{Title: in.Title, Description: in.Description, Priority: in.Priority,
-			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, DueDate: in.DueDate})
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	h.respondTask(w, r, 200, t)
-}
-
 func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
-	t, err := h.Tasks.Get(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "taskID"))
+	t, err := h.Tasks.GetByRef(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -134,7 +119,8 @@ func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
 }
 
 // PATCH body: field vắng mặt = không đổi; assignee_id/due_date gửi null = xóa.
-// Dùng json.RawMessage để phân biệt "vắng mặt" và "null".
+// Dùng json.RawMessage để phân biệt "vắng mặt" và "null". Suite revision
+// checks live on PUT (UpdateTaskSuite); board drag keeps PATCH without If-Match.
 func (h *handlers) updateTask(w http.ResponseWriter, r *http.Request) {
 	var raw map[string]json.RawMessage
 	if !decode(w, r, &raw, maxJSONBody) {
@@ -169,18 +155,9 @@ func (h *handlers) listComments(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.CommentDTO, 0, len(cs))
 	for _, c := range cs {
-		dto := sdo.CommentDTO{
-			ID: c.ID, TaskID: c.TaskID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind, Body: c.Body,
-			CreatedAt: c.CreatedAt.Time.Format(time.RFC3339), DisplayName: c.DisplayName,
-			Author: sdo.ActorDTO{ID: c.AuthorID, Kind: c.AuthorKind, DisplayName: c.DisplayName},
-		}
-		if c.AvatarUrl.Valid {
-			dto.AvatarURL = c.AvatarUrl.String
-			dto.Author.AvatarURL = c.AvatarUrl.String
-		}
-		out = append(out, dto)
+		out = append(out, commentDTOFromListRow(c))
 	}
-	respondJSON(w, 200, map[string]any{"comments": out})
+	respondJSON(w, 200, sdo.CommentListSDO{Comments: out})
 }
 
 func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
@@ -188,12 +165,14 @@ func (h *handlers) createComment(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	c, err := h.Tasks.AddComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"), in.Body)
+	c, err := h.Tasks.AddCommentSuite(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"), service.AddCommentInput{
+		Body: in.Body, ParentID: in.ParentID, CommentType: in.CommentType,
+	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"comment": c})
+	h.respondComment(w, r, c)
 }
 
 func parseTaskPatch(raw map[string]json.RawMessage) (service.UpdateTaskInput, error) {

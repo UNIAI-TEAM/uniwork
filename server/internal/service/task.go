@@ -164,6 +164,27 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return db.Task{}, err
 	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return db.Task{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.Task{}, err
+	}
+	defer tx.Rollback(ctx)
+	task, err := s.createTaskInTx(ctx, s.q.WithTx(tx), actor, ws, workspaceID, in)
+	if err != nil {
+		return db.Task{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.Task{}, err
+	}
+	return task, nil
+}
+
+// createTaskInTx inserts a task and its audit/outbox rows using q (caller owns the tx).
+func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor Actor, ws db.Workspace, workspaceID string, in CreateTaskInput) (db.Task, error) {
 	if strings.TrimSpace(in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
 	}
@@ -181,18 +202,6 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 	if err != nil {
 		return db.Task{}, err
 	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return db.Task{}, err
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return db.Task{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-
 	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: "todo",
 	})
@@ -226,9 +235,6 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 	}, audit.Event{Topic: "task.created", Payload: map[string]string{
 		"task_id": task.ID, "workspace_id": workspaceID,
 	}}); err != nil {
-		return db.Task{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
@@ -276,6 +282,27 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 	if err != nil {
 		return db.Task{}, err
 	}
+	ws, err := s.q.GetWorkspaceByID(ctx, before.WorkspaceID)
+	if err != nil {
+		return db.Task{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.Task{}, err
+	}
+	defer tx.Rollback(ctx)
+	task, err := s.updateTaskInTx(ctx, s.q.WithTx(tx), actor, before, ws, in)
+	if err != nil {
+		return db.Task{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.Task{}, err
+	}
+	return task, nil
+}
+
+// updateTaskInTx applies fields and audit/outbox using q (caller owns the tx).
+func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor Actor, before db.Task, ws db.Workspace, in UpdateTaskInput) (db.Task, error) {
 	if in.Status != nil && !validStatus[*in.Status] {
 		return db.Task{}, Invalid("status không hợp lệ")
 	}
@@ -285,20 +312,8 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
 	}
-	ws, err := s.q.GetWorkspaceByID(ctx, before.WorkspaceID)
-	if err != nil {
-		return db.Task{}, err
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return db.Task{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-
 	task, err := q.UpdateTask(ctx, db.UpdateTaskParams{
-		ID: taskID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		ID: before.ID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		Title: optText(in.Title), Description: optText(in.Description),
 		Status: optText(in.Status), Priority: optText(in.Priority), Position: optFloat(in.Position),
 	})
@@ -311,7 +326,7 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 			return db.Task{}, kerr
 		}
 		task, err = q.SetTaskAssignee(ctx, db.SetTaskAssigneeParams{
-			ID: taskID, AssigneeID: optText(*in.AssigneeID), AssigneeKind: kind,
+			ID: before.ID, AssigneeID: optText(*in.AssigneeID), AssigneeKind: kind,
 			AssigneeType:   normalizedAssigneeType(*in.AssigneeID, kind),
 			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		})
@@ -325,7 +340,7 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 			return db.Task{}, derr
 		}
 		task, err = q.SetTaskDueDate(ctx, db.SetTaskDueDateParams{
-			ID: taskID, DueDate: due,
+			ID: before.ID, DueDate: due,
 			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		})
 		if err != nil {
@@ -343,9 +358,6 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 	}}); err != nil {
 		return db.Task{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return db.Task{}, err
-	}
 	return task, nil
 }
 
@@ -358,81 +370,42 @@ func (s *TaskService) Delete(ctx context.Context, userID, taskID string) error {
 	if err != nil {
 		return err
 	}
-
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-
-	if err := q.DeleteTask(ctx, db.DeleteTaskParams{
-		ID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-	}); err != nil {
-		return err
-	}
-	// The row is gone, so the audit entry is the only remaining record of what
-	// it held: keep the title, which is what a person searching the log reads.
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor:        audit.User(userID),
-		Action:       audit.ActionTaskDeleted,
-		ResourceType: "task", ResourceID: taskID,
-		Metadata: map[string]any{"title": task.Title, "status": task.Status},
-	}, audit.Event{Topic: "task.deleted", Payload: map[string]string{
-		"task_id": taskID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
+	if err := s.deleteTaskInTx(ctx, s.q.WithTx(tx), userID, task, ws); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-// AddComment records the author's kind so the client can draw the badge; origin
-// ("agent_run:<id>") arrives with A-01 and stays NULL until then.
-func (s *TaskService) AddComment(ctx context.Context, actor Actor, taskID, body string) (db.TaskComment, error) {
-	task, err := s.authorizeActor(ctx, actor, taskID)
-	if err != nil {
-		return db.TaskComment{}, err
+// deleteTaskInTx removes the task and writes audit/outbox using q (caller owns the tx).
+func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID string, task db.Task, ws db.Workspace) error {
+	if err := q.DeleteTask(ctx, db.DeleteTaskParams{
+		ID: task.ID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	}); err != nil {
+		return err
 	}
-	if strings.TrimSpace(body) == "" {
-		return db.TaskComment{}, Invalid("nội dung không được để trống")
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, task.WorkspaceID)
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-
-	c, err := q.CreateTaskComment(ctx, db.CreateTaskCommentParams{
-		ID: util.NewID(), OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
-	})
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-	// The comment body is not audited: it is user content that already lives
-	// in task_comments, and audit_events cannot be edited if it must be removed.
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
+	// The row is gone, so the audit entry is the only remaining record of what
+	// it held: keep the title, which is what a person searching the log reads.
+	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor:        actor,
-		Action:       audit.ActionTaskCommentAdded,
-		ResourceType: "task", ResourceID: taskID,
-		Metadata: map[string]any{"comment_id": c.ID},
-	}, audit.Event{Topic: "task.comment_added", Payload: map[string]string{
-		"task_id": taskID, "comment_id": c.ID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
-		return db.TaskComment{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return db.TaskComment{}, err
-	}
-	return c, nil
+		Actor:        audit.User(userID),
+		Action:       audit.ActionTaskDeleted,
+		ResourceType: "task", ResourceID: task.ID,
+		Metadata: map[string]any{"title": task.Title, "status": task.Status},
+	}, audit.Event{Topic: "task.deleted", Payload: map[string]string{
+		"task_id": task.ID, "workspace_id": task.WorkspaceID,
+	}})
+}
+
+// AddComment records the author's kind so the client can draw the badge; origin
+// ("agent_run:<id>") arrives with A-01 and stays NULL until then. Suite
+// threading / idempotency live on AddCommentSuite.
+func (s *TaskService) AddComment(ctx context.Context, actor Actor, taskID, body string) (db.TaskComment, error) {
+	return s.AddCommentSuite(ctx, actor, taskID, AddCommentInput{Body: body}, "")
 }
 
 func (s *TaskService) Comments(ctx context.Context, userID, taskID string) ([]db.ListTaskCommentsRow, error) {

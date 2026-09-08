@@ -90,6 +90,8 @@ RETURNING *;
 
 -- name: ListTaskComments :many
 SELECT c.id, c.task_id, c.author_id, c.author_kind, c.body, c.created_at,
+       c.parent_comment_id, c.comment_type, c.revision, c.updated_at,
+       c.resolved_at, c.resolved_by_type, c.resolved_by_id,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
        COALESCE(u.avatar_url, a.avatar_url) AS avatar_url
 FROM task_comments c
@@ -118,3 +120,172 @@ WHERE organization_id = $1
   AND workspace_id = $2
   AND created_by = $3
   AND kind = 'welcome';
+
+-- name: QueryTasks :many
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+ORDER BY status, position, created_at
+LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
+
+-- name: CountTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'));
+
+-- name: ListTasksByIdentifier :many
+-- Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
+SELECT t.* FROM tasks t
+INNER JOIN workspaces w
+  ON w.id = t.workspace_id AND w.organization_id = t.organization_id
+WHERE upper(w.task_prefix) = upper(sqlc.arg('prefix'))
+  AND t.number = sqlc.arg('number');
+
+-- name: ListMyTasks :many
+-- Actor's tasks: assigned to them or created by them in this workspace.
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+ORDER BY status, position, created_at
+LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
+
+-- name: CountMyTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'));
+
+-- name: ListChildTasks :many
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND parent_task_id = sqlc.arg('parent_task_id')
+ORDER BY number ASC;
+
+-- name: ListChildrenByParents :many
+SELECT * FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND parent_task_id = ANY(sqlc.arg('parent_ids')::text[])
+ORDER BY parent_task_id, number ASC;
+
+-- name: ChildTaskProgress :many
+SELECT parent_task_id,
+       COUNT(*)::bigint AS total,
+       COUNT(*) FILTER (WHERE status IN ('done', 'cancelled'))::bigint AS done
+FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND parent_task_id IS NOT NULL
+GROUP BY parent_task_id;
+
+-- name: SetTaskParent :one
+UPDATE tasks SET
+  parent_task_id = sqlc.narg('parent_task_id'),
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+RETURNING *;
+
+-- name: CreateTaskDependency :one
+INSERT INTO task_dependencies (
+  id, organization_id, workspace_id, task_id, depends_on_task_id, type
+) VALUES (
+  $1, $2, $3, $4, $5, $6
+)
+RETURNING *;
+
+-- name: DeleteTaskDependency :execrows
+DELETE FROM task_dependencies
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND task_id = sqlc.arg('task_id')
+  AND depends_on_task_id = sqlc.arg('depends_on_task_id')
+  AND (sqlc.narg('type')::text IS NULL OR type = sqlc.narg('type'));
+
+-- name: ListTaskDependenciesInWorkspace :many
+SELECT * FROM task_dependencies
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id');
+
+-- Table mode (groups / rows / facets). Empty filter arrays are ignored when
+-- the matching has_*_filter flag is false.
+
+-- name: CountTableTasks :one
+SELECT count(*)::bigint FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
+  AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
+  AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]));
+
+-- name: CountTableTasksByStatus :many
+SELECT status AS key, count(*)::bigint AS count
+FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
+  AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
+  AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+GROUP BY status
+ORDER BY status;
+
+-- name: CountTableTasksByPriority :many
+SELECT priority AS key, count(*)::bigint AS count
+FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
+  AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
+  AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+GROUP BY priority
+ORDER BY priority;
+
+-- name: CountTableTasksByAssignee :many
+SELECT COALESCE(assignee_id, '') AS key, count(*)::bigint AS count
+FROM tasks
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
+  AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
+  AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+GROUP BY COALESCE(assignee_id, '')
+ORDER BY 1;
+
+-- name: ListTableTaskRows :many
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority,
+       t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at,
+       t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number,
+       t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id,
+       t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date,
+       t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at,
+       (
+         SELECT count(*)::bigint FROM tasks c
+         WHERE c.organization_id = t.organization_id
+           AND c.workspace_id = t.workspace_id
+           AND c.parent_task_id = t.id
+       ) AS direct_child_count
+FROM tasks t
+WHERE t.organization_id = sqlc.arg('organization_id')
+  AND t.workspace_id = sqlc.arg('workspace_id')
+  AND (NOT sqlc.arg('has_status_filter')::bool OR t.status = ANY(sqlc.arg('statuses')::text[]))
+  AND (NOT sqlc.arg('has_priority_filter')::bool OR t.priority = ANY(sqlc.arg('priorities')::text[]))
+  AND (NOT sqlc.arg('has_assignee_filter')::bool OR t.assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+  AND (
+    NOT sqlc.arg('has_group_key')::bool
+    OR CASE sqlc.arg('group_by')::text
+         WHEN 'priority' THEN t.priority
+         WHEN 'assignee' THEN COALESCE(t.assignee_id, '')
+         ELSE t.status
+       END = sqlc.arg('group_key')
+  )
+ORDER BY t.status, t.position, t.created_at
+LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');

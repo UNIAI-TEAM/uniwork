@@ -11,6 +11,71 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearTasksProjectID = `-- name: ClearTasksProjectID :many
+UPDATE tasks SET project_id = NULL, revision = revision + 1, updated_at = now()
+WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
+RETURNING id
+`
+
+type ClearTasksProjectIDParams struct {
+	ProjectID      pgtype.Text `json:"project_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+}
+
+func (q *Queries) ClearTasksProjectID(ctx context.Context, arg ClearTasksProjectIDParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, clearTasksProjectID, arg.ProjectID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countSearchProjects = `-- name: CountSearchProjects :one
+SELECT count(*)::bigint FROM projects
+WHERE organization_id = $1 AND workspace_id = $2
+  AND (
+    title ILIKE '%' || $3 || '%'
+    OR description ILIKE '%' || $3 || '%'
+  )
+  AND (
+    $4::bool
+    OR status NOT IN ('completed', 'cancelled')
+  )
+`
+
+type CountSearchProjectsParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Q              pgtype.Text `json:"q"`
+	IncludeClosed  bool        `json:"include_closed"`
+}
+
+// Empty pages have no window row to carry total_count; use this fallback.
+func (q *Queries) CountSearchProjects(ctx context.Context, arg CountSearchProjectsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSearchProjects,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Q,
+		arg.IncludeClosed,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (
   id, organization_id, workspace_id, title, description, icon, status, priority,
@@ -136,7 +201,7 @@ func (q *Queries) CreateProjectResource(ctx context.Context, arg CreateProjectRe
 	return i, err
 }
 
-const deleteProject = `-- name: DeleteProject :exec
+const deleteProject = `-- name: DeleteProject :execrows
 DELETE FROM projects
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
 `
@@ -147,24 +212,99 @@ type DeleteProjectParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 }
 
-func (q *Queries) DeleteProject(ctx context.Context, arg DeleteProjectParams) error {
-	_, err := q.db.Exec(ctx, deleteProject, arg.ID, arg.OrganizationID, arg.WorkspaceID)
-	return err
+func (q *Queries) DeleteProject(ctx context.Context, arg DeleteProjectParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProject, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const deleteProjectResource = `-- name: DeleteProjectResource :exec
+const deleteProjectResource = `-- name: DeleteProjectResource :execrows
 DELETE FROM project_resources
-WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+WHERE id = $1
+  AND project_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
 `
 
 type DeleteProjectResourceParams struct {
 	ID             string `json:"id"`
+	ProjectID      string `json:"project_id"`
 	OrganizationID string `json:"organization_id"`
 	WorkspaceID    string `json:"workspace_id"`
 }
 
-func (q *Queries) DeleteProjectResource(ctx context.Context, arg DeleteProjectResourceParams) error {
-	_, err := q.db.Exec(ctx, deleteProjectResource, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+func (q *Queries) DeleteProjectResource(ctx context.Context, arg DeleteProjectResourceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProjectResource,
+		arg.ID,
+		arg.ProjectID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteProjectResourcesByProject = `-- name: DeleteProjectResourcesByProject :exec
+DELETE FROM project_resources
+WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
+`
+
+type DeleteProjectResourcesByProjectParams struct {
+	ProjectID      string `json:"project_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteProjectResourcesByProject(ctx context.Context, arg DeleteProjectResourcesByProjectParams) error {
+	_, err := q.db.Exec(ctx, deleteProjectResourcesByProject, arg.ProjectID, arg.OrganizationID, arg.WorkspaceID)
+	return err
+}
+
+const deleteTaskPinsByItem = `-- name: DeleteTaskPinsByItem :exec
+DELETE FROM task_pins
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND item_type = $3
+  AND item_id = $4
+`
+
+type DeleteTaskPinsByItemParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ItemType       string `json:"item_type"`
+	ItemID         string `json:"item_id"`
+}
+
+func (q *Queries) DeleteTaskPinsByItem(ctx context.Context, arg DeleteTaskPinsByItemParams) error {
+	_, err := q.db.Exec(ctx, deleteTaskPinsByItem,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ItemType,
+		arg.ItemID,
+	)
+	return err
+}
+
+const deleteTaskViewsByProjectScope = `-- name: DeleteTaskViewsByProjectScope :exec
+DELETE FROM task_views
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND scope_type = 'project'
+  AND scope_id = $3
+`
+
+type DeleteTaskViewsByProjectScopeParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ScopeID        pgtype.Text `json:"scope_id"`
+}
+
+func (q *Queries) DeleteTaskViewsByProjectScope(ctx context.Context, arg DeleteTaskViewsByProjectScopeParams) error {
+	_, err := q.db.Exec(ctx, deleteTaskViewsByProjectScope, arg.OrganizationID, arg.WorkspaceID, arg.ScopeID)
 	return err
 }
 
@@ -202,6 +342,129 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (Project
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getProjectResource = `-- name: GetProjectResource :one
+SELECT id, organization_id, workspace_id, project_id, resource_type, resource_ref, label, position, created_by, created_by_kind, created_at, updated_at FROM project_resources
+WHERE id = $1
+  AND project_id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+`
+
+type GetProjectResourceParams struct {
+	ID             string `json:"id"`
+	ProjectID      string `json:"project_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) GetProjectResource(ctx context.Context, arg GetProjectResourceParams) (ProjectResource, error) {
+	row := q.db.QueryRow(ctx, getProjectResource,
+		arg.ID,
+		arg.ProjectID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	var i ProjectResource
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.ResourceType,
+		&i.ResourceRef,
+		&i.Label,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getProjectResourceCounts = `-- name: GetProjectResourceCounts :many
+SELECT project_id, COUNT(*)::bigint AS resource_count
+FROM project_resources
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND project_id = ANY($3::text[])
+GROUP BY project_id
+`
+
+type GetProjectResourceCountsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	ProjectIds     []string `json:"project_ids"`
+}
+
+type GetProjectResourceCountsRow struct {
+	ProjectID     string `json:"project_id"`
+	ResourceCount int64  `json:"resource_count"`
+}
+
+func (q *Queries) GetProjectResourceCounts(ctx context.Context, arg GetProjectResourceCountsParams) ([]GetProjectResourceCountsRow, error) {
+	rows, err := q.db.Query(ctx, getProjectResourceCounts, arg.OrganizationID, arg.WorkspaceID, arg.ProjectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetProjectResourceCountsRow{}
+	for rows.Next() {
+		var i GetProjectResourceCountsRow
+		if err := rows.Scan(&i.ProjectID, &i.ResourceCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProjectTaskStats = `-- name: GetProjectTaskStats :many
+SELECT project_id,
+  COUNT(*)::bigint AS total_count,
+  COUNT(*) FILTER (WHERE status IN ('done', 'cancelled'))::bigint AS done_count
+FROM tasks
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND project_id = ANY($3::text[])
+GROUP BY project_id
+`
+
+type GetProjectTaskStatsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	ProjectIds     []string `json:"project_ids"`
+}
+
+type GetProjectTaskStatsRow struct {
+	ProjectID  pgtype.Text `json:"project_id"`
+	TotalCount int64       `json:"total_count"`
+	DoneCount  int64       `json:"done_count"`
+}
+
+func (q *Queries) GetProjectTaskStats(ctx context.Context, arg GetProjectTaskStatsParams) ([]GetProjectTaskStatsRow, error) {
+	rows, err := q.db.Query(ctx, getProjectTaskStats, arg.OrganizationID, arg.WorkspaceID, arg.ProjectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetProjectTaskStatsRow{}
+	for rows.Next() {
+		var i GetProjectTaskStatsRow
+		if err := rows.Scan(&i.ProjectID, &i.TotalCount, &i.DoneCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listProjectResources = `-- name: ListProjectResources :many
@@ -252,16 +515,25 @@ func (q *Queries) ListProjectResources(ctx context.Context, arg ListProjectResou
 const listProjects = `-- name: ListProjects :many
 SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND ($3::text IS NULL OR status = $3)
+  AND ($4::text IS NULL OR priority = $4)
 ORDER BY updated_at DESC, id
 `
 
 type ListProjectsParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Status         pgtype.Text `json:"status"`
+	Priority       pgtype.Text `json:"priority"`
 }
 
 func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]Project, error) {
-	rows, err := q.db.Query(ctx, listProjects, arg.OrganizationID, arg.WorkspaceID)
+	rows, err := q.db.Query(ctx, listProjects,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Status,
+		arg.Priority,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -298,6 +570,108 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 	return items, nil
 }
 
+const searchProjects = `-- name: SearchProjects :many
+SELECT
+  id, organization_id, workspace_id, title, description, icon, status, priority,
+  lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind,
+  created_at, updated_at,
+  count(*) OVER ()::bigint AS total_count
+FROM projects
+WHERE organization_id = $1 AND workspace_id = $2
+  AND (
+    title ILIKE '%' || $3 || '%'
+    OR description ILIKE '%' || $3 || '%'
+  )
+  AND (
+    $4::bool
+    OR status NOT IN ('completed', 'cancelled')
+  )
+ORDER BY
+  CASE WHEN lower(title) = lower($3) THEN 0
+       WHEN lower(title) LIKE lower($3) || '%' THEN 1
+       ELSE 2 END,
+  updated_at DESC,
+  id
+LIMIT $6 OFFSET $5
+`
+
+type SearchProjectsParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Q              pgtype.Text `json:"q"`
+	IncludeClosed  bool        `json:"include_closed"`
+	OffsetCount    int32       `json:"offset_count"`
+	LimitCount     int32       `json:"limit_count"`
+}
+
+type SearchProjectsRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Icon           pgtype.Text        `json:"icon"`
+	Status         string             `json:"status"`
+	Priority       string             `json:"priority"`
+	LeadType       pgtype.Text        `json:"lead_type"`
+	LeadID         pgtype.Text        `json:"lead_id"`
+	StartDate      pgtype.Date        `json:"start_date"`
+	DueDate        pgtype.Date        `json:"due_date"`
+	Revision       int64              `json:"revision"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TotalCount     int64              `json:"total_count"`
+}
+
+// total_count is the window count over the filtered set (not the page length).
+func (q *Queries) SearchProjects(ctx context.Context, arg SearchProjectsParams) ([]SearchProjectsRow, error) {
+	rows, err := q.db.Query(ctx, searchProjects,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Q,
+		arg.IncludeClosed,
+		arg.OffsetCount,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchProjectsRow{}
+	for rows.Next() {
+		var i SearchProjectsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Icon,
+			&i.Status,
+			&i.Priority,
+			&i.LeadType,
+			&i.LeadID,
+			&i.StartDate,
+			&i.DueDate,
+			&i.Revision,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TotalCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects SET
   title       = COALESCE($1, title),
@@ -305,31 +679,36 @@ UPDATE projects SET
   icon        = COALESCE($3, icon),
   status      = COALESCE($4, status),
   priority    = COALESCE($5, priority),
-  lead_type   = COALESCE($6, lead_type),
-  lead_id     = COALESCE($7, lead_id),
-  start_date  = COALESCE($8, start_date),
-  due_date    = COALESCE($9, due_date),
+  lead_type   = CASE WHEN $6::bool THEN $7 ELSE lead_type END,
+  lead_id     = CASE WHEN $6::bool THEN $8 ELSE lead_id END,
+  start_date  = CASE WHEN $9::bool THEN $10 ELSE start_date END,
+  due_date    = CASE WHEN $11::bool THEN $12 ELSE due_date END,
   revision    = revision + 1,
   updated_at  = now()
-WHERE id = $10
-  AND organization_id = $11
-  AND workspace_id = $12
+WHERE id = $13
+  AND organization_id = $14
+  AND workspace_id = $15
+  AND revision = $16
 RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at
 `
 
 type UpdateProjectParams struct {
-	Title          pgtype.Text `json:"title"`
-	Description    pgtype.Text `json:"description"`
-	Icon           pgtype.Text `json:"icon"`
-	Status         pgtype.Text `json:"status"`
-	Priority       pgtype.Text `json:"priority"`
-	LeadType       pgtype.Text `json:"lead_type"`
-	LeadID         pgtype.Text `json:"lead_id"`
-	StartDate      pgtype.Date `json:"start_date"`
-	DueDate        pgtype.Date `json:"due_date"`
-	ID             string      `json:"id"`
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
+	Title            pgtype.Text `json:"title"`
+	Description      pgtype.Text `json:"description"`
+	Icon             pgtype.Text `json:"icon"`
+	Status           pgtype.Text `json:"status"`
+	Priority         pgtype.Text `json:"priority"`
+	SetLead          bool        `json:"set_lead"`
+	LeadType         pgtype.Text `json:"lead_type"`
+	LeadID           pgtype.Text `json:"lead_id"`
+	SetStartDate     bool        `json:"set_start_date"`
+	StartDate        pgtype.Date `json:"start_date"`
+	SetDueDate       bool        `json:"set_due_date"`
+	DueDate          pgtype.Date `json:"due_date"`
+	ID               string      `json:"id"`
+	OrganizationID   string      `json:"organization_id"`
+	WorkspaceID      string      `json:"workspace_id"`
+	ExpectedRevision int64       `json:"expected_revision"`
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
@@ -339,13 +718,17 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.Icon,
 		arg.Status,
 		arg.Priority,
+		arg.SetLead,
 		arg.LeadType,
 		arg.LeadID,
+		arg.SetStartDate,
 		arg.StartDate,
+		arg.SetDueDate,
 		arg.DueDate,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.ExpectedRevision,
 	)
 	var i Project
 	err := row.Scan(
@@ -377,8 +760,9 @@ UPDATE project_resources SET
   position     = COALESCE($3, position),
   updated_at   = now()
 WHERE id = $4
-  AND organization_id = $5
-  AND workspace_id = $6
+  AND project_id = $5
+  AND organization_id = $6
+  AND workspace_id = $7
 RETURNING id, organization_id, workspace_id, project_id, resource_type, resource_ref, label, position, created_by, created_by_kind, created_at, updated_at
 `
 
@@ -387,6 +771,7 @@ type UpdateProjectResourceParams struct {
 	Label          pgtype.Text `json:"label"`
 	Position       pgtype.Int4 `json:"position"`
 	ID             string      `json:"id"`
+	ProjectID      string      `json:"project_id"`
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    string      `json:"workspace_id"`
 }
@@ -397,6 +782,7 @@ func (q *Queries) UpdateProjectResource(ctx context.Context, arg UpdateProjectRe
 		arg.Label,
 		arg.Position,
 		arg.ID,
+		arg.ProjectID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 	)

@@ -1705,8 +1705,10 @@
       "target_path": "packages/core/api/client.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "docs/parity/tasks-api-client-core-routes.json",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/api/index.ts",
@@ -1737,8 +1739,10 @@
       "target_path": "packages/core/api/schemas.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/tasks-suite.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/auth/utils.test.ts",
@@ -1921,8 +1925,10 @@
       "target_path": "packages/core/task-statuses/mutations.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/task-catalog.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issue-statuses/queries.test.ts",
@@ -1937,8 +1943,10 @@
       "target_path": "packages/core/task-statuses/queries.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/task-catalog.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issue-views/active-view-store.ts",
@@ -1961,8 +1969,10 @@
       "target_path": "packages/core/task-views/mutations.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/task-views.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issue-views/preferences.ts",
@@ -1977,8 +1987,10 @@
       "target_path": "packages/core/task-views/queries.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/task-views.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issue-views/use-active-view.ts",
@@ -2001,8 +2013,10 @@
       "target_path": "packages/core/tasks/batch.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/tasks-suite.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issues/cache-coordinator.test.ts",
@@ -2017,8 +2031,10 @@
       "target_path": "packages/core/tasks/cache-coordinator.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/tasks/cache-coordinator.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issues/cache-helpers.test.ts",
@@ -2145,8 +2161,10 @@
       "target_path": "packages/core/tasks/mutations.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/tasks.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issues/queries.test.ts",
@@ -2161,8 +2179,10 @@
       "target_path": "packages/core/tasks/queries.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/tasks/hooks.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/issues/revision-realtime.test.ts",
@@ -2801,16 +2821,20 @@
       "target_path": "packages/core/projects/mutations.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/projects.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/projects/queries.ts",
       "target_path": "packages/core/projects/queries.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/api/endpoints/projects.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "packages/core/projects/resource-queries.ts",
@@ -8297,8 +8321,10 @@
       "target_path": "server/internal/handler/task.go",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/handler/task_query.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "server/internal/handler/issue_agent_create_e2e_test.go",
@@ -8601,8 +8627,10 @@
       "target_path": "server/internal/handler/task_table_query.go",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/handler/task_table.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "server/internal/handler/issue_table_query_test.go",
@@ -8681,8 +8709,10 @@
       "target_path": "server/internal/handler/task_view.go",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/handler/task_view.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "server/internal/handler/issue_view_preference.go",
@@ -8817,8 +8847,10 @@
       "target_path": "server/internal/handler/project.go",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/handler/project.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "server/internal/handler/project_dates_test.go",
@@ -9905,8 +9937,10 @@
       "target_path": "server/internal/service/task.go",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "server/internal/service/task_query.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
     },
     {
       "source_path": "server/internal/service/issue_channel_media_test.go",

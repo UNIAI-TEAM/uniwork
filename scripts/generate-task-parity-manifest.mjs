@@ -9,11 +9,15 @@ function option(argv, name) {
   return argv[index + 1];
 }
 
-function optionalOption(argv, name) {
-  const index = argv.indexOf(name);
-  if (index < 0) return null;
-  if (!argv[index + 1]) throw new Error(`missing ${name}`);
-  return argv[index + 1];
+function optionAll(argv, name) {
+  const values = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] !== name) continue;
+    if (!argv[i + 1]) throw new Error(`missing ${name}`);
+    values.push(argv[i + 1]);
+    i += 1;
+  }
+  return values;
 }
 
 export function applyVerificationOverlay(entries, overlay) {
@@ -42,7 +46,7 @@ export async function generateTaskParityManifest(argv = process.argv) {
   const baseline = option(argv, "--baseline");
   const output = option(argv, "--output");
   const sourceProduct = option(argv, "--source-brand");
-  const verificationOverlayPath = optionalOption(argv, "--verification-overlay");
+  const verificationOverlayPaths = optionAll(argv, "--verification-overlay");
   const resolved = execFileSync("git", ["-C", sourceRoot, "rev-parse", baseline], { encoding: "utf8" }).trim();
   if (!resolved.startsWith(baseline)) throw new Error(`baseline resolved to ${resolved}`);
 
@@ -105,7 +109,7 @@ export async function generateTaskParityManifest(argv = process.argv) {
     });
   }
 
-  if (verificationOverlayPath) {
+  for (const verificationOverlayPath of verificationOverlayPaths) {
     const overlay = JSON.parse(await readFile(resolve(verificationOverlayPath), "utf8"));
     entries = applyVerificationOverlay(entries, overlay);
   }
