@@ -347,7 +347,7 @@ export function useTaskSurfaceController({
   // isEmpty asserts "this window has no tasks" from the full surface query.
   // Gantt's scheduled subset (ganttTasks) is a projection — undated-only must
   // not mark the surface empty; GanttView owns that empty copy. Zero tasks in
-  // the window still surface-empty even in gantt mode (Multica).
+  // the window still surface-empty even in gantt mode.
   // Table owns its own empty state. Swimlane/list/board use the full window.
   const isEmpty =
     !tableEnabled &&

@@ -47,8 +47,8 @@ import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 const EMPTY_IDS: string[] = [];
 
 /**
- * Suite TaskSurface board mode — Multica kanban structure (columns, cards,
- * drag settle, drag-pan, Virtuoso). Separate from MVP `../board-view.tsx`.
+ * Suite TaskSurface board mode — kanban columns, cards, drag settle,
+ * drag-pan, and Virtuoso. Separate from MVP `../board-view.tsx`.
  *
  * Property / Projects deep grouping stays stubbed until those capabilities
  * ship; agent chips are gated in the card.

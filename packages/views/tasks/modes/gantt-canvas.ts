@@ -5,7 +5,7 @@ const COMPLETED: ReadonlySet<TaskStatus> = new Set(["done", "cancelled"]);
 /**
  * Rows the gantt canvas draws: must have a date, and completed work is hidden
  * unless the user asks for it. Lives outside GanttView so the surface / header
- * can share the same projection (Multica MUL-4884).
+ * can share the same projection.
  */
 export function ganttCanvasRows(
   tasks: Task[],

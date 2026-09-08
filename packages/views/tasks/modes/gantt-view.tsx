@@ -20,7 +20,7 @@ import {
 import { GanttScheduledRow } from "./gantt-row";
 
 /**
- * Suite TaskSurface gantt mode — Multica timeline renderer. The surface applies
+ * Suite TaskSurface gantt mode — timeline renderer. The surface applies
  * `ganttCanvasRows` before handing tasks over; this view only orders + draws.
  */
 export function GanttView({ tasks }: { tasks: Task[] }) {

@@ -1,4 +1,4 @@
-/** Calendar-day helpers for gantt (ported from Multica issues/date). */
+/** Calendar-day helpers for gantt date parsing and bucketing. */
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})/;
 

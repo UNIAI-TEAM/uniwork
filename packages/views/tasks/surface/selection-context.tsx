@@ -27,7 +27,7 @@ export function useCreateTaskSurfaceSelection(
   const [committedResetKey, setCommittedResetKey] = useState(resetKey);
 
   // Render-phase reset when the data window changes — avoid one frame of
-  // stale selection over a new membership (see Multica selection-context).
+  // stale selection over a new membership.
   if (committedResetKey !== resetKey) {
     setCommittedResetKey(resetKey);
     if (selectedIds.size > 0) setSelectedIds(new Set());

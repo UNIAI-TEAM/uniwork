@@ -27,7 +27,7 @@ const INTERACTIVE_SELECTOR = [
 
 /**
  * Blank-area left-drag panning for a horizontally scrollable board
- * (Multica / Trello / Linear pattern).
+ * (Trello / Linear-style pattern).
  */
 export function useBoardDragPan<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);

@@ -1,6 +1,6 @@
 import type { TaskStatus } from "@uniwork/core/types";
 
-/** Column chrome for the seven catalog categories (ported from Multica STATUS_CONFIG). */
+/** Column chrome for the seven catalog categories. */
 export const STATUS_CONFIG: Record<
   TaskStatus,
   { iconColor: string; columnBg: string }

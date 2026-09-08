@@ -9,7 +9,7 @@ export type TaskSurfaceMode = Extract<
 >;
 
 export type TaskSurfaceProps = {
-  /** Explicit workspace id — UniWork pages pass this; Multica’s useWorkspaceId is not wired here. */
+  /** Explicit workspace id — hosts pass this; no ambient workspace-id hook here. */
   workspaceId: string;
   scope: TaskScope;
   modes: TaskSurfaceMode[];

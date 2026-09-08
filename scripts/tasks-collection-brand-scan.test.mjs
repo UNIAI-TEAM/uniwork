@@ -3,7 +3,12 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
-const roots = ["packages/views/tasks", "packages/views/my-tasks"];
+const roots = [
+  "packages/views/tasks",
+  "packages/views/my-tasks",
+  "packages/core/tasks/stores",
+  "packages/core/tasks/surface",
+];
 
 async function walk(dir, out = []) {
   let entries;

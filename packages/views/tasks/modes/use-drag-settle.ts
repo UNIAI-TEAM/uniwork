@@ -31,7 +31,7 @@ function columnsEqual(
 }
 
 /**
- * Shared drag/settle state machine for the suite board (Multica port).
+ * Shared drag/settle state machine for the suite board.
  *
  * Local columns mirror TanStack Query between drags; while dragging or settling
  * the mirror is frozen so an optimistic move is not clobbered mid-flight.

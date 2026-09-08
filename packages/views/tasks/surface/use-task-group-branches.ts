@@ -4,10 +4,10 @@ import { useMemo } from "react";
 import type { Task } from "@uniwork/core/types";
 
 /**
- * Server-backed swimlane branch window (Multica `useIssueGroupBranches`).
+ * Server-backed swimlane branch window (`useTaskGroupBranches`).
  * Suite table groups lack compound secondary status buckets yet, so the hook
  * stays disabled and SwimlaneView builds lanes client-side from surface tasks.
- * Keep the Multica-shaped surface so Task 8+ can flip `enabled` when compound
+ * Keep this surface shape so later work can flip `enabled` when compound
  * groups land.
  */
 export interface TaskGroupPageState {

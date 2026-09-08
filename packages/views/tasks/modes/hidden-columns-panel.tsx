@@ -14,7 +14,7 @@ import { useViewStoreApi } from "@uniwork/core/tasks/stores/view-store-context";
 import { STATUS_CONFIG } from "./status-config";
 
 /**
- * Side panel listing status columns the user hid from the board (Multica port).
+ * Side panel listing status columns the user hid from the board.
  */
 export function HiddenColumnsPanel({
   hiddenStatuses,
