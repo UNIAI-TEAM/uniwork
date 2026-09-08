@@ -21,7 +21,8 @@ func (h *handlers) listMyTasks(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.ParseInt(q.Get("offset"), 10, 32)
 	page, err := h.Tasks.ListMyTasks(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), service.TaskQuery{
-			Status: q.Get("status"), Limit: int32(limit), Offset: int32(offset),
+			Status: q.Get("status"), Relation: q.Get("relation"),
+			Limit: int32(limit), Offset: int32(offset),
 		})
 	if err != nil {
 		h.mapServiceError(w, err)

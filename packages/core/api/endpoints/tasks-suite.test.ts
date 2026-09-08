@@ -62,12 +62,15 @@ describe("tasks-suite endpoints", () => {
 
   it("listMyTasks degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ tasks: "nope" }));
-    await expect(listMyTasks("ws1")).resolves.toEqual({
+    await expect(listMyTasks("ws1", { relation: "assigned", limit: 10 })).resolves.toEqual({
       tasks: [],
       total: 0,
       limit: 0,
       offset: 0,
     });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
+      "http://api.test/api/v1/workspaces/ws1/my-tasks?relation=assigned&limit=10",
+    );
   });
 
   it("putTask sends revision headers and returns null on drift", async () => {

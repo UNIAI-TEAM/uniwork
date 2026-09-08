@@ -35,7 +35,9 @@ type ChildProgress struct {
 	Done         int64
 }
 
-// ListMyTasks returns tasks assigned to or created by the actor in the workspace.
+// ListMyTasks returns the actor's tasks in the workspace, filtered by relation.
+// Relation ""/"all" → assignee OR created_by; "assigned"/"created" narrow;
+// "involved" is empty until agent involvement exists (no invented rows).
 func (s *TaskService) ListMyTasks(ctx context.Context, actor Actor, workspaceID string, q TaskQuery) (TaskPage, error) {
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return TaskPage{}, err
@@ -50,10 +52,12 @@ func (s *TaskService) ListMyTasks(ctx context.Context, actor Actor, workspaceID 
 	if q.Offset < 0 {
 		q.Offset = 0
 	}
+	relation := normalizeMyTasksRelation(q.Relation)
 	params := db.ListMyTasksParams{
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    workspaceID,
 		ActorID:        pgtype.Text{String: actor.ID, Valid: true},
+		Relation:       nullText(relation),
 		Status:         nullText(strings.TrimSpace(q.Status)),
 		LimitN:         q.Limit,
 		OffsetN:        q.Offset,
@@ -66,12 +70,24 @@ func (s *TaskService) ListMyTasks(ctx context.Context, actor Actor, workspaceID 
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    workspaceID,
 		ActorID:        pgtype.Text{String: actor.ID, Valid: true},
+		Relation:       nullText(relation),
 		Status:         nullText(strings.TrimSpace(q.Status)),
 	})
 	if err != nil {
 		return TaskPage{}, err
 	}
 	return TaskPage{Tasks: rows, Total: total, Limit: q.Limit, Offset: q.Offset}, nil
+}
+
+func normalizeMyTasksRelation(raw string) string {
+	switch strings.TrimSpace(raw) {
+	case "", "all":
+		return "all"
+	case "assigned", "created", "involved":
+		return strings.TrimSpace(raw)
+	default:
+		return "all"
+	}
 }
 
 // ListChildren returns direct children of a parent task.
