@@ -265,7 +265,7 @@ func (s *TaskService) TableFacets(ctx context.Context, actor Actor, workspaceID 
 		}
 		values := make([]TableFacetValue, 0, len(keys))
 		for _, row := range keys {
-			values = append(values, TableFacetValue{Key: row.Key, Count: row.Count})
+			values = append(values, TableFacetValue(row))
 		}
 		facets = append(facets, TableFacet{Kind: kind, Values: values})
 	}

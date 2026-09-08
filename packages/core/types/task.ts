@@ -3,6 +3,7 @@ import { ActorSchema } from "./actor";
 
 // The closed vocabularies the UI reasons about. Used to type requests and
 // UI state; response schemas below deliberately do NOT use them.
+/** Seven Work Management status categories (catalog keys). */
 export const TASK_STATUS_CATEGORIES = [
   "backlog",
   "todo",
@@ -13,7 +14,7 @@ export const TASK_STATUS_CATEGORIES = [
   "cancelled",
 ] as const;
 export type TaskStatusCategory = (typeof TASK_STATUS_CATEGORIES)[number];
-/** Alias of TASK_STATUS_CATEGORIES (seven catalog keys / categories). */
+/** Alias of TASK_STATUS_CATEGORIES (seven catalog keys). */
 export const TASK_STATUSES = TASK_STATUS_CATEGORIES;
 export type TaskStatus = TaskStatusCategory;
 export const TaskStatusSchema = z.enum(TASK_STATUS_CATEGORIES);

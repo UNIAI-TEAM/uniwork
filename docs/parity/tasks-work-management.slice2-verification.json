@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "owner_issue": "UNI-497",
+  "note": "Deterministic verification overlay for slice-2-owned API manifest entries only. Regeneration merges this with slice1; do not invent verification for later UNI-426 UI slices.",
+  "entries": [
+    {
+      "source_path": "packages/core/api/client.ts",
+      "verification_state": "verified",
+      "evidence_path": "docs/parity/tasks-api-client-core-routes.json",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/api/schemas.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/tasks-suite.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issues/queries.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/tasks/hooks.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issues/mutations.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/tasks.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issues/batch.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/tasks-suite.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issues/cache-coordinator.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/tasks/cache-coordinator.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issue-statuses/queries.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/task-catalog.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issue-statuses/mutations.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/task-catalog.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issue-views/queries.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/task-views.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/issue-views/mutations.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/task-views.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/projects/queries.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/projects.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "packages/core/projects/mutations.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/api/endpoints/projects.ts",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "server/internal/handler/issue.go",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/handler/task_query.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "server/internal/handler/issue_table_query.go",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/handler/task_table.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "server/internal/handler/issue_view.go",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/handler/task_view.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "server/internal/handler/project.go",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/handler/project.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    },
+    {
+      "source_path": "server/internal/service/issue.go",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/service/task_query.go",
+      "evidence_commit": "eacfb8e90dbe017adeb200d4e284a4f4a051262a"
+    }
+  ]
+}

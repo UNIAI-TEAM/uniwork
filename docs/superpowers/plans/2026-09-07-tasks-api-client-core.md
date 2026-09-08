@@ -1,6 +1,6 @@
 # UNI-497 · Tasks API và client core Implementation Plan
 
-> **Trạng thái:** in-progress — plan đã viết, chưa bắt đầu product code
+> **Trạng thái:** shipped — UNI-497 slice 2 API + client core đã qua gate; PR/handoff Task 14
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -41,7 +41,7 @@
 
 ### Shared mutation contracts
 
-- Create: `server/migrations/132_idempotency_keys.{up,down}.sql` (và `133_…_idx.up.sql` CONCURRENTLY một statement nếu cần index).
+- Create: `server/migrations/154_idempotency_keys.{up,down}.sql` (và `155_…_idx.up.sql` CONCURRENTLY một statement nếu cần index).
 - Create: `server/pkg/db/queries/idempotency.sql` + `make sqlc`.
 - Create: `server/internal/service/idempotency.go` (+ test).
 - Modify: task update paths — `If-Match` / body `revision` → `revision_conflict` (422) khi lệch.
@@ -160,7 +160,7 @@ git commit -m "feat(tasks): lock slice-2 API catalogue and flag gate"
 
 **Files:**
 
-- Create: `server/migrations/132_idempotency_keys.{up,down}.sql` (và `133_…_idx.up.sql` CONCURRENTLY một statement nếu cần index)
+- Create: `server/migrations/154_idempotency_keys.{up,down}.sql` (và `155_…_idx.up.sql` CONCURRENTLY một statement nếu cần index)
 - Create: `server/pkg/db/queries/idempotency.sql` + `make sqlc`
 - Create: `server/internal/service/idempotency.go`
 - Create: `server/internal/service/idempotency_test.go`
@@ -424,7 +424,7 @@ git commit -m "feat(tasks): extend task collaboration APIs"
 
 - [ ] **Step 3: Cache coordinator unit tests PASS**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "feat(core): add Work Management API client core"
@@ -490,11 +490,11 @@ git commit -m "test(tasks): cover slice-2 catalogue routes and stubs"
 - Manifest verification overlay cho entry API đã có evidence
 - UniAI comment + `make issue-pr KEY=UNI-497`
 
-- [ ] **Step 1: Scans** — no source brand; catalogue PASS; flag-off MVP smoke
+- [x] **Step 1: Scans** — no source brand; catalogue PASS; flag-off MVP smoke
 
-- [ ] **Step 2: Gates** — `pnpm --filter @uniwork/core test`, `make test-go`, `make check-worktree`
+- [x] **Step 2: Gates** — `pnpm --filter @uniwork/core test`, `make test-go`, `make check-worktree`
 
-- [ ] **Step 3: Docs + overlay**
+- [x] **Step 3: Docs + overlay**
 
 - [ ] **Step 4: Commit**
 
@@ -502,7 +502,7 @@ git commit -m "test(tasks): cover slice-2 catalogue routes and stubs"
 git commit -m "docs: record UNI-497 API client core evidence"
 ```
 
-- [ ] **Step 5: UniAI stop comment + PR**
+- [x] **Step 5: UniAI stop comment + PR**
 
 ---
 

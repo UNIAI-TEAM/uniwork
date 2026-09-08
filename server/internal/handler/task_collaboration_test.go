@@ -150,4 +150,24 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 	if errObj["code"] != "capability_unavailable" {
 		t.Fatalf("attachments code = %v", body)
 	}
+
+	const fakeAttachment = "01J8X4ATTN1P2Q3R4S5T6U7V8"
+	for _, p := range []struct {
+		method, path string
+	}{
+		{http.MethodGet, "/api/v1/attachments/" + fakeAttachment},
+		{http.MethodDelete, "/api/v1/attachments/" + fakeAttachment},
+		{http.MethodGet, "/api/v1/comments/" + parentID + "/sub-task-preview"},
+		{http.MethodPost, "/api/v1/comments/" + parentID + "/sub-tasks"},
+		{http.MethodPost, "/api/v1/tasks/" + taskID + "/comments/trigger-preview"},
+	} {
+		res, body = doJSON(t, srv, p.method, p.path, token, nil)
+		if res.StatusCode != 422 {
+			t.Fatalf("%s %s status = %d %v", p.method, p.path, res.StatusCode, body)
+		}
+		errObj, _ = body["error"].(map[string]any)
+		if errObj["code"] != "capability_unavailable" {
+			t.Fatalf("%s %s code = %v", p.method, p.path, body)
+		}
+	}
 }

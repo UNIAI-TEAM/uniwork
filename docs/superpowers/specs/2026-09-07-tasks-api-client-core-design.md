@@ -1,6 +1,6 @@
 # UniWork — Tasks API và client core (UNI-426 lát cắt 2)
 
-> **Trạng thái:** approved — đã duyệt 2026-09-07; issue `UNI-497`; plan tại `../plans/2026-09-07-tasks-api-client-core.md`
+> **Trạng thái:** shipped — đã duyệt 2026-09-07; issue `UNI-497` API+client core shipped; plan tại `../plans/2026-09-07-tasks-api-client-core.md`
 
 **Ngày:** 2026-09-07  
 **Issue:** UNI-497 · UNI-426.2  
