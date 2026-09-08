@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { resetPeopleViewStoreForTests, usePeopleViewStore } from "@uniwork/core/people/view-store";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -70,14 +71,103 @@ describe("PeopleView", () => {
     resetAuthStoreForTests();
     setSessionUser(user);
     requestMock.mockReset();
+    localStorage.clear();
+    resetPeopleViewStoreForTests();
     vi.useRealTimers();
   });
 
-  it("lists people with their title and department", async () => {
+  it("opens on the card view, with the title, department and email of each person", async () => {
     mockApi("member");
     renderView();
     expect(await screen.findByText("Nguyễn Văn Ân")).toBeInTheDocument();
-    expect(screen.getByText("Trưởng nhóm · Kỹ thuật · an@acme.vn")).toBeInTheDocument();
+    expect(screen.getByText("Trưởng nhóm")).toBeInTheDocument();
+    expect(screen.getByText("Kỹ thuật")).toBeInTheDocument();
+    expect(screen.getByText("an@acme.vn")).toBeInTheDocument();
+    // A card view has no column headers.
+    expect(screen.queryByRole("columnheader")).toBeNull();
+  });
+
+  it("switches to the table view from the toolbar and remembers the choice", async () => {
+    mockApi("member");
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+
+    fireEvent.click(screen.getByRole("button", { name: /Chế độ xem/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Bảng" }));
+
+    expect(await screen.findByText("Tên")).toBeInTheDocument();
+    expect(usePeopleViewStore.getState().viewMode).toBe("table");
+  });
+
+  it("says which view is active in the button's accessible name", async () => {
+    mockApi("member");
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+    // The visible word is part of the name (WCAG 2.5.3), and the purpose is
+    // still said, so the button is not just "Thẻ" out of context.
+    expect(screen.getByRole("button", { name: "Chế độ xem: Thẻ" })).toBeInTheDocument();
+  });
+
+  it("keeps the toolbar's controls in place when the view changes", async () => {
+    mockApi("member");
+    const { container } = renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+    const before = container.querySelectorAll("button").length;
+
+    fireEvent.click(screen.getByRole("button", { name: /Chế độ xem/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Bảng" }));
+    await screen.findByText("Tên");
+
+    // Same controls, same slots: nothing shifts under the cursor that just
+    // clicked the view button.
+    expect(container.querySelectorAll("button").length).toBe(before);
+  });
+
+  it("shows skeletons rather than a spinner while the first page loads", () => {
+    requestMock.mockImplementation(() => new Promise(() => {}));
+    const { container } = renderView();
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+  });
+
+  it("hides a table column from the display menu", async () => {
+    mockApi("member");
+    usePeopleViewStore.getState().setViewMode("table");
+    renderView();
+    expect(await screen.findByText("Email")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hiển thị" }));
+    fireEvent.click(await screen.findByRole("switch", { name: "Email" }));
+
+    await waitFor(() => expect(screen.queryByText("an@acme.vn")).toBeNull());
+    expect(usePeopleViewStore.getState().hiddenColumns).toContain("email");
+  });
+
+  it("sends the department chosen in the filter menu to the server", async () => {
+    const calls = mockApi("member");
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+
+    fireEvent.click(screen.getByRole("button", { name: "Bộ lọc" }));
+    fireEvent.click(await screen.findByText("Phòng ban"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Kỹ thuật" }));
+
+    await waitFor(() => expect(calls.some((c) => c.includes("department_id=d1"))).toBe(true));
+    expect(screen.getByRole("button", { name: "1 bộ lọc" })).toBeInTheDocument();
+  });
+
+  it("clears every filter at once", async () => {
+    const calls = mockApi("member");
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+
+    fireEvent.click(screen.getByRole("button", { name: "Bộ lọc" }));
+    fireEvent.click(await screen.findByText("Trạng thái"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Tất cả" }));
+    await waitFor(() => expect(calls.some((c) => c.includes("status=all"))).toBe(true));
+
+    fireEvent.click(screen.getByRole("button", { name: "Xóa bộ lọc" }));
+    await waitFor(() => expect(calls.some((c) => c.includes("status=active"))).toBe(true));
+    expect(screen.queryByRole("button", { name: "Xóa bộ lọc" })).toBeNull();
   });
 
   it("debounces the search box into one request rather than one per keystroke", async () => {
@@ -110,7 +200,7 @@ describe("PeopleView", () => {
     );
   });
 
-  it("says the directory is empty rather than showing placeholder rows", async () => {
+  it("says the directory is empty rather than showing placeholder cards", async () => {
     mockApi("owner", []);
     renderView();
     expect(await screen.findByText("Chỉ có bạn trong tổ chức")).toBeInTheDocument();
