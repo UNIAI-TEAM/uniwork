@@ -285,6 +285,55 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 	return i, err
 }
 
+const createChatVoiceMessage = `-- name: CreateChatVoiceMessage :one
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id
+) VALUES (
+  $1, $2, $3, $4, $5, 'voice', '', $6, $7, $8
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
+`
+
+type CreateChatVoiceMessageParams struct {
+	ID               string      `json:"id"`
+	RoomID           string      `json:"room_id"`
+	WorkspaceID      string      `json:"workspace_id"`
+	SenderID         string      `json:"sender_id"`
+	SenderKind       string      `json:"sender_kind"`
+	Metadata         []byte      `json:"metadata"`
+	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
+	ClientMsgID      pgtype.Text `json:"client_msg_id"`
+}
+
+func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoiceMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, createChatVoiceMessage,
+		arg.ID,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.SenderID,
+		arg.SenderKind,
+		arg.Metadata,
+		arg.ReplyToMessageID,
+		arg.ClientMsgID,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+	)
+	return i, err
+}
+
 const getActiveChatRoomMember = `-- name: GetActiveChatRoomMember :one
 SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')

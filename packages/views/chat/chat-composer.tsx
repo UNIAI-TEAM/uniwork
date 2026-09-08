@@ -30,6 +30,7 @@ import {
   getActiveMentionQuery,
   insertMentionToken,
 } from "./chat-mention-utils";
+import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 
 type ComposerAttachAction =
   | "create_poll"
@@ -196,6 +197,7 @@ export function ChatComposer({
   onComposerPriorityChange,
   onAttachAction,
   onSendMedia,
+  onSendVoice,
   showCreatePoll = true,
 }: {
   workspaceId: string;
@@ -211,6 +213,7 @@ export function ChatComposer({
   onComposerPriorityChange?: (priority: ComposerMessagePriority | null) => void;
   onAttachAction?: (action: ComposerAttachAction) => void;
   onSendMedia?: (body: string) => void | Promise<void>;
+  onSendVoice?: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   showCreatePoll?: boolean;
 }) {
   const { t } = useTranslation();
@@ -220,6 +223,8 @@ export function ChatComposer({
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const canSend = !disabled && draft.trim().length > 0;
   const mentionEnabled = mentionCandidates !== undefined;
+  const voiceRecorder = useChatVoiceRecorder();
+  const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
 
   const visibleMentionCandidates = useMemo(() => {
     if (!mentionEnabled || mentionStart === null) return [];
@@ -302,6 +307,12 @@ export function ChatComposer({
     onSend();
   };
 
+  const voiceTime = `${Math.floor(voiceRecorder.elapsedMs / 60_000)}:${Math.floor(
+    (voiceRecorder.elapsedMs % 60_000) / 1000,
+  )
+    .toString()
+    .padStart(2, "0")}`;
+
   return (
     <div className="flex shrink-0 flex-col gap-1 border-t border-border bg-surface px-3 py-3">
       {typingLabel ? (
@@ -317,6 +328,49 @@ export function ChatComposer({
           />
         </div>
       ) : null}
+      {voiceActive ? (
+        <div className="flex min-h-11 items-center gap-3 rounded-2xl border border-border bg-muted/40 px-3 py-2">
+          <span className="size-2 shrink-0 rounded-full bg-destructive" aria-hidden />
+          <span className="min-w-0 flex-1 text-body tabular-nums text-foreground">
+            {voiceRecorder.state === "requesting"
+              ? t("chat.voice_requesting")
+              : voiceRecorder.state === "uploading"
+                ? t("chat.voice_uploading")
+                : voiceTime}
+          </span>
+          {voiceRecorder.error ? (
+            <span className="text-caption text-destructive" role="alert">
+              {t("chat.voice_record_failed")}
+            </span>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={voiceRecorder.state === "uploading"}
+            onClick={voiceRecorder.cancel}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={
+              voiceRecorder.state === "requesting" ||
+              voiceRecorder.state === "uploading" ||
+              !onSendVoice
+            }
+            onClick={() => {
+              if (!onSendVoice) return;
+              void voiceRecorder.upload(({ blob, durationMs }) =>
+                onSendVoice({ blob, durationMs }),
+              );
+            }}
+          >
+            {t("chat.send")}
+          </Button>
+        </div>
+      ) : (
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -435,7 +489,7 @@ export function ChatComposer({
               <ComposerToolbarButton
                 label={t("chat.composer_voice")}
                 disabled={disabled}
-                onClick={() => handleAttachAction("voice")}
+                onClick={() => void voiceRecorder.start()}
               >
                 <Mic aria-hidden className="size-5" />
               </ComposerToolbarButton>
@@ -443,6 +497,7 @@ export function ChatComposer({
           </div>
         </div>
       </form>
+      )}
     </div>
   );
 }

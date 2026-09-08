@@ -41,6 +41,13 @@ export const ChatMessageSchema = z.object({
       caller_id: z.string(),
     })
     .optional(),
+  voice: z
+    .object({
+      duration_ms: z.number().optional().default(0),
+      content_type: z.string().optional().default(""),
+      size_bytes: z.number().optional().default(0),
+    })
+    .optional(),
   poll: z
     .object({
       question: z.string(),

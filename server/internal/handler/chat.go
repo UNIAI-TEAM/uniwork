@@ -49,6 +49,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			CallerID:        m.VoiceCall.CallerID,
 		}
 	}
+	if m.Voice != nil {
+		out.Voice = &sdo.VoiceMessageDTO{
+			DurationMS:  m.Voice.DurationMS,
+			ContentType: m.Voice.ContentType,
+			SizeBytes:   m.Voice.SizeBytes,
+		}
+	}
 	if m.Poll != nil {
 		options := make([]sdo.ChatPollOptionDTO, 0, len(m.Poll.Options))
 		for _, option := range m.Poll.Options {

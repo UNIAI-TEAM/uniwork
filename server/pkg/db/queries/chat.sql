@@ -84,6 +84,13 @@ INSERT INTO chat_messages (
   $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id)
 ) RETURNING *;
 
+-- name: CreateChatVoiceMessage :one
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id
+) VALUES (
+  $1, $2, $3, $4, $5, 'voice', '', $6, $7, sqlc.narg(client_msg_id)
+) RETURNING *;
+
 -- name: GetChatMessageByClientMsgID :one
 SELECT * FROM chat_messages
 WHERE room_id = $1

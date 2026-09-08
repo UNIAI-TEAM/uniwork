@@ -14,6 +14,13 @@ type VoiceCallLogDTO struct {
 	CallerID        string `json:"caller_id" description:"User id of the caller" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 }
 
+// VoiceMessageDTO is metadata for private voice-message content.
+type VoiceMessageDTO struct {
+	DurationMS  int    `json:"duration_ms" description:"Recording duration in milliseconds" example:"12500"`
+	ContentType string `json:"content_type" description:"Sniffed audio MIME type" example:"audio/webm"`
+	SizeBytes   int64  `json:"size_bytes" description:"Stored audio size in bytes" example:"184320"`
+}
+
 // ChatPollOptionDTO is one poll choice with vote count.
 type ChatPollOptionDTO struct {
 	ID    string `json:"id" description:"Option id" example:"01J8X4OPT0N1P2Q3R4S5T6U7V8"`
@@ -69,6 +76,7 @@ type ChatMessageDTO struct {
 	MentionedUserIDs  []string         `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
 	Reactions         map[string]int   `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
 	VoiceCall         *VoiceCallLogDTO `json:"voice_call,omitempty" description:"Voice call log metadata when kind is voice_call_log"`
+	Voice             *VoiceMessageDTO `json:"voice,omitempty" description:"Voice recording metadata when kind is voice"`
 	Poll              *ChatPollDTO     `json:"poll,omitempty" description:"Poll payload when kind is poll"`
 	Reminder          *ChatReminderDTO `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
 	Note              *ChatNoteDTO     `json:"note,omitempty" description:"Note payload when kind is note"`

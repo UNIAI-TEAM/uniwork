@@ -18,6 +18,8 @@ import {
   lookupChatUserById,
   resolveDMRoom,
   sendChatRoomMessage,
+  sendChatVoiceMessage,
+  loadChatVoiceBlob,
   sendWorkspaceChatMessage,
   signalChatTyping,
   signalChatVoiceAccept,
@@ -182,6 +184,36 @@ describe("chat endpoints", () => {
   it("sendChatRoomMessage degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await sendChatRoomMessage("ws1", "room1", { body: "hi" })).toBeNull();
+  });
+
+  it("sendChatVoiceMessage sends multipart fields and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const file = new Blob(["voice"], { type: "audio/webm;codecs=opus" });
+    expect(
+      await sendChatVoiceMessage("ws1", "room1", {
+        file,
+        duration_ms: 1234,
+        client_msg_id: "client-1",
+        reply_to_message_id: "reply-1",
+      }),
+    ).toBeNull();
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init?.body as FormData;
+    expect(form.get("duration_ms")).toBe("1234");
+    expect(form.get("client_msg_id")).toBe("client-1");
+    expect(form.get("reply_to_message_id")).toBe("reply-1");
+    expect(form.get("file")).toBeInstanceOf(Blob);
+    expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+  });
+
+  it("loadChatVoiceBlob returns authenticated binary response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("voice", { headers: { "Content-Type": "audio/webm" } }),
+    );
+    const blob = await loadChatVoiceBlob("ws1", "room1", "message1");
+    expect(blob.type).toBe("audio/webm");
+    expect(await blob.text()).toBe("voice");
   });
 
   it("leaveChatRoom degrades on malformed response", async () => {

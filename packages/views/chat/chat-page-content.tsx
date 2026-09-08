@@ -56,6 +56,7 @@ export function ChatPageContent({
   onComposerPriorityChange,
   onSend,
   onSendMedia,
+  onSendVoice,
   groupSettingsOpen,
   onGroupSettingsOpenChange,
   dmSettingsOpen,
@@ -419,6 +420,7 @@ export function ChatPageContent({
                   onComposerPriorityChange={onComposerPriorityChange}
                   onSend={onSend}
                   onSendMedia={onSendMedia}
+                  onSendVoice={onSendVoice}
                   disabled={showLoading || !activeRoomId || dmBlocked || chatSendRestricted}
                   mentionCandidates={
                     target.kind === "workspace" || target.kind === "group" ? mentionCandidates : undefined

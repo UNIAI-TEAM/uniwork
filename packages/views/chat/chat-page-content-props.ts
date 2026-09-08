@@ -39,6 +39,7 @@ export type ChatPageContentProps = {
   onComposerPriorityChange: React.Dispatch<React.SetStateAction<ComposerMessagePriority | null>>;
   onSend: () => void;
   onSendMedia: (body: string) => void | Promise<void>;
+  onSendVoice: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   dmSettingsOpen: boolean;

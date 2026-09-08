@@ -109,6 +109,7 @@ export function ChatSidebar({
 
   const youLabel = t("chat.you");
   const voiceCallPreviewLabel = t("chat.sidebar_voice_call_preview");
+  const voiceMessagePreviewLabel = t("chat.sidebar_voice_message_preview");
   const yesterdayLabel = t("chat.sidebar_yesterday");
 
   const showWorkspace =
@@ -236,6 +237,7 @@ export function ChatSidebar({
                   isGroup: true,
                   youLabel,
                   voiceCallLabel: voiceCallPreviewLabel,
+                  voiceMessageLabel: voiceMessagePreviewLabel,
                   yesterdayLabel,
                   nicknamesByUserId,
                 }}
@@ -278,6 +280,7 @@ export function ChatSidebar({
                           isGroup: true,
                           youLabel,
                           voiceCallLabel: voiceCallPreviewLabel,
+                          voiceMessageLabel: voiceMessagePreviewLabel,
                           yesterdayLabel,
                           nicknamesByUserId,
                         }}
@@ -331,6 +334,7 @@ export function ChatSidebar({
                           isGroup: false,
                           youLabel,
                           voiceCallLabel: voiceCallPreviewLabel,
+                          voiceMessageLabel: voiceMessagePreviewLabel,
                           yesterdayLabel,
                           nicknamesByUserId,
                         }}
