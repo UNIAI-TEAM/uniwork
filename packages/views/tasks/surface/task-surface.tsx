@@ -154,6 +154,7 @@ function TaskSurfaceContent({
               ) : controller.viewMode === "table" ? (
                 <TableView
                   workspaceId={workspaceId}
+                  filter={controller.tableFilter}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
                   onOpenTask={onOpenTask}
