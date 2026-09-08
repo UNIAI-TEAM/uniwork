@@ -36,12 +36,7 @@ type SubscribeTaskInput struct {
 }
 
 func collaborationUnavailable(reason, msg string) error {
-	return CodedError{
-		Code:   "capability_unavailable",
-		Status: http.StatusUnprocessableEntity,
-		Msg:    msg,
-		Fields: map[string]any{"reason_code": reason},
-	}
+	return CapabilityUnavailable(reason, msg)
 }
 
 func validateReactionEmoji(emoji string) (string, error) {

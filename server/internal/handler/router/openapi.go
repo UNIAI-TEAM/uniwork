@@ -272,6 +272,21 @@ func pathParamSDI(path string) any {
 			TaskID     string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 			PropertyID string `path:"propertyID" description:"ULID thuộc tính" example:"01J8X4PROP0N1P2Q3R4S5T6U7"`
 		}{}
+	case "taskID,quickActionID":
+		return struct {
+			TaskID        string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			QuickActionID string `path:"quickActionID" description:"ULID quick action" example:"01J8X4QACT0N1P2Q3R4S5T6"`
+		}{}
+	case "taskID,agentTaskID":
+		return struct {
+			TaskID      string `path:"taskID" description:"ULID công việc cha" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			AgentTaskID string `path:"agentTaskID" description:"ULID agent task lồng" example:"01J8X4ATSK0N1P2Q3R4S5T6"`
+		}{}
+	case "workspaceID,connectionID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ConnectionID string `path:"connectionID" description:"ULID VCS connection" example:"01J8X4VCS0N1P2Q3R4S5T6U7"`
+		}{}
 	case "commentID":
 		return struct {
 			CommentID string `path:"commentID" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`

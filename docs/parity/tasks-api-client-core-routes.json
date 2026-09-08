@@ -39,6 +39,13 @@
     },
     {
       "method": "DELETE",
+      "source_path": "/api/issues/{id}/dependencies/{dependsOnTaskID}",
+      "target_path": "/api/v1/tasks/{taskID}/dependencies/{dependsOnTaskID}",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "DELETE",
       "source_path": "/api/issues/{id}/labels/{labelID}",
       "target_path": "/api/v1/tasks/{taskID}/labels/{labelID}",
       "group": "catalog",
@@ -167,8 +174,8 @@
       "method": "GET",
       "source_path": "/api/tasks/{taskID}/messages",
       "target_path": "/api/v1/tasks/{taskID}/messages",
-      "group": "tasks",
-      "disposition": "adapted"
+      "group": "stub",
+      "disposition": "stubbed"
     },
     {
       "method": "GET",
@@ -209,8 +216,8 @@
       "method": "GET",
       "source_path": "/api/assignee-frequency",
       "target_path": "/api/v1/workspaces/{workspaceID}/assignee-frequency",
-      "group": "my_tasks",
-      "disposition": "adapted"
+      "group": "stub",
+      "disposition": "stubbed"
     },
     {
       "method": "GET",
@@ -335,15 +342,15 @@
       "method": "GET",
       "source_path": "/api/issues/limit-usage",
       "target_path": "/api/v1/workspaces/{workspaceID}/tasks/limit-usage",
-      "group": "tasks",
-      "disposition": "adapted"
+      "group": "stub",
+      "disposition": "stubbed"
     },
     {
       "method": "GET",
       "source_path": "/api/issues/search",
       "target_path": "/api/v1/workspaces/{workspaceID}/tasks/search",
-      "group": "tasks",
-      "disposition": "adapted"
+      "group": "stub",
+      "disposition": "stubbed"
     },
     {
       "method": "GET",
@@ -424,6 +431,13 @@
     },
     {
       "method": "POST",
+      "source_path": "/api/issues/{id}/dependencies",
+      "target_path": "/api/v1/tasks/{taskID}/dependencies",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "POST",
       "source_path": "/api/issues/{id}/labels",
       "target_path": "/api/v1/tasks/{taskID}/labels",
       "group": "catalog",
@@ -433,8 +447,8 @@
       "method": "POST",
       "source_path": "/api/issues/{id}/move",
       "target_path": "/api/v1/tasks/{taskID}/move",
-      "group": "tasks",
-      "disposition": "adapted"
+      "group": "stub",
+      "disposition": "stubbed"
     },
     {
       "method": "POST",
@@ -481,7 +495,7 @@
     {
       "method": "POST",
       "source_path": "/api/issues/{taskID}/tasks/{taskID}/cancel",
-      "target_path": "/api/v1/tasks/{taskID}/tasks/{taskID}/cancel",
+      "target_path": "/api/v1/tasks/{taskID}/tasks/{agentTaskID}/cancel",
       "group": "stub",
       "disposition": "stubbed"
     },
@@ -573,8 +587,8 @@
       "method": "POST",
       "source_path": "/api/issues/preview-trigger",
       "target_path": "/api/v1/workspaces/{workspaceID}/tasks/preview-trigger",
-      "group": "tasks",
-      "disposition": "adapted"
+      "group": "stub",
+      "disposition": "stubbed"
     },
     {
       "method": "POST",
@@ -587,8 +601,8 @@
       "method": "POST",
       "source_path": "/api/issues/quick-create",
       "target_path": "/api/v1/workspaces/{workspaceID}/tasks/quick-create",
-      "group": "tasks",
-      "disposition": "adapted"
+      "group": "stub",
+      "disposition": "stubbed"
     },
     {
       "method": "POST",
@@ -636,6 +650,13 @@
       "method": "PUT",
       "source_path": "/api/issues/{id}",
       "target_path": "/api/v1/tasks/{taskID}",
+      "group": "tasks",
+      "disposition": "adapted"
+    },
+    {
+      "method": "PUT",
+      "source_path": "/api/issues/{id}/parent",
+      "target_path": "/api/v1/tasks/{taskID}/parent",
       "group": "tasks",
       "disposition": "adapted"
     },

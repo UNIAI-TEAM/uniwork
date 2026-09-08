@@ -178,6 +178,9 @@ type Routes struct {
 	CreateCommentSubTasks  http.HandlerFunc
 	PreviewCommentTriggers http.HandlerFunc
 
+	// WorkManagementCapabilityStub backs every catalogue disposition:stubbed route.
+	WorkManagementCapabilityStub http.HandlerFunc
+
 	ListNotifications          http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc

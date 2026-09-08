@@ -449,5 +449,7 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			summary: "Comment trigger preview", description: "Preview agent mention (stub). Flag tasks_work_management_parity.",
 			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
 		})
+
+		registerTasksSuiteStubs(suite, h)
 	})
 }

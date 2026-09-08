@@ -81,8 +81,9 @@ function isWorkManagementSource(path) {
 
 function classify(path) {
   const p = path.toLowerCase();
+  // AgentRun / VCS / PR / and slice-2 leftovers that stay capability stubs.
   if (
-    /task-runs|pull-requests|\/vcs\/|\/usage$|\/rerun$|\/active-task$|\/tasks\/\{taskid\}\/cancel|retry-source-context|quick-actions/.test(
+    /task-runs|pull-requests|\/vcs\/|\/usage$|\/rerun$|\/active-task$|\/cancel$|retry-source-context|quick-actions|\/messages$|assignee-frequency|limit-usage|\/tasks\/search$|\/move$|preview-trigger|quick-create/.test(
       p,
     )
   ) {
@@ -99,7 +100,7 @@ function classify(path) {
   if (/\/comments|\/reactions|\/subscribers|\/subscribe|\/unsubscribe|\/attachments|\/timeline/.test(p)) {
     return { group: "collaboration", disposition: "adapted" };
   }
-  if (/my-tasks|assignee-frequency/.test(p)) return { group: "my_tasks", disposition: "adapted" };
+  if (/my-tasks/.test(p)) return { group: "my_tasks", disposition: "adapted" };
   return { group: "tasks", disposition: "adapted" };
 }
 
@@ -134,7 +135,14 @@ function mapTargetPath(sourcePath) {
 
   // Task-by-id resources (and AgentRun /api/tasks/...) stay under /api/v1/tasks/{taskID}/...
   if (/^\/api\/tasks\/\{/.test(renamed)) {
-    return `/api/v1${renamed.slice("/api".length)}`.replace("{id}", "{taskID}");
+    let target = `/api/v1${renamed.slice("/api".length)}`.replace("{id}", "{taskID}");
+    // Nested AgentRun cancel under a parent task uses a distinct param so
+    // OpenAPI path params stay unique (`{taskID}` twice is invalid).
+    target = target.replace(
+      /\/tasks\/\{taskID\}\/tasks\/\{taskID\}\//,
+      "/tasks/{taskID}/tasks/{agentTaskID}/",
+    );
+    return target;
   }
 
   // Workspace-scoped collections and nested collection helpers.
@@ -222,6 +230,38 @@ export function buildCatalogue({ baseline, clientSource }) {
       group: "my_tasks",
       disposition: "adapted",
     });
+    seenTargets.add(myKey);
+  }
+
+  // Parent / dependency writes are UniWork additions (Task 5) — not in Multica inventory.
+  const graphExtras = [
+    {
+      method: "PUT",
+      source_path: "/api/issues/{id}/parent",
+      target_path: "/api/v1/tasks/{taskID}/parent",
+      group: "tasks",
+      disposition: "adapted",
+    },
+    {
+      method: "POST",
+      source_path: "/api/issues/{id}/dependencies",
+      target_path: "/api/v1/tasks/{taskID}/dependencies",
+      group: "tasks",
+      disposition: "adapted",
+    },
+    {
+      method: "DELETE",
+      source_path: "/api/issues/{id}/dependencies/{dependsOnTaskID}",
+      target_path: "/api/v1/tasks/{taskID}/dependencies/{dependsOnTaskID}",
+      group: "tasks",
+      disposition: "adapted",
+    },
+  ];
+  for (const extra of graphExtras) {
+    const key = `${extra.method} ${extra.target_path}`;
+    if (seenTargets.has(key)) continue;
+    seenTargets.add(key);
+    routes.push(extra);
   }
 
   routes.sort((a, b) => {

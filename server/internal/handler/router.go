@@ -269,6 +269,8 @@ func New(d Deps) http.Handler {
 		CreateCommentSubTasks:  h.createCommentSubTasks,
 		PreviewCommentTriggers: h.previewCommentTriggers,
 
+		WorkManagementCapabilityStub: h.workManagementCapabilityStub,
+
 		ListNotifications:          h.listNotifications,
 		UnreadNotificationCount:    h.unreadNotificationCount,
 		MarkNotificationsRead:      h.markNotificationsRead,

@@ -22,4 +22,12 @@ test("slice-2 route catalogue pins Work Management API surface", async () => {
   for (const g of ["tasks", "table", "catalog", "views", "projects", "collaboration"]) {
     assert.ok(groups.has(g), `missing group ${g}`);
   }
+  for (const key of [
+    "GET /api/v1/workspaces/{workspaceID}/my-tasks",
+    "PUT /api/v1/tasks/{taskID}/parent",
+    "POST /api/v1/tasks/{taskID}/dependencies",
+    "DELETE /api/v1/tasks/{taskID}/dependencies/{dependsOnTaskID}",
+  ]) {
+    assert.ok(keys.includes(key), `missing graph/my-tasks route ${key}`);
+  }
 });
