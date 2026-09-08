@@ -58,6 +58,7 @@
     "./paths": "./paths/index.ts",
     "./organizations": "./organizations/hooks.ts",
     "./people": "./people/hooks.ts",
+    "./people/view-store": "./people/view-store.ts",
     "./onboarding": "./onboarding/index.ts",
     "./config": "./config.ts",
     "./runtime-config": "./runtime-config.ts",

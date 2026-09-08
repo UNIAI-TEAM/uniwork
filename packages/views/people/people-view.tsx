@@ -1,43 +1,52 @@
 "use client";
 
-import { Download, Search, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Download, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { exportPeopleUrl } from "@uniwork/core/api/endpoints/people";
 import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { useDepartments, usePeople } from "@uniwork/core/people";
+import { usePeopleViewStore } from "@uniwork/core/people/view-store";
 import type { PeopleFilters } from "@uniwork/core/types/people";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Select } from "@uniwork/ui/components/ui/select";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
-import { useNavigation } from "../navigation";
-import { DepartmentPicker } from "./department-picker";
-import { PeopleList } from "./people-list";
+import { PeopleCards } from "./people-cards";
+import { PeopleCardsSkeleton, PeopleRowsSkeleton } from "./people-skeleton";
+import { PeopleTable } from "./people-table";
+import {
+  countActiveFilters,
+  EMPTY_PEOPLE_FILTERS,
+  PeopleToolbar,
+  type PeopleFilterState,
+} from "./people-toolbar";
 
 const SEARCH_DEBOUNCE_MS = 250;
-const ANY = "__any__";
 
 /**
  * The organization's directory. Search is debounced because every keystroke
  * would otherwise become a query key, and the server folds diacritics, so
  * "nguyen van an" finds "Nguyễn Văn Ân".
+ *
+ * Two views over one query — a card grid and a dense table — chosen in the
+ * toolbar and remembered per browser. Filters stay here rather than in that
+ * store: they go to the server, and a filter remembered across visits would
+ * quietly hide colleagues.
  */
 export function PeopleView() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
   const orgSlug = workspace.organization_slug;
-  const { push } = useNavigation();
   const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [role, setRole] = useState("");
-  const [status, setStatus] = useState("active");
+  const [filterState, setFilterState] = useState<PeopleFilterState>(EMPTY_PEOPLE_FILTERS);
   const { canExport } = usePeoplePermissions(orgSlug);
   const { data: departments } = useDepartments(orgSlug);
+  const viewMode = usePeopleViewStore((s) => s.viewMode);
+  const setViewMode = usePeopleViewStore((s) => s.setViewMode);
+  const hiddenColumns = usePeopleViewStore((s) => s.hiddenColumns);
+  const toggleColumn = usePeopleViewStore((s) => s.toggleColumn);
 
   useEffect(() => {
     const id = setTimeout(() => setQuery(rawQuery), SEARCH_DEBOUNCE_MS);
@@ -45,8 +54,13 @@ export function PeopleView() {
   }, [rawQuery]);
 
   const filters: PeopleFilters = useMemo(
-    () => ({ q: query, department_id: departmentId, role, status }),
-    [departmentId, query, role, status],
+    () => ({
+      q: query,
+      department_id: filterState.departmentId,
+      role: filterState.role,
+      status: filterState.status,
+    }),
+    [filterState, query],
   );
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = usePeople(
     orgSlug,
@@ -54,9 +68,13 @@ export function PeopleView() {
   );
   const people = useMemo(() => (data?.pages ?? []).flatMap((p) => p.people), [data]);
   const totalActive = data?.pages[0]?.total_active ?? 0;
-  const filtered = query !== "" || departmentId !== "" || role !== "" || status !== "active";
+  const filtered = query !== "" || countActiveFilters(filterState) > 0;
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
 
-  const open = (userId: string) => push(paths.workspace(orgSlug, workspace.slug).person(userId));
+  const hrefFor = useCallback(
+    (userId: string) => paths.workspace(orgSlug, workspace.slug).person(userId),
+    [orgSlug, workspace.slug],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -77,45 +95,19 @@ export function PeopleView() {
           ) : null
         }
       />
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
-        <div className="relative min-w-48 flex-1">
-          <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label={t("people.search")}
-            className="pl-8"
-            placeholder={t("people.search_placeholder")}
-            value={rawQuery}
-            onChange={(e) => setRawQuery(e.target.value)}
-          />
-        </div>
-        <DepartmentPicker
-          departments={departments ?? []}
-          value={departmentId}
-          onValueChange={setDepartmentId}
-          ariaLabel={t("people.filter_department")}
-        />
-        <Select
-          aria-label={t("people.filter_role")}
-          value={role === "" ? ANY : role}
-          onValueChange={(v) => setRole(v === ANY ? "" : ((v as string) ?? ""))}
-          items={[
-            { value: ANY, label: t("people.role_any") },
-            { value: "owner", label: t("people.role_owner") },
-            { value: "admin", label: t("people.role_admin") },
-            { value: "member", label: t("people.role_member") },
-          ]}
-        />
-        <Select
-          aria-label={t("people.filter_status")}
-          value={status}
-          onValueChange={(v) => setStatus((v as string) ?? "active")}
-          items={[
-            { value: "active", label: t("people.status_active") },
-            { value: "deactivated", label: t("people.status_deactivated") },
-            { value: "all", label: t("people.status_all") },
-          ]}
-        />
-      </div>
+      <PeopleToolbar
+        search={rawQuery}
+        onSearchChange={setRawQuery}
+        shown={people.length}
+        total={totalActive}
+        departments={departments ?? []}
+        filters={filterState}
+        onFiltersChange={setFilterState}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        hiddenColumns={hiddenColumns}
+        onToggleColumn={toggleColumn}
+      />
 
       {isError ? (
         <CollectionPageState
@@ -126,8 +118,15 @@ export function PeopleView() {
           description={t("people.error_description")}
         />
       ) : isLoading ? (
-        <div className="flex flex-1 items-center justify-center py-16">
-          <Spinner />
+        // Skeletons, not a spinner: they hold the layout still and say what is
+        // coming, so the first page lands in place instead of pushing the page
+        // around (PRODUCT.md, "speed is a feature").
+        <div className="min-h-0 flex-1 overflow-hidden px-5 pt-4">
+          {viewMode === "table" ? (
+            <PeopleRowsSkeleton count={8} />
+          ) : (
+            <PeopleCardsSkeleton count={8} />
+          )}
         </div>
       ) : people.length === 0 ? (
         <CollectionPageState
@@ -135,13 +134,22 @@ export function PeopleView() {
           title={filtered ? t("people.empty_filtered_title") : t("people.empty_title")}
           description={filtered ? t("people.empty_filtered_description") : t("people.empty_description")}
         />
-      ) : (
-        <PeopleList
+      ) : viewMode === "table" ? (
+        <PeopleTable
           people={people}
-          onOpen={open}
+          hrefFor={hrefFor}
+          hiddenColumns={hiddenColumns}
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
-          onLoadMore={() => void fetchNextPage()}
+          onLoadMore={loadMore}
+        />
+      ) : (
+        <PeopleCards
+          people={people}
+          hrefFor={hrefFor}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          onLoadMore={loadMore}
         />
       )}
     </div>

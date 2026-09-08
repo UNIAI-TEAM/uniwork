@@ -44,6 +44,13 @@ function ListGrid({
   );
 }
 
+// The header's own height in pixels, for callers that have to do layout maths
+// against it — a windowed body needs it as the scroll margin, because the
+// sticky header sits inside the same scroller and offsets every row. It must
+// move together with the `h-9` below; there is no way to derive one from the
+// other, so they are declared next to each other.
+export const LIST_GRID_HEADER_HEIGHT = 36;
+
 function ListGridHeader({
   className,
   children,
