@@ -21,6 +21,7 @@
     "./tasks/cache-coordinator": "./tasks/cache-coordinator.ts",
     "./tasks/position": "./tasks/position.ts",
     "./tasks/surface/*": "./tasks/surface/*.ts",
+    "./tasks/stores/view-store-context": "./tasks/stores/view-store-context.tsx",
     "./tasks/stores/*": "./tasks/stores/*.ts",
     "./agents": "./agents/hooks.ts",
     "./audit": "./audit/hooks.ts",

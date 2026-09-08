@@ -102,7 +102,7 @@ export const viewStorePersistOptions = (name: string) => ({
     sortDirection: state.sortDirection,
     cardProperties: state.cardProperties,
     cardPropertyIds: state.cardPropertyIds,
-    showSubIssues: state.showSubIssues,
+    showSubTasks: state.showSubTasks,
     listCollapsedStatuses: state.listCollapsedStatuses,
     hiddenStatusCategories: state.hiddenStatusCategories,
     ganttZoom: state.ganttZoom,
@@ -146,9 +146,18 @@ export function mergeViewStatePersisted<T extends TaskViewState>(
   const persistedTitle = persistedTableColumns.find(
     (column) => column.key === "title",
   );
+  const legacy = p as Partial<T> & { showSubIssues?: unknown };
+  const { showSubIssues: _legacyShowSubIssues, ...persistedRest } = legacy;
+  const showSubTasks =
+    typeof legacy.showSubTasks === "boolean"
+      ? legacy.showSubTasks
+      : typeof legacy.showSubIssues === "boolean"
+        ? legacy.showSubIssues
+        : current.showSubTasks;
   return {
     ...current,
-    ...p,
+    ...persistedRest,
+    showSubTasks,
     cardProperties: {
       ...current.cardProperties,
       ...(p.cardProperties ?? {}),

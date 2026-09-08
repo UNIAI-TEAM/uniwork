@@ -17,7 +17,7 @@ import { DEFAULT_TABLE_COLUMNS } from "./view-store-types";
 export interface ViewDisplayFields {
   cardProperties: CardProperties;
   cardPropertyIds: string[];
-  showSubIssues: boolean;
+  showSubTasks: boolean;
   listCollapsedStatuses: TaskStatusCategory[];
   ganttZoom: GanttZoom;
   ganttShowCompleted: boolean;
@@ -34,7 +34,7 @@ export interface ViewDisplayFields {
   toggleGanttShowCompleted: () => void;
   toggleCardProperty: (key: keyof CardProperties) => void;
   toggleCardPropertyId: (propertyId: string) => void;
-  toggleShowSubIssues: () => void;
+  toggleShowSubTasks: () => void;
   toggleListCollapsed: (category: TaskStatusCategory) => void;
   setSwimlaneGrouping: (grouping: SwimlaneGrouping) => void;
   setSwimlaneOrder: (order: string[]) => void;
@@ -64,7 +64,7 @@ export function viewDisplaySlice(set: DisplaySetState): ViewDisplayFields {
       labels: true,
     },
     cardPropertyIds: [],
-    showSubIssues: true,
+    showSubTasks: true,
     listCollapsedStatuses: [],
     ganttZoom: "week",
     ganttShowCompleted: false,
@@ -94,8 +94,8 @@ export function viewDisplaySlice(set: DisplaySetState): ViewDisplayFields {
           ? state.cardPropertyIds.filter((id) => id !== propertyId)
           : [...state.cardPropertyIds, propertyId],
       })),
-    toggleShowSubIssues: () =>
-      set((state) => ({ showSubIssues: !state.showSubIssues })),
+    toggleShowSubTasks: () =>
+      set((state) => ({ showSubTasks: !state.showSubTasks })),
     toggleListCollapsed: (status) =>
       set((state) => ({
         listCollapsedStatuses: state.listCollapsedStatuses.includes(status)
