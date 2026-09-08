@@ -1,5 +1,5 @@
 -- Expand task_views.scope_variant for workspace/project Members/Agents tabs
--- (Multica checklist). Drop auto-named CHECKs from 111 and replace pairing.
+-- Drop auto-named CHECKs from 111 and replace pairing.
 ALTER TABLE task_views DROP CONSTRAINT IF EXISTS task_views_scope_variant_check;
 ALTER TABLE task_views DROP CONSTRAINT IF EXISTS task_views_check1;
 
