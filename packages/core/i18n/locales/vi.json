@@ -2322,6 +2322,20 @@
       "direction_desc": "Giảm dần",
       "section_columns": "Cột",
       "view": "Chế độ xem"
+    },
+    "capability_unavailable": "Tính năng này chưa khả dụng.",
+    "resources": {
+      "section_header": "Tài nguyên",
+      "empty": "Chưa gắn tài nguyên.",
+      "add_github": "Thêm kho GitHub",
+      "add_local_directory": "Thêm thư mục cục bộ",
+      "remove": "Xóa",
+      "rename": "Đổi tên",
+      "rename_label": "Nhãn tài nguyên",
+      "toast_removed": "Đã gỡ tài nguyên",
+      "toast_remove_failed": "Không gỡ được tài nguyên",
+      "toast_renamed": "Đã đổi tên",
+      "toast_rename_failed": "Không đổi tên được"
     }
   }
 }

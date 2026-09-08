@@ -2326,6 +2326,20 @@
       "direction_desc": "Descending",
       "section_columns": "Columns",
       "view": "View"
+    },
+    "capability_unavailable": "This capability is not available yet.",
+    "resources": {
+      "section_header": "Resources",
+      "empty": "No resources attached.",
+      "add_github": "Add GitHub repo",
+      "add_local_directory": "Add local directory",
+      "remove": "Remove",
+      "rename": "Rename",
+      "rename_label": "Resource label",
+      "toast_removed": "Resource removed",
+      "toast_remove_failed": "Failed to remove resource",
+      "toast_renamed": "Renamed",
+      "toast_rename_failed": "Failed to rename"
     }
   }
 }

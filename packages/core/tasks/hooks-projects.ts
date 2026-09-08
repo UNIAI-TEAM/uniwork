@@ -94,3 +94,36 @@ export function useCreateProjectResource(workspaceId: string, projectId: string)
     },
   });
 }
+
+export function usePutProjectResource(workspaceId: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      resourceId,
+      body,
+    }: {
+      resourceId: string;
+      body: projects.PutProjectResourceBody;
+    }) => projects.putProjectResource(workspaceId, projectId, resourceId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: taskKeys.projectResources(workspaceId, projectId),
+      });
+      void qc.invalidateQueries({ queryKey: taskKeys.project(workspaceId, projectId) });
+    },
+  });
+}
+
+export function useDeleteProjectResource(workspaceId: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (resourceId: string) =>
+      projects.deleteProjectResource(workspaceId, projectId, resourceId),
+    onSuccess: () => {
+      void qc.invalidateQueries({
+        queryKey: taskKeys.projectResources(workspaceId, projectId),
+      });
+      void qc.invalidateQueries({ queryKey: taskKeys.project(workspaceId, projectId) });
+    },
+  });
+}
