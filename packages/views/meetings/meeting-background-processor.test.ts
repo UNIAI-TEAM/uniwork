@@ -14,33 +14,33 @@ import {
 } from "./meeting-background-processor";
 
 describe("createMeetingBackgroundProcessor", () => {
-  it("returns blur processor for blur preset", () => {
-    expect(createMeetingBackgroundProcessor("blur", null)).toEqual({
+  it("returns blur processor for blur preset", async () => {
+    await expect(createMeetingBackgroundProcessor("blur", null)).resolves.toEqual({
       kind: "blur",
       radius: 12,
     });
   });
 
-  it("returns virtual background for preset and custom images", () => {
-    expect(createMeetingBackgroundProcessor("classroom", null)).toEqual({
+  it("returns virtual background for preset and custom images", async () => {
+    await expect(createMeetingBackgroundProcessor("classroom", null)).resolves.toEqual({
       kind: "virtual",
       imagePath: "/meetings/backgrounds/classroom.svg",
     });
-    expect(createMeetingBackgroundProcessor("nature", null)).toEqual({
+    await expect(createMeetingBackgroundProcessor("nature", null)).resolves.toEqual({
       kind: "virtual",
       imagePath: "/meetings/backgrounds/nature.svg",
     });
-    expect(
+    await expect(
       createMeetingBackgroundProcessor("custom", "data:image/png;base64,abc"),
-    ).toEqual({
+    ).resolves.toEqual({
       kind: "virtual",
       imagePath: "data:image/png;base64,abc",
     });
   });
 
-  it("returns null when no background should be applied", () => {
-    expect(createMeetingBackgroundProcessor("none", null)).toBeNull();
-    expect(createMeetingBackgroundProcessor("custom", null)).toBeNull();
+  it("returns null when no background should be applied", async () => {
+    await expect(createMeetingBackgroundProcessor("none", null)).resolves.toBeNull();
+    await expect(createMeetingBackgroundProcessor("custom", null)).resolves.toBeNull();
   });
 });
 

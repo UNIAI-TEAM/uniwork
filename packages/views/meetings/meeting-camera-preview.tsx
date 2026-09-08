@@ -173,7 +173,7 @@ export function MeetingCameraPreview({
         if (video) video.srcObject = null;
 
         const useBackground =
-          meetingBackgroundActive(background) && supportsBackgroundProcessors();
+          meetingBackgroundActive(background) && (await supportsBackgroundProcessors());
         if (useBackground) {
           await startWithBackground();
         } else {
