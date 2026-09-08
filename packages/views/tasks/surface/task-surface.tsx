@@ -32,6 +32,7 @@ export function TaskSurface({
   modes,
   surfaceKey,
   batchToolbar = "never",
+  onOpenTask,
   renderHeader,
   renderEmpty,
 }: TaskSurfaceProps) {
@@ -50,6 +51,7 @@ export function TaskSurface({
         scope={scope}
         modes={modes}
         batchToolbar={batchToolbar}
+        onOpenTask={onOpenTask}
         renderHeader={renderHeader}
         renderEmpty={renderEmpty}
       />
@@ -62,6 +64,7 @@ function TaskSurfaceContent({
   scope,
   modes,
   batchToolbar = "never",
+  onOpenTask,
   renderHeader,
   renderEmpty,
 }: Omit<TaskSurfaceProps, "surfaceKey">) {
@@ -127,19 +130,24 @@ function TaskSurfaceContent({
           ) : (
             <div className={cn("flex min-h-0 flex-1 flex-col")}>
               {controller.viewMode === "list" ? (
-                <ListView tasks={controller.surfaceTasks} />
+                <ListView
+                  tasks={controller.surfaceTasks}
+                  onOpenTask={onOpenTask}
+                />
               ) : controller.viewMode === "board" ? (
                 <BoardView
                   categories={controller.boardCategories}
                   tasks={controller.surfaceTasks}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                  onOpenTask={onOpenTask}
                 />
               ) : controller.viewMode === "table" ? (
                 <TableView
                   workspaceId={workspaceId}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                  onOpenTask={onOpenTask}
                 />
               ) : controller.viewMode === "gantt" ? (
                 <GanttView tasks={controller.ganttTasks} />
@@ -152,6 +160,7 @@ function TaskSurfaceContent({
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
                   parentGroupingDisabled={controller.parentGroupingDisabled}
                   parentGroupingReasonKey={controller.parentGroupingReasonKey}
+                  onOpenTask={onOpenTask}
                 />
               ) : (
                 <ModePlaceholder />

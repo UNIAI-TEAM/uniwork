@@ -15,6 +15,8 @@ export type TaskSurfaceProps = {
   modes: TaskSurfaceMode[];
   surfaceKey: string;
   batchToolbar?: "always" | "list" | "never";
+  /** Host navigation into task detail; omitted modes stay non-clickable. */
+  onOpenTask?: (id: string) => void;
   renderHeader?: (ctx: { controller: TaskSurfaceController }) => ReactNode;
   renderEmpty?: () => ReactNode;
 };
