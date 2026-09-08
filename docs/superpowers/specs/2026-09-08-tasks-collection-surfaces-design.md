@@ -1,6 +1,6 @@
 # UniWork — Tasks collection surfaces (UNI-426 lát cắt 3)
 
-> **Trạng thái:** approved — đã duyệt brainstorm 2026-09-08; plan `../plans/2026-09-08-tasks-collection-surfaces.md` sẵn; chờ UniAI KEY + `issue-start`; phụ thuộc UNI-497 shipped
+> **Trạng thái:** shipped — UNI-500 / UNI-426.3 collection surfaces đã qua gate; plan `../plans/2026-09-08-tasks-collection-surfaces.md`
 
 **Ngày:** 2026-09-08  
 **Issue:** UNI-500 · UNI-426.3  

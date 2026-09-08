@@ -1,6 +1,6 @@
 # UNI-426.3 · Tasks collection surfaces Implementation Plan
 
-> **Trạng thái:** ready — spec duyệt 2026-09-08; chờ UniAI KEY + `issue-start` + worktree trước product code
+> **Trạng thái:** shipped — UNI-500 slice 3 collection surfaces đã qua `make check-worktree`; PR/handoff Task 13
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
