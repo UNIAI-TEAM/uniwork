@@ -7,14 +7,8 @@ import { AvatarGroup, AvatarGroupCount } from "@uniwork/ui/components/ui/avatar"
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import {
-  formatMeetingDay,
-  formatMeetingTimes,
-  formatRelativeTime,
-  meetingDayKey,
-  meetingDurationParts,
-  meetingLocale,
-} from "./meeting-datetime";
+import { formatMeetingDay, formatMeetingTimes, meetingDayKey, meetingLocale } from "./meeting-datetime";
+import { formatRelativeTime, meetingDurationParts } from "./meeting-relative-time";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRsvpBar } from "./meeting-rsvp-bar";
 import { MeetingStatusBadge } from "./meeting-status-badge";
