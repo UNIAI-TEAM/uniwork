@@ -649,8 +649,13 @@
       "rename": "Rename",
       "expand_children": "Expand sub-tasks",
       "collapse_children": "Collapse sub-tasks",
+      "hierarchy_unavailable": "Not available yet",
       "empty": "No tasks in this table",
       "load_error": "Could not load the table",
+      "load_more": "Load more",
+      "loading_more": "Loading…",
+      "load_more_retry": "Retry",
+      "showing_of_total": "Showing {{shown}} of {{total}}",
       "unavailable_cell": "Unavailable",
       "grouping": {
         "none": "No grouping",

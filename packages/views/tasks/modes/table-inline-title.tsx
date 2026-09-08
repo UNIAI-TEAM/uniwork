@@ -10,6 +10,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 /**
  * Title cell with optional inline rename. When `editingDisabled`, the pencil
  * stays visible but inert (capability / mutation gate) — never invents success.
+ * Hierarchy expand stays visible-disabled until children fetch ships.
  */
 export function InlineTitle({
   title,
@@ -17,6 +18,8 @@ export function InlineTitle({
   hasChildren = false,
   collapsed = false,
   onToggleChildren,
+  hierarchyDisabled = false,
+  hierarchyDisabledReason,
   editingDisabled = false,
   editingDisabledReason,
   onCommit,
@@ -27,6 +30,8 @@ export function InlineTitle({
   hasChildren?: boolean;
   collapsed?: boolean;
   onToggleChildren?: () => void;
+  hierarchyDisabled?: boolean;
+  hierarchyDisabledReason?: string;
   editingDisabled?: boolean;
   editingDisabledReason?: string;
   onCommit?: (next: string) => void;
@@ -52,6 +57,9 @@ export function InlineTitle({
     onCommit(next);
   };
 
+  const hierarchyReason =
+    hierarchyDisabledReason ?? t("tasks.table.hierarchy_unavailable");
+
   return (
     <div
       className={cn("flex min-w-0 items-center gap-1", className)}
@@ -63,13 +71,18 @@ export function InlineTitle({
           variant="ghost"
           size="icon-sm"
           className="size-6 shrink-0"
+          disabled={hierarchyDisabled}
+          title={hierarchyDisabled ? hierarchyReason : undefined}
           aria-label={
-            collapsed
-              ? t("tasks.table.expand_children")
-              : t("tasks.table.collapse_children")
+            hierarchyDisabled
+              ? hierarchyReason
+              : collapsed
+                ? t("tasks.table.expand_children")
+                : t("tasks.table.collapse_children")
           }
           onClick={(event) => {
             event.stopPropagation();
+            if (hierarchyDisabled) return;
             onToggleChildren?.();
           }}
         >

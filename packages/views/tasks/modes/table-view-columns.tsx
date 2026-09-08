@@ -20,6 +20,8 @@ export type TableViewMeta = {
   visibleTaskIds: string[];
   editingDisabled: boolean;
   editingDisabledReason?: string;
+  hierarchyDisabled: boolean;
+  hierarchyDisabledReason?: string;
   columnLabel: (key: TableColumnKey) => string;
   sortBy: SortField;
   sortDirection: SortDirection;
@@ -27,7 +29,6 @@ export type TableViewMeta = {
   handleTaskSelection: (taskId: string, shiftKey: boolean) => void;
   selectAllVisible: () => void;
   clearVisibleSelection: () => void;
-  toggleParentCollapsed: (taskId: string) => void;
   selectedIds: Set<string>;
 };
 
@@ -162,7 +163,8 @@ function TaskCellContent({
           depth={row.depth}
           hasChildren={row.hasChildren}
           collapsed={row.collapsed}
-          onToggleChildren={() => meta.toggleParentCollapsed(task.id)}
+          hierarchyDisabled={meta.hierarchyDisabled}
+          hierarchyDisabledReason={meta.hierarchyDisabledReason}
           editingDisabled={meta.editingDisabled}
           editingDisabledReason={meta.editingDisabledReason}
         />

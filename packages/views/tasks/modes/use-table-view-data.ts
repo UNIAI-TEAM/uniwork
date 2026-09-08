@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,7 +13,9 @@ import { taskKeys, useTableGroups } from "@uniwork/core/tasks";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import type { Task } from "@uniwork/core/types";
 import {
+  TABLE_PAGE_SIZE,
   groupLabelFromDescriptor,
+  sortTasksForTable,
   tableGroupBy,
   type TaskTableDisplayRow,
 } from "./table-view-model";
@@ -31,6 +33,11 @@ export interface UseTableViewDataResult {
   groupsError: boolean;
 }
 
+type PageQuery = {
+  groupKey: string;
+  pageIndex: number;
+};
+
 export function useTableViewData({
   workspaceId,
   filter,
@@ -45,6 +52,8 @@ export function useTableViewData({
   const { t } = useTranslation();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
   const tableCollapsedGroups = useViewStore((s) => s.tableCollapsedGroups);
+  const sortBy = useViewStore((s) => s.sortBy);
+  const sortDirection = useViewStore((s) => s.sortDirection);
 
   const groupBy = tableGroupBy(tableGrouping, { projectsAvailable });
   const tableColumns = useViewStore((s) => s.tableColumns);
@@ -58,7 +67,7 @@ export function useTableViewData({
       filter,
       group_by: groupBy,
       columns,
-      limit: 50,
+      limit: TABLE_PAGE_SIZE,
       offset: 0,
     }),
     [columns, filter, groupBy],
@@ -71,31 +80,56 @@ export function useTableViewData({
     [tableCollapsedGroups],
   );
 
+  const [pagesByGroup, setPagesByGroup] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setPagesByGroup({});
+  }, [workspaceId, groupBy, columns, filter]);
+
+  const pageQueries = useMemo((): PageQuery[] => {
+    const list: PageQuery[] = [];
+    for (const group of groups) {
+      if (collapsed.has(group.key)) continue;
+      const pages = pagesByGroup[group.key] ?? 1;
+      for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
+        list.push({ groupKey: group.key, pageIndex });
+      }
+    }
+    return list;
+  }, [collapsed, groups, pagesByGroup]);
+
   const rowQueries = useQueries({
-    queries: groups.map((group) => ({
+    queries: pageQueries.map(({ groupKey, pageIndex }) => ({
       queryKey: taskKeys.tableRows(
         workspaceId,
         JSON.stringify({
           filter,
           group_by: groupBy,
-          group_key: group.key,
+          group_key: groupKey,
           columns,
-          limit: 50,
-          offset: 0,
+          limit: TABLE_PAGE_SIZE,
+          offset: pageIndex * TABLE_PAGE_SIZE,
         }),
       ),
       queryFn: () =>
         tableRows(workspaceId, {
           filter,
           group_by: groupBy,
-          group_key: group.key,
+          group_key: groupKey,
           columns,
-          limit: 50,
-          offset: 0,
+          limit: TABLE_PAGE_SIZE,
+          offset: pageIndex * TABLE_PAGE_SIZE,
         }),
-      enabled: !!workspaceId && !collapsed.has(group.key),
+      enabled: !!workspaceId,
     })),
   });
+
+  const loadMore = useCallback((groupKey: string) => {
+    setPagesByGroup((prev) => ({
+      ...prev,
+      [groupKey]: (prev[groupKey] ?? 1) + 1,
+    }));
+  }, []);
 
   const translateStatus = useCallback(
     (status: string) => {
@@ -114,6 +148,30 @@ export function useTableViewData({
     [t],
   );
 
+  const pagesForGroup = useCallback(
+    (groupKey: string) => {
+      const pages: Array<{
+        data?: TableRowsResult;
+        isLoading: boolean;
+        isError: boolean;
+        isFetching: boolean;
+      }> = [];
+      pageQueries.forEach((page, index) => {
+        if (page.groupKey !== groupKey) return;
+        const query = rowQueries[index];
+        if (!query) return;
+        pages.push({
+          data: query.data as TableRowsResult | undefined,
+          isLoading: query.isLoading,
+          isError: query.isError,
+          isFetching: query.isFetching,
+        });
+      });
+      return pages;
+    },
+    [pageQueries, rowQueries],
+  );
+
   const displayRows = useMemo(() => {
     const rows: TaskTableDisplayRow[] = [];
     const needle = search.trim().toLocaleLowerCase();
@@ -125,7 +183,7 @@ export function useTableViewData({
       return rows;
     }
 
-    groups.forEach((group, index) => {
+    for (const group of groups) {
       const isCollapsed = collapsed.has(group.key);
       rows.push({
         kind: "group",
@@ -141,47 +199,86 @@ export function useTableViewData({
         collapsed: isCollapsed,
       });
 
-      if (isCollapsed) return;
+      if (isCollapsed) continue;
 
-      const query = rowQueries[index];
-      if (!query || query.isLoading) {
+      const pages = pagesForGroup(group.key);
+      const anyLoading = pages.some((page) => page.isLoading && !page.data);
+      if (pages.length === 0 || anyLoading) {
         for (let i = 0; i < Math.min(group.count, 3); i += 1) {
           rows.push({
             kind: "skeleton",
             key: `skeleton:${group.key}:${i}`,
           });
         }
-        return;
+        continue;
       }
 
-      const page = query.data as TableRowsResult | undefined;
-      const pageRows = page?.rows ?? [];
-      for (const row of pageRows) {
+      const accumulated: Array<{ task: Task; direct_child_count: number }> = [];
+      let groupTotal = group.count;
+      let lastError = false;
+      let fetchingMore = false;
+      for (const page of pages) {
+        if (page.isError && !page.data) lastError = true;
+        if (page.isFetching && page.data) fetchingMore = true;
+        if (page.data) {
+          groupTotal = page.data.total;
+          accumulated.push(...page.data.rows);
+        }
+      }
+
+      const tasks = sortTasksForTable(
+        accumulated.map((row) => row.task),
+        sortBy,
+        sortDirection,
+      );
+      const childCountById = new Map(
+        accumulated.map((row) => [row.task.id, row.direct_child_count]),
+      );
+
+      for (const task of tasks) {
         if (
           needle &&
-          !row.task.title.toLocaleLowerCase().includes(needle) &&
-          !(row.task.identifier ?? "").toLocaleLowerCase().includes(needle)
+          !task.title.toLocaleLowerCase().includes(needle) &&
+          !(task.identifier ?? "").toLocaleLowerCase().includes(needle)
         ) {
           continue;
         }
         rows.push({
           kind: "task",
-          key: row.task.id,
-          task: row.task,
+          key: task.id,
+          task,
           depth: 0,
-          hasChildren: row.direct_child_count > 0,
+          hasChildren: (childCountById.get(task.id) ?? 0) > 0,
           collapsed: false,
         });
       }
-    });
+
+      if (accumulated.length < groupTotal) {
+        rows.push({
+          kind: "load_more",
+          key: `load_more:${group.key}`,
+          state: lastError
+            ? "error"
+            : fetchingMore
+              ? "loading"
+              : "has_more",
+          total: groupTotal,
+          loadedCount: accumulated.length,
+          onLoad: () => loadMore(group.key),
+        });
+      }
+    }
 
     return rows;
   }, [
     collapsed,
     groups,
     groupsQuery.isLoading,
-    rowQueries,
+    loadMore,
+    pagesForGroup,
     search,
+    sortBy,
+    sortDirection,
     t,
     translatePriority,
     translateStatus,
@@ -198,7 +295,8 @@ export function useTableViewData({
 
   const isLoading =
     groupsQuery.isLoading ||
-    (groups.length > 0 && rowQueries.some((query) => query.isLoading));
+    (groups.length > 0 &&
+      rowQueries.some((query) => query.isLoading && !query.data));
   const isRefreshing =
     (groupsQuery.isFetching && !groupsQuery.isLoading) ||
     rowQueries.some((query) => query.isFetching && !query.isLoading);

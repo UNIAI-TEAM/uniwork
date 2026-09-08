@@ -4,6 +4,7 @@ import {
   calculateTaskTableColumn,
   getTaskTableSelectionRange,
   refreshFrozenTableRows,
+  sortTasksForTable,
   tableGroupBy,
   type TaskTableDisplayRow,
 } from "./table-view-model";
@@ -28,6 +29,10 @@ const sample: Task = {
   created_at: "2026-09-06T00:00:00Z",
   updated_at: "2026-09-06T00:00:00Z",
 };
+
+function task(over: Partial<Task> & { id: string; title: string }): Task {
+  return { ...sample, ...over };
+}
 
 describe("table-view-model", () => {
   it("maps grouping to suite group_by and stubs project when unavailable", () => {
@@ -65,5 +70,49 @@ describe("table-view-model", () => {
     const csv = buildTaskTableCsv(["Title"], [["=1+1"], ["ok"]]);
     expect(csv).toContain("'=1+1");
     expect(csv).toContain("ok");
+  });
+
+  it("client-sorts loaded rows by title status priority and due date", () => {
+    const rows = [
+      task({
+        id: "b",
+        title: "Bravo",
+        status: "done",
+        priority: "low",
+        due_date: "2026-09-10",
+      }),
+      task({
+        id: "a",
+        title: "Alpha",
+        status: "todo",
+        priority: "high",
+        due_date: "2026-09-01",
+      }),
+    ];
+    expect(sortTasksForTable(rows, "title", "asc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortTasksForTable(rows, "title", "desc").map((r) => r.id)).toEqual([
+      "b",
+      "a",
+    ]);
+    // Catalog order: done after todo; low before high.
+    expect(sortTasksForTable(rows, "status", "asc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortTasksForTable(rows, "priority", "asc").map((r) => r.id)).toEqual([
+      "b",
+      "a",
+    ]);
+    expect(sortTasksForTable(rows, "due_date", "asc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortTasksForTable(rows, "position", "asc").map((r) => r.id)).toEqual([
+      "b",
+      "a",
+    ]);
   });
 });

@@ -1,9 +1,15 @@
 import {
   propertyIdFromViewKey,
+  type SortDirection,
+  type SortField,
   type TableCalculation,
   type TableColumnKey,
 } from "@uniwork/core/tasks/stores/view-store";
-import type { Task } from "@uniwork/core/types";
+import {
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+  type Task,
+} from "@uniwork/core/types";
 
 /** Export must fail closed when paged table responses cannot prove the full
  * query window was collected. The UI translates this marker. */
@@ -36,6 +42,7 @@ export type TaskTableDisplayRow =
       key: string;
       state: "loading" | "has_more" | "error" | "end";
       total: number;
+      loadedCount: number;
       onLoad?: () => void;
     };
 
@@ -187,3 +194,56 @@ export function groupLabelFromDescriptor(
   }
   return key;
 }
+
+const STATUS_RANK = new Map(TASK_STATUSES.map((status, i) => [status, i]));
+const PRIORITY_RANK = new Map(
+  TASK_PRIORITIES.map((priority, i) => [priority, i]),
+);
+
+function sortValue(task: Task, field: SortField): string | number | null {
+  switch (field) {
+    case "title":
+      return task.title.toLocaleLowerCase();
+    case "status":
+      return STATUS_RANK.get(task.status) ?? Number.MAX_SAFE_INTEGER;
+    case "priority":
+      return PRIORITY_RANK.get(task.priority) ?? Number.MAX_SAFE_INTEGER;
+    case "due_date":
+      return task.due_date ?? "";
+    case "created_at":
+      return task.created_at;
+    case "updated_at":
+      return task.updated_at;
+    case "position":
+      return task.position;
+    case "start_date":
+      return null;
+    default:
+      return null;
+  }
+}
+
+/** Client-sort loaded table rows; unknown / property fields keep input order. */
+export function sortTasksForTable(
+  tasks: Task[],
+  sortBy: SortField,
+  sortDirection: SortDirection,
+): Task[] {
+  const ranked = tasks.map((task, index) => ({
+    task,
+    index,
+    value: sortValue(task, sortBy),
+  }));
+  const direction = sortDirection === "desc" ? -1 : 1;
+  ranked.sort((a, b) => {
+    if (a.value == null && b.value == null) return a.index - b.index;
+    if (a.value == null || a.value === "") return 1;
+    if (b.value == null || b.value === "") return -1;
+    if (a.value < b.value) return -1 * direction;
+    if (a.value > b.value) return 1 * direction;
+    return a.index - b.index;
+  });
+  return ranked.map((entry) => entry.task);
+}
+
+export const TABLE_PAGE_SIZE = 50;

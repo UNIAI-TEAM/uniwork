@@ -18,6 +18,7 @@ import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { DataTable } from "@uniwork/ui/components/ui/data-table";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
 import { TaskTableGroupRow } from "./table-group-row";
+import { TaskTableLoadMoreRow } from "./table-load-more-row";
 import {
   useTableColumnDefs,
   type TableViewMeta,
@@ -66,9 +67,6 @@ export function TableView({
   const setTableColumnWidth = useViewStore((s) => s.setTableColumnWidth);
   const toggleTableGroupCollapsed = useViewStore(
     (s) => s.toggleTableGroupCollapsed,
-  );
-  const toggleTableParentCollapsed = useViewStore(
-    (s) => s.toggleTableParentCollapsed,
   );
   const sortBy = useViewStore((s) => s.sortBy);
   const sortDirection = useViewStore((s) => s.sortDirection);
@@ -162,6 +160,8 @@ export function TableView({
       visibleTaskIds,
       editingDisabled,
       editingDisabledReason: t(editingDisabledReasonKey),
+      hierarchyDisabled: true,
+      hierarchyDisabledReason: t("tasks.table.hierarchy_unavailable"),
       columnLabel,
       sortBy,
       sortDirection,
@@ -169,7 +169,6 @@ export function TableView({
       handleTaskSelection,
       selectAllVisible,
       clearVisibleSelection,
-      toggleParentCollapsed: toggleTableParentCollapsed,
       selectedIds: selection.selectedIds,
     }),
     [
@@ -184,7 +183,6 @@ export function TableView({
       sortBy,
       sortDirection,
       t,
-      toggleTableParentCollapsed,
       visibleTaskIds,
     ],
   );
@@ -249,14 +247,24 @@ export function TableView({
             onOpenTask(row.original.task.id);
           }}
           renderRow={(row) => {
-            if (row.original.kind !== "group") return null;
-            return (
-              <TaskTableGroupRow
-                group={row.original}
-                colSpan={table.getVisibleLeafColumns().length}
-                onToggle={() => toggleTableGroupCollapsed(row.original.key)}
-              />
-            );
+            if (row.original.kind === "group") {
+              return (
+                <TaskTableGroupRow
+                  group={row.original}
+                  colSpan={table.getVisibleLeafColumns().length}
+                  onToggle={() => toggleTableGroupCollapsed(row.original.key)}
+                />
+              );
+            }
+            if (row.original.kind === "load_more") {
+              return (
+                <TaskTableLoadMoreRow
+                  row={row.original}
+                  colSpan={table.getVisibleLeafColumns().length}
+                />
+              );
+            }
+            return null;
           }}
         />
       )}

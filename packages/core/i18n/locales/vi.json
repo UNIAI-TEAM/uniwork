@@ -648,8 +648,13 @@
       "rename": "Đổi tên",
       "expand_children": "Mở công việc con",
       "collapse_children": "Thu công việc con",
+      "hierarchy_unavailable": "Chưa khả dụng",
       "empty": "Không có công việc trong bảng này",
       "load_error": "Không tải được bảng",
+      "load_more": "Tải thêm",
+      "loading_more": "Đang tải…",
+      "load_more_retry": "Thử lại",
+      "showing_of_total": "Hiển thị {{shown}}/{{total}}",
       "unavailable_cell": "Chưa có",
       "grouping": {
         "none": "Không nhóm",

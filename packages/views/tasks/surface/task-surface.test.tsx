@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../../test/api-mock";
@@ -20,39 +20,61 @@ const task = (over: Record<string, unknown>) => ({
   ...over,
 });
 
+let tableRowsTotal = 1;
+let tableChildCount = 0;
+
 beforeEach(() => {
+  tableRowsTotal = 1;
+  tableChildCount = 0;
   requestMock.mockReset();
-  requestMock.mockImplementation(async (path: string) => {
+  requestMock.mockImplementation(async (path: string, init?: { body?: unknown }) => {
     if (typeof path === "string" && path.includes("/tasks/table/groups")) {
       return {
         query_fingerprint: "fp-groups",
-        total: 1,
+        total: tableRowsTotal,
         groups: [
           {
             key: "status:todo",
             value: { kind: "status", status: "todo" },
-            count: 1,
+            count: tableRowsTotal,
           },
         ],
         next_cursor: null,
       };
     }
     if (typeof path === "string" && path.includes("/tasks/table/rows")) {
+      const body = (init?.body ?? {}) as { limit?: number; offset?: number };
+      const limit = body.limit ?? 50;
+      const offset = body.offset ?? 0;
+      // Cap page size in the truncated fixture so the table stays under the
+      // virtualization threshold in jsdom (no scroll height → empty window).
+      const pageLimit =
+        tableRowsTotal > 50 ? Math.min(limit, 5) : limit;
+      const rows = Array.from(
+        { length: Math.min(pageLimit, Math.max(0, tableRowsTotal - offset)) },
+        (_, i) => ({
+          task: task({
+            id: `t${offset + i + 1}`,
+            title: `Task ${offset + i + 1}`,
+          }),
+          direct_child_count: i === 0 && offset === 0 ? tableChildCount : 0,
+        }),
+      );
       return {
         query_fingerprint: "fp-rows",
         group_key: "status:todo",
         parent_id: null,
-        total: 1,
-        rows: [{ task: task({}), direct_child_count: 0 }],
-        branch_total: 1,
+        total: tableRowsTotal,
+        rows,
+        branch_total: tableRowsTotal,
         next_cursor: null,
       };
     }
     if (typeof path === "string" && path.includes("/tasks/table/facets")) {
       return {
         query_fingerprint: "fp-facets",
-        total: 1,
-        facets: [{ kind: "status", values: [{ key: "todo", count: 1 }] }],
+        total: tableRowsTotal,
+        facets: [{ kind: "status", values: [{ key: "todo", count: tableRowsTotal }] }],
       };
     }
     return {
@@ -97,6 +119,61 @@ describe("TaskSurface", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
-    expect(await screen.findByText("Alpha")).toBeInTheDocument();
+    expect(await screen.findByText("Task 1")).toBeInTheDocument();
+  });
+
+  it("disables hierarchy chevron when children fetch is unavailable", async () => {
+    tableChildCount = 2;
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["table"]}
+          surfaceKey="test-ws-table-hierarchy"
+        />,
+      ),
+    );
+
+    const chevron = await screen.findByRole("button", {
+      name: "Chưa khả dụng",
+    });
+    expect(chevron).toBeDisabled();
+    expect(chevron).toHaveAttribute("title", "Chưa khả dụng");
+  });
+
+  it("loads the next offset page when group rows are truncated", async () => {
+    tableRowsTotal = 51;
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["table"]}
+          surfaceKey="test-ws-table-load-more"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText("Task 1")).toBeInTheDocument();
+    expect(screen.queryByText("Task 51")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(/Hiển thị 5\/51|Showing 5 of 51/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: /tải thêm|load more/i }));
+
+    expect(await screen.findByText("Task 51")).toBeInTheDocument();
+    await waitFor(() => {
+      const rowCalls = requestMock.mock.calls.filter(
+        ([path]) => typeof path === "string" && path.includes("/tasks/table/rows"),
+      );
+      expect(
+        rowCalls.some(([, init]) => {
+          const body = (init as { body?: { offset?: number } } | undefined)?.body;
+          return body?.offset === 50;
+        }),
+      ).toBe(true);
+    });
   });
 });
