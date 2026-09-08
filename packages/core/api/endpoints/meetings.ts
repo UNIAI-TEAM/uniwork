@@ -286,6 +286,17 @@ export async function removeParticipant(meetingId: string, participantId: string
   await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}`, { method: "DELETE" });
 }
 
+export async function setParticipantPublish(
+  meetingId: string,
+  participantId: string,
+  enabled: boolean,
+): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}/publish`, {
+    method: "POST",
+    body: { enabled },
+  });
+}
+
 export async function transferHost(meetingId: string, newHostUserId: string): Promise<Meeting | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/host-transfer`, {
     method: "POST",
@@ -412,6 +423,8 @@ export interface SummaryTaskItem {
   description?: string;
   assignee_id?: string;
   due_date?: string;
+  owner?: string;
+  due_spoken?: string;
 }
 
 export async function createTasksFromSummary(meetingId: string, items: SummaryTaskItem[]): Promise<string[]> {

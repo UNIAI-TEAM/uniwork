@@ -9,7 +9,7 @@ export const MEETING_DARK_BAR =
 
 /** Icon chip on the dark meeting control bar. */
 export const MEETING_DARK_BAR_CHIP =
-  "size-11 shrink-0 rounded-xl border-meeting-bar-border bg-meeting-bar-chip-bg text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover hover:text-meeting-bar-foreground";
+  "size-11 shrink-0 rounded-xl border-meeting-bar-border !bg-meeting-bar-chip-bg !text-meeting-bar-foreground hover:!bg-meeting-bar-chip-hover hover:!text-meeting-bar-foreground [&_svg]:!text-meeting-bar-foreground";
 
 export function MeetingDarkBar({
   className,

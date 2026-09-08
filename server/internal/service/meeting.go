@@ -32,6 +32,7 @@ const (
 
 	RoleAttendee  = "ATTENDEE"
 	RoleModerator = "MODERATOR"
+	RoleAudience  = "AUDIENCE"
 
 	ParticipantActive  = "ACTIVE"
 	ParticipantRemoved = "REMOVED"
@@ -76,6 +77,7 @@ type MeetingRuntime struct {
 	OutboxBatch        int32
 	WebhookBatch       int32
 	WebhookConcurrency int
+	STTAgentSecret     string
 }
 
 type MeetingService struct {

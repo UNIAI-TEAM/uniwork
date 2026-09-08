@@ -120,7 +120,10 @@ function ConferenceStage({
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: recordings } = useRecordings(resolvedMeetingId);
   const recording = (recordings ?? []).some((r) => r.status === "ACTIVE");
-  const captions = useLiveCaptions(resolvedMeetingId, captionsOn && !!resolvedMeetingId);
+  const captions = useLiveCaptions(
+    resolvedMeetingId,
+    captionsOn && !!resolvedMeetingId && caps?.server_stt !== true,
+  );
   const speaking = useSpeakingParticipants();
   const viewLayout = useMeetingRoomPreferencesStore((s) => s.viewLayout);
   const maxTiles = useMeetingRoomPreferencesStore((s) => s.maxTiles);
@@ -166,14 +169,6 @@ function ConferenceStage({
         )}
       >
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-rail ring-1 ring-surface-border transition-[flex-grow,width] duration-300 ease-out motion-reduce:transition-none">
-          {canHost.allowed && resolvedMeetingId ? (
-            <MeetingWaitingToJoinOverlay
-              meetingId={resolvedMeetingId}
-              onViewAll={openJoinRequests}
-              forceOpen={joinOverlayOpen}
-              onForceOpenHandled={() => setJoinOverlayOpen(false)}
-            />
-          ) : null}
           <div className="dark flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <MeetingStageHeader
             meeting={meeting}
@@ -337,7 +332,7 @@ function ConferenceStage({
                 canHost={canHost.allowed}
                 recordingEnabled={caps?.recording === true}
                 recording={recording}
-                captionsAvailable={captionsSupported()}
+                captionsAvailable={caps?.server_stt !== true && captionsSupported()}
                 captionsOn={captionsOn}
                 onToggleCaptions={() => setCaptionsOn((v) => !v)}
                 onOpenCopilot={() => {
@@ -349,6 +344,14 @@ function ConferenceStage({
               />
             }
           />
+          {canHost.allowed && resolvedMeetingId ? (
+            <MeetingWaitingToJoinOverlay
+              meetingId={resolvedMeetingId}
+              onViewAll={openJoinRequests}
+              forceOpen={joinOverlayOpen}
+              onForceOpenHandled={() => setJoinOverlayOpen(false)}
+            />
+          ) : null}
         </div>
 
         {!compact ? (

@@ -29,6 +29,10 @@ vi.mock("@livekit/components-react", () => ({
     lastLiveKitMedia = { video, audio };
     return <div data-testid="livekit-room">{children}</div>;
   },
+  useRoomContext: () => ({
+    engine: { token: "tok" },
+    regionUrlProvider: { updateToken: vi.fn() },
+  }),
 }));
 vi.mock("./meeting-conference", () => ({
   MeetingConference: () => <div data-testid="livekit-conference" />,

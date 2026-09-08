@@ -54,7 +54,7 @@ export function MeetingWaitingToJoinOverlay({
       aria-labelledby="waiting-to-join-title"
       aria-describedby="waiting-to-join-desc"
       className={cn(
-        "absolute top-3 right-3 z-20 w-[min(100%,20rem)] rounded-2xl bg-surface/95 p-4 shadow-lg ring-1 ring-border backdrop-blur-sm",
+        "absolute bottom-24 left-3 z-30 w-[min(calc(100%-1.5rem),20rem)] rounded-2xl bg-surface/95 p-4 shadow-lg ring-1 ring-border backdrop-blur-sm sm:bottom-28 sm:left-4",
         className,
       )}
     >

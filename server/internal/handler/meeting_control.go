@@ -102,6 +102,19 @@ func (h *handlers) removeParticipant(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]string{"status": "ok"})
 }
 
+func (h *handlers) setParticipantPublish(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetParticipantPublishSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.Meetings.SetParticipantPublish(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "participantID"), in.Enabled); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]string{"status": "ok"})
+}
+
 func toLinkDTO(l db.MeetingInviteLink, secret string) sdo.InviteLinkDTO {
 	d := sdo.InviteLinkDTO{
 		ID: l.ID, MeetingID: l.MeetingID, Name: l.Name, AccessMode: l.AccessMode,

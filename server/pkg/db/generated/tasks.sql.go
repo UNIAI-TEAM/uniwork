@@ -15,11 +15,13 @@ const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, priority,
   assignee_id, assignee_kind, assignee_type, due_date, position,
-  created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at
+  created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
+  origin_type, origin_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12,
-  $13, $14, $15, $16, $17, $18
+  $13, $14, $15, $16, $17, $18,
+  $19, $20
 )
 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
 `
@@ -43,6 +45,8 @@ type CreateTaskParams struct {
 	CreatorType    string             `json:"creator_type"`
 	Revision       int64              `json:"revision"`
 	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
+	OriginType     pgtype.Text        `json:"origin_type"`
+	OriginID       pgtype.Text        `json:"origin_id"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -65,6 +69,8 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.CreatorType,
 		arg.Revision,
 		arg.LastActivityAt,
+		arg.OriginType,
+		arg.OriginID,
 	)
 	var i Task
 	err := row.Scan(

@@ -13,6 +13,10 @@ describe("ChatMessageBody", () => {
 
   // The markdown renderer is lazy (it carries KaTeX and Shiki), so these two
   // wait for the chunk; the plain-text case above renders synchronously.
+  // Under `make check` several view suites compile in parallel and vitest
+  // measures the on-demand markdown compile past 8s — see date-field.test.tsx.
+  const lazyMarkdownTimeout = 20_000;
+
   it("renders member mention with display name from context", async () => {
     render(
       <ChatMessageBody
@@ -21,7 +25,7 @@ describe("ChatMessageBody", () => {
         nameContext={[{ user_id: "u2", display_name: "Binh" }]}
       />,
     );
-    expect(await screen.findByText("@Binh")).toBeInTheDocument();
+    expect(await screen.findByText("@Binh", {}, { timeout: lazyMarkdownTimeout })).toBeInTheDocument();
     expect(screen.getByText(/check this/)).toBeInTheDocument();
   });
 
@@ -33,6 +37,9 @@ describe("ChatMessageBody", () => {
         nameContext={[]}
       />,
     );
-    expect(await screen.findByRole("img")).toHaveAttribute("src", "https://cdn.example/sticker.png");
+    expect(await screen.findByRole("img", {}, { timeout: lazyMarkdownTimeout })).toHaveAttribute(
+      "src",
+      "https://cdn.example/sticker.png",
+    );
   });
 });

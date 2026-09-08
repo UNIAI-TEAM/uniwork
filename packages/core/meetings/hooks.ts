@@ -246,6 +246,13 @@ export function useRemoveParticipant(meetingId: string) {
   });
 }
 
+export function useSetParticipantPublish(meetingId: string) {
+  return useMutation({
+    mutationFn: (args: { participantId: string; enabled: boolean }) =>
+      meetings.setParticipantPublish(meetingId, args.participantId, args.enabled),
+  });
+}
+
 export function useTransferHost(workspaceId: string, meetingId: string) {
   const qc = useQueryClient();
   return useMutation({

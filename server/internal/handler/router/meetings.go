@@ -69,6 +69,10 @@ func registerMeetings(r api, h Routes) {
 	r.Delete("/meetings/{meetingID}/participants/{participantID}", h.RemoveParticipant, apiOp{
 		summary: "Remove participant", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/participants/{participantID}/publish", h.SetParticipantPublish, apiOp{
+		summary: "Enable or revoke participant media publish (host)", tags: []string{"meetings"},
+		sdi: sdi.SetParticipantPublishSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
 	r.Get("/meetings/{meetingID}/invite-links", h.ListInviteLinks, apiOp{
 		summary: "List invite links", tags: []string{"meetings"}, sdo: sdo.InviteLinkListSDO{}, auth: true,
 	})
@@ -151,6 +155,10 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
+	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/transcript/agent", h.AppendAgentTranscript, apiOp{
+		summary: "Append transcript from LiveKit Agents worker (secret header)", tags: []string{"meetings"},
+		sdi: sdi.AppendAgentTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{},
 	})
 	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
 		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},

@@ -1,9 +1,11 @@
 "use client";
 import { Circle, Video } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
+import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
+import { useMembers } from "@uniwork/core/workspaces";
 import { toastApiError } from "../toast-api-error";
 import {
   useAddNote,
@@ -11,6 +13,7 @@ import {
   useCreateTasksFromSummary,
   useMeetingCapabilities,
   useMeetingSummary,
+  useMeetingChat,
   useNotes,
   useRecordings,
   useTranscript,
@@ -70,17 +73,25 @@ export function MeetingRoomCopilotTab({
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: summary, isLoading: summaryLoading } = useMeetingSummary(meetingId);
   const { data: transcript } = useTranscript(meetingId);
+  const { data: chat } = useMeetingChat(meetingId);
   const { data: notes } = useNotes(meetingId);
+  const { data: members } = useMembers(workspaceId ?? "");
   const { data: recordings } = useRecordings(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
   const createTasks = useCreateTasksFromSummary(workspaceId ?? "", meetingId);
   const addNote = useAddNote(meetingId);
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [note, setNote] = useState("");
+
+  const memberPreview = useMemo(
+    () => (members ?? []).map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
+    [members],
+  );
 
   const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
-  const hasSource = (transcript?.length ?? 0) > 0 || (notes?.length ?? 0) > 0;
+  const hasSource = (transcript?.length ?? 0) > 0 || (notes?.length ?? 0) > 0 || (chat?.length ?? 0) > 0;
   const aiOn = caps?.ai_summary === true;
   const activeRecording = (recordings ?? []).find((r) => r.status === "ACTIVE");
   const completedRecording = (recordings ?? []).find((r) => r.file_url);
@@ -118,20 +129,25 @@ export function MeetingRoomCopilotTab({
   }
 
   function onCreateTasks() {
-    const items = actionItems
-      .filter((_, i) => picked.has(i))
-      .map((it) => ({
-        title: it.title,
-        description: it.owner ? `${t("meetings.owner")}: ${it.owner}` : undefined,
-      }));
+    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides);
     if (items.length === 0 || !workspaceId) return;
     createTasks.mutate(items, {
       onSuccess: (ids) => {
         toast.success(t("meetings.tasksCreated", { count: ids.length }));
         setPicked(new Set());
+        setAssigneeOverrides({});
       },
       onError: (err) => toastApiError(err, t("common.error")),
     });
+  }
+
+  function assigneePreviewName(index: number, owner?: string) {
+    const override = assigneeOverrides[index];
+    if (override) {
+      return members?.find((m) => m.user_id === override)?.display_name;
+    }
+    const previewId = previewAssigneeId(owner, memberPreview);
+    return previewId ? members?.find((m) => m.user_id === previewId)?.display_name : undefined;
   }
 
   const summaryUpdatedAt = summary?.created_at
@@ -163,7 +179,7 @@ export function MeetingRoomCopilotTab({
         onChange={setSection}
         label={sectionLabel}
         equalWidth
-        className="mb-3"
+        className="mb-2"
       />
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
@@ -252,6 +268,14 @@ export function MeetingRoomCopilotTab({
                     due={it.due}
                     selectable={canHost && Boolean(workspaceId)}
                     checked={picked.has(i)}
+                    workspaceId={workspaceId}
+                    assigneeId={assigneeOverrides[i]}
+                    assigneePreviewName={assigneePreviewName(i, it.owner)}
+                    onAssigneeChange={
+                      canHost && workspaceId
+                        ? (userId) => setAssigneeOverrides((prev) => ({ ...prev, [i]: userId }))
+                        : undefined
+                    }
                     onCheckedChange={(v) =>
                       setPicked((s) => {
                         const next = new Set(s);

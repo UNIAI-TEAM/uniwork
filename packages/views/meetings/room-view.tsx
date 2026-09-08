@@ -11,6 +11,7 @@ import { useMeetingLobbySync, useWorkspaceEvents } from "@uniwork/core/realtime"
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
+import { MeetingProactiveTokenRefresh } from "./meeting-proactive-token-refresh";
 import { MeetingLobby } from "./meeting-lobby";
 import { MeetingPreJoin, type PreJoinChoice } from "./meeting-prejoin";
 import { useMeetingScheduleDeadline } from "./use-meeting-schedule-deadline";
@@ -80,6 +81,7 @@ export function MeetingRoomView({
     isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null,
   );
   const mutateJoin = join.mutate;
+  const mutateJoinAsync = join.mutateAsync;
   const joinArgs = useMemo(() => {
     const base = joinBody ? { meetingId, ...joinBody } : { meetingId };
     if (invite) {
@@ -92,6 +94,16 @@ export function MeetingRoomView({
     setMediaErrorKind(null);
     mutateJoin(joinArgs);
   }, [mutateJoin, joinArgs]);
+
+  const refreshLiveKitCredential = useCallback(async () => {
+    try {
+      const result = await mutateJoinAsync(joinArgs);
+      if (!result || !isJoinAdmitted(result) || !result.participant_token) return null;
+      return { token: result.participant_token, expires_at: result.expires_at };
+    } catch {
+      return null;
+    }
+  }, [mutateJoinAsync, joinArgs]);
 
   const handleStartMeeting = useCallback(() => {
     start.mutate(meetingId, { onSuccess: () => retryJoin() });
@@ -109,9 +121,8 @@ export function MeetingRoomView({
   const admitted = isJoinAdmitted(decision);
   admittedRef.current = admitted;
 
-  // LiveKit JWT refresh happens only after an unexpected disconnect (onDisconnected
-  // → retryJoin). Proactive refresh while connected forced room.connect() again,
-  // closed DATA_TRACK_LOSSY, and wiped ephemeral chat — see meeting-ui-implementation-plan §11.
+  // LiveKit JWT refresh: proactive timer patches room.engine.token (no
+  // room.connect remount). Unexpected disconnect still re-joins via retryJoin.
   useLobbyJoinRetry({
     meetingId,
     decision: decision?.decision,
@@ -271,6 +282,10 @@ export function MeetingRoomView({
           retryJoin();
         }}
       >
+        <MeetingProactiveTokenRefresh
+          expiresAt={decision.expires_at}
+          onRefresh={refreshLiveKitCredential}
+        />
         <MeetingConference
           meetingId={meetingId}
           meeting={meeting ?? undefined}

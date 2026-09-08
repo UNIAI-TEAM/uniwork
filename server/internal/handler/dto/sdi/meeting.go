@@ -81,6 +81,19 @@ type AppendTranscriptSDI struct {
 	SpokenAt time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now" example:"2026-08-29T02:00:00Z"`
 }
 
+// AppendAgentTranscriptSDI is POST /api/v1/meetings/{meetingID}/transcript/agent.
+type AppendAgentTranscriptSDI struct {
+	ParticipantIdentity string    `json:"participant_identity" minLength:"1" description:"LiveKit identity uw_participant_{id}" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V"`
+	SpeakerName         string    `json:"speaker_name" description:"Tên hiển thị; trống = lấy từ participant" example:"Nguyễn Văn An"`
+	Text                string    `json:"text" minLength:"1" example:"Chốt ship vào thứ Sáu."`
+	SpokenAt            time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now"`
+}
+
+// SetParticipantPublishSDI toggles server-enforced CanPublish on LiveKit.
+type SetParticipantPublishSDI struct {
+	Enabled bool `json:"enabled" description:"true = cho phép mic/camera; false = revoke publish" example:"false"`
+}
+
 // CreateSummarySDI is POST /api/v1/meetings/{meetingID}/summary.
 type CreateSummarySDI struct {
 	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en" example:"vi"`
@@ -91,6 +104,8 @@ type SummaryTaskItemSDI struct {
 	Description string  `json:"description"`
 	AssigneeID  *string `json:"assignee_id"`
 	DueDate     *string `json:"due_date" description:"YYYY-MM-DD" example:"2026-09-05"`
+	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; server resolve sang assignee_id"`
+	DueSpoken   string  `json:"due_spoken" description:"Hạn nói trong họp; server parse sang due_date"`
 }
 
 // SummaryTasksSDI is POST /api/v1/meetings/{meetingID}/summary/tasks.

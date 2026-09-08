@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarPlus, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
+import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
+import { useMembers } from "@uniwork/core/workspaces";
 import { toastApiError } from "../toast-api-error";
 import { meetingLocale } from "./meeting-datetime";
 import {
@@ -18,6 +20,7 @@ import {
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
+import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 
 /** Browser download of an .ics the API already authenticated for us. */
 function downloadText(filename: string, text: string) {
@@ -72,8 +75,15 @@ export function MeetingSummaryPanel({
   const { data: recordings } = useRecordings(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
   const createTasks = useCreateTasksFromSummary(workspaceId, meetingId);
+  const { data: members } = useMembers(workspaceId);
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [showTranscript, setShowTranscript] = useState(false);
+
+  const memberPreview = useMemo(
+    () => (members ?? []).map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
+    [members],
+  );
 
   const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
@@ -97,15 +107,25 @@ export function MeetingSummaryPanel({
   }
 
   function onCreateTasks() {
-    const items = actionItems.filter((_, i) => picked.has(i)).map((it) => ({ title: it.title, description: it.owner ? `${t("meetings.owner")}: ${it.owner}` : undefined }));
+    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides);
     if (items.length === 0) return;
     createTasks.mutate(items, {
       onSuccess: (ids) => {
         toast.success(t("meetings.tasksCreated", { count: ids.length }));
         setPicked(new Set());
+        setAssigneeOverrides({});
       },
       onError: (err) => toastApiError(err, t("common.error")),
     });
+  }
+
+  function assigneeLabel(index: number, owner?: string) {
+    const override = assigneeOverrides[index];
+    if (override) {
+      return members?.find((m) => m.user_id === override)?.display_name;
+    }
+    const previewId = previewAssigneeId(owner, memberPreview);
+    return previewId ? members?.find((m) => m.user_id === previewId)?.display_name : undefined;
   }
 
   return (
@@ -148,29 +168,47 @@ export function MeetingSummaryPanel({
               <h3 className="mb-1 text-label font-medium text-foreground">{t("meetings.actionItems")}</h3>
               <ul className="space-y-1.5">
                 {actionItems.map((it, i) => (
-                  <li key={i} className="flex items-start gap-2 text-body text-foreground">
-                    {canHost ? (
-                      <Checkbox
-                        aria-label={it.title}
-                        checked={picked.has(i)}
-                        onCheckedChange={(v) =>
-                          setPicked((s) => {
-                            const n = new Set(s);
-                            if (v) n.add(i);
-                            else n.delete(i);
-                            return n;
-                          })
+                  <li key={i} className="space-y-1.5 text-body text-foreground">
+                    <div className="flex items-start gap-2">
+                      {canHost ? (
+                        <Checkbox
+                          aria-label={it.title}
+                          checked={picked.has(i)}
+                          onCheckedChange={(v) =>
+                            setPicked((s) => {
+                              const n = new Set(s);
+                              if (v) n.add(i);
+                              else n.delete(i);
+                              return n;
+                            })
+                          }
+                        />
+                      ) : null}
+                      <span className="min-w-0 flex-1">
+                        {it.title}
+                        {it.owner || it.due ? (
+                          <span className="ml-1 text-caption text-muted-foreground">
+                            {[it.owner, it.due].filter(Boolean).join(" · ")}
+                          </span>
+                        ) : null}
+                        {canHost && assigneeLabel(i, it.owner) ? (
+                          <span className="ml-1 text-caption text-brand">
+                            → {assigneeLabel(i, it.owner)}
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
+                    {canHost && picked.has(i) ? (
+                      <MeetingAssigneeSelect
+                        workspaceId={workspaceId}
+                        value={assigneeOverrides[i]}
+                        suggestedOwner={it.owner}
+                        onChange={(userId) =>
+                          setAssigneeOverrides((prev) => ({ ...prev, [i]: userId }))
                         }
+                        className="ml-6 h-8 max-w-xs"
                       />
                     ) : null}
-                    <span className="min-w-0">
-                      {it.title}
-                      {it.owner || it.due ? (
-                        <span className="ml-1 text-caption text-muted-foreground">
-                          {[it.owner, it.due].filter(Boolean).join(" · ")}
-                        </span>
-                      ) : null}
-                    </span>
                   </li>
                 ))}
               </ul>

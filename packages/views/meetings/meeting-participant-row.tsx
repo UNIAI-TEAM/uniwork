@@ -40,12 +40,16 @@ export function MeetingParticipantRow({
   subtitle,
   canHost,
   onRemove,
+  onRevokeSpeaking,
+  onAllowSpeaking,
   pinned,
 }: {
   participant: Participant;
   subtitle?: string;
   canHost?: boolean;
   onRemove?: () => void;
+  onRevokeSpeaking?: () => void;
+  onAllowSpeaking?: () => void;
   pinned?: boolean;
 }) {
   const { t } = useTranslation();
@@ -131,6 +135,18 @@ export function MeetingParticipantRow({
                   <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
                     <MicOff aria-hidden className="size-4" />
                     {t("meetings.muteParticipant", { name })}
+                  </DropdownMenuItem>
+                ) : null}
+                {canHost && !participant.isLocal && onRevokeSpeaking && !micMuted ? (
+                  <DropdownMenuItem onClick={onRevokeSpeaking}>
+                    <MicOff aria-hidden className="size-4" />
+                    {t("meetings.revokeSpeaking")}
+                  </DropdownMenuItem>
+                ) : null}
+                {canHost && !participant.isLocal && onAllowSpeaking && micMuted ? (
+                  <DropdownMenuItem onClick={onAllowSpeaking}>
+                    <Volume2 aria-hidden className="size-4" />
+                    {t("meetings.allowSpeakingAgain")}
                   </DropdownMenuItem>
                 ) : null}
                 {onRemove ? (

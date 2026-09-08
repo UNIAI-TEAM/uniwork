@@ -9,11 +9,13 @@ RETURNING task_counter;
 INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, priority,
   assignee_id, assignee_kind, assignee_type, due_date, position,
-  created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at
+  created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
+  origin_type, origin_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12,
-  $13, $14, $15, $16, $17, $18
+  $13, $14, $15, $16, $17, $18,
+  $19, $20
 )
 RETURNING *;
 

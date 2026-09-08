@@ -40,6 +40,8 @@ type CreateTaskInput struct {
 	AssigneeID   *string
 	AssigneeKind string // "" or human | agent (ADR 0007)
 	DueDate      *string
+	OriginType   string
+	OriginID     *string
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate con trỏ
@@ -99,6 +101,14 @@ func optText(s *string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: *s, Valid: true}
+}
+
+func originTypeText(s string) pgtype.Text {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: s, Valid: true}
 }
 
 func optFloat(f *float64) pgtype.Float8 {
@@ -213,6 +223,7 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 		Position: maxPos + 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),
+		OriginType: originTypeText(in.OriginType), OriginID: optText(in.OriginID),
 	})
 	if err != nil {
 		return db.Task{}, err

@@ -66,8 +66,9 @@ export function IconControl({
             className={cn(
               MEETING_DARK_BAR_CHIP,
               tone === "off" && SOLID_DESTRUCTIVE,
-              tone === "active" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90",
-              tone === "copilot" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90",
+              tone === "active" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90 [&_svg]:!text-brand-foreground",
+              tone === "copilot" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90 [&_svg]:!text-brand-foreground",
+              tone === "off" && "[&_svg]:!text-brand-foreground",
               !tone && !pressed && "border-meeting-bar-border",
               pressed && !tone && "!bg-meeting-bar-chip-hover",
             )}

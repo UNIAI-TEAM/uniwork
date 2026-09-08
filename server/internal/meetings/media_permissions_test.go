@@ -11,4 +11,8 @@ func TestMediaPermissionsForRole(t *testing.T) {
 	if !att.CanPublish || !att.CanPublishData {
 		t.Fatal("attendee should have full media in current product")
 	}
+	aud := MediaPermissionsForRole("AUDIENCE")
+	if aud.CanPublish || !aud.CanSubscribe || !aud.CanPublishData {
+		t.Fatal("audience should subscribe and use data channel only")
+	}
 }

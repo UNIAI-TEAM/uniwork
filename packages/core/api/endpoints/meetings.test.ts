@@ -24,6 +24,7 @@ import {
   listRecordings,
   listTranscript,
   meetingToken,
+  setParticipantPublish,
   startRecording,
   stopRecording,
   updateMeeting,
@@ -145,10 +146,18 @@ describe("meetings D08b endpoints", () => {
   });
 
   it("capabilities degrade to {} on drift", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: true, recording: false }));
-    expect(await getMeetingCapabilities("ws1")).toEqual({ ai_summary: true, recording: false });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: true, recording: false, server_stt: true }));
+    expect(await getMeetingCapabilities("ws1")).toEqual({ ai_summary: true, recording: false, server_stt: true });
     vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: "yes" }));
     expect(await getMeetingCapabilities("ws1")).toEqual({});
+  });
+
+  it("setParticipantPublish posts enabled flag", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await setParticipantPublish("m1", "p1", false);
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/participants/p1/publish");
+    expect(JSON.parse(String(init.body))).toEqual({ enabled: false });
   });
 
   it("transcript list/append", async () => {

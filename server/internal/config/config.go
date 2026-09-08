@@ -42,6 +42,9 @@ type Config struct {
 	// LiveKitRecordingBucket enables room recording via LiveKit Egress; the
 	// AWS_* storage settings supply credentials and endpoint.
 	LiveKitRecordingBucket string
+	// MeetingSTTAgentSecret authenticates POST .../transcript/agent from a
+	// LiveKit Agents worker; empty turns server-side STT ingestion off.
+	MeetingSTTAgentSecret string
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
 	// surface and must not ship on a public listener by default.
@@ -139,6 +142,7 @@ func Load() (Config, error) {
 		AnthropicAPIKey:           os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:            os.Getenv("ANTHROPIC_MODEL"),
 		LiveKitRecordingBucket:    os.Getenv("LIVEKIT_RECORDING_BUCKET"),
+		MeetingSTTAgentSecret:     os.Getenv("MEETING_STT_AGENT_SECRET"),
 		AppEnv:                    getenv("APP_ENV", "development"),
 		devVerificationCode:       os.Getenv("DEV_VERIFICATION_CODE"),
 		APIPublicURL:              getenv("API_PUBLIC_URL", "http://localhost:8080"),
