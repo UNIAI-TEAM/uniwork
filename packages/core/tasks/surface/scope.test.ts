@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { myRelationFromVariant, taskScopeKey } from "./scope";
+import { myRelationFromVariant, taskScopeKey, type TaskScope } from "./scope";
 
 describe("taskScopeKey", () => {
   it("keys workspace and my scopes", () => {
@@ -7,6 +7,11 @@ describe("taskScopeKey", () => {
     expect(taskScopeKey({ type: "my", userId: "u1", relation: "assigned" })).toBe(
       "my:u1:assigned",
     );
+  });
+
+  it("keys project scopes", () => {
+    const scope: TaskScope = { type: "project", projectId: "p1" };
+    expect(taskScopeKey(scope)).toBe("project:p1");
   });
 });
 
