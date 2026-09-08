@@ -2,14 +2,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as tasks from "../api/endpoints/tasks";
 import type { Task } from "../types/task";
+import { taskKeys } from "./keys";
 
 export type { CreateTaskBody, TaskPatch } from "../api/endpoints/tasks";
+export { taskKeys } from "./keys";
+export { planCacheUpdate } from "./cache-coordinator";
+export type { CacheUpdateEvent, CacheUpdatePlan } from "./cache-coordinator";
 
-export const taskKeys = {
-  list: (wsId: string) => ["tasks", wsId] as const,
-  detail: (taskId: string) => ["task", taskId] as const,
-  comments: (taskId: string) => ["comments", taskId] as const,
-};
+export * from "./hooks-suite";
+export * from "./hooks-catalog";
+export * from "./hooks-views";
+export * from "./hooks-projects";
+export * from "./hooks-collaboration";
 
 export function useTasks(workspaceId: string) {
   return useQuery({

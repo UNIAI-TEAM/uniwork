@@ -52,8 +52,18 @@ export async function getTask(taskId: string): Promise<Task | null> {
   })?.task ?? null;
 }
 
-export async function createTask(workspaceId: string, body: CreateTaskBody): Promise<Task | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/tasks`, { method: "POST", body });
+export async function createTask(
+  workspaceId: string,
+  body: CreateTaskBody,
+  opts?: { idempotencyKey?: string },
+): Promise<Task | null> {
+  const headers: Record<string, string> = {};
+  if (opts?.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/tasks`, {
+    method: "POST",
+    body,
+    headers,
+  });
   return parseWithFallback<{ task: Task } | null>(raw, TaskResponse, null, {
     endpoint: "POST /api/v1/workspaces/{ws}/tasks",
   })?.task ?? null;

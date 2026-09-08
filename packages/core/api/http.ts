@@ -70,6 +70,11 @@ export interface RequestOpts {
   skipRefresh?: boolean;
   /** Reuse a correlation id across several calls that are one user action. */
   correlationId?: string;
+  /**
+   * Extra request headers (Idempotency-Key, If-Match, …). Authorization and
+   * Content-Type are still owned by the transport.
+   */
+  headers?: Record<string, string>;
 }
 
 function baseUrl(): string {
@@ -97,7 +102,10 @@ function newCorrelationId(): string {
 }
 
 async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
-  const headers: Record<string, string> = { [CORRELATION_HEADER]: opts.correlationId ?? newCorrelationId() };
+  const headers: Record<string, string> = {
+    [CORRELATION_HEADER]: opts.correlationId ?? newCorrelationId(),
+    ...opts.headers,
+  };
   const token = getAccessToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 

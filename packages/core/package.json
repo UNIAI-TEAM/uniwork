@@ -18,6 +18,7 @@
     "./auth": "./auth/index.ts",
     "./workspaces": "./workspaces/hooks.ts",
     "./tasks": "./tasks/hooks.ts",
+    "./tasks/cache-coordinator": "./tasks/cache-coordinator.ts",
     "./agents": "./agents/hooks.ts",
     "./tasks/position": "./tasks/position.ts",
     "./audit": "./audit/hooks.ts",
