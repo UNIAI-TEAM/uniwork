@@ -145,7 +145,11 @@ export async function batchDeleteTasks(workspaceId: string, taskIds: string[]): 
 
 export async function listMyTasks(
   workspaceId: string,
-  opts: { limit?: number; offset?: number } = {},
+  opts: {
+    relation?: "all" | "assigned" | "created" | "involved";
+    limit?: number;
+    offset?: number;
+  } = {},
 ): Promise<TaskQueryPage> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/my-tasks${qs(opts)}`);
   return parseWithFallback<TaskQueryPage>(

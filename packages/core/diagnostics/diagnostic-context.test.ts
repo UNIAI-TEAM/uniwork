@@ -33,6 +33,9 @@ describe("diagnostic route", () => {
 describe("bucketDiagnosticPath", () => {
   it("replaces the organization and workspace slugs", () => {
     expect(bucketDiagnosticPath("/acme/team/tasks")).toBe("/:org/:slug/tasks");
+    expect(bucketDiagnosticPath("/acme/team/my-tasks")).toBe(
+      "/:org/:slug/my-tasks",
+    );
   });
 
   it("templates every workspace detail route", () => {

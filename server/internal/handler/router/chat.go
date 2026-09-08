@@ -233,6 +233,20 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/voice", h.SendChatVoiceMessage, apiOp{
+		summary:     "Send chat voice message",
+		description: "Tải tin nhắn thoại WebM, Ogg hoặc MP4 lên phòng chat; tối đa 4 MiB và 120 giây.",
+		tags:        []string{"chat"},
+		sdi:         sdi.SendChatVoiceMessageSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/voice", h.StreamChatVoiceMessage, apiOp{
+		summary:     "Stream chat voice message",
+		description: "Stream nội dung tin nhắn thoại riêng tư sau khi kiểm tra quyền phòng.",
+		tags:        []string{"chat"},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.GetChatRoomMessage, apiOp{
 		summary:     "Get chat room message",
 		description: "Lấy một tin nhắn trong phòng (realtime patch, không refetch cả trang).",

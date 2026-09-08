@@ -31,7 +31,11 @@ export function useGroupedTasks(
 
 export function useMyTasks(
   workspaceId: string,
-  opts: { limit?: number; offset?: number } = {},
+  opts: {
+    relation?: "all" | "assigned" | "created" | "involved";
+    limit?: number;
+    offset?: number;
+  } = {},
 ) {
   const hash = stableHash(opts);
   return useQuery({

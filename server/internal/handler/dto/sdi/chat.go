@@ -14,6 +14,14 @@ type SendChatMessageSDI struct {
 	Note             *CreateChatNoteSDI     `json:"note,omitempty" description:"Create a note message instead of plain text"`
 }
 
+// SendChatVoiceMessageSDI is multipart POST .../messages/voice.
+type SendChatVoiceMessageSDI struct {
+	File             []byte  `formData:"file" description:"Voice audio file (WebM, Ogg, or MP4; max 4 MiB)"`
+	DurationMS       int     `formData:"duration_ms" description:"Recording duration in milliseconds (1..120000)" example:"12500"`
+	ClientMsgID      string  `formData:"client_msg_id" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
 // CreateChatPollSDI creates a poll in a chat room.
 type CreateChatPollSDI struct {
 	Question string              `json:"question" description:"Poll question" example:"Ăn trưa ở đâu?"`

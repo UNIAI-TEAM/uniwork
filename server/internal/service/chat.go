@@ -68,6 +68,7 @@ type ChatMessageRow struct {
 	Pinned            bool
 	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
+	Voice             *VoiceMessageInfo
 	Poll              *ChatPollInfo
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo
@@ -399,21 +400,8 @@ func (s *ChatService) sendMessage(
 	if err := validateClientMsgID(clientMsgID); err != nil {
 		return ChatMessageRow{}, err
 	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+	if err := s.requireCanSendMessageInRoom(ctx, userID, room); err != nil {
 		return ChatMessageRow{}, err
-	}
-	if room.Kind == chatRoomKindDM {
-		peerID, err := dmPeerUserID(room, userID)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		blocked, err := s.dmMessagingBlocked(ctx, roomOrganizationID(room), userID, peerID)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		if blocked {
-			return ChatMessageRow{}, errChatUserBlocked()
-		}
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
 	if clientMsgID != "" {
@@ -491,20 +479,7 @@ func (s *ChatService) sendMessage(
 		RoomID: room.ID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: createdAt, Valid: true},
 	})
 	_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
-	ev := Event{
-		Type: "chat.message.created",
-		Payload: map[string]string{
-			"room_id":    room.ID,
-			"message_id": msg.ID,
-		},
-	}
-	switch room.Kind {
-	case chatRoomKindWorkspace:
-		s.pub.Publish(ctx, anchorWS, ev)
-	default:
-		s.publishChatRoomEvent(ctx, room.ID, ev)
-		s.publishChatRoomActivity(ctx, room.ID)
-	}
+	s.publishCreatedChatMessage(ctx, room, msg.ID)
 	s.publishMentionNotifications(ctx, room, userID, msg.ID, mentionedUserIDs)
 	return chatMessageRowFromDB(msg, u.DisplayName), nil
 }

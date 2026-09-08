@@ -16,12 +16,16 @@ export function formatChatSidebarPreviewText(
     isGroup: boolean;
     youLabel: string;
     voiceCallLabel: string;
+    voiceMessageLabel?: string;
     nicknamesByUserId?: Readonly<Record<string, string>>;
   },
 ): string | null {
   if (!preview) return null;
   if (preview.kind === "voice_call_log") {
     return options.voiceCallLabel;
+  }
+  if (preview.kind === "voice") {
+    return options.voiceMessageLabel ?? options.voiceCallLabel;
   }
   const body = deserializeMessageBodyToComposerDraft(preview.body).trim();
   if (!body) return null;

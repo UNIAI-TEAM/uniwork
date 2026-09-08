@@ -146,11 +146,20 @@ WHERE upper(w.task_prefix) = upper(sqlc.arg('prefix'))
   AND t.number = sqlc.arg('number');
 
 -- name: ListMyTasks :many
--- Actor's tasks: assigned to them or created by them in this workspace.
+-- Actor's tasks filtered by relation (all|assigned|created|involved).
+-- relation NULL/'all' → assignee OR created_by; 'involved' → empty until agent links exist.
 SELECT * FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
-  AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+  AND (
+    (
+      (sqlc.narg('relation')::text IS NULL OR sqlc.narg('relation')::text IN ('', 'all'))
+      AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+    )
+    OR (sqlc.narg('relation')::text = 'assigned' AND assignee_id = sqlc.arg('actor_id'))
+    OR (sqlc.narg('relation')::text = 'created' AND created_by = sqlc.arg('actor_id'))
+    OR (sqlc.narg('relation')::text = 'involved' AND FALSE)
+  )
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
 ORDER BY status, position, created_at
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
@@ -159,7 +168,15 @@ LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 SELECT count(*)::bigint FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
-  AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+  AND (
+    (
+      (sqlc.narg('relation')::text IS NULL OR sqlc.narg('relation')::text IN ('', 'all'))
+      AND (assignee_id = sqlc.arg('actor_id') OR created_by = sqlc.arg('actor_id'))
+    )
+    OR (sqlc.narg('relation')::text = 'assigned' AND assignee_id = sqlc.arg('actor_id'))
+    OR (sqlc.narg('relation')::text = 'created' AND created_by = sqlc.arg('actor_id'))
+    OR (sqlc.narg('relation')::text = 'involved' AND FALSE)
+  )
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'));
 
 -- name: ListChildTasks :many

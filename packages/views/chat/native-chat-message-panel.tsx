@@ -26,6 +26,7 @@ import { ChatPollMessageRow } from "./chat-poll-message-row";
 import { ChatReminderMessageRow } from "./chat-reminder-message-row";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
 import { VoiceCallLogRow } from "./voice-call-log-row";
+import { ChatVoiceMessageRow } from "./chat-voice-message-row";
 import { VirtualChatMessageList } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { senderLabelFor, toChatMessage } from "./native-chat-message-mapping";
@@ -326,6 +327,23 @@ export function NativeChatMessagePanel({
             key={message.id}
             message={message}
             currentUserId={currentUserId}
+          />
+        );
+      }
+      if (message.kind === "voice" && message.voice) {
+        const isOwn = message.sender === currentUserId;
+        const { compactTop, showAvatar } = messageGrouping(messages, index);
+        return (
+          <ChatVoiceMessageRow
+            key={message.id}
+            workspaceId={workspaceId}
+            roomId={roomId}
+            message={message}
+            senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+            isOwn={isOwn}
+            showSenderName={showSenderName}
+            compactTop={compactTop}
+            showAvatar={showAvatar}
           />
         );
       }

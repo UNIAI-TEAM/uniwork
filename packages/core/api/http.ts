@@ -173,6 +173,30 @@ export async function requestText(path: string): Promise<string> {
   return res.text();
 }
 
+/**
+ * Fetch an authenticated binary response. Native media elements cannot attach
+ * the bearer token, so callers create a short-lived object URL from this blob.
+ */
+export async function requestBlob(path: string): Promise<Blob> {
+  let res = await rawFetch(path, {});
+  if (res.status === 401 && getAccessToken()) {
+    const refreshed = await refreshSession();
+    if (refreshed) res = await rawFetch(path, {});
+  }
+  if (!res.ok) {
+    let code = "internal";
+    let message = res.statusText;
+    try {
+      const body = (await res.json()) as { error?: { code: string; message: string } };
+      if (body.error) ({ code, message } = body.error);
+    } catch {
+      /* body is not JSON */
+    }
+    throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
+  }
+  return res.blob();
+}
+
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,
 // several requests hitting 401 together) would have the second one present an
 // already-revoked cookie → 401 → a spurious logout. Single-flight: every

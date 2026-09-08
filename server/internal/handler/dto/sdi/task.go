@@ -63,6 +63,14 @@ type SetTaskDependencySDI struct {
 	Type            string `json:"type" description:"blocks, blocked_by hoặc related" example:"blocked_by"`
 }
 
+// ListMyTasksSDI documents GET .../my-tasks query params (flagged suite).
+type ListMyTasksSDI struct {
+	Relation string `query:"relation" description:"all (mặc định), assigned, created hoặc involved (empty đến khi có agent link)" example:"assigned"`
+	Status   string `query:"status" description:"Lọc theo status; bỏ trống = mọi status" example:"todo"`
+	Limit    int32  `query:"limit" description:"Kích thước trang (mặc định 50, tối đa 200)" example:"50"`
+	Offset   int32  `query:"offset" description:"Offset phân trang" example:"0"`
+}
+
 // TableFilterSDI narrows table groups/rows/facets.
 type TableFilterSDI struct {
 	Statuses    []string `json:"statuses" description:"Lọc status; bỏ trống = mọi status" example:"[\"todo\",\"in_progress\"]"`

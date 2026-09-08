@@ -133,8 +133,9 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 		})
 		suite.Get("/workspaces/{workspaceID}/my-tasks", h.ListMyTasks, apiOp{
 			summary:     "My tasks",
-			description: "Công việc được giao hoặc do người gọi tạo trong workspace. Flag tasks_work_management_parity.",
+			description: "Công việc của người gọi trong workspace (relation=all|assigned|created|involved). Flag tasks_work_management_parity.",
 			tags:        []string{"tasks"},
+			sdi:         sdi.ListMyTasksSDI{},
 			sdo:         sdo.TaskQueryPageSDO{},
 			auth:        true,
 		})

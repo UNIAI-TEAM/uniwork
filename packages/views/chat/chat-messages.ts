@@ -14,6 +14,11 @@ export interface ChatMessage {
     duration_seconds?: number;
     caller_id: string;
   };
+  voice?: {
+    duration_ms: number;
+    content_type: string;
+    size_bytes: number;
+  };
   poll?: {
     question: string;
     options: { id: string; label: string; votes: number }[];

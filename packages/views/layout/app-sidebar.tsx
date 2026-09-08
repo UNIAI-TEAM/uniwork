@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ChevronsUpDown,
   Inbox,
+  ListTodo,
   LogOut,
   MessageSquare,
   Settings,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -48,7 +50,7 @@ import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.inbox" | "nav.tasks" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.meetings" | "nav.chat" | "nav.people";
   href: string;
   icon: LucideIcon;
   badge?: number;
@@ -78,10 +80,14 @@ export function AppSidebar() {
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const unread = useUnreadCount();
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
+  const parity = useFlag("tasks_work_management_parity", false);
 
   const items: NavItem[] = [
     { key: "nav.inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
     { key: "nav.tasks", href: ws.tasks(), icon: SquareCheckBig },
+    ...(parity
+      ? [{ key: "nav.my_tasks" as const, href: ws.myTasks(), icon: ListTodo }]
+      : []),
     { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },
     { key: "nav.chat", href: ws.chat(), icon: MessageSquare },
     { key: "nav.people", href: ws.people(), icon: Users },

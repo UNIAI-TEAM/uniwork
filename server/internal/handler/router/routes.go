@@ -300,6 +300,8 @@ type Routes struct {
 	SearchChatRoomMessages      http.HandlerFunc
 	ListChatRoomMessagesAround  http.HandlerFunc
 	SendChatRoomMessage         http.HandlerFunc
+	SendChatVoiceMessage        http.HandlerFunc
+	StreamChatVoiceMessage      http.HandlerFunc
 	VoteChatPollMessage         http.HandlerFunc
 	ToggleChatMessageReaction   http.HandlerFunc
 	EditChatMessage             http.HandlerFunc

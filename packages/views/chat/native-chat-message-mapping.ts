@@ -26,6 +26,7 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
           caller_id: record.voice_call.caller_id,
         }
       : undefined,
+    voice: record.voice,
     poll: record.poll
       ? {
           question: record.poll.question,

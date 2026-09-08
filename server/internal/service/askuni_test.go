@@ -202,7 +202,11 @@ func TestConversationOwnershipAndUsage(t *testing.T) {
 	}
 	msgs, err := s.Messages(ctx, ua.ID, res.ConversationID)
 	if err != nil || len(msgs) != 2 || msgs[0].Role != "user" || msgs[1].Role != "assistant" {
-		t.Fatalf("%d %v", len(msgs), err)
+		roles := make([]string, len(msgs))
+		for i, m := range msgs {
+			roles[i] = m.Role
+		}
+		t.Fatalf("want [user assistant], got %v (n=%d err=%v)", roles, len(msgs), err)
 	}
 	convs, err := s.ListConversations(ctx, ua.ID, w.ID)
 	if err != nil || len(convs) != 1 || convs[0].Title != "có gì mới?" {
