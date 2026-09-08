@@ -19,9 +19,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { Layers, Plus, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import {
   useDeleteTaskView,
-  usePins,
   usePutTaskViewPreference,
   useTaskViewPreference,
 } from "@uniwork/core/tasks";
@@ -115,13 +115,13 @@ export function ViewBar({
 }) {
   const { t } = useTranslation();
   const userId = useAuthStore((s) => s.user?.id ?? null);
+  const { role: wsRole } = useCurrentMember(workspaceId);
   const prefQuery = useTaskViewPreference(workspaceId, {
     scope_type: scope.scope_type,
     scope_id: scope.scope_id ?? undefined,
   });
   const putPref = usePutTaskViewPreference(workspaceId);
   const deleteView = useDeleteTaskView(workspaceId);
-  usePins(workspaceId);
 
   const prefs = parsePrefs(prefQuery.data?.prefs);
   const [manageOpen, setManageOpen] = useState(false);
@@ -143,10 +143,10 @@ export function ViewBar({
       label: view.name,
       kind: "view",
       view,
-      canManage: canManageTaskView(view, userId, null),
+      canManage: canManageTaskView(view, userId, wsRole),
     }));
     return [...builtinItems, ...viewItems];
-  }, [builtins, userId, views]);
+  }, [builtins, userId, views, wsRole]);
 
   const anchorId = items[0]?.barItemId ?? "builtin:all";
   const { visible, hiddenSet, ordered } = applyViewBarPrefs(

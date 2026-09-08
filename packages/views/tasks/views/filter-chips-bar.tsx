@@ -4,7 +4,6 @@ import { useMemo, type ReactNode } from "react";
 import {
   CalendarDays,
   CircleDot,
-  Filter,
   SignalHigh,
   User,
   X,
@@ -162,6 +161,8 @@ export function FilterChipsBar({
   ]);
 
   const activeCount = getActiveFilterCount(snapshot, dateFilter);
+  // Filter entry lives in TaskDisplayControls; chips bar only shows active
+  // chips / clear / save (plus an optional working filterMenu if a host passes one).
   if (activeCount === 0 && !filterMenu && !onSave) return null;
 
   return (
@@ -171,12 +172,7 @@ export function FilterChipsBar({
         PAGE_GUTTER,
       )}
     >
-      {filterMenu ?? (
-        <Button type="button" variant="outline" size="sm" className="gap-1.5">
-          <Filter className="size-3.5" aria-hidden />
-          {t("tasks.filters.add")}
-        </Button>
-      )}
+      {filterMenu}
       {chips.map((chip) => (
         <span
           key={chip.key}

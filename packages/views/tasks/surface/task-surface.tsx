@@ -6,6 +6,7 @@ import { ListTodo, Plus } from "lucide-react";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
+import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -69,6 +70,15 @@ function TaskSurfaceContent({
     scope,
     modes,
   });
+  const { data: membersData } = useMembers(workspaceId);
+  const batchMembers = useMemo(
+    () =>
+      (membersData ?? []).map((m) => ({
+        id: m.user_id,
+        name: m.display_name || m.email,
+      })),
+    [membersData],
+  );
 
   const renderContext = useMemo(
     () => ({ controller }),
@@ -152,6 +162,7 @@ function TaskSurfaceContent({
             <BatchActionToolbar
               workspaceId={workspaceId}
               tasks={controller.surfaceTasks}
+              members={batchMembers}
             />
           ) : null}
           <NewTaskDialog

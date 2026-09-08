@@ -31,9 +31,6 @@ const EMPTY_CONFIG = {
   work_management_capabilities: {},
 } as const;
 
-const SCOPE_VALUES = ["all", "members", "agents"] as const;
-type WorkspaceScopeTab = (typeof SCOPE_VALUES)[number];
-
 export function TasksHeader({
   workspaceId,
   modes,
@@ -54,7 +51,6 @@ export function TasksHeader({
     view: TaskView;
     fromDefinition: boolean;
   } | null>(null);
-  const [scopeTab, setScopeTab] = useState<WorkspaceScopeTab>("all");
 
   const viewListScope: TaskViewScope | null = saveViewScope
     ? saveViewScope.kind === "project"
@@ -75,14 +71,25 @@ export function TasksHeader({
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const isViewOwner = !!activeView && activeView.owner_id === currentUserId;
 
+  // People/Agents actor tabs omitted until surfaceTasks is filtered by
+  // created_by_kind / assignee_kind — keep a single honest "All" builtin.
+  const builtins = useMemo(
+    () => [
+      {
+        key: "all",
+        label: t("tasks.scope.all_label"),
+        description: t("tasks.scope.all_description"),
+        active: !activeView,
+        onSelect: () => setActive(null),
+      },
+    ],
+    [activeView, setActive, t],
+  );
+
   const dialogScope = useMemo<SaveViewScope | null>(() => {
     if (!saveViewScope) return null;
-    if (saveViewScope.kind === "my") return saveViewScope;
-    if (saveViewScope.kind === "project") {
-      return { ...saveViewScope, actorKind: scopeTab };
-    }
-    return { kind: "workspace", actorKind: scopeTab };
-  }, [saveViewScope, scopeTab]);
+    return saveViewScope;
+  }, [saveViewScope]);
 
   const { data: publicConfig } = usePublicConfig();
   const agentCapability = capabilityState(
@@ -109,16 +116,7 @@ export function TasksHeader({
               <ViewBar
                 workspaceId={workspaceId}
                 scope={viewListScope}
-                builtins={SCOPE_VALUES.map((s) => ({
-                  key: s,
-                  label: t(`tasks.scope.${s}_label`),
-                  description: t(`tasks.scope.${s}_description`),
-                  active: !activeView && scopeTab === s,
-                  onSelect: () => {
-                    if (activeView) setActive(null);
-                    setScopeTab(s);
-                  },
-                }))}
+                builtins={builtins}
                 views={views}
                 viewsReady={viewsReady}
                 activeView={activeView}
