@@ -34,7 +34,10 @@ export function useTask(taskId: string) {
 export function useCreateTask(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: tasks.CreateTaskBody) => tasks.createTask(workspaceId, body),
+    mutationFn: (body: tasks.CreateTaskBody & { idempotencyKey?: string }) => {
+      const { idempotencyKey, ...rest } = body;
+      return tasks.createTask(workspaceId, rest, { idempotencyKey });
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) }),
   });
 }

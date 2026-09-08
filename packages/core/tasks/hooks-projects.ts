@@ -3,6 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as projects from "../api/endpoints/projects";
 import { taskKeys } from "./keys";
 
+function stableHash(value: unknown): string {
+  return JSON.stringify(value ?? null);
+}
+
 export function useProjects(
   workspaceId: string,
   opts: { status?: string; priority?: string } = {},
@@ -18,8 +22,9 @@ export function useSearchProjects(
   workspaceId: string,
   opts: { q?: string; include_closed?: boolean; limit?: number; offset?: number },
 ) {
+  const hash = stableHash(opts);
   return useQuery({
-    queryKey: taskKeys.projectSearch(workspaceId, opts.q ?? ""),
+    queryKey: taskKeys.projectSearch(workspaceId, hash),
     queryFn: () => projects.searchProjects(workspaceId, opts),
     enabled: !!workspaceId && !!opts.q,
   });

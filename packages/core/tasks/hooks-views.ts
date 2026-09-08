@@ -12,7 +12,7 @@ export function useTaskViews(
   opts: { scope_type?: string; scope_id?: string } = {},
 ) {
   return useQuery({
-    queryKey: taskKeys.views(workspaceId, scopeHash(opts)),
+    queryKey: taskKeys.viewsScoped(workspaceId, scopeHash(opts)),
     queryFn: () => views.listTaskViews(workspaceId, opts),
     enabled: !!workspaceId,
   });
@@ -60,7 +60,7 @@ export function useTaskViewPreference(
 ) {
   const hash = opts ? scopeHash(opts) : "";
   return useQuery({
-    queryKey: taskKeys.viewPrefs(workspaceId, hash),
+    queryKey: taskKeys.viewPrefsScoped(workspaceId, hash),
     queryFn: () => views.getTaskViewPreference(workspaceId, opts!),
     enabled: !!workspaceId && !!opts,
   });
@@ -71,7 +71,7 @@ export function usePutTaskViewPreference(workspaceId: string) {
   return useMutation({
     mutationFn: (body: views.PutTaskViewPreferenceBody) =>
       views.putTaskViewPreference(workspaceId, body),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.viewPrefs(workspaceId, "") }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.viewPrefs(workspaceId) }),
   });
 }
 

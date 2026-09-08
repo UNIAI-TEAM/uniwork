@@ -3,9 +3,20 @@ import { ActorSchema } from "./actor";
 
 // The closed vocabularies the UI reasons about. Used to type requests and
 // UI state; response schemas below deliberately do NOT use them.
-export const TASK_STATUSES = ["todo", "in_progress", "done", "cancelled"] as const;
-export type TaskStatus = (typeof TASK_STATUSES)[number];
-export const TaskStatusSchema = z.enum(TASK_STATUSES);
+export const TASK_STATUS_CATEGORIES = [
+  "backlog",
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+  "blocked",
+  "cancelled",
+] as const;
+export type TaskStatusCategory = (typeof TASK_STATUS_CATEGORIES)[number];
+/** Alias of TASK_STATUS_CATEGORIES (seven catalog keys / categories). */
+export const TASK_STATUSES = TASK_STATUS_CATEGORIES;
+export type TaskStatus = TaskStatusCategory;
+export const TaskStatusSchema = z.enum(TASK_STATUS_CATEGORIES);
 
 export const TASK_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];

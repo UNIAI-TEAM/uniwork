@@ -79,7 +79,7 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
       break;
     }
     case "task_view_preference.updated": {
-      push(taskKeys.viewPrefs(wsId, ""));
+      push(taskKeys.viewPrefs(wsId));
       break;
     }
     case "task_pin.created":

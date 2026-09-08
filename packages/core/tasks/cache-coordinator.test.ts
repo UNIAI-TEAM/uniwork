@@ -52,6 +52,15 @@ describe("planCacheUpdate", () => {
     ]);
   });
 
+  it("invalidates views root (prefix of scoped live keys) and prefs root", () => {
+    expect(planCacheUpdate("ws1", { type: "task_view.created" }).keys).toEqual([
+      taskKeys.views("ws1"),
+    ]);
+    expect(planCacheUpdate("ws1", { type: "task_view_preference.updated" }).keys).toEqual([
+      taskKeys.viewPrefs("ws1"),
+    ]);
+  });
+
   it("returns empty keys for unknown events", () => {
     expect(planCacheUpdate("ws1", { type: "chat.message" })).toEqual({
       type: "invalidate",

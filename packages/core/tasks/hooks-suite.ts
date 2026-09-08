@@ -21,8 +21,9 @@ export function useGroupedTasks(
   workspaceId: string,
   opts: { group_by?: string; status?: string; limit?: number; offset?: number } = {},
 ) {
+  const hash = stableHash(opts);
   return useQuery({
-    queryKey: taskKeys.grouped(workspaceId, opts.group_by ?? "status"),
+    queryKey: taskKeys.grouped(workspaceId, hash),
     queryFn: () => suite.groupedTasks(workspaceId, opts),
     enabled: !!workspaceId,
   });
@@ -32,8 +33,9 @@ export function useMyTasks(
   workspaceId: string,
   opts: { limit?: number; offset?: number } = {},
 ) {
+  const hash = stableHash(opts);
   return useQuery({
-    queryKey: taskKeys.myTasks(workspaceId),
+    queryKey: taskKeys.myTasksFiltered(workspaceId, hash),
     queryFn: () => suite.listMyTasks(workspaceId, opts),
     enabled: !!workspaceId,
   });
@@ -100,6 +102,7 @@ export function useBatchDeleteTasks(workspaceId: string) {
       void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.myTasks(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
     },
   });
 }
