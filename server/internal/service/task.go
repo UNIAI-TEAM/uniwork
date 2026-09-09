@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -24,13 +25,14 @@ var validPriority = map[string]bool{"low": true, "medium": true, "high": true, "
 // the service holds a pool and no longer holds an EventPublisher: realtime
 // reaches the client from the outbox, not from here.
 type TaskService struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
-	ws   *WorkspaceService
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	ws      *WorkspaceService
+	storage storage.Storage
 }
 
-func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService) *TaskService {
-	return &TaskService{pool: pool, q: q, ws: ws}
+func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, store storage.Storage) *TaskService {
+	return &TaskService{pool: pool, q: q, ws: ws, storage: store}
 }
 
 type CreateTaskInput struct {

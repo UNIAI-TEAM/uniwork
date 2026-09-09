@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -292,6 +293,24 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := f.tasks.UnsubscribeTask(f.ctx, Human(f.owner.ID), task.ID, SubscribeTaskInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAttachmentUploaded: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			body := []byte("# note\n")
+			if _, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body)); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAttachmentDeleted: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			body := []byte("# note\n")
+			att, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteAttachment(f.ctx, Human(f.owner.ID), att.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -673,6 +692,8 @@ func auditActions() []string {
 		audit.ActionTaskReactionRemoved,
 		audit.ActionTaskSubscribed,
 		audit.ActionTaskUnsubscribed,
+		audit.ActionAttachmentUploaded,
+		audit.ActionAttachmentDeleted,
 		audit.ActionAuthLoginSucceeded,
 		audit.ActionAuthLoginFailed,
 		audit.ActionAuthPasswordResetRequested,
@@ -732,7 +753,7 @@ func newAuditFixture(t *testing.T) *auditFixture {
 		ctx: context.Background(), pool: pool, q: q,
 		auth: auth, orgs: orgs, orgMem: orgMembers,
 		people: NewPeopleService(pool, q, orgs), depts: NewDepartmentService(pool, q, orgs), ws: ws,
-		tasks:   NewTaskService(pool, q, ws),
+		tasks:   NewTaskService(pool, q, ws, newMemStorage()),
 		agents:  NewAgentService(pool, q, orgs, ws),
 		billing: NewBillingService(pool, q, orgs, nil),
 		chat:    NewChatService(pool, q, ws, NopPublisher{}),

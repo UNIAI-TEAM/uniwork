@@ -106,7 +106,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
 	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
 	authSvc := service.NewAuthService(pool, q, minter, time.Hour, verification)
-	tasks := service.NewTaskService(pool, q, ws)
+	tasks := service.NewTaskService(pool, q, ws, nil)
 	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")})
 	chatSvc := service.NewChatService(pool, q, ws, service.NopPublisher{})
 	// AI_PROVIDER=fake in the test env turns the gateway on with the

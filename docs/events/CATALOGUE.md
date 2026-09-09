@@ -105,6 +105,8 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `task.reaction_removed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.subscribed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.unsubscribed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
+| `attachment.uploaded` | 1 | `attachment_id`, `task_id`, `workspace_id` | workspace | outbox |
+| `attachment.deleted` | 1 | `attachment_id`, `task_id`, `workspace_id` | workspace | outbox |
 | `task.created` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.deleted` | 1 | `task_id`, `workspace_id` | workspace | outbox |
 | `task.updated` | 1 | `task_id`, `workspace_id` | workspace | outbox |

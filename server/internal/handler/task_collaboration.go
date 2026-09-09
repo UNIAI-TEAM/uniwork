@@ -227,15 +227,29 @@ func (h *handlers) unsubscribeTaskSubtree(w http.ResponseWriter, r *http.Request
 }
 
 func (h *handlers) listTaskAttachments(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.ListTaskAttachments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
+	atts, err := h.Tasks.ListTaskAttachments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"attachments": atts})
 }
 
 func (h *handlers) getAttachment(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.GetAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")))
+	att, err := h.Tasks.GetAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, att)
 }
 
 func (h *handlers) deleteAttachment(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.DeleteAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")))
+	if err := h.Tasks.DeleteAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *handlers) getTaskTimeline(w http.ResponseWriter, r *http.Request) {

@@ -69,7 +69,24 @@ func taskFixture(t *testing.T) (*TaskService, *outboxCapture, db.User, db.User, 
 	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
 	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
 	w := v.Workspace
-	return NewTaskService(pool, q, ws), newOutboxCapture(pool, q), ua, ub, w
+	return NewTaskService(pool, q, ws, newMemStorage()), newOutboxCapture(pool, q), ua, ub, w
+}
+
+func taskFixtureWithStorage(t *testing.T) (*TaskService, *memStorage, *outboxCapture, db.User, db.User, db.Workspace) {
+	t.Helper()
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	orgs := NewOrganizationService(pool, q)
+	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	ctx := context.Background()
+	ua := registerVerified(t, q, as, "a@example.com", "A")
+	ub := registerVerified(t, q, as, "b@example.com", "B")
+	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
+	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
+	w := v.Workspace
+	store := newMemStorage()
+	return NewTaskService(pool, q, ws, store), store, newOutboxCapture(pool, q), ua, ub, w
 }
 
 func TestTaskCRUD(t *testing.T) {
@@ -216,7 +233,7 @@ func TestTaskFoundationTenantIsolation(t *testing.T) {
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
-	tasks := NewTaskService(pool, q, ws)
+	tasks := NewTaskService(pool, q, ws, nil)
 	ctx := context.Background()
 
 	ua := registerVerified(t, q, as, "iso-a@example.com", "A")

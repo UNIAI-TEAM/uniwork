@@ -39,7 +39,7 @@ func newAuditServiceFixture(t *testing.T) *auditServiceFixture {
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 
 	f := &auditServiceFixture{ctx: ctx, q: q, ws: ws,
-		svc: NewAuditService(pool, q, orgs, ws), tasks: NewTaskService(pool, q, ws)}
+		svc: NewAuditService(pool, q, orgs, ws), tasks: NewTaskService(pool, q, ws, nil)}
 
 	f.ownerA = registerVerified(t, q, auth, "aud-owner-a@example.com", "Owner A")
 	f.adminA = registerVerified(t, q, auth, "aud-admin-a@example.com", "Admin A")

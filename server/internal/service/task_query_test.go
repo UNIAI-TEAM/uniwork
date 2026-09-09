@@ -167,7 +167,7 @@ func TestGetTaskByIdentifierAmbiguousAcrossWorkspaces(t *testing.T) {
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
-	s := NewTaskService(pool, q, ws)
+	s := NewTaskService(pool, q, ws, nil)
 	ctx := context.Background()
 
 	ua := registerVerified(t, q, as, "ambig@example.com", "Ambig")
