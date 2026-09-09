@@ -4,6 +4,7 @@ import { useRef } from "react";
 import {
   CalendarDays,
   ChevronsUpDown,
+  FolderKanban,
   Inbox,
   ListTodo,
   LogOut,
@@ -50,7 +51,7 @@ import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
   href: string;
   icon: LucideIcon;
   badge?: number;
@@ -86,7 +87,10 @@ export function AppSidebar() {
     { key: "nav.inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
     { key: "nav.tasks", href: ws.tasks(), icon: SquareCheckBig },
     ...(parity
-      ? [{ key: "nav.my_tasks" as const, href: ws.myTasks(), icon: ListTodo }]
+      ? [
+          { key: "nav.my_tasks" as const, href: ws.myTasks(), icon: ListTodo },
+          { key: "nav.projects" as const, href: ws.projects(), icon: FolderKanban },
+        ]
       : []),
     { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },
     { key: "nav.chat", href: ws.chat(), icon: MessageSquare },

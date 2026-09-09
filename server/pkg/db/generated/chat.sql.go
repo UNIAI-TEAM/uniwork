@@ -643,6 +643,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
@@ -672,6 +673,7 @@ type ListChatMessagesAfterInRoomRow struct {
 	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
 	EditedAt          pgtype.Timestamptz `json:"edited_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
 	SenderDisplayName string             `json:"sender_display_name"`
 }
 
@@ -700,6 +702,7 @@ func (q *Queries) ListChatMessagesAfterInRoom(ctx context.Context, arg ListChatM
 			&i.ReplyToMessageID,
 			&i.EditedAt,
 			&i.CreatedAt,
+			&i.ClientMsgID,
 			&i.SenderDisplayName,
 		); err != nil {
 			return nil, err
@@ -724,6 +727,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
@@ -753,6 +757,7 @@ type ListChatMessagesBeforeOrAtInRoomRow struct {
 	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
 	EditedAt          pgtype.Timestamptz `json:"edited_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
 	SenderDisplayName string             `json:"sender_display_name"`
 }
 
@@ -781,6 +786,7 @@ func (q *Queries) ListChatMessagesBeforeOrAtInRoom(ctx context.Context, arg List
 			&i.ReplyToMessageID,
 			&i.EditedAt,
 			&i.CreatedAt,
+			&i.ClientMsgID,
 			&i.SenderDisplayName,
 		); err != nil {
 			return nil, err
@@ -805,6 +811,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
@@ -834,6 +841,7 @@ type ListChatMessagesByRoomRow struct {
 	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
 	EditedAt          pgtype.Timestamptz `json:"edited_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
 	SenderDisplayName string             `json:"sender_display_name"`
 }
 
@@ -862,6 +870,7 @@ func (q *Queries) ListChatMessagesByRoom(ctx context.Context, arg ListChatMessag
 			&i.ReplyToMessageID,
 			&i.EditedAt,
 			&i.CreatedAt,
+			&i.ClientMsgID,
 			&i.SenderDisplayName,
 		); err != nil {
 			return nil, err
@@ -1072,6 +1081,7 @@ SELECT
   m.reply_to_message_id,
   m.edited_at,
   m.created_at,
+  m.client_msg_id,
   u.display_name AS sender_display_name
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
@@ -1104,6 +1114,7 @@ type SearchChatMessagesByRoomRow struct {
 	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
 	EditedAt          pgtype.Timestamptz `json:"edited_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
 	SenderDisplayName string             `json:"sender_display_name"`
 }
 
@@ -1133,6 +1144,7 @@ func (q *Queries) SearchChatMessagesByRoom(ctx context.Context, arg SearchChatMe
 			&i.ReplyToMessageID,
 			&i.EditedAt,
 			&i.CreatedAt,
+			&i.ClientMsgID,
 			&i.SenderDisplayName,
 		); err != nil {
 			return nil, err

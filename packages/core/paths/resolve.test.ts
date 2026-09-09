@@ -44,6 +44,10 @@ describe("paths", () => {
   it("builds my-tasks under the workspace", () => {
     expect(paths.workspace("acme", "team").myTasks()).toBe("/acme/team/my-tasks");
   });
+  it("builds projects under the workspace", () => {
+    expect(paths.workspace("acme", "team").projects()).toBe("/acme/team/projects");
+    expect(paths.workspace("acme", "team").project("P1")).toBe("/acme/team/projects/P1");
+  });
   it("builds the auth pages and the absolute Google start url", () => {
     configureRuntime({ apiUrl: "http://api.test" });
     try {

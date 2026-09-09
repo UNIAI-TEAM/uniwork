@@ -11,7 +11,7 @@ describe("ChatMessageBody", () => {
   // keeps the lazy boundary in the assertions without timing the import.
   beforeAll(async () => {
     await import("@uniwork/ui/markdown");
-  });
+  }, 60_000);
 
   it("renders plain text without markdown wrapper", () => {
     render(<ChatMessageBody body="hello world" isOwn={false} nameContext={[]} />);

@@ -74,6 +74,9 @@ type ChatMessageRow struct {
 	Note              *ChatNoteInfo
 	Priority          string
 	EditedAt          *time.Time
+	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
+	// its own queued copy without guessing from body and timestamp.
+	ClientMsgID string
 }
 
 type ListChatMessagesInput struct {
@@ -557,6 +560,7 @@ func chatMessageRowFromDBForViewer(msg db.ChatMessage, senderDisplayName, viewer
 		msg.ID, msg.RoomID, msg.WorkspaceID, msg.SenderID, senderDisplayName,
 		msg.Kind, msg.Body, msg.Metadata, msg.ReplyToMessageID, msg.EditedAt, msg.CreatedAt, viewerID,
 	)
+	out.ClientMsgID = msg.ClientMsgID.String
 	return out
 }
 

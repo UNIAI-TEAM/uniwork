@@ -100,6 +100,9 @@ export const ChatMessageSchema = z.object({
     })
     .optional(),
   priority: z.enum(["important", "urgent"]).optional(),
+  // Echo of the sender's idempotency key; a client drops its own queued copy
+  // when this comes back, instead of guessing from body and timestamp.
+  client_msg_id: z.string().optional(),
 });
 export type ChatMessageRecord = z.infer<typeof ChatMessageSchema>;
 

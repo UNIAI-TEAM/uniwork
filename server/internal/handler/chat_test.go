@@ -306,6 +306,52 @@ func TestChatRoomMessages(t *testing.T) {
 	_ = tokB
 }
 
+// A client cannot drop its own queued copy of a send without this echo, so the
+// list endpoint carries it too, not just the send response.
+func TestChatMessagesEchoClientMsgID(t *testing.T) {
+	f := setupChatFixture(t, "cmid")
+	srv, tok := f.srv, f.tokens["a"]
+	base := roomMessagesPath(f, f.groupRoomID)
+	clientMsgID := "550e8400-e29b-41d4-a716-446655440777"
+
+	res, out := doJSON(t, srv, "POST", base, tok, map[string]string{
+		"body": "queued once", "client_msg_id": clientMsgID})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("send: %d %v", res.StatusCode, out)
+	}
+	sent := out["message"].(map[string]any)
+	if sent["client_msg_id"] != clientMsgID {
+		t.Fatalf("send echo = %v want %v", sent["client_msg_id"], clientMsgID)
+	}
+	msgID := sent["id"].(string)
+
+	res, out = doJSON(t, srv, "POST", base, tok, map[string]string{
+		"body": "queued once", "client_msg_id": clientMsgID})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("retry: %d %v", res.StatusCode, out)
+	}
+	if out["message"].(map[string]any)["id"] != msgID {
+		t.Fatalf("retry created a second row: %v", out["message"])
+	}
+
+	res, out = doJSON(t, srv, "GET", base, tok, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list: %d %v", res.StatusCode, out)
+	}
+	found := ""
+	for _, raw := range out["messages"].([]any) {
+		msg := raw.(map[string]any)
+		if msg["id"] == msgID {
+			if echo, ok := msg["client_msg_id"].(string); ok {
+				found = echo
+			}
+		}
+	}
+	if found != clientMsgID {
+		t.Fatalf("list echo = %q want %q", found, clientMsgID)
+	}
+}
+
 func TestChatMessageActions(t *testing.T) {
 	f := setupChatFixture(t, "actions")
 	srv := f.srv

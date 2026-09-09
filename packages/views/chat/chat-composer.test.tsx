@@ -89,6 +89,31 @@ describe("ChatComposer", () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores the Enter that only commits an IME composition", () => {
+    const onSend = vi.fn();
+
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft="xin chào"
+          onDraftChange={vi.fn()}
+          onSend={onSend}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    const textarea = screen.getByLabelText("Nhập tin nhắn…");
+    fireEvent.keyDown(textarea, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(textarea, { key: "Enter", keyCode: 229 });
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
   it("shows priority chip and clears it", () => {
     const onSend = vi.fn();
     const onPriorityChange = vi.fn();

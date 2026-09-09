@@ -39,6 +39,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.Priority != "" {
 		out.Priority = m.Priority
 	}
+	if m.ClientMsgID != "" {
+		out.ClientMsgID = m.ClientMsgID
+	}
 	if m.EditedAt != nil {
 		out.EditedAt = m.EditedAt.Format(time.RFC3339)
 	}

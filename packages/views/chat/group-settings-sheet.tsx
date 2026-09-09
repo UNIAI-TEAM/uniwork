@@ -380,6 +380,8 @@ export function ChatConversationToolbar({
   subtitle,
   backAriaLabel,
   onBack,
+  sidebarCollapsed,
+  onToggleSidebar,
   settingsAriaLabel,
   onOpenSettings,
   onOpenSearch,
@@ -395,6 +397,8 @@ export function ChatConversationToolbar({
   subtitle: string;
   backAriaLabel?: string;
   onBack?: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
   settingsAriaLabel: string;
   onOpenSettings: () => void;
   onOpenSearch?: () => void;
@@ -413,6 +417,11 @@ export function ChatConversationToolbar({
       subtitle={subtitle}
       backAriaLabel={backAriaLabel}
       onBack={onBack}
+      sidebarCollapsed={sidebarCollapsed}
+      sidebarToggleAriaLabel={
+        sidebarCollapsed ? t("chat.show_conversations") : t("chat.hide_conversations")
+      }
+      onToggleSidebar={onToggleSidebar}
       settingsAriaLabel={settingsAriaLabel}
       onOpenSettings={onOpenSettings}
       searchAriaLabel={t("chat.search_messages")}
@@ -432,6 +441,8 @@ export function GroupChatToolbar({
   memberCount,
   backAriaLabel,
   onBack,
+  sidebarCollapsed,
+  onToggleSidebar,
   onOpenSettings,
   onOpenSearch,
   onVoiceCall,
@@ -443,6 +454,8 @@ export function GroupChatToolbar({
   memberCount: number;
   backAriaLabel?: string;
   onBack?: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
   onOpenSettings: () => void;
   onOpenSearch?: () => void;
   onVoiceCall?: () => void;
@@ -461,6 +474,8 @@ export function GroupChatToolbar({
       subtitle={t("chat.group_member_count", { count: memberCount })}
       backAriaLabel={backAriaLabel}
       onBack={onBack}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={onToggleSidebar}
       settingsAriaLabel={t("chat.group_settings")}
       onOpenSettings={onOpenSettings}
       onOpenSearch={onOpenSearch}

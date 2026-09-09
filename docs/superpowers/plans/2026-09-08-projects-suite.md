@@ -1,6 +1,6 @@
 # UNI-426.4 · Projects suite Implementation Plan
 
-> **Trạng thái:** in-progress — chờ sub-issue + SDD execution
+> **Trạng thái:** shipped — UNI-502 slice 4 Projects suite đã qua `make check`; PR/handoff Task 11
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

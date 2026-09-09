@@ -100,12 +100,19 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Trò chuyện" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Thành viên" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Việc của tôi" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Dự án" })).toBeNull();
   });
 
   it("shows my-tasks in the nav only when the parity flag is on", () => {
     renderSidebar("/acme/team/tasks", true);
     const myTasks = screen.getByRole("link", { name: "Việc của tôi" });
     expect(myTasks).toHaveAttribute("href", "/acme/team/my-tasks");
+  });
+
+  it("shows projects in the nav only when the parity flag is on", () => {
+    renderSidebar("/acme/team/tasks", true);
+    const projects = screen.getByRole("link", { name: "Dự án" });
+    expect(projects).toHaveAttribute("href", "/acme/team/projects");
   });
 
   it("keeps icon controls visible when collapsed to the icon rail", () => {

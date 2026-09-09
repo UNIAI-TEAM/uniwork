@@ -1317,6 +1317,8 @@
     "search_members": "Search members…",
     "search_email": "Search by email…",
     "search_conversations": "Search",
+    "hide_conversations": "Hide conversation list",
+    "show_conversations": "Show conversation list",
     "search_messages": "Search in conversation",
     "search_messages_placeholder": "Search in conversation…",
     "search_messages_no_results": "No matching messages",
@@ -2283,6 +2285,8 @@
     "member_count": "{{count}} members"
   },
   "projects": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Projects open when work-management parity is enabled for this workspace.",
     "page": {
       "title": "Projects",
       "new_project": "New project",

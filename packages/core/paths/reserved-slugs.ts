@@ -18,6 +18,7 @@ export const RESERVED_SLUGS = [
   "new",
   "onboarding",
   "orgs",
+  "projects",
   "public",
   "register",
   "reset-password",

@@ -10,3 +10,4 @@ export {
   selectLazyChatScopeRoomIds,
 } from "./lazy-chat-scopes";
 export { useChatSendOutboxFlush, useChatSendOutboxCount } from "./use-chat-send-outbox-flush";
+export { useClearDeliveredChatSends } from "./use-clear-delivered-chat-sends";

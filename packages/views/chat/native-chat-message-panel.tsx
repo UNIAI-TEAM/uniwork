@@ -9,6 +9,7 @@ import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import { listChatRoomMessages, listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
 import {
   useChatRoomMessages,
+  useClearDeliveredChatSends,
   useDeleteChatMessage,
   useEditChatMessage,
   useToggleChatMessagePin,
@@ -75,6 +76,7 @@ export function NativeChatMessagePanel({
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [loadingAnchor, setLoadingAnchor] = useState(false);
   const { data: latestRows = [] } = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
+  useClearDeliveredChatSends(latestRows);
   const pendingEntries = usePendingChatMessagesStore(
     useShallow((state) => state.listForRoom(workspaceId, roomId)),
   );
