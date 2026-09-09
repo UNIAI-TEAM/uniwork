@@ -1,5 +1,6 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { coverageThresholds } from "../../scripts/coverage-gate";
 import { vitestPoolOptions } from "../../scripts/vitest-pool";
 
 export default defineConfig({
@@ -20,7 +21,10 @@ export default defineConfig({
       include: ["**/*.{ts,tsx}"],
       exclude: ["**/*.test.{ts,tsx}", "test/**", "**/*.config.*"],
       reporter: ["text-summary"],
-      thresholds: { statements: 55, branches: 50, functions: 42, lines: 56 },
+      // docs/engineering/GATE_LEVELS.md — at GATE_LEVEL=fast a drop below
+      // these prints the summary and passes; standard and above fail on it.
+      // The numbers never move down (docs/adr/0014-*.md).
+      thresholds: coverageThresholds({ statements: 55, branches: 50, functions: 42, lines: 56 }),
     },
   },
 });

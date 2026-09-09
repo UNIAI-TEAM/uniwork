@@ -108,7 +108,7 @@ check-full: ## make check at GATE_LEVEL=strict: everything, including E2E, regar
 
 gate: ## Show the current process gate level and what it changes
 	@. scripts/gate-level.sh; echo "GATE_LEVEL=$$GATE_LEVEL  (file: $$(cat GATE_LEVEL))"; \
-	echo "  fast: pre-commit skips lint/typecheck, make check skips E2E, e2e job and go test -race only on push to develop, bundle budget warns instead of failing; missing UNI-nnn still fails (no-issue label exempts)"; \
+	echo "  fast: pre-commit skips lint/typecheck, make check skips E2E, e2e job and go test -race only on push to develop, bundle budget + TS coverage + lint warn instead of failing; missing UNI-nnn still fails (no-issue label exempts)"; \
 	echo "  standard: the CLAUDE.md ruleset as written"; \
 	echo "  strict: standard, and PRs without UNI-nnn fail even with the no-issue label"; \
 	echo "  change it with a PR that edits GATE_LEVEL — docs/engineering/GATE_LEVELS.md"

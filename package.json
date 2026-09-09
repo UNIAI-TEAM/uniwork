@@ -61,7 +61,7 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "typecheck": "turbo typecheck",
-    "lint": "turbo lint",
+    "lint": "bash scripts/lint-gate.sh",
     "test": "turbo test --filter=!@uniwork/e2e",
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
     "brand:build": "bash scripts/brand/build.sh",

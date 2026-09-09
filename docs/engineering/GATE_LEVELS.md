@@ -28,6 +28,8 @@ Ghi đè cho một lần chạy bằng biến môi trường: `GATE_LEVEL=strict
 | Job `e2e` trên CI | chỉ khi push vào `develop`/`main` | mọi PR và push | như standard | `.github/workflows/ci.yml` |
 | Cờ `-race` của job `backend-test` trên CI | chỉ khi push vào `develop`/`main` | mọi PR và push | như standard | `.github/workflows/ci.yml` |
 | Ngân sách bundle trên CI | đo và cảnh báo, không chặn | chặn khi vượt trần | như standard | `.github/workflows/ci.yml` |
+| Sàn coverage TypeScript | in số, không chặn | chặn khi tụt dưới ngưỡng | như standard | `scripts/coverage-gate.ts` |
+| `pnpm lint` | in phát hiện, không chặn | lỗi lint chặn | như standard | `scripts/lint-gate.sh` |
 | PR thiếu `UNI-nnn` | fail, trừ nhãn `no-issue` | fail, trừ nhãn `no-issue` | fail, nhãn không cứu | `.github/workflows/uniai-link.yml` |
 | Ô DoD reviewer tick | 4 ô đánh dấu `fast` | đủ 10 ô | 10 ô, và review từ CODEOWNERS | `docs/engineering/DEFINITION_OF_DONE.md` |
 | Spec + plan trước khi code | khuyến nghị; issue là đủ | bắt buộc (DoD ô 10) | bắt buộc | `docs/engineering/FEATURE_WORKFLOW.md` |
@@ -47,6 +49,13 @@ merge, trong khi cái đang cần ở giai đoạn `fast` là ghép tính năng.
 chặn lại như cũ, và trước khi lên mức đó phải có một lượt dọn bundle, vì bảng
 trong job summary sẽ cho biết đã trôi bao xa.
 
+Sàn coverage TypeScript và `pnpm lint` nới cùng kiểu với ngân sách bundle: đo đủ,
+in đủ, không đánh đỏ. Lý do và cái giá ở `docs/adr/0014-coverage-va-lint-la-canh-bao-o-gate-level-fast.md`
+— phải là ADR vì nó chạm vào một dòng trong mục dưới đây. Không rule lint nào bị
+đổi mức và không con số coverage nào bị hạ; chỉ mã thoát đổi. Điều kiện để lên
+`standard`: hai gói `core` và `views` trở lại trên sàn, và bốn lỗi lint trong
+`packages/views/editor/` hết.
+
 Job `backend-test` chia bộ Go thành ba shard (`service`, `handler`, `rest`), mỗi shard
 một database riêng, vì `server/internal/testutil` nối tiếp mọi test DB sau một advisory
 lock: hai package dùng chung một database thì cộng thời gian chứ không chồng lên nhau.
@@ -64,7 +73,9 @@ có cờ tắt:
 - `server/internal/arch_test.go`: layering, membership chỉ qua `RequireMember`, chỉ
   `internal/audit` ghi audit/outbox; `TestAuditEventsAreAppendOnly`.
 - `audit_coverage_test.go`, `events-catalogue.test.mjs`, `parity.test.ts`, boundary lint.
-- Coverage floor không giảm.
+- Coverage floor không giảm — con số không bao giờ đi xuống. Ở `fast` một cú tụt
+  dưới ngưỡng TypeScript in ra rồi cho qua thay vì đánh đỏ (ADR 0014); ngưỡng
+  vẫn nguyên, và sàn coverage Go chặn ở mọi mức.
 - Hook `commit-msg`: prefix rẻ, lịch sử sạch là thứ khó lấy lại.
 - `pnpm audit`, `govulncheck`.
 - Agent không được `--no-verify` (`.claude/hooks/block-no-verify.sh`).
