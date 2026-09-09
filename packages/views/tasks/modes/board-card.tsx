@@ -13,6 +13,10 @@ import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import type { Task } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
+import {
+  AgentTriggerStub,
+  SquadAssignStub,
+} from "../surface/agent-squad-gates";
 
 const EMPTY_CONFIG = {
   flags: {},
@@ -34,15 +38,10 @@ export const BoardCardContent = memo(function BoardCardContent({
 }) {
   const { t } = useTranslation();
   const { data: publicConfig } = usePublicConfig();
-  const agentCapability = capabilityState(
-    publicConfig ?? EMPTY_CONFIG,
-    "tasks.agent_runs",
-  );
   const vcsCapability = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
     "tasks.vcs",
   );
-  const agentAvailable = agentCapability.status === "available";
   const vcsAvailable = vcsCapability.status === "available";
 
   return (
@@ -64,36 +63,20 @@ export const BoardCardContent = memo(function BoardCardContent({
             </p>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <span
-            className={cn(
-              "rounded-full bg-muted px-1.5 py-0.5 text-micro text-muted-foreground",
-              !agentAvailable && "cursor-not-allowed opacity-60",
-            )}
-            title={
-              agentAvailable
-                ? undefined
-                : t(agentCapability.explanation_key || "capabilities.unknown")
-            }
-            aria-disabled={!agentAvailable}
-          >
-            {t("tasks.surface.agent_chip_stub")}
-          </span>
-          <span
-            className={cn(
-              "rounded-full bg-muted px-1.5 py-0.5 text-micro text-muted-foreground",
-              !vcsAvailable && "cursor-not-allowed opacity-60",
-            )}
-            title={
-              vcsAvailable
-                ? undefined
-                : t(vcsCapability.explanation_key || "capabilities.unknown")
-            }
-            aria-disabled={!vcsAvailable}
-          >
-            {t("tasks.surface.vcs_chip_stub")}
-          </span>
-        </div>
+        <span
+          className={cn(
+            "shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-micro text-muted-foreground",
+            !vcsAvailable && "cursor-not-allowed opacity-60",
+          )}
+          title={
+            vcsAvailable
+              ? undefined
+              : t(vcsCapability.explanation_key || "capabilities.unknown")
+          }
+          aria-disabled={!vcsAvailable}
+        >
+          {t("tasks.surface.vcs_chip_stub")}
+        </span>
       </div>
 
       <p className="mt-1 line-clamp-2 text-body font-medium leading-snug">
@@ -161,7 +144,7 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
       data-board-card=""
       {...attributes}
       {...listeners}
-      className={cn("group/card", isDragging && "opacity-30")}
+      className={cn("group/card space-y-1", isDragging && "opacity-30")}
     >
       <button
         type="button"
@@ -173,6 +156,14 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
       >
         <BoardCardContent task={task} />
       </button>
+      <div
+        className="flex flex-wrap gap-1 px-0.5"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <AgentTriggerStub testId="board-agent-trigger" />
+        <SquadAssignStub testId="board-squad-assign" />
+      </div>
     </div>
   );
 });

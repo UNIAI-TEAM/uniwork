@@ -6,6 +6,10 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import {
+  AgentTriggerStub,
+  SquadAssignStub,
+} from "./surface/agent-squad-gates";
 
 export function NewTaskDialog({
   workspaceId,
@@ -56,6 +60,13 @@ export function NewTaskDialog({
               required
               autoFocus
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("tasks.assignee")}</Label>
+            <div className="flex flex-wrap gap-1.5">
+              <AgentTriggerStub testId="create-agent-trigger" />
+              <SquadAssignStub testId="create-squad-assign" />
+            </div>
           </div>
           <Button type="submit" disabled={create.isPending}>
             {t("common.create")}

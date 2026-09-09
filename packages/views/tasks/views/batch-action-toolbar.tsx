@@ -25,6 +25,10 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
 import {
+  AgentTriggerStub,
+  SquadAssignStub,
+} from "../surface/agent-squad-gates";
+import {
   BatchAssigneePicker,
   BatchPriorityPicker,
   BatchStatusPicker,
@@ -151,6 +155,14 @@ export function BatchActionToolbar({
             disabled={loading}
             members={members}
             onUpdate={(updates) => void handleBatchUpdate(updates)}
+          />
+          <AgentTriggerStub
+            testId="batch-agent-trigger"
+            label={t("tasks.batch.agent_trigger")}
+          />
+          <SquadAssignStub
+            testId="batch-squad-assign"
+            label={t("tasks.batch.squad_assign")}
           />
 
           <Button

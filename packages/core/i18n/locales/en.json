@@ -641,7 +641,10 @@
       "column_menu": "Column menu",
       "add_task": "Add task",
       "agent_chip_stub": "Agent",
-      "vcs_chip_stub": "VCS"
+      "vcs_chip_stub": "VCS",
+      "agent_trigger": "Run agent",
+      "squad_assign": "Assign squad",
+      "actions": "Actions"
     },
     "view": {
       "section": "View mode",
@@ -685,6 +688,8 @@
       "priority": "Priority",
       "assignee": "Assignee",
       "assignee_mixed": "Mixed",
+      "agent_trigger": "Run agent",
+      "squad_assign": "Assign squad",
       "delete": "Delete",
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
