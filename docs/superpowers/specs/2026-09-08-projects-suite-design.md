@@ -1,6 +1,6 @@
 # UniWork — Projects suite (UNI-426 lát cắt 4)
 
-> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-08; plan `../plans/2026-09-08-projects-suite.md`; chờ sub-issue + SDD
+> **Trạng thái:** shipped — UNI-502 / UNI-426.4 Projects suite đã qua gate; plan `../plans/2026-09-08-projects-suite.md`
 
 **Ngày:** 2026-09-08  
 **Issue:** UNI-502 · UNI-426.4  
