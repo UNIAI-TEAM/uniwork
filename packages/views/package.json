@@ -34,7 +34,8 @@
     "./people": "./people/index.ts",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts",
-    "./editor": "./editor/index.ts"
+    "./editor": "./editor/index.ts",
+    "./common/*": "./common/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
