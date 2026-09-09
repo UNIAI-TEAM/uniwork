@@ -30,22 +30,10 @@ export function MeetingJoinRequestRow({
   onReject: () => void;
   approving?: boolean;
   rejecting?: boolean;
-  variant?: "sidebar" | "overlay" | "compact";
+  variant?: "sidebar" | "compact";
 }) {
   const { t } = useTranslation();
   const name = requestDisplayName(request);
-
-  if (variant === "overlay") {
-    return (
-      <div className="flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-2.5">
-        <MeetingPersonAvatar name={name} size="default" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-body font-medium text-foreground">{name}</p>
-          <p className="text-caption text-muted-foreground">{t("meetings.unconfirmedGuest")}</p>
-        </div>
-      </div>
-    );
-  }
 
   if (variant === "compact") {
     return (

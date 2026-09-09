@@ -2,11 +2,15 @@
 
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { AvatarGroup, AvatarGroupCount } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { MeetingJoinRequestRow } from "./meeting-join-request-row";
-import { useJoinRequestActions } from "./use-join-request-actions";
+import { meetingLocale } from "./meeting-datetime";
+import { requestDisplayName } from "./meeting-join-request-row";
+import { MeetingPersonAvatar } from "./meeting-person";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
+
+const PREVIEW_AVATARS = 4;
 
 export function MeetingWaitingToJoinCard({
   meetingId,
@@ -18,63 +22,72 @@ export function MeetingWaitingToJoinCard({
   onViewAll?: () => void;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { pending, count } = usePendingJoinRequests(meetingId);
-  const { approveOne, rejectOne, approving, rejecting } = useJoinRequestActions(meetingId);
 
-  const first = pending[0];
-  if (!first) return null;
+  if (count === 0) return null;
+
+  const names = pending.map(requestDisplayName);
+  const nameList = new Intl.ListFormat(meetingLocale(i18n.language), {
+    style: "long",
+    type: "conjunction",
+  }).format(names);
+  const shown = pending.slice(0, PREVIEW_AVATARS);
+  const overflow = count - shown.length;
+  const preview = (
+    <>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-body font-medium text-foreground">{t("meetings.unconfirmedUsers", { count })}</span>
+        <span className="line-clamp-2 text-caption text-muted-foreground">{nameList}</span>
+      </span>
+      <AvatarGroup className="*:data-[slot=avatar]:ring-muted">
+        {shown.map((request) => (
+          <MeetingPersonAvatar key={request.id} name={requestDisplayName(request)} size="sm" />
+        ))}
+        {overflow > 0 ? (
+          <AvatarGroupCount className="size-6 bg-background text-caption text-muted-foreground ring-muted">
+            {t("meetings.moreParticipantsShort", { count: overflow })}
+          </AvatarGroupCount>
+        ) : null}
+      </AvatarGroup>
+    </>
+  );
+  const previewClassName =
+    "flex w-full min-w-0 flex-col items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-left";
 
   return (
-    <div className={cn("min-w-0", className)}>
-      <div className="mb-3 flex min-w-0 items-center gap-2">
-        <h2 className="min-w-0 truncate text-body font-semibold text-foreground">
+    <div className={cn("flex min-w-0 flex-col gap-3", className)}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <h2 className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
           {t("meetings.waitingToJoin")}
         </h2>
-        <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground">
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">
           {t("meetings.waitingToJoinHostHint")}
         </span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          type="button"
-          size="lg"
-          className="rounded-full"
-          disabled={approving}
-          onClick={() => approveOne(first.id)}
-        >
-          {t("meetings.approve")}
-        </Button>
-        <Button
-          type="button"
-          size="lg"
-          variant="outline"
-          className="rounded-full"
-          disabled={rejecting}
-          onClick={() => rejectOne(first.id)}
-        >
-          {t("meetings.reject")}
-        </Button>
-      </div>
-
-      <div className="mt-2">
-        <MeetingJoinRequestRow
-          request={first}
-          variant="overlay"
-          approving={approving}
-          rejecting={rejecting}
-          onApprove={() => approveOne(first.id)}
-          onReject={() => rejectOne(first.id)}
-        />
       </div>
 
       {onViewAll ? (
         <Button
           type="button"
           variant="ghost"
+          className={cn(
+            previewClassName,
+            "h-auto whitespace-normal font-normal hover:bg-muted/80",
+          )}
+          onClick={onViewAll}
+        >
+          {preview}
+        </Button>
+      ) : (
+        <div className={previewClassName}>{preview}</div>
+      )}
+
+      {onViewAll ? (
+        <Button
+          type="button"
+          variant="ghost"
           size="sm"
-          className="mt-1 h-8 w-full justify-between px-2 text-brand hover:text-brand"
+          className="h-auto w-full justify-center gap-1 py-1.5 text-brand hover:bg-transparent hover:text-brand"
           onClick={onViewAll}
         >
           {t("meetings.viewAllJoinRequestsCount", { count })}

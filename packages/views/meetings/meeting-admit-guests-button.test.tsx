@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -57,43 +57,14 @@ describe("MeetingWaitingToJoinCard", () => {
     pendingOnce();
   });
 
-  it("shows the waiting guest with admit and deny actions", async () => {
+  it("summarizes the waiting guest without admit or deny on the card", async () => {
     render(wrapWithNav(<MeetingWaitingToJoinCard meetingId="m1" />));
 
     expect(await screen.findByText("Đang chờ vào phòng")).toBeInTheDocument();
     expect(screen.getByText("Chỉ chủ trì mới thấy")).toBeInTheDocument();
+    expect(screen.getByText("1 khách chưa xác nhận")).toBeInTheDocument();
     expect(screen.getByText("kim kim")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Duyệt" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Từ chối" })).toBeInTheDocument();
-  });
-
-  it("approves the pending guest from the card", async () => {
-    requestMock.mockImplementation((path: string) => {
-      if (path.includes("/join-requests") && !path.includes("/approve")) {
-        return Promise.resolve({
-          join_requests: [
-            {
-              id: "jr1",
-              meeting_id: "m1",
-              status: "PENDING",
-              display_name_snapshot: "kim kim",
-            },
-          ],
-        });
-      }
-      return Promise.resolve({});
-    });
-
-    render(wrapWithNav(<MeetingWaitingToJoinCard meetingId="m1" />));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Duyệt" }));
-
-    await waitFor(() => {
-      expect(requestMock).toHaveBeenCalledWith(
-        expect.stringContaining("/meeting-join-requests/jr1/approve"),
-        expect.any(Object),
-      );
-    });
+    expect(screen.queryByRole("button", { name: /Cho kim kim vào|Duyệt|Từ chối|Duyệt tất cả/ })).not.toBeInTheDocument();
   });
 
   it("offers a link to the full list", async () => {
@@ -102,5 +73,38 @@ describe("MeetingWaitingToJoinCard", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Xem tất cả (1)" }));
     expect(onViewAll).toHaveBeenCalledOnce();
+  });
+
+  it("opens the people tab from the unconfirmed preview block", async () => {
+    const onViewAll = vi.fn();
+    render(wrapWithNav(<MeetingWaitingToJoinCard meetingId="m1" onViewAll={onViewAll} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: /1 khách chưa xác nhận/ }));
+    expect(onViewAll).toHaveBeenCalledOnce();
+  });
+
+  it("lists every waiting name in the preview when more than one person is waiting", async () => {
+    requestMock.mockResolvedValue({
+      join_requests: [
+        {
+          id: "jr1",
+          meeting_id: "m1",
+          status: "PENDING",
+          display_name_snapshot: "kim kim",
+        },
+        {
+          id: "jr2",
+          meeting_id: "m1",
+          status: "PENDING",
+          display_name_snapshot: "lan",
+        },
+      ],
+    });
+    render(wrapWithNav(<MeetingWaitingToJoinCard meetingId="m1" />));
+
+    expect(await screen.findByText("2 khách chưa xác nhận")).toBeInTheDocument();
+    expect(screen.getByText(/kim kim/)).toBeInTheDocument();
+    expect(screen.getByText(/lan/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Duyệt tất cả" })).not.toBeInTheDocument();
   });
 });

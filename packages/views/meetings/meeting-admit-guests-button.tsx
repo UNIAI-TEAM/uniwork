@@ -50,19 +50,14 @@ export function MeetingAdmitGuestsButton({
               size="sm"
               aria-label={label}
               className={cn(
-                "h-8 gap-1.5 rounded-full pl-1 pr-3 !border-success/45 !bg-success/15 !text-success hover:!bg-success/25 focus-visible:ring-success/40",
+                "h-8 gap-1.5 rounded-full px-3 !border-transparent !bg-success !text-background hover:!bg-success/90 focus-visible:ring-success/40",
                 className,
               )}
               onClick={onOpenPeople}
             />
           }
         >
-          <span
-            aria-hidden
-            className="grid size-6 shrink-0 place-items-center rounded-full bg-success/25"
-          >
-            <UserPlus className="size-3.5" />
-          </span>
+          <UserPlus aria-hidden className="size-3.5" />
           <span className="max-w-[10rem] truncate">{label}</span>
         </HoverCardTrigger>
         <HoverCardContent
@@ -71,7 +66,7 @@ export function MeetingAdmitGuestsButton({
           sideOffset={10}
           // `dark` keeps the panel in the meeting bar's palette: Base UI
           // portals the popup to <body>, away from the dark stage wrapper.
-          className="dark w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl bg-popover p-3 text-popover-foreground shadow-lg ring-1 ring-border"
+          className="dark w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl bg-popover p-4 text-popover-foreground shadow-lg ring-1 ring-border"
         >
           <MeetingWaitingToJoinCard meetingId={meetingId} onViewAll={onOpenPeople} />
         </HoverCardContent>
