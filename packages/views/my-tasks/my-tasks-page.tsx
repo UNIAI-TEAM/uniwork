@@ -14,10 +14,7 @@ import { MyTasksHeader } from "./my-tasks-header";
 /** Table omitted: workspace `/tasks/table/*` has no my-relation filter yet. */
 const MY_TASKS_MODES: TaskSurfaceMode[] = ["board", "list", "swimlane"];
 
-/**
- * Flag-on `/my-tasks` host body: my-scoped TaskSurface with four relation tabs.
- * Flag-off hosts render {@link MyTasksUnavailable} instead.
- */
+/** `/my-tasks` host body: my-scoped TaskSurface with four relation tabs. */
 export function MyTasksPageView({
   workspaceId,
   userId,

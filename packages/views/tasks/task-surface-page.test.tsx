@@ -4,7 +4,6 @@ import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { requestMock, wrap } from "../test/api-mock";
 import { TaskSurfacePage } from "./task-surface-page";
-import { TasksPageView } from "./tasks-page-view";
 
 initI18n();
 
@@ -60,21 +59,5 @@ describe("TaskSurfacePage", () => {
     expect(screen.getByTestId("task-mode-table")).toBeInTheDocument();
     expect(screen.getByTestId("task-mode-gantt")).toBeInTheDocument();
     expect(screen.getByTestId("task-mode-swimlane")).toBeInTheDocument();
-  });
-});
-
-describe("TasksPageView (MVP, flag-off)", () => {
-  it("keeps only board and list modes when tested in isolation", async () => {
-    render(wrap(<TasksPageView workspaceId="w1" onOpenTask={() => {}} />));
-
-    expect(
-      await screen.findByRole("group", { name: /Kiểu hiển thị|View mode/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Bảng|Board/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Danh sách|List/i })).toBeInTheDocument();
-    expect(screen.queryByTestId("task-mode-switcher")).toBeNull();
-    expect(screen.queryByTestId("task-mode-table")).toBeNull();
-    expect(screen.queryByTestId("task-mode-gantt")).toBeNull();
-    expect(screen.queryByTestId("task-mode-swimlane")).toBeNull();
   });
 });
