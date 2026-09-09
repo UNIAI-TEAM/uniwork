@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAddNote, useNotes } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { PanelCard } from "../layout/panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 
 /** Shared notes: a feed of who wrote what, and a composer at the bottom. */

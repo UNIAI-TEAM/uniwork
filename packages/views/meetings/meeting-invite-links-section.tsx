@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
 import { inviteLinkDisplayName, inviteLinkMetaParts } from "./invite-link-display";
-import { PanelCard } from "../layout/panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingLinkBadge } from "./meeting-status-badge";
 
 const VISIBLE_ACTIVE_LIMIT = 3;

@@ -2,7 +2,7 @@
 
 import { ChevronRight, IdCard, Mail, Pencil, Phone, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
@@ -11,14 +11,22 @@ import type { Actor, Person } from "@uniwork/core/types/people";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageState } from "../layout/collection-page";
-import { PanelCard } from "../layout/panel-card";
+import { PanelCard } from "../common/panel-card";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 import { ActorChip } from "./actor-chip";
 import { PersonDetailHero } from "./person-detail-hero";
-import { PersonDetailSkeleton } from "./people-skeleton";
+import { PersonDetailSkeleton } from "./person-detail-skeleton";
 import { formatJoinedOn, formatTimezone } from "./person-facts";
-import { ProfileForm } from "./profile-form";
+
+/**
+ * Nobody sees the edit form until they ask for it, and it drags a date picker,
+ * a department tree and a toast channel in with it. Split out so the first
+ * load of a profile does not carry the cost of editing one.
+ */
+const ProfileForm = lazy(() =>
+  import("./profile-form").then((m) => ({ default: m.ProfileForm })),
+);
 
 /** One label/value pair of the fact list. */
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -144,7 +152,9 @@ export function PersonDetailView({ userId }: { userId: string }) {
           <PersonDetailHero person={person} />
 
           {editing ? (
-            <ProfileForm orgSlug={orgSlug} person={person} onDone={() => setEditing(false)} />
+            <Suspense fallback={<div className="h-96" aria-hidden="true" />}>
+              <ProfileForm orgSlug={orgSlug} person={person} onDone={() => setEditing(false)} />
+            </Suspense>
           ) : (
             <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
               <PanelCard id="person-details" icon={IdCard} title={t("people.details")}>

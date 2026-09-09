@@ -11,7 +11,7 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
-import { PanelCard } from "../layout/panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRsvpBadge } from "./meeting-status-badge";
 import { MemberMultiPicker } from "./member-multi-picker";

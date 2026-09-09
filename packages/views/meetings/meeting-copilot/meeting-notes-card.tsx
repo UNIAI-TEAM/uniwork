@@ -4,7 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { PanelCard } from "../../layout/panel-card";
+import { PanelCard } from "../../common/panel-card";
 
 function summaryLines(text: string): string[] {
   return text

@@ -6,7 +6,7 @@ import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import { useMembers } from "@uniwork/core/workspaces";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
-import { PanelCard } from "../layout/panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {

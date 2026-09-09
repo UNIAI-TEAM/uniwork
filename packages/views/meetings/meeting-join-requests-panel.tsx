@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { UserRoundCheck } from "lucide-react";
 import { useJoinRequests } from "@uniwork/core/meetings";
 import { MeetingJoinRequestRow } from "./meeting-join-request-row";
-import { PanelCard } from "../layout/panel-card";
+import { PanelCard } from "../common/panel-card";
 import { useJoinRequestActions } from "./use-join-request-actions";
 
 export function MeetingJoinRequestsPanel({

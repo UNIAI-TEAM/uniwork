@@ -8,7 +8,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
-import { PanelCard } from "../layout/panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { meetingLocale } from "./meeting-datetime";
 
