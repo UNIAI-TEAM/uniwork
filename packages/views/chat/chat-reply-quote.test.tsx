@@ -42,6 +42,26 @@ describe("chat-reply-quote", () => {
     expect(
       replyPreviewLabel(imageMessage(), { voice: "Tin nhắn thoại", file: "Tệp" }),
     ).toBe("photo.png");
+    expect(
+      replyPreviewLabel(
+        {
+          id: "f1",
+          sender: "u1",
+          body: "fallback.pdf",
+          kind: "file",
+          ts: 1,
+          reactions: {},
+          file: { filename: "  ", content_type: "application/pdf", size_bytes: 1 },
+        },
+        { voice: "Tin nhắn thoại", file: "Tệp" },
+      ),
+    ).toBe("fallback.pdf");
+    expect(
+      replyPreviewLabel(
+        { id: "t1", sender: "u1", body: "  hi  ", kind: "text", ts: 1, reactions: {} },
+        { voice: "Tin nhắn thoại", file: "Tệp" },
+      ),
+    ).toBe("hi");
   });
 
   it("shows a thumbnail for image replies", async () => {
@@ -70,5 +90,41 @@ describe("chat-reply-quote", () => {
       );
     });
     expect(screen.getByText("photo.png")).toBeInTheDocument();
+  });
+
+  it("renders compact image placeholder and peer file quote", async () => {
+    vi.mocked(loadChatFileBlob).mockRejectedValueOnce(new Error("fail"));
+    render(
+      wrap(
+        <ChatReplyQuote
+          message={imageMessage()}
+          workspaceId="ws1"
+          roomId="room1"
+          isOwn={false}
+          compact
+        />,
+      ),
+    );
+    expect(screen.getByText(/Trả lời:/i)).toBeInTheDocument();
+
+    render(
+      wrap(
+        <ChatReplyQuote
+          message={{
+            id: "pdf1",
+            sender: "u1",
+            body: "a.pdf",
+            kind: "file",
+            ts: 1,
+            reactions: {},
+            file: { filename: "a.pdf", content_type: "application/pdf", size_bytes: 1 },
+          }}
+          workspaceId="ws1"
+          roomId="room1"
+          isOwn={false}
+        />,
+      ),
+    );
+    expect(screen.getByText("a.pdf")).toBeInTheDocument();
   });
 });

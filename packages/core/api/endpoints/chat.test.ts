@@ -249,6 +249,25 @@ describe("chat endpoints", () => {
     expect(form.get("file")).toBeInstanceOf(Blob);
   });
 
+  it("sendChatFileMessage omits reply_to when not provided", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await sendChatFileMessage("ws1", "room1", {
+      file: new Blob(["x"], { type: "text/plain" }),
+      filename: "note.txt",
+      client_msg_id: "client-file-2",
+    });
+    const form = vi.mocked(fetch).mock.calls[0]?.[1]?.body as FormData;
+    expect(form.get("reply_to_message_id")).toBeNull();
+  });
+
+  it("loadChatFileBlob returns authenticated binary response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("%PDF", { headers: { "Content-Type": "application/pdf" } }),
+    );
+    const blob = await loadChatFileBlob("ws1", "room1", "message1");
+    expect(blob.type).toBe("application/pdf");
+  });
+
   it("loadChatVoiceBlob returns authenticated binary response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response("voice", { headers: { "Content-Type": "audio/webm" } }),

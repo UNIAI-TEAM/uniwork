@@ -7,7 +7,10 @@
 
 import { isGlobalPath, isReservedSlug } from "../workspace-slug";
 import { isTaskIdentifier } from "@uniwork/ui/markdown";
-import type { LinkClickIntent } from "@uniwork/views/navigation";
+import {
+  navigateInternal,
+  type LinkClickIntent,
+} from "@uniwork/views/navigation";
 
 /**
  * Top-level workspace-scoped routes. Used to detect "/{route}/..." paths that
@@ -270,8 +273,8 @@ export type OpenLinkNavigate = (
  * `intent` is how the user clicked (see `resolveClickIntent`). External links
  * ignore it: they always hand off to the browser / system browser.
  *
- * Without `navigate`, internal links fall back to `location.assign` (push) or
- * `window.open` (tab intents) so clicks are never a silent no-op.
+ * Without `navigate`, internal push is a no-op (isolated mounts); tab intents
+ * still `window.open` so middle-click / modifier clicks are not silent.
  */
 export function openLink(
   href: string,
@@ -299,11 +302,7 @@ export function openLink(
       navigate(path, intent);
       return;
     }
-    if (intent === "push") {
-      window.location.assign(path);
-    } else {
-      window.open(path, "_blank", "noopener,noreferrer");
-    }
+    navigateInternal(undefined, path, intent);
   } else {
     window.open(href, "_blank", "noopener,noreferrer");
   }

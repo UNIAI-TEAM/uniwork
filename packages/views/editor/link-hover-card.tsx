@@ -20,6 +20,7 @@ import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useAppOrigin } from "./use-app-origin";
 import { useTranslation } from "react-i18next";
 import {
+  navigateInternal,
   useOptionalNavigation,
   type LinkClickIntent,
 } from "@uniwork/views/navigation";
@@ -154,23 +155,7 @@ function LinkHoverCard({
   const { t } = useTranslation();
 
   const navigate = (path: string, disposition: LinkClickIntent = "push") => {
-    if (!navigation) {
-      if (disposition === "push") {
-        window.location.assign(path);
-      } else {
-        window.open(path, "_blank", "noopener,noreferrer");
-      }
-      return;
-    }
-    if (disposition === "push") {
-      navigation.push(path);
-      return;
-    }
-    window.open(
-      navigation.getShareableUrl(path),
-      "_blank",
-      "noopener,noreferrer",
-    );
+    navigateInternal(navigation, path, disposition);
   };
 
   // Position the card when the portal div is mounted (ref callback).

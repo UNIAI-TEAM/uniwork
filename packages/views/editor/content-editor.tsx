@@ -67,6 +67,7 @@ import { useConfigStore } from "@uniwork/core/editor/config-store";
 import { preprocessMarkdown } from "./utils/preprocess";
 import { repairEmptyListItems } from "./utils/repair-list-items";
 import {
+  navigateInternal,
   resolveClickIntent,
   useOptionalNavigation,
   type LinkClickIntent,
@@ -241,24 +242,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       () => undefined,
     );
     navigateRef.current = (path, disposition = "push") => {
-      if (!navigation) {
-        if (disposition === "push") {
-          window.location.assign(path);
-        } else {
-          window.open(path, "_blank", "noopener,noreferrer");
-        }
-        return;
-      }
-      if (disposition === "push") {
-        navigation.push(path);
-        return;
-      }
-      // NavigationAdapter has no background-tab API — open a shareable URL.
-      window.open(
-        navigation.getShareableUrl(path),
-        "_blank",
-        "noopener,noreferrer",
-      );
+      navigateInternal(navigation, path, disposition);
     };
 
     // Keep refs in sync without recreating editor
