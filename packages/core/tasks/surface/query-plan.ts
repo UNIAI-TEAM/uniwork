@@ -2,10 +2,10 @@ import type { MyTasksRelation, TaskScope } from "./scope";
 
 export interface SurfaceQueryPlan {
   kind: "workspace_query" | "my_tasks" | "table";
-  queryBody?: { status?: string; limit?: number; offset?: number };
+  queryBody?: { status?: string; limit?: number; offset?: number; project_id?: string };
   myTasksOpts?: { relation?: MyTasksRelation; limit?: number; offset?: number };
   /** TableGroupsBody once modes wire filters; null until then. */
-  tableBody?: unknown;
+  tableBody?: { filter?: { project_ids?: string[] } } | null;
 }
 
 export function planSurfaceQuery(input: {
@@ -17,6 +17,20 @@ export function planSurfaceQuery(input: {
     return {
       kind: "my_tasks",
       myTasksOpts: { relation: input.scope.relation },
+    };
+  }
+
+  if (input.scope.type === "project") {
+    const projectId = input.scope.projectId;
+    if (input.viewMode === "table") {
+      return {
+        kind: "table",
+        tableBody: { filter: { project_ids: [projectId] } },
+      };
+    }
+    return {
+      kind: "workspace_query",
+      queryBody: { project_id: projectId },
     };
   }
 

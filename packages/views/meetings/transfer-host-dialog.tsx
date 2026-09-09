@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ArrowRightLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useParticipants, useTransferHost } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
@@ -15,10 +16,14 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { toastApiError } from "../toast-api-error";
-import { MeetingPanelCard } from "./meeting-panel-card";
 
+/**
+ * Inline "hand the host role to …" control: a picker of active participants
+ * and a confirm step. Renders bare so the parent decides the surface.
+ */
 export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: string; meeting: Meeting }) {
   const { t } = useTranslation();
   const { data: members } = useMembers(workspaceId);
@@ -34,7 +39,10 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
 
   return (
     <>
-      <MeetingPanelCard id="transfer-host-heading" title={t("meetings.transferHostTo")}>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor="transfer-host" className="text-caption text-muted-foreground">
+          {t("meetings.transferHostTo")}
+        </Label>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <Select
@@ -48,10 +56,11 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
             />
           </div>
           <Button type="button" size="sm" variant="outline" className="shrink-0" disabled={!userId} onClick={() => setOpen(true)}>
+            <ArrowRightLeft aria-hidden />
             {t("meetings.transferHost")}
           </Button>
         </div>
-      </MeetingPanelCard>
+      </div>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

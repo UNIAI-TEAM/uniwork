@@ -28,3 +28,29 @@ describe("planSurfaceQuery", () => {
     expect(plan.tableBody).toBeUndefined();
   });
 });
+
+describe("project scope", () => {
+  it("plans board query with project_id", () => {
+    expect(
+      planSurfaceQuery({
+        scope: { type: "project", projectId: "p1" },
+        viewMode: "board",
+      }),
+    ).toEqual({
+      kind: "workspace_query",
+      queryBody: { project_id: "p1" },
+    });
+  });
+
+  it("plans table filter with project_ids", () => {
+    expect(
+      planSurfaceQuery({
+        scope: { type: "project", projectId: "p1" },
+        viewMode: "table",
+      }),
+    ).toMatchObject({
+      kind: "table",
+      tableBody: { filter: { project_ids: ["p1"] } },
+    });
+  });
+});

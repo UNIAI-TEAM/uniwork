@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { TableFacetsResult } from "@uniwork/core/api/endpoints/tasks-table";
+import type {
+  TableFacetsResult,
+  TableFilter,
+} from "@uniwork/core/api/endpoints/tasks-table";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import {
@@ -53,6 +56,8 @@ export interface TaskSurfaceController {
   ganttTasks: Task[];
   /** Ordered status-category keys for board columns (catalog / seven built-ins). */
   boardCategories: readonly string[];
+  /** Table groups/rows/facets filter from planSurfaceQuery (e.g. project_ids). */
+  tableFilter: TableFilter | undefined;
   projectGroupingDisabled: boolean;
   projectGroupingReasonKey: string;
   parentGroupingDisabled: boolean;
@@ -116,6 +121,7 @@ export function useTaskSurfaceController({
     () => planSurfaceQuery({ scope, viewMode: effectiveViewMode }),
     [effectiveViewMode, scope],
   );
+  const tableFilter = queryPlan.tableBody?.filter;
 
   const boardEnabled = effectiveViewMode === "board";
   const tableEnabled = effectiveViewMode === "table" && scope.type !== "my";
@@ -151,6 +157,7 @@ export function useTaskSurfaceController({
     boardEnabled && scope.type !== "my" ? workspaceId : "",
     {
       group_by: "status",
+      ...(scope.type === "project" ? { project_id: scope.projectId } : {}),
     },
   );
   const updateTask = useUpdateTask(workspaceId);
@@ -175,11 +182,11 @@ export function useTaskSurfaceController({
   const facetsBody = useMemo(() => {
     if (!tableEnabled || !activeTableFacet) return null;
     return {
-      filter: undefined,
+      filter: tableFilter,
       facets: [activeTableFacet.kind],
       columns: undefined,
     };
-  }, [activeTableFacet, tableEnabled]);
+  }, [activeTableFacet, tableEnabled, tableFilter]);
 
   const facetsQuery = useTableFacets(tableEnabled ? workspaceId : "", facetsBody);
 
@@ -369,6 +376,7 @@ export function useTaskSurfaceController({
     surfaceTasks,
     ganttTasks,
     boardCategories,
+    tableFilter,
     projectGroupingDisabled,
     projectGroupingReasonKey,
     parentGroupingDisabled,

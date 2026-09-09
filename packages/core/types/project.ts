@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export type ProjectStatus =
+  | "planned"
+  | "in_progress"
+  | "paused"
+  | "completed"
+  | "cancelled";
+
+export type ProjectPriority = "urgent" | "high" | "medium" | "low" | "none";
+
 export const ProjectSchema = z.object({
   id: z.string(),
   organization_id: z.string(),

@@ -98,6 +98,7 @@ func tableInputFromSDI(filter sdi.TableFilterSDI, groupBy string, groupKey *stri
 			Statuses:    filter.Statuses,
 			Priorities:  filter.Priorities,
 			AssigneeIDs: filter.AssigneeIDs,
+			ProjectIDs:  filter.ProjectIDs,
 		},
 		GroupBy:  groupBy,
 		GroupKey: groupKey,

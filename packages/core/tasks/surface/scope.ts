@@ -3,7 +3,8 @@ export type MyTasksRelation = "all" | "assigned" | "created" | "involved";
 
 export type TaskScope =
   | { type: "workspace"; actorKind?: TaskActorKind }
-  | { type: "my"; userId: string; relation: MyTasksRelation };
+  | { type: "my"; userId: string; relation: MyTasksRelation }
+  | { type: "project"; projectId: string };
 
 export function taskScopeKey(scope: TaskScope): string {
   switch (scope.type) {
@@ -11,6 +12,8 @@ export function taskScopeKey(scope: TaskScope): string {
       return `workspace:${scope.actorKind ?? "all"}`;
     case "my":
       return `my:${scope.userId}:${scope.relation}`;
+    case "project":
+      return `project:${scope.projectId}`;
   }
 }
 

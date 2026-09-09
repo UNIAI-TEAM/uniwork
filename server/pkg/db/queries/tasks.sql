@@ -128,6 +128,7 @@ SELECT * FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
 ORDER BY status, position, created_at
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 
@@ -135,7 +136,8 @@ LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 SELECT count(*)::bigint FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
-  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'));
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'));
 
 -- name: ListTasksByIdentifier :many
 -- Prefix compare is case-insensitive so ALP-1 and alp-1 resolve the same.
@@ -244,7 +246,8 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
   AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
   AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
-  AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]));
+  AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+  AND (NOT sqlc.arg('has_project_filter')::bool OR project_id = ANY(sqlc.arg('project_ids')::text[]));
 
 -- name: CountTableTasksByStatus :many
 SELECT status AS key, count(*)::bigint AS count
@@ -254,6 +257,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
   AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
   AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+  AND (NOT sqlc.arg('has_project_filter')::bool OR project_id = ANY(sqlc.arg('project_ids')::text[]))
 GROUP BY status
 ORDER BY status;
 
@@ -265,6 +269,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
   AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
   AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+  AND (NOT sqlc.arg('has_project_filter')::bool OR project_id = ANY(sqlc.arg('project_ids')::text[]))
 GROUP BY priority
 ORDER BY priority;
 
@@ -276,6 +281,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND (NOT sqlc.arg('has_status_filter')::bool OR status = ANY(sqlc.arg('statuses')::text[]))
   AND (NOT sqlc.arg('has_priority_filter')::bool OR priority = ANY(sqlc.arg('priorities')::text[]))
   AND (NOT sqlc.arg('has_assignee_filter')::bool OR assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+  AND (NOT sqlc.arg('has_project_filter')::bool OR project_id = ANY(sqlc.arg('project_ids')::text[]))
 GROUP BY COALESCE(assignee_id, '')
 ORDER BY 1;
 
@@ -298,6 +304,7 @@ WHERE t.organization_id = sqlc.arg('organization_id')
   AND (NOT sqlc.arg('has_status_filter')::bool OR t.status = ANY(sqlc.arg('statuses')::text[]))
   AND (NOT sqlc.arg('has_priority_filter')::bool OR t.priority = ANY(sqlc.arg('priorities')::text[]))
   AND (NOT sqlc.arg('has_assignee_filter')::bool OR t.assignee_id = ANY(sqlc.arg('assignee_ids')::text[]))
+  AND (NOT sqlc.arg('has_project_filter')::bool OR t.project_id = ANY(sqlc.arg('project_ids')::text[]))
   AND (
     NOT sqlc.arg('has_group_key')::bool
     OR CASE sqlc.arg('group_by')::text

@@ -125,6 +125,31 @@ describe("TaskSurface", () => {
     expect(await screen.findByText("Task 1")).toBeInTheDocument();
   });
 
+  it("scopes table groups by project_ids when project scope", async () => {
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "project", projectId: "p1" }}
+          modes={["table"]}
+          surfaceKey="test-project-table"
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      const groupsCall = requestMock.mock.calls.find(
+        ([path]) =>
+          typeof path === "string" && path.includes("/tasks/table/groups"),
+      );
+      expect(groupsCall).toBeDefined();
+      const init = groupsCall?.[1] as
+        | { body?: { filter?: { project_ids?: string[] } } }
+        | undefined;
+      expect(init?.body?.filter?.project_ids).toEqual(["p1"]);
+    });
+  });
+
   it("does not request table groups for my-scope even if table is in modes", async () => {
     const store = getTaskSurfaceViewStore("test-my-no-table");
     store.getState().setViewMode("table");

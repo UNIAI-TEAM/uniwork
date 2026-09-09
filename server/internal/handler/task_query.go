@@ -19,7 +19,7 @@ func (h *handlers) queryTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := h.Tasks.QueryTasks(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), service.TaskQuery{
-			Status: in.Status, Limit: in.Limit, Offset: in.Offset,
+			Status: in.Status, ProjectID: in.ProjectID, Limit: in.Limit, Offset: in.Offset,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -41,7 +41,7 @@ func (h *handlers) groupedTasks(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.ParseInt(q.Get("offset"), 10, 32)
 	groups, err := h.Tasks.GroupedTasks(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), service.TaskQuery{
-			Status: q.Get("status"), Limit: int32(limit), Offset: int32(offset),
+			Status: q.Get("status"), ProjectID: q.Get("project_id"), Limit: int32(limit), Offset: int32(offset),
 		})
 	if err != nil {
 		h.mapServiceError(w, err)

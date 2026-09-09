@@ -17,6 +17,7 @@ type TableFilter struct {
 	Statuses    []string
 	Priorities  []string
 	AssigneeIDs []string
+	ProjectIDs  []string
 }
 
 // TableInput is the shared request for TableGroups / TableRows / TableFacets.
@@ -194,6 +195,8 @@ func (s *TaskService) TableRows(ctx context.Context, actor Actor, workspaceID st
 		Priorities:        filter.Priorities,
 		HasAssigneeFilter: filter.HasAssigneeFilter,
 		AssigneeIds:       filter.AssigneeIds,
+		HasProjectFilter:  filter.HasProjectFilter,
+		ProjectIds:        filter.ProjectIds,
 		HasGroupKey:       hasGroupKey,
 		GroupBy:           groupBy,
 		GroupKey:          groupKey,
@@ -361,6 +364,7 @@ func tableFilterParams(orgID, workspaceID string, f TableFilter) db.CountTableTa
 	statuses := append([]string(nil), f.Statuses...)
 	priorities := append([]string(nil), f.Priorities...)
 	assignees := append([]string(nil), f.AssigneeIDs...)
+	projects := append([]string(nil), f.ProjectIDs...)
 	if statuses == nil {
 		statuses = []string{}
 	}
@@ -369,6 +373,9 @@ func tableFilterParams(orgID, workspaceID string, f TableFilter) db.CountTableTa
 	}
 	if assignees == nil {
 		assignees = []string{}
+	}
+	if projects == nil {
+		projects = []string{}
 	}
 	return db.CountTableTasksParams{
 		OrganizationID:    orgID,
@@ -379,6 +386,8 @@ func tableFilterParams(orgID, workspaceID string, f TableFilter) db.CountTableTa
 		Priorities:        priorities,
 		HasAssigneeFilter: len(f.AssigneeIDs) > 0,
 		AssigneeIds:       assignees,
+		HasProjectFilter:  len(f.ProjectIDs) > 0,
+		ProjectIds:        projects,
 	}
 }
 

@@ -15,10 +15,11 @@ const (
 
 // TaskQuery filters and pages workspace tasks for the flagged suite.
 type TaskQuery struct {
-	Status   string
-	Relation string // my-tasks: all | assigned | created | involved
-	Limit    int32
-	Offset   int32
+	Status    string
+	ProjectID string // empty = no project filter
+	Relation  string // my-tasks: all | assigned | created | involved
+	Limit     int32
+	Offset    int32
 }
 
 // TaskPage is one filtered window plus the total matching count.
@@ -53,6 +54,7 @@ func (s *TaskService) QueryTasks(ctx context.Context, actor Actor, workspaceID s
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    workspaceID,
 		Status:         nullText(strings.TrimSpace(q.Status)),
+		ProjectID:      nullText(strings.TrimSpace(q.ProjectID)),
 		LimitN:         q.Limit,
 		OffsetN:        q.Offset,
 	}
@@ -64,6 +66,7 @@ func (s *TaskService) QueryTasks(ctx context.Context, actor Actor, workspaceID s
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    workspaceID,
 		Status:         nullText(strings.TrimSpace(q.Status)),
+		ProjectID:      nullText(strings.TrimSpace(q.ProjectID)),
 	})
 	if err != nil {
 		return TaskPage{}, err
@@ -128,6 +131,7 @@ func (s *TaskService) GroupedTasks(ctx context.Context, actor Actor, workspaceID
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    workspaceID,
 		Status:         nullText(strings.TrimSpace(q.Status)),
+		ProjectID:      nullText(strings.TrimSpace(q.ProjectID)),
 		LimitN:         q.Limit,
 		OffsetN:        q.Offset,
 	})

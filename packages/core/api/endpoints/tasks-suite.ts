@@ -26,6 +26,7 @@ const DependencyResponse = z.object({ dependency: TaskDependencySchema });
 
 export interface QueryTasksBody {
   status?: string;
+  project_id?: string;
   limit?: number;
   offset?: number;
 }
@@ -92,7 +93,7 @@ export async function queryTasks(workspaceId: string, body: QueryTasksBody = {})
 
 export async function groupedTasks(
   workspaceId: string,
-  opts: { group_by?: string; status?: string; limit?: number; offset?: number } = {},
+  opts: { group_by?: string; status?: string; project_id?: string; limit?: number; offset?: number } = {},
 ): Promise<TaskGroup[]> {
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/tasks/grouped${qs(opts)}`,

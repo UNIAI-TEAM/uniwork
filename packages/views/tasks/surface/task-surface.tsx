@@ -106,6 +106,7 @@ function TaskSurfaceContent({
         modes={availableModes}
         scopedTasks={controller.surfaceTasks}
         isRefreshing={controller.isRefreshing}
+        lockProjectFilter={scope.type === "project"}
         saveViewScope={
           scope.type === "workspace"
             ? { kind: "workspace" }
@@ -115,7 +116,9 @@ function TaskSurfaceContent({
                   variant:
                     scope.relation === "all" ? "any" : scope.relation,
                 }
-              : null
+              : scope.type === "project"
+                ? { kind: "project", projectId: scope.projectId }
+                : null
         }
       />
     );
@@ -151,6 +154,7 @@ function TaskSurfaceContent({
               ) : controller.viewMode === "table" ? (
                 <TableView
                   workspaceId={workspaceId}
+                  filter={controller.tableFilter}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
                   onOpenTask={onOpenTask}

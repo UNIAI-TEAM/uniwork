@@ -158,7 +158,8 @@
     "workspace_group": "Workspace navigation",
     "account": "Account",
     "skip_to_content": "Skip to main content",
-    "people": "People"
+    "people": "People",
+    "projects": "Projects"
   },
   "topbar": {
     "search": "Search…",
@@ -1227,7 +1228,30 @@
     "endBeforeStart": "End time must be after the start time.",
     "noOtherMembers": "No other members in this workspace yet.",
     "publicInviteInvalid": "This link is invalid or has been revoked",
-    "publicInviteInvalidHint": "Open the exact link you received, or ask the host for a new one."
+    "publicInviteInvalidHint": "Open the exact link you received, or ask the host for a new one.",
+    "details": "Details",
+    "meetingType": "Meeting type",
+    "typeScheduled": "Scheduled",
+    "typeInstant": "Instant",
+    "joinRequestOpen": "Members can ask to join",
+    "joinRequestClosed": "Invitees only",
+    "createdBy": "Created by",
+    "createdAt": "Created",
+    "startsRelative": "Starts {{when}}",
+    "startedRelative": "Started {{when}}",
+    "endedRelative": "Ended {{when}}",
+    "durationHours_one": "{{count}} hour",
+    "durationHours_other": "{{count}} hours",
+    "durationMinutes_one": "{{count}} minute",
+    "durationMinutes_other": "{{count}} minutes",
+    "changeRsvp": "Change response",
+    "noDescription": "No agenda yet.",
+    "noParticipantsHint": "Invite members so the meeting shows on their calendar.",
+    "notesHint": "Notes are visible to every participant.",
+    "hostControls": "Host controls",
+    "peopleCount_one": "{{count}} person",
+    "peopleCount_other": "{{count}} people",
+    "openRoom": "Open room"
   },
   "chat": {
     "title": "Chat",
@@ -2257,5 +2281,104 @@
     "updated": "Department updated",
     "empty": "No departments yet.",
     "member_count": "{{count}} members"
+  },
+  "projects": {
+    "page": {
+      "title": "Projects",
+      "new_project": "New project",
+      "empty": "No projects yet",
+      "create_first": "Create your first project",
+      "search_placeholder": "Search projects…",
+      "view_table": "Table",
+      "view_cards": "Cards",
+      "row_menu": "Project actions",
+      "open": "Open",
+      "pin": "Pin to sidebar",
+      "unpin": "Unpin",
+      "delete": "Delete",
+      "no_matches": "No projects match",
+      "no_tasks_yet": "No tasks yet",
+      "selected": "{{count}} selected",
+      "clear_selection": "Clear selection"
+    },
+    "table": {
+      "name": "Name",
+      "priority": "Priority",
+      "status": "Status",
+      "progress": "Progress",
+      "lead": "Lead",
+      "created": "Created",
+      "tasks": "Tasks"
+    },
+    "status": {
+      "planned": "Planned",
+      "in_progress": "In Progress",
+      "paused": "Paused",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "urgent": "Urgent",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "none": "No priority"
+    },
+    "lead": {
+      "no_lead": "No lead",
+      "assign_placeholder": "Assign lead…",
+      "no_results": "No results"
+    },
+    "detail": {
+      "not_found": "Project not found",
+      "breadcrumb_fallback": "Projects",
+      "title_placeholder": "Project title",
+      "section_properties": "Properties",
+      "prop_start_date": "Start date",
+      "prop_due_date": "Due date",
+      "description_placeholder": "Add description…",
+      "description_hint": "Shared with agents as context for every task in this project."
+    },
+    "delete_dialog": {
+      "title": "Delete project",
+      "description": "This will delete the project. Tasks will not be deleted but will be unlinked.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "create_dialog": {
+      "title": "New project",
+      "description": "Give the project a short title. You can edit details after creating it.",
+      "title_placeholder": "Project title",
+      "confirm": "Create",
+      "cancel": "Cancel"
+    },
+    "toolbar": {
+      "result_count_title": "Matching projects / all projects",
+      "filter_label": "Filter",
+      "filter_active_count": "{{count}} filters",
+      "clear_filters": "Clear filters",
+      "section_status": "Status",
+      "section_priority": "Priority",
+      "display": "Display",
+      "sort_by": "Sort by",
+      "direction_asc": "Ascending",
+      "direction_desc": "Descending",
+      "section_columns": "Columns",
+      "view": "View"
+    },
+    "capability_unavailable": "This capability is not available yet.",
+    "resources": {
+      "section_header": "Resources",
+      "empty": "No resources attached.",
+      "add_github": "Add GitHub repo",
+      "add_local_directory": "Add local directory",
+      "remove": "Remove",
+      "rename": "Rename",
+      "rename_label": "Resource label",
+      "toast_removed": "Resource removed",
+      "toast_remove_failed": "Failed to remove resource",
+      "toast_renamed": "Renamed",
+      "toast_rename_failed": "Failed to rename"
+    }
   }
 }

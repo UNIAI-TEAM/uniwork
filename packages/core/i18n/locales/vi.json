@@ -157,7 +157,8 @@
     "workspace_group": "Điều hướng workspace",
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính",
-    "people": "Danh bạ"
+    "people": "Danh bạ",
+    "projects": "Dự án"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -1226,7 +1227,30 @@
     "endBeforeStart": "Giờ kết thúc phải sau giờ bắt đầu.",
     "noOtherMembers": "Chưa có thành viên khác trong workspace.",
     "publicInviteInvalid": "Liên kết không hợp lệ hoặc đã bị thu hồi",
-    "publicInviteInvalidHint": "Mở lại đúng liên kết đã nhận, hoặc xin chủ trì gửi liên kết mới."
+    "publicInviteInvalidHint": "Mở lại đúng liên kết đã nhận, hoặc xin chủ trì gửi liên kết mới.",
+    "details": "Chi tiết",
+    "meetingType": "Loại họp",
+    "typeScheduled": "Đã lên lịch trước",
+    "typeInstant": "Họp ngay",
+    "joinRequestOpen": "Thành viên có thể xin vào",
+    "joinRequestClosed": "Chỉ người được mời",
+    "createdBy": "Người tạo",
+    "createdAt": "Tạo lúc",
+    "startsRelative": "Bắt đầu {{when}}",
+    "startedRelative": "Đã bắt đầu {{when}}",
+    "endedRelative": "Kết thúc {{when}}",
+    "durationHours_one": "{{count}} giờ",
+    "durationHours_other": "{{count}} giờ",
+    "durationMinutes_one": "{{count}} phút",
+    "durationMinutes_other": "{{count}} phút",
+    "changeRsvp": "Đổi phản hồi",
+    "noDescription": "Chưa có nội dung dự kiến.",
+    "noParticipantsHint": "Mời thành viên để họ thấy cuộc họp trên lịch.",
+    "notesHint": "Ghi chú hiện với mọi người tham dự.",
+    "hostControls": "Điều hành",
+    "peopleCount_one": "{{count}} người",
+    "peopleCount_other": "{{count}} người",
+    "openRoom": "Mở phòng họp"
   },
   "chat": {
     "title": "Trò chuyện",
@@ -2253,5 +2277,104 @@
     "updated": "Đã cập nhật phòng ban",
     "empty": "Chưa có phòng ban nào.",
     "member_count": "{{count}} thành viên"
+  },
+  "projects": {
+    "page": {
+      "title": "Dự án",
+      "new_project": "Dự án mới",
+      "empty": "Chưa có dự án",
+      "create_first": "Tạo dự án đầu tiên",
+      "search_placeholder": "Tìm dự án…",
+      "view_table": "Bảng",
+      "view_cards": "Thẻ",
+      "row_menu": "Thao tác dự án",
+      "open": "Mở",
+      "pin": "Ghim vào sidebar",
+      "unpin": "Bỏ ghim",
+      "delete": "Xóa",
+      "no_matches": "Không có dự án khớp",
+      "no_tasks_yet": "Chưa có công việc",
+      "selected": "{{count}} đã chọn",
+      "clear_selection": "Bỏ chọn"
+    },
+    "table": {
+      "name": "Tên",
+      "priority": "Độ ưu tiên",
+      "status": "Trạng thái",
+      "progress": "Tiến độ",
+      "lead": "Phụ trách",
+      "created": "Ngày tạo",
+      "tasks": "Công việc"
+    },
+    "status": {
+      "planned": "Đã lên kế hoạch",
+      "in_progress": "Đang làm",
+      "paused": "Tạm dừng",
+      "completed": "Hoàn thành",
+      "cancelled": "Đã hủy"
+    },
+    "priority": {
+      "urgent": "Khẩn cấp",
+      "high": "Cao",
+      "medium": "Trung bình",
+      "low": "Thấp",
+      "none": "Không ưu tiên"
+    },
+    "lead": {
+      "no_lead": "Chưa có phụ trách",
+      "assign_placeholder": "Gán phụ trách…",
+      "no_results": "Không có kết quả"
+    },
+    "detail": {
+      "not_found": "Không tìm thấy dự án",
+      "breadcrumb_fallback": "Dự án",
+      "title_placeholder": "Tiêu đề dự án",
+      "section_properties": "Thuộc tính",
+      "prop_start_date": "Ngày bắt đầu",
+      "prop_due_date": "Ngày hết hạn",
+      "description_placeholder": "Thêm mô tả…",
+      "description_hint": "Được chia sẻ với agent làm ngữ cảnh cho mọi công việc trong dự án này."
+    },
+    "delete_dialog": {
+      "title": "Xóa dự án",
+      "description": "Dự án sẽ bị xóa. Công việc không bị xóa nhưng sẽ được gỡ liên kết.",
+      "confirm": "Xóa",
+      "cancel": "Hủy"
+    },
+    "create_dialog": {
+      "title": "Dự án mới",
+      "description": "Đặt tiêu đề ngắn. Bạn có thể chỉnh chi tiết sau khi tạo.",
+      "title_placeholder": "Tiêu đề dự án",
+      "confirm": "Tạo",
+      "cancel": "Hủy"
+    },
+    "toolbar": {
+      "result_count_title": "Dự án khớp / tất cả dự án",
+      "filter_label": "Bộ lọc",
+      "filter_active_count": "{{count}} bộ lọc",
+      "clear_filters": "Xóa bộ lọc",
+      "section_status": "Trạng thái",
+      "section_priority": "Độ ưu tiên",
+      "display": "Hiển thị",
+      "sort_by": "Sắp xếp theo",
+      "direction_asc": "Tăng dần",
+      "direction_desc": "Giảm dần",
+      "section_columns": "Cột",
+      "view": "Chế độ xem"
+    },
+    "capability_unavailable": "Tính năng này chưa khả dụng.",
+    "resources": {
+      "section_header": "Tài nguyên",
+      "empty": "Chưa gắn tài nguyên.",
+      "add_github": "Thêm kho GitHub",
+      "add_local_directory": "Thêm thư mục cục bộ",
+      "remove": "Xóa",
+      "rename": "Đổi tên",
+      "rename_label": "Nhãn tài nguyên",
+      "toast_removed": "Đã gỡ tài nguyên",
+      "toast_remove_failed": "Không gỡ được tài nguyên",
+      "toast_renamed": "Đã đổi tên",
+      "toast_rename_failed": "Không đổi tên được"
+    }
   }
 }
