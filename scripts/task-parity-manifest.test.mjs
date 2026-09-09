@@ -13,6 +13,7 @@ const path = new URL("../docs/parity/tasks-work-management.json", import.meta.ur
 const overlayPath = new URL("../docs/parity/tasks-work-management.slice1-verification.json", import.meta.url);
 const slice2OverlayPath = new URL("../docs/parity/tasks-work-management.slice2-verification.json", import.meta.url);
 const slice3OverlayPath = new URL("../docs/parity/tasks-work-management.slice3-verification.json", import.meta.url);
+const slice4OverlayPath = new URL("../docs/parity/tasks-work-management.slice4-verification.json", import.meta.url);
 const generator = fileURLToPath(new URL("./generate-task-parity-manifest.mjs", import.meta.url));
 const execFile = promisify(execFileCallback);
 const capabilityIDs = [
@@ -75,6 +76,24 @@ const slice3UiSources = [
   "packages/views/my-issues/components/my-issues-page.tsx",
   "packages/views/my-issues/index.ts",
 ];
+const slice4ProjectsSources = [
+  "apps/web/app/[workspaceSlug]/(dashboard)/projects/[id]/page.tsx",
+  "apps/web/app/[workspaceSlug]/(dashboard)/projects/page.tsx",
+  "packages/core/projects/config.ts",
+  "packages/core/projects/stores/view-store.test.ts",
+  "packages/core/projects/stores/view-store.ts",
+  "packages/views/projects/components/local-directory-hint.tsx",
+  "packages/views/projects/components/project-badge.tsx",
+  "packages/views/projects/components/project-detail.test.tsx",
+  "packages/views/projects/components/project-detail.tsx",
+  "packages/views/projects/components/project-icon.tsx",
+  "packages/views/projects/components/project-issue-metrics.test.ts",
+  "packages/views/projects/components/project-issue-metrics.ts",
+  "packages/views/projects/components/project-resources-rename.test.tsx",
+  "packages/views/projects/components/project-resources-section.tsx",
+  "packages/views/projects/components/projects-page.test.tsx",
+  "packages/views/projects/components/projects-page.tsx",
+];
 const pendingKeys = [
   "disposition",
   "kind",
@@ -99,6 +118,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   const overlay = JSON.parse(await readFile(overlayPath, "utf8"));
   const slice2Overlay = JSON.parse(await readFile(slice2OverlayPath, "utf8"));
   const slice3Overlay = JSON.parse(await readFile(slice3OverlayPath, "utf8"));
+  const slice4Overlay = JSON.parse(await readFile(slice4OverlayPath, "utf8"));
   assert.equal(manifest.schema_version, 1);
   assert.equal(manifest.baseline_commit, "3d37828e9");
   assert.equal(manifest.entries.length, 1531);
@@ -120,6 +140,12 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     slice3Overlay.entries.map((entry) => entry.source_path).sort(),
     [...slice3UiSources].sort(),
   );
+  assert.equal(slice4Overlay.schema_version, 1);
+  assert.equal(slice4Overlay.owner_issue, "UNI-502");
+  assert.deepEqual(
+    slice4Overlay.entries.map((entry) => entry.source_path).sort(),
+    [...slice4ProjectsSources].sort(),
+  );
 
   const sources = manifest.entries.map((entry) => entry.source_path);
   const sourceEntries = manifest.entries.filter((entry) => entry.kind !== "capability");
@@ -132,8 +158,14 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     ...overlay.entries.map((entry) => entry.source_path),
     ...slice2Overlay.entries.map((entry) => entry.source_path),
     ...slice3Overlay.entries.map((entry) => entry.source_path),
+    ...slice4Overlay.entries.map((entry) => entry.source_path),
   ]);
-  for (const entry of [...overlay.entries, ...slice2Overlay.entries, ...slice3Overlay.entries]) {
+  for (const entry of [
+    ...overlay.entries,
+    ...slice2Overlay.entries,
+    ...slice3Overlay.entries,
+    ...slice4Overlay.entries,
+  ]) {
     assert.equal(entry.verification_state, "verified");
     assert.match(entry.evidence_path, /\S/);
     assert.match(entry.evidence_commit, /^[0-9a-f]{7,40}$/);
@@ -159,7 +191,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   }
   assert.equal(
     createHash("sha256").update(JSON.stringify(manifest.entries)).digest("hex"),
-    "aa0f0d9ca3c967c4111686594fbec88b4492313765bdc5422c92302e4ffc8cd7",
+    "b2e82babc3ea86c95791baac55c3974ebda375ee2814ac77360ba27a7c1918f5",
   );
 
   for (const route of [
@@ -306,5 +338,31 @@ test("slice-3 verification overlay marks only owned UI entries", async () => {
   assert.equal(merged[0].evidence_path, undefined);
   assert.equal(merged[1].verification_state, "verified");
   assert.equal(merged[1].evidence_path, "packages/views/tasks/surface/task-surface.tsx");
+  assert.match(merged[1].evidence_commit, /^[0-9a-f]{7,40}$/);
+});
+
+test("slice-4 verification overlay marks only owned projects entries", async () => {
+  const overlay = JSON.parse(await readFile(slice4OverlayPath, "utf8"));
+  const pending = {
+    source_path: "packages/views/issues/surface/issue-surface.tsx",
+    target_path: "packages/views/tasks/surface/task-surface.tsx",
+    kind: "source",
+    disposition: "adapted",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const projects = {
+    source_path: "packages/views/projects/components/projects-page.tsx",
+    target_path: "packages/views/projects/components/projects-page.tsx",
+    kind: "source",
+    disposition: "adapted",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const merged = applyVerificationOverlay([pending, projects], overlay);
+  assert.equal(merged[0].verification_state, "pending");
+  assert.equal(merged[0].evidence_path, undefined);
+  assert.equal(merged[1].verification_state, "verified");
+  assert.equal(merged[1].evidence_path, "packages/views/projects/projects-list-page.tsx");
   assert.match(merged[1].evidence_commit, /^[0-9a-f]{7,40}$/);
 });
