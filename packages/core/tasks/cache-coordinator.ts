@@ -53,6 +53,13 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
       }
       break;
     }
+    case "attachment.uploaded":
+    case "attachment.deleted": {
+      if (payload.task_id) {
+        push(taskKeys.attachments(wsId, payload.task_id));
+      }
+      break;
+    }
     case "task_status.created":
     case "task_status.updated":
     case "task_status.deleted": {

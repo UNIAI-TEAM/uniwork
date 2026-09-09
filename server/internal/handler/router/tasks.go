@@ -431,16 +431,28 @@ func registerTasksSuite(r api, h Routes, flagMW func(http.Handler) http.Handler)
 			tags: []string{"tasks"}, sdi: sdi.SubscribeTaskSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 		})
 		suite.Get("/tasks/{taskID}/attachments", h.ListTaskAttachments, apiOp{
-			summary: "List task attachments", description: "Đính kèm trên task (stub storage). Flag tasks_work_management_parity.",
-			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+			summary: "List task attachments", description: "Danh sách đính kèm trên task. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.AttachmentListSDO{}, auth: true,
+		})
+		suite.Post("/tasks/{taskID}/attachments", h.UploadTaskAttachment, apiOp{
+			summary: "Upload task attachment", description: "Tải lên đính kèm (multipart field file, tối đa 25 MiB). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdi: sdi.UploadTaskAttachmentSDI{}, sdo: sdo.AttachmentDTO{}, auth: true,
 		})
 		suite.Get("/attachments/{attachmentID}", h.GetAttachment, apiOp{
-			summary: "Get attachment", description: "Chi tiết đính kèm (stub storage). Flag tasks_work_management_parity.",
-			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+			summary: "Get attachment", description: "Metadata đính kèm (không gồm object_key). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, sdo: sdo.AttachmentDTO{}, auth: true,
+		})
+		suite.Get("/attachments/{attachmentID}/content", h.GetAttachmentContent, apiOp{
+			summary: "Preview attachment content", description: "Stream nội dung để preview (CSP frame-ancestors self). Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, auth: true,
+		})
+		suite.Get("/attachments/{attachmentID}/download", h.DownloadAttachment, apiOp{
+			summary: "Download attachment", description: "Stream tải về với Content-Disposition attachment. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, auth: true,
 		})
 		suite.Delete("/attachments/{attachmentID}", h.DeleteAttachment, apiOp{
-			summary: "Delete attachment", description: "Xóa đính kèm (stub storage). Flag tasks_work_management_parity.",
-			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+			summary: "Delete attachment", description: "Xóa đính kèm. Flag tasks_work_management_parity.",
+			tags: []string{"tasks"}, auth: true, status: 204,
 		})
 		suite.Get("/tasks/{taskID}/timeline", h.GetTaskTimeline, apiOp{
 			summary: "Task timeline", description: "Timeline hoạt động (stub). Flag tasks_work_management_parity.",

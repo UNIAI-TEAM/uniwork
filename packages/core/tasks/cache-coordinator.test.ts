@@ -32,6 +32,21 @@ describe("planCacheUpdate", () => {
     });
   });
 
+  it("invalidates attachments on attachment.uploaded / deleted", () => {
+    expect(
+      planCacheUpdate("ws1", {
+        type: "attachment.uploaded",
+        payload: { task_id: "t1", attachment_id: "a1", workspace_id: "ws1" },
+      }).keys,
+    ).toEqual([taskKeys.attachments("ws1", "t1")]);
+    expect(
+      planCacheUpdate("ws1", {
+        type: "attachment.deleted",
+        payload: { task_id: "t1", attachment_id: "a1", workspace_id: "ws1" },
+      }).keys,
+    ).toEqual([taskKeys.attachments("ws1", "t1")]);
+  });
+
   it("invalidates catalog keys for status/label events", () => {
     expect(planCacheUpdate("ws1", { type: "task_status.created" }).keys).toEqual([
       taskKeys.statuses("ws1"),
