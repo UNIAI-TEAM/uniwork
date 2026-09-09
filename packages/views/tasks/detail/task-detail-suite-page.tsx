@@ -72,7 +72,10 @@ export function TaskDetailSuitePage(props: {
     t("tasks.detail.title_placeholder");
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      className="flex h-full min-h-0 flex-col overflow-hidden"
+      data-testid="task-detail-suite"
+    >
       <BreadcrumbHeader
         segments={segments}
         leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}

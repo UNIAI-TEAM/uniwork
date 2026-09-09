@@ -4,6 +4,12 @@ import path from "node:path";
 import test from "node:test";
 
 const roots = ["packages/views/editor", "packages/views/tasks/detail"];
+const LOCALE_FILES = [
+  "packages/core/i18n/locales/en.json",
+  "packages/core/i18n/locales/vi.json",
+];
+/** Product keys introduced for slice 5 — scan values only, not the whole catalogue. */
+const LOCALE_PREFIXES = ["tasks.detail", "editor"];
 
 /** Capital brand leftovers — always fail (product + tests). */
 const BRAND_BAD = [/multica/i, /@multica\//, /\bIssue\b/, /\bIssues\b/];
@@ -50,6 +56,32 @@ function assertNoIssuesPath(file, text) {
     assert.fail(`${file}:${i + 1} matched /\\/issues\\// (non-GitHub)`);
   }
 }
+
+function flattenLocale(obj, prefix = "", out = {}) {
+  for (const [k, v] of Object.entries(obj)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (typeof v === "string") out[key] = v;
+    else flattenLocale(v, key, out);
+  }
+  return out;
+}
+
+function sliceLocaleValues(raw) {
+  const flat = flattenLocale(JSON.parse(raw));
+  return Object.entries(flat)
+    .filter(([key]) => LOCALE_PREFIXES.some((p) => key === p || key.startsWith(`${p}.`)))
+    .map(([, value]) => value)
+    .join("\n");
+}
+
+test("slice 5 locale strings have no source brand or Issue domain", async () => {
+  for (const file of LOCALE_FILES) {
+    const text = await readFile(file, "utf8");
+    const values = sliceLocaleValues(text);
+    assert.ok(values.length > 0, `${file}: expected tasks.detail/editor keys`);
+    for (const re of BRAND_BAD) assertNoMatch(file, values, re);
+  }
+});
 
 test("task detail suite UI has no source brand or Issue domain", async () => {
   const files = (await Promise.all(roots.map((r) => walk(r)))).flat();

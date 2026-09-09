@@ -34,6 +34,15 @@ là mổ vào phần đang làm dở.
 xây nền, chưa có tổ chức ngoài UNICOM dùng thật, ưu tiên tốc độ ghép tính năng.
 Một cổng chặn mọi người vì một vùng code chưa xong không phục vụ mục tiêu đó.
 
+**Sự cố cụ thể này đã được chữa độc lập trên `develop` trong lúc ADR đang viết:**
+`editor/**` bị loại khỏi coverage của `views`, ngưỡng hai gói được *nâng* — core lên
+58/53/47/60, views lên 56/48/50/58 — và bốn lỗi lint được sửa. Đo lại sau khi merge,
+đặt `GATE_LEVEL=standard`: lint xanh cả bốn gói, 316 file test xanh, không gói nào
+dưới sàn. Quyết định dưới đây vẫn giữ, nhưng giữ vì một lý do khác với lý do nó sinh
+ra: nó không còn để gỡ một sự cố đang xảy ra, nó là chính sách của giai đoạn `fast`
+cho lần sau. Lần sau sẽ có — mỗi lần một vùng lớn được ghép vào trước khi có test là
+một lần cả đội đứng đỏ vì một người.
+
 ## Quyết định
 
 1. **Ở `GATE_LEVEL=fast`, ngưỡng coverage TypeScript không được truyền cho vitest.**
@@ -48,14 +57,15 @@ Một cổng chặn mọi người vì một vùng code chưa xong không phục
 4. **Sàn coverage Go không đổi.** `server/coverage.floor` vẫn chặn ở mọi mức, kể
    cả `fast`, vì nó không phải nguyên nhân của sự cố này và bộ test Go không có
    vùng nào đang dở tương tự.
-5. **Điều kiện đóng lại:** trước khi chuyển `GATE_LEVEL` lên `standard`, hai gói
-   phải trở lại trên sàn. Việc đó thuộc về người hoàn thiện editor, không thuộc
-   về người đổi mức.
+5. **Điều kiện đóng lại:** PR chuyển `GATE_LEVEL` lên `standard` phải chạy
+   `GATE_LEVEL=standard make check` và dán kết quả vào PR. Tính tới 2026-09-09
+   lệnh đó xanh, nên việc lên mức không nợ ai cái gì; nếu tới lúc đó nó đỏ thì
+   phần đỏ thuộc về người làm ra nó, không thuộc về người đổi mức.
 
 ## Hệ quả
 
-Được: `develop` xanh lại ngay, và một vùng code chưa xong không còn chặn những
-người không liên quan tới nó.
+Được: một vùng code chưa xong không chặn những người không liên quan tới nó. Ở
+giai đoạn `fast`, thời gian chờ của cả đội đắt hơn một lần trôi coverage.
 
 Mất: trong giai đoạn `fast`, coverage có thể trôi xuống và ranh giới gói có thể bị
 vi phạm mà không ai bị chặn. Phần lint đắt hơn phần coverage đúng ở chỗ đó — các

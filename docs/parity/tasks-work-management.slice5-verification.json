@@ -1,0 +1,583 @@
+{
+  "schema_version": 1,
+  "owner_issue": "UNI-505",
+  "note": "Deterministic verification overlay for slice-5-owned editor/detail/attachments entries only. Regeneration merges this with slice1–4; do not invent verification for later UNI-426 slices. Residual Multica detail chrome (threads/hover cards/find-bar) stays pending until a later cut.",
+  "entries": [
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/issues/[id]/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "apps/web/app/[orgSlug]/[workspaceSlug]/tasks/[taskId]/page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/attachment-preview-modal.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/attachment-preview-modal.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/attachment.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/attachment.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/attachment.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/attachment.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/bubble-menu.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/bubble-menu.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/bubble-menu.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/bubble-menu.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/content-editor-current-issue.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/content-editor.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/content-editor.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/file-card.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/file-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/issue-identifier-autolink.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/task-identifier-autolink.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/issue-identifier-autolink.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/task-identifier-autolink.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/markdown-paste.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/markdown-paste.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-suggestion.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/mention-suggestion.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-suggestion.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/mention-suggestion.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-view.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/mention-view.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-view.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/mention-view.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/slash-command-suggestion.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/slash-command-suggestion.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/html-attachment-preview.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/html-attachment-preview.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/image-sequence-context.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/image-sequence-context.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/mermaid-viewer.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/mermaid-viewer.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/readonly-content.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/readonly-content.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/readonly-content.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/readonly-content.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/utils/issue-identifiers.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/utils/task-identifiers.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/utils/link-handler.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/utils/link-handler.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/utils/link-handler.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/utils/link-handler.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/utils/preprocess-links.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/utils/preprocess-links.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/editor/utils/preprocess.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/utils/preprocess.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/__tests__/issue-actions-menu.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/__tests__/use-issue-actions.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-context-menu.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-dropdown.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-menu-items.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/run-confirm-gate.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/run-confirm-gate.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/use-issue-actions.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card-edit-gate.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/comment-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/comment-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-composers.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-input.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-trigger-chips.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-trigger-chips.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/execution-log-section.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/execution-log-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail-route.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail-route.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-mention-card.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/stubs/task-mention-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-mention-card.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/stubs/task-mention-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/actor-property-picker.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/actor-property-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/assignee-picker.keyboard.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/assignee-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/custom-property-picker.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/custom-property-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/deferred-trigger.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/due-date-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/label-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/priority-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/property-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/stage-picker.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/stage-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/start-date-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/status-picker.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/status-picker.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/quick-actions-section.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/quick-actions-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/source-context-comment-list.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/status-icon.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/stubs/status-icon.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/status-icon.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/stubs/status-icon.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/terminate-task-confirm-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/use-comment-uploads.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/current-issue-render-context.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/stubs/current-task-render-context.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-comment-trigger-preview.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-comment-trigger-preview.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-detail-scroll-restore.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-detail-scroll-restore.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-timeline.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-timeline.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-trigger-preview.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-quick-action-menu.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-sticky-composer.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-sticky-composer.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    }
+  ]
+}

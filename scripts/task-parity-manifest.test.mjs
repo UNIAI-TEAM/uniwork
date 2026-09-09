@@ -14,6 +14,7 @@ const overlayPath = new URL("../docs/parity/tasks-work-management.slice1-verific
 const slice2OverlayPath = new URL("../docs/parity/tasks-work-management.slice2-verification.json", import.meta.url);
 const slice3OverlayPath = new URL("../docs/parity/tasks-work-management.slice3-verification.json", import.meta.url);
 const slice4OverlayPath = new URL("../docs/parity/tasks-work-management.slice4-verification.json", import.meta.url);
+const slice5OverlayPath = new URL("../docs/parity/tasks-work-management.slice5-verification.json", import.meta.url);
 const generator = fileURLToPath(new URL("./generate-task-parity-manifest.mjs", import.meta.url));
 const execFile = promisify(execFileCallback);
 const capabilityIDs = [
@@ -94,6 +95,104 @@ const slice4ProjectsSources = [
   "packages/views/projects/components/projects-page.test.tsx",
   "packages/views/projects/components/projects-page.tsx",
 ];
+const slice5DetailSources = [
+  "apps/web/app/[workspaceSlug]/(dashboard)/issues/[id]/page.tsx",
+  "packages/views/editor/attachment-preview-modal.test.tsx",
+  "packages/views/editor/attachment.test.tsx",
+  "packages/views/editor/attachment.tsx",
+  "packages/views/editor/bubble-menu.test.tsx",
+  "packages/views/editor/bubble-menu.tsx",
+  "packages/views/editor/content-editor-current-issue.test.tsx",
+  "packages/views/editor/content-editor.tsx",
+  "packages/views/editor/extensions/file-card.test.tsx",
+  "packages/views/editor/extensions/index.ts",
+  "packages/views/editor/extensions/issue-identifier-autolink.test.ts",
+  "packages/views/editor/extensions/issue-identifier-autolink.ts",
+  "packages/views/editor/extensions/markdown-paste.test.ts",
+  "packages/views/editor/extensions/mention-suggestion.test.tsx",
+  "packages/views/editor/extensions/mention-suggestion.tsx",
+  "packages/views/editor/extensions/mention-view.test.tsx",
+  "packages/views/editor/extensions/mention-view.tsx",
+  "packages/views/editor/extensions/slash-command-suggestion.tsx",
+  "packages/views/editor/html-attachment-preview.test.tsx",
+  "packages/views/editor/image-sequence-context.test.tsx",
+  "packages/views/editor/mermaid-viewer.test.tsx",
+  "packages/views/editor/readonly-content.test.tsx",
+  "packages/views/editor/readonly-content.tsx",
+  "packages/views/editor/utils/issue-identifiers.test.ts",
+  "packages/views/editor/utils/link-handler.test.ts",
+  "packages/views/editor/utils/link-handler.ts",
+  "packages/views/editor/utils/preprocess-links.test.ts",
+  "packages/views/editor/utils/preprocess.ts",
+  "packages/views/issues/actions/__tests__/issue-actions-menu.test.tsx",
+  "packages/views/issues/actions/__tests__/use-issue-actions.test.tsx",
+  "packages/views/issues/actions/index.ts",
+  "packages/views/issues/actions/issue-actions-context-menu.tsx",
+  "packages/views/issues/actions/issue-actions-dropdown.tsx",
+  "packages/views/issues/actions/issue-actions-menu-items.tsx",
+  "packages/views/issues/actions/run-confirm-gate.test.ts",
+  "packages/views/issues/actions/run-confirm-gate.ts",
+  "packages/views/issues/actions/use-issue-actions.ts",
+  "packages/views/issues/components/comment-card-edit-gate.test.tsx",
+  "packages/views/issues/components/comment-card.test.tsx",
+  "packages/views/issues/components/comment-card.tsx",
+  "packages/views/issues/components/comment-composers.test.tsx",
+  "packages/views/issues/components/comment-input.tsx",
+  "packages/views/issues/components/comment-trigger-chips.test.tsx",
+  "packages/views/issues/components/comment-trigger-chips.tsx",
+  "packages/views/issues/components/execution-log-section.test.tsx",
+  "packages/views/issues/components/execution-log-section.tsx",
+  "packages/views/issues/components/index.ts",
+  "packages/views/issues/components/issue-agent-activity-indicator.test.tsx",
+  "packages/views/issues/components/issue-agent-activity-indicator.tsx",
+  "packages/views/issues/components/issue-agent-header-chip.test.tsx",
+  "packages/views/issues/components/issue-agent-header-chip.tsx",
+  "packages/views/issues/components/issue-detail-route.test.tsx",
+  "packages/views/issues/components/issue-detail-route.tsx",
+  "packages/views/issues/components/issue-detail.test.tsx",
+  "packages/views/issues/components/issue-detail.tsx",
+  "packages/views/issues/components/issue-mention-card.test.tsx",
+  "packages/views/issues/components/issue-mention-card.tsx",
+  "packages/views/issues/components/pickers/actor-property-picker.test.ts",
+  "packages/views/issues/components/pickers/actor-property-picker.tsx",
+  "packages/views/issues/components/pickers/assignee-picker.keyboard.test.tsx",
+  "packages/views/issues/components/pickers/assignee-picker.tsx",
+  "packages/views/issues/components/pickers/custom-property-picker.test.ts",
+  "packages/views/issues/components/pickers/custom-property-picker.tsx",
+  "packages/views/issues/components/pickers/deferred-trigger.test.tsx",
+  "packages/views/issues/components/pickers/due-date-picker.tsx",
+  "packages/views/issues/components/pickers/index.ts",
+  "packages/views/issues/components/pickers/label-picker.tsx",
+  "packages/views/issues/components/pickers/priority-picker.tsx",
+  "packages/views/issues/components/pickers/property-picker.tsx",
+  "packages/views/issues/components/pickers/stage-picker.test.tsx",
+  "packages/views/issues/components/pickers/stage-picker.tsx",
+  "packages/views/issues/components/pickers/start-date-picker.tsx",
+  "packages/views/issues/components/pickers/status-picker.test.tsx",
+  "packages/views/issues/components/pickers/status-picker.tsx",
+  "packages/views/issues/components/pull-request-list.test.tsx",
+  "packages/views/issues/components/pull-request-list.tsx",
+  "packages/views/issues/components/quick-actions-section.test.tsx",
+  "packages/views/issues/components/quick-actions-section.tsx",
+  "packages/views/issues/components/source-context-comment-list.tsx",
+  "packages/views/issues/components/status-icon.test.tsx",
+  "packages/views/issues/components/status-icon.tsx",
+  "packages/views/issues/components/sub-issues-agent-working-chip.test.tsx",
+  "packages/views/issues/components/sub-issues-agent-working-chip.tsx",
+  "packages/views/issues/components/terminate-task-confirm-dialog.tsx",
+  "packages/views/issues/components/use-comment-uploads.ts",
+  "packages/views/issues/current-issue-render-context.tsx",
+  "packages/views/issues/hooks/use-comment-trigger-preview.test.ts",
+  "packages/views/issues/hooks/use-comment-trigger-preview.ts",
+  "packages/views/issues/hooks/use-issue-detail-scroll-restore.test.tsx",
+  "packages/views/issues/hooks/use-issue-detail-scroll-restore.ts",
+  "packages/views/issues/hooks/use-issue-timeline.test.tsx",
+  "packages/views/issues/hooks/use-issue-timeline.ts",
+  "packages/views/issues/hooks/use-issue-trigger-preview.ts",
+  "packages/views/issues/hooks/use-quick-action-menu.ts",
+  "packages/views/issues/hooks/use-sticky-composer.test.tsx",
+  "packages/views/issues/hooks/use-sticky-composer.ts",
+];
 const pendingKeys = [
   "disposition",
   "kind",
@@ -119,6 +218,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   const slice2Overlay = JSON.parse(await readFile(slice2OverlayPath, "utf8"));
   const slice3Overlay = JSON.parse(await readFile(slice3OverlayPath, "utf8"));
   const slice4Overlay = JSON.parse(await readFile(slice4OverlayPath, "utf8"));
+  const slice5Overlay = JSON.parse(await readFile(slice5OverlayPath, "utf8"));
   assert.equal(manifest.schema_version, 1);
   assert.equal(manifest.baseline_commit, "3d37828e9");
   assert.equal(manifest.entries.length, 1531);
@@ -146,6 +246,12 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     slice4Overlay.entries.map((entry) => entry.source_path).sort(),
     [...slice4ProjectsSources].sort(),
   );
+  assert.equal(slice5Overlay.schema_version, 1);
+  assert.equal(slice5Overlay.owner_issue, "UNI-505");
+  assert.deepEqual(
+    slice5Overlay.entries.map((entry) => entry.source_path).sort(),
+    [...slice5DetailSources].sort(),
+  );
 
   const sources = manifest.entries.map((entry) => entry.source_path);
   const sourceEntries = manifest.entries.filter((entry) => entry.kind !== "capability");
@@ -159,12 +265,14 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     ...slice2Overlay.entries.map((entry) => entry.source_path),
     ...slice3Overlay.entries.map((entry) => entry.source_path),
     ...slice4Overlay.entries.map((entry) => entry.source_path),
+    ...slice5Overlay.entries.map((entry) => entry.source_path),
   ]);
   for (const entry of [
     ...overlay.entries,
     ...slice2Overlay.entries,
     ...slice3Overlay.entries,
     ...slice4Overlay.entries,
+    ...slice5Overlay.entries,
   ]) {
     assert.equal(entry.verification_state, "verified");
     assert.match(entry.evidence_path, /\S/);
@@ -191,7 +299,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   }
   assert.equal(
     createHash("sha256").update(JSON.stringify(manifest.entries)).digest("hex"),
-    "b2e82babc3ea86c95791baac55c3974ebda375ee2814ac77360ba27a7c1918f5",
+    "4c52c7a311d11d1abff715b4024cdf5f089142b0c7bbfac11cb8dcca750c2b33",
   );
 
   for (const route of [
@@ -364,5 +472,31 @@ test("slice-4 verification overlay marks only owned projects entries", async () 
   assert.equal(merged[0].evidence_path, undefined);
   assert.equal(merged[1].verification_state, "verified");
   assert.equal(merged[1].evidence_path, "packages/views/projects/projects-list-page.tsx");
+  assert.match(merged[1].evidence_commit, /^[0-9a-f]{7,40}$/);
+});
+
+test("slice-5 verification overlay marks only owned detail entries", async () => {
+  const overlay = JSON.parse(await readFile(slice5OverlayPath, "utf8"));
+  const pending = {
+    source_path: "packages/views/projects/components/projects-page.tsx",
+    target_path: "packages/views/projects/components/projects-page.tsx",
+    kind: "source",
+    disposition: "adapted",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const detail = {
+    source_path: "packages/views/editor/content-editor.tsx",
+    target_path: "packages/views/editor/content-editor.tsx",
+    kind: "source",
+    disposition: "ported",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const merged = applyVerificationOverlay([pending, detail], overlay);
+  assert.equal(merged[0].verification_state, "pending");
+  assert.equal(merged[0].evidence_path, undefined);
+  assert.equal(merged[1].verification_state, "verified");
+  assert.equal(merged[1].evidence_path, "packages/views/editor/content-editor.tsx");
   assert.match(merged[1].evidence_commit, /^[0-9a-f]{7,40}$/);
 });

@@ -53,8 +53,8 @@ Sàn coverage TypeScript và `pnpm lint` nới cùng kiểu với ngân sách bu
 in đủ, không đánh đỏ. Lý do và cái giá ở `docs/adr/0014-coverage-va-lint-la-canh-bao-o-gate-level-fast.md`
 — phải là ADR vì nó chạm vào một dòng trong mục dưới đây. Không rule lint nào bị
 đổi mức và không con số coverage nào bị hạ; chỉ mã thoát đổi. Điều kiện để lên
-`standard`: hai gói `core` và `views` trở lại trên sàn, và bốn lỗi lint trong
-`packages/views/editor/` hết.
+`standard`: PR đổi mức chạy `GATE_LEVEL=standard make check` và dán kết quả.
+Tính tới 2026-09-09 lệnh đó xanh.
 
 Job `backend-test` chia bộ Go thành ba shard (`service`, `handler`, `rest`), mỗi shard
 một database riêng, vì `server/internal/testutil` nối tiếp mọi test DB sau một advisory
