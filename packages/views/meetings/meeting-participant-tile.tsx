@@ -10,7 +10,7 @@ import {
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
-import { EyeOff, Hand, MicOff, MoreVertical, Pin, PinOff, Volume2 } from "lucide-react";
+import { Eye, EyeOff, Hand, MicOff, MoreVertical, Pin, PinOff, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
@@ -162,7 +162,11 @@ function MeetingTileHoverActions({
               {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
-              <EyeOff aria-hidden className="size-4" />
+              {isHidden ? (
+                <Eye aria-hidden className="size-4" />
+              ) : (
+                <EyeOff aria-hidden className="size-4" />
+              )}
               {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
             </DropdownMenuItem>
             {showHostMute ? (

@@ -4,6 +4,7 @@ import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 import { useIsMuted, useIsSpeaking } from "@livekit/components-react";
 import {
+  Eye,
   EyeOff,
   MicOff,
   MoreVertical,
@@ -126,7 +127,11 @@ export function MeetingParticipantRow({
               {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
-              <EyeOff aria-hidden className="size-4" />
+              {isHidden ? (
+                <Eye aria-hidden className="size-4" />
+              ) : (
+                <EyeOff aria-hidden className="size-4" />
+              )}
               {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
             </DropdownMenuItem>
             {canHost && !participant.isLocal ? (
