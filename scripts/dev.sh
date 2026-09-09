@@ -46,17 +46,11 @@ if [ ! -d node_modules ]; then
 fi
 
 bash scripts/ensure-postgres.sh "$ENV_FILE"
+bash scripts/ensure-livekit.sh "$ENV_FILE"
 
 echo "==> Running migrations..."
 (cd server && go run ./cmd/migrate up)
 
 echo ""
 echo "✓ Ready. Starting services..."
-echo "  Backend:  http://localhost:${PORT}"
-echo "  Frontend: http://localhost:${FRONTEND_PORT}"
-echo ""
-
-trap 'kill 0' EXIT
-(cd server && go run ./cmd/server) &
-pnpm --filter @uniwork/web dev &
-wait
+bash scripts/run-app.sh "$ENV_FILE"

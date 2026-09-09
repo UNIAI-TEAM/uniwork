@@ -11,7 +11,7 @@ Tài liệu dành cho người dùng workspace UniWork. Kỹ thuật triển kha
 
 ## Chuẩn bị (quản trị / DevOps)
 
-1. **LiveKit** — cuộc họp video cần LiveKit (`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`). Local: `docker compose -f docker-compose.livekit.yml up` rồi `make start`.
+1. **LiveKit** — cuộc họp video cần LiveKit (`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`). Local: `make start` tự chạy container LiveKit và stream log (hoặc `make livekit-up`).
 2. **Tóm tắt AI** — cấu hình `ANTHROPIC_API_KEY` trên server. Không có key → nút tóm tắt ẩn (`ai_not_configured`).
 3. **STT server (tùy chọn)** — đặt `MEETING_STT_AGENT_SECRET` và chạy worker trong [`deploy/meeting-stt-agent/`](../../deploy/meeting-stt-agent/). Khi bật, client ẩn Web Speech để tránh transcript trùng.
 4. **Ghi hình (tùy chọn)** — `LIVEKIT_RECORDING_BUCKET` + biến `AWS_*`.
@@ -61,8 +61,7 @@ Cùng quy trình: tạo tóm tắt từ header Copilot → tick action items →
 ## Kiểm thử E2E LiveKit (developer)
 
 ```bash
-docker compose -f docker-compose.livekit.yml up   # terminal 1
-make start                                         # terminal 2
+make start
 E2E_LIVEKIT=1 pnpm e2e e2e/meetings-livekit.spec.ts
 ```
 

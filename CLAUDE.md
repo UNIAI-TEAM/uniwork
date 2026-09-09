@@ -116,7 +116,7 @@ If logic would be needed by a second host, extract it now:
 
 ```bash
 make dev              # bootstrap this checkout and start everything
-make start            # app processes (migrates first); make stop leaves Postgres/Redis up
+make start            # app + local LiveKit (migrates first); make stop leaves Postgres/Redis/LiveKit up
 make check            # typecheck → lint → unit + contract tests → Go tests → E2E (E2E above GATE_LEVEL=fast)
 make check-full       # the same at strict, E2E included, whatever GATE_LEVEL says
 make gate             # current gate level and what it changes
