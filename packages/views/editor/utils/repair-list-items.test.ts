@@ -45,10 +45,16 @@ describe("repairEmptyListItems (real editor)", () => {
     const ed = makeEditor("1. \n\n");
 
     // Failing-first: @tiptap/markdown parses the empty item into a childless
-    // listItem, and the document is left with no real text cursor.
+    // listItem. That is the corruption this helper exists for, and it is still
+    // there on @tiptap 3.30.6.
     expect(firstItem(ed).childCount).toBe(0);
+    // Where the caret lands did change with 3.30.6: it used to be no real text
+    // cursor at all, now there is one, but on the block after the empty item —
+    // still not somewhere you can keep typing the list. The assertions after
+    // the repair are what pin the behaviour that matters.
     const before = ed.state.selection;
-    expect(before instanceof TextSelection && before.$cursor != null).toBe(false);
+    expect(before instanceof TextSelection && before.$cursor != null).toBe(true);
+    expect(before.$from.node(-1)?.type.name).not.toBe("listItem");
 
     repairEmptyListItems(ed);
 

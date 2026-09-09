@@ -14,7 +14,7 @@
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "@uniwork/views": "workspace:*",
-    "next": "^16.2.5",
+    "next": "^16.3.4",
     "react": "catalog:",
     "react-dom": "catalog:",
     "web-vitals": "^6.2.1"
