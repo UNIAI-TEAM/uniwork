@@ -71,10 +71,9 @@ func TestAllCatalogueRoutesAreRegistered(t *testing.T) {
 	}
 }
 
-// TestSuiteCatalogueRoutesCarryFeatureFlagMiddleware proves every non-MVP
-// catalogue path is mounted under RequireFeatureFlag by checking the Chi
-// middleware chain length (suite Group adds the flag gate; MVP tasks do not).
-func TestSuiteCatalogueRoutesCarryFeatureFlagMiddleware(t *testing.T) {
+// TestSuiteCatalogueRoutesAreNotFeatureFlagGated proves suite catalogue paths
+// sit on the same authed middleware stack as MVP tasks (no RequireFeatureFlag).
+func TestSuiteCatalogueRoutesAreNotFeatureFlagGated(t *testing.T) {
 	cat := loadSlice2Catalogue(t)
 	cfg := config.Config{FrontendOrigin: "http://localhost:3000", AdminRateLimitPerMin: 60}
 	mux := New(Deps{Cfg: cfg, PlatformRoles: fakeRoles{}}, stubRoutes())
@@ -102,7 +101,7 @@ func TestSuiteCatalogueRoutesCarryFeatureFlagMiddleware(t *testing.T) {
 	if !ok {
 		t.Fatal("MVP GET task route missing")
 	}
-	var ungated []string
+	var gated []string
 	for _, r := range cat.Routes {
 		key := r.Method + " " + r.TargetPath
 		if mvp[key] {
@@ -110,15 +109,14 @@ func TestSuiteCatalogueRoutesCarryFeatureFlagMiddleware(t *testing.T) {
 		}
 		n, ok := mwCount[key]
 		if !ok {
-			ungated = append(ungated, key+" (unregistered)")
+			gated = append(gated, key+" (unregistered)")
 			continue
 		}
-		// Suite group adds RequireFeatureFlag on top of the authed stack.
-		if n <= mvpCount {
-			ungated = append(ungated, key)
+		if n > mvpCount {
+			gated = append(gated, key)
 		}
 	}
-	if len(ungated) > 0 {
-		t.Fatalf("suite catalogue routes missing feature-flag middleware (%d):\n  %s", len(ungated), strings.Join(ungated, "\n  "))
+	if len(gated) > 0 {
+		t.Fatalf("suite catalogue routes still carry extra feature-flag middleware (%d):\n  %s", len(gated), strings.Join(gated, "\n  "))
 	}
 }

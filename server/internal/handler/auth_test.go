@@ -95,10 +95,6 @@ var testFlagOverrides *featureflags.DBProvider
 
 func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps, *pgxpool.Pool) {
 	t.Helper()
-	// make check exports .env (often FF_TASKS_WORK_MANAGEMENT_PARITY=true for local
-	// UI). Pin the suite flag off here so WhenFlagOff tests see 404 feature_disabled;
-	// suiteMutationWorld turns it on via DB override (wins over env).
-	t.Setenv("FF_TASKS_WORK_MANAGEMENT_PARITY", "false")
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}

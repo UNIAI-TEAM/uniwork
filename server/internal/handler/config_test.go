@@ -11,8 +11,8 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/workcapability"
 )
 
-// GET /api/v1/config publishes the Work Management parity flag (default off)
-// and the full capability catalogue so clients can render visible-disabled UI.
+// GET /api/v1/config publishes work-management capabilities (stubs stay
+// unavailable) and no longer lists the removed parity flag.
 func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000"}, Log: slog.Default()})
 	rec := httptest.NewRecorder()
@@ -28,9 +28,12 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	parity, ok := out.Flags["tasks_work_management_parity"]
-	if !ok || parity {
-		t.Fatalf("parity flag = %v present=%v, want false", parity, ok)
+	if _, ok := out.Flags["tasks_work_management_parity"]; ok {
+		t.Fatal("tasks_work_management_parity must not appear in public flags")
+	}
+	agents, ok := out.Flags["agents_assignee"]
+	if !ok || agents {
+		t.Fatalf("agents_assignee = %v present=%v, want false", agents, ok)
 	}
 	want := workcapability.Catalogue()
 	if len(out.WorkManagementCapabilities) != len(want) {
