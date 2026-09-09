@@ -1,6 +1,6 @@
 # UniWork — Task detail & collaboration (UNI-426 lát cắt 5)
 
-> **Trạng thái:** in-progress — thiết kế duyệt 2026-09-09; plan `../plans/2026-09-09-task-detail-collaboration.md`
+> **Trạng thái:** shipped — lát cắt 5 (UNI-505) Task detail & collaboration; plan `../plans/2026-09-09-task-detail-collaboration.md`
 
 **Ngày:** 2026-09-09  
 **Issue:** (sub-issue dưới UNI-426 · lát cắt 5 — tạo khi `writing-plans`)  

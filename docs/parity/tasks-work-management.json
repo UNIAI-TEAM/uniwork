@@ -1393,8 +1393,10 @@
       "target_path": "apps/web/app/[workspaceSlug]/(dashboard)/tasks/[id]/page.tsx",
       "kind": "route",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "apps/web/app/[orgSlug]/[workspaceSlug]/tasks/[taskId]/page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/issues/page.tsx",
@@ -3667,216 +3669,270 @@
       "target_path": "packages/views/editor/attachment-preview-modal.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/attachment-preview-modal.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/attachment.test.tsx",
       "target_path": "packages/views/editor/attachment.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/attachment.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/attachment.tsx",
       "target_path": "packages/views/editor/attachment.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/attachment.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/bubble-menu.test.tsx",
       "target_path": "packages/views/editor/bubble-menu.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/bubble-menu.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/bubble-menu.tsx",
       "target_path": "packages/views/editor/bubble-menu.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/bubble-menu.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/content-editor-current-issue.test.tsx",
       "target_path": "packages/views/editor/content-editor-current-task.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/content-editor.tsx",
       "target_path": "packages/views/editor/content-editor.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/content-editor.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/file-card.test.tsx",
       "target_path": "packages/views/editor/extensions/file-card.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/file-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/index.ts",
       "target_path": "packages/views/editor/extensions/index.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/issue-identifier-autolink.test.ts",
       "target_path": "packages/views/editor/extensions/task-identifier-autolink.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/task-identifier-autolink.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/issue-identifier-autolink.ts",
       "target_path": "packages/views/editor/extensions/task-identifier-autolink.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/task-identifier-autolink.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/markdown-paste.test.ts",
       "target_path": "packages/views/editor/extensions/markdown-paste.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/markdown-paste.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/mention-suggestion.test.tsx",
       "target_path": "packages/views/editor/extensions/mention-suggestion.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/mention-suggestion.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/mention-suggestion.tsx",
       "target_path": "packages/views/editor/extensions/mention-suggestion.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/mention-suggestion.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/mention-view.test.tsx",
       "target_path": "packages/views/editor/extensions/mention-view.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/mention-view.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/mention-view.tsx",
       "target_path": "packages/views/editor/extensions/mention-view.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/mention-view.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/extensions/slash-command-suggestion.tsx",
       "target_path": "packages/views/editor/extensions/slash-command-suggestion.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/slash-command-suggestion.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/html-attachment-preview.test.tsx",
       "target_path": "packages/views/editor/html-attachment-preview.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/html-attachment-preview.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/image-sequence-context.test.tsx",
       "target_path": "packages/views/editor/image-sequence-context.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/image-sequence-context.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/mermaid-viewer.test.tsx",
       "target_path": "packages/views/editor/mermaid-viewer.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/mermaid-viewer.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/readonly-content.test.tsx",
       "target_path": "packages/views/editor/readonly-content.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/readonly-content.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/readonly-content.tsx",
       "target_path": "packages/views/editor/readonly-content.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/readonly-content.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/utils/issue-identifiers.test.ts",
       "target_path": "packages/views/editor/utils/task-identifiers.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/utils/task-identifiers.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/utils/link-handler.test.ts",
       "target_path": "packages/views/editor/utils/link-handler.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/utils/link-handler.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/utils/link-handler.ts",
       "target_path": "packages/views/editor/utils/link-handler.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/utils/link-handler.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/utils/preprocess-links.test.ts",
       "target_path": "packages/views/editor/utils/preprocess-links.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/utils/preprocess-links.test.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/editor/utils/preprocess.ts",
       "target_path": "packages/views/editor/utils/preprocess.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/utils/preprocess.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/i18n/resources-types.ts",
@@ -4003,72 +4059,90 @@
       "target_path": "packages/views/tasks/actions/__tests__/task-actions-menu.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/__tests__/use-issue-actions.test.tsx",
       "target_path": "packages/views/tasks/actions/__tests__/use-task-actions.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/index.ts",
       "target_path": "packages/views/tasks/actions/index.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/issue-actions-context-menu.tsx",
       "target_path": "packages/views/tasks/actions/task-actions-context-menu.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/issue-actions-dropdown.tsx",
       "target_path": "packages/views/tasks/actions/task-actions-dropdown.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/issue-actions-menu-items.tsx",
       "target_path": "packages/views/tasks/actions/task-actions-menu-items.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/run-confirm-gate.test.ts",
       "target_path": "packages/views/tasks/actions/run-confirm-gate.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/run-confirm-gate.ts",
       "target_path": "packages/views/tasks/actions/run-confirm-gate.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/actions/use-issue-actions.ts",
       "target_path": "packages/views/tasks/actions/use-task-actions.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/blocked-trigger-copy.test.ts",
@@ -4177,56 +4251,70 @@
       "target_path": "packages/views/tasks/components/comment-card-edit-gate.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/comment-card.test.tsx",
       "target_path": "packages/views/tasks/components/comment-card.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/comment-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/comment-card.tsx",
       "target_path": "packages/views/tasks/components/comment-card.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/comment-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/comment-composers.test.tsx",
       "target_path": "packages/views/tasks/components/comment-composers.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/comment-input.tsx",
       "target_path": "packages/views/tasks/components/comment-input.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/comment-trigger-chips.test.tsx",
       "target_path": "packages/views/tasks/components/comment-trigger-chips.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/comment-trigger-chips.tsx",
       "target_path": "packages/views/tasks/components/comment-trigger-chips.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/create-renderers.test.tsx",
@@ -4289,16 +4377,20 @@
       "target_path": "packages/views/tasks/components/execution-log-section.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/execution-log-section.tsx",
       "target_path": "packages/views/tasks/components/execution-log-section.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/filter-chips-bar.test.ts",
@@ -4357,8 +4449,10 @@
       "target_path": "packages/views/tasks/components/index.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/infinite-scroll-sentinel.test.tsx",
@@ -4381,32 +4475,40 @@
       "target_path": "packages/views/tasks/components/task-agent-activity-indicator.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-agent-activity-indicator.tsx",
       "target_path": "packages/views/tasks/components/task-agent-activity-indicator.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-agent-header-chip.test.tsx",
       "target_path": "packages/views/tasks/components/task-agent-header-chip.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-agent-header-chip.tsx",
       "target_path": "packages/views/tasks/components/task-agent-header-chip.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-chip.test.tsx",
@@ -4429,32 +4531,40 @@
       "target_path": "packages/views/tasks/components/task-detail-route.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-detail-route.tsx",
       "target_path": "packages/views/tasks/components/task-detail-route.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-detail.test.tsx",
       "target_path": "packages/views/tasks/components/task-detail.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-detail.tsx",
       "target_path": "packages/views/tasks/components/task-detail.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-hover-card.test.tsx",
@@ -4477,16 +4587,20 @@
       "target_path": "packages/views/tasks/components/task-mention-card.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/stubs/task-mention-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-mention-card.tsx",
       "target_path": "packages/views/tasks/components/task-mention-card.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/stubs/task-mention-card.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/issue-usage-dialog.test.tsx",
@@ -4601,136 +4715,170 @@
       "target_path": "packages/views/tasks/components/pickers/actor-property-picker.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/actor-property-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/actor-property-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/assignee-picker.keyboard.test.tsx",
       "target_path": "packages/views/tasks/components/pickers/assignee-picker.keyboard.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/assignee-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/assignee-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/custom-property-picker.test.ts",
       "target_path": "packages/views/tasks/components/pickers/custom-property-picker.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/custom-property-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/custom-property-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/deferred-trigger.test.tsx",
       "target_path": "packages/views/tasks/components/pickers/deferred-trigger.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/due-date-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/due-date-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/index.ts",
       "target_path": "packages/views/tasks/components/pickers/index.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/label-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/label-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/priority-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/priority-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/property-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/property-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/stage-picker.test.tsx",
       "target_path": "packages/views/tasks/components/pickers/stage-picker.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/stage-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/stage-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/start-date-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/start-date-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/status-picker.test.tsx",
       "target_path": "packages/views/tasks/components/pickers/status-picker.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pickers/status-picker.tsx",
       "target_path": "packages/views/tasks/components/pickers/status-picker.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/properties-sidebar.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/priority-icon.tsx",
@@ -4753,32 +4901,40 @@
       "target_path": "packages/views/tasks/components/pull-request-list.test.tsx",
       "kind": "test",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/pull-request-list.tsx",
       "target_path": "packages/views/tasks/components/pull-request-list.tsx",
       "kind": "source",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/quick-actions-section.test.tsx",
       "target_path": "packages/views/tasks/components/quick-actions-section.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/quick-actions-section.tsx",
       "target_path": "packages/views/tasks/components/quick-actions-section.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/reply-input.tsx",
@@ -4837,8 +4993,10 @@
       "target_path": "packages/views/tasks/components/source-context-comment-list.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/source-context-content.tsx",
@@ -4877,32 +5035,40 @@
       "target_path": "packages/views/tasks/components/status-icon.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/stubs/status-icon.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/status-icon.tsx",
       "target_path": "packages/views/tasks/components/status-icon.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/stubs/status-icon.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.test.tsx",
       "target_path": "packages/views/tasks/components/sub-tasks-agent-working-chip.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.tsx",
       "target_path": "packages/views/tasks/components/sub-tasks-agent-working-chip.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/swimlane-view.test.tsx",
@@ -5031,8 +5197,10 @@
       "target_path": "packages/views/tasks/components/terminate-task-confirm-dialog.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/thread-minimap.test.tsx",
@@ -5103,8 +5271,10 @@
       "target_path": "packages/views/tasks/components/use-comment-uploads.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/components/use-drag-settle.test.tsx",
@@ -5163,8 +5333,10 @@
       "target_path": "packages/views/tasks/current-task-render-context.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/stubs/current-task-render-context.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/index.ts",
@@ -5187,16 +5359,20 @@
       "target_path": "packages/views/tasks/hooks/use-comment-trigger-preview.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-comment-trigger-preview.ts",
       "target_path": "packages/views/tasks/hooks/use-comment-trigger-preview.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-in-page-find.test.ts",
@@ -5219,16 +5395,20 @@
       "target_path": "packages/views/tasks/hooks/use-task-detail-scroll-restore.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-issue-detail-scroll-restore.ts",
       "target_path": "packages/views/tasks/hooks/use-task-detail-scroll-restore.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-issue-reactions.ts",
@@ -5259,32 +5439,40 @@
       "target_path": "packages/views/tasks/hooks/use-task-timeline.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-issue-timeline.ts",
       "target_path": "packages/views/tasks/hooks/use-task-timeline.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-issue-trigger-preview.ts",
       "target_path": "packages/views/tasks/hooks/use-task-trigger-preview.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-quick-action-menu.ts",
       "target_path": "packages/views/tasks/hooks/use-quick-action-menu.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-resolve-issue-identifier.ts",
@@ -5299,16 +5487,20 @@
       "target_path": "packages/views/tasks/hooks/use-sticky-composer.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/hooks/use-sticky-composer.ts",
       "target_path": "packages/views/tasks/hooks/use-sticky-composer.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
     },
     {
       "source_path": "packages/views/issues/surface/actions-context.tsx",

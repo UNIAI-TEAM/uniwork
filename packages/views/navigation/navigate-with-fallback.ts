@@ -13,7 +13,7 @@ export function navigateWithFallback(
 ): void {
   if (!navigation) {
     if (disposition === "push") {
-      // eslint-disable-next-line no-restricted-globals, no-restricted-syntax -- host without NavigationAdapter
+      // eslint-disable-next-line no-restricted-syntax -- host without NavigationAdapter
       window.location.assign(path);
     } else {
       window.open(path, "_blank", "noopener,noreferrer");
