@@ -132,7 +132,8 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
   const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
   const rejected = subjects.filter(
-    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!)/.test(s),
+    (s) =>
+      !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!|UNI-[0-9]+:)/.test(s),
   );
   assert.deepEqual(rejected, [], "commit-msg would reject commits already in history");
 });
@@ -344,6 +345,11 @@ test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
   assert.match(read(".github/workflows/uniai-link.yml"), /UNI-\[0-9\]\+/, "uniai-link must grep for UNI-nnn");
   // No issue, no code, at every level: fast must not turn a missing key into a warning.
   assert.doesNotMatch(read(".github/workflows/uniai-link.yml"), /=\s*fast\b/, "uniai-link must not special-case fast");
+  assert.match(
+    read(".githooks/commit-msg"),
+    /UNI-\[0-9\]\*:/,
+    "commit-msg must accept squash-merged UniAI PR titles (UNI-nnn: …)",
+  );
   assert.match(read(".githooks/prepare-commit-msg"), /Refs: /, "prepare-commit-msg must add the Refs trailer");
   assert.match(read("CLAUDE.md"), /\n## Project Tracking \(UniAI\)\n/, "CLAUDE.md needs a Project Tracking (UniAI) section");
   for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {
