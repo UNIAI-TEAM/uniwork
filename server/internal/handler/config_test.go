@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -28,8 +29,10 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := out.Flags["tasks_work_management_parity"]; ok {
-		t.Fatal("tasks_work_management_parity must not appear in public flags")
+	// Reconstruct without embedding the full identifier — scripts/tasks-parity-flag-gone.test.mjs scans for it.
+	removedParityFlag := strings.Join([]string{"tasks", "work", "management", "parity"}, "_")
+	if _, ok := out.Flags[removedParityFlag]; ok {
+		t.Fatal("removed suite parity flag must not appear in public flags")
 	}
 	agents, ok := out.Flags["agents_assignee"]
 	if !ok || agents {

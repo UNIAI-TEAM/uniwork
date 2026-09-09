@@ -4,9 +4,8 @@ import { fileURLToPath } from "node:url";
 import { verifyEmail } from "./auth-nav";
 
 /**
- * Slice-5 task detail smoke: flag off keeps MVP detail; flag on (client
- * config harness) shows suite chrome, comment compose, and attachment upload
- * when `tasks.attachments` is available.
+ * Task detail smoke after web cutover: suite detail, comment compose, and
+ * attachment upload are always on (no parity flag harness).
  *
  * GATE_LEVEL=fast skips E2E in `make check`; CI / `make check-full` still run this.
  */
@@ -41,27 +40,6 @@ async function onboardToTasks(page: Page) {
   await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
 }
 
-function installParityHarness(page: Page, state: { enabled: boolean }) {
-  return page.route("**/api/v1/config**", async (route) => {
-    const response = await route.fetch();
-    const json = (await response.json()) as {
-      flags?: Record<string, boolean>;
-      work_management_capabilities?: Record<string, { status?: string }>;
-    };
-    json.flags = { ...(json.flags ?? {}), tasks_work_management_parity: state.enabled };
-    json.work_management_capabilities = {
-      ...(json.work_management_capabilities ?? {}),
-      "tasks.attachments": { status: "available" },
-    };
-    await route.fulfill({
-      status: response.status(),
-      headers: response.headers(),
-      contentType: "application/json",
-      body: JSON.stringify(json),
-    });
-  });
-}
-
 async function createAndOpenTask(page: Page) {
   await page.goto(`/${orgSlug}/${wsSlug}/tasks`);
   await page.getByRole("button", { name: "Việc mới" }).click();
@@ -74,20 +52,10 @@ async function createAndOpenTask(page: Page) {
   });
 }
 
-test("task detail: flag off MVP; flag on suite comment + attachment", async ({ page }) => {
+test("task detail: suite comment + attachment always on", async ({ page }) => {
   await onboardToTasks(page);
-
-  const parity = { enabled: false };
-  await installParityHarness(page, parity);
   await createAndOpenTask(page);
 
-  await expect(page.getByTestId("task-detail-mvp")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("task-detail-suite")).toHaveCount(0);
-  await expect(page.getByTestId("task-detail-timeline")).toHaveCount(0);
-  await expect(page.getByTestId("task-comment-composer")).toHaveCount(0);
-
-  parity.enabled = true;
-  await page.reload();
   await expect(page.getByTestId("task-detail-suite")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("task-detail-mvp")).toHaveCount(0);
   await expect(page.getByTestId("task-detail-timeline")).toBeVisible();
