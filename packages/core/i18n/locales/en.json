@@ -2263,7 +2263,13 @@
     "error_title": "The directory did not load",
     "error_description": "Try again in a moment. If it keeps failing, tell an organization admin.",
     "not_found_title": "This person was not found",
-    "not_found_description": "They may have left the organization, or you may not be allowed to see them."
+    "not_found_description": "They may have left the organization, or you may not be allowed to see them.",
+    "contact": "Contact",
+    "details": "Details",
+    "reporting": "Reporting",
+    "details_empty": "Nothing recorded yet.",
+    "email_person": "Email {{name}}",
+    "call_person": "Call {{name}}"
   },
   "departments": {
     "title": "Departments",

@@ -2259,7 +2259,13 @@
     "error_title": "Không tải được danh bạ",
     "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, báo quản trị tổ chức.",
     "not_found_title": "Không tìm thấy người này",
-    "not_found_description": "Có thể họ đã rời tổ chức hoặc bạn không có quyền xem."
+    "not_found_description": "Có thể họ đã rời tổ chức hoặc bạn không có quyền xem.",
+    "contact": "Liên hệ",
+    "details": "Thông tin",
+    "reporting": "Quan hệ báo cáo",
+    "details_empty": "Chưa có thông tin nào.",
+    "email_person": "Gửi email cho {{name}}",
+    "call_person": "Gọi cho {{name}}"
   },
   "departments": {
     "title": "Phòng ban",

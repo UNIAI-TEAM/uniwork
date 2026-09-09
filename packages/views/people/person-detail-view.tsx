@@ -1,37 +1,114 @@
 "use client";
 
-import { Pencil, UserRound } from "lucide-react";
+import { ChevronRight, IdCard, Mail, Pencil, Phone, UserRound, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { usePerson } from "@uniwork/core/people";
-import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
-import { Badge } from "@uniwork/ui/components/ui/badge";
+import type { Actor, Person } from "@uniwork/core/types/people";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageState } from "../layout/collection-page";
+import { PanelCard } from "../layout/panel-card";
 import { useWorkspace } from "../layout/workspace-context";
-import { useNavigation } from "../navigation";
-import { ActorChip, initials } from "./actor-chip";
+import { AppLink } from "../navigation";
+import { ActorChip } from "./actor-chip";
+import { PersonDetailHero } from "./person-detail-hero";
+import { PersonDetailSkeleton } from "./people-skeleton";
+import { formatJoinedOn, formatTimezone } from "./person-facts";
 import { ProfileForm } from "./profile-form";
 
-/** One person's profile, with the people who report to them. */
+/** One label/value pair of the fact list. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
+      <dt className="shrink-0 text-label text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-body text-foreground">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * One person, reachable in one click. Rows that navigate are anchors, not
+ * buttons, so a middle click opens a tab and a screen reader announces a link;
+ * `min-h-11` keeps them within reach of a thumb.
+ */
+function PersonRow({ href, actor }: { href: string; actor: Actor }) {
+  return (
+    <AppLink
+      href={href}
+      className="group flex min-h-11 items-center gap-2 px-4 py-2 transition-colors hover:bg-surface-hover"
+    >
+      <ActorChip actor={actor} className="min-w-0 flex-1" />
+      <ChevronRight
+        aria-hidden="true"
+        className="size-4 shrink-0 text-faint-foreground transition-colors group-hover:text-muted-foreground"
+      />
+    </AppLink>
+  );
+}
+
+/**
+ * One way to reach this person, as a row that is entirely the action. The
+ * value sits under its label rather than beside it: an address is long, and
+ * squeezing it into the right half of a narrow card broke it mid-word.
+ */
+function ContactRow({
+  icon: Icon,
+  label,
+  value,
+  href,
+  ariaLabel,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  href: string;
+  ariaLabel: string;
+}) {
+  return (
+    <a
+      href={href}
+      aria-label={ariaLabel}
+      className="flex min-h-11 items-start gap-3 px-4 py-2.5 transition-colors hover:bg-surface-hover"
+    >
+      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-faint-foreground" />
+      <span className="min-w-0">
+        <span className="block text-label text-muted-foreground">{label}</span>
+        <span className="block break-words text-body text-foreground">{value}</span>
+      </span>
+    </a>
+  );
+}
+
+/** One person's profile, with how to reach them and who they work with. */
 export function PersonDetailView({ userId }: { userId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { workspace } = useWorkspace();
   const orgSlug = workspace.organization_slug;
-  const { push } = useNavigation();
+  const wsPaths = paths.workspace(orgSlug, workspace.slug);
   const { data, isLoading, isError } = usePerson(orgSlug, userId);
   const { decideEditProfile } = usePeoplePermissions(orgSlug);
   const [editing, setEditing] = useState(false);
   const person = data?.person ?? null;
 
+  const header = (leaf: React.ReactNode, actions?: React.ReactNode) => (
+    <BreadcrumbHeader
+      segments={[{ label: t("people.title"), href: wsPaths.people() }]}
+      leaf={leaf}
+      actions={actions}
+    />
+  );
+
   if (isLoading) {
+    // Skeletons rather than a spinner, for the same reason the directory uses
+    // them: the page lands in its final shape instead of jumping into it.
     return (
-      <div className="flex flex-1 items-center justify-center py-16">
-        <Spinner />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {header(t("common.loading"))}
+        <PersonDetailSkeleton />
       </div>
     );
   }
@@ -48,105 +125,117 @@ export function PersonDetailView({ userId }: { userId: string }) {
   }
 
   const canEdit = decideEditProfile({ user_id: person.user_id });
-  const facts: Array<[string, string]> = [
-    [t("people.field_title"), person.title],
-    [t("people.department"), person.department?.name ?? ""],
-    [t("people.field_employee_code"), person.employee_code ?? ""],
-    [t("people.field_phone"), person.phone ?? ""],
-    [t("people.field_location"), person.location ?? ""],
-    [t("people.field_joined_on"), person.joined_on ?? ""],
-    [t("people.field_timezone"), person.timezone],
-  ];
+  const reports = data?.reports ?? [];
+  const facts = employmentFacts(person, t, i18n.language);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <BreadcrumbHeader
-        segments={[{ label: t("people.title"), href: paths.workspace(orgSlug, workspace.slug).people() }]}
-        leaf={person.display_name}
-        actions={
-          canEdit.allowed && !editing ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <Pencil aria-hidden="true" className="size-3.5" />
-              {t("people.edit_profile")}
-            </Button>
-          ) : null
-        }
-      />
+      {header(
+        person.display_name,
+        canEdit.allowed && !editing ? (
+          <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Pencil aria-hidden="true" className="size-3.5" />
+            {t("people.edit_profile")}
+          </Button>
+        ) : null,
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl p-4 sm:p-6">
-          <div className="flex items-start gap-4">
-            <Avatar className="size-14 shrink-0">
-              {person.avatar_url ? <AvatarImage src={person.avatar_url} alt="" /> : null}
-              <AvatarFallback className="text-title">{initials(person.display_name)}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="truncate text-title font-semibold text-foreground">{person.display_name}</h2>
-                <Badge variant="outline">
-                  {t(`people.role_${person.org_role}`, { defaultValue: person.org_role })}
-                </Badge>
-                {person.status === "deactivated" ? (
-                  <Badge variant="secondary">{t("people.status_deactivated")}</Badge>
-                ) : null}
-              </div>
-              <p className="text-body text-muted-foreground">{person.email}</p>
-              {person.bio ? <p className="mt-2 text-body text-foreground">{person.bio}</p> : null}
-            </div>
-          </div>
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
+          <PersonDetailHero person={person} />
 
           {editing ? (
-            <div className="mt-6">
-              <ProfileForm orgSlug={orgSlug} person={person} onDone={() => setEditing(false)} />
-            </div>
+            <ProfileForm orgSlug={orgSlug} person={person} onDone={() => setEditing(false)} />
           ) : (
-            <dl className="mt-6 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {facts
-                .filter(([, value]) => value !== "")
-                .map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-caption text-muted-foreground">{label}</dt>
-                    <dd className="text-body text-foreground">{value}</dd>
-                  </div>
-                ))}
-              {person.manager ? (
-                <div>
-                  <dt className="text-caption text-muted-foreground">{t("people.manager")}</dt>
-                  <dd className="text-body text-foreground">
-                    <button
-                      type="button"
-                      className="hover:underline"
-                      onClick={() =>
-                        push(paths.workspace(orgSlug, workspace.slug).person(person.manager!.id))
-                      }
-                    >
-                      <ActorChip actor={person.manager} />
-                    </button>
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
-          )}
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+              <PanelCard id="person-details" icon={IdCard} title={t("people.details")}>
+                {facts.length === 0 ? (
+                  <p className="text-body text-muted-foreground">{t("people.details_empty")}</p>
+                ) : (
+                  <dl className="-my-2.5 divide-y divide-border">
+                    {facts.map(([label, value]) => (
+                      <Fact key={label} label={label}>
+                        {value}
+                      </Fact>
+                    ))}
+                  </dl>
+                )}
+              </PanelCard>
 
-          {data && data.reports.length > 0 ? (
-            <section className="mt-8">
-              <h3 className="mb-2 text-body font-medium text-foreground">{t("people.reports")}</h3>
-              <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
-                {data.reports.map((report) => (
-                  <li key={report.id}>
-                    <button
-                      type="button"
-                      className="flex w-full items-center px-4 py-2.5 text-left hover:bg-surface-hover"
-                      onClick={() => push(paths.workspace(orgSlug, workspace.slug).person(report.id))}
-                    >
-                      <ActorChip actor={report} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+              <div className="flex min-w-0 flex-col gap-4">
+                {/* A directory exists to start a conversation, so the address
+                    is the action rather than a string to copy out. */}
+                <PanelCard id="person-contact" icon={Mail} title={t("people.contact")} flush>
+                  <div className="divide-y divide-border">
+                    <ContactRow
+                      icon={Mail}
+                      label={t("people.column_email")}
+                      value={person.email}
+                      href={`mailto:${person.email}`}
+                      ariaLabel={t("people.email_person", { name: person.display_name })}
+                    />
+                    {person.phone ? (
+                      <ContactRow
+                        icon={Phone}
+                        label={t("people.field_phone")}
+                        value={person.phone}
+                        href={`tel:${person.phone.replace(/\s+/g, "")}`}
+                        ariaLabel={t("people.call_person", { name: person.display_name })}
+                      />
+                    ) : null}
+                  </div>
+                </PanelCard>
+
+                {person.manager || reports.length > 0 ? (
+                  <PanelCard id="person-reporting" icon={Users} title={t("people.reporting")} flush>
+                    {person.manager ? (
+                      <div className={reports.length > 0 ? "border-b border-border" : undefined}>
+                        <p className="px-4 pt-3 text-label text-muted-foreground">
+                          {t("people.manager")}
+                        </p>
+                        <PersonRow href={wsPaths.person(person.manager.id)} actor={person.manager} />
+                      </div>
+                    ) : null}
+                    {reports.length > 0 ? (
+                      <div>
+                        <p className="px-4 pt-3 text-label text-muted-foreground">
+                          {t("people.reports")}
+                        </p>
+                        <ul className="divide-y divide-border">
+                          {reports.map((report) => (
+                            <li key={report.id}>
+                              <PersonRow href={wsPaths.person(report.id)} actor={report} />
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </PanelCard>
+                ) : null}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * The employment facts, in one fixed order. Empty ones are dropped rather than
+ * shown blank, and the order never depends on which survived — a grid that
+ * reflows around missing values gives every colleague a different page.
+ * Job title and department are not here: the hero already says them.
+ */
+function employmentFacts(
+  person: Person,
+  t: (key: string) => string,
+  language: string,
+): Array<[string, string]> {
+  const rows: Array<[string, string]> = [
+    [t("people.field_employee_code"), person.employee_code ?? ""],
+    [t("people.field_joined_on"), formatJoinedOn(person.joined_on ?? "", language)],
+    [t("people.field_location"), person.location ?? ""],
+    [t("people.field_timezone"), formatTimezone(person.timezone, language)],
+  ];
+  return rows.filter(([, value]) => value !== "");
 }
