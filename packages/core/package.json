@@ -93,7 +93,9 @@
     "./permissions": "./permissions/index.ts",
     "./navigation": "./navigation/store.ts",
     "./modals": "./modals/store.ts",
-    "./search": "./search/index.ts"
+    "./search": "./search/index.ts",
+    "./attachments/*": "./attachments/*.ts",
+    "./hooks/*": "./hooks/*.ts"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "catalog:",

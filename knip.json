@@ -3,6 +3,7 @@
   "exclude": [
     "catalog"
   ],
+  "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
       "entry": [

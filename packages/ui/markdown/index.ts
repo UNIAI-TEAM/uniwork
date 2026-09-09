@@ -11,3 +11,9 @@ export {
   isAllowedFileCardHref,
   FILE_CARD_URL_PATTERN,
 } from './file-cards'
+
+export {
+  isTaskIdentifier,
+  preprocessTaskIdentifiers,
+  TASK_IDENTIFIER_PATTERN,
+} from './task-identifiers'

@@ -5,6 +5,7 @@ export const RESERVED_SLUGS = [
   "api",
   "assets",
   "auth",
+  "favicon.ico",
   "forgot-password",
   "healthz",
   "inbox",
@@ -25,6 +26,7 @@ export const RESERVED_SLUGS = [
   "settings",
   "static",
   "tasks",
+  "uploads",
   "verify",
   "workspaces",
   "ws"

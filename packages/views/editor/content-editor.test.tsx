@@ -1,13 +1,28 @@
-import { render, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { ContentEditor } from "./content-editor";
 
-describe("ContentEditor smoke", () => {
-  it("mounts a contenteditable editor", async () => {
-    render(<ContentEditor placeholder="Add a description" />);
+function wrap(ui: ReactNode) {
+  return (
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
+    >
+      {ui}
+    </QueryClientProvider>
+  );
+}
 
-    await waitFor(() => {
-      expect(document.querySelector('[contenteditable="true"]')).toBeInTheDocument();
+describe("ContentEditor", () => {
+  it("mounts a contenteditable surface", async () => {
+    const { container } = render(wrap(<ContentEditor defaultValue="Body" disableMentions />));
+    const surface = await waitFor(() => {
+      const el = container.querySelector(".ProseMirror[contenteditable='true']");
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
     });
+    expect(surface).toHaveAttribute("contenteditable", "true");
+    expect(screen.getByText("Body")).toBeInTheDocument();
   });
 });

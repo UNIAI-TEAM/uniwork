@@ -50,7 +50,7 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | F-09 | AI Gateway dùng chung: provider registry, model router, prompt registry, tool authorization, metering, Ask UNI có quyền | AI Platform | CÓ (2026-09-06, UNI-428; quota = entitlement `ai.tokens`, không bảng `ai_quotas`; tool-calling do model chọn và embedding chờ đợt A) | Tách gateway khỏi meeting; metering theo org/actor/model; Ask UNI chỉ đọc | `2026-09-04-ai-platform-gateway-design.md` | P0 |
 | F-10 | Agent là actor hạng nhất: bảng agents, `actor_kind` trên mọi bản ghi, agent là thành viên, có thể assign | AI Platform | CÓ (2026-09-06, UNI-424; Settings → Agents UI ở UNI-471) | Phần schema + attribution làm ở F; runtime thực thi ở giai đoạn A | `2026-09-04-agent-actor-model-design.md` | P0 |
 | F-11 | Platform admin tối thiểu, OpenTelemetry, feature flag theo org, k6 hằng đêm, RUM | Platform Admin / Ops | CÓ (2026-09-07) | Theo spec; alert phải có runbook | `2026-09-04-platform-admin-observability-design.md` | P0 |
-| F-12 | Chat đạt DoD (đã có tính năng) | Chat & Collaboration | CÓ | Rà DoD: audit, quyền, test tải realtime, i18n parity | `(cần viết)` chat-dod-audit — checklist, không phải spec mới | P1 |
+| F-12 | Chat đạt DoD (đã có tính năng) | Chat & Collaboration | CÓ | Rà DoD: audit, quyền, test tải realtime, i18n parity — đóng cùng lát cuối của C-13 | `(cần viết)` chat-dod-audit — checklist, không phải spec mới | P1 |
 | F-13 | Triển khai SaaS staging + production, zero-downtime, backup PITR, runbook 10 kịch bản | Ops | MỘT PHẦN (docker-compose.prod) | Hạ tầng thật, backup có kiểm tra khôi phục, runbook | nằm trong spec F-11 + `(cần viết)` ops-runbooks | P0 |
 | F-14 | i18n vi/en parity gate trong CI, ngôn ngữ my/km/lo gắn beta | Cross-cutting | MỘT PHẦN | Test thiếu khóa; badge beta | `docs/conventions.md` §2 | P2 |
 
@@ -76,6 +76,7 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | C-10 | Pentest bên thứ ba, đóng High/Critical | Security | CHƯA | checklist ASVS L2 | P0 |
 | C-11 | Work Graph foundation: bảng quan hệ giữa đối tượng công việc, từ vựng quan hệ có kiểm soát, nguồn gốc (người / AI suy ra), API đọc lân cận depth-1 | Work Graph | CHƯA | `(cần viết)` work-graph-design; kế thừa work_nodes/work_edges bản cũ | P1 |
 | C-12 | Decision record: thực thể quyết định hạng nhất sinh từ tóm tắt họp (`meeting_summaries.decisions`) và từ task, gắn Work Graph, có người xác nhận | Knowledge & Memory | CHƯA | `(cần viết)` decision-records-design | P1 |
+| C-13 | Chat đẳng cấp ClickUp: kênh gắn Project, thread hạng nhất, tin nhắn ↔ task, đính kèm tệp, Posts, FollowUps, AI CatchUp / Ask UNI trong kênh, tìm kiếm toàn cục | Chat & Collaboration | CHƯA (chat messenger đã có; thiếu lớp gắn công việc) | `2026-09-09-chat-work-hub-design.md` (lát 1–3, chờ duyệt), các lát sau có spec riêng; epic UNI-506, 10 lát cắt = UNI-507…516 theo thứ tự | P1 |
 
 **Tiêu chí thoát**: 5 tenant pilot ≥ 30 ngày, ≥ 3 tiếp tục; 1 hóa đơn thật; ≥ 20 cuộc họp
 có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability ≥ 99,9% trong 60 ngày.

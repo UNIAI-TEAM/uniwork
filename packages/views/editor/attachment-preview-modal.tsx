@@ -1,0 +1,484 @@
+"use client";
+
+/**
+ * AttachmentPreviewModal — full-screen inline preview for an attachment.
+ *
+ * Single modal for every previewable kind. Handles 7 PreviewKinds:
+ *
+ *   - image : <img> on the shared ZoomCanvas — fit on open, then wheel /
+ *             drag / pinch / double-click / keyboard zoom, same controls as
+ *             the Mermaid viewer. Replaces the previous standalone
+ *             ImageLightbox.
+ *   - pdf   : <iframe src={download_url}> — relies on Chromium's PDFium
+ *             plugin. On desktop, requires webPreferences.plugins=true
+ *             (see apps/desktop/src/main/index.ts).
+ *   - video : <video controls src={download_url}>
+ *   - audio : <audio controls src={download_url}>
+ *
+ *   - markdown : fetch text via api.getAttachmentTextContent, render via
+ *                the existing ReadonlyContent (full mention/mermaid/katex
+ *                pipeline included).
+ *   - html     : fetch text, hand to <iframe srcdoc={text}
+ *                sandbox="allow-scripts">. The iframe runs in an opaque
+ *                origin: scripts execute (chart libraries / vanilla SVG
+ *                JS work), but cookie / localStorage / parent access /
+ *                top-navigation / popups / forms stay blocked because
+ *                `allow-same-origin` is intentionally NOT included.
+ *   - text     : fetch text, highlight with lowlight if the extension
+ *                maps to a known hljs language; otherwise plain <pre>.
+ *
+ * Media types load directly from the CloudFront signed `download_url`.
+ * Text types go through `/api/attachments/{id}/content` to sidestep
+ * CloudFront CORS (not configured) + Content-Disposition: attachment.
+ */
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import {
+  PreviewTooLargeError,
+  PreviewUnsupportedError,
+} from "./attachment-api";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  FileText,
+  Loader2,
+  X,
+} from "lucide-react";
+import type { Attachment } from "@uniwork/core/types";
+import { useEditorWorkspaceSlug } from "./workspace-slug";
+import { cn } from "@uniwork/ui/lib/utils";
+import { resolvePublicFileUrl } from "./resolve-file-url";
+import {
+  UI_EASE_OUT,
+  UI_MOTION_DURATION,
+} from "@uniwork/ui/lib/motion";
+import { useTranslation } from "react-i18next";
+import { useOptionalNavigation } from "../navigation";
+import { openExternal } from "./open-external";
+import { ReadonlyContent } from "./readonly-content";
+import {
+  extensionToLanguage,
+  getPreviewKind,
+  type PreviewKind,
+} from "./utils/preview";
+import { PreviewPanel } from "./attachment-preview-panel";
+import { useDownloadAttachment } from "./use-download-attachment";
+import { useAttachmentHtmlText } from "./hooks/use-attachment-html-text";
+import { useResignedInlineMediaURL } from "./hooks/use-inline-media-url";
+import { useZoomCanvas, type ZoomCanvasApi } from "./hooks/use-zoom-canvas";
+import { ZoomCanvas, ZoomControls } from "./zoom-canvas";
+import type { Size } from "./utils/zoom-transform";
+import { HtmlPreviewBody } from "./html-preview-body";
+import { CodeBlockStatic } from "./code-block-static";
+
+// ---------------------------------------------------------------------------
+// Preview source — full attachment, or URL-only (media types only)
+// ---------------------------------------------------------------------------
+//
+// `full` carries the resolved Attachment record and supports every PreviewKind
+// (text types require the attachment id to call /api/attachments/{id}/content).
+//
+// `url` carries just the signed URL + filename. It is what NodeViews fall back
+// to when `resolveAttachment(href)` returns undefined — typical when the URL
+// was copy-pasted across comments so the attachment record isn't reachable
+// from the current entity's `attachments` prop. Only media kinds (pdf / video
+// / audio) can be opened from a `url` source because those render directly
+// from the URL without hitting the text-content proxy.
+
+export type PreviewSource =
+  | { kind: "full"; attachment: Attachment }
+  | { kind: "url"; url: string; filename: string };
+
+// PreviewKinds that can render from a URL-only source. Text-based kinds
+// (markdown / html / text) need the /content proxy which is ID-keyed.
+const URL_ONLY_KINDS = new Set<PreviewKind>(["image", "pdf", "video", "audio"]);
+
+// Normalized view used everywhere downstream of `useAttachmentPreview`.
+// `attachmentId === null` signals URL-only mode (download falls back to
+// `openExternal`, text rendering branches are unreachable by the gate).
+export interface PreviewState {
+  filename: string;
+  contentType: string;
+  mediaUrl: string;
+  attachmentId: string | null;
+}
+
+function resolvePreviewMediaUrl(attachment: Attachment): string {
+  const raw =
+    attachment.download_url || attachment.markdown_url || attachment.url;
+  return resolvePublicFileUrl(raw) ?? raw;
+}
+
+function normalize(source: PreviewSource): PreviewState {
+  // Resolve any server-relative URL (e.g. `/api/attachments/{id}/download`
+  // returned by the unified-endpoint metadata path when no CloudFront
+  // signer is configured) against the configured API base. Web with the
+  // default empty base keeps the relative path and resolves it against
+  // the page origin — same behaviour as before this PR. Desktop renderer
+  // (loaded from `app://` / file: / dev-server origin) needs the absolute
+  // form so `<img src>` / `<iframe src>` / `<video src>` actually point at
+  // the API server instead of the shell origin.
+  if (source.kind === "full") {
+    return {
+      filename: source.attachment.filename,
+      contentType: source.attachment.content_type,
+      mediaUrl: resolvePreviewMediaUrl(source.attachment),
+      attachmentId: source.attachment.id,
+    };
+  }
+  return {
+    filename: source.filename,
+    contentType: "",
+    mediaUrl: resolvePublicFileUrl(source.url) ?? source.url,
+    attachmentId: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public props
+// ---------------------------------------------------------------------------
+
+/**
+ * Position of this preview inside a surface's image sequence (MUL-5752).
+ *
+ * `onPrev` / `onNext` are undefined AT the boundaries — the sequence does not
+ * wrap, so first/last simply disable the corresponding control. Supplied only
+ * by `ImageSequenceProvider`; a standalone preview leaves this unset and
+ * renders exactly as before.
+ */
+export interface PreviewSequence {
+  /** 0-based. Rendered as `index + 1` of `total`. */
+  index: number;
+  total: number;
+  onPrev?: () => void;
+  onNext?: () => void;
+}
+
+interface AttachmentPreviewModalProps {
+  source: PreviewSource;
+  open: boolean;
+  onClose: () => void;
+  sequence?: PreviewSequence;
+  /** Fired when the image kind fails to load — lets a gallery skip the frame. */
+  onImageError?: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// Hook — local state + ready-to-mount modal JSX
+// ---------------------------------------------------------------------------
+//
+// Why no React context / provider: packages/views/ cannot mount a Context.Provider
+// inside CoreProvider (in packages/core/), and threading a new provider through
+// every app layout is more friction than it's worth for a feature with at most
+// one open modal at a time. Instead each entry point gets its own local state
+// and renders the returned `modal` node. Multiple entry points coexisting just
+// means each carries its own (collapsed) state — they never collide because
+// only one preview is open per user click.
+
+export interface AttachmentPreviewHandle {
+  /** Try to open a preview for the source. Returns false when the file type
+   *  isn't previewable, OR when the source is URL-only but the kind requires
+   *  a full attachment (text/markdown/html). Callers can fall back to a
+   *  download flow. */
+  tryOpen: (source: PreviewSource) => boolean;
+  /** Force-open a preview, skipping the previewable() guard. Use for cases
+   *  where the caller has already filtered. */
+  open: (source: PreviewSource) => void;
+  /** Modal node to render somewhere in the caller's tree. Resolves to `null`
+   *  when no preview is active. Safe to render inside any container — the
+   *  modal portals to document.body. */
+  modal: ReactNode;
+}
+
+export function useAttachmentPreview(): AttachmentPreviewHandle {
+  const [current, setCurrent] = useState<PreviewSource | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const open = useCallback((source: PreviewSource) => {
+    setCurrent(source);
+    setPreviewOpen(true);
+  }, []);
+  const tryOpen = useCallback((source: PreviewSource) => {
+    const state = normalize(source);
+    const kind = getPreviewKind(state.contentType, state.filename);
+    if (!kind) return false;
+    // URL-only sources cannot drive text kinds — the /content proxy is ID-keyed.
+    if (source.kind === "url" && !URL_ONLY_KINDS.has(kind)) return false;
+    setCurrent(source);
+    setPreviewOpen(true);
+    return true;
+  }, []);
+
+  const modal = useMemo(
+    () =>
+      current ? (
+        <AttachmentPreviewModal
+          source={current}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          onExitComplete={() => setCurrent(null)}
+        />
+      ) : null,
+    [current, previewOpen],
+  );
+
+  return useMemo(() => ({ open, tryOpen, modal }), [open, tryOpen, modal]);
+}
+
+// ---------------------------------------------------------------------------
+// Image swap without a blank frame
+// ---------------------------------------------------------------------------
+
+// Returns the last image URL that finished decoding, holding the previous one
+// on screen while the next downloads. Swapping `<img src>` (or remounting the
+// panel) the moment navigation happens blanks the canvas for the full
+// network+decode gap; decode-then-swap is the standard lightbox fix.
+//
+// On load failure the hook reports the error and keeps the last good frame —
+// when the whole remaining sequence is broken the reader stays on the last
+// image that worked (with the "unavailable" toast) instead of a broken glyph.
+//
+// Engines without `Image.decode()` (jsdom in tests) swap immediately: the old
+// pre-MUL-5752 behaviour, traded back for correctness there.
+export function useSettledImageURL(
+  targetUrl: string,
+  enabled: boolean,
+  onLoadError?: () => void,
+): string {
+  const [settled, setSettled] = useState(targetUrl);
+  const onErrorRef = useRef(onLoadError);
+  onErrorRef.current = onLoadError;
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!targetUrl) {
+      setSettled(targetUrl);
+      return;
+    }
+    let cancelled = false;
+    const probe = new window.Image();
+    if (typeof probe.decode !== "function") {
+      setSettled(targetUrl);
+      return;
+    }
+    probe.src = targetUrl;
+    probe.decode().then(
+      () => {
+        if (!cancelled) setSettled(targetUrl);
+      },
+      () => {
+        // Rejection covers both load failure and undecodable bytes.
+        if (!cancelled) onErrorRef.current?.();
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [targetUrl, enabled]);
+
+  return enabled ? settled : targetUrl;
+}
+
+// Warms the browser cache for a sequence neighbour so paging to it swaps
+// without a visible wait: runs the same URL re-sign the panel itself would,
+// then fetches the bytes through a detached <img>. Renders nothing.
+export function PreviewImagePrefetch({ source }: { source: PreviewSource }) {
+  const state = normalize(source);
+  const url = useResignedInlineMediaURL(
+    state.attachmentId ?? undefined,
+    state.mediaUrl,
+    true,
+  );
+
+  useEffect(() => {
+    if (!url) return;
+    const probe = new window.Image();
+    probe.src = url;
+  }, [url]);
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Modal — frame + dispatch
+// ---------------------------------------------------------------------------
+
+export function AttachmentPreviewModal({
+  source,
+  open,
+  onClose,
+  onExitComplete,
+  sequence,
+  onImageError,
+}: AttachmentPreviewModalProps & { onExitComplete?: () => void }) {
+  const download = useDownloadAttachment();
+  const shouldReduceMotion = useReducedMotion() ?? false;
+  const state = normalize(source);
+  // useEditorWorkspaceSlug (not useWorkspacePaths) — returns null outside a
+  // workspace route instead of throwing, so the new-tab button just hides.
+  const slug = useEditorWorkspaceSlug();
+  const navigation = useOptionalNavigation();
+
+  const onPrev = sequence?.onPrev;
+  const onNext = sequence?.onNext;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      // Arrow navigation only when this preview is part of a sequence. The
+      // zoom canvas gives its horizontal arrows up in that case (see
+      // `horizontalArrowPan` below), so exactly one of the two responds.
+      // Modified presses stay with the browser / OS.
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (e.key === "ArrowLeft" && onPrev) {
+        e.preventDefault();
+        onPrev();
+      } else if (e.key === "ArrowRight" && onNext) {
+        e.preventDefault();
+        onNext();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose, onPrev, onNext]);
+
+  const kind = getPreviewKind(state.contentType, state.filename);
+
+  // Download dispatcher: re-sign through `getAttachment` when an id is
+  // available; otherwise fall back to opening the (possibly stale) URL
+  // externally — same tradeoff as the file-card NodeView's download path.
+  const handleDownload = () => {
+    if (state.attachmentId) {
+      void download(state.attachmentId);
+    } else {
+      openExternal(state.mediaUrl);
+    }
+  };
+
+  // Open-in-new-tab mirrors HtmlAttachmentPreview's inline toolbar: only the
+  // `html` kind has a dedicated full-page route (/attachments/{id}/preview).
+  // Gated on slug + attachmentId for the same reason — URL-only sources
+  // can't address the /content proxy the page relies on.
+  const canOpenInNewTab = kind === "html" && !!state.attachmentId;
+  const handleOpenInNewTab = () => {
+    if (!state.attachmentId) return;
+    const path = `/api/v1/attachments/${state.attachmentId}/content`;
+    const url = navigation?.getShareableUrl?.(path) ?? path;
+    window.open(url, "_blank", "noopener,noreferrer");
+    onClose();
+  };
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <AnimatePresence onExitComplete={onExitComplete}>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          // Only a click that lands on the backdrop itself closes. A pan that
+          // starts on the zoom canvas and releases out here retargets its
+          // click through pointer capture, but this makes the intent explicit
+          // instead of relying on that.
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={state.filename}
+          initial={{ opacity: 0 }}
+          animate={{
+            opacity: 1,
+            transition: {
+              duration: UI_MOTION_DURATION.fast,
+              ease: UI_EASE_OUT,
+            },
+          }}
+          exit={{
+            opacity: 0,
+            transition: {
+              duration: UI_MOTION_DURATION.fast,
+              ease: UI_EASE_OUT,
+            },
+          }}
+        >
+          {/* Larger than the create-issue dialog (max-w-4xl, manualDialogContentClass)
+              because PDF / video previews want more room. Capped to viewport
+              minus the surrounding p-4 (1rem each side) so it never overflows
+              the screen on small displays / split panes. */}
+          <motion.div
+            className="flex h-[min(90vh,calc(100vh-2rem))] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-background shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{
+              opacity: 0,
+              transform: shouldReduceMotion ? "scale(1)" : "scale(0.95)",
+            }}
+            animate={{
+              opacity: 1,
+              transform: "scale(1)",
+              transition: {
+                duration: UI_MOTION_DURATION.standard,
+                ease: UI_EASE_OUT,
+              },
+            }}
+            exit={{
+              opacity: 0,
+              transform: shouldReduceMotion ? "scale(1)" : "scale(0.95)",
+              transition: {
+                duration: UI_MOTION_DURATION.fast,
+                ease: UI_EASE_OUT,
+              },
+            }}
+          >
+            {/* Below the `open &&` gate on purpose: the panel's zoom state is
+                destroyed on close, so every open re-fits instead of restoring
+                a stale zoom from the last time this image was viewed.
+
+                Deliberately NOT keyed on the file: remounting the panel on
+                sequence navigation blanks the canvas for the whole
+                network+decode gap. The panel persists and swaps the image
+                only once the next one has decoded (`useSettledImageURL`).
+                Zoom still resets per image — `natural` passes through null on
+                every swap, so the canvas re-fits even across a run of
+                same-resolution screenshots. */}
+            <PreviewPanel
+              kind={kind}
+              source={source}
+              state={state}
+              onClose={onClose}
+              onDownload={handleDownload}
+              onOpenInNewTab={canOpenInNewTab ? handleOpenInNewTab : undefined}
+              sequence={sequence}
+              onImageError={onImageError}
+            />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Panel — header + content area
+// ---------------------------------------------------------------------------
+
+// Header chrome and the content area live together because the image kind's
+// zoom controls sit in the header while the canvas they drive is the body:
+// one owner for that shared state, mounted and destroyed with the open modal.
+
+export { isPreviewable } from "./utils/preview";
