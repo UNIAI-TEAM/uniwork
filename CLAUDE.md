@@ -289,8 +289,9 @@ behind its own gate and never reaches content.
   them.
 - Coverage only goes up. Each package's vitest config carries integer
   `thresholds` and a drop fails `pnpm test`; Go has `server/coverage.floor`,
-  checked by `scripts/test-go.sh`. Raise the floor by hand, with the change
-  that earned it — the numbers never go down.
+  checked by `scripts/go-cover-floor.sh` — over the whole profile locally,
+  over the merged shard profiles in CI. Raise the floor by hand, with the
+  change that earned it — the numbers never go down.
 - Code comments in English. Specs and plans (`docs/superpowers/`) are in
   Vietnamese and carry a `> **Trạng thái:**` line (shipped / in-progress /
   superseded / abandoned) under the title.

@@ -26,9 +26,32 @@ Ghi đè cho một lần chạy bằng biến môi trường: `GATE_LEVEL=strict
 | Hook `pre-commit` | chỉ chặn `.env` + `gofmt` | thêm lint + typecheck workspace chạm tới | như standard | `.githooks/pre-commit` |
 | `make check` | dừng sau Go tests, không E2E | đủ 6 bước gồm E2E | như standard | `scripts/check.sh` |
 | Job `e2e` trên CI | chỉ khi push vào `develop`/`main` | mọi PR và push | như standard | `.github/workflows/ci.yml` |
+| Cờ `-race` của job `backend-test` trên CI | chỉ khi push vào `develop`/`main` | mọi PR và push | như standard | `.github/workflows/ci.yml` |
+| Ngân sách bundle trên CI | đo và cảnh báo, không chặn | chặn khi vượt trần | như standard | `.github/workflows/ci.yml` |
 | PR thiếu `UNI-nnn` | fail, trừ nhãn `no-issue` | fail, trừ nhãn `no-issue` | fail, nhãn không cứu | `.github/workflows/uniai-link.yml` |
 | Ô DoD reviewer tick | 4 ô đánh dấu `fast` | đủ 10 ô | 10 ô, và review từ CODEOWNERS | `docs/engineering/DEFINITION_OF_DONE.md` |
 | Spec + plan trước khi code | khuyến nghị; issue là đủ | bắt buộc (DoD ô 10) | bắt buộc | `docs/engineering/FEATURE_WORKFLOW.md` |
+
+Dòng `e2e` và dòng `-race` nới cùng một cách và hết hạn cùng một lúc: ở `fast`, một PR chạy
+bộ Go không có race detector, còn lần push vào `develop` ngay sau khi merge vẫn chạy
+đủ `-race`. Không có nhánh nào vào được `develop` mà chưa từng qua race detector, chỉ
+là qua sau khi merge chứ không phải trước. Lên `standard` là mọi PR chạy lại `-race`,
+không cần sửa gì thêm.
+
+Ngân sách bundle nới khác hai dòng kia: ở `fast` nó vẫn đo đủ, vẫn in bảng từng
+route vào job summary và vẫn gắn annotation cho route vượt trần, chỉ là không
+đánh đỏ lần chạy. Lý do là con số hiện tại gần như hết dư địa — initial JS
+246/250 KB, `/people` 149.4/150 KB — nên mỗi component dùng chung mới lại chặn
+merge, trong khi cái đang cần ở giai đoạn `fast` là ghép tính năng. Trần trong
+`scripts/bundle-budget.json` vẫn chỉ được hạ, không được nâng; lên `standard` là
+chặn lại như cũ, và trước khi lên mức đó phải có một lượt dọn bundle, vì bảng
+trong job summary sẽ cho biết đã trôi bao xa.
+
+Job `backend-test` chia bộ Go thành ba shard (`service`, `handler`, `rest`), mỗi shard
+một database riêng, vì `server/internal/testutil` nối tiếp mọi test DB sau một advisory
+lock: hai package dùng chung một database thì cộng thời gian chứ không chồng lên nhau.
+Đó là tách để chạy song song, không phải nới — cả ba shard cộng lại vẫn là `./...`, và
+sàn coverage đọc trên profile đã gộp trong job `backend` (`scripts/go-cover-floor.sh`).
 
 ## Không nới ở mức nào
 

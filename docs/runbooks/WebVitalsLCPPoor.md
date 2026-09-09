@@ -17,7 +17,12 @@
    Mọi route cùng xấu → tải trang/bundle/CDN. Một route → màn hình đó fetch quá nhiều hoặc ảnh lớn.
 2. TTFB có tăng cùng không (`metric="ttfb"`)? Có → server hoặc mạng; xem [ApiLatencyP95High](ApiLatencyP95High.md). Không → phần render/bundle phía client.
 3. Đủ mẫu chưa? Panel **Mẫu RUM nhận được mỗi phút** — dưới ~20 mẫu/30 phút thì p75 nhiễu; kiểm tra `RUM_SAMPLE_RATE` và flag `rum_sampling` ở `/admin/flags`.
-4. Bundle vừa phình? Job CI `size-limit` (`apps/web/.size-limit.json`, ngưỡng initial JS ≤ 250 KB gzip, route chunk ≤ 150 KB) — PR nào vừa nâng ngưỡng hoặc bị bỏ qua.
+4. Bundle vừa phình? Bước **Bundle size budget** của job CI `frontend-build` chạy
+   `scripts/bundle-budget.mjs` (ngưỡng initial JS ≤ 250 KB gzip, route chunk ≤ 150 KB,
+   trần riêng từng route trong `scripts/bundle-budget.json`). Bảng số đo nằm trong job
+   summary của mỗi lần chạy — so bảng của lần deploy này với lần trước. Ở
+   `GATE_LEVEL=fast` bước này chỉ cảnh báo, nên một route vượt trần vẫn merge được:
+   xem annotation của các lần chạy gần đây, đừng chỉ nhìn CI xanh hay đỏ.
 5. Tái hiện: mở route đó với DevTools → Performance/Lighthouse trên mạng "Fast 3G"; phần tử LCP là gì (ảnh avatar lớn? font chưa preload? bảng render đồng bộ?).
 6. Deploy web mới? So thời điểm alert với deploy `apps/web` (không có `build_info` phía web; dùng lịch sử deploy).
 
