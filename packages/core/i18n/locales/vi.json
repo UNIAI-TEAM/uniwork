@@ -843,6 +843,19 @@
       "activity_stub_reason": "Lịch sử hoạt động chưa khả dụng — bình luận vẫn hiện bên dưới.",
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
+      "agentRun": {
+        "section": "Nhật ký chạy agent",
+        "empty": "Chưa có lần chạy agent nào.",
+        "start": "Chạy agent",
+        "usage": "Mức dùng",
+        "retry": "Chạy lại",
+        "terminate": "Dừng"
+      },
+      "pullRequests": {
+        "section": "Pull requests",
+        "empty": "Chưa gắn pull request nào.",
+        "link": "Gắn pull request"
+      },
       "subscribe": "Theo dõi",
       "unsubscribe": "Bỏ theo dõi",
       "attachments_section": "Đính kèm",

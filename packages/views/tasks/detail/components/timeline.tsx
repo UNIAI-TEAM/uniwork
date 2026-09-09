@@ -126,7 +126,7 @@ export function TaskDetailTimeline({ taskId }: { taskId: string }) {
         </Button>
       </div>
 
-      <TaskDetailRuntimeStubs />
+      <TaskDetailRuntimeStubs taskId={taskId} />
 
       <p className="mt-3 text-caption text-muted-foreground">
         {t("tasks.detail.activity_stub_reason")}
