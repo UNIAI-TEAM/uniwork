@@ -14,6 +14,8 @@
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
+    "./tasks/detail": "./tasks/detail/index.ts",
+    "./tasks/detail/*": "./tasks/detail/*.tsx",
     "./tasks/surface/*": "./tasks/surface/*.tsx",
     "./tasks/modes/*": "./tasks/modes/*.tsx",
     "./tasks/views/*": "./tasks/views/*.tsx",

@@ -20,7 +20,7 @@ export default defineConfig({
       include: ["**/*.{ts,tsx}"],
       exclude: ["**/*.test.{ts,tsx}", "test/**", "**/*.config.*"],
       reporter: ["text-summary"],
-      thresholds: { statements: 55, branches: 50, functions: 42, lines: 56 },
+      thresholds: { statements: 58, branches: 53, functions: 47, lines: 60 },
     },
   },
 });

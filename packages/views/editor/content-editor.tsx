@@ -45,9 +45,6 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { UploadResult } from "@uniwork/core/hooks/use-file-upload";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useQueryClient } from "@tanstack/react-query";
-import { taskIdentifierOptions } from "./task-identifier-queries";
-import { workspaceListOptions } from "./task-identifier-queries";
-import { isTaskIdentifier } from "@uniwork/ui/markdown";
 import type { Attachment } from "@uniwork/core/types";
 import {
   parseMarkdownChunked,
@@ -67,11 +64,12 @@ import { useConfigStore } from "@uniwork/core/editor/config-store";
 import { preprocessMarkdown } from "./utils/preprocess";
 import { repairEmptyListItems } from "./utils/repair-list-items";
 import {
-  navigateInternal,
+  navigateWithFallback,
   resolveClickIntent,
   useOptionalNavigation,
   type LinkClickIntent,
 } from "@uniwork/views/navigation";
+import { createTaskIdentifierResolver } from "./content-editor-task-resolver";
 import { useAppOrigin } from "./use-app-origin";
 import { openLink, isMentionHref } from "./utils/link-handler";
 import { EditorBubbleMenu } from "./bubble-menu";
@@ -242,7 +240,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       () => undefined,
     );
     navigateRef.current = (path, disposition = "push") => {
-      navigateInternal(navigation, path, disposition);
+      navigateWithFallback(navigation, path, disposition);
     };
 
     // Keep refs in sync without recreating editor
@@ -268,27 +266,10 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const resolveTaskIdentifierRef = useRef<TaskIdentifierResolver | undefined>(
       undefined,
     );
-    resolveTaskIdentifierRef.current = async (identifier) => {
-      if (!isTaskIdentifier(identifier)) return null;
-      const slug = workspaceSlugRef.current;
-      if (!slug) return null;
-      const workspaces = await queryClient.fetchQuery(workspaceListOptions(""));
-      const ws = workspaces.find(
-        (w) => w.slug === slug || slug.endsWith(`/${w.slug}`) || slug === w.slug,
-      );
-      if (!ws) return null;
-      const prefix = ws.issue_prefix;
-      if (
-        prefix &&
-        !identifier.toUpperCase().startsWith(`${prefix.toUpperCase()}-`)
-      ) {
-        return null;
-      }
-      const task = await queryClient.fetchQuery(
-        taskIdentifierOptions(ws.id, identifier),
-      );
-      return task ? { id: task.id, identifier: task.identifier } : null;
-    };
+    resolveTaskIdentifierRef.current = createTaskIdentifierResolver(
+      queryClient,
+      () => workspaceSlugRef.current,
+    );
 
     const initialMarkdown = value ?? defaultValue ?? "";
     const initialContent = initialMarkdown

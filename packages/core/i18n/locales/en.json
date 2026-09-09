@@ -806,6 +806,54 @@
         "child_progress": "Sub-task progress",
         "creator": "Creator"
       }
+    },
+    "detail": {
+      "not_found": "Task not found",
+      "title_placeholder": "Task title",
+      "description_placeholder": "Add a description…",
+      "title_region": "Title",
+      "properties_sidebar": "Properties",
+      "section_properties": "Properties",
+      "section_parent": "Parent task",
+      "section_subtasks": "Sub-tasks",
+      "properties_placeholder": "Status, assignee, and other fields will appear here.",
+      "prop_project": "Project",
+      "prop_project_none": "No project",
+      "prop_labels": "Labels",
+      "prop_start_date": "Start date",
+      "prop_stage": "Stage",
+      "prop_stage_none": "No stage",
+      "prop_custom": "Custom properties",
+      "add_label": "Add a label…",
+      "attach_label": "Attach",
+      "custom_properties_count": "{{count}} properties",
+      "subtasks_progress": "{{done}}/{{total}}",
+      "subtasks_empty": "No sub-tasks yet.",
+      "add_subtask": "Add sub-task",
+      "add_subtask_placeholder": "Sub-task title",
+      "add_subtask_action": "Add",
+      "timeline_section": "Activity",
+      "timeline_placeholder": "Comments and activity will appear here.",
+      "comment_placeholder": "Write a comment…",
+      "comment_send": "Send",
+      "comments_empty": "No comments yet.",
+      "comment_resolve": "Resolve",
+      "comment_unresolve": "Unresolve",
+      "comment_resolved": "Resolved",
+      "comment_edit": "Edit",
+      "activity_stub_reason": "Activity history is not available yet — comments still show below.",
+      "agent_run_stub": "Start agent run",
+      "pr_stub": "Link pull request",
+      "subscribe": "Subscribe",
+      "unsubscribe": "Unsubscribe",
+      "attachments_section": "Attachments",
+      "attachments_placeholder": "Files attached to this task will appear here.",
+      "attachments_empty": "No attachments yet. Drop files here or use Upload.",
+      "attachments_upload": "Upload",
+      "attachments_uploading": "Uploading {{filename}}…",
+      "attachments_delete_title": "Delete attachment?",
+      "attachments_delete_description": "Remove “{{filename}}” from this task. This cannot be undone.",
+      "revision_conflict": "Someone else updated this task. Reloaded the latest version."
     }
   },
   "myTasks": {
@@ -828,7 +876,13 @@
     }
   },
   "capabilities": {
-    "unknown": "This capability is not available yet."
+    "unknown": "This capability is not available yet.",
+    "surface_not_ready": "This surface is not ready yet.",
+    "agent_runtime_missing": "Agent runtime is not available yet.",
+    "squad_directory_missing": "Squad directory is not available yet.",
+    "vcs_provider_missing": "Version control is not connected yet.",
+    "local_daemon_missing": "Local workdir daemon is not available yet.",
+    "host_not_built": "This host is not available yet."
   },
   "agents": {
     "badge": "Agent"

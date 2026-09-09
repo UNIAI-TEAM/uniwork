@@ -1,8 +1,14 @@
 /**
- * Editor attachment transport stub until Task 5 wires `/api/v1/attachments`.
- * Product components import this instead of a uniwork-style `api` singleton.
+ * Editor attachment transport — wired to `/api/v1/attachments` (Task 5/9).
  */
 
+import {
+  attachmentContentPath,
+  getAttachment,
+  uploadTaskAttachment,
+} from "@uniwork/core/api/endpoints/task-attachments";
+import { ApiError, requestBlob, requestText } from "@uniwork/core/api/http";
+import { runtimeConfig } from "@uniwork/core/runtime-config";
 import type { Attachment } from "@uniwork/core/types/attachment";
 
 export class AttachmentTextTooLargeError extends Error {
@@ -33,29 +39,52 @@ export class PreviewUnsupportedError extends Error {
   }
 }
 
-async function notWired<T>(op: string): Promise<T> {
-  throw new Error(`attachment API not wired yet: ${op}`);
+function mapPreviewError(err: unknown): never {
+  if (err instanceof ApiError) {
+    if (err.status === 413 || err.code === "too_large") {
+      throw new PreviewTooLargeError(err.message);
+    }
+    if (err.status === 415 || err.code === "unsupported_media_type") {
+      throw new PreviewUnsupportedError(err.message);
+    }
+  }
+  throw err;
 }
 
 export const api = {
   getBaseUrl(): string {
-    return "";
+    return runtimeConfig().apiUrl;
   },
-  getAttachment(id: string): Promise<Attachment> {
-    return notWired(`getAttachment(${id})`);
+  async getAttachment(id: string): Promise<Attachment> {
+    const att = await getAttachment(id);
+    if (!att) throw new Error(`attachment not found: ${id}`);
+    return att;
   },
-  getAttachmentTextContent(id: string): Promise<string> {
-    return notWired(`getAttachmentTextContent(${id})`);
+  async getAttachmentTextContent(id: string): Promise<string> {
+    try {
+      return await requestText(attachmentContentPath(id));
+    } catch (err) {
+      mapPreviewError(err);
+    }
   },
-  getAttachmentBlob(id: string): Promise<Blob> {
-    return notWired(`getAttachmentBlob(${id})`);
+  async getAttachmentBlob(id: string): Promise<Blob> {
+    try {
+      return await requestBlob(attachmentContentPath(id));
+    } catch (err) {
+      mapPreviewError(err);
+    }
   },
-  uploadFile(
-    _file: File,
-    _ctx?: { taskId?: string; commentId?: string; chatSessionId?: string },
+  async uploadFile(
+    file: File,
+    ctx?: { taskId?: string; commentId?: string; chatSessionId?: string },
     _signal?: AbortSignal,
   ): Promise<Attachment> {
-    return notWired("uploadFile");
+    if (!ctx?.taskId) {
+      throw new Error("taskId required to upload attachment");
+    }
+    const att = await uploadTaskAttachment(ctx.taskId, file);
+    if (!att) throw new Error("upload failed");
+    return att;
   },
   searchTasks(_opts: unknown): Promise<{ tasks: unknown[] }> {
     return Promise.resolve({ tasks: [] });

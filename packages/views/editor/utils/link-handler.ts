@@ -7,10 +7,7 @@
 
 import { isGlobalPath, isReservedSlug } from "../workspace-slug";
 import { isTaskIdentifier } from "@uniwork/ui/markdown";
-import {
-  navigateInternal,
-  type LinkClickIntent,
-} from "@uniwork/views/navigation";
+import { navigateWithFallback, type LinkClickIntent } from "@uniwork/views/navigation";
 
 /**
  * Top-level workspace-scoped routes. Used to detect "/{route}/..." paths that
@@ -302,7 +299,7 @@ export function openLink(
       navigate(path, intent);
       return;
     }
-    navigateInternal(undefined, path, intent);
+    navigateWithFallback(null, path, intent);
   } else {
     window.open(href, "_blank", "noopener,noreferrer");
   }

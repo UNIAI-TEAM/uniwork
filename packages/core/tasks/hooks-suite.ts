@@ -116,10 +116,13 @@ export function useSetTaskParent(workspaceId: string) {
   return useMutation({
     mutationFn: ({ taskId, body }: { taskId: string; body: suite.SetTaskParentBody }) =>
       suite.setTaskParent(taskId, body),
-    onSuccess: (_d, { taskId }) => {
+    onSuccess: (_d, { taskId, body }) => {
       void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
       void qc.invalidateQueries({ queryKey: taskKeys.children(taskId) });
+      if (body.parent_task_id) {
+        void qc.invalidateQueries({ queryKey: taskKeys.children(body.parent_task_id) });
+      }
       void qc.invalidateQueries({ queryKey: taskKeys.childProgress(workspaceId) });
     },
   });

@@ -20,7 +20,7 @@ import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useAppOrigin } from "./use-app-origin";
 import { useTranslation } from "react-i18next";
 import {
-  navigateInternal,
+  navigateWithFallback,
   useOptionalNavigation,
   type LinkClickIntent,
 } from "@uniwork/views/navigation";
@@ -155,7 +155,7 @@ function LinkHoverCard({
   const { t } = useTranslation();
 
   const navigate = (path: string, disposition: LinkClickIntent = "push") => {
-    navigateInternal(navigation, path, disposition);
+    navigateWithFallback(navigation, path, disposition);
   };
 
   // Position the card when the portal div is mounted (ref callback).
