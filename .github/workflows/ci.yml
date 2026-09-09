@@ -208,6 +208,10 @@ jobs:
   # shard profiles only its own packages, so it is read in `backend` below.
   backend-test:
     needs: changes
+    # Without this the matrix names the job after every key it carries, so the
+    # check reads "backend-test (service, --skip-static)" in the PR and in
+    # branch protection.
+    name: backend-test (${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
