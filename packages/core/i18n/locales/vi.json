@@ -158,7 +158,9 @@
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính",
     "people": "Danh bạ",
-    "projects": "Dự án"
+    "projects": "Dự án",
+    "squads": "Squad",
+    "runtimes": "Runtime"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -2447,6 +2449,26 @@
       "toast_remove_failed": "Không gỡ được tài nguyên",
       "toast_renamed": "Đã đổi tên",
       "toast_rename_failed": "Không đổi tên được"
+    }
+  },
+  "squads": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Squad mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Squad",
+      "new_squad": "Tạo squad",
+      "empty": "Chưa có squad",
+      "create_first": "Tạo squad đầu tiên"
+    }
+  },
+  "runtimes": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Runtime mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Runtime",
+      "new_runtime": "Tạo runtime",
+      "empty": "Chưa có runtime",
+      "create_first": "Tạo runtime đầu tiên"
     }
   },
   "editor": {

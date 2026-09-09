@@ -4,6 +4,7 @@ import { useRef } from "react";
 import {
   CalendarDays,
   ChevronsUpDown,
+  Cpu,
   FolderKanban,
   Inbox,
   ListTodo,
@@ -12,6 +13,7 @@ import {
   Settings,
   SquareCheckBig,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -51,7 +53,7 @@ import { useWorkspace } from "./workspace-context";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.squads" | "nav.runtimes" | "nav.meetings" | "nav.chat" | "nav.people";
   href: string;
   icon: LucideIcon;
   badge?: number;
@@ -90,6 +92,8 @@ export function AppSidebar() {
       ? [
           { key: "nav.my_tasks" as const, href: ws.myTasks(), icon: ListTodo },
           { key: "nav.projects" as const, href: ws.projects(), icon: FolderKanban },
+          { key: "nav.squads" as const, href: ws.squads(), icon: UsersRound },
+          { key: "nav.runtimes" as const, href: ws.runtimes(), icon: Cpu },
         ]
       : []),
     { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },

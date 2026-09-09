@@ -159,7 +159,9 @@
     "account": "Account",
     "skip_to_content": "Skip to main content",
     "people": "People",
-    "projects": "Projects"
+    "projects": "Projects",
+    "squads": "Squads",
+    "runtimes": "Runtimes"
   },
   "topbar": {
     "search": "Search…",
@@ -2451,6 +2453,26 @@
       "toast_remove_failed": "Failed to remove resource",
       "toast_renamed": "Renamed",
       "toast_rename_failed": "Failed to rename"
+    }
+  },
+  "squads": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Squads open when work-management parity is enabled for this workspace.",
+    "page": {
+      "title": "Squads",
+      "new_squad": "New squad",
+      "empty": "No squads yet",
+      "create_first": "Create your first squad"
+    }
+  },
+  "runtimes": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Runtimes open when work-management parity is enabled for this workspace.",
+    "page": {
+      "title": "Runtimes",
+      "new_runtime": "New runtime",
+      "empty": "No runtimes yet",
+      "create_first": "Create your first runtime"
     }
   },
   "editor": {
