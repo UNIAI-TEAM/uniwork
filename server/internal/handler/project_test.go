@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestProjectsHTTPRoundTripAndCapabilityNotReady(t *testing.T) {
+func TestProjectsHTTPRoundTripAndCapabilityAvailable(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 
 	res, body := doJSON(t, srv, "GET", "/api/v1/config", token, nil)
@@ -13,8 +13,11 @@ func TestProjectsHTTPRoundTripAndCapabilityNotReady(t *testing.T) {
 	}
 	caps, _ := body["work_management_capabilities"].(map[string]any)
 	projCap, _ := caps["tasks.projects"].(map[string]any)
-	if projCap["status"] != "unavailable" || projCap["reason_code"] != "surface_not_ready" {
-		t.Fatalf("tasks.projects capability = %v, want unavailable/surface_not_ready", projCap)
+	if projCap["status"] != "available" {
+		t.Fatalf("tasks.projects capability = %v, want available", projCap)
+	}
+	if _, ok := projCap["reason_code"]; ok {
+		t.Fatalf("tasks.projects reason_code = %v, want omitted", projCap["reason_code"])
 	}
 
 	res, body = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/projects", token, map[string]any{
