@@ -8,7 +8,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
-import { MeetingPanelCard } from "./meeting-panel-card";
+import { PanelCard } from "../layout/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { meetingLocale } from "./meeting-datetime";
 
@@ -35,7 +35,7 @@ export function MeetingActivityTimeline({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <MeetingPanelCard
+      <PanelCard
         id="activity-heading"
         icon={History}
         title={t("meetings.activity")}
@@ -104,7 +104,7 @@ export function MeetingActivityTimeline({
             </div>
           )}
         </CollapsibleContent>
-      </MeetingPanelCard>
+      </PanelCard>
     </Collapsible>
   );
 }

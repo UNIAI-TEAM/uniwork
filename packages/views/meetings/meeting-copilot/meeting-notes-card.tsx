@@ -4,7 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { MeetingPanelCard } from "../meeting-panel-card";
+import { PanelCard } from "../../layout/panel-card";
 
 function summaryLines(text: string): string[] {
   return text
@@ -48,7 +48,7 @@ export function MeetingNotesCard({
   };
 
   return (
-    <MeetingPanelCard
+    <PanelCard
       id="meeting-notes-card"
       title={t("meetings.meetingNotes")}
       action={
@@ -107,6 +107,6 @@ export function MeetingNotesCard({
           </section>
         ) : null}
       </div>
-    </MeetingPanelCard>
+    </PanelCard>
   );
 }
