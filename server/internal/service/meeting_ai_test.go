@@ -139,7 +139,7 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 func TestSummarizeWithChatOnly(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
-	s.Tasks = NewTaskService(s.pool, s.q, s.ws)
+	s.Tasks = NewTaskService(s.pool, s.q, s.ws, nil)
 	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{Text: `{"summary":"Chat only.","decisions":[],"action_items":[]}`, Model: "fake"}
 	}}
