@@ -1,6 +1,6 @@
 {
-  "_": "Routes above the 150 KB gzip budget when the gate landed (F-11, 2026-09-07). Each ceiling is current size + 5 %; lower it when you shrink the route, never raise it.",
-  "/[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room": 358,
-  "/[orgSlug]/[workspaceSlug]/chat": 196,
-  "/[orgSlug]/[workspaceSlug]/settings": 176
+  "_": "Routes above the 400 KB gzip total when the gate landed (F-11, 2026-09-07; re-based 2026-09-08 when the budget became a per-route total instead of own-chunks-only). Each ceiling is the route's measured total, which is at or below what its previous own-chunk ceiling plus the old 245.5 KB shared bundle allowed. Lower it when you shrink the route, never raise it.",
+  "/[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room": 586,
+  "/[orgSlug]/[workspaceSlug]/chat": 438,
+  "/[orgSlug]/[workspaceSlug]/settings": 421
 }

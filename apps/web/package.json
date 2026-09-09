@@ -11,10 +11,14 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@gsap/react": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "@uniwork/views": "workspace:*",
+    "gsap": "catalog:",
+    "lucide-react": "catalog:",
     "next": "^16.2.5",
+    "react-i18next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "web-vitals": "^6.2.1"

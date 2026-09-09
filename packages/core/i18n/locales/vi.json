@@ -2374,5 +2374,184 @@
       "toast_renamed": "Đã đổi tên",
       "toast_rename_failed": "Không đổi tên được"
     }
+  },
+  "landing": {
+    "nav": {
+      "features": "Tính năng",
+      "contact": "Liên hệ",
+      "login": "Đăng nhập",
+      "openMenu": "Mở menu",
+      "closeMenu": "Đóng menu",
+      "solutions": "Giải pháp"
+    },
+    "cta": {
+      "start": "Bắt đầu ngay",
+      "demo": "Xem cuộc họp"
+    },
+    "hero": {
+      "eyebrow": "Không gian làm việc cho đội ngũ hiện đại",
+      "titleA": "Con người",
+      "titleB": "Nhân sự AI",
+      "sub": "Một nền tảng thống nhất để con người và nhân sự AI cùng trò chuyện, lập kế hoạch, thực thi và biến tri thức thành kết quả.",
+      "imageAlt": "Đội ngũ con người và nhân sự AI của UniWork",
+      "bulletVi": "Tiếng Việt là ngôn ngữ gốc",
+      "bulletPeer": "Nhân sự AI là thành viên, không phải nút bấm",
+      "bulletUndo": "Mọi việc AI làm đều hoàn tác được"
+    },
+    "trust": {
+      "modelsLabel": "Chạy trên mô hình bạn chọn",
+      "modelSelfHosted": "Ollama (tự vận hành)",
+      "dataTitle": "Dữ liệu đặt tại Việt Nam",
+      "dataDesc": "Hạ tầng trong nước, theo Nghị định 13 về bảo vệ dữ liệu cá nhân.",
+      "auditTitle": "Nhật ký chỉ ghi thêm",
+      "auditDesc": "Không ai sửa hay xóa được một dòng lịch sử, kể cả quản trị viên.",
+      "undoTitle": "Việc AI làm hoàn tác được",
+      "undoDesc": "Agent đề xuất, người xác nhận, và mọi thay đổi đều lùi lại được."
+    },
+    "problem": {
+      "eyebrow": "Vấn đề",
+      "title": "Công việc của một đội đang nằm ở bốn nơi khác nhau",
+      "sub": "Chat một nơi, bảng việc một nơi, biên bản họp một nơi, và email thì ở nơi thứ tư. Con người còn lần ra được ngữ cảnh. AI thì không.",
+      "pain1Title": "Quyết định ở trong cuộc họp, việc thì ở chỗ khác",
+      "pain1Desc": "Họp xong, biên bản trôi trong chat và việc được gõ lại bằng tay. Vài tuần sau không ai nhớ việc này sinh ra từ đâu.",
+      "pain1Answer": "Cuộc họp có chủ sở hữu và ở lại cùng công việc mà nó sinh ra.",
+      "pain2Title": "AI là một cái nút, không phải một đồng nghiệp",
+      "pain2Desc": "Mỗi công cụ gắn thêm một nút AI riêng, và không nút nào biết đội bạn đang làm gì tuần này.",
+      "pain2Answer": "Agent tham gia không gian làm việc như một thành viên, với quyền hạn rõ ràng.",
+      "pain3Title": "Không ai dám giao việc thật cho AI",
+      "pain3Desc": "Vì khi có sự cố, không truy được ai đã làm gì, và không có cách nào lùi lại.",
+      "pain3Answer": "Mọi việc agent làm đều mang tên nó, nằm trong nhật ký, và hoàn tác được."
+    },
+    "platform": {
+      "eyebrow": "Một nền tảng. Một dòng công việc.",
+      "title": "Mọi thứ team cần, trong một app",
+      "sub": "Công việc, cuộc họp và trao đổi của cả đội nằm cùng một chỗ, cùng một quyền.",
+      "soon": "Sắp có",
+      "tasksTitle": "Công việc & bảng",
+      "tasksDesc": "Bảng theo trạng thái, bình luận và lịch sử thay đổi trên từng việc.",
+      "meetTitle": "Cuộc họp",
+      "meetDesc": "Phòng họp video ngay trong không gian làm việc, có lời mời cho người ngoài tổ chức.",
+      "chatTitle": "Chat & kênh dự án",
+      "chatDesc": "Trao đổi nhanh, gắn ngữ cảnh với công việc và tài liệu.",
+      "aiTitle": "Nhân sự AI",
+      "aiDesc": "Agent tham gia không gian làm việc như một thành viên, có quyền hạn và nhật ký riêng.",
+      "workspaceTitle": "Tổ chức & không gian làm việc",
+      "workspaceDesc": "Hai tầng thành viên, phân quyền theo tổ chức và theo từng không gian.",
+      "emailTitle": "Email Hub",
+      "emailDesc": "Gom email công việc về một hộp thư, kèm AI tóm tắt và đề xuất hành động."
+    },
+    "meetings": {
+      "eyebrow": "Cuộc họp",
+      "title": "Cuộc họp là một bản ghi, không phải một đường link",
+      "desc": "Phòng họp video nằm trong chính không gian làm việc, nên cuộc họp có chủ sở hữu, có quyền truy cập và ở lại cùng công việc mà nó sinh ra.",
+      "point1": "Phòng video ngay trong không gian làm việc",
+      "point2": "Lời mời cho người ngoài tổ chức qua đường link riêng",
+      "point3": "Quyền tham gia đi theo thành viên, không theo đường link",
+      "imageAlt": "Phòng họp video của UniWork"
+    },
+    "projects": {
+      "eyebrow": "Công việc",
+      "title": "Bảng công việc mà cả người và AI cùng đứng tên",
+      "desc": "Trạng thái, người phụ trách và bình luận trên một bảng duy nhất. Việc do agent làm hiện đúng như việc do người làm, kèm tên và thời điểm.",
+      "cta": "Bắt đầu quản lý công việc",
+      "imageAlt": "Bảng công việc của UniWork",
+      "companionAlt": "Chat và công việc trong cùng một nơi"
+    },
+    "email": {
+      "eyebrow": "Email Hub",
+      "title": "Email thông minh hơn, làm việc liền mạch hơn",
+      "desc": "Gom email công việc về một hộp thư duy nhất, để AI tóm tắt, đề xuất trả lời và biến email thành công việc.",
+      "soon": "Đang phát triển",
+      "imageAlt": "Hộp thư hợp nhất của UniWork với trợ lý AI"
+    },
+    "workforce": {
+      "badge": "Nhân sự AI",
+      "title": "Agent làm việc như một thành viên",
+      "sub": "Agent tham gia không gian làm việc với quyền hạn rõ ràng. Mọi việc agent làm đều mang tên nó, nằm trong nhật ký, và hoàn tác được như việc do người làm.",
+      "cta": "Tạo tài khoản",
+      "imageAlt": "Nhân sự AI trong không gian làm việc UniWork"
+    },
+    "final": {
+      "title": "Sẵn sàng cho đội của bạn",
+      "sub": "Phân quyền hai tầng theo tổ chức và không gian làm việc. Tiếng Việt và tiếng Anh ngang nhau.",
+      "primary": "Tạo tài khoản",
+      "secondary": "Đăng nhập"
+    },
+    "faq": {
+      "eyebrow": "Câu hỏi thường gặp",
+      "title": "Những điều đội của bạn sẽ hỏi",
+      "q1": "UniWork khác gì với công cụ đội tôi đang dùng?",
+      "a1": "Khác ở chỗ agent là thành viên chứ không phải tính năng. Công việc, cuộc họp và trao đổi nằm cùng một chỗ và cùng một bộ quyền, nên agent thấy đúng những gì một đồng nghiệp mới được thấy, không hơn.",
+      "q2": "Agent làm sai thì sao?",
+      "a2": "Agent đề xuất, người xác nhận, rồi hệ thống mới thực thi. Mỗi thay đổi mang tên agent kèm thời điểm, và lùi lại được như một thao tác của người.",
+      "q3": "Ai nhìn thấy được gì?",
+      "a3": "Quyền chia hai tầng, theo tổ chức và theo từng không gian làm việc. Agent nhận quyền theo đúng hai tầng đó, và một thành viên bị vô hiệu hóa thì mất quyền ở cả hai.",
+      "q4": "Dữ liệu của chúng tôi nằm ở đâu?",
+      "a4": "Trên hạ tầng đặt tại Việt Nam, theo Nghị định 13 về bảo vệ dữ liệu cá nhân. Nhật ký hoạt động chỉ ghi thêm, không ai sửa hay xóa được một dòng đã ghi.",
+      "q5": "Dùng mô hình AI nội bộ được không?",
+      "a5": "Được. UniWork gọi Anthropic, OpenAI, hoặc một mô hình bạn tự vận hành qua Ollama. Chọn mô hình nội bộ thì nội dung công việc không rời khỏi hạ tầng của bạn.",
+      "q6": "Tiếng Việt tới đâu?",
+      "a6": "Tiếng Việt là ngôn ngữ gốc của sản phẩm, tiếng Anh là bản dịch. Hai ngôn ngữ có đủ khoá như nhau, và một khoá thiếu sẽ làm hỏng bản build chứ không lặng lẽ rơi về tiếng Việt."
+    },
+    "solutions": {
+      "eyebrow": "Giải pháp",
+      "teaserTitle": "Cùng một nền tảng, khác nhau ở việc mỗi nhóm phải làm",
+      "teaserSub": "Hai nhóm dưới đây dùng UniWork nhiều nhất. Xem đúng phần của nhóm bạn trước.",
+      "cardCta": "Xem chi tiết",
+      "back": "Xem toàn bộ nền tảng",
+      "scenarios": "Ba việc đội bạn làm mỗi tuần",
+      "why": "Vì sao là UniWork",
+      "faqTitle": "Câu hỏi của riêng nhóm này",
+      "product": {
+        "name": "Nhóm sản phẩm",
+        "metaTitle": "UniWork cho nhóm sản phẩm",
+        "metaDesc": "Từ cuộc họp tới việc đã giao, không mất ngữ cảnh ở giữa. Agent tham gia bảng việc như một thành viên.",
+        "title": "Từ cuộc họp tới việc đã giao, không mất gì ở giữa",
+        "sub": "Nhóm sản phẩm sống bằng ngữ cảnh: vì sao làm việc này, ai đã quyết, và quyết lúc nào. UniWork giữ cả ba nằm cạnh chính công việc đó.",
+        "s1Title": "Họp review sprint",
+        "s1Desc": "Phòng họp nằm trong không gian làm việc, nên cuộc họp có chủ sở hữu và ở lại cùng bảng việc thay vì trôi vào một đường link.",
+        "s2Title": "Chẻ một quyết định thành việc",
+        "s2Desc": "Việc sinh ra ngay trong ngữ cảnh của cuộc trao đổi, giữ nguyên người quyết và thời điểm quyết.",
+        "s3Title": "Giao phần việc lặp cho agent",
+        "s3Desc": "Agent nhận việc trên cùng bảng, đứng tên trong lịch sử thay đổi, và mọi thứ nó làm đều lùi lại được.",
+        "w1": "Bảng việc và phòng họp dùng chung một bộ quyền.",
+        "w2": "Lịch sử thay đổi trên từng việc, không phân biệt người hay agent.",
+        "w3": "Khách mời ngoài tổ chức vào họp qua đường link riêng, không cần tài khoản.",
+        "q1": "Có thay được công cụ quản lý sprint hiện tại không?",
+        "a1": "Được cho phần bảng theo trạng thái, bình luận và lịch sử thay đổi. Chưa có biểu đồ burndown hay ước lượng điểm, nên nếu đội bạn sống bằng hai thứ đó thì hãy chờ.",
+        "q2": "Agent có tự tạo việc không?",
+        "a2": "Agent đề xuất, người xác nhận rồi hệ thống mới ghi. Không có đường nào để agent tự ghi thẳng vào bảng việc.",
+        "q3": "Biên bản họp có tự thành việc không?",
+        "a3": "Chưa. Hiện cuộc họp và bảng việc nằm cùng một không gian và cùng một bộ quyền, nhưng việc vẫn do người tạo."
+      },
+      "operations": {
+        "name": "Nhóm vận hành",
+        "metaTitle": "UniWork cho nhóm vận hành",
+        "metaDesc": "Quy trình chạy được là quy trình truy được. Hai tầng phân quyền, nhật ký chỉ ghi thêm, và mọi việc AI làm đều hoàn tác được.",
+        "title": "Quy trình chạy được là quy trình truy được",
+        "sub": "Nhóm vận hành không cần thêm một công cụ nữa. Cần một chỗ mà mỗi thay đổi đều có tên, có thời điểm, và có đường lùi.",
+        "s1Title": "Giao việc xuyên phòng ban",
+        "s1Desc": "Hai tầng thành viên theo tổ chức và theo không gian làm việc, nên một người có thể vào đúng phần việc của mình mà không thấy phần còn lại.",
+        "s2Title": "Rà lại một sự cố",
+        "s2Desc": "Nhật ký chỉ ghi thêm. Một dòng ghi sai được trả lời bằng một dòng khác, không ai xóa được lịch sử.",
+        "s3Title": "Để agent lo phần lặp lại",
+        "s3Desc": "Agent cập nhật trạng thái và tổng hợp tiến độ dưới tên riêng, và mỗi thao tác đều hoàn tác được.",
+        "w1": "Phân quyền hai tầng, agent nhận quyền theo đúng hai tầng đó.",
+        "w2": "Thành viên bị vô hiệu hóa mất quyền ở cả hai tầng nhưng giữ nguyên dữ liệu đã tạo.",
+        "w3": "Mỗi yêu cầu mang một mã tương quan đi suốt nhật ký và log hệ thống.",
+        "q1": "Xuất được nhật ký ra ngoài không?",
+        "a1": "Nhật ký được giữ nguyên vẹn và không bị xóa theo chính sách lưu trữ. Việc xuất ra file hiện làm qua công cụ quản trị, chưa có nút trong giao diện.",
+        "q2": "Một người nghỉ việc thì dữ liệu của họ ra sao?",
+        "a2": "Vô hiệu hóa thành viên đóng cả hai cổng vào, nhưng giữ nguyên mọi thứ họ từng tạo: việc, bình luận, lịch sử. Không có thao tác nào xóa người khỏi lịch sử.",
+        "q3": "Có tự động hóa quy trình như một workflow engine không?",
+        "a3": "Chưa có. Hiện tự động hóa đi qua agent với một người xác nhận ở giữa, chứ không phải một luồng chạy ngầm."
+      }
+    },
+    "footer": {
+      "sub": "Nền tảng làm việc số nơi con người và nhân sự AI cùng tạo ra kết quả.",
+      "product": "Sản phẩm",
+      "company": "Công ty",
+      "copyright": "© 2026 Unicom JSC"
+    }
   }
 }

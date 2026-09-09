@@ -54,6 +54,8 @@ function builderTemplates(): string[] {
     paths.invite(ID),
     paths.meetingInvite(ID),
     paths.meetingInviteRoom(ID),
+    paths.solutions.product(),
+    paths.solutions.operations(),
     paths.admin.root(),
     paths.admin.organizations(),
     paths.admin.organization(ID),

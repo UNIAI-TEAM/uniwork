@@ -51,6 +51,12 @@ catalog:
   # Animation loading cho StatusPill
   unicode-animations: "^1.0.3"
 
+  # Animation cho landing page (apps/web/features/landing). Chỉ app web khai
+  # báo hai gói này; phần còn lại của sản phẩm dùng `motion`, và
+  # apps/web/eslint.config.mjs chặn hai chiều để chúng không trộn vào nhau.
+  gsap: "^3.13.0"
+  "@gsap/react": "^2.1.2"
+
   # Testing
   "@testing-library/user-event": "^14.6.1"
 

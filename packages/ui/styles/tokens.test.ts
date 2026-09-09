@@ -35,6 +35,57 @@ function definedVars(source: string): Set<string> {
   return names;
 }
 
+/** Giá trị thô của một token trong một khối, ví dụ "#4d8dff" hoặc "oklch(...)". */
+function value(selector: string, token: string): string {
+  const match = block(selector).match(
+    new RegExp(`^\\s*${token}\\s*:\\s*([^;]+);`, "m"),
+  );
+  if (!match?.[1]) throw new Error(`${token} not found in ${selector}`);
+  return match[1].trim();
+}
+
+/** sRGB 0..1. Handles the two notations the file uses: #rrggbb and oklch(). */
+function srgb(css: string): [number, number, number] {
+  const hex = css.match(/^#([0-9a-f]{6})$/i);
+  if (hex?.[1]) {
+    const n = parseInt(hex[1], 16);
+    return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  }
+  const ok = css.match(/^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/);
+  if (!ok) throw new Error(`unsupported colour notation: ${css}`);
+  const [L, C, H] = [Number(ok[1]), Number(ok[2]), Number(ok[3])];
+  const h = (H * Math.PI) / 180;
+  const a = C * Math.cos(h);
+  const b = C * Math.sin(h);
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+  const clamp = (v: number): number => {
+    const g = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.max(v, 0) ** (1 / 2.4) - 0.055;
+    return Math.min(1, Math.max(0, g));
+  };
+  return [
+    clamp(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    clamp(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    clamp(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s),
+  ];
+}
+
+/** WCAG relative luminance. */
+function luminance(css: string): number {
+  const [r, g, b] = srgb(css).map((v) =>
+    v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4,
+  ) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG contrast ratio between two token values. */
+function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)];
+  const [hi, lo] = x >= y ? [x, y] : [y, x];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 describe("token contract", () => {
   it("declares the Tailwind theme mapping inside the ui package", () => {
     // The mapping must live with the primitives that consume it, otherwise a
@@ -158,5 +209,70 @@ describe("token contract", () => {
     // resolves to :root and the light/dark comparison becomes vacuous.
     expect(block(".dark")).not.toContain("--rail:");
     expect(block(":root")).toContain("--rail:");
+  });
+  // The emphasis band is a dark plane whose CONTENT is wrapped in `.dark`, so
+  // everything inside resolves from the dark palette while the background
+  // itself still tracks the page theme. That makes four token pairs live that
+  // no other check covers: the band's own background comes from one block and
+  // the text on it from the other.
+  //
+  // This is a static guard, not the verification. A ratio computed from the
+  // file cannot see opacity, a stacked overlay or an image behind the text —
+  // e2e/onboarding-contrast.spec.ts measures the rendered page and stays the
+  // authority. This one fails in milliseconds when a value is edited blind.
+  describe("emphasis band", () => {
+    const bandLight = value(":root", "--surface-emphasis");
+    const bandDark = value(".dark", "--surface-emphasis");
+    // Content inside the band reads the dark palette, on both page themes.
+    const onBand = {
+      "--foreground": value(".dark", "--foreground"),
+      "--muted-foreground": value(".dark", "--muted-foreground"),
+      "--brand": value(".dark", "--brand"),
+      "--brand-accent": value(".dark", "--brand-accent"),
+    };
+
+    for (const [name, colour] of Object.entries(onBand)) {
+      it(`keeps ${name} readable on the band in both page themes`, () => {
+        for (const [theme, band] of [["light", bandLight], ["dark", bandDark]] as const) {
+          const ratio = contrast(colour, band);
+          expect(ratio, `${name} on ${theme}-page band: ${ratio.toFixed(2)}`)
+            .toBeGreaterThanOrEqual(4.5);
+        }
+      });
+    }
+
+    it("keeps the focus ring visible on the band", () => {
+      // The global :focus-visible outline is the only focus indicator in the
+      // product and a tested contract. 3:1 is the non-text floor.
+      const ring = value(".dark", "--ring");
+      for (const [theme, band] of [["light", bandLight], ["dark", bandDark]] as const) {
+        const ratio = contrast(ring, band);
+        expect(ratio, `--ring on ${theme}-page band: ${ratio.toFixed(2)}`)
+          .toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it("separates the band from the page it sits on", () => {
+      // On a light page the band is an inversion and reads as one outright.
+      const light = contrast(bandLight, value(":root", "--background"));
+      expect(light, `band vs light page: ${light.toFixed(2)}`).toBeGreaterThanOrEqual(3);
+      // On a dark page it is an elevation step, the same order as --surface
+      // over --background (1.06), so a ratio is the wrong test: what must hold
+      // is the direction. A band that sank below the page would vanish.
+      expect(luminance(bandDark)).toBeGreaterThan(luminance(value(".dark", "--background")));
+    });
+
+    it("keeps --brand-accent readable on the page itself", () => {
+      // Used for eyebrows and icons outside the band too, where the ground is
+      // the ordinary page rather than the inverted plane.
+      for (const [theme, sel] of [["light", ":root"], ["dark", ".dark"]] as const) {
+        const accent = value(sel, "--brand-accent");
+        for (const ground of ["--background", "--surface"]) {
+          const ratio = contrast(accent, value(sel, ground));
+          expect(ratio, `--brand-accent on ${ground} (${theme}): ${ratio.toFixed(2)}`)
+            .toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    });
   });
 });

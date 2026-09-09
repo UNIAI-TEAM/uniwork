@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 // Before `metadata` is evaluated: it reads the public origin from the runtime
 // config, and this module is the only place that config is populated.
@@ -9,13 +9,6 @@ import { resolveRequestLocale } from "../platform/locale-server";
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-inter", display: "swap" });
-// Serif biên tập cho headline onboarding; cần italic cho <em> trong h1.
-const sourceSerif = Source_Serif_4({
-  subsets: ["latin", "vietnamese"],
-  style: ["normal", "italic"],
-  variable: "--font-source-serif",
-  display: "swap",
-});
 
 const DESCRIPTION =
   "Work OS thuần AI cho đội ngũ Việt: công việc, cuộc họp, tài liệu và quy trình " +
@@ -73,10 +66,21 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "UniWork", description: DESCRIPTION },
 };
 
+/**
+ * The application runtime is mounted here, for every route including the
+ * public marketing page at `/`. There is no route group that opts out: the
+ * `(app)` / `(landing)` split was rolled back deliberately, so the landing
+ * page pays for the query cache, the auth store and the feature-flag fetch
+ * like every other page.
+ *
+ * The editorial serif is the one thing still loaded per group, by
+ * `(auth)/layout.tsx` — the only screens that render `font-serif` are the auth
+ * shell and the onboarding welcome step.
+ */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await resolveRequestLocale();
   return (
-    <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${sourceSerif.variable}`}>
+    <html lang={locale} suppressHydrationWarning className={inter.variable}>
       <body className="font-sans">
         <Providers initialLocale={locale}>{children}</Providers>
       </body>

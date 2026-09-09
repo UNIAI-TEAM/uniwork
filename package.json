@@ -16,6 +16,7 @@
     "test": "turbo test --filter=!@uniwork/e2e",
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
     "brand:build": "bash scripts/brand/build.sh",
+    "landing:images": "python3 scripts/landing/build-images.py",
     "ui:add": "cd packages/ui && npx shadcn@latest add",
     "knip": "knip"
   },

@@ -21,6 +21,15 @@
   --surface-selected-foreground: #18181b;
   --surface-border: #e4e4e7;
 
+  /* The emphasis band: a content plane whose polarity is flipped against the
+     page, used to break the rhythm of a long scroll (landing product bands,
+     the Work Graph section). Its CONTENT is wrapped in `.dark` so foreground,
+     brand and ring resolve from the dark palette; the background is painted by
+     the parent so this slot still tracks the page theme. Unlike --rail, which
+     is one value in both themes, this one is restated below.
+     Light: 17.59 against --background. */
+  --surface-emphasis: oklch(0.20 0.08 278);
+
   --card: #ffffff;
   --card-foreground: #18181b;
   --popover: #ffffff;
@@ -55,6 +64,10 @@
      on the same surface, so the realignment costs no contrast. */
   --brand: #0b5bf5;
   --brand-foreground: #ffffff;
+  /* Second brand hue, carried over from the marketing palette. Text and icons
+     only — it has no --brand-accent-foreground because nothing paints a
+     surface with it. 4.99 on --surface, 4.78 on --background. */
+  --brand-accent: oklch(0.58 0.27 325);
   --destructive: #ad1a1a;
   --success: #15803d;
   --warning: #a1580a;
@@ -146,6 +159,11 @@
   --surface-selected-foreground: #f4f4f5;
   --surface-border: #2a2a2e;
 
+  /* Lifted above the dark --background so the band still reads as a band when
+     the whole page is dark; the light value would sink below it. The step is
+     1.27, the same order as --surface over --background (1.06). */
+  --surface-emphasis: oklch(0.28 0.07 278);
+
   --card: #18181b;
   --card-foreground: #f4f4f5;
   --popover: #18181b;
@@ -166,6 +184,10 @@
      brand-coloured control. 5.90 on --background, up from 5.66. */
   --brand: #4d8dff;
   --brand-foreground: #0d1220;
+  /* Lightened the way --brand is, keeping hue 325 and easing chroma so it does
+     not glare on a dark ground. 6.37 on --background, 5.98 on --surface, and
+     6.20 inside the emphasis band. */
+  --brand-accent: oklch(0.70 0.22 325);
   --destructive: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
@@ -255,6 +277,8 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-faint-foreground: var(--faint-foreground);
   --color-brand: var(--brand);
+  --color-brand-accent: var(--brand-accent);
+  --color-surface-emphasis: var(--surface-emphasis);
   --color-brand-foreground: var(--brand-foreground);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
@@ -300,6 +324,15 @@
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Headings share the body face. The ten primitives that carry `font-heading`
+     (card, dialog, popover, sheet, drawer, alert, empty, item, alert-dialog)
+     get their hierarchy from weight and from the role-named --text-* scale,
+     which already carries tracking, not from a second family.
+     A display face was tried here and removed: pairing a geometric grotesque
+     against Inter's neo-grotesque is the "similar but not identical" pairing
+     that reads as an accident, and Inter is the identity this product already
+     ships. One family, committed weight contrast. */
+  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-micro: 11px;      --text-micro--line-height: 15px;
@@ -318,4 +351,5 @@
   --text-hero-sm: 36px;    --text-hero-sm--line-height: 38px;  --text-hero-sm--letter-spacing: -0.02em;
   --text-hero: 48px;       --text-hero--line-height: 50px;     --text-hero--letter-spacing: -0.025em;
   --text-hero-lg: 60px;    --text-hero-lg--line-height: 62px;  --text-hero-lg--letter-spacing: -0.03em;
+  --text-hero-xl: 72px;    --text-hero-xl--line-height: 74px;  --text-hero-xl--letter-spacing: -0.035em;
 }

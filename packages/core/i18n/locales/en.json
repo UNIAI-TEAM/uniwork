@@ -2378,5 +2378,184 @@
       "toast_renamed": "Renamed",
       "toast_rename_failed": "Failed to rename"
     }
+  },
+  "landing": {
+    "nav": {
+      "features": "Features",
+      "contact": "Contact",
+      "login": "Sign in",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "solutions": "Solutions"
+    },
+    "cta": {
+      "start": "Get started",
+      "demo": "See a meeting"
+    },
+    "hero": {
+      "eyebrow": "A workspace for modern teams",
+      "titleA": "People",
+      "titleB": "AI workforce",
+      "sub": "One connected platform where people and AI teammates talk, plan, execute, and turn knowledge into results.",
+      "imageAlt": "UniWork's people and AI workforce",
+      "bulletVi": "Vietnamese is the source language",
+      "bulletPeer": "AI teammates are members, not a button",
+      "bulletUndo": "Everything an agent does can be undone"
+    },
+    "trust": {
+      "modelsLabel": "Runs on the model you choose",
+      "modelSelfHosted": "Ollama (self-hosted)",
+      "dataTitle": "Data stays in Vietnam",
+      "dataDesc": "Domestic infrastructure, under Decree 13 on personal data protection.",
+      "auditTitle": "An append-only log",
+      "auditDesc": "Nobody edits or deletes a line of history, administrators included.",
+      "undoTitle": "Agent work can be undone",
+      "undoDesc": "An agent proposes, a person confirms, and every change can be rolled back."
+    },
+    "problem": {
+      "eyebrow": "The problem",
+      "title": "A team's work is sitting in four different places",
+      "sub": "Chat in one place, the board in another, meeting notes in a third, and email in a fourth. People can still piece the context together. AI cannot.",
+      "pain1Title": "The decision is in the meeting, the work is somewhere else",
+      "pain1Desc": "The meeting ends, the notes drift down a chat thread, and the tasks get retyped by hand. Weeks later nobody remembers where the work came from.",
+      "pain1Answer": "A meeting has an owner and stays with the work it produced.",
+      "pain2Title": "AI is a button, not a colleague",
+      "pain2Desc": "Every tool bolts on its own AI button, and not one of them knows what your team is working on this week.",
+      "pain2Answer": "Agents join the workspace as members, with explicit permissions.",
+      "pain3Title": "Nobody trusts an agent with real work",
+      "pain3Desc": "Because when something goes wrong, you cannot trace who did what, and there is no way back.",
+      "pain3Answer": "Everything an agent does carries its name, lands in the log, and can be undone."
+    },
+    "platform": {
+      "eyebrow": "One platform. One flow of work.",
+      "title": "Everything the team needs, in one app",
+      "sub": "The team's tasks, meetings and conversations sit in one place, under one set of permissions.",
+      "soon": "Coming soon",
+      "tasksTitle": "Tasks and boards",
+      "tasksDesc": "A board by status, with comments and a change history on every task.",
+      "meetTitle": "Meetings",
+      "meetDesc": "Video rooms inside the workspace, with link invitations for people outside the organization.",
+      "chatTitle": "Chat and project channels",
+      "chatDesc": "Quick conversation, tied to the task and the document it is about.",
+      "aiTitle": "AI teammates",
+      "aiDesc": "Agents join a workspace as members, with their own permissions and their own activity log.",
+      "workspaceTitle": "Organizations and workspaces",
+      "workspaceDesc": "Two membership tiers, with permissions set per organization and per workspace.",
+      "emailTitle": "Email Hub",
+      "emailDesc": "Work email gathered into one inbox, with AI summaries and suggested actions."
+    },
+    "meetings": {
+      "eyebrow": "Meetings",
+      "title": "A meeting is a record, not a link",
+      "desc": "The video room lives inside the workspace, so a meeting has an owner, has access rules, and stays with the work it came from.",
+      "point1": "Video rooms inside the workspace",
+      "point2": "Link invitations for people outside the organization",
+      "point3": "Access follows the member, not the link",
+      "imageAlt": "A UniWork video meeting room"
+    },
+    "projects": {
+      "eyebrow": "Tasks",
+      "title": "A board people and agents both sign their name to",
+      "desc": "Status, assignee and comments on a single board. Work an agent did appears exactly as work a person did, with the name and the timestamp attached.",
+      "cta": "Start managing work",
+      "imageAlt": "UniWork's task board",
+      "companionAlt": "Chat and tasks in one place"
+    },
+    "email": {
+      "eyebrow": "Email Hub",
+      "title": "Smarter email, uninterrupted work",
+      "desc": "Gather work email into a single inbox, so AI can summarise it, suggest replies, and turn a message into a task.",
+      "soon": "In development",
+      "imageAlt": "UniWork's unified inbox with its AI assistant"
+    },
+    "workforce": {
+      "badge": "AI teammates",
+      "title": "An agent works like a member of the team",
+      "sub": "Agents join a workspace with explicit permissions. Everything an agent does carries its name, lands in the activity log, and can be undone the way a person's work can.",
+      "cta": "Create an account",
+      "imageAlt": "AI teammates inside a UniWork workspace"
+    },
+    "final": {
+      "title": "Ready for your team",
+      "sub": "Two membership tiers, with permissions per organization and per workspace. Vietnamese and English at parity.",
+      "primary": "Create an account",
+      "secondary": "Sign in"
+    },
+    "faq": {
+      "eyebrow": "Frequently asked",
+      "title": "What your team will ask",
+      "q1": "How is this different from the tools we already use?",
+      "a1": "Agents are members here, not a feature. Tasks, meetings and conversation sit in one place under one set of permissions, so an agent sees exactly what a new colleague would see, and nothing more.",
+      "q2": "What happens when an agent gets it wrong?",
+      "a2": "An agent proposes, a person confirms, and only then does the system write. Every change carries the agent's name and a timestamp, and rolls back like a person's would.",
+      "q3": "Who can see what?",
+      "a3": "Permissions come in two tiers, per organization and per workspace. Agents inherit exactly those two tiers, and a deactivated member loses access at both.",
+      "q4": "Where does our data live?",
+      "a4": "On infrastructure in Vietnam, under Decree 13 on personal data protection. The activity log is append-only, so nobody edits or deletes a line once written.",
+      "q5": "Can we use our own AI model?",
+      "a5": "Yes. UniWork calls Anthropic, OpenAI, or a model you host yourself through Ollama. Choose the self-hosted route and your work content never leaves your infrastructure.",
+      "q6": "How good is the Vietnamese?",
+      "a6": "Vietnamese is the source language and English is the translation. Both carry the same set of keys, and a missing key fails the build rather than quietly falling back."
+    },
+    "solutions": {
+      "eyebrow": "Solutions",
+      "teaserTitle": "One platform, read through the work each team actually does",
+      "teaserSub": "These two teams use UniWork the most. Start with the one that is yours.",
+      "cardCta": "Read more",
+      "back": "See the whole platform",
+      "scenarios": "Three things your team does every week",
+      "why": "Why UniWork",
+      "faqTitle": "Questions this team asks",
+      "product": {
+        "name": "Product teams",
+        "metaTitle": "UniWork for product teams",
+        "metaDesc": "From the meeting to the assigned task with no context lost in between. Agents join the board as members.",
+        "title": "From the meeting to the assigned task, losing nothing in between",
+        "sub": "Product teams run on context: why this work, who decided, and when. UniWork keeps all three next to the work itself.",
+        "s1Title": "Running a sprint review",
+        "s1Desc": "The video room lives inside the workspace, so the meeting has an owner and stays with the board instead of drifting into a link.",
+        "s2Title": "Turning a decision into work",
+        "s2Desc": "Tasks are created in the context of the conversation, keeping who decided and when attached to them.",
+        "s3Title": "Handing repetitive work to an agent",
+        "s3Desc": "The agent picks up work on the same board, signs the change history, and everything it does can be rolled back.",
+        "w1": "The board and the meeting room share one set of permissions.",
+        "w2": "A change history on every task, whether a person or an agent made the change.",
+        "w3": "Guests outside the organization join a meeting by link, with no account needed.",
+        "q1": "Can this replace our current sprint tool?",
+        "a1": "For the status board, comments and change history, yes. There are no burndown charts or point estimates yet, so if your team lives on those, wait.",
+        "q2": "Do agents create tasks on their own?",
+        "a2": "An agent proposes and a person confirms before anything is written. There is no path for an agent to write straight to the board.",
+        "q3": "Do meeting notes turn into tasks automatically?",
+        "a3": "Not yet. Meetings and the board share a workspace and a permission set today, but a person still creates the task."
+      },
+      "operations": {
+        "name": "Operations teams",
+        "metaTitle": "UniWork for operations teams",
+        "metaDesc": "A process you can run is a process you can trace. Two permission tiers, an append-only log, and agent work that rolls back.",
+        "title": "A process you can run is a process you can trace",
+        "sub": "Operations does not need one more tool. It needs one place where every change has a name, a timestamp, and a way back.",
+        "s1Title": "Handing work across departments",
+        "s1Desc": "Membership comes in two tiers, per organization and per workspace, so someone can reach their own work without seeing the rest.",
+        "s2Title": "Reviewing an incident",
+        "s2Desc": "The log only ever grows. A wrong entry is answered with another entry, and nobody can delete the history.",
+        "s3Title": "Letting an agent take the repetition",
+        "s3Desc": "The agent updates status and rolls up progress under its own name, and every action can be undone.",
+        "w1": "Two permission tiers, and agents inherit exactly those two.",
+        "w2": "A deactivated member loses access at both tiers but keeps everything they created.",
+        "w3": "Every request carries one correlation id through the log and the system trace.",
+        "q1": "Can we export the log?",
+        "a1": "The log is kept whole and retention never deletes from it. Export runs through the admin tooling today; there is no button in the interface yet.",
+        "q2": "What happens to someone's data when they leave?",
+        "a2": "Deactivating a member closes both gates but keeps everything they ever created: tasks, comments, history. Nothing removes a person from the record.",
+        "q3": "Is there workflow automation like a workflow engine?",
+        "a3": "Not yet. Automation runs through agents with a person confirming in the middle, rather than as a background flow."
+      }
+    },
+    "footer": {
+      "sub": "The digital workplace where people and AI teammates produce results together.",
+      "product": "Product",
+      "company": "Company",
+      "copyright": "© 2026 Unicom JSC"
+    }
   }
 }

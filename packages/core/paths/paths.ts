@@ -23,6 +23,15 @@ export const paths = {
   invite: (token: string) => `/invite/${token}`,
   meetingInvite: (linkId: string) => `/invite/meeting/${linkId}`,
   meetingInviteRoom: (linkId: string) => `/invite/meeting/${linkId}/room`,
+  /**
+   * Public marketing pages, one per team the product is sold to. The noun is
+   * reserved so an organization can never take the subtree
+   * (docs/conventions.md §Routes).
+   */
+  solutions: {
+    product: () => "/solutions/product",
+    operations: () => "/solutions/operations",
+  },
   /** Platform-admin console: outside every organization, guarded by GET /admin/me. */
   admin: {
     root: () => "/admin",
