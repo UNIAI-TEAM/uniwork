@@ -234,7 +234,14 @@ describe("chat endpoints", () => {
     );
     const blob = await loadChatVoiceBlob("ws1", "room1", "message1");
     expect(blob.type).toBe("audio/webm");
-    expect(await blob.text()).toBe("voice");
+    // jsdom Blob has size/type but no .text()/.arrayBuffer(); FileReader still works.
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+      reader.readAsText(blob);
+    });
+    expect(text).toBe("voice");
   });
 
   it("leaveChatRoom degrades on malformed response", async () => {

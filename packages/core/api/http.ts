@@ -194,7 +194,11 @@ export async function requestBlob(path: string): Promise<Blob> {
     }
     throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
   }
-  return res.blob();
+  // Prefer arrayBuffer → Blob: jsdom's Response.blob() yields a Blob without
+  // readable bytes / .text(), which breaks authenticated media object URLs in tests.
+  const type = res.headers.get("Content-Type") ?? "";
+  const buffer = await res.arrayBuffer();
+  return new Blob([buffer], { type });
 }
 
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,
