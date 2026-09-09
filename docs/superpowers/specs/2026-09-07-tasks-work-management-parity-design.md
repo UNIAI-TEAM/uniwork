@@ -1,6 +1,6 @@
 # UniWork — Tasks Work Management parity
 
-> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-07; lát cắt 1 (UNI-495) foundation shipped; lát cắt 2 (UNI-497) API + client core shipped; lát cắt 3 (UNI-500) collection surfaces shipped; lát cắt 4 (UNI-502) Projects suite shipped (`2026-09-08-projects-suite-design.md`); lát cắt 5 (UNI-505) Task detail & collaboration shipped (`2026-09-09-task-detail-collaboration-design.md`); còn lát cắt 6–8 (agent-integration / hosts / cutover). UNI-426 / F-05 vẫn `MỘT PHẦN` — không đánh dấu F-05 xong.
+> **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-07; lát cắt 1 (UNI-495) foundation shipped; lát cắt 2 (UNI-497) API + client core shipped; lát cắt 3 (UNI-500) collection surfaces shipped; lát cắt 4 (UNI-502) Projects suite shipped (`2026-09-08-projects-suite-design.md`); lát cắt 5 (UNI-505) Task detail & collaboration shipped (`2026-09-09-task-detail-collaboration-design.md`); lát cắt 6 Agent/integration surfaces đang thiết kế (`2026-09-09-agent-integration-surfaces-design.md`); còn lát cắt 7–8 (hosts / cutover). UNI-426 / F-05 vẫn `MỘT PHẦN` — không đánh dấu F-05 xong.
 
 **Ngày:** 2026-09-07
 **Issue:** UNI-426 · F-05
