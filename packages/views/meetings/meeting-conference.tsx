@@ -40,7 +40,6 @@ import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { MeetingStageHeader } from "./meeting-stage-header";
 import { MeetingRoomSidebar, type MeetingSidebarTab } from "./meeting-room-sidebar";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
-import { MeetingWaitingToJoinOverlay } from "./meeting-waiting-to-join-overlay";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
@@ -107,7 +106,6 @@ function ConferenceStage({
   const [sidebarSheetOpen, setSidebarSheetOpen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<MeetingSidebarTab>(guestMode ? "chat" : "copilot");
-  const [joinOverlayOpen, setJoinOverlayOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(false);
   const [footerReserve, setFooterReserve] = useState(96);
@@ -181,7 +179,7 @@ function ConferenceStage({
             sidebarOpen={sidebarPinned}
             onToggleSidebar={compact ? undefined : () => setSidebarPinned((v) => !v)}
             onOpenSidebar={compact ? () => setSidebarSheetOpen(true) : undefined}
-            onOpenJoinOverlay={() => setJoinOverlayOpen(true)}
+            onOpenPeople={openJoinRequests}
           />
           <div
             ref={stageContentRef}
@@ -344,14 +342,6 @@ function ConferenceStage({
               />
             }
           />
-          {canHost.allowed && resolvedMeetingId ? (
-            <MeetingWaitingToJoinOverlay
-              meetingId={resolvedMeetingId}
-              onViewAll={openJoinRequests}
-              forceOpen={joinOverlayOpen}
-              onForceOpenHandled={() => setJoinOverlayOpen(false)}
-            />
-          ) : null}
         </div>
 
         {!compact ? (

@@ -73,7 +73,7 @@ export function MeetingRoomSidebar({
             value={tab}
             onChange={onTabChange}
             label={tabLabel}
-            equalWidth
+            spread
             badge={(id) =>
               id === "participants" && pendingJoinCount > 0 ? (
                 <MeetingUnderlineTabBadge
