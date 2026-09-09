@@ -1,0 +1,1242 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "3d37828e9",
+  "owner_issue": "UNI-505",
+  "entries": [
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/issues/[id]/page.tsx",
+      "target_path": "apps/web/app/[orgSlug]/[workspaceSlug]/tasks/[taskId]/page.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/attachments/image-sequence.ts",
+      "target_path": "packages/core/attachments/image-sequence.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/editor/attachment-card.test.tsx",
+      "target_path": "packages/views/editor/attachment-card.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/attachment-card.tsx",
+      "target_path": "packages/views/editor/attachment-card.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/attachment-download-context.tsx",
+      "target_path": "packages/views/editor/attachment-download-context.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/attachment-preview-modal.test.tsx",
+      "target_path": "packages/views/editor/attachment-preview-modal.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/attachment-preview-modal.tsx",
+      "target_path": "packages/views/editor/attachment-preview-modal.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/attachment.test.tsx",
+      "target_path": "packages/views/editor/attachment.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/attachment.tsx",
+      "target_path": "packages/views/editor/attachment.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/bubble-menu.test.tsx",
+      "target_path": "packages/views/editor/bubble-menu.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/bubble-menu.tsx",
+      "target_path": "packages/views/editor/bubble-menu.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/code-block-iframe.tsx",
+      "target_path": "packages/views/editor/code-block-iframe.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/code-block-static.test.tsx",
+      "target_path": "packages/views/editor/code-block-static.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/code-block-static.tsx",
+      "target_path": "packages/views/editor/code-block-static.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/content-editor-current-issue.test.tsx",
+      "target_path": "packages/views/editor/content-editor-current-task.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/editor/content-editor.test.tsx",
+      "target_path": "packages/views/editor/content-editor.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/content-editor.tsx",
+      "target_path": "packages/views/editor/content-editor.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/autolink-policy.test.ts",
+      "target_path": "packages/views/editor/extensions/autolink-policy.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/blur-shortcut.ts",
+      "target_path": "packages/views/editor/extensions/blur-shortcut.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/code-block-view.test.tsx",
+      "target_path": "packages/views/editor/extensions/code-block-view.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/code-block-view.tsx",
+      "target_path": "packages/views/editor/extensions/code-block-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/code.test.ts",
+      "target_path": "packages/views/editor/extensions/code.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/file-card-markdown.test.ts",
+      "target_path": "packages/views/editor/extensions/file-card-markdown.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/file-card.test.tsx",
+      "target_path": "packages/views/editor/extensions/file-card.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/file-card.tsx",
+      "target_path": "packages/views/editor/extensions/file-card.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/file-upload.test.ts",
+      "target_path": "packages/views/editor/extensions/file-upload.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/file-upload.ts",
+      "target_path": "packages/views/editor/extensions/file-upload.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/heading-levels.test.ts",
+      "target_path": "packages/views/editor/extensions/heading-levels.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/highlight.test.ts",
+      "target_path": "packages/views/editor/extensions/highlight.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/highlight.ts",
+      "target_path": "packages/views/editor/extensions/highlight.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/image-markdown-roundtrip.test.ts",
+      "target_path": "packages/views/editor/extensions/image-markdown-roundtrip.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/image-view.tsx",
+      "target_path": "packages/views/editor/extensions/image-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/index.ts",
+      "target_path": "packages/views/editor/extensions/index.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/issue-identifier-autolink.test.ts",
+      "target_path": "packages/views/editor/extensions/task-identifier-autolink.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/issue-identifier-autolink.ts",
+      "target_path": "packages/views/editor/extensions/task-identifier-autolink.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/list-item.test.ts",
+      "target_path": "packages/views/editor/extensions/list-item.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/list-item.ts",
+      "target_path": "packages/views/editor/extensions/list-item.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/markdown-copy.ts",
+      "target_path": "packages/views/editor/extensions/markdown-copy.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/markdown-paste.test.ts",
+      "target_path": "packages/views/editor/extensions/markdown-paste.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/markdown-paste.ts",
+      "target_path": "packages/views/editor/extensions/markdown-paste.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/math.test.ts",
+      "target_path": "packages/views/editor/extensions/math.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/math.tsx",
+      "target_path": "packages/views/editor/extensions/math.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-extension.test.ts",
+      "target_path": "packages/views/editor/extensions/mention-extension.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-extension.ts",
+      "target_path": "packages/views/editor/extensions/mention-extension.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-recency.ts",
+      "target_path": "packages/views/editor/extensions/mention-recency.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-suggestion.test.tsx",
+      "target_path": "packages/views/editor/extensions/mention-suggestion.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-suggestion.tsx",
+      "target_path": "packages/views/editor/extensions/mention-suggestion.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-view.test.tsx",
+      "target_path": "packages/views/editor/extensions/mention-view.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/mention-view.tsx",
+      "target_path": "packages/views/editor/extensions/mention-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/pinyin-match.test.ts",
+      "target_path": "packages/views/editor/extensions/pinyin-match.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/pinyin-match.ts",
+      "target_path": "packages/views/editor/extensions/pinyin-match.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/slash-command-extension.test.ts",
+      "target_path": "packages/views/editor/extensions/slash-command-extension.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/slash-command-extension.ts",
+      "target_path": "packages/views/editor/extensions/slash-command-extension.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/slash-command-suggestion.test.tsx",
+      "target_path": "packages/views/editor/extensions/slash-command-suggestion.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/slash-command-suggestion.tsx",
+      "target_path": "packages/views/editor/extensions/slash-command-suggestion.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/slash-command-utils.ts",
+      "target_path": "packages/views/editor/extensions/slash-command-utils.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/slash-command-view.tsx",
+      "target_path": "packages/views/editor/extensions/slash-command-view.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/submit-shortcut.test.ts",
+      "target_path": "packages/views/editor/extensions/submit-shortcut.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/submit-shortcut.ts",
+      "target_path": "packages/views/editor/extensions/submit-shortcut.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/suggestion-popup.test.tsx",
+      "target_path": "packages/views/editor/extensions/suggestion-popup.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/suggestion-popup.tsx",
+      "target_path": "packages/views/editor/extensions/suggestion-popup.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/suggestion-trigger-arming.test.ts",
+      "target_path": "packages/views/editor/extensions/suggestion-trigger-arming.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/suggestion-trigger-arming.ts",
+      "target_path": "packages/views/editor/extensions/suggestion-trigger-arming.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/task-list-markdown.test.ts",
+      "target_path": "packages/views/editor/extensions/task-list-markdown.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/extensions/underline.test.ts",
+      "target_path": "packages/views/editor/extensions/underline.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/file-card-href.test.ts",
+      "target_path": "packages/views/editor/file-card-href.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/file-drop-overlay.tsx",
+      "target_path": "packages/views/editor/file-drop-overlay.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/hooks/use-attachment-html-text.ts",
+      "target_path": "packages/views/editor/hooks/use-attachment-html-text.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/hooks/use-drag-to-scroll.ts",
+      "target_path": "packages/views/editor/hooks/use-drag-to-scroll.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/hooks/use-inline-media-url.ts",
+      "target_path": "packages/views/editor/hooks/use-inline-media-url.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/hooks/use-zoom-canvas.ts",
+      "target_path": "packages/views/editor/hooks/use-zoom-canvas.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/html-attachment-preview.test.tsx",
+      "target_path": "packages/views/editor/html-attachment-preview.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/html-attachment-preview.tsx",
+      "target_path": "packages/views/editor/html-attachment-preview.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/html-block-preview.test.tsx",
+      "target_path": "packages/views/editor/html-block-preview.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/html-block-preview.tsx",
+      "target_path": "packages/views/editor/html-block-preview.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/html-preview-body.tsx",
+      "target_path": "packages/views/editor/html-preview-body.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/image-sequence-context.test.tsx",
+      "target_path": "packages/views/editor/image-sequence-context.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/image-sequence-context.tsx",
+      "target_path": "packages/views/editor/image-sequence-context.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/index.ts",
+      "target_path": "packages/views/editor/index.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/link-hover-card.tsx",
+      "target_path": "packages/views/editor/link-hover-card.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/mermaid-diagram.test.tsx",
+      "target_path": "packages/views/editor/mermaid-diagram.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/mermaid-diagram.tsx",
+      "target_path": "packages/views/editor/mermaid-diagram.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/mermaid-viewer.test.tsx",
+      "target_path": "packages/views/editor/mermaid-viewer.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/mermaid-viewer.tsx",
+      "target_path": "packages/views/editor/mermaid-viewer.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/paste-as-file.ts",
+      "target_path": "packages/views/editor/paste-as-file.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/readonly-content-math.test.tsx",
+      "target_path": "packages/views/editor/readonly-content-math.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/readonly-content.test.tsx",
+      "target_path": "packages/views/editor/readonly-content.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/readonly-content.tsx",
+      "target_path": "packages/views/editor/readonly-content.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/syntax-highlight.test.ts",
+      "target_path": "packages/views/editor/syntax-highlight.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/syntax-highlight.ts",
+      "target_path": "packages/views/editor/syntax-highlight.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/text-anchor.test.ts",
+      "target_path": "packages/views/editor/text-anchor.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/text-anchor.ts",
+      "target_path": "packages/views/editor/text-anchor.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/title-editor.shortcut.test.tsx",
+      "target_path": "packages/views/editor/title-editor.shortcut.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/title-editor.test.tsx",
+      "target_path": "packages/views/editor/title-editor.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/title-editor.tsx",
+      "target_path": "packages/views/editor/title-editor.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-composer-submit.test.tsx",
+      "target_path": "packages/views/editor/use-composer-submit.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-composer-submit.ts",
+      "target_path": "packages/views/editor/use-composer-submit.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-coordinated-uploads.test.tsx",
+      "target_path": "packages/views/editor/use-coordinated-uploads.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-coordinated-uploads.ts",
+      "target_path": "packages/views/editor/use-coordinated-uploads.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-download-attachment.test.tsx",
+      "target_path": "packages/views/editor/use-download-attachment.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-download-attachment.ts",
+      "target_path": "packages/views/editor/use-download-attachment.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-editor-upload.test.tsx",
+      "target_path": "packages/views/editor/use-editor-upload.test.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-editor-upload.ts",
+      "target_path": "packages/views/editor/use-editor-upload.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-file-drop-zone.ts",
+      "target_path": "packages/views/editor/use-file-drop-zone.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-lazy-editor.test.ts",
+      "target_path": "packages/views/editor/use-lazy-editor.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-lazy-editor.ts",
+      "target_path": "packages/views/editor/use-lazy-editor.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/use-upload-gate.ts",
+      "target_path": "packages/views/editor/use-upload-gate.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/clipboard.test.ts",
+      "target_path": "packages/views/editor/utils/clipboard.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/escape-markdown-label.test.ts",
+      "target_path": "packages/views/editor/utils/escape-markdown-label.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/escape-markdown-label.ts",
+      "target_path": "packages/views/editor/utils/escape-markdown-label.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/hash-string.test.ts",
+      "target_path": "packages/views/editor/utils/hash-string.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/hash-string.ts",
+      "target_path": "packages/views/editor/utils/hash-string.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/highlight-markdown.test.ts",
+      "target_path": "packages/views/editor/utils/highlight-markdown.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/highlight-markdown.ts",
+      "target_path": "packages/views/editor/utils/highlight-markdown.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/highlight-match.test.ts",
+      "target_path": "packages/views/editor/utils/highlight-match.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/highlight-match.ts",
+      "target_path": "packages/views/editor/utils/highlight-match.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/iframe-fragment-nav.test.ts",
+      "target_path": "packages/views/editor/utils/iframe-fragment-nav.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/iframe-fragment-nav.ts",
+      "target_path": "packages/views/editor/utils/iframe-fragment-nav.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/iframe-scroll-bridge.test.ts",
+      "target_path": "packages/views/editor/utils/iframe-scroll-bridge.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/iframe-scroll-bridge.ts",
+      "target_path": "packages/views/editor/utils/iframe-scroll-bridge.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/issue-identifiers.test.ts",
+      "target_path": "packages/views/editor/utils/task-identifiers.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/editor/utils/link-handler.test.ts",
+      "target_path": "packages/views/editor/utils/link-handler.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/link-handler.ts",
+      "target_path": "packages/views/editor/utils/link-handler.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/mermaid-export.test.ts",
+      "target_path": "packages/views/editor/utils/mermaid-export.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/mermaid-export.ts",
+      "target_path": "packages/views/editor/utils/mermaid-export.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/parse-markdown-chunked.test.ts",
+      "target_path": "packages/views/editor/utils/parse-markdown-chunked.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/parse-markdown-chunked.ts",
+      "target_path": "packages/views/editor/utils/parse-markdown-chunked.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/preprocess-channel-media.test.ts",
+      "target_path": "packages/views/editor/utils/preprocess-channel-media.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/preprocess-links.test.ts",
+      "target_path": "packages/views/editor/utils/preprocess-links.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/preprocess.ts",
+      "target_path": "packages/views/editor/utils/preprocess.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/preview.test.ts",
+      "target_path": "packages/views/editor/utils/preview.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/preview.ts",
+      "target_path": "packages/views/editor/utils/preview.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/repair-list-items.test.ts",
+      "target_path": "packages/views/editor/utils/repair-list-items.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/repair-list-items.ts",
+      "target_path": "packages/views/editor/utils/repair-list-items.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/zoom-transform.test.ts",
+      "target_path": "packages/views/editor/utils/zoom-transform.test.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/utils/zoom-transform.ts",
+      "target_path": "packages/views/editor/utils/zoom-transform.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/editor/zoom-canvas.tsx",
+      "target_path": "packages/views/editor/zoom-canvas.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/issues/actions/__tests__/issue-actions-menu.test.tsx",
+      "target_path": "packages/views/tasks/detail/actions/__tests__/task-actions-menu.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/__tests__/use-issue-actions.test.tsx",
+      "target_path": "packages/views/tasks/detail/actions/__tests__/use-task-actions.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/index.ts",
+      "target_path": "packages/views/tasks/detail/actions/index.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-context-menu.tsx",
+      "target_path": "packages/views/tasks/detail/actions/task-actions-context-menu.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-dropdown.tsx",
+      "target_path": "packages/views/tasks/detail/actions/task-actions-dropdown.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-menu-items.tsx",
+      "target_path": "packages/views/tasks/detail/actions/task-actions-menu-items.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/run-confirm-gate.test.ts",
+      "target_path": "packages/views/tasks/detail/actions/run-confirm-gate.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/run-confirm-gate.ts",
+      "target_path": "packages/views/tasks/detail/actions/run-confirm-gate.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/actions/use-issue-actions.ts",
+      "target_path": "packages/views/tasks/detail/actions/use-task-actions.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/attribution-badge.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/attribution-badge.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/attribution-badge.tsx",
+      "target_path": "packages/views/tasks/detail/components/attribution-badge.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card-edit-gate.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/comment-card-edit-gate.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/comment-card.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-card.tsx",
+      "target_path": "packages/views/tasks/detail/components/comment-card.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-composers.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/comment-composers.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-input.tsx",
+      "target_path": "packages/views/tasks/detail/components/comment-input.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-trigger-chips.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/comment-trigger-chips.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-trigger-chips.tsx",
+      "target_path": "packages/views/tasks/detail/components/comment-trigger-chips.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/custom-status-chip.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/custom-status-chip.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/custom-status-chip.tsx",
+      "target_path": "packages/views/tasks/detail/components/custom-status-chip.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/description-preview.test.ts",
+      "target_path": "packages/views/tasks/detail/components/description-preview.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/description-preview.ts",
+      "target_path": "packages/views/tasks/detail/components/description-preview.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/execution-log-section.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/execution-log-section.test.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/execution-log-section.tsx",
+      "target_path": "packages/views/tasks/detail/components/execution-log-section.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/find-bar.tsx",
+      "target_path": "packages/views/tasks/detail/components/find-bar.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/index.ts",
+      "target_path": "packages/views/tasks/detail/components/index.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-agent-activity-indicator.test.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-agent-activity-indicator.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-agent-header-chip.test.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-agent-header-chip.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-chip.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-chip.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-chip.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-chip.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail-route.test.tsx",
+      "target_path": "packages/views/tasks/detail/task-detail-route.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail-route.tsx",
+      "target_path": "packages/views/tasks/detail/task-detail-route.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail.test.tsx",
+      "target_path": "packages/views/tasks/detail/task-detail.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-detail.tsx",
+      "target_path": "packages/views/tasks/detail/task-detail.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-hover-card.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-hover-card.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-hover-card.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-hover-card.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-mention-card.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-mention-card.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-mention-card.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-mention-card.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-usage-dialog.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-usage-dialog.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-usage-dialog.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-usage-dialog.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/actor-property-picker.test.ts",
+      "target_path": "packages/views/tasks/detail/components/pickers/actor-property-picker.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/actor-property-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/actor-property-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/assignee-picker.keyboard.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/assignee-picker.keyboard.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/assignee-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/assignee-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/custom-property-picker.test.ts",
+      "target_path": "packages/views/tasks/detail/components/pickers/custom-property-picker.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/custom-property-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/custom-property-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/deferred-trigger.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/deferred-trigger.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/due-date-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/due-date-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/index.ts",
+      "target_path": "packages/views/tasks/detail/components/pickers/index.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/label-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/label-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/priority-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/priority-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/property-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/property-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/stage-picker.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/stage-picker.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/stage-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/stage-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/start-date-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/start-date-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/status-picker.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/status-picker.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pickers/status-picker.tsx",
+      "target_path": "packages/views/tasks/detail/components/pickers/status-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/priority-icon.tsx",
+      "target_path": "packages/views/tasks/detail/components/priority-icon.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/progress-ring.tsx",
+      "target_path": "packages/views/tasks/detail/components/progress-ring.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/pull-request-list.test.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.tsx",
+      "target_path": "packages/views/tasks/detail/components/pull-request-list.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/quick-actions-section.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/quick-actions-section.test.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/quick-actions-section.tsx",
+      "target_path": "packages/views/tasks/detail/components/quick-actions-section.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/reply-input.tsx",
+      "target_path": "packages/views/tasks/detail/components/reply-input.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/resolved-thread-bar.tsx",
+      "target_path": "packages/views/tasks/detail/components/resolved-thread-bar.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/revision-conflict-compare.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/revision-conflict-compare.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/revision-conflict-compare.tsx",
+      "target_path": "packages/views/tasks/detail/components/revision-conflict-compare.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/source-context-comment-list.tsx",
+      "target_path": "packages/views/tasks/detail/components/source-context-comment-list.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/source-context-content.tsx",
+      "target_path": "packages/views/tasks/detail/components/source-context-content.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/source-context-viewer.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/source-context-viewer.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/source-context-viewer.tsx",
+      "target_path": "packages/views/tasks/detail/components/source-context-viewer.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/status-heading.tsx",
+      "target_path": "packages/views/tasks/detail/components/status-heading.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/status-icon.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/status-icon.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/status-icon.tsx",
+      "target_path": "packages/views/tasks/detail/components/status-icon.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/sub-tasks-agent-working-chip.test.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.tsx",
+      "target_path": "packages/views/tasks/detail/components/sub-tasks-agent-working-chip.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/task-run-labels.ts",
+      "target_path": "packages/views/tasks/detail/components/task-run-labels.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/task-status-icon.tsx",
+      "target_path": "packages/views/tasks/detail/components/task-status-icon.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/terminate-task-confirm-dialog.tsx",
+      "target_path": "packages/views/tasks/detail/components/terminate-task-confirm-dialog.tsx",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/components/thread-minimap.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/thread-minimap.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/thread-minimap.tsx",
+      "target_path": "packages/views/tasks/detail/components/thread-minimap.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/thread-nav-panel.test.tsx",
+      "target_path": "packages/views/tasks/detail/components/thread-nav-panel.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/thread-nav-panel.tsx",
+      "target_path": "packages/views/tasks/detail/components/thread-nav-panel.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/thread-utils.test.ts",
+      "target_path": "packages/views/tasks/detail/components/thread-utils.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/thread-utils.ts",
+      "target_path": "packages/views/tasks/detail/components/thread-utils.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/components/use-comment-uploads.ts",
+      "target_path": "packages/views/tasks/detail/components/use-comment-uploads.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/current-issue-render-context.tsx",
+      "target_path": "packages/views/tasks/detail/current-task-render-context.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-comment-trigger-preview.test.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-comment-trigger-preview.test.ts",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-comment-trigger-preview.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-comment-trigger-preview.ts",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-in-page-find.test.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-in-page-find.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-in-page-find.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-in-page-find.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-detail-scroll-restore.test.tsx",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-detail-scroll-restore.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-detail-scroll-restore.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-reactions.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-reactions.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-subscribers.test.tsx",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-subscribers.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-subscribers.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-subscribers.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-timeline.test.tsx",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-timeline.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-timeline.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-timeline.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-trigger-preview.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-task-trigger-preview.ts",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-quick-action-menu.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-quick-action-menu.ts",
+      "disposition": "stub"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-resolve-issue-identifier.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-resolve-task-identifier.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-sticky-composer.test.tsx",
+      "target_path": "packages/views/tasks/detail/hooks/use-sticky-composer.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-sticky-composer.ts",
+      "target_path": "packages/views/tasks/detail/hooks/use-sticky-composer.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/issues/utils/status-label.ts",
+      "target_path": "packages/views/tasks/detail/utils/status-label.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/plugins/index.ts",
+      "target_path": "packages/views/tasks/detail/components/plugin-panel-section.tsx",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/views/platform/local-directory.ts",
+      "target_path": "packages/views/tasks/detail/platform/local-directory.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/views/platform/use-local-daemon-status.ts",
+      "target_path": "packages/views/tasks/detail/platform/use-local-daemon-status.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-hint.tsx",
+      "target_path": "packages/views/tasks/detail/components/local-directory-hint.tsx",
+      "disposition": "skip_later_slice"
+    }
+  ]
+}
