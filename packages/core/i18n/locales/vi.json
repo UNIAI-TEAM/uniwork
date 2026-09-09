@@ -847,6 +847,11 @@
       "unsubscribe": "Bỏ theo dõi",
       "attachments_section": "Đính kèm",
       "attachments_placeholder": "Tệp đính kèm của công việc sẽ hiện ở đây.",
+      "attachments_empty": "Chưa có tệp đính kèm. Thả tệp vào đây hoặc dùng Thêm tệp.",
+      "attachments_upload": "Thêm tệp",
+      "attachments_uploading": "Đang tải lên {{filename}}…",
+      "attachments_delete_title": "Xóa tệp đính kèm?",
+      "attachments_delete_description": "Gỡ “{{filename}}” khỏi công việc này. Không hoàn tác được.",
       "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất."
     }
   },

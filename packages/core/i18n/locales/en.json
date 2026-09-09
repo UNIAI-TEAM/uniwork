@@ -848,6 +848,11 @@
       "unsubscribe": "Unsubscribe",
       "attachments_section": "Attachments",
       "attachments_placeholder": "Files attached to this task will appear here.",
+      "attachments_empty": "No attachments yet. Drop files here or use Upload.",
+      "attachments_upload": "Upload",
+      "attachments_uploading": "Uploading {{filename}}…",
+      "attachments_delete_title": "Delete attachment?",
+      "attachments_delete_description": "Remove “{{filename}}” from this task. This cannot be undone.",
       "revision_conflict": "Someone else updated this task. Reloaded the latest version."
     }
   },
