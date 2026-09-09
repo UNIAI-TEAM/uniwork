@@ -1,6 +1,7 @@
 import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import { setGuestSession } from "@uniwork/core/api/guest-session";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
+import type { PreJoinChoice } from "./meeting-prejoin";
 
 export function inviteStorageKey(linkId: string, suffix: string): string {
   return `uw.meeting-invite.${linkId}.${suffix}`;
@@ -55,6 +56,37 @@ export function readGuestSession(linkId: string): string | undefined {
 
 export function writeInviteDisplayName(linkId: string, displayName: string): void {
   sessionStorage.setItem(inviteStorageKey(linkId, "displayName"), displayName.trim());
+}
+
+export function writeInvitePreJoinChoice(linkId: string, choice: PreJoinChoice): void {
+  sessionStorage.setItem(
+    inviteStorageKey(linkId, "preJoinChoice"),
+    JSON.stringify({
+      audio: choice.audio,
+      video: choice.video,
+      audioDeviceId: choice.audioDeviceId || undefined,
+      videoDeviceId: choice.videoDeviceId || undefined,
+    }),
+  );
+}
+
+export function readInvitePreJoinChoice(linkId: string): PreJoinChoice | undefined {
+  const raw = sessionStorage.getItem(inviteStorageKey(linkId, "preJoinChoice"));
+  if (!raw) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return undefined;
+    const o = parsed as Record<string, unknown>;
+    if (typeof o.audio !== "boolean" || typeof o.video !== "boolean") return undefined;
+    return {
+      audio: o.audio,
+      video: o.video,
+      audioDeviceId: typeof o.audioDeviceId === "string" && o.audioDeviceId ? o.audioDeviceId : undefined,
+      videoDeviceId: typeof o.videoDeviceId === "string" && o.videoDeviceId ? o.videoDeviceId : undefined,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 export function clearCachedJoinDecision(linkId: string): void {

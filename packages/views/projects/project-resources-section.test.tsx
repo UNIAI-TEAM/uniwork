@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -52,14 +52,20 @@ beforeEach(() => {
 });
 
 describe("ProjectResourcesSection", () => {
-  it("disables the GitHub add control with a capability reason", async () => {
+  it("disables the GitHub add control with the VCS catalogue reason", async () => {
     render(wrap(<ProjectResourcesSection workspaceId="w1" projectId="p1" />));
 
-    const githubAdd = await screen.findByRole("button", { name: /github/i });
+    const githubAdd = await screen.findByTestId("project-resources-add-github");
     expect(githubAdd).toHaveAttribute("aria-disabled", "true");
+    await waitFor(() => {
+      expect(githubAdd).toHaveAttribute(
+        "title",
+        expect.stringMatching(/version control|kiểm soát phiên bản|chưa kết nối/i),
+      );
+    });
     expect(githubAdd).toHaveAttribute(
-      "title",
-      expect.stringMatching(/not available|chưa khả dụng|capability/i),
+      "aria-describedby",
+      "project-resources-add-github-reason",
     );
 
     await waitFor(() => {
@@ -69,5 +75,49 @@ describe("ProjectResourcesSection", () => {
         ),
       ).toBe(true);
     });
+  });
+
+  it("disables the local-directory add control with the workdir catalogue reason", async () => {
+    render(wrap(<ProjectResourcesSection workspaceId="w1" projectId="p1" />));
+
+    const localAdd = await screen.findByTestId(
+      "project-resources-add-local-directory",
+    );
+    expect(localAdd).toHaveAttribute("aria-disabled", "true");
+    await waitFor(() => {
+      expect(localAdd).toHaveAttribute(
+        "title",
+        expect.stringMatching(/local workdir|daemon|thư mục làm việc/i),
+      );
+    });
+    expect(localAdd).toHaveAttribute(
+      "aria-describedby",
+      "project-resources-add-local-directory-reason",
+    );
+  });
+
+  it("ignores add clicks while VCS and workdir are unavailable (no mutation)", async () => {
+    render(wrap(<ProjectResourcesSection workspaceId="w1" projectId="p1" />));
+
+    const githubAdd = await screen.findByTestId("project-resources-add-github");
+    const localAdd = await screen.findByTestId(
+      "project-resources-add-local-directory",
+    );
+
+    const callsBefore = requestMock.mock.calls.length;
+    fireEvent.click(githubAdd);
+    fireEvent.click(localAdd);
+
+    expect(githubAdd).toHaveAttribute("aria-disabled", "true");
+    expect(localAdd).toHaveAttribute("aria-disabled", "true");
+    expect(requestMock.mock.calls.length).toBe(callsBefore);
+    expect(
+      requestMock.mock.calls.some(([, init]) => {
+        const method = String(
+          (init as { method?: string } | undefined)?.method ?? "GET",
+        ).toUpperCase();
+        return method !== "GET";
+      }),
+    ).toBe(false);
   });
 });

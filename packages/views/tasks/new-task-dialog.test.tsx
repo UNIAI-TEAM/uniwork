@@ -16,4 +16,15 @@ describe("NewTaskDialog", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Việc mới" })).toBeNull();
   });
+
+  it("does not mount agent trigger or squad assign chrome", () => {
+    render(
+      wrap(
+        <NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,
+      ),
+    );
+
+    expect(screen.queryByTestId("create-agent-trigger")).toBeNull();
+    expect(screen.queryByTestId("create-squad-assign")).toBeNull();
+  });
 });

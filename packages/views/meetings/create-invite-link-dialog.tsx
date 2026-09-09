@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useCreateInviteLink } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
+import { InfoHint } from "@uniwork/ui/components/common/info-hint";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -87,9 +88,18 @@ export function CreateInviteLinkDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("meetings.externalGuestLinks")}</DialogTitle>
-          <DialogDescription>{t("meetings.createInviteLinkDescription")}</DialogDescription>
-          <p className="text-caption text-muted-foreground">{t("meetings.createInviteLinkGuestHint")}</p>
+          <div className="flex items-center gap-1.5 pr-8">
+            <DialogTitle>{t("meetings.externalGuestLinks")}</DialogTitle>
+            <InfoHint label={t("meetings.createInviteLinkDescription")}>
+              <span className="block space-y-1.5">
+                <span className="block">{t("meetings.createInviteLinkDescription")}</span>
+                <span className="block">{t("meetings.createInviteLinkGuestHint")}</span>
+              </span>
+            </InfoHint>
+          </div>
+          <DialogDescription className="sr-only">
+            {t("meetings.createInviteLinkDescription")} {t("meetings.createInviteLinkGuestHint")}
+          </DialogDescription>
         </DialogHeader>
 
         {freshUrl ? (
@@ -165,7 +175,20 @@ export function CreateInviteLinkDialog({
                 <Select value={days} onValueChange={(v) => v && setDays(v)} items={expiryItems} />
               </Field>
               <Field>
-                <FieldLabel>{t("meetings.linkGuestAccess")}</FieldLabel>
+                <FieldLabel className="inline-flex items-center gap-1.5">
+                  {t("meetings.linkGuestAccess")}
+                  <InfoHint
+                    label={
+                      mode === "REQUEST_APPROVAL"
+                        ? t("meetings.linkNeedApprovalGuestHint")
+                        : t("meetings.linkAutoAdmitGuestHint")
+                    }
+                  >
+                    {mode === "REQUEST_APPROVAL"
+                      ? t("meetings.linkNeedApprovalGuestHint")
+                      : t("meetings.linkAutoAdmitGuestHint")}
+                  </InfoHint>
+                </FieldLabel>
                 <Select
                   value={mode}
                   onValueChange={(v) => v && setMode(v)}
@@ -174,11 +197,6 @@ export function CreateInviteLinkDialog({
                     { value: "REQUEST_APPROVAL", label: t("meetings.linkNeedApproval") },
                   ]}
                 />
-                <p className="text-caption text-muted-foreground">
-                  {mode === "REQUEST_APPROVAL"
-                    ? t("meetings.linkNeedApprovalGuestHint")
-                    : t("meetings.linkAutoAdmitGuestHint")}
-                </p>
               </Field>
               <Field>
                 <FieldLabel htmlFor="link-max">{t("meetings.linkMaxUses")}</FieldLabel>

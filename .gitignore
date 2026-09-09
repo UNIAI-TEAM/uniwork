@@ -45,3 +45,10 @@ server/internal/handler/data/
 
 # Impeccable critique snapshots (local design-review archive)
 .impeccable/
+
+.agents/
+.claude/
+.github/
+.codex/
+.pnpm-store/
+

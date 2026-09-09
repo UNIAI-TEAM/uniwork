@@ -5,8 +5,7 @@ import type { Task } from "@uniwork/core/types";
 import { AgentBadge } from "../../agents/agent-badge";
 
 /**
- * Suite TaskSurface list mode. Separate from MVP `../list-view.tsx`, which
- * still fetches via `useTasks` for the flag-off path.
+ * Suite TaskSurface list mode.
  */
 export function ListView({
   tasks,
@@ -53,7 +52,9 @@ export function ListView({
                   <AgentBadge className="ml-2" />
                 ) : null}
               </td>
-              <td className="py-2 text-muted-foreground">{task.due_date ?? ""}</td>
+              <td className="py-2 text-muted-foreground">
+                {task.due_date ?? ""}
+              </td>
             </tr>
           ))}
         </tbody>

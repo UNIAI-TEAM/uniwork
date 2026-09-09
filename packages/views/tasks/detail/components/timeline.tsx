@@ -20,7 +20,6 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../../../toast-api-error";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
-import { TaskDetailRuntimeStubs } from "./timeline-runtime-stubs";
 
 function commentHashId(): string | null {
   if (typeof document === "undefined") return null;
@@ -32,8 +31,9 @@ function commentHashId(): string | null {
 }
 
 /**
- * Task detail timeline: comments from the comments endpoint, activity stub
- * (GetTaskTimeline is still capability_unavailable), AgentRun/PR stubs.
+ * Task detail timeline: comments from the comments endpoint and an activity
+ * stub (GetTaskTimeline is still capability_unavailable). AgentRun/PR chrome
+ * was removed at web cutover.
  */
 export function TaskDetailTimeline({ taskId }: { taskId: string }) {
   const { t } = useTranslation();
@@ -125,8 +125,6 @@ export function TaskDetailTimeline({ taskId }: { taskId: string }) {
             : t("tasks.detail.subscribe")}
         </Button>
       </div>
-
-      <TaskDetailRuntimeStubs />
 
       <p className="mt-3 text-caption text-muted-foreground">
         {t("tasks.detail.activity_stub_reason")}

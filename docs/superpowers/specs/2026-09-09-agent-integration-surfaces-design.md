@@ -1,6 +1,6 @@
 # UniWork — Agent/integration surfaces (UNI-426 lát cắt 6)
 
-> **Trạng thái:** in-progress — thiết kế duyệt 2026-09-09; plan `../plans/2026-09-09-agent-integration-surfaces.md`
+> **Trạng thái:** shipped — thiết kế duyệt 2026-09-09; plan Tasks 1–10 shipped (stub chrome + shells + overlay); capabilities agent* vẫn Unavailable; F-05 / umbrella vẫn MỘT PHẦN. **Note (UNI-521 / lát 8 web cutover):** user-facing agent chrome (Squads/Runtimes nav, AgentRun/PR panels, surface/batch stubs) was removed at cutover; server stub routes + Unavailable capabilities remain.
 
 **Ngày:** 2026-09-09  
 **Issue:** UNI-519 (sub-issue dưới UNI-426 · lát cắt 6)  

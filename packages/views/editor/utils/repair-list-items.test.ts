@@ -48,13 +48,15 @@ describe("repairEmptyListItems (real editor)", () => {
     // listItem. That is the corruption this helper exists for, and it is still
     // there on @tiptap 3.30.6.
     expect(firstItem(ed).childCount).toBe(0);
-    // Where the caret lands did change with 3.30.6: it used to be no real text
-    // cursor at all, now there is one, but on the block after the empty item —
-    // still not somewhere you can keep typing the list. The assertions after
-    // the repair are what pin the behaviour that matters.
+    // Pre-repair caret is unusable for typing the list: either AllSelection
+    // (common again after TipTap markdown patches) or a TextSelection outside
+    // the empty item. Post-repair assertions pin the behaviour that matters.
     const before = ed.state.selection;
-    expect(before instanceof TextSelection && before.$cursor != null).toBe(true);
-    expect(before.$from.node(-1)?.type.name).not.toBe("listItem");
+    const usableListCursor =
+      before instanceof TextSelection &&
+      before.$cursor != null &&
+      before.$from.node(-1)?.type.name === "listItem";
+    expect(usableListCursor).toBe(false);
 
     repairEmptyListItems(ed);
 

@@ -861,12 +861,17 @@ flowchart TB
 
 ## 17. Chạy local LiveKit
 
+`make start` / `make dev` tự khởi động LiveKit (`scripts/ensure-livekit.sh`) và
+stream log container cùng API/Next. Không cần terminal riêng.
+
 ```bash
-# Terminal 1 — LiveKit (tách khỏi Postgres/Redis chính)
-docker compose -f docker-compose.livekit.yml up
+make start
+# hoặc chỉ LiveKit: make livekit-up
+# tắt LiveKit:     make livekit-down
+# bỏ qua Docker:   SKIP_LIVEKIT=1 make start
 ```
 
-Thêm vào `.env`:
+`.env` (mặc định local trong `.env.example`, khớp `livekit.dev.yaml`):
 
 ```env
 LIVEKIT_URL=ws://localhost:7880
@@ -885,13 +890,8 @@ LIVEKIT_TOKEN_TTL=30m
 
 Production mẫu: `livekit.production.yaml.example`.
 
-Restart API:
-
-```bash
-make start
-```
-
-Cấu hình LiveKit dev: `livekit.dev.yaml`. Port: `7880` (WS), `7881`, UDP `50000-50020`.
+Cấu hình LiveKit dev: `livekit.dev.yaml` (ensure ghi `livekit.dev.yaml.local`
+với webhook theo `PORT`). Port: `7880` (WS), `7881`, UDP `7882`.
 
 ---
 

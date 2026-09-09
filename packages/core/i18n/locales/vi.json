@@ -158,7 +158,9 @@
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính",
     "people": "Danh bạ",
-    "projects": "Dự án"
+    "projects": "Dự án",
+    "squads": "Squad",
+    "runtimes": "Runtime"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -640,7 +642,10 @@
       "column_menu": "Menu cột",
       "add_task": "Thêm task",
       "agent_chip_stub": "Agent",
-      "vcs_chip_stub": "VCS"
+      "vcs_chip_stub": "VCS",
+      "agent_trigger": "Chạy agent",
+      "squad_assign": "Gán squad",
+      "actions": "Thao tác"
     },
     "view": {
       "section": "Kiểu hiển thị",
@@ -684,6 +689,8 @@
       "priority": "Độ ưu tiên",
       "assignee": "Người nhận",
       "assignee_mixed": "Khác nhau",
+      "agent_trigger": "Chạy agent",
+      "squad_assign": "Gán squad",
       "delete": "Xóa",
       "cancel": "Hủy",
       "update_success": "Đã cập nhật {{count}} task",
@@ -843,6 +850,19 @@
       "activity_stub_reason": "Lịch sử hoạt động chưa khả dụng — bình luận vẫn hiện bên dưới.",
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
+      "agentRun": {
+        "section": "Nhật ký chạy agent",
+        "empty": "Chưa có lần chạy agent nào.",
+        "start": "Chạy agent",
+        "usage": "Mức dùng",
+        "retry": "Chạy lại",
+        "terminate": "Dừng"
+      },
+      "pullRequests": {
+        "section": "Pull requests",
+        "empty": "Chưa gắn pull request nào.",
+        "link": "Gắn pull request"
+      },
       "subscribe": "Theo dõi",
       "unsubscribe": "Bỏ theo dõi",
       "attachments_section": "Đính kèm",
@@ -957,6 +977,7 @@
     "allowJoinRequestHint": "Chỉ áp dụng thành viên workspace đã đăng nhập — không dùng cho khách bên ngoài.",
     "externalGuestLinks": "Khách bên ngoài (không cần tài khoản)",
     "externalGuestLinksDescription": "Tạo và quản lý liên kết để người chưa có tài khoản UniWork tham gia cuộc họp.",
+    "externalGuestLinksClosedDescription": "Liên kết đã dùng để khách chưa có tài khoản UniWork tham gia cuộc họp.",
     "externalGuestLinkWhere": "Khách không có tài khoản vào bằng liên kết ở mục «Khách bên ngoài» bên dưới trang chi tiết.",
     "externalGuestLinkAfterCreate": "Sau khi tạo cuộc họp, mở trang chi tiết để tạo liên kết cho khách bên ngoài.",
     "shareGuestLink": "Chia sẻ link khách",
@@ -1030,6 +1051,8 @@
     "waitingToBeAdmitted": "Đang chờ được duyệt",
     "admitAll": "Duyệt tất cả",
     "unconfirmedGuest": "Khách chưa xác nhận",
+    "unconfirmedUsers_one": "{{count}} khách chưa xác nhận",
+    "unconfirmedUsers_other": "{{count}} khách chưa xác nhận",
     "joinRequestActions": "Thao tác yêu cầu vào phòng",
     "cancelRequest": "Huỷ yêu cầu",
     "pendingCount": "{{count}} đang chờ",
@@ -1042,6 +1065,10 @@
     "endConfirmTitle": "Kết thúc cuộc họp?",
     "endConfirm": "Mọi người sẽ được yêu cầu rời phòng.",
     "confirmEnd": "Kết thúc họp",
+    "recordConfirmTitle": "Bắt đầu ghi hình?",
+    "recordConfirm": "Mọi người trong phòng sẽ được ghi hình. Chủ trì và thành viên không gian làm việc có thể xem bản ghi trên trang cuộc họp sau khi xử lý xong.",
+    "confirmStartRecording": "Bắt đầu ghi hình",
+    "recordingStarted": "Đã bắt đầu ghi hình",
     "activity": "Lịch sử thao tác",
     "activityEmpty": "Chưa có thao tác nào.",
     "activity_created": "đã tạo cuộc họp",
@@ -1074,10 +1101,18 @@
     "pastScheduledEnd": "Đã quá thời gian dự kiến",
     "pastScheduledEndShort": "Quá giờ",
     "pastScheduledEndHint": "Cuộc họp đã quá khung giờ đã lên lịch. Không thể vào phòng hoặc bắt đầu.",
-    "scheduleEnding5Min": "Cuộc họp sẽ kết thúc sau 5 phút theo lịch dự kiến.",
-    "scheduleEnding1Min": "Cuộc họp sẽ kết thúc sau 1 phút. Hãy tóm tắt nội dung còn lại.",
-    "scheduleEndingBanner": "Sắp hết giờ — còn {{time}}",
-    "scheduleEndedAutoLeave": "Đã hết giờ dự kiến. Bạn được đưa ra khỏi phòng họp.",
+    "scheduleEnding5Min": "Còn 5 phút theo lịch. Phòng vẫn mở cho đến khi chủ trì kết thúc.",
+    "scheduleEnding1Min": "Còn 1 phút theo lịch. Chủ trì có thể tiếp tục hoặc kết thúc họp.",
+    "scheduleEndingBanner": "Sắp hết giờ lịch — còn {{time}}",
+    "scheduleEndingAnnounce": "Còn một phút theo lịch. Phòng không tự đóng.",
+    "scheduleOvertimeToast": "Đã qua giờ dự kiến. Phòng vẫn mở cho đến khi chủ trì kết thúc.",
+    "scheduleOvertimeBanner": "Đang họp ngoài giờ — chủ trì kết thúc khi xong.",
+    "scheduleOvertimeAnnounce": "Đã qua giờ dự kiến. Cuộc họp vẫn tiếp tục.",
+    "extendFifteen": "Thêm 15 phút",
+    "extendedFifteen": "Đã thêm 15 phút vào lịch họp.",
+    "leaveConfirmTitle": "Rời cuộc họp?",
+    "leaveConfirm": "Bạn sẽ rời phòng. Cuộc họp vẫn tiếp tục với những người còn lại.",
+    "confirmLeave": "Rời ngay",
     "canceledCannotJoin": "Cuộc họp đã bị huỷ",
     "micOn": "Bật mic",
     "micOff": "Tắt mic",
@@ -1194,6 +1229,10 @@
     "decisions": "Quyết định",
     "actionItems": "Việc cần làm",
     "owner": "Phụ trách",
+    "assignTaskTo": "Gán cho",
+    "assignTaskUnassigned": "Chưa gán (AI gợi ý)",
+    "revokeSpeaking": "Không cho phép nói (host)",
+    "allowSpeakingAgain": "Cho phép nói lại",
     "createTasks_one": "Tạo {{count}} việc",
     "createTasks_other": "Tạo {{count}} việc",
     "tasksCreated_one": "Đã tạo {{count}} việc",
@@ -2419,7 +2458,18 @@
     "reporting": "Quan hệ báo cáo",
     "details_empty": "Chưa có thông tin nào.",
     "email_person": "Gửi email cho {{name}}",
-    "call_person": "Gọi cho {{name}}"
+    "call_person": "Gọi cho {{name}}",
+    "group_personal": "Thông tin cá nhân",
+    "group_personal_hint": "Bạn tự quản lý những mục này.",
+    "group_company": "Thông tin công ty",
+    "group_company_locked": "Chỉ chủ sở hữu hoặc quản trị tổ chức sửa được nhóm này.",
+    "bio_counter": "{{used}}/{{max}}",
+    "bio_too_long": "Giới thiệu tối đa {{max}} ký tự.",
+    "discard_title": "Bỏ các thay đổi?",
+    "discard_description": "Những gì bạn vừa sửa sẽ không được lưu.",
+    "discard_confirm": "Bỏ thay đổi",
+    "discard_keep": "Tiếp tục sửa",
+    "edit_profile_description": "Cập nhật thông tin của người này. Nhóm dưới cần quyền quản trị tổ chức."
   },
   "departments": {
     "title": "Phòng ban",
@@ -2535,6 +2585,26 @@
       "toast_remove_failed": "Không gỡ được tài nguyên",
       "toast_renamed": "Đã đổi tên",
       "toast_rename_failed": "Không đổi tên được"
+    }
+  },
+  "squads": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Squad mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Squad",
+      "new_squad": "Tạo squad",
+      "empty": "Chưa có squad",
+      "create_first": "Tạo squad đầu tiên"
+    }
+  },
+  "runtimes": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Runtime mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Runtime",
+      "new_runtime": "Tạo runtime",
+      "empty": "Chưa có runtime",
+      "create_first": "Tạo runtime đầu tiên"
     }
   },
   "editor": {

@@ -191,6 +191,7 @@ func main() {
 		ProviderKey: cfg.MeetingProvider, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 		WorkerTick: cfg.MeetingWorkerTick, OutboxBatch: cfg.MeetingOutboxBatch,
 		WebhookBatch: cfg.MeetingWebhookBatch, WebhookConcurrency: int(cfg.MeetingWebhookConcurrency),
+		STTAgentSecret: cfg.MeetingSTTAgentSecret,
 	})
 	taskSvc := service.NewTaskService(pool, q, wsSvc, store)
 	meetingSvc.Tasks = taskSvc

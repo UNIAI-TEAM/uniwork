@@ -85,7 +85,7 @@ pnpm knip || { EXIT_CODE=1; exit 1; }
 
 echo ""; echo "==> [3/6] TypeScript unit tests + repo contract tests..."
 pnpm test || { EXIT_CODE=1; exit 1; }
-node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/brand-assets.test.mjs scripts/events-catalogue.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/task-parity-manifest.test.mjs scripts/task-api-route-catalogue.test.mjs scripts/tasks-collection-brand-scan.test.mjs scripts/projects-suite-brand-scan.test.mjs scripts/task-detail-brand-scan.test.mjs scripts/agent-integration-brand-scan.test.mjs || { EXIT_CODE=1; exit 1; }
+node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/governance.test.mjs scripts/brand-assets.test.mjs scripts/events-catalogue.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/task-parity-manifest.test.mjs scripts/task-api-route-catalogue.test.mjs scripts/tasks-collection-brand-scan.test.mjs scripts/projects-suite-brand-scan.test.mjs scripts/task-detail-brand-scan.test.mjs scripts/agent-integration-brand-scan.test.mjs scripts/tasks-parity-flag-gone.test.mjs || { EXIT_CODE=1; exit 1; }
 
 echo ""; echo "==> [4/6] Go tests..."
 (cd server && go run ./cmd/migrate up) || { EXIT_CODE=1; exit 1; }

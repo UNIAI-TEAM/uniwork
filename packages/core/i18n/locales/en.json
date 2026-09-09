@@ -159,7 +159,9 @@
     "account": "Account",
     "skip_to_content": "Skip to main content",
     "people": "People",
-    "projects": "Projects"
+    "projects": "Projects",
+    "squads": "Squads",
+    "runtimes": "Runtimes"
   },
   "topbar": {
     "search": "Search…",
@@ -641,7 +643,10 @@
       "column_menu": "Column menu",
       "add_task": "Add task",
       "agent_chip_stub": "Agent",
-      "vcs_chip_stub": "VCS"
+      "vcs_chip_stub": "VCS",
+      "agent_trigger": "Run agent",
+      "squad_assign": "Assign squad",
+      "actions": "Actions"
     },
     "view": {
       "section": "View mode",
@@ -685,6 +690,8 @@
       "priority": "Priority",
       "assignee": "Assignee",
       "assignee_mixed": "Mixed",
+      "agent_trigger": "Run agent",
+      "squad_assign": "Assign squad",
       "delete": "Delete",
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
@@ -844,6 +851,19 @@
       "activity_stub_reason": "Activity history is not available yet — comments still show below.",
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",
+      "agentRun": {
+        "section": "Agent runs",
+        "empty": "No agent runs yet.",
+        "start": "Start agent run",
+        "usage": "Usage",
+        "retry": "Retry",
+        "terminate": "Terminate"
+      },
+      "pullRequests": {
+        "section": "Pull requests",
+        "empty": "No linked pull requests yet.",
+        "link": "Link pull request"
+      },
       "subscribe": "Subscribe",
       "unsubscribe": "Unsubscribe",
       "attachments_section": "Attachments",
@@ -958,6 +978,7 @@
     "allowJoinRequestHint": "Signed-in workspace members only — not for external guests.",
     "externalGuestLinks": "External guests (no account)",
     "externalGuestLinksDescription": "Create and manage links so people without a UniWork account can join.",
+    "externalGuestLinksClosedDescription": "Links that were used so people without a UniWork account could join.",
     "externalGuestLinkWhere": "Guests without an account join via a link under External guests on this meeting page.",
     "externalGuestLinkAfterCreate": "After creating the meeting, open its detail page to add a link for external guests.",
     "shareGuestLink": "Share guest link",
@@ -1031,6 +1052,8 @@
     "waitingToBeAdmitted": "Waiting to be admitted",
     "admitAll": "Admit all",
     "unconfirmedGuest": "Unconfirmed guest",
+    "unconfirmedUsers_one": "{{count}} unconfirmed user",
+    "unconfirmedUsers_other": "{{count}} unconfirmed users",
     "joinRequestActions": "Join request actions",
     "cancelRequest": "Cancel request",
     "pendingCount": "{{count}} waiting",
@@ -1043,6 +1066,10 @@
     "endConfirmTitle": "End this meeting?",
     "endConfirm": "Everyone will be asked to leave the room.",
     "confirmEnd": "End meeting",
+    "recordConfirmTitle": "Start recording?",
+    "recordConfirm": "Everyone in the room will be recorded. Hosts and workspace members can play the recording from the meeting page after it is processed.",
+    "confirmStartRecording": "Start recording",
+    "recordingStarted": "Recording started",
     "activity": "Activity",
     "activityEmpty": "No activity yet.",
     "activity_created": "created the meeting",
@@ -1075,10 +1102,18 @@
     "pastScheduledEnd": "Past scheduled end time",
     "pastScheduledEndShort": "Over time",
     "pastScheduledEndHint": "This meeting is past its scheduled window. You cannot join or start it.",
-    "scheduleEnding5Min": "This meeting will end in 5 minutes (scheduled time).",
-    "scheduleEnding1Min": "This meeting will end in 1 minute. Wrap up remaining topics.",
-    "scheduleEndingBanner": "Ending soon — {{time}} left",
-    "scheduleEndedAutoLeave": "Scheduled time is over. You have left the meeting room.",
+    "scheduleEnding5Min": "Five minutes left on the calendar. The room stays open until the host ends it.",
+    "scheduleEnding1Min": "One minute left on the calendar. The host can keep going or end the meeting.",
+    "scheduleEndingBanner": "Calendar time ending — {{time}} left",
+    "scheduleEndingAnnounce": "One minute left on the calendar. The room will not close by itself.",
+    "scheduleOvertimeToast": "Scheduled time is over. The room stays open until the host ends it.",
+    "scheduleOvertimeBanner": "Overtime — the host ends the meeting when you are done.",
+    "scheduleOvertimeAnnounce": "Past scheduled time. The meeting continues.",
+    "extendFifteen": "Add 15 minutes",
+    "extendedFifteen": "Added 15 minutes to the meeting calendar.",
+    "leaveConfirmTitle": "Leave this meeting?",
+    "leaveConfirm": "You will leave the room. Everyone else stays in the meeting.",
+    "confirmLeave": "Leave now",
     "canceledCannotJoin": "This meeting was canceled",
     "micOn": "Turn mic on",
     "micOff": "Turn mic off",
@@ -1195,6 +1230,10 @@
     "decisions": "Decisions",
     "actionItems": "Action items",
     "owner": "Owner",
+    "assignTaskTo": "Assign to",
+    "assignTaskUnassigned": "Unassigned (AI suggestion)",
+    "revokeSpeaking": "Revoke speaking (host)",
+    "allowSpeakingAgain": "Allow speaking again",
     "createTasks_one": "Create {{count}} task",
     "createTasks_other": "Create {{count}} tasks",
     "tasksCreated_one": "Created {{count}} task",
@@ -2424,7 +2463,18 @@
     "reporting": "Reporting",
     "details_empty": "Nothing recorded yet.",
     "email_person": "Email {{name}}",
-    "call_person": "Call {{name}}"
+    "call_person": "Call {{name}}",
+    "group_personal": "Personal details",
+    "group_personal_hint": "You manage these yourself.",
+    "group_company": "Company details",
+    "group_company_locked": "Only an organization owner or admin can edit this group.",
+    "bio_counter": "{{used}}/{{max}}",
+    "bio_too_long": "Bio is at most {{max}} characters.",
+    "discard_title": "Discard your changes?",
+    "discard_description": "What you just edited will not be saved.",
+    "discard_confirm": "Discard changes",
+    "discard_keep": "Keep editing",
+    "edit_profile_description": "Update this person's details. The lower group needs organization admin rights."
   },
   "departments": {
     "title": "Departments",
@@ -2540,6 +2590,26 @@
       "toast_remove_failed": "Failed to remove resource",
       "toast_renamed": "Renamed",
       "toast_rename_failed": "Failed to rename"
+    }
+  },
+  "squads": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Squads open when work-management parity is enabled for this workspace.",
+    "page": {
+      "title": "Squads",
+      "new_squad": "New squad",
+      "empty": "No squads yet",
+      "create_first": "Create your first squad"
+    }
+  },
+  "runtimes": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Runtimes open when work-management parity is enabled for this workspace.",
+    "page": {
+      "title": "Runtimes",
+      "new_runtime": "New runtime",
+      "empty": "No runtimes yet",
+      "create_first": "Create your first runtime"
     }
   },
   "editor": {

@@ -38,6 +38,10 @@ func registerMeetings(r api, h Routes) {
 	r.Post("/meetings/{meetingID}/end", h.EndMeeting, apiOp{
 		summary: "End meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/extend", h.ExtendMeeting, apiOp{
+		summary: "Extend scheduled end while in progress", tags: []string{"meetings"},
+		sdi: sdi.ExtendMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/cancel", h.CancelMeeting, apiOp{
 		summary: "Cancel scheduled meeting", tags: []string{"meetings"},
 		sdi: sdi.CancelMeetingSDI{}, sdo: sdo.StatusSDO{}, auth: true,
@@ -68,6 +72,10 @@ func registerMeetings(r api, h Routes) {
 	})
 	r.Delete("/meetings/{meetingID}/participants/{participantID}", h.RemoveParticipant, apiOp{
 		summary: "Remove participant", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/participants/{participantID}/publish", h.SetParticipantPublish, apiOp{
+		summary: "Enable or revoke participant media publish (host)", tags: []string{"meetings"},
+		sdi: sdi.SetParticipantPublishSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/invite-links", h.ListInviteLinks, apiOp{
 		summary: "List invite links", tags: []string{"meetings"}, sdo: sdo.InviteLinkListSDO{}, auth: true,
@@ -151,6 +159,10 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
+	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/transcript/agent", h.AppendAgentTranscript, apiOp{
+		summary: "Append transcript from LiveKit Agents worker (secret header)", tags: []string{"meetings"},
+		sdi: sdi.AppendAgentTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{},
 	})
 	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
 		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},

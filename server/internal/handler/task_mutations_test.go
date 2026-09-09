@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -40,16 +39,6 @@ func suiteMutationWorld(t *testing.T) (*httptest.Server, string, string, *db.Que
 	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)
-	if _, err := q.UpsertFlagOverride(t.Context(), db.UpsertFlagOverrideParams{
-		ID: util.NewID(), FlagKey: "tasks_work_management_parity",
-		ScopeType: featureflags.ScopeGlobal, ScopeID: "", Enabled: true,
-		Note: "task-4 suite", CreatedBy: "test",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if testFlagOverrides != nil {
-		testFlagOverrides.Invalidate()
-	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 
@@ -78,43 +67,6 @@ func suiteMutationWorld(t *testing.T) (*httptest.Server, string, string, *db.Que
 	}
 	wsID := out["workspace"].(map[string]any)["id"].(string)
 	return srv, token, wsID, q
-}
-
-func TestSuiteMutationRoutes404WhenFlagOff(t *testing.T) {
-	srv := newTestServer(t)
-	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
-		"email": "suite-mut-off@example.com", "password": "password123", "display_name": "Off",
-	})
-	if res.StatusCode != 200 {
-		t.Fatalf("register: %d %v", res.StatusCode, out)
-	}
-	token := out["access_token"].(string)
-	verifyEmail(t, srv, token)
-
-	const fakeWs = "01J8X4WS0N1P2Q3R4S5T6U7V8"
-	paths := []struct {
-		method, path string
-		body         any
-	}{
-		{http.MethodPut, "/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7", map[string]any{"title": "x", "revision": 1}},
-		{http.MethodPost, "/api/v1/workspaces/" + fakeWs + "/tasks/batch-update", map[string]any{
-			"task_ids": []string{"01J8X4TASKN1P2Q3R4S5T6U7"}, "updates": map[string]any{"status": "done"},
-		}},
-		{http.MethodPost, "/api/v1/workspaces/" + fakeWs + "/tasks/batch-delete", map[string]any{
-			"task_ids": []string{"01J8X4TASKN1P2Q3R4S5T6U7"},
-		}},
-	}
-	for _, p := range paths {
-		res, body := doJSON(t, srv, p.method, p.path, token, p.body)
-		if res.StatusCode != http.StatusNotFound {
-			t.Fatalf("%s %s status = %d, want 404; body=%v", p.method, p.path, res.StatusCode, body)
-		}
-		errObj, _ := body["error"].(map[string]any)
-		if errObj["code"] != "feature_disabled" {
-			raw, _ := json.Marshal(body)
-			t.Fatalf("%s %s body = %s, want feature_disabled", p.method, p.path, raw)
-		}
-	}
 }
 
 func TestPutTaskSuiteStaleIfMatchConflict(t *testing.T) {

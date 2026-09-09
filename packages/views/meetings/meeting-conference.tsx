@@ -40,7 +40,6 @@ import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { MeetingStageHeader } from "./meeting-stage-header";
 import { MeetingRoomSidebar, type MeetingSidebarTab } from "./meeting-room-sidebar";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
-import { MeetingWaitingToJoinOverlay } from "./meeting-waiting-to-join-overlay";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
@@ -107,7 +106,6 @@ function ConferenceStage({
   const [sidebarSheetOpen, setSidebarSheetOpen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<MeetingSidebarTab>(guestMode ? "chat" : "copilot");
-  const [joinOverlayOpen, setJoinOverlayOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(false);
   const [footerReserve, setFooterReserve] = useState(96);
@@ -120,7 +118,10 @@ function ConferenceStage({
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: recordings } = useRecordings(resolvedMeetingId);
   const recording = (recordings ?? []).some((r) => r.status === "ACTIVE");
-  const captions = useLiveCaptions(resolvedMeetingId, captionsOn && !!resolvedMeetingId);
+  const captions = useLiveCaptions(
+    resolvedMeetingId,
+    captionsOn && !!resolvedMeetingId && caps?.server_stt !== true,
+  );
   const speaking = useSpeakingParticipants();
   const viewLayout = useMeetingRoomPreferencesStore((s) => s.viewLayout);
   const maxTiles = useMeetingRoomPreferencesStore((s) => s.maxTiles);
@@ -166,14 +167,6 @@ function ConferenceStage({
         )}
       >
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-rail ring-1 ring-surface-border transition-[flex-grow,width] duration-300 ease-out motion-reduce:transition-none">
-          {canHost.allowed && resolvedMeetingId ? (
-            <MeetingWaitingToJoinOverlay
-              meetingId={resolvedMeetingId}
-              onViewAll={openJoinRequests}
-              forceOpen={joinOverlayOpen}
-              onForceOpenHandled={() => setJoinOverlayOpen(false)}
-            />
-          ) : null}
           <div className="dark flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <MeetingStageHeader
             meeting={meeting}
@@ -186,14 +179,19 @@ function ConferenceStage({
             sidebarOpen={sidebarPinned}
             onToggleSidebar={compact ? undefined : () => setSidebarPinned((v) => !v)}
             onOpenSidebar={compact ? () => setSidebarSheetOpen(true) : undefined}
-            onOpenJoinOverlay={() => setJoinOverlayOpen(true)}
+            onOpenPeople={openJoinRequests}
           />
           <div
             ref={stageContentRef}
-            className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-2 sm:px-4 sm:pt-3 sm:pb-2"
+            className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-2 sm:px-4 sm:pb-2"
             data-testid="meeting-stage-content"
           >
-            <MeetingScheduleBanner endsAt={meeting?.ends_at} />
+            <MeetingScheduleBanner
+              endsAt={meeting?.ends_at}
+              canHost={canHost.allowed && !guestMode}
+              meetingId={meeting?.id ?? meetingId}
+              workspaceId={workspaceId}
+            />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
             {stage.layoutMode === "sidebar" ? (
               <div className="flex min-h-0 min-w-0 flex-1 gap-2 sm:gap-3">
@@ -337,7 +335,7 @@ function ConferenceStage({
                 canHost={canHost.allowed}
                 recordingEnabled={caps?.recording === true}
                 recording={recording}
-                captionsAvailable={captionsSupported()}
+                captionsAvailable={caps?.server_stt !== true && captionsSupported()}
                 captionsOn={captionsOn}
                 onToggleCaptions={() => setCaptionsOn((v) => !v)}
                 onOpenCopilot={() => {

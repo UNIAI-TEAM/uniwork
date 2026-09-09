@@ -33,14 +33,15 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Four modules came
+  Zustand stores, realtime sync, permissions, paths, i18n. Seven modules came
   over with the port and no host reaches them yet: `packages/core/analytics/`,
-  `packages/core/diagnostics/`, `packages/core/modals/`,
-  `packages/core/navigation/`. They import each other, not the app (the
-  shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
-  with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; inbox, labels,
-  task-views and constants left when they were wired or removed — constants
-  with UNI-505 TipTap catalog). Wire one before relying on it;
+  `packages/core/diagnostics/`,
+  `packages/core/inbox/`, `packages/core/labels/`, `packages/core/modals/`,
+  `packages/core/navigation/`, `packages/core/task-views/`. They import each
+  other, not the app (the shortcuts module left this list with F-09: ⌘J opens
+  Ask UNI; feature-flags with F-11: `GET /api/v1/config` feeds
+  `FeatureFlagsProvider`; constants with UNI-505 TipTap catalog). Wire one
+  before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
   2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
@@ -119,7 +120,7 @@ If logic would be needed by a second host, extract it now:
 
 ```bash
 make dev              # bootstrap this checkout and start everything
-make start            # app processes (migrates first); make stop leaves Postgres/Redis up
+make start            # app + local LiveKit (migrates first); make stop leaves Postgres/Redis/LiveKit up
 make check            # typecheck → lint → unit + contract tests → Go tests → E2E (E2E above GATE_LEVEL=fast)
 make check-full       # the same at strict, E2E included, whatever GATE_LEVEL says
 make gate             # current gate level and what it changes
@@ -517,7 +518,9 @@ Conventional prefixes: `feat(scope)`, `fix(scope)`, `refactor(scope)`,
 `test(scope)`, `docs`, `chore(scope)`, `ci`, `style(scope)`. Atomic, grouped by
 intent; the body carries the reason and what was deliberately left out.
 `.githooks/commit-msg` rejects anything else, and `scripts/governance.test.mjs`
-fails if that hook's list and this line stop agreeing.
+fails if that hook's list and this line stop agreeing. GitHub squash-merge of
+a UniAI PR keeps the PR title (`UNI-nnn: …`); the hook accepts that subject
+the same way it accepts Merge and Revert.
 
 ## Domain Reminders
 

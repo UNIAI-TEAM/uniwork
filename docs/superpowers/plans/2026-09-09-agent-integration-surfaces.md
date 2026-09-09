@@ -1,6 +1,6 @@
 # UNI-426.6 · Agent/integration surfaces Implementation Plan
 
-> **Trạng thái:** in-progress — UNI-519 · Task 1 done
+> **Trạng thái:** in-progress — UNI-519 · Tasks 1–10 done (slice 6 stub surfaces + parity overlay); F-05 / umbrella vẫn MỘT PHẦN
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -361,13 +361,13 @@ EOF
 // flag off: no Squads/Runtimes nav; MVP task detail without suite stubs
 ```
 
-- [ ] **Step 1: Overlay + E2E**
+- [x] **Step 1: Overlay + E2E**
 
-- [ ] **Step 2: `make check` / check-worktree PASS**
+- [x] **Step 2: `make check` / check-worktree PASS**
 
-- [ ] **Step 3: `[agent]` comment; `make issue-pr` if auth works**
+- [x] **Step 3: `[agent]` comment; `make issue-pr` if auth works**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "$(cat <<'EOF'

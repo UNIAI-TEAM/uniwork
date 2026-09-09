@@ -10,7 +10,7 @@ import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { useDepartments, usePeople } from "@uniwork/core/people";
 import { usePeopleViewStore } from "@uniwork/core/people/view-store";
 import type { PeopleFilters } from "@uniwork/core/types/people";
-import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { CollectionPageHeader, CollectionPageHeaderLinkAction, CollectionPageState } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { PeopleCards } from "./people-cards";
 import { PeopleCardsSkeleton, PeopleRowsSkeleton } from "./people-skeleton";
@@ -84,13 +84,14 @@ export function PeopleView() {
         count={totalActive}
         actions={
           canExport.allowed ? (
-            <CollectionPageHeaderAction
+            // The response is a file the browser saves, so this is a plain
+            // navigation rather than a fetch: the session cookie travels with
+            // it and the bytes never enter the client.
+            <CollectionPageHeaderLinkAction
               icon={Download}
               label={t("people.export")}
-              // The response is a file the browser saves, so this is a plain
-              // navigation rather than a fetch: the session cookie travels with
-              // it and the bytes never enter the client.
-              render={<a href={exportPeopleUrl(orgSlug, runtimeConfig().apiUrl)} download>{t("people.export")}</a>}
+              href={exportPeopleUrl(orgSlug, runtimeConfig().apiUrl)}
+              download
             />
           ) : null
         }

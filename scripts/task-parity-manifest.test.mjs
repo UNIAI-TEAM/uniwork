@@ -15,6 +15,7 @@ const slice2OverlayPath = new URL("../docs/parity/tasks-work-management.slice2-v
 const slice3OverlayPath = new URL("../docs/parity/tasks-work-management.slice3-verification.json", import.meta.url);
 const slice4OverlayPath = new URL("../docs/parity/tasks-work-management.slice4-verification.json", import.meta.url);
 const slice5OverlayPath = new URL("../docs/parity/tasks-work-management.slice5-verification.json", import.meta.url);
+const slice6OverlayPath = new URL("../docs/parity/tasks-work-management.slice6-verification.json", import.meta.url);
 const generator = fileURLToPath(new URL("./generate-task-parity-manifest.mjs", import.meta.url));
 const execFile = promisify(execFileCallback);
 const capabilityIDs = [
@@ -193,6 +194,116 @@ const slice5DetailSources = [
   "packages/views/issues/hooks/use-sticky-composer.test.tsx",
   "packages/views/issues/hooks/use-sticky-composer.ts",
 ];
+const slice6AgentSources = [
+  "apps/web/app/[workspaceSlug]/(dashboard)/runtimes/[id]/page.tsx",
+  "apps/web/app/[workspaceSlug]/(dashboard)/runtimes/[id]/runtime/[runtimeId]/page.tsx",
+  "apps/web/app/[workspaceSlug]/(dashboard)/runtimes/page.tsx",
+  "apps/web/app/[workspaceSlug]/(dashboard)/squads/[id]/page.tsx",
+  "apps/web/app/[workspaceSlug]/(dashboard)/squads/page.tsx",
+  "packages/views/issues/actions/__tests__/issue-actions-menu.test.tsx",
+  "packages/views/issues/actions/__tests__/use-issue-actions.test.tsx",
+  "packages/views/issues/actions/index.ts",
+  "packages/views/issues/actions/issue-actions-context-menu.tsx",
+  "packages/views/issues/actions/issue-actions-dropdown.tsx",
+  "packages/views/issues/actions/issue-actions-menu-items.tsx",
+  "packages/views/issues/actions/run-confirm-gate.test.ts",
+  "packages/views/issues/actions/run-confirm-gate.ts",
+  "packages/views/issues/actions/use-issue-actions.ts",
+  "packages/views/issues/blocked-trigger-copy.test.ts",
+  "packages/views/issues/blocked-trigger-copy.ts",
+  "packages/views/issues/components/comment-trigger-chips.test.tsx",
+  "packages/views/issues/components/comment-trigger-chips.tsx",
+  "packages/views/issues/components/execution-log-section.test.tsx",
+  "packages/views/issues/components/execution-log-section.tsx",
+  "packages/views/issues/components/issue-agent-activity-indicator.test.tsx",
+  "packages/views/issues/components/issue-agent-activity-indicator.tsx",
+  "packages/views/issues/components/issue-agent-header-chip.test.tsx",
+  "packages/views/issues/components/issue-agent-header-chip.tsx",
+  "packages/views/issues/components/issue-usage-dialog.test.tsx",
+  "packages/views/issues/components/issue-usage-dialog.tsx",
+  "packages/views/issues/components/pull-request-list.test.tsx",
+  "packages/views/issues/components/pull-request-list.tsx",
+  "packages/views/issues/components/quick-actions-section.test.tsx",
+  "packages/views/issues/components/quick-actions-section.tsx",
+  "packages/views/issues/components/sub-issues-agent-working-chip.test.tsx",
+  "packages/views/issues/components/sub-issues-agent-working-chip.tsx",
+  "packages/views/issues/components/task-run-labels.ts",
+  "packages/views/issues/components/terminate-task-confirm-dialog.tsx",
+  "packages/views/issues/components/workspace-agent-working-chip.test.tsx",
+  "packages/views/issues/components/workspace-agent-working-chip.tsx",
+  "packages/views/issues/hooks/use-comment-trigger-preview.test.ts",
+  "packages/views/issues/hooks/use-comment-trigger-preview.ts",
+  "packages/views/issues/hooks/use-issue-trigger-preview.ts",
+  "packages/views/issues/hooks/use-quick-action-menu.ts",
+  "packages/views/layout/app-sidebar.tsx",
+  "packages/views/locales/en/runtimes.json",
+  "packages/views/locales/en/squads.json",
+  "packages/views/projects/components/local-directory-hint.test.tsx",
+  "packages/views/projects/components/local-directory-hint.tsx",
+  "packages/views/projects/components/project-resources-section.tsx",
+  "packages/views/runtimes/components/charts/activity-heatmap.test.tsx",
+  "packages/views/runtimes/components/charts/activity-heatmap.tsx",
+  "packages/views/runtimes/components/charts/daily-cost-chart.tsx",
+  "packages/views/runtimes/components/charts/daily-errors-chart.tsx",
+  "packages/views/runtimes/components/charts/daily-tasks-chart.tsx",
+  "packages/views/runtimes/components/charts/daily-time-chart.tsx",
+  "packages/views/runtimes/components/charts/daily-tokens-chart.tsx",
+  "packages/views/runtimes/components/charts/failure-class-visuals.ts",
+  "packages/views/runtimes/components/charts/index.ts",
+  "packages/views/runtimes/components/charts/weekly-cost-chart.tsx",
+  "packages/views/runtimes/components/charts/weekly-errors-chart.tsx",
+  "packages/views/runtimes/components/charts/weekly-tasks-chart.tsx",
+  "packages/views/runtimes/components/charts/weekly-time-chart.tsx",
+  "packages/views/runtimes/components/charts/weekly-tokens-chart.tsx",
+  "packages/views/runtimes/components/cloud-runtime-dialog.tsx",
+  "packages/views/runtimes/components/compact-runtime-row.tsx",
+  "packages/views/runtimes/components/connect-remote-dialog.test.tsx",
+  "packages/views/runtimes/components/connect-remote-dialog.tsx",
+  "packages/views/runtimes/components/custom-pricing-dialog.tsx",
+  "packages/views/runtimes/components/delete-runtime-dialog.test.tsx",
+  "packages/views/runtimes/components/delete-runtime-dialog.tsx",
+  "packages/views/runtimes/components/delete-runtime-profile-dialog.tsx",
+  "packages/views/runtimes/components/index.ts",
+  "packages/views/runtimes/components/machine-cli-section.test.tsx",
+  "packages/views/runtimes/components/machine-cli-section.tsx",
+  "packages/views/runtimes/components/mika-runtime-choice.test.tsx",
+  "packages/views/runtimes/components/mika-runtime-choice.tsx",
+  "packages/views/runtimes/components/pending-runtime.test.ts",
+  "packages/views/runtimes/components/pending-runtime.ts",
+  "packages/views/runtimes/components/provider-logo.test.tsx",
+  "packages/views/runtimes/components/provider-logo.tsx",
+  "packages/views/runtimes/components/rename-machine-dialog.tsx",
+  "packages/views/runtimes/components/runtime-detail-page.tsx",
+  "packages/views/runtimes/components/runtime-detail-visibility.test.tsx",
+  "packages/views/runtimes/components/runtime-detail.tsx",
+  "packages/views/runtimes/components/runtime-docs.test.ts",
+  "packages/views/runtimes/components/runtime-docs.ts",
+  "packages/views/runtimes/components/runtime-list.test.ts",
+  "packages/views/runtimes/components/runtime-list.tsx",
+  "packages/views/runtimes/components/runtime-machines.test.ts",
+  "packages/views/runtimes/components/runtime-machines.ts",
+  "packages/views/runtimes/components/runtime-profile-catalog.test.ts",
+  "packages/views/runtimes/components/runtime-profile-catalog.ts",
+  "packages/views/runtimes/components/runtime-profiles-dialog.test.tsx",
+  "packages/views/runtimes/components/runtime-profiles-dialog.tsx",
+  "packages/views/runtimes/components/runtime-row-menu.test.tsx",
+  "packages/views/runtimes/components/runtime-settings-page.test.ts",
+  "packages/views/runtimes/components/runtime-settings-page.tsx",
+  "packages/views/runtimes/components/runtimes-page.tsx",
+  "packages/views/runtimes/components/shared.tsx",
+  "packages/views/runtimes/components/update-section.test.tsx",
+  "packages/views/runtimes/components/update-section.tsx",
+  "packages/views/runtimes/components/usage-section.test.tsx",
+  "packages/views/runtimes/components/usage-section.tsx",
+  "packages/views/runtimes/index.ts",
+  "packages/views/runtimes/utils.test.ts",
+  "packages/views/runtimes/utils.ts",
+  "packages/views/squads/components/index.ts",
+  "packages/views/squads/components/squad-detail-page.tsx",
+  "packages/views/squads/components/squad-profile-card.tsx",
+  "packages/views/squads/components/squads-page.tsx",
+  "packages/views/squads/index.ts",
+];
 const pendingKeys = [
   "disposition",
   "kind",
@@ -219,6 +330,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   const slice3Overlay = JSON.parse(await readFile(slice3OverlayPath, "utf8"));
   const slice4Overlay = JSON.parse(await readFile(slice4OverlayPath, "utf8"));
   const slice5Overlay = JSON.parse(await readFile(slice5OverlayPath, "utf8"));
+  const slice6Overlay = JSON.parse(await readFile(slice6OverlayPath, "utf8"));
   assert.equal(manifest.schema_version, 1);
   assert.equal(manifest.baseline_commit, "3d37828e9");
   assert.equal(manifest.entries.length, 1531);
@@ -252,6 +364,12 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     slice5Overlay.entries.map((entry) => entry.source_path).sort(),
     [...slice5DetailSources].sort(),
   );
+  assert.equal(slice6Overlay.schema_version, 1);
+  assert.equal(slice6Overlay.owner_issue, "UNI-519");
+  assert.deepEqual(
+    slice6Overlay.entries.map((entry) => entry.source_path).sort(),
+    [...slice6AgentSources].sort(),
+  );
 
   const sources = manifest.entries.map((entry) => entry.source_path);
   const sourceEntries = manifest.entries.filter((entry) => entry.kind !== "capability");
@@ -266,6 +384,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     ...slice3Overlay.entries.map((entry) => entry.source_path),
     ...slice4Overlay.entries.map((entry) => entry.source_path),
     ...slice5Overlay.entries.map((entry) => entry.source_path),
+    ...slice6Overlay.entries.map((entry) => entry.source_path),
   ]);
   for (const entry of [
     ...overlay.entries,
@@ -273,6 +392,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
     ...slice3Overlay.entries,
     ...slice4Overlay.entries,
     ...slice5Overlay.entries,
+    ...slice6Overlay.entries,
   ]) {
     assert.equal(entry.verification_state, "verified");
     assert.match(entry.evidence_path, /\S/);
@@ -299,7 +419,7 @@ test("Tasks parity manifest pins and classifies the complete baseline", async ()
   }
   assert.equal(
     createHash("sha256").update(JSON.stringify(manifest.entries)).digest("hex"),
-    "4c52c7a311d11d1abff715b4024cdf5f089142b0c7bbfac11cb8dcca750c2b33",
+    "95f61f0f2aba306bdfaae378828a91af0ce452db6b0819d97cef69efcee76d4a",
   );
 
   for (const route of [
@@ -498,5 +618,31 @@ test("slice-5 verification overlay marks only owned detail entries", async () =>
   assert.equal(merged[0].evidence_path, undefined);
   assert.equal(merged[1].verification_state, "verified");
   assert.equal(merged[1].evidence_path, "packages/views/editor/content-editor.tsx");
+  assert.match(merged[1].evidence_commit, /^[0-9a-f]{7,40}$/);
+});
+
+test("slice-6 verification overlay marks only owned agent-integration entries", async () => {
+  const overlay = JSON.parse(await readFile(slice6OverlayPath, "utf8"));
+  const pending = {
+    source_path: "packages/views/editor/content-editor.tsx",
+    target_path: "packages/views/editor/content-editor.tsx",
+    kind: "source",
+    disposition: "ported",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const agent = {
+    source_path: "packages/views/layout/app-sidebar.tsx",
+    target_path: "packages/views/layout/app-sidebar.tsx",
+    kind: "source",
+    disposition: "adapted",
+    verification_state: "pending",
+    owner_issue: "UNI-426",
+  };
+  const merged = applyVerificationOverlay([pending, agent], overlay);
+  assert.equal(merged[0].verification_state, "pending");
+  assert.equal(merged[0].evidence_path, undefined);
+  assert.equal(merged[1].verification_state, "verified");
+  assert.equal(merged[1].evidence_path, "packages/views/layout/app-sidebar.tsx");
   assert.match(merged[1].evidence_commit, /^[0-9a-f]{7,40}$/);
 });

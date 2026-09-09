@@ -32,4 +32,10 @@ describe("modes/ListView", () => {
     render(wrap(<ListView tasks={[sample]} />));
     expect(await screen.findByText("Suite row")).toBeInTheDocument();
   });
+
+  it("does not mount agent trigger or squad assign chrome", () => {
+    render(wrap(<ListView tasks={[sample]} />));
+    expect(screen.queryByTestId("list-agent-trigger")).toBeNull();
+    expect(screen.queryByTestId("list-squad-assign")).toBeNull();
+  });
 });

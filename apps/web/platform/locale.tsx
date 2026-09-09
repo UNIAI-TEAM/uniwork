@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@uniwork/core";
 import { useAuthStore } from "@uniwork/core/auth";
-import { createBrowserCookieLocaleAdapter, initI18n, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
+import { createBrowserCookieLocaleAdapter, type SupportedLocale } from "@uniwork/core/i18n";
+import { syncRequestLocale } from "@uniwork/core/i18n/sync-request-locale";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 
 /**
@@ -11,12 +12,18 @@ import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
  * the server (resolveRequestLocale) and is applied during render on both
  * sides, so server HTML and the first client render agree; switching later
  * (the settings page) goes through the adapter and i18n.changeLanguage.
+ *
+ * `initialDictionary` is the English resource bag when the request locale is
+ * `en` — loaded only on the server so `en.json` stays out of the shared
+ * client chunk (see sync-request-locale.ts).
  */
 export function WebLocaleProvider({
   initialLocale,
+  initialDictionary,
   children,
 }: {
   initialLocale: SupportedLocale;
+  initialDictionary?: object;
   children: ReactNode;
 }) {
   const [adapter] = useState(() => {
@@ -32,13 +39,10 @@ export function WebLocaleProvider({
     };
   });
   const [applied] = useState(() => {
-    const i18n = initI18n();
-    // Only Vietnamese ships in the initial bundle; any other locale is fetched
-    // here, one tick after the first paint. Nothing is translated on the
-    // server, so that tick cannot produce a hydration mismatch.
-    if (i18n.language !== initialLocale) void setLocale(initialLocale);
+    syncRequestLocale(initialLocale, initialDictionary);
     return initialLocale;
   });
+
   useEffect(() => {
     document.documentElement.lang = applied;
   }, [applied]);

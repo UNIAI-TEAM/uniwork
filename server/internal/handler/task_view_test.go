@@ -1,43 +1,8 @@
 package handler
 
 import (
-	"encoding/json"
-	"net/http"
 	"testing"
 )
-
-func TestSuiteViewsRoutes404WhenFlagOff(t *testing.T) {
-	srv := newTestServer(t)
-	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
-		"email": "views-flag@example.com", "password": "password123", "display_name": "Views",
-	})
-	if res.StatusCode != 200 {
-		t.Fatalf("register: %d %v", res.StatusCode, out)
-	}
-	token := out["access_token"].(string)
-	verifyEmail(t, srv, token)
-
-	const fakeWs = "01J8X4WS0N1P2Q3R4S5T6U7V8"
-	paths := []struct {
-		method, path string
-		body         any
-	}{
-		{http.MethodGet, "/api/v1/workspaces/" + fakeWs + "/task-views", nil},
-		{http.MethodGet, "/api/v1/workspaces/" + fakeWs + "/task-view-preferences", nil},
-		{http.MethodGet, "/api/v1/workspaces/" + fakeWs + "/pins", nil},
-	}
-	for _, p := range paths {
-		res, body := doJSON(t, srv, p.method, p.path, token, p.body)
-		if res.StatusCode != http.StatusNotFound {
-			t.Fatalf("%s %s status = %d, want 404; body=%v", p.method, p.path, res.StatusCode, body)
-		}
-		errObj, _ := body["error"].(map[string]any)
-		if errObj["code"] != "feature_disabled" {
-			raw, _ := json.Marshal(body)
-			t.Fatalf("%s %s body = %s, want feature_disabled", p.method, p.path, raw)
-		}
-	}
-}
 
 func TestViewsAndPreferencesHTTPRoundTrip(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)

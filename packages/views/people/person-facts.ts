@@ -35,10 +35,15 @@ export function formatTimezone(value: string, language?: string): string {
   const zone = value.trim();
   if (zone === "") return "";
   const locale = localeOf(language);
-  const offset = zoneName(locale, zone, "shortOffset");
+  const offset = normalizeShortOffset(zoneName(locale, zone, "shortOffset"));
   if (offset === "") return zone.split("/").at(-1)?.replace(/_/g, " ") ?? zone;
   const name = zoneName(locale, zone, "long");
   return name === "" || name === offset ? offset : `${offset} · ${name}`;
+}
+
+/** ICU 76+ (Node 23) prints UTC as "GMT"; earlier prints "GMT+0". */
+function normalizeShortOffset(offset: string): string {
+  return offset === "GMT" ? "GMT+0" : offset;
 }
 
 function zoneName(locale: string, timeZone: string, timeZoneName: "long" | "shortOffset"): string {

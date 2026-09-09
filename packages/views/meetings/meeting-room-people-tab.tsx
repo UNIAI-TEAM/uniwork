@@ -6,7 +6,7 @@ import type { Participant } from "livekit-client";
 import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
-import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
+import { useParticipants, useRemoveParticipant, useSetParticipantPublish } from "@uniwork/core/meetings";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -68,6 +68,7 @@ export function MeetingRoomPeopleTab({
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const { data: apiParticipants } = useParticipants(meetingId ?? "");
   const remove = useRemoveParticipant(meetingId ?? "");
+  const setPublish = useSetParticipantPublish(meetingId ?? "");
   const [search, setSearch] = useState("");
   const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -120,6 +121,29 @@ export function MeetingRoomPeopleTab({
     remove.mutate(participantId, {
       onError: (err) => toastApiError(err, t("common.error")),
     });
+  }
+
+  function participantIdFor(participant: Participant): string | null {
+    return participantMeta.get(participant.identity)?.participantId
+      ?? participantIdFromIdentity(participant.identity);
+  }
+
+  function handleRevokeSpeaking(participant: Participant) {
+    const participantId = participantIdFor(participant);
+    if (!participantId) return;
+    setPublish.mutate(
+      { participantId, enabled: false },
+      { onError: (err) => toastApiError(err, t("common.error")) },
+    );
+  }
+
+  function handleAllowSpeaking(participant: Participant) {
+    const participantId = participantIdFor(participant);
+    if (!participantId) return;
+    setPublish.mutate(
+      { participantId, enabled: true },
+      { onError: (err) => toastApiError(err, t("common.error")) },
+    );
   }
 
   return (
@@ -194,6 +218,16 @@ export function MeetingRoomPeopleTab({
                     onRemove={
                       canHost && !participant.isLocal && meetingId
                         ? () => handleRemove(participant)
+                        : undefined
+                    }
+                    onRevokeSpeaking={
+                      canHost && !participant.isLocal && meetingId
+                        ? () => handleRevokeSpeaking(participant)
+                        : undefined
+                    }
+                    onAllowSpeaking={
+                      canHost && !participant.isLocal && meetingId
+                        ? () => handleAllowSpeaking(participant)
                         : undefined
                     }
                   />

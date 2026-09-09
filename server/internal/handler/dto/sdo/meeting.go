@@ -251,4 +251,5 @@ type RecordingListSDO struct {
 type MeetingCapabilitiesSDO struct {
 	AISummary bool `json:"ai_summary"`
 	Recording bool `json:"recording"`
+	ServerSTT bool `json:"server_stt"`
 }

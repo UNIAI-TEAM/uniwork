@@ -34,8 +34,8 @@ import { useTableViewData } from "./use-table-view-data";
  * Suite TaskSurface table mode — baseline table structure (groups, rows,
  * DataTable, column picker, selection) on suite table APIs.
  *
- * Deep property editors, Projects grouping, and AgentRun chrome stay
- * visible-disabled until those capabilities ship.
+ * Deep property editors and Projects grouping stay visible-disabled until
+ * those capabilities ship. Agent chrome is not mounted after web cutover.
  */
 export function TableView({
   workspaceId,

@@ -15,6 +15,25 @@ import { BatchActionToolbar } from "./batch-action-toolbar";
 
 initI18n();
 
+const publicConfigState = vi.hoisted(() => ({
+  data: {
+    flags: {} as Record<string, boolean>,
+    rum_sample_rate: 0,
+    work_management_capabilities: {} as Record<
+      string,
+      {
+        status: "available" | "unavailable";
+        reason_code: string;
+        explanation_key: string;
+      }
+    >,
+  },
+}));
+
+vi.mock("@uniwork/core/feature-flags", () => ({
+  usePublicConfig: () => ({ data: publicConfigState.data }),
+}));
+
 const batchDelete = vi.hoisted(() =>
   vi.fn().mockResolvedValue(undefined),
 );
@@ -81,6 +100,11 @@ beforeEach(() => {
   batchDelete.mockReset();
   batchDelete.mockResolvedValue(undefined);
   clear.mockReset();
+  publicConfigState.data = {
+    flags: {},
+    rum_sample_rate: 0,
+    work_management_capabilities: {},
+  };
 });
 
 describe("BatchActionToolbar delete", () => {
@@ -141,5 +165,20 @@ describe("BatchActionToolbar delete", () => {
       "data-status",
       "in_progress",
     );
+  });
+
+  it("does not mount agent trigger or squad assign chrome", () => {
+    render(
+      wrap(
+        <TaskSurfaceActionsProvider actions={noopActions}>
+          <TaskSurfaceSelectionProvider selection={selectionStub(["t1"])}>
+            <BatchActionToolbar workspaceId="w1" tasks={[makeTask()]} />
+          </TaskSurfaceSelectionProvider>
+        </TaskSurfaceActionsProvider>,
+      ),
+    );
+
+    expect(screen.queryByTestId("batch-agent-trigger")).toBeNull();
+    expect(screen.queryByTestId("batch-squad-assign")).toBeNull();
   });
 });

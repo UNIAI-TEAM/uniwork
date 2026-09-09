@@ -4,9 +4,9 @@ import path from "node:path";
 import test from "node:test";
 
 const roots = [
-  "packages/views/squads",
-  "packages/views/runtimes",
   "packages/views/tasks/detail",
+  "packages/views/tasks/surface",
+  "packages/views/common",
 ];
 const LOCALE_FILES = [
   "packages/core/i18n/locales/en.json",
@@ -16,10 +16,22 @@ const LOCALE_FILES = [
 const LOCALE_PREFIXES = [
   "squads",
   "runtimes",
+  "nav.squads",
+  "nav.runtimes",
   "tasks.detail.agentRun",
   "tasks.detail.pullRequests",
   "tasks.detail.agent_run",
   "tasks.detail.pr_",
+  "tasks.surface.agent_trigger",
+  "tasks.surface.squad_assign",
+  "tasks.surface.agent_chip_stub",
+  "tasks.surface.vcs_chip_stub",
+  "tasks.batch.agent_trigger",
+  "tasks.batch.squad_assign",
+  "capabilities.agent_runtime_missing",
+  "capabilities.squad_directory_missing",
+  "capabilities.vcs_provider_missing",
+  "capabilities.local_daemon_missing",
 ];
 
 /** Capital brand leftovers — always fail (product + tests). */
@@ -91,13 +103,14 @@ test("slice 6 locale strings have no source brand or Issue domain", async () => 
   for (const file of LOCALE_FILES) {
     const text = await readFile(file, "utf8");
     const values = sliceLocaleValues(text);
-    if (values.length === 0) continue;
+    assert.ok(values.length > 0, `${file}: expected slice-6 locale keys`);
     for (const re of BRAND_BAD) assertNoMatch(file, values, re);
   }
 });
 
 test("agent integration suite UI has no source brand or Issue domain", async () => {
   const files = (await Promise.all(roots.map((r) => walk(r)))).flat();
+  assert.ok(files.length > 0, "expected agent integration view files");
   for (const file of files) {
     const text = await readFile(file, "utf8");
     for (const re of BRAND_BAD) assertNoMatch(file, text, re);

@@ -75,10 +75,15 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await resolveRequestLocale();
+  // English only: keep `en.json` off the shared client chunk (bundle-budget).
+  const initialDictionary =
+    locale === "en" ? (await import("@uniwork/core/i18n/locales/en.json")).default : undefined;
   return (
     <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${sourceSerif.variable}`}>
       <body className="font-sans">
-        <Providers initialLocale={locale}>{children}</Providers>
+        <Providers initialLocale={locale} initialDictionary={initialDictionary}>
+          {children}
+        </Providers>
       </body>
     </html>
   );
