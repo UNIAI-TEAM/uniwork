@@ -109,13 +109,9 @@ function ConferenceStage({
   const [page, setPage] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(false);
   const [footerReserve, setFooterReserve] = useState(96);
-  const [bannerReserve, setBannerReserve] = useState(0);
   const stageContentRef = useRef<HTMLDivElement>(null);
   const handleFooterReserveChange = useCallback((heightPx: number) => {
     setFooterReserve((prev) => (prev === heightPx ? prev : heightPx));
-  }, []);
-  const handleBannerReserveChange = useCallback((heightPx: number) => {
-    setBannerReserve((prev) => (prev === heightPx ? prev : heightPx));
   }, []);
   const resolvedMeetingId = meetingId ?? meeting?.id ?? "";
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
@@ -195,13 +191,6 @@ function ConferenceStage({
               canHost={canHost.allowed && !guestMode}
               meetingId={meeting?.id ?? meetingId}
               workspaceId={workspaceId}
-              onHeightChange={handleBannerReserveChange}
-            />
-            <div
-              aria-hidden
-              className="shrink-0 motion-safe:transition-[height] motion-safe:duration-[280ms] motion-safe:ease-out motion-reduce:transition-none"
-              style={{ height: bannerReserve }}
-              data-testid="meeting-stage-banner-spacer"
             />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
             {stage.layoutMode === "sidebar" ? (

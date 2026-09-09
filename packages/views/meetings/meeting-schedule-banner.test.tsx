@@ -39,27 +39,23 @@ describe("MeetingScheduleBanner", () => {
     vi.useRealTimers();
   });
 
-  it("reserves stage height while visible and releases it when it hides", () => {
+  it("sits in document flow so tiles shrink instead of being overlapped", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-03T09:59:30.000Z"));
-    const onHeightChange = vi.fn();
-    render(
-      <MeetingScheduleBanner
-        endsAt="2026-09-03T10:00:00.000Z"
-        onHeightChange={onHeightChange}
-      />,
+    const { rerender } = render(
+      <MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />,
     );
-    expect(onHeightChange.mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
+    const banner = screen.getByTestId("meeting-schedule-banner");
+    expect(banner.className).not.toMatch(/\babsolute\b/);
+    expect(screen.getByTestId("meeting-schedule-banner-slot")).toBeInTheDocument();
 
-    onHeightChange.mockClear();
     vi.setSystemTime(new Date("2026-09-03T09:00:00.000Z"));
-    render(
-      <MeetingScheduleBanner
-        endsAt="2026-09-03T10:00:00.000Z"
-        onHeightChange={onHeightChange}
-      />,
+    rerender(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
+    expect(screen.getByTestId("meeting-schedule-banner-slot")).not.toHaveAttribute(
+      "data-expanded",
     );
-    expect(onHeightChange).toHaveBeenCalledWith(0);
+    vi.advanceTimersByTime(280);
+    expect(screen.queryByTestId("meeting-schedule-banner-slot")).not.toBeInTheDocument();
     vi.useRealTimers();
   });
 

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,8 +13,6 @@ import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 import { formatRemaining } from "./meeting-datetime";
 
-/** Height the stage keeps clear below the banner, so a tile never touches it. */
-const BANNER_GAP_PX = 8;
 const BANNER_ANIM_MS = 280;
 
 /** In-room banner: last minute of the scheduled window, then overtime until the host ends. */
@@ -23,20 +21,22 @@ export function MeetingScheduleBanner({
   canHost = false,
   meetingId,
   workspaceId,
-  onHeightChange,
 }: {
   endsAt?: string;
   canHost?: boolean;
   meetingId?: string;
   workspaceId?: string;
-  /** Reserve the banner needs at the top of the stage; 0 while it is hidden. */
-  onHeightChange?: (heightPx: number) => void;
 }) {
   const { t } = useTranslation();
   const [now, setNow] = useState(() => Date.now());
-  const [entered, setEntered] = useState(false);
-  const bannerRef = useRef<HTMLDivElement>(null);
   const extend = useExtendMeeting(workspaceId ?? "");
+
+  const ms = endsAt ? msUntilScheduledEnd(endsAt, now) : null;
+  const overtime = ms != null && ms <= 0;
+  const lastMinute = ms != null && ms > 0 && ms <= SCHEDULE_WARN_1_MIN_MS;
+  const shouldShow = Boolean(endsAt) && (overtime || lastMinute);
+  const [rendered, setRendered] = useState(shouldShow);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!endsAt) return;
@@ -44,42 +44,36 @@ export function MeetingScheduleBanner({
     return () => window.clearInterval(id);
   }, [endsAt]);
 
-  const ms = endsAt ? msUntilScheduledEnd(endsAt, now) : null;
-  const overtime = ms != null && ms <= 0;
-  const lastMinute = ms != null && ms > 0 && ms <= SCHEDULE_WARN_1_MIN_MS;
-  const visible = overtime || lastMinute;
-
-  // The banner is an overlay, so the stage cannot shrink on its own: report the
-  // room it takes and let the caller animate the tiles out from under it.
+  // Keep the slot mounted through the collapse so the tile grid can animate
+  // its height instead of jumping when the banner unmounts.
   useEffect(() => {
-    if (!onHeightChange) return;
-    if (!visible) {
-      onHeightChange(0);
+    if (shouldShow) {
+      setRendered(true);
       return;
     }
-    const el = bannerRef.current;
-    if (!el) return;
-    const report = () => onHeightChange(el.getBoundingClientRect().height + BANNER_GAP_PX);
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(el);
+    setExpanded(false);
+    if (!rendered) return;
+    const id = window.setTimeout(() => setRendered(false), BANNER_ANIM_MS);
+    return () => window.clearTimeout(id);
+  }, [shouldShow, rendered]);
+
+  useEffect(() => {
+    if (!shouldShow || !rendered) {
+      setExpanded(false);
+      return;
+    }
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setExpanded(true));
+    });
     return () => {
-      observer.disconnect();
-      onHeightChange(0);
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
     };
-  }, [visible, onHeightChange]);
+  }, [shouldShow, rendered]);
 
-  // Slide in over the same duration the tiles take to make room.
-  useEffect(() => {
-    if (!visible) {
-      setEntered(false);
-      return;
-    }
-    const frame = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(frame);
-  }, [visible]);
+  if (!rendered || !endsAt) return null;
 
-  if (!visible || !endsAt) return null;
   const remaining = formatRemaining(endsAt, now);
   const showExtend = overtime && canHost && Boolean(meetingId && workspaceId);
 
@@ -92,42 +86,50 @@ export function MeetingScheduleBanner({
   };
 
   return (
-    <>
-      <div
-        ref={bannerRef}
-        className={cn(
-          "absolute inset-x-0 top-0 z-20 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium shadow-sm",
-          "motion-safe:transition-[transform,opacity] motion-safe:ease-out motion-reduce:transition-none",
-          entered ? "translate-y-0 opacity-100" : "motion-safe:-translate-y-1 motion-safe:opacity-0",
-          overtime
-            ? "border border-warning/40 bg-warning/95 text-background"
-            : "pointer-events-none border border-destructive/40 bg-destructive/95 text-destructive-foreground",
-        )}
-        style={{ transitionDuration: `${BANNER_ANIM_MS}ms` }}
-        data-testid="meeting-schedule-banner"
-      >
-        <Clock aria-hidden className="size-4 shrink-0" />
-        <span>
-          {overtime
-            ? t("meetings.scheduleOvertimeBanner")
-            : t("meetings.scheduleEndingBanner", { time: remaining ?? "00:00:00" })}
-        </span>
-        {showExtend ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 border-background/40 bg-background/10 text-background hover:bg-background/20"
-            disabled={extend.isPending}
-            onClick={extendWindow}
-          >
-            {t("meetings.extendFifteen")}
-          </Button>
-        ) : null}
+    <div
+      className={cn(
+        "grid shrink-0 motion-safe:transition-[grid-template-rows] motion-safe:ease-out motion-reduce:transition-none",
+        expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      )}
+      style={{ transitionDuration: `${BANNER_ANIM_MS}ms` }}
+      data-testid="meeting-schedule-banner-slot"
+      data-expanded={expanded ? "true" : undefined}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div
+          className={cn(
+            "mb-2 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium",
+            overtime
+              ? "border border-warning/40 bg-warning/95 text-background"
+              : "pointer-events-none border border-destructive/40 bg-destructive/95 text-destructive-foreground",
+          )}
+          data-testid="meeting-schedule-banner"
+        >
+          <Clock aria-hidden className="size-4 shrink-0" />
+          <span>
+            {overtime
+              ? t("meetings.scheduleOvertimeBanner")
+              : t("meetings.scheduleEndingBanner", { time: remaining ?? "00:00:00" })}
+          </span>
+          {showExtend ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 border-background/40 bg-background/10 text-background hover:bg-background/20"
+              disabled={extend.isPending}
+              onClick={extendWindow}
+            >
+              {t("meetings.extendFifteen")}
+            </Button>
+          ) : null}
+        </div>
       </div>
-      <p role="status" className="sr-only">
-        {overtime ? t("meetings.scheduleOvertimeAnnounce") : t("meetings.scheduleEndingAnnounce")}
-      </p>
-    </>
+      {shouldShow ? (
+        <p role="status" className="sr-only">
+          {overtime ? t("meetings.scheduleOvertimeAnnounce") : t("meetings.scheduleEndingAnnounce")}
+        </p>
+      ) : null}
+    </div>
   );
 }
