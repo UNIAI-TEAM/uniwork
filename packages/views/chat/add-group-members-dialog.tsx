@@ -33,6 +33,7 @@ export function AddGroupMembersDialog({
   contacts,
   inviting = false,
   onInvite,
+  variant = "group",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -42,11 +43,14 @@ export function AddGroupMembersDialog({
   contacts: ChatContact[];
   inviting?: boolean;
   onInvite: (members: ChatContact[]) => void;
+  /** Channel reuses the same invite API/dialog copy with channel-specific strings. */
+  variant?: "group" | "channel";
 }) {
   const { t } = useTranslation();
   const [memberQuery, setMemberQuery] = useState("");
   const [searchActive, setSearchActive] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
+  const isChannel = variant === "channel";
 
   const normalized = memberQuery.trim().toLowerCase();
   const lookup = useLookupChatUser(
@@ -92,9 +96,13 @@ export function AddGroupMembersDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="gap-0 p-0 sm:max-w-md" showCloseButton>
         <DialogHeader className="border-b border-border px-4 py-4">
-          <DialogTitle>{t("chat.add_group_members_title")}</DialogTitle>
+          <DialogTitle>
+            {isChannel ? t("chat.channel.add_members_title") : t("chat.add_group_members_title")}
+          </DialogTitle>
           <DialogDescription>
-            {t("chat.add_group_members_description", { name: group.name })}
+            {isChannel
+              ? t("chat.channel.add_members_description", { name: group.name })
+              : t("chat.add_group_members_description", { name: group.name })}
           </DialogDescription>
         </DialogHeader>
 
@@ -145,10 +153,12 @@ export function AddGroupMembersDialog({
                   <p className="truncate text-caption text-muted-foreground">{lookup.data.email}</p>
                 </div>
                 {existingMemberIds.has(lookup.data.user_id) ? (
-                  <span className="text-caption text-muted-foreground">{t("chat.already_in_group")}</span>
+                  <span className="text-caption text-muted-foreground">
+                    {isChannel ? t("chat.channel.already_member") : t("chat.already_in_group")}
+                  </span>
                 ) : (
                   <Button type="button" size="sm" onClick={addFromSearch}>
-                    {t("chat.add_to_group")}
+                    {isChannel ? t("chat.channel.add_to_channel") : t("chat.add_to_group")}
                   </Button>
                 )}
               </div>
@@ -224,7 +234,11 @@ export function AddGroupMembersDialog({
             disabled={pendingMembers.length === 0 || inviting}
             onClick={() => onInvite(pendingMembers)}
           >
-            {inviting ? t("chat.inviting_members") : t("chat.invite_members")}
+            {inviting
+              ? t("chat.inviting_members")
+              : isChannel
+                ? t("chat.channel.invite_members")
+                : t("chat.invite_members")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -29,6 +29,8 @@ type TaskService struct {
 	q       *db.Queries
 	ws      *WorkspaceService
 	storage storage.Storage
+	// Chat is optional; when set, CreateProject can provision a linked channel.
+	Chat *ChatService
 }
 
 func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, store storage.Storage) *TaskService {

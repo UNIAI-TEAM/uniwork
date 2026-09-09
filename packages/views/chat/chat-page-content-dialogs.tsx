@@ -1,6 +1,7 @@
 "use client";
 
 import { AddGroupMembersDialog } from "./add-group-members-dialog";
+import { ChannelSettingsSheet } from "./channel-settings-sheet";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
@@ -17,6 +18,7 @@ type ChatPageContentDialogsProps = Pick<
   | "contacts"
   | "activeContact"
   | "activeGroup"
+  | "activeChannel"
   | "currentUserId"
   | "workspaceRoomId"
   | "nicknamesByUserId"
@@ -25,6 +27,10 @@ type ChatPageContentDialogsProps = Pick<
   | "onGroupSettingsOpenChange"
   | "dmSettingsOpen"
   | "onDmSettingsOpenChange"
+  | "channelSettingsOpen"
+  | "onChannelSettingsOpenChange"
+  | "workHubEnabled"
+  | "setTarget"
   | "dmBlockedByMe"
   | "dmBlockedMe"
   | "onBlockContact"
@@ -38,6 +44,7 @@ type ChatPageContentDialogsProps = Pick<
   | "leavingConversation"
   | "onLeaveGroup"
   | "onLeaveDm"
+  | "onLeaveChannel"
   | "workspaceMembers"
   | "workspaceSettingsOpen"
   | "onWorkspaceSettingsOpenChange"
@@ -60,6 +67,7 @@ export function ChatPageContentDialogs({
   contacts,
   activeContact,
   activeGroup,
+  activeChannel,
   currentUserId,
   workspaceRoomId,
   nicknamesByUserId,
@@ -68,6 +76,10 @@ export function ChatPageContentDialogs({
   onGroupSettingsOpenChange,
   dmSettingsOpen,
   onDmSettingsOpenChange,
+  channelSettingsOpen,
+  onChannelSettingsOpenChange,
+  workHubEnabled,
+  setTarget,
   dmBlockedByMe,
   dmBlockedMe,
   onBlockContact,
@@ -81,6 +93,7 @@ export function ChatPageContentDialogs({
   leavingConversation,
   onLeaveGroup,
   onLeaveDm,
+  onLeaveChannel,
   workspaceMembers,
   workspaceSettingsOpen,
   onWorkspaceSettingsOpenChange,
@@ -183,6 +196,43 @@ export function ChatPageContentDialogs({
           blocking={blockingContact}
           unblocking={unblockingContact}
         />
+      ) : null}
+      {workHubEnabled && activeChannel ? (
+        <>
+          <ChannelSettingsSheet
+            open={channelSettingsOpen}
+            onOpenChange={onChannelSettingsOpenChange}
+            workspaceId={workspaceId}
+            channel={activeChannel}
+            currentUserId={currentUserId}
+            youLabel={t("chat.you")}
+            onArchived={() => setTarget({ kind: "workspace" })}
+            onAddMembers={
+              activeChannel.is_default ? undefined : () => onAddMembersOpenChange(true)
+            }
+            onLeave={activeChannel.is_default ? undefined : onLeaveChannel}
+            leaving={leavingConversation}
+            leaveDisabled={!activeRoomId}
+          />
+          {!activeChannel.is_default ? (
+            <AddGroupMembersDialog
+              open={addMembersOpen}
+              onOpenChange={onAddMembersOpenChange}
+              workspaceId={workspaceId}
+              group={{
+                id: activeChannel.id,
+                name: activeChannel.name,
+                room_id: activeChannel.id,
+                member_user_ids: activeChannel.member_user_ids,
+              }}
+              currentUserId={currentUserId}
+              contacts={contacts}
+              inviting={invitingMembers}
+              onInvite={onAddGroupMembers}
+              variant="channel"
+            />
+          ) : null}
+        </>
       ) : null}
     </>
   );

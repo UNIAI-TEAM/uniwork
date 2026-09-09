@@ -101,6 +101,7 @@ export function useLeaveChatRoom(workspaceId: string) {
     mutationFn: (roomId: string) => chat.leaveChatRoom(workspaceId, roomId),
     onSuccess: (_data, roomId) => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      void qc.invalidateQueries({ queryKey: ["chat", "channels", workspaceId] });
       void qc.removeQueries({ queryKey: chatKeys.roomMessages(workspaceId, roomId) });
     },
   });

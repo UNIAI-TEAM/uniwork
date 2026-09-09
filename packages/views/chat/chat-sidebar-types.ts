@@ -1,11 +1,13 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 
 export type ChatSidebarTarget =
   | { kind: "workspace" }
   | { kind: "dm"; contact: ChatContact }
-  | { kind: "group"; group: GroupChat };
+  | { kind: "group"; group: GroupChat }
+  | { kind: "channel"; channel: ChatRoomRecord };
 
 export interface ChatSidebarProps {
   currentUserId: string;
@@ -14,6 +16,8 @@ export interface ChatSidebarProps {
   onTargetChange: (target: ChatSidebarTarget) => void;
   contacts: ChatContact[];
   groups: GroupChat[];
+  channels?: ChatRoomRecord[];
+  workHubEnabled?: boolean;
   onCreateGroup?: (members: ChatContact[], name: string) => void;
   creatingGroup?: boolean;
   createGroupOpen?: boolean;

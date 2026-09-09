@@ -132,7 +132,7 @@ export type ChatRoomMemberPermissions = z.infer<typeof ChatRoomMemberPermissions
 
 export const ChatRoomSchema = z.object({
   id: z.string(),
-  kind: z.enum(["workspace", "dm", "group"]),
+  kind: z.enum(["workspace", "dm", "group", "channel"]),
   name: z.string(),
   workspace_id: z.string(),
   // Go encodes nil slices as JSON null; treat null like [] so one bad field does not drop the whole list.
@@ -151,6 +151,10 @@ export const ChatRoomSchema = z.object({
   last_message_sender_name: z.string().optional(),
   last_message_at: z.string().optional(),
   member_permissions: ChatRoomMemberPermissionsSchema.optional(),
+  visibility: z.string().optional(),
+  project_id: z.string().optional(),
+  topic: z.string().optional(),
+  is_default: z.boolean().optional(),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 

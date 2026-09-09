@@ -47,7 +47,7 @@ func (s *ChatService) resolveMentionRecipients(
 	room db.ChatRoom,
 	body string,
 ) ([]string, error) {
-	if room.Kind != chatRoomKindWorkspace && room.Kind != chatRoomKindGroup {
+	if room.Kind != chatRoomKindWorkspace && room.Kind != chatRoomKindChannel && room.Kind != chatRoomKindGroup {
 		return nil, nil
 	}
 	memberIDs, mentionsAll := parseMentionUserIDsFromBody(body)

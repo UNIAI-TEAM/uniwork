@@ -4,16 +4,17 @@ import "encoding/json"
 
 // CreateProjectSDI is POST .../projects.
 type CreateProjectSDI struct {
-	Title       string                          `json:"title" minLength:"1" example:"Q3 launch"`
-	Description *string                         `json:"description"`
-	Icon        *string                         `json:"icon"`
-	Status      string                          `json:"status" description:"planned|in_progress|paused|completed|cancelled" example:"planned"`
-	Priority    string                          `json:"priority" description:"urgent|high|medium|low|none" example:"none"`
-	LeadType    *string                         `json:"lead_type" description:"member|agent"`
-	LeadID      *string                         `json:"lead_id"`
-	StartDate   *string                         `json:"start_date" example:"2026-09-01"`
-	DueDate     *string                         `json:"due_date" example:"2026-09-30"`
-	Resources   []CreateProjectResourceEmbedSDI `json:"resources"`
+	Title         string                          `json:"title" minLength:"1" example:"Q3 launch"`
+	Description   *string                         `json:"description"`
+	Icon          *string                         `json:"icon"`
+	Status        string                          `json:"status" description:"planned|in_progress|paused|completed|cancelled" example:"planned"`
+	Priority      string                          `json:"priority" description:"urgent|high|medium|low|none" example:"none"`
+	LeadType      *string                         `json:"lead_type" description:"member|agent"`
+	LeadID        *string                         `json:"lead_id"`
+	StartDate     *string                         `json:"start_date" example:"2026-09-01"`
+	DueDate       *string                         `json:"due_date" example:"2026-09-30"`
+	Resources     []CreateProjectResourceEmbedSDI `json:"resources"`
+	CreateChannel bool                            `json:"create_channel,omitempty" description:"When true, create a public chat channel linked to the project" example:"false"`
 }
 
 // CreateProjectResourceEmbedSDI is an optional resource on project create.

@@ -197,6 +197,13 @@ type ChatRoom struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	OrganizationID    pgtype.Text        `json:"organization_id"`
 	MemberPermissions []byte             `json:"member_permissions"`
+	Visibility        string             `json:"visibility"`
+	ProjectID         pgtype.Text        `json:"project_id"`
+	Topic             string             `json:"topic"`
+	IsDefault         bool               `json:"is_default"`
+	CreatedByKind     string             `json:"created_by_kind"`
+	ArchivedAt        pgtype.Timestamptz `json:"archived_at"`
+	ArchivedBy        pgtype.Text        `json:"archived_by"`
 }
 
 type ChatRoomMember struct {

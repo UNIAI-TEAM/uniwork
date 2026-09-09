@@ -72,13 +72,13 @@ export function serializeComposerDraftToMessageBody(
 }
 
 export function buildChatMentionCandidates(
-  targetKind: "workspace" | "group" | "dm",
+  targetKind: "workspace" | "group" | "dm" | "channel",
   currentUserId: string,
   workspaceMembers: Array<{ user_id: string; email: string; display_name: string }>,
   groupMemberProfiles: Record<string, { user_id: string; display_name: string; email: string }>,
   memberLabel: (member: { user_id: string; email: string; display_name: string }) => string,
 ): ChatMentionCandidate[] {
-  if (targetKind === "workspace") {
+  if (targetKind === "workspace" || targetKind === "channel") {
     return workspaceMembers
       .filter((member) => member.user_id !== currentUserId)
       .map((member) => ({
