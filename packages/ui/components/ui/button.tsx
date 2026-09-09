@@ -2,6 +2,7 @@
 
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import type { ComponentProps } from "react"
 
 import { cn } from "@uniwork/ui/lib/utils"
 
@@ -101,4 +102,32 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+// A link that looks like a button. Deliberately not `<Button render={<a/>}>`:
+// Base UI's button asserts on the element it lands on, and both answers are
+// wrong for a real anchor. Left at `nativeButton` (the default) it errors —
+// "expected a native <button>" — and stamps `type="button"`, which on an `<a>`
+// is a MIME hint, not a behaviour. Set to `nativeButton={false}` it stops
+// erroring but stamps `role="button"` over the anchor, which is what tells a
+// screen reader the thing navigates. The styling is all these call sites ever
+// wanted, so take `buttonVariants` and leave the anchor an anchor.
+function ButtonLink({
+  className,
+  variant = "default",
+  size = "default",
+  children,
+  ...props
+}: ComponentProps<"a"> & VariantProps<typeof buttonVariants>) {
+  // `children` is destructured rather than spread so jsx-a11y can see the
+  // anchor has content; through `{...props}` the rule reads it as empty.
+  return (
+    <a
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    >
+      {children}
+    </a>
+  )
+}
+
+export { Button, ButtonLink, buttonVariants }

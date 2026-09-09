@@ -2350,7 +2350,18 @@
     "reporting": "Reporting",
     "details_empty": "Nothing recorded yet.",
     "email_person": "Email {{name}}",
-    "call_person": "Call {{name}}"
+    "call_person": "Call {{name}}",
+    "group_personal": "Personal details",
+    "group_personal_hint": "You manage these yourself.",
+    "group_company": "Company details",
+    "group_company_locked": "Only an organization owner or admin can edit this group.",
+    "bio_counter": "{{used}}/{{max}}",
+    "bio_too_long": "Bio is at most {{max}} characters.",
+    "discard_title": "Discard your changes?",
+    "discard_description": "What you just edited will not be saved.",
+    "discard_confirm": "Discard changes",
+    "discard_keep": "Keep editing",
+    "edit_profile_description": "Update this person's details. The lower group needs organization admin rights."
   },
   "departments": {
     "title": "Departments",

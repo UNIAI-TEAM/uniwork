@@ -8,9 +8,8 @@ import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { usePerson } from "@uniwork/core/people";
 import type { Actor, Person } from "@uniwork/core/types/people";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
-import { CollectionPageState } from "../layout/collection-page";
+import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { PanelCard } from "../common/panel-card";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
@@ -20,12 +19,13 @@ import { PersonDetailSkeleton } from "./person-detail-skeleton";
 import { formatJoinedOn, formatTimezone } from "./person-facts";
 
 /**
- * Nobody sees the edit form until they ask for it, and it drags a date picker,
- * a department tree and a toast channel in with it. Split out so the first
- * load of a profile does not carry the cost of editing one.
+ * Nobody sees the edit dialog until they ask for it, and it drags a date
+ * picker, a department tree and a toast channel in with it. Split out, and
+ * mounted only once asked for, so the first load of a profile does not carry
+ * the cost of editing one.
  */
-const ProfileForm = lazy(() =>
-  import("./profile-form").then((m) => ({ default: m.ProfileForm })),
+const ProfileEditDialog = lazy(() =>
+  import("./profile-edit-dialog").then((m) => ({ default: m.ProfileEditDialog })),
 );
 
 /** One label/value pair of the fact list. */
@@ -140,90 +140,92 @@ export function PersonDetailView({ userId }: { userId: string }) {
     <div className="flex min-h-0 flex-1 flex-col">
       {header(
         person.display_name,
-        canEdit.allowed && !editing ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
-            <Pencil aria-hidden="true" className="size-3.5" />
-            {t("people.edit_profile")}
-          </Button>
+        canEdit.allowed ? (
+          <CollectionPageHeaderAction
+            icon={Pencil}
+            label={t("people.edit_profile")}
+            onClick={() => setEditing(true)}
+          />
         ) : null,
       )}
+      {/* Mounted only once asked for, so the lazy chunk above is fetched on the
+          first edit rather than on every profile view. */}
+      {editing ? (
+        <Suspense fallback={null}>
+          <ProfileEditDialog orgSlug={orgSlug} person={person} open onOpenChange={setEditing} />
+        </Suspense>
+      ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
           <PersonDetailHero person={person} />
 
-          {editing ? (
-            <Suspense fallback={<div className="h-96" aria-hidden="true" />}>
-              <ProfileForm orgSlug={orgSlug} person={person} onDone={() => setEditing(false)} />
-            </Suspense>
-          ) : (
-            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-              <PanelCard id="person-details" icon={IdCard} title={t("people.details")}>
-                {facts.length === 0 ? (
-                  <p className="text-body text-muted-foreground">{t("people.details_empty")}</p>
-                ) : (
-                  <dl className="-my-2.5 divide-y divide-border">
-                    {facts.map(([label, value]) => (
-                      <Fact key={label} label={label}>
-                        {value}
-                      </Fact>
-                    ))}
-                  </dl>
-                )}
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+            <PanelCard id="person-details" icon={IdCard} title={t("people.details")}>
+              {facts.length === 0 ? (
+                <p className="text-body text-muted-foreground">{t("people.details_empty")}</p>
+              ) : (
+                <dl className="-my-2.5 divide-y divide-border">
+                  {facts.map(([label, value]) => (
+                    <Fact key={label} label={label}>
+                      {value}
+                    </Fact>
+                  ))}
+                </dl>
+              )}
+            </PanelCard>
+
+            <div className="flex min-w-0 flex-col gap-4">
+              {/* A directory exists to start a conversation, so the address
+                  is the action rather than a string to copy out. */}
+              <PanelCard id="person-contact" icon={Mail} title={t("people.contact")} flush>
+                <div className="divide-y divide-border">
+                  <ContactRow
+                    icon={Mail}
+                    label={t("people.column_email")}
+                    value={person.email}
+                    href={`mailto:${person.email}`}
+                    ariaLabel={t("people.email_person", { name: person.display_name })}
+                  />
+                  {person.phone ? (
+                    <ContactRow
+                      icon={Phone}
+                      label={t("people.field_phone")}
+                      value={person.phone}
+                      href={`tel:${person.phone.replace(/\s+/g, "")}`}
+                      ariaLabel={t("people.call_person", { name: person.display_name })}
+                    />
+                  ) : null}
+                </div>
               </PanelCard>
 
-              <div className="flex min-w-0 flex-col gap-4">
-                {/* A directory exists to start a conversation, so the address
-                    is the action rather than a string to copy out. */}
-                <PanelCard id="person-contact" icon={Mail} title={t("people.contact")} flush>
-                  <div className="divide-y divide-border">
-                    <ContactRow
-                      icon={Mail}
-                      label={t("people.column_email")}
-                      value={person.email}
-                      href={`mailto:${person.email}`}
-                      ariaLabel={t("people.email_person", { name: person.display_name })}
-                    />
-                    {person.phone ? (
-                      <ContactRow
-                        icon={Phone}
-                        label={t("people.field_phone")}
-                        value={person.phone}
-                        href={`tel:${person.phone.replace(/\s+/g, "")}`}
-                        ariaLabel={t("people.call_person", { name: person.display_name })}
-                      />
-                    ) : null}
-                  </div>
+              {person.manager || reports.length > 0 ? (
+                <PanelCard id="person-reporting" icon={Users} title={t("people.reporting")} flush>
+                  {person.manager ? (
+                    <div className={reports.length > 0 ? "border-b border-border" : undefined}>
+                      <p className="px-4 pt-3 text-label text-muted-foreground">
+                        {t("people.manager")}
+                      </p>
+                      <PersonRow href={wsPaths.person(person.manager.id)} actor={person.manager} />
+                    </div>
+                  ) : null}
+                  {reports.length > 0 ? (
+                    <div>
+                      <p className="px-4 pt-3 text-label text-muted-foreground">
+                        {t("people.reports")}
+                      </p>
+                      <ul className="divide-y divide-border">
+                        {reports.map((report) => (
+                          <li key={report.id}>
+                            <PersonRow href={wsPaths.person(report.id)} actor={report} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </PanelCard>
-
-                {person.manager || reports.length > 0 ? (
-                  <PanelCard id="person-reporting" icon={Users} title={t("people.reporting")} flush>
-                    {person.manager ? (
-                      <div className={reports.length > 0 ? "border-b border-border" : undefined}>
-                        <p className="px-4 pt-3 text-label text-muted-foreground">
-                          {t("people.manager")}
-                        </p>
-                        <PersonRow href={wsPaths.person(person.manager.id)} actor={person.manager} />
-                      </div>
-                    ) : null}
-                    {reports.length > 0 ? (
-                      <div>
-                        <p className="px-4 pt-3 text-label text-muted-foreground">
-                          {t("people.reports")}
-                        </p>
-                        <ul className="divide-y divide-border">
-                          {reports.map((report) => (
-                            <li key={report.id}>
-                              <PersonRow href={wsPaths.person(report.id)} actor={report} />
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </PanelCard>
-                ) : null}
-              </div>
+              ) : null}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
