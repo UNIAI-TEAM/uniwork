@@ -903,6 +903,7 @@
     "allowJoinRequestHint": "Chỉ áp dụng thành viên workspace đã đăng nhập — không dùng cho khách bên ngoài.",
     "externalGuestLinks": "Khách bên ngoài (không cần tài khoản)",
     "externalGuestLinksDescription": "Tạo và quản lý liên kết để người chưa có tài khoản UniWork tham gia cuộc họp.",
+    "externalGuestLinksClosedDescription": "Liên kết đã dùng để khách chưa có tài khoản UniWork tham gia cuộc họp.",
     "externalGuestLinkWhere": "Khách không có tài khoản vào bằng liên kết ở mục «Khách bên ngoài» bên dưới trang chi tiết.",
     "externalGuestLinkAfterCreate": "Sau khi tạo cuộc họp, mở trang chi tiết để tạo liên kết cho khách bên ngoài.",
     "shareGuestLink": "Chia sẻ link khách",

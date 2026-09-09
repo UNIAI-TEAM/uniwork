@@ -904,6 +904,7 @@
     "allowJoinRequestHint": "Signed-in workspace members only — not for external guests.",
     "externalGuestLinks": "External guests (no account)",
     "externalGuestLinksDescription": "Create and manage links so people without a UniWork account can join.",
+    "externalGuestLinksClosedDescription": "Links that were used so people without a UniWork account could join.",
     "externalGuestLinkWhere": "Guests without an account join via a link under External guests on this meeting page.",
     "externalGuestLinkAfterCreate": "After creating the meeting, open its detail page to add a link for external guests.",
     "shareGuestLink": "Share guest link",

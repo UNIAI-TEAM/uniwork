@@ -77,13 +77,20 @@ export function MeetingInviteLinksSection({
 
   const visibleActive = showAllActive ? activeLinks : activeLinks.slice(0, VISIBLE_ACTIVE_LIMIT);
   const hiddenActiveCount = Math.max(0, activeLinks.length - VISIBLE_ACTIVE_LIMIT);
+  const empty = activeLinks.length === 0 && inactiveLinks.length === 0;
+
+  if (!canCreate && empty) {
+    return null;
+  }
 
   return (
     <>
       <MeetingPanelCard
         id="invite-links-heading"
         title={t("meetings.externalGuestLinks")}
-        description={t("meetings.externalGuestLinksDescription")}
+        description={t(
+          canCreate ? "meetings.externalGuestLinksDescription" : "meetings.externalGuestLinksClosedDescription",
+        )}
         action={
           canCreate ? (
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1 px-2.5" onClick={() => setCreateOpen(true)}>
@@ -93,7 +100,7 @@ export function MeetingInviteLinksSection({
           ) : undefined
         }
       >
-        {activeLinks.length === 0 && inactiveLinks.length === 0 ? (
+        {empty ? (
           <p className="text-label text-muted-foreground">{t("meetings.noInviteLinks")}</p>
         ) : null}
 
