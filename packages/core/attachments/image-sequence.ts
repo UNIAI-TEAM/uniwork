@@ -15,9 +15,9 @@
  * order identical to what the reader sees without depending on what is
  * currently painted.
  *
- * Pure — no React, no DOM, no platform APIs, so the future apps/mobile host
- * can import it as-is: CLAUDE.md § Project Shape limits that host to types
- * and pure functions from packages/core (ADR 0011).
+ * Pure — no React, no DOM, no platform APIs, which is what makes it shareable
+ * with a future mobile host: that app imports only types and pure functions
+ * from `packages/core` (ADR 0011), never `packages/views`.
  */
 
 import type { Attachment } from "../types/attachment";

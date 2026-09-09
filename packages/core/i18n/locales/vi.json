@@ -805,6 +805,54 @@
         "child_progress": "Tiến độ công việc con",
         "creator": "Người tạo"
       }
+    },
+    "detail": {
+      "not_found": "Không tìm thấy công việc",
+      "title_placeholder": "Tiêu đề công việc",
+      "description_placeholder": "Thêm mô tả…",
+      "title_region": "Tiêu đề",
+      "properties_sidebar": "Thuộc tính",
+      "section_properties": "Thuộc tính",
+      "section_parent": "Công việc cha",
+      "section_subtasks": "Sub-task",
+      "properties_placeholder": "Trạng thái, người phụ trách và các trường khác sẽ hiện ở đây.",
+      "prop_project": "Dự án",
+      "prop_project_none": "Không có dự án",
+      "prop_labels": "Nhãn",
+      "prop_start_date": "Ngày bắt đầu",
+      "prop_stage": "Giai đoạn",
+      "prop_stage_none": "Chưa có giai đoạn",
+      "prop_custom": "Thuộc tính tùy chỉnh",
+      "add_label": "Thêm nhãn…",
+      "attach_label": "Gắn",
+      "custom_properties_count": "{{count}} thuộc tính",
+      "subtasks_progress": "{{done}}/{{total}}",
+      "subtasks_empty": "Chưa có sub-task.",
+      "add_subtask": "Thêm sub-task",
+      "add_subtask_placeholder": "Tiêu đề sub-task",
+      "add_subtask_action": "Thêm",
+      "timeline_section": "Hoạt động",
+      "timeline_placeholder": "Bình luận và hoạt động sẽ hiện ở đây.",
+      "comment_placeholder": "Viết bình luận…",
+      "comment_send": "Gửi",
+      "comments_empty": "Chưa có bình luận.",
+      "comment_resolve": "Đánh dấu đã xử lý",
+      "comment_unresolve": "Mở lại",
+      "comment_resolved": "Đã xử lý",
+      "comment_edit": "Sửa",
+      "activity_stub_reason": "Lịch sử hoạt động chưa khả dụng — bình luận vẫn hiện bên dưới.",
+      "agent_run_stub": "Chạy agent",
+      "pr_stub": "Gắn pull request",
+      "subscribe": "Theo dõi",
+      "unsubscribe": "Bỏ theo dõi",
+      "attachments_section": "Đính kèm",
+      "attachments_placeholder": "Tệp đính kèm của công việc sẽ hiện ở đây.",
+      "attachments_empty": "Chưa có tệp đính kèm. Thả tệp vào đây hoặc dùng Thêm tệp.",
+      "attachments_upload": "Thêm tệp",
+      "attachments_uploading": "Đang tải lên {{filename}}…",
+      "attachments_delete_title": "Xóa tệp đính kèm?",
+      "attachments_delete_description": "Gỡ “{{filename}}” khỏi công việc này. Không hoàn tác được.",
+      "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất."
     }
   },
   "myTasks": {
@@ -827,7 +875,13 @@
     }
   },
   "capabilities": {
-    "unknown": "Tính năng này chưa khả dụng."
+    "unknown": "Tính năng này chưa khả dụng.",
+    "surface_not_ready": "Bề mặt này chưa sẵn sàng.",
+    "agent_runtime_missing": "Runtime agent chưa khả dụng.",
+    "squad_directory_missing": "Danh mục squad chưa khả dụng.",
+    "vcs_provider_missing": "Chưa kết nối kiểm soát phiên bản.",
+    "local_daemon_missing": "Daemon thư mục làm việc cục bộ chưa khả dụng.",
+    "host_not_built": "Host này chưa khả dụng."
   },
   "agents": {
     "badge": "Agent"
@@ -2385,128 +2439,128 @@
   },
   "editor": {
     "bubble_menu": {
-      "bold": "Bold",
-      "italic": "Italic",
-      "strikethrough": "Strikethrough",
+      "bold": "In đậm",
+      "italic": "In nghiêng",
+      "strikethrough": "Gạch ngang",
       "code": "Code",
-      "highlight": "Highlight",
-      "link": "Link",
-      "list": "List",
-      "task_list": "Task list",
-      "quote": "Quote",
+      "highlight": "Tô sáng",
+      "link": "Liên kết",
+      "list": "Danh sách",
+      "task_list": "Danh sách checkbox",
+      "quote": "Trích dẫn",
       "url_aria_label": "URL",
       "link_edit": {
-        "apply": "Apply link",
-        "remove": "Remove link",
-        "close": "Close link editor"
+        "apply": "Áp dụng liên kết",
+        "remove": "Gỡ liên kết",
+        "close": "Đóng trình sửa liên kết"
       },
       "heading_dropdown": {
-        "text": "Text",
-        "normal_text": "Normal Text",
-        "heading_1": "Heading 1",
-        "heading_2": "Heading 2",
-        "heading_3": "Heading 3"
+        "text": "Văn bản",
+        "normal_text": "Văn bản thường",
+        "heading_1": "Tiêu đề 1",
+        "heading_2": "Tiêu đề 2",
+        "heading_3": "Tiêu đề 3"
       },
       "list_dropdown": {
-        "bullet_list": "Bullet List",
-        "ordered_list": "Ordered List",
-        "task_list": "Task List"
+        "bullet_list": "Danh sách dấu chấm",
+        "ordered_list": "Danh sách đánh số",
+        "task_list": "Danh sách checkbox"
       },
       "sub_task": {
-        "tooltip": "Create sub-task from selection",
-        "created": "Created {{identifier}}",
-        "create_failed": "Failed to create sub-task"
+        "tooltip": "Tạo sub-task từ đoạn đã chọn",
+        "created": "Đã tạo {{identifier}}",
+        "create_failed": "Không tạo được sub-task"
       }
     },
     "image": {
-      "view": "View image",
-      "download": "Download",
-      "copy_link": "Copy link",
-      "delete": "Delete",
-      "link_copied": "Link copied",
-      "copy_link_failed": "Failed to copy link",
-      "canvas_label": "Image canvas. Drag to pan, scroll to zoom, double-click to toggle actual size.",
-      "previous": "Previous image",
-      "next": "Next image",
+      "view": "Xem ảnh",
+      "download": "Tải xuống",
+      "copy_link": "Sao chép liên kết",
+      "delete": "Xóa",
+      "link_copied": "Đã sao chép liên kết",
+      "copy_link_failed": "Không sao chép được liên kết",
+      "canvas_label": "Khung ảnh. Kéo để di chuyển, cuộn để phóng to, nhấp đúp để chuyển kích thước thật.",
+      "previous": "Ảnh trước",
+      "next": "Ảnh sau",
       "sequence_position": "{{index}} / {{total}}",
-      "unavailable": "That image is no longer available — skipped it."
+      "unavailable": "Ảnh này không còn khả dụng — đã bỏ qua."
     },
     "canvas": {
-      "zoom_in": "Zoom in",
-      "zoom_out": "Zoom out",
-      "zoom_fit": "Fit to view",
-      "zoom_actual": "Actual size"
+      "zoom_in": "Phóng to",
+      "zoom_out": "Thu nhỏ",
+      "zoom_fit": "Vừa khung",
+      "zoom_actual": "Kích thước thật"
     },
     "attachment": {
-      "download_failed": "Couldn't fetch a download link. Try again in a moment.",
-      "preview": "Preview",
-      "preview_loading": "Loading preview…",
-      "preview_failed": "Couldn't load preview",
-      "preview_too_large": "File is too large to preview. Please download.",
-      "preview_unsupported": "This file type can't be previewed.",
-      "close": "Close",
-      "open_in_new_tab": "Open in new tab",
-      "remove": "Remove attachment"
+      "download_failed": "Không lấy được liên kết tải xuống. Thử lại sau giây lát.",
+      "preview": "Xem trước",
+      "preview_loading": "Đang tải xem trước…",
+      "preview_failed": "Không tải được xem trước",
+      "preview_too_large": "Tệp quá lớn để xem trước. Hãy tải xuống.",
+      "preview_unsupported": "Không xem trước được loại tệp này.",
+      "close": "Đóng",
+      "open_in_new_tab": "Mở tab mới",
+      "remove": "Gỡ tệp đính kèm"
     },
     "link_hover": {
-      "copy_link": "Copy link",
-      "open_link": "Open link",
-      "link_copied": "Link copied",
-      "copy_failed": "Failed to copy"
+      "copy_link": "Sao chép liên kết",
+      "open_link": "Mở liên kết",
+      "link_copied": "Đã sao chép liên kết",
+      "copy_failed": "Không sao chép được"
     },
     "mention": {
       "group_users": "Thành viên",
       "all_members": "Tất cả thành viên",
       "searching": "Đang tìm…",
       "no_results": "Không có kết quả",
-      "group_current": "Current page",
-      "group_recent": "Recently viewed",
-      "group_search": "Search results",
-      "group_cancelled": "Cancelled",
+      "group_current": "Trang hiện tại",
+      "group_recent": "Xem gần đây",
+      "group_search": "Kết quả tìm kiếm",
+      "group_cancelled": "Đã hủy",
       "group_tasks": "Công việc"
     },
     "slash_command": {
-      "no_skills_configured": "No skills configured",
-      "no_results": "No matching skills",
+      "no_skills_configured": "Chưa cấu hình skill",
+      "no_results": "Không có skill phù hợp",
       "commands": {
-        "note": "Add a note — won't trigger any agents"
+        "note": "Thêm ghi chú — không kích hoạt agent"
       }
     },
     "code_block": {
-      "copy_code": "Copy code",
-      "show_preview": "Show preview",
-      "show_source": "Show source",
-      "fullscreen": "Fullscreen"
+      "copy_code": "Sao chép code",
+      "show_preview": "Xem trước",
+      "show_source": "Xem mã nguồn",
+      "fullscreen": "Toàn màn hình"
     },
     "file_card": {
-      "uploading": "Uploading {{filename}}"
+      "uploading": "Đang tải lên {{filename}}"
     },
     "upload": {
       "failed": "Không tải lên được {{filename}}: {{reason}}",
       "in_progress": "Đang tải lên…",
-      "interrupted": "Upload interrupted — the file wasn’t saved. Attach it again.",
-      "remove": "Remove",
-      "uploading_label": "Uploading {{filename}}…",
-      "failed_label": "Couldn’t upload {{filename}}"
+      "interrupted": "Tải lên bị gián đoạn — tệp chưa được lưu. Đính kèm lại.",
+      "remove": "Gỡ",
+      "uploading_label": "Đang tải lên {{filename}}…",
+      "failed_label": "Không tải lên được {{filename}}"
     },
     "title_editor": {
       "title_aria_label": "Tiêu đề"
     },
     "mermaid": {
-      "render_error": "Unable to render Mermaid diagram.",
-      "diagram_label": "Mermaid diagram",
-      "rendering": "Rendering diagram…",
-      "viewer_title": "Diagram",
-      "canvas_label": "Diagram canvas. Drag to pan, scroll to zoom.",
-      "open_viewer": "Open diagram viewer",
-      "close_viewer": "Close",
-      "copy_source": "Copy diagram source",
-      "show_source": "Show source",
-      "show_diagram": "Show diagram",
-      "export": "Export",
-      "export_png": "Download PNG",
-      "export_svg": "Download SVG",
-      "export_source": "Download .mmd"
+      "render_error": "Không hiển thị được sơ đồ Mermaid.",
+      "diagram_label": "Sơ đồ Mermaid",
+      "rendering": "Đang vẽ sơ đồ…",
+      "viewer_title": "Sơ đồ",
+      "canvas_label": "Khung sơ đồ. Kéo để di chuyển, cuộn để phóng to.",
+      "open_viewer": "Mở trình xem sơ đồ",
+      "close_viewer": "Đóng",
+      "copy_source": "Sao chép mã sơ đồ",
+      "show_source": "Xem mã nguồn",
+      "show_diagram": "Xem sơ đồ",
+      "export": "Xuất",
+      "export_png": "Tải PNG",
+      "export_svg": "Tải SVG",
+      "export_source": "Tải .mmd"
     }
   }
 }

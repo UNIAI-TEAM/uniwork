@@ -1,6 +1,6 @@
 # UNI-426.5 · Task detail & collaboration Implementation Plan
 
-> **Trạng thái:** in-progress — chờ issue KEY + execute
+> **Trạng thái:** shipped — execute xong (UNI-505); residual `project_id` create nếu chưa
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -14,6 +14,8 @@
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
+    "./tasks/detail": "./tasks/detail/index.ts",
+    "./tasks/detail/*": "./tasks/detail/*.tsx",
     "./tasks/surface/*": "./tasks/surface/*.tsx",
     "./tasks/modes/*": "./tasks/modes/*.tsx",
     "./tasks/views/*": "./tasks/views/*.tsx",
@@ -32,7 +34,8 @@
     "./people/*": "./people/*.tsx",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts",
-    "./editor": "./editor/index.ts"
+    "./editor": "./editor/index.ts",
+    "./common/*": "./common/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

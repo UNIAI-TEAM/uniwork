@@ -109,3 +109,15 @@ export function useAttachTaskLabel(workspaceId: string, taskId: string) {
     },
   });
 }
+
+export function useDetachTaskLabel(workspaceId: string, taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (labelId: string) => catalog.detachTaskLabel(taskId, labelId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: taskKeys.taskLabels(taskId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.labels(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
+    },
+  });
+}

@@ -36,11 +36,10 @@ Product intent and design principles live in `PRODUCT.md`.
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules came
   over with the port and no host reaches them yet: `packages/core/analytics/`,
   `packages/core/diagnostics/`, `packages/core/modals/`,
-  `packages/core/navigation/`. They import each
-  other, not the app (the shortcuts module left this list with F-09: ⌘J opens
-  Ask UNI; feature-flags with F-11: `GET /api/v1/config` feeds
-  `FeatureFlagsProvider`; constants once a reachable module started importing
-  it). Wire one before relying on it;
+  `packages/core/navigation/`. They import each other, not the app (the
+  shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
+  with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; constants with
+  UNI-505: the editor TipTap catalog). Wire one before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
   2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
@@ -83,7 +82,9 @@ Keep server state and client state separate.
 
 ## Package Boundaries
 
-These are lint errors (`pnpm lint`), not conventions:
+These are lint errors (`pnpm lint`), not conventions — and at `GATE_LEVEL=fast`
+`scripts/lint-gate.sh` prints them without failing the run (ADR 0014), so read
+the output rather than the exit code:
 
 - `packages/core/` — no `react-dom`, no `localStorage` / `sessionStorage` (use
   `StorageAdapter` from `packages/core/platform/`), no `process.env`. Endpoint
@@ -288,9 +289,12 @@ behind its own gate and never reaches content.
   in `make check`. Test-only helpers are not exported unless a test imports
   them.
 - Coverage only goes up. Each package's vitest config carries integer
-  `thresholds` and a drop fails `pnpm test`; Go has `server/coverage.floor`,
-  checked by `scripts/test-go.sh`. Raise the floor by hand, with the change
-  that earned it — the numbers never go down.
+  `thresholds`; Go has `server/coverage.floor`, checked by
+  `scripts/go-cover-floor.sh` — over the whole profile locally, over the merged
+  shard profiles in CI. Raise the floor by hand, with the change that earned it
+  — the numbers never go down. At `GATE_LEVEL=fast` a TypeScript package under
+  its thresholds prints the summary and passes instead of failing `pnpm test`
+  (`scripts/coverage-gate.ts`, ADR 0014); the Go floor blocks at every level.
 - Code comments in English. Specs and plans (`docs/superpowers/`) are in
   Vietnamese and carry a `> **Trạng thái:**` line (shipped / in-progress /
   superseded / abandoned) under the title.
@@ -455,8 +459,10 @@ The process gates tighten or loosen with one word in `GATE_LEVEL` at the repo
 root: `fast`, `standard` or `strict`; anything else reads as `strict`.
 `docs/engineering/GATE_LEVELS.md` is the table of what each level changes and
 when to move. What it does not change: everything under Database and
-Migration Rules, Audit and Events, secrets scanning, coverage floors and the
-`commit-msg` hook — those are data safety, not process. Change the level with
+Migration Rules, Audit and Events, secrets scanning, the coverage numbers
+themselves and the `commit-msg` hook — those are data safety, not process.
+(ADR 0014 is the one loosening of that list: at `fast` a TypeScript coverage
+drop and a lint error report instead of failing. The thresholds do not move.) Change the level with
 a PR that edits the file and says why in the commit body; `make gate` shows
 the current one. `scripts/governance.test.mjs` checks the file, the readers
 and this section agree.
