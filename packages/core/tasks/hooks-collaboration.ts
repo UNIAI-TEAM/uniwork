@@ -50,6 +50,15 @@ export function useAddCommentReaction(taskId: string) {
   });
 }
 
+export function useRemoveCommentReaction(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, emoji }: { commentId: string; emoji: string }) =>
+      collab.removeCommentReaction(commentId, { emoji }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.comments(taskId) }),
+  });
+}
+
 export function useTaskSubscribers(taskId: string) {
   return useQuery({
     queryKey: taskKeys.subscribers(taskId),

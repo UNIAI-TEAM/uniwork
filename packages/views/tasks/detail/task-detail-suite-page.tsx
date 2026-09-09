@@ -14,8 +14,8 @@ import { useTaskFieldSave } from "./hooks/use-task-field-save";
 
 /**
  * Suite task detail shell (flag-gated at the route in Task 10).
- * Properties sidebar + sub-tasks land in Task 7; timeline (8) and
- * attachments (9) remain labelled slots.
+ * Properties sidebar + sub-tasks (Task 7) and timeline (Task 8) are live;
+ * attachments remain a labelled slot until Task 9.
  */
 export function TaskDetailSuitePage(props: {
   workspaceId: string;
