@@ -1,4 +1,78 @@
-export { TitleEditor } from "./title-editor";
-export type { TitleEditorProps, TitleEditorRef } from "./title-editor";
-export { ContentEditor } from "./content-editor";
-export type { ContentEditorProps, ContentEditorRef } from "./content-editor";
+export {
+  ContentEditor,
+  type ContentEditorProps,
+  type ContentEditorRef,
+} from "./content-editor";
+export {
+  TitleEditor,
+  type TitleEditorProps,
+  type TitleEditorRef,
+  titleShortcutSubmitAllowed,
+} from "./title-editor";
+export { ReadonlyContent } from "./readonly-content";
+export { useFileDropZone } from "./use-file-drop-zone";
+export { useUploadGate, type UploadGate } from "./use-upload-gate";
+export {
+  useComposerSubmit,
+  type ComposerSubmit,
+  type ComposerSubmitOptions,
+  type ComposerAfterAccepted,
+} from "./use-composer-submit";
+export { useEditorUpload } from "./use-editor-upload";
+export { FileDropOverlay } from "./file-drop-overlay";
+export { useLazyEditor, type LazyEditorHandle, type LazyFocusTarget } from "./use-lazy-editor";
+export { anchorFromPoint, type TextAnchor } from "./text-anchor";
+export { useDownloadAttachment } from "./use-download-attachment";
+export { AttachmentDownloadProvider } from "./attachment-download-context";
+export {
+  AttachmentPreviewModal,
+  useAttachmentPreview,
+  isPreviewable,
+} from "./attachment-preview-modal";
+export type {
+  AttachmentPreviewHandle,
+  PreviewSequence,
+} from "./attachment-preview-modal";
+export {
+  ImageSequenceProvider,
+  useImageSequencePreview,
+} from "./image-sequence-context";
+export { AttachmentCard } from "./attachment-card";
+export type { AttachmentCardProps } from "./attachment-card";
+export { Attachment } from "./attachment";
+export type { AttachmentInput, AttachmentProps } from "./attachment";
+export type { CreateSubTaskFn } from "./bubble-menu";
+export { HtmlBlockPreview, HTML_BLOCK_PREVIEW_HEIGHT_PX } from "./html-block-preview";
+export { PASTE_AS_FILE_THRESHOLD } from "./paste-as-file";
+export { useCoordinatedUploads } from "./use-coordinated-uploads";
+export {
+  attachmentToDraftUpload,
+  startUpload,
+  abortUpload,
+  hasUploadingDraft,
+  type DraftUpload,
+} from "./draft-uploads-stub";
+export {
+  AttachmentTextTooLargeError,
+  AttachmentTextUnsupportedError,
+} from "./attachment-api";
+export { resolvePublicFileUrlWithBase } from "./resolve-file-url";
+export {
+  flattenIssueBuckets,
+  issueKeys,
+  PAGINATED_CATEGORIES,
+  workspaceKeys as editorWorkspaceKeys,
+} from "./task-identifier-queries";
+export { paths as editorPaths } from "./workspace-slug";
+export { zoomByAt } from "./utils/zoom-transform";
+export { reservedMermaidHeightPx } from "./mermaid-diagram";
+export { pastedTextSource, markPastedTextFile } from "./extensions/file-upload";
+export {
+  blockedReasonLabel,
+  CurrentTaskRenderProvider,
+  useCurrentTask,
+  emptyLocale,
+  ProjectIcon,
+  StatusIcon,
+  TestI18n,
+} from "./stubs";

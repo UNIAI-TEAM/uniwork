@@ -18,3 +18,5 @@ export * from "./billing";
 export * from "./notification";
 export * from "./ai";
 export * from "./admin";
+export * from "./attachment";
+export * from "./attachment-url";
