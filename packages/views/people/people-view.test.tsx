@@ -39,6 +39,24 @@ const an = {
   department: { id: "d1", name: "Kỹ thuật" },
 };
 
+/** The view-mode button, whose position the toolbar is built to hold still. */
+function viewButton(): HTMLElement {
+  return screen.getByRole("button", { name: /Chế độ xem/ });
+}
+
+/** The right-hand control group of the toolbar. */
+function toolbarGroup(): HTMLElement {
+  const group = viewButton().parentElement;
+  if (!group) throw new Error("view button has no toolbar group");
+  return group;
+}
+
+/** Last in a flush-right group is the one position that cannot move. */
+function isLastControl(button: HTMLElement): boolean {
+  const buttons = toolbarGroup().querySelectorAll("button");
+  return buttons[buttons.length - 1] === button;
+}
+
 /** Records every people request so the test can assert what the screen asked for. */
 function mockApi(role: string, people: unknown[] = [an]) {
   const peopleCalls: string[] = [];
@@ -108,19 +126,49 @@ describe("PeopleView", () => {
     expect(screen.getByRole("button", { name: "Chế độ xem: Thẻ" })).toBeInTheDocument();
   });
 
-  it("keeps the toolbar's controls in place when the view changes", async () => {
+  it("keeps the view button last in a flush-right toolbar when the view changes", async () => {
     mockApi("member");
-    const { container } = renderView();
+    renderView();
     await screen.findByText("Nguyễn Văn Ân");
-    const before = container.querySelectorAll("button").length;
 
-    fireEvent.click(screen.getByRole("button", { name: /Chế độ xem/ }));
+    // The toolbar group is flush right, so only the last control has a fixed
+    // position. Gaining the display button must not push the button the
+    // cursor just clicked, which means that button stays last.
+    expect(isLastControl(viewButton())).toBe(true);
+
+    fireEvent.click(viewButton());
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "Bảng" }));
     await screen.findByText("Tên");
 
-    // Same controls, same slots: nothing shifts under the cursor that just
-    // clicked the view button.
-    expect(container.querySelectorAll("button").length).toBe(before);
+    expect(isLastControl(viewButton())).toBe(true);
+  });
+
+  it("holds no blank slot open for a control the view does not have", async () => {
+    mockApi("member");
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+
+    // Card view has no columns to configure and no filter to clear. Reserving
+    // their width left a visible notch between the filter and view buttons,
+    // which is the state the toolbar is in almost all the time.
+    const group = toolbarGroup();
+    expect(group.querySelectorAll("button")).toHaveLength(2);
+    expect(group.querySelectorAll(".invisible")).toHaveLength(0);
+  });
+
+  it("shows the clear button only while a filter is set", async () => {
+    mockApi("member");
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+    expect(screen.queryByRole("button", { name: "Xóa bộ lọc" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bộ lọc" }));
+    fireEvent.click(await screen.findByText("Trạng thái"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Tất cả" }));
+
+    // It arrives to the left of the view button, so that button does not move.
+    await screen.findByRole("button", { name: "Xóa bộ lọc" });
+    expect(isLastControl(viewButton())).toBe(true);
   });
 
   it("shows skeletons rather than a spinner while the first page loads", () => {

@@ -13,10 +13,11 @@ const TONE_CLASS: Record<PanelTone, string> = {
 };
 
 /**
- * One section of the meeting detail page: a titled surface with an optional
- * leading icon, a header action, a flush body for lists and a muted footer.
+ * One section of a detail page: a titled surface with an optional leading
+ * icon, a header action, a flush body for lists and a muted footer. Its title
+ * is an `h2`, so the page's own `h1` stays the thing the page is about.
  */
-export function MeetingPanelCard({
+export function PanelCard({
   id,
   title,
   description,

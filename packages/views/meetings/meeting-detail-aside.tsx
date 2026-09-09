@@ -6,7 +6,7 @@ import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import { useMembers } from "@uniwork/core/workspaces";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
-import { MeetingPanelCard } from "./meeting-panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -48,7 +48,7 @@ export function MeetingDetailAside({
         showTransferHost={canHost}
       />
       {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} /> : null}
-      <MeetingPanelCard id="details-heading" icon={Info} title={t("meetings.details")}>
+      <PanelCard id="details-heading" icon={Info} title={t("meetings.details")}>
         <dl className="-my-2 divide-y divide-border">
           <DetailRow label={t("meetings.timezone")}>{timezone}</DetailRow>
           <DetailRow label={t("meetings.meetingType")}>
@@ -64,7 +64,7 @@ export function MeetingDetailAside({
             </DetailRow>
           ) : null}
         </dl>
-      </MeetingPanelCard>
+      </PanelCard>
     </div>
   );
 }

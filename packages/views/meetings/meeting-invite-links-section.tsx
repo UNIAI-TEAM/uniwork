@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
 import { inviteLinkDisplayName, inviteLinkMetaParts } from "./invite-link-display";
-import { MeetingPanelCard } from "./meeting-panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingLinkBadge } from "./meeting-status-badge";
 
 const VISIBLE_ACTIVE_LIMIT = 3;
@@ -74,7 +74,7 @@ export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) 
 
   return (
     <>
-      <MeetingPanelCard
+      <PanelCard
         id="invite-links-heading"
         title={t("meetings.externalGuestLinks")}
         description={t("meetings.externalGuestLinksDescription")}
@@ -144,7 +144,7 @@ export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) 
             ) : null}
           </div>
         ) : null}
-      </MeetingPanelCard>
+      </PanelCard>
 
       <CreateInviteLinkDialog meetingId={meetingId} open={createOpen} onOpenChange={setCreateOpen} />
     </>

@@ -31,7 +31,7 @@
     "./notifications/*": "./notifications/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",
-    "./people": "./people/index.ts",
+    "./people/*": "./people/*.tsx",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",
