@@ -2,5 +2,5 @@
   "_": "Routes above the 150 KB gzip budget when the gate landed (F-11, 2026-09-07). Each ceiling is current size + 5 %; lower it when you shrink the route, never raise it.",
   "/[orgSlug]/[workspaceSlug]/meetings/[meetingId]/room": 358,
   "/[orgSlug]/[workspaceSlug]/chat": 196,
-  "/[orgSlug]/[workspaceSlug]/settings": 176
+  "/[orgSlug]/[workspaceSlug]/settings": 154
 }

@@ -9,20 +9,24 @@ import { CollapsedNavTrigger } from "../../layout/page-header";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
-import { AiTab } from "./ai-tab";
-import { AuditTab } from "./audit-tab";
-import { BillingTab } from "./billing-tab";
-import { DepartmentsTab } from "./departments-tab";
-import { IntegrationsTab } from "./integrations-tab";
-import { MembersTab } from "./members-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { OrganizationTab } from "./organization-tab";
 import { PreferencesTab } from "./preferences-tab";
-
-// The security tab (MFA enrolment, sessions, deletion) loads when opened so
-// the settings route stays inside its bundle ceiling.
-const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
 import { WorkspaceTab } from "./workspace-tab";
+
+// Heavy / rarely-default tabs load on open so the settings route stays under
+// its ratchet in scripts/bundle-budget.json (Vision §6.3).
+const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
+const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
+const IntegrationsTab = lazy(() =>
+  import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })),
+);
+const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
+const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })));
+const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
+const DepartmentsTab = lazy(() =>
+  import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })),
+);
 
 const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
 const ACCOUNT_TAB_ICONS = {
@@ -174,25 +178,37 @@ export function SettingsPage() {
             <OrganizationTab />
           </TabsContent>
           <TabsContent value="departments">
-            <DepartmentsTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <DepartmentsTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="workspace">
             <WorkspaceTab />
           </TabsContent>
           <TabsContent value="members">
-            <MembersTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <MembersTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="integrations">
-            <IntegrationsTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <IntegrationsTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="billing">
-            <BillingTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <BillingTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="ai">
-            <AiTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <AiTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="audit">
-            <AuditTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <AuditTab />
+            </Suspense>
           </TabsContent>
         </div>
       </div>

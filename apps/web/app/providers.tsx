@@ -18,12 +18,20 @@ import { WebNavigationProvider } from "../platform/navigation";
  * starts web-vitals reporting), then the two things only this host
  * provides — a router adapter and a toast outlet.
  */
-export function Providers({ initialLocale, children }: { initialLocale: SupportedLocale; children: React.ReactNode }) {
+export function Providers({
+  initialLocale,
+  initialDictionary,
+  children,
+}: {
+  initialLocale: SupportedLocale;
+  initialDictionary?: object;
+  children: React.ReactNode;
+}) {
   return (
     <ThemeProvider>
       <CoreProvider>
         <WebFeatureFlagsProvider>
-          <WebLocaleProvider initialLocale={initialLocale}>
+          <WebLocaleProvider initialLocale={initialLocale} initialDictionary={initialDictionary}>
             <WebNavigationProvider>{children}</WebNavigationProvider>
           </WebLocaleProvider>
         </WebFeatureFlagsProvider>

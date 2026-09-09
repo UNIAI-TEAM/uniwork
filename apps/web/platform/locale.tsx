@@ -12,12 +12,18 @@ import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
  * the server (resolveRequestLocale) and is applied during render on both
  * sides, so server HTML and the first client render agree; switching later
  * (the settings page) goes through the adapter and i18n.changeLanguage.
+ *
+ * `initialDictionary` is the English resource bag when the request locale is
+ * `en` — loaded only on the server so `en.json` stays out of the shared
+ * client chunk (see sync-request-locale.ts).
  */
 export function WebLocaleProvider({
   initialLocale,
+  initialDictionary,
   children,
 }: {
   initialLocale: SupportedLocale;
+  initialDictionary?: object;
   children: ReactNode;
 }) {
   const [adapter] = useState(() => {
@@ -33,9 +39,10 @@ export function WebLocaleProvider({
     };
   });
   const [applied] = useState(() => {
-    syncRequestLocale(initialLocale);
+    syncRequestLocale(initialLocale, initialDictionary);
     return initialLocale;
   });
+
   useEffect(() => {
     document.documentElement.lang = applied;
   }, [applied]);
