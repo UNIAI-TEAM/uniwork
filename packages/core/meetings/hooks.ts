@@ -13,7 +13,15 @@ export type {
 } from "../api/endpoints/meetings";
 export { activityLabelKey, inviteLinkStatus, isJoinAdmitted } from "./status";
 export type { InviteLinkUiStatus } from "./status";
-export { canEnterScheduledMeeting, isPastScheduledEnd, msUntilScheduledEnd, SCHEDULE_WARN_1_MIN_MS, SCHEDULE_WARN_5_MIN_MS } from "./schedule";
+export {
+  canEnterScheduledMeeting,
+  displayMeetingStatus,
+  isPastScheduledEnd,
+  isScheduledMeetingLive,
+  msUntilScheduledEnd,
+  SCHEDULE_WARN_1_MIN_MS,
+  SCHEDULE_WARN_5_MIN_MS,
+} from "./schedule";
 
 const JOIN_REQUESTS_ROOT = ["meeting-join-requests"] as const;
 

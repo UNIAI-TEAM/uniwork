@@ -26,14 +26,21 @@ const workspace: Workspace = {
   organization_name: "Org",
 };
 
+function windowFromNow(startOffsetMs: number, durationMs = 30 * 60_000): { starts_at: string; ends_at: string } {
+  const start = Date.now() + startOffsetMs;
+  return {
+    starts_at: new Date(start).toISOString(),
+    ends_at: new Date(start + durationMs).toISOString(),
+  };
+}
+
 const meetings: Meeting[] = [
   {
     id: "m1",
     workspace_id: "w1",
     title: "Standup",
     description: "",
-    starts_at: "2026-09-10T02:00:00Z",
-    ends_at: "2026-09-10T02:30:00Z",
+    ...windowFromNow(24 * 60 * 60_000),
     room_name: "uw_mtg_m1",
     created_by: "u-host",
     status: "SCHEDULED",
@@ -44,8 +51,7 @@ const meetings: Meeting[] = [
     workspace_id: "w1",
     title: "Retro",
     description: "",
-    starts_at: "2026-09-10T02:00:00Z",
-    ends_at: "2026-09-10T03:00:00Z",
+    ...windowFromNow(2 * 60_000, 60 * 60_000),
     room_name: "uw_mtg_m2",
     created_by: "u-host",
     status: "IN_PROGRESS",
@@ -90,6 +96,20 @@ describe("MeetingList", () => {
     expect(rows.length).toBeGreaterThanOrEqual(2);
     const retroRow = rows.find((row) => within(row).queryByText("Retro"));
     expect(within(retroRow!).getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
+  });
+
+  it("hides join and shows ended when the scheduled window is over", async () => {
+    const overtime: Meeting = {
+      ...meetings[1]!,
+      id: "m-over",
+      title: "Overtime standup",
+      ...windowFromNow(-10 * 60_000, 5 * 60_000),
+      status: "IN_PROGRESS",
+    };
+    render(shell(<MeetingList workspaceId="w1" meetings={[overtime]} onOpenRoom={() => {}} />));
+    expect(await screen.findAllByText("Overtime standup")).not.toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Vào ngay" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Đã kết thúc").length).toBeGreaterThan(0);
   });
 
   it("marks today's meetings in the day heading", async () => {

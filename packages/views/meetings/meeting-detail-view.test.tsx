@@ -143,6 +143,7 @@ describe("MeetingDetailView", () => {
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
+    expect(screen.getByText("Đã kết thúc")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
   });
 
@@ -230,6 +231,8 @@ describe("MeetingDetailView", () => {
     expect(screen.queryByRole("button", { name: "Gỡ" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tạo liên kết mới" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Chuyển chủ trì" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nhấn «Tạo liên kết mới»/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Khách bên ngoài (không cần tài khoản)")).not.toBeInTheDocument();
   });
 });
 
@@ -244,7 +247,14 @@ describe("MeetingsPageView", () => {
         return Promise.resolve({
           meetings: [
             { ...meeting, id: "m1", title: "Standup", status: "SCHEDULED" },
-            { ...meeting, id: "m2", title: "Retro", status: "IN_PROGRESS" },
+            {
+              ...meeting,
+              id: "m2",
+              title: "Retro",
+              status: "IN_PROGRESS",
+              starts_at: new Date(Date.now() + 60_000).toISOString(),
+              ends_at: new Date(Date.now() + 3_600_000).toISOString(),
+            },
           ],
           total: 2,
         });

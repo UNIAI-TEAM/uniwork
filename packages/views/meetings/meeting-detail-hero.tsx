@@ -1,6 +1,7 @@
 "use client";
 import { CalendarDays, Clock, Play, TriangleAlert, UserRound, Users, Video, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { displayMeetingStatus } from "@uniwork/core/meetings";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import { AvatarGroup, AvatarGroupCount } from "@uniwork/ui/components/ui/avatar";
@@ -60,6 +61,8 @@ export function MeetingDetailHero({
   const ended = meeting.status === "ENDED";
   const canceled = meeting.status === "CANCELED";
   const closed = ended || canceled;
+  const live = inProgress && canEnter;
+  const badgeStatus = displayMeetingStatus(meeting);
 
   const duration = meetingDurationParts(meeting.starts_at, meeting.ends_at);
   const durationLabel = duration
@@ -71,11 +74,11 @@ export function MeetingDetailHero({
         .join(" ")
     : "";
 
-  const relative = scheduled
+  const relative = scheduled && canEnter
     ? t("meetings.startsRelative", { when: formatRelativeTime(meeting.starts_at, locale) })
-    : inProgress
+    : live
       ? t("meetings.startedRelative", { when: formatRelativeTime(meeting.actual_start_at ?? meeting.starts_at, locale) })
-      : ended
+      : (ended || !canEnter) && !canceled
         ? t("meetings.endedRelative", { when: formatRelativeTime(meeting.actual_end_at ?? meeting.ends_at, locale) })
         : null;
 
@@ -88,16 +91,16 @@ export function MeetingDetailHero({
       aria-label={meeting.title}
       className={cn(
         "relative overflow-hidden rounded-2xl border bg-surface shadow-[var(--surface-shadow)]",
-        inProgress ? "border-brand/30" : "border-surface-border",
+        live ? "border-brand/30" : "border-surface-border",
         canceled && "opacity-90",
       )}
     >
-      {inProgress ? (
+      {live ? (
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-brand/10 to-transparent" />
       ) : null}
       <div className="relative p-5 sm:p-6 lg:p-8">
         <div className="flex flex-wrap items-center gap-2">
-          <MeetingStatusBadge status={meeting.status} />
+          <MeetingStatusBadge status={badgeStatus} />
           {meeting.meeting_type === "INSTANT" ? (
             <Badge variant="outline">
               <Zap aria-hidden />
