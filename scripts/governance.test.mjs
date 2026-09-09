@@ -171,7 +171,8 @@ test("GATE_LEVEL is one word and every gate that claims to read it does", () => 
   assert.ok(["fast", "standard", "strict"].includes(level), `GATE_LEVEL is "${level}"; expected fast | standard | strict`);
   for (const f of [".githooks/pre-commit", "scripts/check.sh", ".github/workflows/ci.yml",
                    ".github/workflows/uniai-link.yml", "docs/engineering/DEFINITION_OF_DONE.md",
-                   "docs/engineering/FEATURE_WORKFLOW.md"]) {
+                   "docs/engineering/FEATURE_WORKFLOW.md",
+                   "scripts/coverage-gate.ts", "scripts/lint-gate.sh"]) {
     assert.match(read(f), /GATE_LEVEL/, `${f} is listed in GATE_LEVELS.md as a reader but never mentions GATE_LEVEL`);
     assert.ok(read("docs/engineering/GATE_LEVELS.md").includes(`\`${f}\``), `GATE_LEVELS.md does not list ${f}`);
   }

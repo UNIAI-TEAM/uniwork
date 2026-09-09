@@ -7,8 +7,13 @@
 // artefacts of `pnpm --filter @uniwork/web build` (Turbopack); nothing
 // beyond node.
 //
-//   node scripts/bundle-budget.mjs            # check
-//   node scripts/bundle-budget.mjs --print    # list every route
+// At GATE_LEVEL=fast the numbers are reported, annotated and written to the
+// job summary but do not fail the build (--warn-only, passed by ci.yml);
+// standard and above enforce them. docs/engineering/GATE_LEVELS.md says why.
+//
+//   node scripts/bundle-budget.mjs              # check
+//   node scripts/bundle-budget.mjs --print      # list every route
+//   node scripts/bundle-budget.mjs --warn-only  # report, never fail
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
@@ -74,14 +79,42 @@ for (const [route, files] of routes) {
   if (own > ceiling) failures.push(`${route} ${own.toFixed(1)} KB > ${ceiling} KB${ceilings[route] ? " (ratchet in scripts/bundle-budget.json)" : ""}`);
 }
 
+rows.sort((a, b) => b[1] - a[1]);
 if (process.argv.includes("--print")) {
   console.log(`initial JS: ${initial.toFixed(1)} KB gzip`);
-  for (const [route, kb, ceiling] of rows.sort((a, b) => b[1] - a[1])) {
+  for (const [route, kb, ceiling] of rows) {
     console.log(`${kb.toFixed(1).padStart(7)} KB / ${String(ceiling).padStart(3)}  ${route}`);
   }
 }
+
+// A budget nobody can see is a budget nobody defends. When the gate only
+// warns, the run page is the one place the drift is still legible, so the
+// table goes there whether or not this run is enforcing.
+if (process.env.GITHUB_STEP_SUMMARY) {
+  const pct = (kb, ceiling) => ((kb / ceiling) * 100).toFixed(0);
+  const md = [
+    `### Bundle size (gzip)`,
+    ``,
+    `Initial JS **${initial.toFixed(1)} KB** / ${INITIAL_KB} KB (${pct(initial, INITIAL_KB)}%)`,
+    ``,
+    `| Route | KB | Ceiling | Used |`,
+    `| --- | ---: | ---: | ---: |`,
+    ...rows.map(([route, kb, ceiling]) =>
+      `| \`${route}\` | ${kb.toFixed(1)} | ${ceiling} | ${pct(kb, ceiling)}% |`),
+    ``,
+  ].join("\n");
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
+}
+
 if (failures.length) {
-  console.error("bundle-budget: over budget\n  " + failures.join("\n  "));
+  const report = "bundle-budget: over budget\n  " + failures.join("\n  ");
+  if (process.argv.includes("--warn-only")) {
+    console.warn(report);
+    for (const f of failures) console.log(`::warning title=Bundle size budget::${f}`);
+    console.warn("bundle-budget: reported, not enforced — GATE_LEVEL=fast. This fails the build at standard.");
+    process.exit(0);
+  }
+  console.error(report);
   process.exit(1);
 }
 console.log(`bundle-budget: ok — initial ${initial.toFixed(1)} KB ≤ ${INITIAL_KB} KB, ${rows.length} routes ≤ ${ROUTE_KB} KB`);
