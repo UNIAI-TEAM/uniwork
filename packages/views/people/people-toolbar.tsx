@@ -28,7 +28,6 @@ import {
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
 import { Switch } from "@uniwork/ui/components/ui/switch";
-import { cn } from "@uniwork/ui/lib/utils";
 
 /**
  * One row of controls above the directory: search on the left, and on the
@@ -224,28 +223,27 @@ export function PeopleToolbar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Kept in the tree with its space reserved when there is nothing to
-            clear: a control that appears and disappears shifts every button
-            to its right, under the cursor that just clicked one.
-            `visibility: hidden` takes it out of the tab order and out of the
-            accessibility tree on its own. Below md the buttons are icon-only
-            and the row is tight, so there the slot is dropped rather than
-            held: a blank 44px is worse on a phone than a small shift. */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={!hasFilters}
-          aria-hidden={!hasFilters}
-          aria-label={t("people.filter_clear")}
-          className={cn("text-muted-foreground", !hasFilters && "invisible max-md:hidden")}
-          onClick={() => onFiltersChange(EMPTY_PEOPLE_FILTERS)}
-        >
-          <X aria-hidden="true" className="size-3.5" />
-        </Button>
+        {/* Only rendered when there is something to clear. This group is flush
+            right, so a control appearing here widens it leftwards: the filter
+            chip moves, the view controls to its right do not. Holding the slot
+            open instead left a permanent notch in the toolbar, which reads as
+            a broken layout every time no filter is set — the common case. */}
+        {hasFilters ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("people.filter_clear")}
+            className="text-muted-foreground"
+            onClick={() => onFiltersChange(EMPTY_PEOPLE_FILTERS)}
+          >
+            <X aria-hidden="true" className="size-3.5" />
+          </Button>
+        ) : null}
 
-        {/* Columns are the table's own affordance and the card view has none,
-            but the slot stays: switching views must not move the view button
-            the user is about to click again. */}
+        {/* Columns are the table's own affordance and the card view has none.
+            It sits to the left of the view button in a flush-right group, so
+            switching views never moves the view button the user just clicked —
+            only the controls left of it slide over. */}
         {isTable ? (
           <Popover>
             <PopoverTrigger
@@ -276,20 +274,7 @@ export function PeopleToolbar({
               </div>
             </PopoverContent>
           </Popover>
-        ) : (
-          // The same button, held open as empty space: identical markup is the
-          // only way the two views measure the same.
-          <Button
-            variant="outline"
-            size="sm"
-            disabled
-            aria-hidden="true"
-            className={cn(TOOLBAR_BUTTON, "invisible max-md:hidden")}
-          >
-            <Settings2 aria-hidden="true" className="size-3.5" />
-            <span className="max-md:sr-only">{t("people.display")}</span>
-          </Button>
-        )}
+        ) : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger
