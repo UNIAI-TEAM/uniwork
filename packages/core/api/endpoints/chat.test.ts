@@ -19,7 +19,9 @@ import {
   resolveDMRoom,
   sendChatRoomMessage,
   sendChatVoiceMessage,
+  sendChatFileMessage,
   loadChatVoiceBlob,
+  loadChatFileBlob,
   sendWorkspaceChatMessage,
   signalChatTyping,
   signalChatVoiceAccept,
@@ -226,6 +228,25 @@ describe("chat endpoints", () => {
     expect(form.get("reply_to_message_id")).toBe("reply-1");
     expect(form.get("file")).toBeInstanceOf(Blob);
     expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+  });
+
+  it("sendChatFileMessage sends multipart fields and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const file = new Blob(["%PDF-1.7"], { type: "application/pdf" });
+    expect(
+      await sendChatFileMessage("ws1", "room1", {
+        file,
+        filename: "sprint.pdf",
+        client_msg_id: "client-file-1",
+        reply_to_message_id: "reply-1",
+      }),
+    ).toBeNull();
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init?.body as FormData;
+    expect(form.get("client_msg_id")).toBe("client-file-1");
+    expect(form.get("reply_to_message_id")).toBe("reply-1");
+    expect(form.get("file")).toBeInstanceOf(Blob);
   });
 
   it("loadChatVoiceBlob returns authenticated binary response", async () => {

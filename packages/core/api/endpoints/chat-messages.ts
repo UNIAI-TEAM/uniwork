@@ -150,6 +150,42 @@ export function loadChatVoiceBlob(
   );
 }
 
+export async function sendChatFileMessage(
+  workspaceId: string,
+  roomId: string,
+  input: {
+    file: Blob;
+    filename: string;
+    client_msg_id: string;
+    reply_to_message_id?: string;
+  },
+): Promise<ChatMessageRecord | null> {
+  const form = new FormData();
+  form.set("file", input.file, input.filename);
+  form.set("client_msg_id", input.client_msg_id);
+  if (input.reply_to_message_id) {
+    form.set("reply_to_message_id", input.reply_to_message_id);
+  }
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/file`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/file",
+  });
+  return parsed.message ?? null;
+}
+
+export function loadChatFileBlob(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+): Promise<Blob> {
+  return requestBlob(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/file`,
+  );
+}
+
 export async function voteChatPollMessage(
   workspaceId: string,
   roomId: string,

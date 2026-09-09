@@ -84,6 +84,45 @@ describe("chat-sidebar-preview", () => {
     expect(text).toBe("Tin nhắn thoại");
   });
 
+  it("prefers file name in file preview, else localized label", () => {
+    expect(
+      formatChatSidebarPreviewText(
+        {
+          body: "sprint.pdf",
+          kind: "file",
+          senderId: "u2",
+          senderName: "Binh",
+          createdAt: "2026-03-26T10:00:00Z",
+        },
+        {
+          currentUserId: "self",
+          isGroup: false,
+          youLabel: "Bạn",
+          voiceCallLabel: "Cuộc gọi",
+          fileMessageLabel: "Tệp đính kèm",
+        },
+      ),
+    ).toBe("sprint.pdf");
+    expect(
+      formatChatSidebarPreviewText(
+        {
+          body: "  ",
+          kind: "file",
+          senderId: "u2",
+          senderName: "Binh",
+          createdAt: "2026-03-26T10:00:00Z",
+        },
+        {
+          currentUserId: "self",
+          isGroup: false,
+          youLabel: "Bạn",
+          voiceCallLabel: "Cuộc gọi",
+          fileMessageLabel: "Tệp đính kèm",
+        },
+      ),
+    ).toBe("Tệp đính kèm");
+  });
+
   it("sorts previews by recency", () => {
     const newer = {
       body: "b",

@@ -57,6 +57,7 @@ export function ChatPageContent({
   onSend,
   onSendMedia,
   onSendVoice,
+  onSendFile,
   groupSettingsOpen,
   onGroupSettingsOpenChange,
   dmSettingsOpen,
@@ -436,6 +437,7 @@ export function ChatPageContent({
                   onSend={onSend}
                   onSendMedia={onSendMedia}
                   onSendVoice={onSendVoice}
+                  onSendFile={onSendFile}
                   disabled={showLoading || !activeRoomId || dmBlocked || chatSendRestricted}
                   mentionCandidates={
                     target.kind === "workspace" || target.kind === "group" ? mentionCandidates : undefined

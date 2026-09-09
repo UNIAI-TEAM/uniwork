@@ -390,6 +390,8 @@ func New(d Deps) http.Handler {
 		SendChatRoomMessage:         h.sendChatRoomMessage,
 		SendChatVoiceMessage:        h.sendChatVoiceMessage,
 		StreamChatVoiceMessage:      h.streamChatVoiceMessage,
+		SendChatFileMessage:         h.sendChatFileMessage,
+		StreamChatFileMessage:       h.streamChatFileMessage,
 		VoteChatPollMessage:         h.voteChatPollMessage,
 		ToggleChatMessageReaction:   h.toggleChatMessageReaction,
 		EditChatMessage:             h.editChatMessage,

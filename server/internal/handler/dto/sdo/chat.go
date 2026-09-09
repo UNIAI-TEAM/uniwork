@@ -21,6 +21,13 @@ type VoiceMessageDTO struct {
 	SizeBytes   int64  `json:"size_bytes" description:"Stored audio size in bytes" example:"184320"`
 }
 
+// FileMessageDTO is metadata for private chat-file content (object_key stays server-side).
+type FileMessageDTO struct {
+	Filename    string `json:"filename" description:"Original filename" example:"sprint.pdf"`
+	ContentType string `json:"content_type" description:"Sniffed MIME type" example:"application/pdf"`
+	SizeBytes   int64  `json:"size_bytes" description:"Stored file size in bytes" example:"204800"`
+}
+
 // ChatPollOptionDTO is one poll choice with vote count.
 type ChatPollOptionDTO struct {
 	ID    string `json:"id" description:"Option id" example:"01J8X4OPT0N1P2Q3R4S5T6U7V8"`
@@ -77,6 +84,7 @@ type ChatMessageDTO struct {
 	Reactions         map[string]int   `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
 	VoiceCall         *VoiceCallLogDTO `json:"voice_call,omitempty" description:"Voice call log metadata when kind is voice_call_log"`
 	Voice             *VoiceMessageDTO `json:"voice,omitempty" description:"Voice recording metadata when kind is voice"`
+	File              *FileMessageDTO  `json:"file,omitempty" description:"File attachment metadata when kind is file"`
 	Poll              *ChatPollDTO     `json:"poll,omitempty" description:"Poll payload when kind is poll"`
 	Reminder          *ChatReminderDTO `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
 	Note              *ChatNoteDTO     `json:"note,omitempty" description:"Note payload when kind is note"`

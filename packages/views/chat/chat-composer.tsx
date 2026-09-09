@@ -1,25 +1,19 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import {
-  BarChart3,
-  Bell,
-  CircleAlert,
-  Clock,
-  Mic,
-  Paperclip,
-  Send,
-  StickyNote,
-  X,
-} from "lucide-react";
+import { Bell, CircleAlert, Mic, Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { CHAT_MESSAGE_BODY_MAX_LENGTH } from "@uniwork/core/chat/client-msg-id";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
+import {
+  ComposerAttachMenu,
+  ComposerToolbarButton,
+  type ComposerAttachAction,
+} from "./chat-composer-attach-menu";
 import { ChatExpressionPicker } from "./chat-expression-picker";
 import { ChatMentionAutocomplete } from "./chat-mention-autocomplete";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
@@ -31,127 +25,6 @@ import {
   insertMentionToken,
 } from "./chat-mention-utils";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
-
-type ComposerAttachAction =
-  | "create_poll"
-  | "create_reminder"
-  | "create_note"
-  | "mark_important"
-  | "mark_urgent"
-  | "stickers"
-  | "voice"
-  | "location";
-
-type ComposerAttachMenuItem =
-  | {
-      id: ComposerAttachAction;
-      icon: typeof BarChart3;
-      labelKey: string;
-      separatorAfter?: false;
-    }
-  | { separator: true };
-
-const ATTACH_MENU_ITEMS: ComposerAttachMenuItem[] = [
-  { id: "create_poll", icon: BarChart3, labelKey: "composer_create_poll" },
-  { id: "create_reminder", icon: Clock, labelKey: "composer_create_reminder" },
-  { id: "create_note", icon: StickyNote, labelKey: "composer_create_note" },
-  { separator: true },
-  { id: "mark_important", icon: CircleAlert, labelKey: "composer_mark_important" },
-  { id: "mark_urgent", icon: Bell, labelKey: "composer_mark_urgent" },
-];
-
-function ComposerToolbarButton({
-  label,
-  disabled,
-  children,
-  className,
-  ...props
-}: React.ComponentProps<"button"> & { label: string }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors",
-        "hover:bg-muted hover:text-foreground",
-        "disabled:pointer-events-none disabled:opacity-50",
-        "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-function filterAttachMenuItems(
-  items: ComposerAttachMenuItem[],
-  showCreatePoll: boolean,
-): ComposerAttachMenuItem[] {
-  if (showCreatePoll) return items;
-  return items.filter((item) => !("id" in item) || item.id !== "create_poll");
-}
-
-function ComposerAttachMenu({
-  disabled,
-  onAction,
-  align = "end",
-  showCreatePoll = true,
-}: {
-  disabled?: boolean;
-  onAction: (action: ComposerAttachAction) => void;
-  align?: "start" | "end";
-  showCreatePoll?: boolean;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const menuItems = useMemo(
-    () => filterAttachMenuItems(ATTACH_MENU_ITEMS, showCreatePoll),
-    [showCreatePoll],
-  );
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        disabled={disabled}
-        render={
-          <ComposerToolbarButton label={t("chat.composer_attach")} disabled={disabled}>
-            <Paperclip aria-hidden className="size-5" />
-          </ComposerToolbarButton>
-        }
-      />
-      <PopoverContent align={align} side="top" className="w-72 p-1">
-        <ul className="flex flex-col" role="menu" aria-label={t("chat.composer_attach_menu")}>
-          {menuItems.map((item, index) =>
-            "separator" in item ? (
-              <li key={`sep-${index}`} role="separator" className="my-1 h-px bg-border" />
-            ) : (
-              <li key={item.id} role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-body text-foreground",
-                    "hover:bg-muted focus-visible:bg-muted focus-visible:outline-none",
-                  )}
-                  onClick={() => {
-                    setOpen(false);
-                    onAction(item.id);
-                  }}
-                >
-                  <item.icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-                  <span>{t(`chat.${item.labelKey}`)}</span>
-                </button>
-              </li>
-            ),
-          )}
-        </ul>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function ComposerPriorityChip({
   priority,
@@ -198,6 +71,7 @@ export function ChatComposer({
   onAttachAction,
   onSendMedia,
   onSendVoice,
+  onSendFile,
   showCreatePoll = true,
 }: {
   workspaceId: string;
@@ -214,10 +88,12 @@ export function ChatComposer({
   onAttachAction?: (action: ComposerAttachAction) => void;
   onSendMedia?: (body: string) => void | Promise<void>;
   onSendVoice?: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
+  onSendFile?: (file: File) => void | Promise<void>;
   showCreatePoll?: boolean;
 }) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
@@ -280,6 +156,11 @@ export function ChatComposer({
   };
 
   const handleAttachAction = (action: ComposerAttachAction) => {
+    if (action === "attach_file") {
+      if (disabled) return;
+      fileInputRef.current?.click();
+      return;
+    }
     if (onAttachAction) {
       onAttachAction(action);
       return;
@@ -315,6 +196,20 @@ export function ChatComposer({
 
   return (
     <div className="flex shrink-0 flex-col gap-1 border-t border-border bg-surface px-3 py-3">
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="sr-only"
+        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,.jpg,.jpeg,.png,.gif,.webp,.pdf,.txt"
+        aria-hidden
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file || disabled) return;
+          void onSendFile?.(file);
+        }}
+      />
       {typingLabel ? (
         <p className="px-2 text-caption text-muted-foreground" aria-live="polite">
           {typingLabel}
@@ -508,4 +403,4 @@ export function ChatComposer({
   );
 }
 
-export type { ComposerAttachAction };
+export type { ComposerAttachAction } from "./chat-composer-attach-menu";
