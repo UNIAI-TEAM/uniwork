@@ -183,7 +183,7 @@ function ConferenceStage({
           />
           <div
             ref={stageContentRef}
-            className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-2 sm:px-4 sm:pt-3 sm:pb-2"
+            className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-2 sm:px-4 sm:pb-2"
             data-testid="meeting-stage-content"
           >
             <MeetingScheduleBanner

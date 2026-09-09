@@ -237,7 +237,7 @@ export function MeetingParticipantTile({
         }
       }}
       className={cn(
-        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none",
+        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-[280ms] motion-safe:ease-out motion-reduce:transition-none",
         compact ? "aspect-[4/3] rounded-2xl" : "h-full rounded-3xl",
       )}
       data-hand-raised={handRaised || undefined}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
@@ -47,14 +47,18 @@ describe("MeetingScheduleBanner", () => {
     );
     const banner = screen.getByTestId("meeting-schedule-banner");
     expect(banner.className).not.toMatch(/\babsolute\b/);
-    expect(screen.getByTestId("meeting-schedule-banner-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("meeting-schedule-banner-slot")).toHaveAttribute(
+      "data-expanded",
+      "true",
+    );
 
-    vi.setSystemTime(new Date("2026-09-03T09:00:00.000Z"));
-    rerender(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
+    rerender(<MeetingScheduleBanner endsAt="2026-09-03T10:15:00.000Z" />);
     expect(screen.getByTestId("meeting-schedule-banner-slot")).not.toHaveAttribute(
       "data-expanded",
     );
-    vi.advanceTimersByTime(280);
+    act(() => {
+      vi.advanceTimersByTime(280);
+    });
     expect(screen.queryByTestId("meeting-schedule-banner-slot")).not.toBeInTheDocument();
     vi.useRealTimers();
   });

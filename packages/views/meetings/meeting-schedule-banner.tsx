@@ -62,14 +62,7 @@ export function MeetingScheduleBanner({
       setExpanded(false);
       return;
     }
-    let inner = 0;
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => setExpanded(true));
-    });
-    return () => {
-      cancelAnimationFrame(outer);
-      cancelAnimationFrame(inner);
-    };
+    setExpanded(true);
   }, [shouldShow, rendered]);
 
   if (!rendered || !endsAt) return null;
@@ -98,7 +91,7 @@ export function MeetingScheduleBanner({
       <div className="min-h-0 overflow-hidden">
         <div
           className={cn(
-            "mb-2 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium",
+            "mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium",
             overtime
               ? "border border-warning/40 bg-warning/95 text-background"
               : "pointer-events-none border border-destructive/40 bg-destructive/95 text-destructive-foreground",
@@ -124,12 +117,14 @@ export function MeetingScheduleBanner({
             </Button>
           ) : null}
         </div>
+        {shouldShow ? (
+          <p role="status" className="sr-only">
+            {overtime
+              ? t("meetings.scheduleOvertimeAnnounce")
+              : t("meetings.scheduleEndingAnnounce")}
+          </p>
+        ) : null}
       </div>
-      {shouldShow ? (
-        <p role="status" className="sr-only">
-          {overtime ? t("meetings.scheduleOvertimeAnnounce") : t("meetings.scheduleEndingAnnounce")}
-        </p>
-      ) : null}
     </div>
   );
 }
