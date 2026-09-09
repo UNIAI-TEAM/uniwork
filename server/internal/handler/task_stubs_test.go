@@ -31,26 +31,3 @@ func TestWorkManagementStubsReturnCapabilityUnavailable(t *testing.T) {
 		}
 	}
 }
-
-func TestSuiteStubRoutes404WhenFlagOff(t *testing.T) {
-	srv := newTestServer(t)
-	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
-		"email": "stub-flag@example.com", "password": "password123", "display_name": "StubFlag",
-	})
-	if res.StatusCode != 200 {
-		t.Fatalf("register: %d %v", res.StatusCode, out)
-	}
-	token := out["access_token"].(string)
-	verifyEmail(t, srv, token)
-
-	const taskID = "01J8X4TASKN1P2Q3R4S5T6U7"
-	res, body := doJSON(t, srv, http.MethodGet, "/api/v1/tasks/"+taskID+"/active-task", token, nil)
-	if res.StatusCode != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404; body=%v", res.StatusCode, body)
-	}
-	errObj, _ := body["error"].(map[string]any)
-	if errObj["code"] != "feature_disabled" {
-		raw, _ := json.Marshal(body)
-		t.Fatalf("body = %s, want feature_disabled", raw)
-	}
-}

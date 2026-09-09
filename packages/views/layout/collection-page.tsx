@@ -2,7 +2,7 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import {
   Empty,
   EmptyContent,
@@ -49,6 +49,18 @@ export function CollectionPageHeader({ icon: Icon, title, count, description, ac
   );
 }
 
+/** Icon-only below md, labelled above md — the shape every header action takes. */
+const HEADER_ACTION_SHAPE = "h-8 w-8 gap-1 px-0 md:w-auto md:px-2.5";
+
+function HeaderActionContent({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <>
+      <Icon aria-hidden="true" className="size-3.5" />
+      <span className="hidden md:inline">{label}</span>
+    </>
+  );
+}
+
 interface CollectionPageHeaderActionProps extends Omit<ComponentProps<typeof Button>, "children"> {
   icon: LucideIcon;
   label: string;
@@ -56,7 +68,7 @@ interface CollectionPageHeaderActionProps extends Omit<ComponentProps<typeof But
 
 /** Responsive header action: icon-only below md, labelled above md. */
 export function CollectionPageHeaderAction({
-  icon: Icon,
+  icon,
   label,
   className,
   type = "button",
@@ -69,13 +81,46 @@ export function CollectionPageHeaderAction({
       type={type}
       size={size}
       variant={variant}
-      className={cn("h-8 w-8 gap-1 px-0 md:w-auto md:px-2.5", className)}
+      className={cn(HEADER_ACTION_SHAPE, className)}
       aria-label={props["aria-label"] ?? label}
       {...props}
     >
-      <Icon aria-hidden="true" className="size-3.5" />
-      <span className="hidden md:inline">{label}</span>
+      <HeaderActionContent icon={icon} label={label} />
     </Button>
+  );
+}
+
+interface CollectionPageHeaderLinkActionProps
+  extends Omit<ComponentProps<typeof ButtonLink>, "children"> {
+  icon: LucideIcon;
+  label: string;
+}
+
+/**
+ * The same header action for an action that is a navigation rather than a
+ * command — a download the browser saves, a file opened in a new tab. It goes
+ * through `ButtonLink`, not `<Button render={<a/>}>`, so the anchor keeps link
+ * semantics; see the comment on `ButtonLink` for what the button primitive does
+ * to an `<a>` instead.
+ */
+export function CollectionPageHeaderLinkAction({
+  icon,
+  label,
+  className,
+  size = "sm",
+  variant = "outline",
+  ...props
+}: CollectionPageHeaderLinkActionProps) {
+  return (
+    <ButtonLink
+      size={size}
+      variant={variant}
+      className={cn(HEADER_ACTION_SHAPE, className)}
+      aria-label={props["aria-label"] ?? label}
+      {...props}
+    >
+      <HeaderActionContent icon={icon} label={label} />
+    </ButtonLink>
   );
 }
 

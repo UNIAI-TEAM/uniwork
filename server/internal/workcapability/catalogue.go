@@ -26,9 +26,7 @@ var catalogue = map[string]Entry{
 		Status: Available,
 	},
 	"tasks.projects": {
-		Status:         Unavailable,
-		ReasonCode:     "surface_not_ready",
-		ExplanationKey: "capabilities.surface_not_ready",
+		Status: Available,
 	},
 	"tasks.attachments": {
 		Status: Available,

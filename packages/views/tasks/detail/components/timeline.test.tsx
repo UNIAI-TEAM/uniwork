@@ -245,14 +245,11 @@ describe("TaskDetailTimeline", () => {
     });
   });
 
-  it("AgentRun control is aria-disabled with a capability reason", () => {
+  it("does not mount AgentRun or pull-request chrome on the timeline", () => {
     render(shell(<TaskDetailTimeline taskId="t1" />));
 
-    const agentRun = screen.getByTestId("task-detail-agent-run-stub");
-    expect(agentRun).toHaveAttribute("aria-disabled", "true");
-    expect(agentRun).toHaveAttribute(
-      "title",
-      expect.stringMatching(/runtime|agent|chưa khả dụng|not available/i),
-    );
+    expect(screen.queryByTestId("task-detail-runtime-stubs")).toBeNull();
+    expect(screen.queryByTestId("task-detail-agent-run-panel")).toBeNull();
+    expect(screen.queryByTestId("task-detail-pull-requests")).toBeNull();
   });
 });

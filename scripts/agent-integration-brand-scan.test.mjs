@@ -4,13 +4,9 @@ import path from "node:path";
 import test from "node:test";
 
 const roots = [
-  "packages/views/squads",
-  "packages/views/runtimes",
   "packages/views/tasks/detail",
   "packages/views/tasks/surface",
   "packages/views/common",
-  "apps/web/app/[orgSlug]/[workspaceSlug]/squads",
-  "apps/web/app/[orgSlug]/[workspaceSlug]/runtimes",
 ];
 const LOCALE_FILES = [
   "packages/core/i18n/locales/en.json",

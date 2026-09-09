@@ -167,20 +167,7 @@ describe("BatchActionToolbar delete", () => {
     );
   });
 
-  it("gates agent trigger and squad assign when capabilities are unavailable", () => {
-    publicConfigState.data.work_management_capabilities = {
-      "tasks.agent_runs": {
-        status: "unavailable",
-        reason_code: "agent_runtime_missing",
-        explanation_key: "capabilities.agent_runtime_missing",
-      },
-      "tasks.squads": {
-        status: "unavailable",
-        reason_code: "squad_directory_missing",
-        explanation_key: "capabilities.squad_directory_missing",
-      },
-    };
-
+  it("does not mount agent trigger or squad assign chrome", () => {
     render(
       wrap(
         <TaskSurfaceActionsProvider actions={noopActions}>
@@ -191,13 +178,7 @@ describe("BatchActionToolbar delete", () => {
       ),
     );
 
-    const agent = screen.getByTestId("batch-agent-trigger");
-    const squad = screen.getByTestId("batch-squad-assign");
-    expect(agent).toHaveAttribute("aria-disabled", "true");
-    expect(squad).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(agent);
-    fireEvent.click(squad);
-    expect(agent).toHaveAttribute("aria-disabled", "true");
-    expect(squad).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByTestId("batch-agent-trigger")).toBeNull();
+    expect(screen.queryByTestId("batch-squad-assign")).toBeNull();
   });
 });

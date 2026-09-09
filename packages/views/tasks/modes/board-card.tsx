@@ -13,10 +13,6 @@ import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import type { Task } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
-import {
-  AgentTriggerStub,
-  SquadAssignStub,
-} from "../surface/agent-squad-gates";
 
 const EMPTY_CONFIG = {
   flags: {},
@@ -156,15 +152,6 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
       >
         <BoardCardContent task={task} />
       </button>
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops DnD/open; children are CapabilityDisabledControl buttons */}
-      <div
-        className="flex flex-wrap gap-1 px-0.5"
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <AgentTriggerStub testId="board-agent-trigger" />
-        <SquadAssignStub testId="board-squad-assign" />
-      </div>
     </div>
   );
 });

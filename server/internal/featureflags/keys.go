@@ -36,7 +36,6 @@ var catalogue = []Flag{
 	{Key: "rum_sampling", Description: "Cho phép web gửi web-vitals về POST /api/v1/rum", Default: true, Public: true, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "meeting_ai_summary", Description: "Bật tóm tắt cuộc họp bằng AI theo tổ chức (pilot)", Default: false, Public: true, Owner: "meetings", ReviewAt: day(2026, 12, 5)},
 	{Key: "debug_trace_full_sampling", Description: "Lấy mẫu trace 100% cho tổ chức đang điều tra sự cố", Default: false, Public: false, Owner: "platform", ReviewAt: day(2026, 12, 5)},
-	{Key: "tasks_work_management_parity", Description: "Cutover Work Management suite mới", Default: false, Public: true, Owner: "tasks", ReviewAt: day(2026, 12, 15)},
 }
 
 // Catalogue returns a copy of the declared flags.

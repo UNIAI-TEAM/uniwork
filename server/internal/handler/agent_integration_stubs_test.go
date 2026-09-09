@@ -8,10 +8,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/unicomhub/uniwork/server/internal/featureflags"
-	"github.com/unicomhub/uniwork/server/internal/util"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestStubReasonMatrixMatchesCatalogue(t *testing.T) {
@@ -80,17 +76,6 @@ func TestAgentIntegrationStubHTTPReasonCodes(t *testing.T) {
 
 func TestAgentIntegrationStubPOSTDoesNotInsertBusinessRows(t *testing.T) {
 	d, pool := newTestDeps(t, nil, discardOutbox{})
-	q := db.New(pool)
-	if _, err := q.UpsertFlagOverride(t.Context(), db.UpsertFlagOverrideParams{
-		ID: util.NewID(), FlagKey: "tasks_work_management_parity",
-		ScopeType: featureflags.ScopeGlobal, ScopeID: "", Enabled: true,
-		Note: "agent-integration stubs", CreatedBy: "test",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if testFlagOverrides != nil {
-		testFlagOverrides.Invalidate()
-	}
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
 

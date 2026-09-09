@@ -17,10 +17,7 @@ const WORKSPACE_MODES: TaskSurfaceMode[] = [
 
 const WORKSPACE_SCOPE = { type: "workspace" as const };
 
-/**
- * Flag-on `/tasks` host: workspace-scoped TaskSurface with the five suite modes.
- * Flag-off keeps {@link TasksPageView} (MVP board/list only).
- */
+/** Workspace-scoped `/tasks` host: TaskSurface with the five suite modes. */
 export function TaskSurfacePage({
   workspaceId,
   onOpenTask,

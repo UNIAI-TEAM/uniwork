@@ -13,9 +13,8 @@ import { useTaskDetailScrollRestore } from "./hooks/use-task-detail-scroll-resto
 import { useTaskFieldSave } from "./hooks/use-task-field-save";
 
 /**
- * Suite task detail shell (flag-gated at the route in Task 10).
- * Properties sidebar + sub-tasks (Task 7) and timeline (Task 8) are live;
- * attachments list/upload (Task 9).
+ * Suite task detail shell mounted from the web task detail route.
+ * Properties sidebar, sub-tasks, timeline, and attachments are live.
  */
 export function TaskDetailSuitePage(props: {
   workspaceId: string;

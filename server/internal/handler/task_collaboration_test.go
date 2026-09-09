@@ -1,46 +1,9 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 )
-
-func TestSuiteCollaborationRoutes404WhenFlagOff(t *testing.T) {
-	srv := newTestServer(t)
-	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
-		"email": "collab-flag@example.com", "password": "password123", "display_name": "Collab",
-	})
-	if res.StatusCode != 200 {
-		t.Fatalf("register: %d %v", res.StatusCode, out)
-	}
-	token := out["access_token"].(string)
-	verifyEmail(t, srv, token)
-
-	const fakeTask = "01J8X4TASKN1P2Q3R4S5T6U7"
-	const fakeComment = "01J8X4CMTN1P2Q3R4S5T6U7V"
-	paths := []struct {
-		method, path string
-		body         any
-	}{
-		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/subscribers", nil},
-		{http.MethodPost, "/api/v1/tasks/" + fakeTask + "/subscribe", map[string]any{}},
-		{http.MethodPost, "/api/v1/comments/" + fakeComment + "/resolve", nil},
-		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/timeline", nil},
-		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/attachments", nil},
-	}
-	for _, p := range paths {
-		res, body := doJSON(t, srv, p.method, p.path, token, p.body)
-		if res.StatusCode != http.StatusNotFound {
-			t.Fatalf("%s %s status = %d, want 404; body=%v", p.method, p.path, res.StatusCode, body)
-		}
-		errObj, _ := body["error"].(map[string]any)
-		if errObj["code"] != "feature_disabled" {
-			raw, _ := json.Marshal(body)
-			t.Fatalf("%s %s body = %s, want feature_disabled", p.method, p.path, raw)
-		}
-	}
-}
 
 func TestCollaborationHTTPRoundTrip(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)

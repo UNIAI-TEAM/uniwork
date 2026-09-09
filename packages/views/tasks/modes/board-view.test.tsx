@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
@@ -96,7 +96,7 @@ describe("modes/BoardView", () => {
     expect(screen.getByTestId("board-column-blocked")).toBeInTheDocument();
   });
 
-  it("gates board agent trigger and squad assign when capabilities are unavailable", async () => {
+  it("does not mount board agent trigger or squad assign chrome", async () => {
     const store = getTaskSurfaceViewStore("board-view-gates");
     render(
       wrap(
@@ -111,13 +111,8 @@ describe("modes/BoardView", () => {
       ),
     );
 
-    const agent = await screen.findByTestId("board-agent-trigger");
-    const squad = screen.getByTestId("board-squad-assign");
-    expect(agent).toHaveAttribute("aria-disabled", "true");
-    expect(squad).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(agent);
-    fireEvent.click(squad);
-    expect(agent).toHaveAttribute("aria-disabled", "true");
-    expect(squad).toHaveAttribute("aria-disabled", "true");
+    expect(await screen.findByText("Suite card")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-agent-trigger")).toBeNull();
+    expect(screen.queryByTestId("board-squad-assign")).toBeNull();
   });
 });

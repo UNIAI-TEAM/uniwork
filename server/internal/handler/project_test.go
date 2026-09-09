@@ -1,45 +1,10 @@
 package handler
 
 import (
-	"encoding/json"
-	"net/http"
 	"testing"
 )
 
-func TestSuiteProjectsRoutes404WhenFlagOff(t *testing.T) {
-	srv := newTestServer(t)
-	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
-		"email": "projects-flag@example.com", "password": "password123", "display_name": "Projects",
-	})
-	if res.StatusCode != 200 {
-		t.Fatalf("register: %d %v", res.StatusCode, out)
-	}
-	token := out["access_token"].(string)
-	verifyEmail(t, srv, token)
-
-	const fakeWs = "01J8X4WS0N1P2Q3R4S5T6U7V8"
-	paths := []struct {
-		method, path string
-		body         any
-	}{
-		{http.MethodGet, "/api/v1/workspaces/" + fakeWs + "/projects", nil},
-		{http.MethodGet, "/api/v1/workspaces/" + fakeWs + "/projects/search?q=x", nil},
-		{http.MethodPost, "/api/v1/workspaces/" + fakeWs + "/projects", map[string]any{"title": "x"}},
-	}
-	for _, p := range paths {
-		res, body := doJSON(t, srv, p.method, p.path, token, p.body)
-		if res.StatusCode != http.StatusNotFound {
-			t.Fatalf("%s %s status = %d, want 404; body=%v", p.method, p.path, res.StatusCode, body)
-		}
-		errObj, _ := body["error"].(map[string]any)
-		if errObj["code"] != "feature_disabled" {
-			raw, _ := json.Marshal(body)
-			t.Fatalf("%s %s body = %s, want feature_disabled", p.method, p.path, raw)
-		}
-	}
-}
-
-func TestProjectsHTTPRoundTripAndCapabilityNotReady(t *testing.T) {
+func TestProjectsHTTPRoundTripAndCapabilityAvailable(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 
 	res, body := doJSON(t, srv, "GET", "/api/v1/config", token, nil)
@@ -48,8 +13,11 @@ func TestProjectsHTTPRoundTripAndCapabilityNotReady(t *testing.T) {
 	}
 	caps, _ := body["work_management_capabilities"].(map[string]any)
 	projCap, _ := caps["tasks.projects"].(map[string]any)
-	if projCap["status"] != "unavailable" || projCap["reason_code"] != "surface_not_ready" {
-		t.Fatalf("tasks.projects capability = %v, want unavailable/surface_not_ready", projCap)
+	if projCap["status"] != "available" {
+		t.Fatalf("tasks.projects capability = %v, want available", projCap)
+	}
+	if _, ok := projCap["reason_code"]; ok {
+		t.Fatalf("tasks.projects reason_code = %v, want omitted", projCap["reason_code"])
 	}
 
 	res, body = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/projects", token, map[string]any{

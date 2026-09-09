@@ -2365,7 +2365,18 @@
     "reporting": "Quan hệ báo cáo",
     "details_empty": "Chưa có thông tin nào.",
     "email_person": "Gửi email cho {{name}}",
-    "call_person": "Gọi cho {{name}}"
+    "call_person": "Gọi cho {{name}}",
+    "group_personal": "Thông tin cá nhân",
+    "group_personal_hint": "Bạn tự quản lý những mục này.",
+    "group_company": "Thông tin công ty",
+    "group_company_locked": "Chỉ chủ sở hữu hoặc quản trị tổ chức sửa được nhóm này.",
+    "bio_counter": "{{used}}/{{max}}",
+    "bio_too_long": "Giới thiệu tối đa {{max}} ký tự.",
+    "discard_title": "Bỏ các thay đổi?",
+    "discard_description": "Những gì bạn vừa sửa sẽ không được lưu.",
+    "discard_confirm": "Bỏ thay đổi",
+    "discard_keep": "Tiếp tục sửa",
+    "edit_profile_description": "Cập nhật thông tin của người này. Nhóm dưới cần quyền quản trị tổ chức."
   },
   "departments": {
     "title": "Phòng ban",
