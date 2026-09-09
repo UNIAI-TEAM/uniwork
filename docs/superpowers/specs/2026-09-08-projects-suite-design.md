@@ -3,7 +3,7 @@
 > **Trạng thái:** in-progress — thiết kế được duyệt ngày 2026-09-08; plan `../plans/2026-09-08-projects-suite.md`; chờ sub-issue + SDD
 
 **Ngày:** 2026-09-08  
-**Issue:** (tạo khi `issue-start`) · UNI-426.4  
+**Issue:** UNI-502 · UNI-426.4  
 **Parent:** UNI-426 · F-05  
 **Phụ thuộc:** UNI-495 + UNI-497 + UNI-500 đã merge `develop`  
 **Umbrella:** `2026-09-07-tasks-work-management-parity-design.md` §4.3, §5.1, §8, §10, §11 mục 4  
