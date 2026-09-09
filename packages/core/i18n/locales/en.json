@@ -806,6 +806,20 @@
         "child_progress": "Sub-task progress",
         "creator": "Creator"
       }
+    },
+    "detail": {
+      "not_found": "Task not found",
+      "title_placeholder": "Task title",
+      "description_placeholder": "Add a description…",
+      "title_region": "Title",
+      "properties_sidebar": "Properties",
+      "section_properties": "Properties",
+      "properties_placeholder": "Status, assignee, and other fields will appear here.",
+      "timeline_section": "Activity",
+      "timeline_placeholder": "Comments and activity will appear here.",
+      "attachments_section": "Attachments",
+      "attachments_placeholder": "Files attached to this task will appear here.",
+      "revision_conflict": "Someone else updated this task. Reloaded the latest version."
     }
   },
   "myTasks": {

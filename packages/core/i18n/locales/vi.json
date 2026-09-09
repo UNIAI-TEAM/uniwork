@@ -805,6 +805,20 @@
         "child_progress": "Tiến độ công việc con",
         "creator": "Người tạo"
       }
+    },
+    "detail": {
+      "not_found": "Không tìm thấy công việc",
+      "title_placeholder": "Tiêu đề công việc",
+      "description_placeholder": "Thêm mô tả…",
+      "title_region": "Tiêu đề",
+      "properties_sidebar": "Thuộc tính",
+      "section_properties": "Thuộc tính",
+      "properties_placeholder": "Trạng thái, người phụ trách và các trường khác sẽ hiện ở đây.",
+      "timeline_section": "Hoạt động",
+      "timeline_placeholder": "Bình luận và hoạt động sẽ hiện ở đây.",
+      "attachments_section": "Đính kèm",
+      "attachments_placeholder": "Tệp đính kèm của công việc sẽ hiện ở đây.",
+      "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất."
     }
   },
   "myTasks": {
