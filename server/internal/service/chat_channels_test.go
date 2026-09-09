@@ -7,8 +7,10 @@ import (
 )
 
 func TestChatChannelsCreateJoinDiscover(t *testing.T) {
-	s, _, _, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 
 	pub, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
 		Name: "general-pub", Visibility: chatVisibilityPublic, Topic: "hello",
@@ -111,8 +113,10 @@ func TestChatChannelNameValidation(t *testing.T) {
 }
 
 func TestChatChannelLeaveAndKick(t *testing.T) {
-	s, _, _, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 
 	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
 		Name: "ops", Visibility: chatVisibilityPrivate, MemberUserIDs: []string{ub.ID},
