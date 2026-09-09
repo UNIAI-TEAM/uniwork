@@ -192,7 +192,7 @@ func main() {
 		WorkerTick: cfg.MeetingWorkerTick, OutboxBatch: cfg.MeetingOutboxBatch,
 		WebhookBatch: cfg.MeetingWebhookBatch, WebhookConcurrency: int(cfg.MeetingWebhookConcurrency),
 	})
-	taskSvc := service.NewTaskService(pool, q, wsSvc)
+	taskSvc := service.NewTaskService(pool, q, wsSvc, store)
 	meetingSvc.Tasks = taskSvc
 	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
 	readiness := service.NewReadiness(pool, rdb)

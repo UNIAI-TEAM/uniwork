@@ -81,6 +81,8 @@ export const WS_EVENT_TYPES = [
   "task.reaction_removed",
   "task.subscribed",
   "task.unsubscribed",
+  "attachment.uploaded",
+  "attachment.deleted",
   "task.created",
   "task.deleted",
   "task.updated",

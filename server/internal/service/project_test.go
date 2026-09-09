@@ -25,7 +25,7 @@ func TestCreateListProjectTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sB := NewTaskService(s.pool, s.q, wsSvc)
+	sB := NewTaskService(s.pool, s.q, wsSvc, nil)
 
 	projA, err := s.CreateProject(ctx, Human(ua.ID), w.ID, CreateProjectInput{
 		Title: "Alpha roadmap",

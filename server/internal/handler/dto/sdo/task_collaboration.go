@@ -43,3 +43,25 @@ type CommentReactionSDO struct {
 type TaskReactionSDO struct {
 	Reaction TaskReactionDTO `json:"reaction"`
 }
+
+// AttachmentDTO is public attachment metadata (no object_key).
+type AttachmentDTO struct {
+	ID           string  `json:"id" description:"ULID đính kèm" example:"01J8X4ATTN1P2Q3R4S5T6U7V8"`
+	WorkspaceID  string  `json:"workspace_id" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	TaskID       *string `json:"task_id,omitempty" description:"ULID task nếu thuộc task" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	CommentID    *string `json:"comment_id,omitempty" description:"ULID comment nếu thuộc comment" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	UploaderType string  `json:"uploader_type" description:"member hoặc agent" example:"member"`
+	UploaderID   string  `json:"uploader_id" description:"ULID người/agent tải lên" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Filename     string  `json:"filename" description:"Tên tệp an toàn" example:"note.md"`
+	URL          string  `json:"url" description:"Đường dẫn preview /content (cùng origin)" example:"/api/v1/attachments/01J8X4ATTN1P2Q3R4S5T6U7V8/content"`
+	DownloadURL  string  `json:"download_url" description:"Đường dẫn /download (cùng origin)" example:"/api/v1/attachments/01J8X4ATTN1P2Q3R4S5T6U7V8/download"`
+	MarkdownURL  string  `json:"markdown_url" description:"URL ổn định để nhúng markdown (thường = download_url)" example:"/api/v1/attachments/01J8X4ATTN1P2Q3R4S5T6U7V8/download"`
+	ContentType  string  `json:"content_type" description:"MIME type" example:"text/markdown"`
+	SizeBytes    int64   `json:"size_bytes" description:"Kích thước bytes" example:"128"`
+	CreatedAt    string  `json:"created_at" description:"RFC3339" example:"2026-09-09T10:00:00Z"`
+}
+
+// AttachmentListSDO is GET .../tasks/{taskID}/attachments.
+type AttachmentListSDO struct {
+	Attachments []AttachmentDTO `json:"attachments"`
+}

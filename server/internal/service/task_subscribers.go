@@ -158,30 +158,6 @@ func (s *TaskService) UnsubscribeTaskSubtree(ctx context.Context, actor Actor, t
 	return tx.Commit(ctx)
 }
 
-// ListTaskAttachments is stubbed until object storage is wired.
-func (s *TaskService) ListTaskAttachments(ctx context.Context, actor Actor, taskID string) error {
-	if _, err := s.authorizeActor(ctx, actor, taskID); err != nil {
-		return err
-	}
-	return collaborationUnavailable("attachment_storage_missing", "đính kèm chưa khả dụng")
-}
-
-// GetAttachment is stubbed until object storage is wired.
-func (s *TaskService) GetAttachment(ctx context.Context, actor Actor, attachmentID string) error {
-	_ = actor
-	_ = attachmentID
-	_ = ctx
-	return collaborationUnavailable("attachment_storage_missing", "đính kèm chưa khả dụng")
-}
-
-// DeleteAttachment is stubbed until object storage is wired.
-func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachmentID string) error {
-	_ = actor
-	_ = attachmentID
-	_ = ctx
-	return collaborationUnavailable("attachment_storage_missing", "đính kèm chưa khả dụng")
-}
-
 // GetTaskTimeline is stubbed until activity projection is ported.
 func (s *TaskService) GetTaskTimeline(ctx context.Context, actor Actor, taskID string) error {
 	if _, err := s.authorizeActor(ctx, actor, taskID); err != nil {

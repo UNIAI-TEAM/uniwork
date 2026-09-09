@@ -143,20 +143,26 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 	}
 
 	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/attachments", token, nil)
-	if res.StatusCode != 422 {
-		t.Fatalf("attachments stub status = %d %v", res.StatusCode, body)
+	if res.StatusCode != 200 {
+		t.Fatalf("attachments list status = %d %v", res.StatusCode, body)
 	}
-	errObj, _ = body["error"].(map[string]any)
-	if errObj["code"] != "capability_unavailable" {
-		t.Fatalf("attachments code = %v", body)
+	atts, _ := body["attachments"].([]any)
+	if len(atts) != 0 {
+		t.Fatalf("attachments list = %v", body)
 	}
 
 	const fakeAttachment = "01J8X4ATTN1P2Q3R4S5T6U7V8"
+	res, body = doJSON(t, srv, http.MethodGet, "/api/v1/attachments/"+fakeAttachment, token, nil)
+	if res.StatusCode != 404 {
+		t.Fatalf("get missing attachment status = %d %v", res.StatusCode, body)
+	}
+	res, body = doJSON(t, srv, http.MethodDelete, "/api/v1/attachments/"+fakeAttachment, token, nil)
+	if res.StatusCode != 404 {
+		t.Fatalf("delete missing attachment status = %d %v", res.StatusCode, body)
+	}
 	for _, p := range []struct {
 		method, path string
 	}{
-		{http.MethodGet, "/api/v1/attachments/" + fakeAttachment},
-		{http.MethodDelete, "/api/v1/attachments/" + fakeAttachment},
 		{http.MethodGet, "/api/v1/comments/" + parentID + "/sub-task-preview"},
 		{http.MethodPost, "/api/v1/comments/" + parentID + "/sub-tasks"},
 		{http.MethodPost, "/api/v1/tasks/" + taskID + "/comments/trigger-preview"},
