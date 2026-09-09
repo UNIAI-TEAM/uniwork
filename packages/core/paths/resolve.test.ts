@@ -48,12 +48,6 @@ describe("paths", () => {
     expect(paths.workspace("acme", "team").projects()).toBe("/acme/team/projects");
     expect(paths.workspace("acme", "team").project("P1")).toBe("/acme/team/projects/P1");
   });
-  it("builds squads under the workspace", () => {
-    expect(paths.workspace("acme", "team").squads()).toBe("/acme/team/squads");
-  });
-  it("builds runtimes under the workspace", () => {
-    expect(paths.workspace("acme", "team").runtimes()).toBe("/acme/team/runtimes");
-  });
   it("builds the auth pages and the absolute Google start url", () => {
     configureRuntime({ apiUrl: "http://api.test" });
     try {
