@@ -1,35 +1,22 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { ChevronRight, FolderGit, FolderOpen, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { capabilityState } from "@uniwork/core/capabilities";
-import { usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   useDeleteProjectResource,
   useProjectResources,
   usePutProjectResource,
 } from "@uniwork/core/tasks";
 import type { ProjectResource } from "@uniwork/core/types/project";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@uniwork/ui/components/ui/tooltip";
+import { CapabilityDisabledControl } from "../common/capability-disabled-control";
 import { resourceDisplayLabel } from "./resource-display-label";
-
-const EMPTY_CONFIG = {
-  flags: {},
-  rum_sample_rate: 0,
-  work_management_capabilities: {},
-} as const;
 
 /**
  * Project resources sidebar: list + rename/delete for existing rows.
- * GitHub / local_directory *add* controls stay capability-gated stubs — no
- * GitHub SDK or local daemon imports.
+ * GitHub / local_directory *add* controls stay capability-gated stubs
+ * (`tasks.vcs` / `tasks.local_workdir`) — no GitHub SDK or local daemon.
  */
 export function ProjectResourcesSection({
   workspaceId,
@@ -40,19 +27,11 @@ export function ProjectResourcesSection({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(true);
-  const { data: publicConfig } = usePublicConfig();
-  const config = publicConfig ?? EMPTY_CONFIG;
-  const vcs = capabilityState(config, "tasks.vcs");
-  const localWorkdir = capabilityState(config, "tasks.local_workdir");
 
   const { data } = useProjectResources(workspaceId, projectId);
   const resources = data?.resources ?? [];
   const putResource = usePutProjectResource(workspaceId, projectId);
   const deleteResource = useDeleteProjectResource(workspaceId, projectId);
-
-  const unavailableReason = t("projects.capability_unavailable");
-  const githubAvailable = vcs.status === "available";
-  const localAvailable = localWorkdir.status === "available";
 
   const handleRemove = async (resource: ProjectResource) => {
     try {
@@ -116,70 +95,25 @@ export function ProjectResourcesSection({
               ))}
             </div>
           )}
-          <CapabilityAddButton
-            available={githubAvailable}
-            reason={unavailableReason}
+          <CapabilityDisabledControl
+            capabilityKey="tasks.vcs"
             label={t("projects.resources.add_github")}
-            icon={<FolderGit className="size-3" aria-hidden />}
-          />
-          <CapabilityAddButton
-            available={localAvailable}
-            reason={unavailableReason}
+            testId="project-resources-add-github"
+          >
+            <FolderGit className="size-3" aria-hidden />
+            {t("projects.resources.add_github")}
+          </CapabilityDisabledControl>
+          <CapabilityDisabledControl
+            capabilityKey="tasks.local_workdir"
             label={t("projects.resources.add_local_directory")}
-            icon={<FolderOpen className="size-3" aria-hidden />}
-          />
+            testId="project-resources-add-local-directory"
+          >
+            <FolderOpen className="size-3" aria-hidden />
+            {t("projects.resources.add_local_directory")}
+          </CapabilityDisabledControl>
         </div>
       ) : null}
     </div>
-  );
-}
-
-function CapabilityAddButton({
-  available,
-  reason,
-  label,
-  icon,
-}: {
-  available: boolean;
-  reason: string;
-  label: string;
-  icon: ReactNode;
-}) {
-  if (available) {
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        aria-label={label}
-        className="h-7 justify-start px-2 text-caption text-muted-foreground hover:text-foreground"
-      >
-        {icon}
-        {label}
-      </Button>
-    );
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-disabled
-            aria-label={label}
-            title={reason}
-            className="h-7 justify-start px-2 text-caption text-muted-foreground opacity-60 hover:text-foreground"
-          />
-        }
-      >
-        {icon}
-        {label}
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{reason}</TooltipContent>
-    </Tooltip>
   );
 }
 
