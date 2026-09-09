@@ -164,6 +164,14 @@ export function useEndMeeting(workspaceId: string) {
   });
 }
 
+export function useExtendMeeting(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetingId: string) => meetings.extendMeeting(meetingId),
+    onSuccess: (_d, meetingId) => invalidateMeeting(qc, workspaceId, meetingId),
+  });
+}
+
 export function useParticipants(meetingId: string) {
   return useQuery({
     queryKey: meetingKeys.participants(meetingId),

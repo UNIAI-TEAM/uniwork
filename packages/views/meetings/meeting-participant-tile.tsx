@@ -103,9 +103,10 @@ function MeetingTileHoverActions({
     <div
       className={cn(
         "absolute inset-0 z-30 flex items-center justify-center transition-opacity motion-reduce:transition-none",
-        visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+        visible
+          ? "pointer-events-auto opacity-100"
+          : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
       )}
-      aria-hidden={!visible}
     >
       <div
         aria-hidden
@@ -217,28 +218,26 @@ export function MeetingParticipantTile({
   const handlePin = () => pinParticipant(pinned ? null : participant.identity);
   const tileRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const showHoverActions = hovered || menuOpen;
-
-  const handleMouseLeave = () => {
-    setHovered(false);
-    const tile = tileRef.current;
-    if (
-      tile &&
-      document.activeElement instanceof HTMLElement &&
-      tile.contains(document.activeElement)
-    ) {
-      document.activeElement.blur();
-    }
-  };
+  const showHoverActions = hovered || focused || menuOpen;
 
   return (
     <div
       ref={tileRef}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={handleMouseLeave}
+      onMouseLeave={() => setHovered(false)}
+      onPointerDown={(e) => {
+        if (e.pointerType === "touch") setHovered(true);
+      }}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setFocused(false);
+        }
+      }}
       className={cn(
-        "relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none",
+        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none",
         compact ? "aspect-[4/3] rounded-2xl" : "h-full rounded-3xl",
       )}
       data-hand-raised={handRaised || undefined}

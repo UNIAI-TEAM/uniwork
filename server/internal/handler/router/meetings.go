@@ -38,6 +38,10 @@ func registerMeetings(r api, h Routes) {
 	r.Post("/meetings/{meetingID}/end", h.EndMeeting, apiOp{
 		summary: "End meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/extend", h.ExtendMeeting, apiOp{
+		summary: "Extend scheduled end while in progress", tags: []string{"meetings"},
+		sdi: sdi.ExtendMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/cancel", h.CancelMeeting, apiOp{
 		summary: "Cancel scheduled meeting", tags: []string{"meetings"},
 		sdi: sdi.CancelMeetingSDI{}, sdo: sdo.StatusSDO{}, auth: true,

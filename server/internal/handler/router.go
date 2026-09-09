@@ -320,6 +320,7 @@ func New(d Deps) http.Handler {
 		DeleteMeeting:         h.deleteMeeting,
 		StartMeeting:          h.startMeeting,
 		EndMeeting:            h.endMeeting,
+		ExtendMeeting:         h.extendMeeting,
 		CancelMeeting:         h.cancelMeeting,
 		TransferHost:          h.transferHost,
 		ListNotes:             h.listNotes,

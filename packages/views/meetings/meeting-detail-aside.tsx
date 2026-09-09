@@ -37,6 +37,8 @@ export function MeetingDetailAside({
   const createdAt = meeting.created_at
     ? new Date(meeting.created_at).toLocaleString(meetingLocale(i18n.language), { dateStyle: "medium", timeStyle: "short" })
     : null;
+  const rosterOpen = meeting.status === "SCHEDULED" || meeting.status === "IN_PROGRESS" || !meeting.status;
+  const canMutateRoster = canHost && rosterOpen;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -44,10 +46,10 @@ export function MeetingDetailAside({
         workspaceId={workspaceId}
         meeting={meeting}
         invitations={invitations}
-        canManage={canHost}
-        showTransferHost={canHost}
+        canManage={canMutateRoster}
+        showTransferHost={canMutateRoster}
       />
-      {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} /> : null}
+      {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} canCreate={canMutateRoster} /> : null}
       <MeetingPanelCard id="details-heading" icon={Info} title={t("meetings.details")}>
         <dl className="-my-2 divide-y divide-border">
           <DetailRow label={t("meetings.timezone")}>{timezone}</DetailRow>

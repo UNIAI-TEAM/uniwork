@@ -230,6 +230,7 @@ type Routes struct {
 	DeleteMeeting         http.HandlerFunc
 	StartMeeting          http.HandlerFunc
 	EndMeeting            http.HandlerFunc
+	ExtendMeeting         http.HandlerFunc
 	CancelMeeting         http.HandlerFunc
 	TransferHost          http.HandlerFunc
 	ListNotes             http.HandlerFunc

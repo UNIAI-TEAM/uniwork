@@ -99,5 +99,46 @@ describe("MeetingPublicInviteView", () => {
     await waitFor(() => {
       expect(adapter.push).toHaveBeenCalledWith(paths.meetingInviteRoom("link-1"));
     });
+    expect(sessionStorage.getItem("uw.meeting-invite.link-1.preJoinChoice")).toContain('"video":true');
+  });
+
+  it("stores camera-off when the guest turns the camera off before joining", async () => {
+    const adapter = fakeNav();
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
+      if (path === "/api/v1/public/meeting-invite-links/resolve" && opts?.method === "POST") {
+        return Promise.resolve({
+          link_id: "link-1",
+          meeting_id: "m1",
+          title: "Standup",
+          starts_at: "2026-09-10T02:00:00Z",
+          access_mode: "AUTO_ADMIT",
+          expired: false,
+        });
+      }
+      if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+        return Promise.resolve({
+          decision: "ADMIT",
+          participant_token: "tok",
+          server_url: "wss://lk.example",
+          provider: "livekit",
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(wrapWithNav(<MeetingPublicInviteView linkId="link-1" secret="sec-abc" />, adapter));
+
+    const nameInput = await screen.findByLabelText("Tên hiển thị");
+    fireEvent.change(nameInput, { target: { value: "Khách A" } });
+    fireEvent.click(screen.getByRole("button", { name: "Camera", pressed: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Vào cuộc họp" }));
+
+    await waitFor(() => {
+      expect(adapter.push).toHaveBeenCalledWith(paths.meetingInviteRoom("link-1"));
+    });
+    expect(JSON.parse(sessionStorage.getItem("uw.meeting-invite.link-1.preJoinChoice") ?? "{}")).toEqual({
+      audio: true,
+      video: false,
+    });
   });
 });

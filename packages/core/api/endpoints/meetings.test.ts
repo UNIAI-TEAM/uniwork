@@ -28,6 +28,7 @@ import {
   startRecording,
   stopRecording,
   updateMeeting,
+  extendMeeting,
 } from "./meetings";
 
 const json = (body: unknown, status = 200) =>
@@ -130,6 +131,16 @@ describe("meetings endpoints", () => {
     await expect(listInviteLinks("m1")).resolves.toEqual([]);
     expect((await createJoinRequest("m1"))?.id).toBe("r1");
     await expect(createJoinRequest("m1")).resolves.toBeNull();
+  });
+
+  it("extendMeeting returns the meeting or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting }));
+    expect((await extendMeeting("m1"))?.id).toBe("m1");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/extend");
+    expect(JSON.parse(String(init.body))).toEqual({ minutes: 15 });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: 1 }));
+    await expect(extendMeeting("m1")).resolves.toBeNull();
   });
 });
 

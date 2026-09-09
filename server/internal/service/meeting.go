@@ -360,6 +360,50 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	return up, nil
 }
 
+const (
+	defaultExtendMinutes = 15
+	maxExtendMinutes     = 120
+)
+
+// Extend pushes ends_at forward while the meeting is live. Calendar PATCH
+// cannot do this: Update forbids schedule edits on IN_PROGRESS meetings.
+func (s *MeetingService) Extend(ctx context.Context, userID, meetingID string, minutes int) (db.Meeting, error) {
+	if minutes <= 0 {
+		minutes = defaultExtendMinutes
+	}
+	if minutes > maxExtendMinutes {
+		return db.Meeting{}, Invalid("chỉ được gia hạn tối đa 120 phút")
+	}
+	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	if m.Status != MeetingInProgress {
+		return db.Meeting{}, errInvalidState()
+	}
+	base := time.Now().UTC()
+	if m.EndsAt.Valid && m.EndsAt.Time.After(base) {
+		base = m.EndsAt.Time.UTC()
+	}
+	next := base.Add(time.Duration(minutes) * time.Minute)
+	params := db.UpdateMeetingParams{
+		ID: meetingID, Version: m.Version, EndsAt: optTimestamptz(&next), UpdatedBy: strText(userID),
+	}
+	up, err := s.q.UpdateMeeting(ctx, params)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Meeting{}, ErrConflict
+	}
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
+	s.record(ctx, s.q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
+		map[string]any{"ends_at": tsOrNil(m.EndsAt)},
+		map[string]any{"ends_at": tsOrNil(up.EndsAt)},
+	))
+	return up, nil
+}
+
 func optBool(b *bool) pgtype.Bool {
 	if b == nil {
 		return pgtype.Bool{}

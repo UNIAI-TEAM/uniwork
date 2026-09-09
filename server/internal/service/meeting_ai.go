@@ -425,7 +425,8 @@ func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev Pro
 // ---- Auto end ----------------------------------------------------------------
 
 // AutoEndOverdue ends IN_PROGRESS meetings whose planned end (ends_at) has
-// passed. Returns how many ended.
+// passed and that no longer have an open conference. A live room stays in
+// overtime until a host ends it.
 func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int, error) {
 	rows, err := s.q.ListOverdueInProgressMeetings(ctx, pgtype.Timestamptz{Time: now, Valid: true})
 	if err != nil {
@@ -433,6 +434,9 @@ func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int
 	}
 	n := 0
 	for _, m := range rows {
+		if sess, err := s.q.GetOpenConferenceSession(ctx, m.ID); err == nil && sess.ID != "" {
+			continue
+		}
 		if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
 			n++
 			s.count("auto_ended")

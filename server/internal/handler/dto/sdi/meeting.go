@@ -49,6 +49,11 @@ type CancelMeetingSDI struct {
 	Reason string `json:"reason" example:"trùng lịch"`
 }
 
+// ExtendMeetingSDI is POST /api/v1/meetings/{meetingID}/extend.
+type ExtendMeetingSDI struct {
+	Minutes int `json:"minutes" description:"Số phút gia hạn; mặc định 15, tối đa 120" example:"15"`
+}
+
 type CreateInviteLinkSDI struct {
 	Name       string    `json:"name" example:"Khách bên ngoài"`
 	AccessMode string    `json:"access_mode" example:"AUTO_ADMIT"`

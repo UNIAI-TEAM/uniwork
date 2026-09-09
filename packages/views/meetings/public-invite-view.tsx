@@ -21,7 +21,9 @@ import {
   writeCachedJoinDecision,
   writeGuestSession,
   writeInviteDisplayName,
+  writeInvitePreJoinChoice,
 } from "./meeting-invite-session";
+import type { PreJoinChoice } from "./meeting-prejoin";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 
 function meetingInviteLoginUrl(linkId: string): string {
@@ -112,7 +114,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     [isGuest, linkId, meetingId, nav, user, workspaces],
   );
 
-  const runJoin = useCallback(() => {
+  const runJoin = useCallback((choice?: PreJoinChoice) => {
     if (!meetingId || joinPending) return;
     if (isGuest && !displayName.trim()) {
       toast.error(t("meetings.publicInviteNameRequired"));
@@ -120,6 +122,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     }
     if (isGuest) {
       writeInviteDisplayName(linkId, displayName);
+      if (choice) writeInvitePreJoinChoice(linkId, choice);
     }
     mutateJoin(
       { meetingId, ...joinBody },
@@ -216,7 +219,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
         displayName={displayName}
         onDisplayNameChange={setDisplayName}
         joinPending={joinPending}
-        onJoin={runJoin}
+        onJoin={(choice) => runJoin(choice)}
         onLogin={() => nav.push(loginHref)}
       />,
     );

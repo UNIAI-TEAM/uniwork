@@ -243,6 +243,42 @@ func TestAutoEndOverdue(t *testing.T) {
 	}
 }
 
+func TestExtendEndsAtWhileInProgress(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	start := time.Now().Add(-10 * time.Minute).Truncate(time.Second)
+	end := time.Now().Add(20 * time.Minute).Truncate(time.Second)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{
+		Title: "Live", StartsAt: start, EndsAt: end,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Start(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(45 * time.Minute).Truncate(time.Second)
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{EndsAt: &later}); err == nil {
+		t.Fatal("patch ends_at while in progress")
+	}
+	before := time.Now()
+	up, err := s.Extend(ctx, ua.ID, m.ID, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !up.EndsAt.Time.After(before.Add(14 * time.Minute)) {
+		t.Fatalf("ends_at %v", up.EndsAt.Time)
+	}
+	past := time.Now().Add(-time.Minute)
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{EndsAt: &past}); err == nil {
+		t.Fatal("past ends_at accepted")
+	}
+	nudge := time.Now().Add(time.Minute)
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{StartsAt: &nudge}); err == nil {
+		t.Fatal("starts_at change accepted while in progress")
+	}
+}
+
 func TestRenderICS(t *testing.T) {
 	start := time.Date(2026, 8, 29, 2, 0, 0, 0, time.UTC)
 	m := db.Meeting{

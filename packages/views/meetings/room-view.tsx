@@ -47,6 +47,7 @@ export function MeetingRoomView({
   guestMode,
   meetingTitle,
   initialJoinDecision,
+  initialChoice,
   invite,
   onLeave,
   meetingsHref,
@@ -59,6 +60,8 @@ export function MeetingRoomView({
   guestMode?: boolean;
   meetingTitle?: string;
   initialJoinDecision?: JoinDecision;
+  /** Guest invite prejoin; applied when skipping the member prejoin screen. */
+  initialChoice?: PreJoinChoice;
   /** Public-link credentials for someone outside the workspace; every join carries them. */
   invite?: { linkId: string; secret: string };
   onLeave: () => void;
@@ -77,9 +80,10 @@ export function MeetingRoomView({
   const admittedRef = useRef(false);
   const credentialRefreshAttempts = useRef(0);
   const [mediaErrorKind, setMediaErrorKind] = useState<MediaDisconnectKind | null>(null);
-  const [choice, setChoice] = useState<PreJoinChoice | null>(() =>
-    isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null,
-  );
+  const [choice, setChoice] = useState<PreJoinChoice | null>(() => {
+    if (initialChoice) return initialChoice;
+    return isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null;
+  });
   const mutateJoin = join.mutate;
   const mutateJoinAsync = join.mutateAsync;
   const joinArgs = useMemo(() => {
@@ -135,9 +139,6 @@ export function MeetingRoomView({
     endsAt: meeting?.ends_at,
     status: meeting?.status,
     admitted,
-    isHost: canHost.allowed,
-    meetingId,
-    workspaceId: resolvedWorkspaceId || undefined,
     onLeave,
   });
 

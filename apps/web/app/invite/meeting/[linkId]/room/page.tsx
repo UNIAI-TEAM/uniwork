@@ -3,6 +3,7 @@ import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { getGuestSession } from "@uniwork/core/api/guest-session";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
+import type { PreJoinChoice } from "@uniwork/views/meetings/meeting-prejoin";
 import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
@@ -12,6 +13,7 @@ import {
   readCachedJoinDecision,
   readGuestSession,
   readInviteJoinBody,
+  readInvitePreJoinChoice,
 } from "@uniwork/views/meetings/meeting-invite-session";
 
 // The room view carries the LiveKit SDK (~130 KB gzip). Turbopack groups it
@@ -28,6 +30,7 @@ type InviteRoomSession = {
   meetingId: string;
   joinBody: ReturnType<typeof readInviteJoinBody>;
   initialJoinDecision: JoinDecision | undefined;
+  initialChoice: PreJoinChoice | undefined;
   meetingTitle: string;
 };
 
@@ -36,6 +39,7 @@ const EMPTY_INVITE_ROOM_SESSION: InviteRoomSession = {
   meetingId: "",
   joinBody: undefined,
   initialJoinDecision: undefined,
+  initialChoice: undefined,
   meetingTitle: "",
 };
 
@@ -46,6 +50,7 @@ function loadInviteRoomSession(linkId: string): InviteRoomSession {
     meetingId: sessionStorage.getItem(inviteStorageKey(linkId, "meetingId")) ?? "",
     joinBody: readInviteJoinBody(linkId),
     initialJoinDecision: readCachedJoinDecision(linkId),
+    initialChoice: readInvitePreJoinChoice(linkId),
     meetingTitle: sessionStorage.getItem(inviteStorageKey(linkId, "title")) ?? "",
   };
 }
@@ -92,6 +97,7 @@ export default function MeetingInviteRoomPage() {
           invite={isGuest ? { linkId, secret: inviteSecret } : undefined}
           meetingTitle={session.meetingTitle}
           initialJoinDecision={session.initialJoinDecision}
+          initialChoice={session.initialChoice}
           onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
         />
       </Suspense>
