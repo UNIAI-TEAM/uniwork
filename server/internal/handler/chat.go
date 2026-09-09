@@ -59,6 +59,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			SizeBytes:   m.Voice.SizeBytes,
 		}
 	}
+	if m.File != nil {
+		out.File = &sdo.FileMessageDTO{
+			Filename:    m.File.Filename,
+			ContentType: m.File.ContentType,
+			SizeBytes:   m.File.SizeBytes,
+		}
+	}
 	if m.Poll != nil {
 		options := make([]sdo.ChatPollOptionDTO, 0, len(m.Poll.Options))
 		for _, option := range m.Poll.Options {

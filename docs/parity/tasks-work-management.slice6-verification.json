@@ -1,0 +1,655 @@
+{
+  "schema_version": 1,
+  "owner_issue": "UNI-519",
+  "note": "Deterministic verification overlay for slice-6-owned agent/integration Multica provenance (inventory). Regeneration merges with slice1–5; do not invent verification for later UNI-426 slices (hosts / cutover). Overlay-only Multica paths (not in main manifest) are no-ops on apply. Agent capabilities stay Unavailable; F-05 remains MỘT PHẦN.",
+  "entries": [
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/runtimes/[id]/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/runtimes/[id]/runtime/[runtimeId]/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/runtimes/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "apps/web/app/[orgSlug]/[workspaceSlug]/runtimes/page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/squads/[id]/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/squads/squads-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/squads/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "apps/web/app/[orgSlug]/[workspaceSlug]/squads/page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/actions/__tests__/issue-actions-menu.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/__tests__/use-issue-actions.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/extensions/index.ts",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-context-menu.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-dropdown.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/issue-actions-menu-items.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/run-confirm-gate.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/run-confirm-gate.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/actions/use-issue-actions.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/task-detail-suite-page.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/blocked-trigger-copy.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/stubs/blocked-trigger-copy.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/blocked-trigger-copy.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/editor/stubs/blocked-trigger-copy.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-trigger-chips.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/comment-trigger-chips.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/execution-log-section.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/execution-log-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-activity-indicator.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-agent-header-chip.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-usage-dialog.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/components/issue-usage-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/pull-request-list.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/quick-actions-section.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/quick-actions-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/sub-issues-agent-working-chip.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/task-run-labels.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/components/terminate-task-confirm-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/components/workspace-agent-working-chip.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/components/workspace-agent-working-chip.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-comment-trigger-preview.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-comment-trigger-preview.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-issue-trigger-preview.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/issues/hooks/use-quick-action-menu.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/tasks/detail/components/timeline-runtime-stubs.tsx",
+      "evidence_commit": "0bd1417f7567307c548f162823198d08b2cb6111"
+    },
+    {
+      "source_path": "packages/views/layout/app-sidebar.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/layout/app-sidebar.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/locales/en/runtimes.json",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/i18n/locales/en.json",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/locales/en/squads.json",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/i18n/locales/en.json",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-hint.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/components/local-directory-hint.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-hint.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/local-directory-hint.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-resources-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/project-resources-section.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/activity-heatmap.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/activity-heatmap.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/daily-cost-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/daily-errors-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/daily-tasks-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/daily-time-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/daily-tokens-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/failure-class-visuals.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/weekly-cost-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/weekly-errors-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/weekly-tasks-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/weekly-time-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/charts/weekly-tokens-chart.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/cloud-runtime-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/compact-runtime-row.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/connect-remote-dialog.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/connect-remote-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/custom-pricing-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/delete-runtime-dialog.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/delete-runtime-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/delete-runtime-profile-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/index.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/machine-cli-section.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/machine-cli-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/mika-runtime-choice.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/mika-runtime-choice.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/pending-runtime.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/pending-runtime.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/provider-logo.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/provider-logo.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/rename-machine-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-detail-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-detail-visibility.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-detail.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-docs.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-docs.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-list.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-list.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-machines.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-machines.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-profile-catalog.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-profile-catalog.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-profiles-dialog.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-profiles-dialog.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-row-menu.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-settings-page.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtime-settings-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/runtimes-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/shared.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/update-section.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/update-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/usage-section.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/components/usage-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/index.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/utils.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/runtimes/utils.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/runtimes/runtimes-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/squads/components/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/squads/index.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/squads/components/squad-detail-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/squads/squads-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/squads/components/squad-profile-card.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/squads/squads-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/squads/components/squads-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/squads/squads-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    },
+    {
+      "source_path": "packages/views/squads/index.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/squads/index.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
+    }
+  ]
+}

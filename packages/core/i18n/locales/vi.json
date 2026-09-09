@@ -158,7 +158,9 @@
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính",
     "people": "Danh bạ",
-    "projects": "Dự án"
+    "projects": "Dự án",
+    "squads": "Squad",
+    "runtimes": "Runtime"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -640,7 +642,10 @@
       "column_menu": "Menu cột",
       "add_task": "Thêm task",
       "agent_chip_stub": "Agent",
-      "vcs_chip_stub": "VCS"
+      "vcs_chip_stub": "VCS",
+      "agent_trigger": "Chạy agent",
+      "squad_assign": "Gán squad",
+      "actions": "Thao tác"
     },
     "view": {
       "section": "Kiểu hiển thị",
@@ -684,6 +689,8 @@
       "priority": "Độ ưu tiên",
       "assignee": "Người nhận",
       "assignee_mixed": "Khác nhau",
+      "agent_trigger": "Chạy agent",
+      "squad_assign": "Gán squad",
       "delete": "Xóa",
       "cancel": "Hủy",
       "update_success": "Đã cập nhật {{count}} task",
@@ -805,6 +812,67 @@
         "child_progress": "Tiến độ công việc con",
         "creator": "Người tạo"
       }
+    },
+    "detail": {
+      "not_found": "Không tìm thấy công việc",
+      "title_placeholder": "Tiêu đề công việc",
+      "description_placeholder": "Thêm mô tả…",
+      "title_region": "Tiêu đề",
+      "properties_sidebar": "Thuộc tính",
+      "section_properties": "Thuộc tính",
+      "section_parent": "Công việc cha",
+      "section_subtasks": "Sub-task",
+      "properties_placeholder": "Trạng thái, người phụ trách và các trường khác sẽ hiện ở đây.",
+      "prop_project": "Dự án",
+      "prop_project_none": "Không có dự án",
+      "prop_labels": "Nhãn",
+      "prop_start_date": "Ngày bắt đầu",
+      "prop_stage": "Giai đoạn",
+      "prop_stage_none": "Chưa có giai đoạn",
+      "prop_custom": "Thuộc tính tùy chỉnh",
+      "add_label": "Thêm nhãn…",
+      "attach_label": "Gắn",
+      "custom_properties_count": "{{count}} thuộc tính",
+      "subtasks_progress": "{{done}}/{{total}}",
+      "subtasks_empty": "Chưa có sub-task.",
+      "add_subtask": "Thêm sub-task",
+      "add_subtask_placeholder": "Tiêu đề sub-task",
+      "add_subtask_action": "Thêm",
+      "timeline_section": "Hoạt động",
+      "timeline_placeholder": "Bình luận và hoạt động sẽ hiện ở đây.",
+      "comment_placeholder": "Viết bình luận…",
+      "comment_send": "Gửi",
+      "comments_empty": "Chưa có bình luận.",
+      "comment_resolve": "Đánh dấu đã xử lý",
+      "comment_unresolve": "Mở lại",
+      "comment_resolved": "Đã xử lý",
+      "comment_edit": "Sửa",
+      "activity_stub_reason": "Lịch sử hoạt động chưa khả dụng — bình luận vẫn hiện bên dưới.",
+      "agent_run_stub": "Chạy agent",
+      "pr_stub": "Gắn pull request",
+      "agentRun": {
+        "section": "Nhật ký chạy agent",
+        "empty": "Chưa có lần chạy agent nào.",
+        "start": "Chạy agent",
+        "usage": "Mức dùng",
+        "retry": "Chạy lại",
+        "terminate": "Dừng"
+      },
+      "pullRequests": {
+        "section": "Pull requests",
+        "empty": "Chưa gắn pull request nào.",
+        "link": "Gắn pull request"
+      },
+      "subscribe": "Theo dõi",
+      "unsubscribe": "Bỏ theo dõi",
+      "attachments_section": "Đính kèm",
+      "attachments_placeholder": "Tệp đính kèm của công việc sẽ hiện ở đây.",
+      "attachments_empty": "Chưa có tệp đính kèm. Thả tệp vào đây hoặc dùng Thêm tệp.",
+      "attachments_upload": "Thêm tệp",
+      "attachments_uploading": "Đang tải lên {{filename}}…",
+      "attachments_delete_title": "Xóa tệp đính kèm?",
+      "attachments_delete_description": "Gỡ “{{filename}}” khỏi công việc này. Không hoàn tác được.",
+      "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất."
     }
   },
   "myTasks": {
@@ -827,7 +895,13 @@
     }
   },
   "capabilities": {
-    "unknown": "Tính năng này chưa khả dụng."
+    "unknown": "Tính năng này chưa khả dụng.",
+    "surface_not_ready": "Bề mặt này chưa sẵn sàng.",
+    "agent_runtime_missing": "Runtime agent chưa khả dụng.",
+    "squad_directory_missing": "Danh mục squad chưa khả dụng.",
+    "vcs_provider_missing": "Chưa kết nối kiểm soát phiên bản.",
+    "local_daemon_missing": "Daemon thư mục làm việc cục bộ chưa khả dụng.",
+    "host_not_built": "Host này chưa khả dụng."
   },
   "agents": {
     "badge": "Agent"
@@ -1274,6 +1348,7 @@
     "send": "Gửi",
     "composer_attach": "Đính kèm",
     "composer_attach_menu": "Tùy chọn đính kèm",
+    "composer_attach_file": "Đính kèm tệp",
     "composer_create_poll": "Tạo bình chọn",
     "composer_create_reminder": "Tạo nhắc hẹn",
     "composer_create_note": "Tạo ghi chú",
@@ -1304,6 +1379,11 @@
     "composer_voice": "Tin nhắn thoại",
     "voice_requesting": "Đang xin quyền dùng micro…",
     "voice_uploading": "Đang gửi tin nhắn thoại…",
+    "file_upload_failed": "Không gửi được tệp. Thử lại.",
+    "file_download_failed": "Không tải được tệp.",
+    "file_untitled": "Tệp đính kèm",
+    "file_open": "Mở tệp",
+    "file_download": "Tải tệp",
     "voice_record_failed": "Không thể ghi âm. Kiểm tra quyền micro rồi thử lại.",
     "voice_message": "Tin nhắn thoại",
     "voice_play": "Phát tin nhắn thoại",
@@ -1323,6 +1403,7 @@
     "sidebar_yesterday": "Hôm qua",
     "sidebar_voice_call_preview": "Cuộc gọi thoại",
     "sidebar_voice_message_preview": "Tin nhắn thoại",
+    "sidebar_file_message_preview": "Tệp đính kèm",
     "sidebar_typing": "Đang nhập…",
     "loading": "Đang kết nối phòng trò chuyện…",
     "members_title": "Thành viên",
@@ -2277,7 +2358,13 @@
     "error_title": "Không tải được danh bạ",
     "error_description": "Thử lại sau ít phút. Nếu vẫn lỗi, báo quản trị tổ chức.",
     "not_found_title": "Không tìm thấy người này",
-    "not_found_description": "Có thể họ đã rời tổ chức hoặc bạn không có quyền xem."
+    "not_found_description": "Có thể họ đã rời tổ chức hoặc bạn không có quyền xem.",
+    "contact": "Liên hệ",
+    "details": "Thông tin",
+    "reporting": "Quan hệ báo cáo",
+    "details_empty": "Chưa có thông tin nào.",
+    "email_person": "Gửi email cho {{name}}",
+    "call_person": "Gọi cho {{name}}"
   },
   "departments": {
     "title": "Phòng ban",
@@ -2393,6 +2480,152 @@
       "toast_remove_failed": "Không gỡ được tài nguyên",
       "toast_renamed": "Đã đổi tên",
       "toast_rename_failed": "Không đổi tên được"
+    }
+  },
+  "squads": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Squad mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Squad",
+      "new_squad": "Tạo squad",
+      "empty": "Chưa có squad",
+      "create_first": "Tạo squad đầu tiên"
+    }
+  },
+  "runtimes": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Runtime mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Runtime",
+      "new_runtime": "Tạo runtime",
+      "empty": "Chưa có runtime",
+      "create_first": "Tạo runtime đầu tiên"
+    }
+  },
+  "editor": {
+    "bubble_menu": {
+      "bold": "In đậm",
+      "italic": "In nghiêng",
+      "strikethrough": "Gạch ngang",
+      "code": "Code",
+      "highlight": "Tô sáng",
+      "link": "Liên kết",
+      "list": "Danh sách",
+      "task_list": "Danh sách checkbox",
+      "quote": "Trích dẫn",
+      "url_aria_label": "URL",
+      "link_edit": {
+        "apply": "Áp dụng liên kết",
+        "remove": "Gỡ liên kết",
+        "close": "Đóng trình sửa liên kết"
+      },
+      "heading_dropdown": {
+        "text": "Văn bản",
+        "normal_text": "Văn bản thường",
+        "heading_1": "Tiêu đề 1",
+        "heading_2": "Tiêu đề 2",
+        "heading_3": "Tiêu đề 3"
+      },
+      "list_dropdown": {
+        "bullet_list": "Danh sách dấu chấm",
+        "ordered_list": "Danh sách đánh số",
+        "task_list": "Danh sách checkbox"
+      },
+      "sub_task": {
+        "tooltip": "Tạo sub-task từ đoạn đã chọn",
+        "created": "Đã tạo {{identifier}}",
+        "create_failed": "Không tạo được sub-task"
+      }
+    },
+    "image": {
+      "view": "Xem ảnh",
+      "download": "Tải xuống",
+      "copy_link": "Sao chép liên kết",
+      "delete": "Xóa",
+      "link_copied": "Đã sao chép liên kết",
+      "copy_link_failed": "Không sao chép được liên kết",
+      "canvas_label": "Khung ảnh. Kéo để di chuyển, cuộn để phóng to, nhấp đúp để chuyển kích thước thật.",
+      "previous": "Ảnh trước",
+      "next": "Ảnh sau",
+      "sequence_position": "{{index}} / {{total}}",
+      "unavailable": "Ảnh này không còn khả dụng — đã bỏ qua."
+    },
+    "canvas": {
+      "zoom_in": "Phóng to",
+      "zoom_out": "Thu nhỏ",
+      "zoom_fit": "Vừa khung",
+      "zoom_actual": "Kích thước thật"
+    },
+    "attachment": {
+      "download_failed": "Không lấy được liên kết tải xuống. Thử lại sau giây lát.",
+      "preview": "Xem trước",
+      "preview_loading": "Đang tải xem trước…",
+      "preview_failed": "Không tải được xem trước",
+      "preview_too_large": "Tệp quá lớn để xem trước. Hãy tải xuống.",
+      "preview_unsupported": "Không xem trước được loại tệp này.",
+      "close": "Đóng",
+      "open_in_new_tab": "Mở tab mới",
+      "remove": "Gỡ tệp đính kèm"
+    },
+    "link_hover": {
+      "copy_link": "Sao chép liên kết",
+      "open_link": "Mở liên kết",
+      "link_copied": "Đã sao chép liên kết",
+      "copy_failed": "Không sao chép được"
+    },
+    "mention": {
+      "group_users": "Thành viên",
+      "all_members": "Tất cả thành viên",
+      "searching": "Đang tìm…",
+      "no_results": "Không có kết quả",
+      "group_current": "Trang hiện tại",
+      "group_recent": "Xem gần đây",
+      "group_search": "Kết quả tìm kiếm",
+      "group_cancelled": "Đã hủy",
+      "group_tasks": "Công việc"
+    },
+    "slash_command": {
+      "no_skills_configured": "Chưa cấu hình skill",
+      "no_results": "Không có skill phù hợp",
+      "commands": {
+        "note": "Thêm ghi chú — không kích hoạt agent"
+      }
+    },
+    "code_block": {
+      "copy_code": "Sao chép code",
+      "show_preview": "Xem trước",
+      "show_source": "Xem mã nguồn",
+      "fullscreen": "Toàn màn hình"
+    },
+    "file_card": {
+      "uploading": "Đang tải lên {{filename}}"
+    },
+    "upload": {
+      "failed": "Không tải lên được {{filename}}: {{reason}}",
+      "in_progress": "Đang tải lên…",
+      "interrupted": "Tải lên bị gián đoạn — tệp chưa được lưu. Đính kèm lại.",
+      "remove": "Gỡ",
+      "uploading_label": "Đang tải lên {{filename}}…",
+      "failed_label": "Không tải lên được {{filename}}"
+    },
+    "title_editor": {
+      "title_aria_label": "Tiêu đề"
+    },
+    "mermaid": {
+      "render_error": "Không hiển thị được sơ đồ Mermaid.",
+      "diagram_label": "Sơ đồ Mermaid",
+      "rendering": "Đang vẽ sơ đồ…",
+      "viewer_title": "Sơ đồ",
+      "canvas_label": "Khung sơ đồ. Kéo để di chuyển, cuộn để phóng to.",
+      "open_viewer": "Mở trình xem sơ đồ",
+      "close_viewer": "Đóng",
+      "copy_source": "Sao chép mã sơ đồ",
+      "show_source": "Xem mã nguồn",
+      "show_diagram": "Xem sơ đồ",
+      "export": "Xuất",
+      "export_png": "Tải PNG",
+      "export_svg": "Tải SVG",
+      "export_source": "Tải .mmd"
     }
   }
 }

@@ -171,7 +171,10 @@ type Routes struct {
 	UnsubscribeTask        http.HandlerFunc
 	UnsubscribeTaskSubtree http.HandlerFunc
 	ListTaskAttachments    http.HandlerFunc
+	UploadTaskAttachment   http.HandlerFunc
 	GetAttachment          http.HandlerFunc
+	GetAttachmentContent   http.HandlerFunc
+	DownloadAttachment     http.HandlerFunc
 	DeleteAttachment       http.HandlerFunc
 	GetTaskTimeline        http.HandlerFunc
 	CommentSubTaskPreview  http.HandlerFunc
@@ -303,6 +306,8 @@ type Routes struct {
 	SendChatRoomMessage         http.HandlerFunc
 	SendChatVoiceMessage        http.HandlerFunc
 	StreamChatVoiceMessage      http.HandlerFunc
+	SendChatFileMessage         http.HandlerFunc
+	StreamChatFileMessage       http.HandlerFunc
 	VoteChatPollMessage         http.HandlerFunc
 	ToggleChatMessageReaction   http.HandlerFunc
 	EditChatMessage             http.HandlerFunc

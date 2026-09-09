@@ -28,6 +28,8 @@ import { ChatReminderMessageRow } from "./chat-reminder-message-row";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
 import { VoiceCallLogRow } from "./voice-call-log-row";
 import { ChatVoiceMessageRow } from "./chat-voice-message-row";
+import { ChatFileMessageRow } from "./chat-file-message-row";
+import { ChatReplyComposerBar } from "./chat-reply-quote";
 import { VirtualChatMessageList } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { senderLabelFor, toChatMessage } from "./native-chat-message-mapping";
@@ -349,6 +351,33 @@ export function NativeChatMessagePanel({
           />
         );
       }
+      if (message.kind === "file" && message.file) {
+        const isOwn = message.sender === currentUserId;
+        const { compactTop, showAvatar } = messageGrouping(messages, index);
+        const replyTarget = message.replyToEventId
+          ? messagesById.get(message.replyToEventId)
+          : undefined;
+        return (
+          <ChatFileMessageRow
+            key={message.id}
+            workspaceId={workspaceId}
+            roomId={roomId}
+            message={message}
+            senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+            isOwn={isOwn}
+            showSenderName={showSenderName}
+            compactTop={compactTop}
+            showAvatar={showAvatar}
+            replyToMessage={replyTarget}
+            onReply={onReplyToChange}
+            onReact={handleReact}
+            onThread={handleThread}
+            onPin={canPinMessages ? handlePin : undefined}
+            onCopy={handleCopy}
+            onDelete={handleDelete}
+          />
+        );
+      }
       const isOwn = message.sender === currentUserId;
       const isPending = Boolean(message.deliveryStatus) || isPendingChatMessageId(message.id);
       const replyTarget = message.replyToEventId
@@ -362,7 +391,9 @@ export function NativeChatMessagePanel({
           isOwn={isOwn}
           showReadReceipt={false}
           senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-          replyPreview={replyTarget?.body}
+          replyToMessage={replyTarget}
+          workspaceId={workspaceId}
+          roomId={roomId}
           onReply={isPending ? undefined : onReplyToChange}
           onReact={isPending ? undefined : handleReact}
           onThread={isPending ? undefined : handleThread}
@@ -462,18 +493,12 @@ export function NativeChatMessagePanel({
         />
       </div>
       {replyTo ? (
-        <div className="flex items-center justify-between gap-2 border-t border-border bg-surface/90 px-4 py-2 backdrop-blur-sm">
-          <p className="min-w-0 truncate text-caption text-muted-foreground">
-            {t("chat.replying_to", { preview: replyTo.body })}
-          </p>
-          <button
-            type="button"
-            className="shrink-0 text-caption text-muted-foreground underline-offset-2 hover:underline"
-            onClick={() => onReplyToChange(null)}
-          >
-            {t("chat.cancel_reply")}
-          </button>
-        </div>
+        <ChatReplyComposerBar
+          message={replyTo}
+          workspaceId={workspaceId}
+          roomId={roomId}
+          onCancel={() => onReplyToChange(null)}
+        />
       ) : null}
       <ChatMessageEditDialog
         open={editingMessage != null}

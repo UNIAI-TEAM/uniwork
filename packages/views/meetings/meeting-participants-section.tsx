@@ -11,7 +11,7 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
-import { MeetingPanelCard } from "./meeting-panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRsvpBadge } from "./meeting-status-badge";
 import { MemberMultiPicker } from "./member-multi-picker";
@@ -50,7 +50,7 @@ export function MeetingParticipantsSection({
   const hasCandidates = (members ?? []).some((m) => !excludeUserIds.includes(m.user_id));
 
   return (
-    <MeetingPanelCard
+    <PanelCard
       id="participants-heading"
       icon={Users}
       title={t("meetings.participants")}
@@ -140,6 +140,6 @@ export function MeetingParticipantsSection({
           </Button>
         </form>
       ) : null}
-    </MeetingPanelCard>
+    </PanelCard>
   );
 }

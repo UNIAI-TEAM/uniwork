@@ -22,7 +22,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
-import { MeetingPanelCard } from "./meeting-panel-card";
+import { PanelCard } from "../common/panel-card";
 
 /** Browser download of an .ics the API already authenticated for us. */
 function downloadText(filename: string, text: string) {
@@ -131,7 +131,7 @@ export function MeetingSummaryPanel({
   }
 
   return (
-    <MeetingPanelCard
+    <PanelCard
       id="summary-heading"
       icon={Sparkles}
       tone="brand"
@@ -309,6 +309,6 @@ export function MeetingSummaryPanel({
           </div>
         ) : null}
       </div>
-    </MeetingPanelCard>
+    </PanelCard>
   );
 }

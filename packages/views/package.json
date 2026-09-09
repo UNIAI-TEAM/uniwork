@@ -14,6 +14,8 @@
     "./layout/*": "./layout/*.tsx",
     "./workspace/*": "./workspace/*.tsx",
     "./tasks/*": "./tasks/*.tsx",
+    "./tasks/detail": "./tasks/detail/index.ts",
+    "./tasks/detail/*": "./tasks/detail/*.tsx",
     "./tasks/surface/*": "./tasks/surface/*.tsx",
     "./tasks/modes/*": "./tasks/modes/*.tsx",
     "./tasks/views/*": "./tasks/views/*.tsx",
@@ -22,6 +24,10 @@
     "./projects": "./projects/index.ts",
     "./projects/*": "./projects/*.tsx",
     "./projects/components/*": "./projects/components/*.tsx",
+    "./squads": "./squads/index.ts",
+    "./squads/*": "./squads/*.tsx",
+    "./runtimes": "./runtimes/index.ts",
+    "./runtimes/*": "./runtimes/*.tsx",
     "./meetings/meeting-invite-session": "./meetings/meeting-invite-session.ts",
     "./meetings/*": "./meetings/*.tsx",
     "./chat/*": "./chat/*.tsx",
@@ -29,16 +35,18 @@
     "./notifications/*": "./notifications/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",
-    "./people": "./people/index.ts",
+    "./people/*": "./people/*.tsx",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts",
-    "./editor": "./editor/index.ts"
+    "./editor": "./editor/index.ts",
+    "./common/*": "./common/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@emoji-mart/data": "^1.2.1",
+    "@floating-ui/dom": "^1.7.6",
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
     "@livekit/track-processors": "^0.5.8",
@@ -68,17 +76,21 @@
     "@tiptap/suggestion": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
+    "hast-util-to-html": "^9.0.5",
+    "katex": "catalog:",
     "livekit-client": "^2.21.0",
     "lowlight": "catalog:",
     "lucide-react": "catalog:",
     "mermaid": "catalog:",
+    "pinyin-pro": "3.26.0",
     "qrcode": "1.5.4",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
     "react-virtuoso": "catalog:",
     "sonner": "catalog:",
-    "zustand": "catalog:"
+    "zustand": "catalog:",
+    "motion": "^12.38.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",
@@ -93,6 +105,7 @@
     "eslint-plugin-i18next": "catalog:",
     "jsdom": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@types/react-dom": "catalog:"
   }
 }

@@ -93,7 +93,13 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await member.getByRole("textbox", { name: "Tìm người" }).fill("nguyen van an");
   // The card carries the job title and the department as separate lines; only
   // the name is the link, so the card itself is the list item around it.
-  const card = member.getByRole("listitem").filter({ hasText: "Nguyễn Văn Ân" });
+  // Scoped to the content region: the sidebar's account menu is a list item
+  // carrying this same name, because the person reading the page is the person
+  // being looked up.
+  const card = member
+    .locator("#main-content")
+    .getByRole("listitem")
+    .filter({ hasText: "Nguyễn Văn Ân" });
   await expect(card).toBeVisible({ timeout: 15_000 });
   await expect(card.getByText("Trưởng nhóm")).toBeVisible();
   await expect(card.getByText("Kỹ thuật")).toBeVisible();

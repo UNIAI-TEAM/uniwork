@@ -23,15 +23,18 @@ func (h *handlers) workManagementCapabilityStub(w http.ResponseWriter, r *http.R
 func stubReason(method, pattern string) (reason, msg string) {
 	p := strings.ToLower(pattern)
 	switch {
-	case strings.Contains(p, "/vcs/"):
-		return "vcs_not_ready", "VCS connections chưa khả dụng"
-	case strings.Contains(p, "/pull-requests"):
-		return "pull_requests_not_ready", "pull requests chưa khả dụng"
+	case strings.Contains(p, "/squads"):
+		return "squad_directory_missing", "danh bạ squad chưa khả dụng"
+	case strings.Contains(p, "/workdir"), strings.Contains(p, "/daemon"):
+		return "local_daemon_missing", "local daemon chưa khả dụng"
+	case strings.Contains(p, "/vcs/"), strings.Contains(p, "/pull-requests"):
+		return "vcs_provider_missing", "VCS / pull requests chưa khả dụng"
 	case strings.Contains(p, "/task-runs"), strings.Contains(p, "/active-task"),
 		strings.Contains(p, "/messages"), strings.HasSuffix(p, "/cancel"),
-		strings.HasSuffix(p, "/rerun"), strings.Contains(p, "/retry-source-context"),
+		strings.HasSuffix(p, "/rerun"), strings.HasSuffix(p, "/terminate"),
+		strings.Contains(p, "/retry-source-context"),
 		strings.Contains(p, "/quick-actions"), strings.HasSuffix(p, "/usage"):
-		return "agent_runtime_not_ready", "agent runtime chưa khả dụng"
+		return "agent_runtime_missing", "agent runtime chưa khả dụng"
 	case strings.Contains(p, "/assignee-frequency"):
 		return "assignee_frequency_not_ready", "assignee frequency chưa khả dụng"
 	case strings.Contains(p, "/limit-usage"):

@@ -9,24 +9,23 @@ import { CollapsedNavTrigger } from "../../layout/page-header";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
-import { NotificationsTab } from "./notifications-tab";
-import { OrganizationTab } from "./organization-tab";
-import { PreferencesTab } from "./preferences-tab";
-import { WorkspaceTab } from "./workspace-tab";
 
-// Heavy / rarely-default tabs load on open so the settings route stays under
-// its ratchet in scripts/bundle-budget.json (Vision §6.3).
+// The security tab (MFA enrolment, sessions, deletion) loads when opened so
+// the settings route stays inside its bundle ceiling.
+// Only the open panel is mounted, so every tab but the default one is a
+// chunk fetched on the click that reveals it. SecurityTab has been split
+// this way since the gate landed; the rest follow it.
 const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
-const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
-const IntegrationsTab = lazy(() =>
-  import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })),
-);
-const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
 const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })));
 const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
-const DepartmentsTab = lazy(() =>
-  import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })),
-);
+const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
+const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
+const IntegrationsTab = lazy(() => import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })));
+const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
+const NotificationsTab = lazy(() => import("./notifications-tab").then((m) => ({ default: m.NotificationsTab })));
+const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ default: m.OrganizationTab })));
+const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
+const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
 
 const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
 const ACCOUNT_TAB_ICONS = {
@@ -169,13 +168,19 @@ export function SettingsPage() {
             </Suspense>
           </TabsContent>
           <TabsContent value="preferences">
-            <PreferencesTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <PreferencesTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="notifications">
-            <NotificationsTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <NotificationsTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="organization">
-            <OrganizationTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <OrganizationTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="departments">
             <Suspense fallback={<div className="h-72" aria-hidden />}>
@@ -183,7 +188,9 @@ export function SettingsPage() {
             </Suspense>
           </TabsContent>
           <TabsContent value="workspace">
-            <WorkspaceTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <WorkspaceTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="members">
             <Suspense fallback={<div className="h-72" aria-hidden />}>

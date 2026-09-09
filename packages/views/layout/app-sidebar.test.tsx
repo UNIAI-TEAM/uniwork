@@ -115,6 +115,24 @@ describe("AppSidebar", () => {
     expect(projects).toHaveAttribute("href", "/acme/team/projects");
   });
 
+  it("shows squads in the nav only when the parity flag is on", () => {
+    renderSidebar("/acme/team/tasks", true);
+    const squads = screen.getByRole("link", { name: "Squad" });
+    expect(squads).toHaveAttribute("href", "/acme/team/squads");
+  });
+
+  it("shows runtimes in the nav only when the parity flag is on", () => {
+    renderSidebar("/acme/team/tasks", true);
+    const runtimes = screen.getByRole("link", { name: "Runtime" });
+    expect(runtimes).toHaveAttribute("href", "/acme/team/runtimes");
+  });
+
+  it("hides squads and runtimes when the parity flag is off", () => {
+    renderSidebar("/acme/team/tasks", false);
+    expect(screen.queryByRole("link", { name: "Squad" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Runtime" })).toBeNull();
+  });
+
   it("keeps icon controls visible when collapsed to the icon rail", () => {
     render(
       wrapWithNav(

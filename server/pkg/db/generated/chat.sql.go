@@ -11,6 +11,57 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createChatFileMessage = `-- name: CreateChatFileMessage :one
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id
+) VALUES (
+  $1, $2, $3, $4, $5, 'file', $6, $7, $8, $9
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id
+`
+
+type CreateChatFileMessageParams struct {
+	ID               string      `json:"id"`
+	RoomID           string      `json:"room_id"`
+	WorkspaceID      string      `json:"workspace_id"`
+	SenderID         string      `json:"sender_id"`
+	SenderKind       string      `json:"sender_kind"`
+	Body             string      `json:"body"`
+	Metadata         []byte      `json:"metadata"`
+	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
+	ClientMsgID      pgtype.Text `json:"client_msg_id"`
+}
+
+func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, createChatFileMessage,
+		arg.ID,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.SenderID,
+		arg.SenderKind,
+		arg.Body,
+		arg.Metadata,
+		arg.ReplyToMessageID,
+		arg.ClientMsgID,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+	)
+	return i, err
+}
+
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id

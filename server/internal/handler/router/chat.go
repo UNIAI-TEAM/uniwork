@@ -247,6 +247,20 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		tags:        []string{"chat"},
 		auth:        true,
 	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/file", h.SendChatFileMessage, apiOp{
+		summary:     "Send chat file message",
+		description: "Tải tệp (JPEG, PNG, GIF, WebP, PDF, text) lên phòng chat; tối đa 25 MiB. Lưu trên object storage (MinIO/S3).",
+		tags:        []string{"chat"},
+		sdi:         sdi.SendChatFileMessageSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/file", h.StreamChatFileMessage, apiOp{
+		summary:     "Stream chat file message",
+		description: "Tải nội dung tệp đính kèm sau khi kiểm tra quyền phòng.",
+		tags:        []string{"chat"},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.GetChatRoomMessage, apiOp{
 		summary:     "Get chat room message",
 		description: "Lấy một tin nhắn trong phòng (realtime patch, không refetch cả trang).",

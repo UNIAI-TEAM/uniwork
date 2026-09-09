@@ -504,6 +504,7 @@ func chatMessageRowFromMessageFields(
 		MentionedUserIDs: mentionedUserIDsFromMetadata(metadata),
 		VoiceCall:        voiceCallLogFromMetadata(kind, metadata),
 		Voice:            voiceMessageFromMetadata(kind, metadata),
+		File:             fileMessageFromMetadata(kind, metadata),
 		Poll:             pollFromMetadata(kind, metadata, viewerID),
 		Reminder:         reminderFromMetadata(kind, metadata),
 		Note:             noteFromMetadata(kind, metadata, body),

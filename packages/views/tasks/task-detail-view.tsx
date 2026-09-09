@@ -82,7 +82,7 @@ export function TaskDetailView({
     update.mutate({ taskId, patch: p });
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-testid="task-detail-mvp">
       <BreadcrumbHeader
         segments={segments}
         leaf={task.title}

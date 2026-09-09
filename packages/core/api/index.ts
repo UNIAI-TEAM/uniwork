@@ -28,4 +28,5 @@ export * as taskCatalog from "./endpoints/task-catalog";
 export * as taskViews from "./endpoints/task-views";
 export * as projects from "./endpoints/projects";
 export * as taskCollaboration from "./endpoints/task-collaboration";
+export * as taskAttachments from "./endpoints/task-attachments";
 export * as meetings from "./endpoints/meetings";

@@ -14,6 +14,7 @@ export * from "./hooks-catalog";
 export * from "./hooks-views";
 export * from "./hooks-projects";
 export * from "./hooks-collaboration";
+export * from "./hooks-attachments";
 
 export function useTasks(workspaceId: string) {
   return useQuery({

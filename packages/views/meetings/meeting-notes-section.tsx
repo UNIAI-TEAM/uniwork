@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAddNote, useNotes } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { MeetingPanelCard } from "./meeting-panel-card";
+import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 
 /** Shared notes: a feed of who wrote what, and a composer at the bottom. */
@@ -17,7 +17,7 @@ export function MeetingNotesSection({ meetingId }: { meetingId: string }) {
   const list = notes ?? [];
 
   return (
-    <MeetingPanelCard
+    <PanelCard
       id="notes-heading"
       icon={NotebookPen}
       title={t("meetings.notes")}
@@ -63,6 +63,6 @@ export function MeetingNotesSection({ meetingId }: { meetingId: string }) {
           })}
         </ul>
       )}
-    </MeetingPanelCard>
+    </PanelCard>
   );
 }

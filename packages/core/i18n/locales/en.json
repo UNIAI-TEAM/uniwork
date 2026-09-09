@@ -159,7 +159,9 @@
     "account": "Account",
     "skip_to_content": "Skip to main content",
     "people": "People",
-    "projects": "Projects"
+    "projects": "Projects",
+    "squads": "Squads",
+    "runtimes": "Runtimes"
   },
   "topbar": {
     "search": "Search…",
@@ -641,7 +643,10 @@
       "column_menu": "Column menu",
       "add_task": "Add task",
       "agent_chip_stub": "Agent",
-      "vcs_chip_stub": "VCS"
+      "vcs_chip_stub": "VCS",
+      "agent_trigger": "Run agent",
+      "squad_assign": "Assign squad",
+      "actions": "Actions"
     },
     "view": {
       "section": "View mode",
@@ -685,6 +690,8 @@
       "priority": "Priority",
       "assignee": "Assignee",
       "assignee_mixed": "Mixed",
+      "agent_trigger": "Run agent",
+      "squad_assign": "Assign squad",
       "delete": "Delete",
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
@@ -806,6 +813,67 @@
         "child_progress": "Sub-task progress",
         "creator": "Creator"
       }
+    },
+    "detail": {
+      "not_found": "Task not found",
+      "title_placeholder": "Task title",
+      "description_placeholder": "Add a description…",
+      "title_region": "Title",
+      "properties_sidebar": "Properties",
+      "section_properties": "Properties",
+      "section_parent": "Parent task",
+      "section_subtasks": "Sub-tasks",
+      "properties_placeholder": "Status, assignee, and other fields will appear here.",
+      "prop_project": "Project",
+      "prop_project_none": "No project",
+      "prop_labels": "Labels",
+      "prop_start_date": "Start date",
+      "prop_stage": "Stage",
+      "prop_stage_none": "No stage",
+      "prop_custom": "Custom properties",
+      "add_label": "Add a label…",
+      "attach_label": "Attach",
+      "custom_properties_count": "{{count}} properties",
+      "subtasks_progress": "{{done}}/{{total}}",
+      "subtasks_empty": "No sub-tasks yet.",
+      "add_subtask": "Add sub-task",
+      "add_subtask_placeholder": "Sub-task title",
+      "add_subtask_action": "Add",
+      "timeline_section": "Activity",
+      "timeline_placeholder": "Comments and activity will appear here.",
+      "comment_placeholder": "Write a comment…",
+      "comment_send": "Send",
+      "comments_empty": "No comments yet.",
+      "comment_resolve": "Resolve",
+      "comment_unresolve": "Unresolve",
+      "comment_resolved": "Resolved",
+      "comment_edit": "Edit",
+      "activity_stub_reason": "Activity history is not available yet — comments still show below.",
+      "agent_run_stub": "Start agent run",
+      "pr_stub": "Link pull request",
+      "agentRun": {
+        "section": "Agent runs",
+        "empty": "No agent runs yet.",
+        "start": "Start agent run",
+        "usage": "Usage",
+        "retry": "Retry",
+        "terminate": "Terminate"
+      },
+      "pullRequests": {
+        "section": "Pull requests",
+        "empty": "No linked pull requests yet.",
+        "link": "Link pull request"
+      },
+      "subscribe": "Subscribe",
+      "unsubscribe": "Unsubscribe",
+      "attachments_section": "Attachments",
+      "attachments_placeholder": "Files attached to this task will appear here.",
+      "attachments_empty": "No attachments yet. Drop files here or use Upload.",
+      "attachments_upload": "Upload",
+      "attachments_uploading": "Uploading {{filename}}…",
+      "attachments_delete_title": "Delete attachment?",
+      "attachments_delete_description": "Remove “{{filename}}” from this task. This cannot be undone.",
+      "revision_conflict": "Someone else updated this task. Reloaded the latest version."
     }
   },
   "myTasks": {
@@ -828,7 +896,13 @@
     }
   },
   "capabilities": {
-    "unknown": "This capability is not available yet."
+    "unknown": "This capability is not available yet.",
+    "surface_not_ready": "This surface is not ready yet.",
+    "agent_runtime_missing": "Agent runtime is not available yet.",
+    "squad_directory_missing": "Squad directory is not available yet.",
+    "vcs_provider_missing": "Version control is not connected yet.",
+    "local_daemon_missing": "Local workdir daemon is not available yet.",
+    "host_not_built": "This host is not available yet."
   },
   "agents": {
     "badge": "Agent"
@@ -1275,6 +1349,7 @@
     "send": "Send",
     "composer_attach": "Attach",
     "composer_attach_menu": "Attachment options",
+    "composer_attach_file": "Attach file",
     "composer_create_poll": "Create poll",
     "composer_create_reminder": "Create reminder",
     "composer_create_note": "Create note",
@@ -1305,6 +1380,11 @@
     "composer_voice": "Voice message",
     "voice_requesting": "Requesting microphone access…",
     "voice_uploading": "Sending voice message…",
+    "file_upload_failed": "Could not send the file. Try again.",
+    "file_download_failed": "Could not download the file.",
+    "file_untitled": "Attached file",
+    "file_open": "Open file",
+    "file_download": "Download file",
     "voice_record_failed": "Could not record audio. Check microphone access and try again.",
     "voice_message": "Voice message",
     "voice_play": "Play voice message",
@@ -1324,6 +1404,7 @@
     "sidebar_yesterday": "Yesterday",
     "sidebar_voice_call_preview": "Voice call",
     "sidebar_voice_message_preview": "Voice message",
+    "sidebar_file_message_preview": "Attached file",
     "sidebar_typing": "Typing…",
     "loading": "Connecting to the chat room…",
     "members_title": "Members",
@@ -2281,7 +2362,13 @@
     "error_title": "The directory did not load",
     "error_description": "Try again in a moment. If it keeps failing, tell an organization admin.",
     "not_found_title": "This person was not found",
-    "not_found_description": "They may have left the organization, or you may not be allowed to see them."
+    "not_found_description": "They may have left the organization, or you may not be allowed to see them.",
+    "contact": "Contact",
+    "details": "Details",
+    "reporting": "Reporting",
+    "details_empty": "Nothing recorded yet.",
+    "email_person": "Email {{name}}",
+    "call_person": "Call {{name}}"
   },
   "departments": {
     "title": "Departments",
@@ -2397,6 +2484,152 @@
       "toast_remove_failed": "Failed to remove resource",
       "toast_renamed": "Renamed",
       "toast_rename_failed": "Failed to rename"
+    }
+  },
+  "squads": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Squads open when work-management parity is enabled for this workspace.",
+    "page": {
+      "title": "Squads",
+      "new_squad": "New squad",
+      "empty": "No squads yet",
+      "create_first": "Create your first squad"
+    }
+  },
+  "runtimes": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Runtimes open when work-management parity is enabled for this workspace.",
+    "page": {
+      "title": "Runtimes",
+      "new_runtime": "New runtime",
+      "empty": "No runtimes yet",
+      "create_first": "Create your first runtime"
+    }
+  },
+  "editor": {
+    "bubble_menu": {
+      "bold": "Bold",
+      "italic": "Italic",
+      "strikethrough": "Strikethrough",
+      "code": "Code",
+      "highlight": "Highlight",
+      "link": "Link",
+      "list": "List",
+      "task_list": "Task list",
+      "quote": "Quote",
+      "url_aria_label": "URL",
+      "link_edit": {
+        "apply": "Apply link",
+        "remove": "Remove link",
+        "close": "Close link editor"
+      },
+      "heading_dropdown": {
+        "text": "Text",
+        "normal_text": "Normal Text",
+        "heading_1": "Heading 1",
+        "heading_2": "Heading 2",
+        "heading_3": "Heading 3"
+      },
+      "list_dropdown": {
+        "bullet_list": "Bullet List",
+        "ordered_list": "Ordered List",
+        "task_list": "Task List"
+      },
+      "sub_task": {
+        "tooltip": "Create sub-task from selection",
+        "created": "Created {{identifier}}",
+        "create_failed": "Failed to create sub-task"
+      }
+    },
+    "image": {
+      "view": "View image",
+      "download": "Download",
+      "copy_link": "Copy link",
+      "delete": "Delete",
+      "link_copied": "Link copied",
+      "copy_link_failed": "Failed to copy link",
+      "canvas_label": "Image canvas. Drag to pan, scroll to zoom, double-click to toggle actual size.",
+      "previous": "Previous image",
+      "next": "Next image",
+      "sequence_position": "{{index}} / {{total}}",
+      "unavailable": "That image is no longer available — skipped it."
+    },
+    "canvas": {
+      "zoom_in": "Zoom in",
+      "zoom_out": "Zoom out",
+      "zoom_fit": "Fit to view",
+      "zoom_actual": "Actual size"
+    },
+    "attachment": {
+      "download_failed": "Couldn't fetch a download link. Try again in a moment.",
+      "preview": "Preview",
+      "preview_loading": "Loading preview…",
+      "preview_failed": "Couldn't load preview",
+      "preview_too_large": "File is too large to preview. Please download.",
+      "preview_unsupported": "This file type can't be previewed.",
+      "close": "Close",
+      "open_in_new_tab": "Open in new tab",
+      "remove": "Remove attachment"
+    },
+    "link_hover": {
+      "copy_link": "Copy link",
+      "open_link": "Open link",
+      "link_copied": "Link copied",
+      "copy_failed": "Failed to copy"
+    },
+    "mention": {
+      "group_users": "Users",
+      "all_members": "All members",
+      "searching": "Searching...",
+      "no_results": "No results",
+      "group_current": "Current page",
+      "group_recent": "Recently viewed",
+      "group_search": "Search results",
+      "group_cancelled": "Cancelled",
+      "group_tasks": "Tasks"
+    },
+    "slash_command": {
+      "no_skills_configured": "No skills configured",
+      "no_results": "No matching skills",
+      "commands": {
+        "note": "Add a note — won't trigger any agents"
+      }
+    },
+    "code_block": {
+      "copy_code": "Copy code",
+      "show_preview": "Show preview",
+      "show_source": "Show source",
+      "fullscreen": "Fullscreen"
+    },
+    "file_card": {
+      "uploading": "Uploading {{filename}}"
+    },
+    "upload": {
+      "failed": "Couldn't upload {{filename}}: {{reason}}",
+      "in_progress": "Uploading…",
+      "interrupted": "Upload interrupted — the file wasn’t saved. Attach it again.",
+      "remove": "Remove",
+      "uploading_label": "Uploading {{filename}}…",
+      "failed_label": "Couldn’t upload {{filename}}"
+    },
+    "title_editor": {
+      "title_aria_label": "Title"
+    },
+    "mermaid": {
+      "render_error": "Unable to render Mermaid diagram.",
+      "diagram_label": "Mermaid diagram",
+      "rendering": "Rendering diagram…",
+      "viewer_title": "Diagram",
+      "canvas_label": "Diagram canvas. Drag to pan, scroll to zoom.",
+      "open_viewer": "Open diagram viewer",
+      "close_viewer": "Close",
+      "copy_source": "Copy diagram source",
+      "show_source": "Show source",
+      "show_diagram": "Show diagram",
+      "export": "Export",
+      "export_png": "Download PNG",
+      "export_svg": "Download SVG",
+      "export_source": "Download .mmd"
     }
   }
 }

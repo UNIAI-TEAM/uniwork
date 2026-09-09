@@ -1,13 +1,10 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TitleEditor } from "./title-editor";
 
-describe("TitleEditor smoke", () => {
-  it("mounts a contenteditable editor", async () => {
-    render(<TitleEditor placeholder="Task title" />);
-
-    await waitFor(() => {
-      expect(document.querySelector('[contenteditable="true"]')).toBeInTheDocument();
-    });
+describe("TitleEditor", () => {
+  it("mounts a contenteditable surface", async () => {
+    render(<TitleEditor defaultValue="Hello" />);
+    expect(await screen.findByRole("textbox")).toHaveAttribute("contenteditable", "true");
   });
 });

@@ -18,7 +18,7 @@ import (
 func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	s, ua, ub, w := meetingFixture(t)
 	ctx := context.Background()
-	s.Tasks = NewTaskService(s.pool, s.q, s.ws)
+	s.Tasks = NewTaskService(s.pool, s.q, s.ws, nil)
 	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{
 			Text:  `{"summary":"Đã chốt.","decisions":["Ship thứ Sáu"],"action_items":[{"title":"Gửi báo cáo","owner":"B"}]}`,

@@ -21,6 +21,9 @@
       ]
     },
     "packages/*": {},
+    "packages/views": {
+      "ignoreExportsUsedInFile": true
+    },
     "e2e": {
       "entry": [
         "*.spec.ts"

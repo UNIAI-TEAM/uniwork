@@ -62,6 +62,7 @@ catalog:
   "@tiptap/extension-table-row": "3.27.1"
   "@tiptap/extension-text": "3.27.1"
   "@tiptap/extension-typography": "3.27.1"
+  "@tiptap/extensions": "3.27.1"
   "@tiptap/markdown": "3.27.1"
   "@tiptap/pm": "3.27.1"
   "@tiptap/react": "3.27.1"

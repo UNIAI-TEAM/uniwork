@@ -161,14 +161,18 @@ func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
 		t.Fatalf("after delete: %v", err)
 	}
 
-	capErr := s.ListTaskAttachments(ctx, Human(ua.ID), task.ID)
+	capErr := s.GetTaskTimeline(ctx, Human(ua.ID), task.ID)
 	var coded CodedError
 	if !errors.As(capErr, &coded) || coded.Code != "capability_unavailable" {
-		t.Fatalf("attachments stub: %v", capErr)
-	}
-	capErr = s.GetTaskTimeline(ctx, Human(ua.ID), task.ID)
-	if !errors.As(capErr, &coded) || coded.Code != "capability_unavailable" {
 		t.Fatalf("timeline stub: %v", capErr)
+	}
+
+	listedAtts, err := s.ListTaskAttachments(ctx, Human(ua.ID), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listedAtts) != 0 {
+		t.Fatalf("empty attachments: %+v", listedAtts)
 	}
 
 	drained := events.drain(t)

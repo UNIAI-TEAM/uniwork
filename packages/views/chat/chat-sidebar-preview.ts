@@ -17,6 +17,7 @@ export function formatChatSidebarPreviewText(
     youLabel: string;
     voiceCallLabel: string;
     voiceMessageLabel?: string;
+    fileMessageLabel?: string;
     nicknamesByUserId?: Readonly<Record<string, string>>;
   },
 ): string | null {
@@ -26,6 +27,10 @@ export function formatChatSidebarPreviewText(
   }
   if (preview.kind === "voice") {
     return options.voiceMessageLabel ?? options.voiceCallLabel;
+  }
+  if (preview.kind === "file") {
+    const name = preview.body.trim();
+    return name || options.fileMessageLabel || null;
   }
   const body = deserializeMessageBodyToComposerDraft(preview.body).trim();
   if (!body) return null;
