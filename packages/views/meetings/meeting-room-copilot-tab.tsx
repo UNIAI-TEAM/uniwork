@@ -15,7 +15,7 @@ import {
   useRecordings,
   useTranscript,
 } from "@uniwork/core/meetings";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import {
   Progress,
@@ -309,15 +309,15 @@ export function MeetingRoomCopilotTab({
 
         {completedRecording?.file_url ? (
           <section className="space-y-2">
-            <Button
-              type="button"
+            <ButtonLink
               variant="secondary"
               className="w-full"
-              // eslint-disable-next-line jsx-a11y/anchor-has-content -- Base UI merges the button's children into the anchor
-              render={<a href={completedRecording.file_url} target="_blank" rel="noreferrer" />}
+              href={completedRecording.file_url}
+              target="_blank"
+              rel="noreferrer"
             >
               {t("meetings.openRecording")}
-            </Button>
+            </ButtonLink>
           </section>
         ) : null}
       </div>

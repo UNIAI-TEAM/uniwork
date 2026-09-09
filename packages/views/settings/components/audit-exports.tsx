@@ -12,7 +12,7 @@ import {
 } from "@uniwork/core/audit";
 import type { AuditExport } from "@uniwork/core/types";
 import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
@@ -127,15 +127,10 @@ function ExportRow({ job }: { job: AuditExport }) {
       }
     >
       {job.download_url ? (
-        <Button
-          variant="outline"
-          size="sm"
-          // eslint-disable-next-line jsx-a11y/anchor-has-content -- Base UI merges the button's children into the anchor
-          render={<a href={job.download_url} />}
-        >
+        <ButtonLink variant="outline" size="sm" href={job.download_url}>
           <Download data-icon="inline-start" aria-hidden />
           {t("download")}
-        </Button>
+        </ButtonLink>
       ) : null}
     </SettingsRow>
   );
