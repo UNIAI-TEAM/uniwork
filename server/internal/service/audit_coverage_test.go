@@ -628,6 +628,31 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatChannelUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
+				Name: "audit-ch", Visibility: "public",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			topic := "updated"
+			if _, err := f.chat.UpdateChannel(f.ctx, f.owner.ID, w.ID, ch.ID, UpdateChannelInput{Topic: &topic}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatChannelArchived: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
+				Name: "audit-arch", Visibility: "private",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.ArchiveChannel(f.ctx, f.owner.ID, w.ID, ch.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -705,6 +730,8 @@ func auditActions() []string {
 		audit.ActionChatRoomCreated,
 		audit.ActionChatRoomMemberAdded,
 		audit.ActionChatRoomMemberRemoved,
+		audit.ActionChatChannelUpdated,
+		audit.ActionChatChannelArchived,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,

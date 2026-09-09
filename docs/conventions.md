@@ -161,8 +161,14 @@ fails on drift. One flat namespace, keys nested by section:
 | member | **thành viên** | Member | `workspace.members = "Thành viên"` |
 | invitation | **lời mời** / **mời** | Invitation / Invite | `workspace.invite = "Mời thành viên"` |
 | comment | **bình luận** | Comment | |
+| channel (chat) | **kênh** | Channel | `chat.channel.*`; first-class room linked to a project |
+| thread (chat) | **thread** | Thread | kept English in vi when product/schema; not “chủ đề” for room threads |
+| link (attach project) | **gắn** | Link | `chat.channel.project_label = "Gắn project"` |
 | inbox (the notification screen) | **hộp việc** | Inbox | `nav.inbox = "Hộp việc"`; route stays `/inbox` (OPEN_QUESTIONS N5) |
 | Ask UNI (the read-only copilot) | **Hỏi UNI** | Ask UNI | `ai.title = "Hỏi UNI"`; UNI is the assistant's name, never "trợ lý ảo" |
+| channel (chat work hub) | **kênh** | channel | `chat.channel.*`; first-class chat room kind attached to a Project |
+| thread (chat) | **thread** | thread | keep English — internal users say "thread", not "luồng" |
+| link (message ↔ work item) | **gắn** | link | `chat.message.linked` / message↔task attachment |
 | source / citation (what an answer points at) | **nguồn** / **trích dẫn** | source / citation | `ai.sources = "Nguồn"`; rendered as `[S1]` links |
 | notification | **thông báo** | Notification | `notifications.*`; one row in the inbox is a "thông báo" |
 | mention (@someone) | **nhắc** / **nhắc đến** | Mention | `notifications.kind.mentioned = "… đã nhắc đến bạn …"` |

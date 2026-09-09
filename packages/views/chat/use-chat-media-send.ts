@@ -17,7 +17,7 @@ export function useChatMediaSend({
   clearReply,
 }: {
   activeRoomId: string | null;
-  targetKind: "workspace" | "dm" | "group";
+  targetKind: "workspace" | "dm" | "group" | "channel";
   replyToId?: string;
   ensureRoom: { mutateAsync: () => Promise<EnsureRoomResult> };
   sendVoiceMessage: {

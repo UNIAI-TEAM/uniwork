@@ -51,7 +51,7 @@ describe("chat room helpers", () => {
     expect(unreadMapFromRooms(rooms)).toEqual({ a: 2 });
   });
 
-  it("sidebarFromChatRooms splits workspace, dm, and group rooms", () => {
+  it("sidebarFromChatRooms splits workspace, dm, group, and channel rooms", () => {
     const rooms: ChatRoomRecord[] = [
       { id: "w", kind: "workspace", name: "General", workspace_id: "ws", member_user_ids: [], unread_count: 0, mention_unread_count: 0 },
       {
@@ -66,6 +66,28 @@ describe("chat room helpers", () => {
         mention_unread_count: 0,
       },
       { id: "g", kind: "group", name: "Team", workspace_id: "ws", member_user_ids: ["u1", "u2"], unread_count: 0, mention_unread_count: 0 },
+      {
+        id: "c-default",
+        kind: "channel",
+        name: "chung",
+        workspace_id: "ws",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+        is_default: true,
+        visibility: "public",
+      },
+      {
+        id: "c1",
+        kind: "channel",
+        name: "marketing",
+        workspace_id: "ws",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+        project_id: "p1",
+        visibility: "public",
+      },
     ];
     const sidebar = sidebarFromChatRooms(rooms);
     expect(sidebar.workspaceRoom?.id).toBe("w");
@@ -77,5 +99,25 @@ describe("chat room helpers", () => {
       member_user_ids: ["u1", "u2"],
     });
     expect(sidebar.groups[0]?.room_id).toBe("g");
+    expect(sidebar.channels.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  it("sidebarFromChatRooms treats default channel as workspace room", () => {
+    const rooms: ChatRoomRecord[] = [
+      {
+        id: "c-default",
+        kind: "channel",
+        name: "chung",
+        workspace_id: "ws",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+        is_default: true,
+        visibility: "public",
+      },
+    ];
+    const sidebar = sidebarFromChatRooms(rooms);
+    expect(sidebar.workspaceRoom?.id).toBe("c-default");
+    expect(sidebar.channels).toEqual([]);
   });
 });

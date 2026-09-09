@@ -50,7 +50,7 @@ func (s *ChatService) SearchRoomMessages(
 	if utf8.RuneCountInString(query) > maxChatSearchQueryRunes {
 		return nil, Invalid("từ khóa tìm kiếm quá dài")
 	}
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (s *ChatService) SearchRoomMessages(
 func (s *ChatService) ListRoomMessagesAround(
 	ctx context.Context, userID, workspaceID, roomID, messageID string, limit int,
 ) ([]ChatMessageRow, error) {
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return nil, err
 	}

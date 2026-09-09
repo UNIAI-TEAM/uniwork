@@ -22,6 +22,12 @@ const (
 	maxChatMessageLimit     = 100
 )
 
+// isWorkspaceDefaultRoom is the legacy "phòng chung" (kind=workspace or
+// migrated channel with is_default).
+func isWorkspaceDefaultRoom(room db.ChatRoom) bool {
+	return room.Kind == chatRoomKindWorkspace || (room.Kind == chatRoomKindChannel && room.IsDefault)
+}
+
 type ChatService struct {
 	pool        *pgxpool.Pool
 	q           *db.Queries
@@ -124,13 +130,18 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 		roomID := util.NewID()
 		room, err = s.q.CreateChatRoom(ctx, db.CreateChatRoomParams{
 			ID:              roomID,
-			Kind:            chatRoomKindWorkspace,
+			Kind:            chatRoomKindChannel,
 			WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
 			OrganizationID:  pgtype.Text{String: w.OrganizationID, Valid: true},
 			Name:            w.Name,
 			MemberSetKey:    pgtype.Text{},
 			LivekitRoomName: liveKitRoomFromChatID(roomID),
 			CreatedBy:       userID,
+			CreatedByKind:   string(audit.KindHuman),
+			Visibility:      chatVisibilityPublic,
+			ProjectID:       pgtype.Text{},
+			Topic:           "",
+			IsDefault:       true,
 		})
 		if err != nil {
 			return WorkspaceChat{}, err
@@ -263,7 +274,7 @@ func (s *ChatService) authorizeWorkspaceRoom(ctx context.Context, userID, worksp
 func (s *ChatService) ListRoomMessages(
 	ctx context.Context, userID, workspaceID, roomID string, in ListChatMessagesInput,
 ) ([]ChatMessageRow, error) {
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +285,7 @@ func (s *ChatService) ListRoomMessages(
 func (s *ChatService) GetRoomMessage(
 	ctx context.Context, userID, workspaceID, roomID, messageID string,
 ) (ChatMessageRow, error) {
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -302,7 +313,7 @@ func (s *ChatService) SendRoomMessage(
 	if err := validateChatMessageBody(in.Body); err != nil {
 		return ChatMessageRow{}, err
 	}
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}

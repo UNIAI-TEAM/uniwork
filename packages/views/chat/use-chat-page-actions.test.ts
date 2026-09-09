@@ -29,6 +29,7 @@ function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> 
     setTarget,
     activeRoomId: "room1",
     activeGroup: null,
+    activeChannel: null,
     draft: "hello",
     setDraft,
     replyTo: null as ChatMessage | null,
@@ -166,6 +167,7 @@ describe("useChatPageActions", () => {
   it("invites members into the active group", async () => {
     const group = { id: "g1", name: "Design", room_id: "room-g1", member_user_ids: ["u3"] };
     const deps = buildDeps({
+      target: { kind: "group", group },
       activeGroup: group,
       inviteMembers: {
         mutateAsync: vi.fn().mockResolvedValue({
@@ -188,6 +190,49 @@ describe("useChatPageActions", () => {
         memberUserIds: ["u2"],
       });
       expect(deps.setAddMembersOpen).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("invites members into the active channel", async () => {
+    const channel = {
+      id: "ch1",
+      kind: "channel" as const,
+      name: "dev",
+      workspace_id: "ws1",
+      member_user_ids: ["u1"],
+      unread_count: 0,
+      mention_unread_count: 0,
+      is_default: false,
+      visibility: "private",
+    };
+    const deps = buildDeps({
+      target: { kind: "channel", channel },
+      activeChannel: channel,
+      inviteMembers: {
+        mutateAsync: vi.fn().mockResolvedValue({
+          ...channel,
+          member_user_ids: ["u1", "u2"],
+        }),
+      },
+    });
+    const members = [{ user_id: "u2", email: "b@example.com", display_name: "B" }];
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    act(() => {
+      result.current.handleAddGroupMembers(members);
+    });
+
+    await waitFor(() => {
+      expect(deps.inviteMembers.mutateAsync).toHaveBeenCalledWith({
+        roomId: "ch1",
+        memberUserIds: ["u2"],
+      });
+      expect(deps.setTarget).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "channel",
+          channel: expect.objectContaining({ member_user_ids: ["u1", "u2"] }),
+        }),
+      );
     });
   });
 

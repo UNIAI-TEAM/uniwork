@@ -1,6 +1,10 @@
 export const chatKeys = {
   room: (wsId: string) => ["chat", "room", wsId] as const,
   rooms: (wsId: string) => ["chat", "rooms", wsId] as const,
+  channels: (wsId: string, scope: string, projectId = "", q = "") =>
+    ["chat", "channels", wsId, scope, projectId, q] as const,
+  projectChannels: (wsId: string, projectId: string) =>
+    ["chat", "project-channels", wsId, projectId] as const,
   messages: (wsId: string) => ["chat", "messages", wsId] as const,
   roomMessages: (wsId: string, roomId: string) => ["chat", "room-messages", wsId, roomId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>

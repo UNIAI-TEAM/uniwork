@@ -30,3 +30,4 @@ export * as projects from "./endpoints/projects";
 export * as taskCollaboration from "./endpoints/task-collaboration";
 export * as taskAttachments from "./endpoints/task-attachments";
 export * as meetings from "./endpoints/meetings";
+export * as chat from "./endpoints/chat";
