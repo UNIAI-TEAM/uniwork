@@ -11,15 +11,18 @@ import {
   useLazyEditor,
 } from "../../../editor";
 import { TaskDetailAttachmentsSlot } from "./task-detail-attachments-slot";
+import { TaskDetailSubtasksSection } from "./subtasks-section";
 import { TaskDetailTimelineSlot } from "./task-detail-timeline-slot";
 
 export function TaskDetailEditors({
   task,
+  workspaceId,
   onSaveTitle,
   onSaveDescription,
   scrollContainerRef,
 }: {
   task: Task;
+  workspaceId: string;
   onSaveTitle: (title: string) => void;
   onSaveDescription: (markdown: string) => void;
   scrollContainerRef?: (el: HTMLElement | null) => void;
@@ -100,6 +103,7 @@ export function TaskDetailEditors({
           />
         </div>
 
+        <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
         <TaskDetailAttachmentsSlot />
         <TaskDetailTimelineSlot />
       </div>

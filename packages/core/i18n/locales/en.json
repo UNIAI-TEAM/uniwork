@@ -814,7 +814,24 @@
       "title_region": "Title",
       "properties_sidebar": "Properties",
       "section_properties": "Properties",
+      "section_parent": "Parent task",
+      "section_subtasks": "Sub-tasks",
       "properties_placeholder": "Status, assignee, and other fields will appear here.",
+      "prop_project": "Project",
+      "prop_project_none": "No project",
+      "prop_labels": "Labels",
+      "prop_start_date": "Start date",
+      "prop_stage": "Stage",
+      "prop_stage_none": "No stage",
+      "prop_custom": "Custom properties",
+      "add_label": "Add a label…",
+      "attach_label": "Attach",
+      "custom_properties_count": "{{count}} properties",
+      "subtasks_progress": "{{done}}/{{total}}",
+      "subtasks_empty": "No sub-tasks yet.",
+      "add_subtask": "Add sub-task",
+      "add_subtask_placeholder": "Sub-task title",
+      "add_subtask_action": "Add",
       "timeline_section": "Activity",
       "timeline_placeholder": "Comments and activity will appear here.",
       "attachments_section": "Attachments",
@@ -842,7 +859,13 @@
     }
   },
   "capabilities": {
-    "unknown": "This capability is not available yet."
+    "unknown": "This capability is not available yet.",
+    "surface_not_ready": "This surface is not ready yet.",
+    "agent_runtime_missing": "Agent runtime is not available yet.",
+    "squad_directory_missing": "Squad directory is not available yet.",
+    "vcs_provider_missing": "Version control is not connected yet.",
+    "local_daemon_missing": "Local workdir daemon is not available yet.",
+    "host_not_built": "This host is not available yet."
   },
   "agents": {
     "badge": "Agent"

@@ -14,8 +14,8 @@ import { useTaskFieldSave } from "./hooks/use-task-field-save";
 
 /**
  * Suite task detail shell (flag-gated at the route in Task 10).
- * Composition points for later slices: properties sidebar (7), timeline (8),
- * attachments (9) — each currently a labelled placeholder slot.
+ * Properties sidebar + sub-tasks land in Task 7; timeline (8) and
+ * attachments (9) remain labelled slots.
  */
 export function TaskDetailSuitePage(props: {
   workspaceId: string;
@@ -81,12 +81,21 @@ export function TaskDetailSuitePage(props: {
         main={
           <TaskDetailEditors
             task={task}
+            workspaceId={workspaceId}
             scrollContainerRef={attachScroll}
             onSaveTitle={(title) => saveField({ title })}
             onSaveDescription={(description) => saveField({ description })}
           />
         }
-        sidebar={<TaskDetailPropertiesSidebarSlot />}
+        sidebar={
+          <TaskDetailPropertiesSidebarSlot
+            workspaceId={workspaceId}
+            task={task}
+            onRefetch={() => {
+              void refetch();
+            }}
+          />
+        }
       />
     </div>
   );

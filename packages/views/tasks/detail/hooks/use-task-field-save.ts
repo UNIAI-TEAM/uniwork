@@ -10,6 +10,9 @@ import { toastApiError } from "../../../toast-api-error";
 type TaskFieldPatch = {
   title?: string;
   description?: string;
+  status?: string;
+  priority?: string;
+  position?: number;
 };
 
 /**
