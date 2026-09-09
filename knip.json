@@ -3,7 +3,6 @@
   "exclude": [
     "catalog"
   ],
-  "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
       "entry": [
@@ -22,6 +21,9 @@
       ]
     },
     "packages/*": {},
+    "packages/views": {
+      "ignoreExportsUsedInFile": true
+    },
     "e2e": {
       "entry": [
         "*.spec.ts"

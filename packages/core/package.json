@@ -95,7 +95,8 @@
     "./modals": "./modals/store.ts",
     "./search": "./search/index.ts",
     "./attachments/*": "./attachments/*.ts",
-    "./hooks/*": "./hooks/*.ts"
+    "./hooks/*": "./hooks/*.ts",
+    "./editor/config-store": "./editor/config-store.ts"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "catalog:",

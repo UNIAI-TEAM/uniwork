@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { api } from "./attachment-api";
-import { useConfigStore } from "./editor-config";
+import { useConfigStore } from "@uniwork/core/editor/config-store";
 import type { Attachment as AttachmentRecord } from "@uniwork/core/types";
 import { useTranslation } from "react-i18next";
 import { useAttachmentDownloadResolver } from "./attachment-download-context";

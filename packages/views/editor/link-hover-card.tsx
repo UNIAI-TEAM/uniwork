@@ -19,6 +19,10 @@ import { copyText } from "@uniwork/ui/lib/clipboard";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { useAppOrigin } from "./use-app-origin";
 import { useTranslation } from "react-i18next";
+import {
+  useOptionalNavigation,
+  type LinkClickIntent,
+} from "@uniwork/views/navigation";
 import { openLink, isMentionHref } from "./utils/link-handler";
 
 function truncateUrl(url: string, max = 48): string {
@@ -146,7 +150,28 @@ function LinkHoverCard({
   const [positioned, setPositioned] = useState(false);
   const slug = useEditorWorkspaceSlug();
   const appOrigin = useAppOrigin();
+  const navigation = useOptionalNavigation();
   const { t } = useTranslation();
+
+  const navigate = (path: string, disposition: LinkClickIntent = "push") => {
+    if (!navigation) {
+      if (disposition === "push") {
+        window.location.assign(path);
+      } else {
+        window.open(path, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+    if (disposition === "push") {
+      navigation.push(path);
+      return;
+    }
+    window.open(
+      navigation.getShareableUrl(path),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
 
   // Position the card when the portal div is mounted (ref callback).
   // Using useEffect would race with portal rendering — the div might
@@ -190,7 +215,7 @@ function LinkHoverCard({
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    openLink(href, slug, appOrigin);
+    openLink(href, slug, appOrigin, "push", navigate);
   };
 
   return createPortal(

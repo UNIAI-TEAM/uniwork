@@ -22,7 +22,7 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { isImeComposing } from "@uniwork/core/utils";
 import type { Agent, Member } from "@uniwork/core/types";
 import { Users } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useTranslation, getI18n } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { SuggestionOptions } from "@tiptap/suggestion";
 import { PluginKey } from "@tiptap/pm/state";
@@ -246,9 +246,13 @@ export function createMentionSuggestion(
     void userId;
 
     const q = query.toLowerCase();
+    const allLabel = getI18n().t("editor.mention.all_members");
     const allItem: MentionItem[] =
-      !q || "all members".includes(q) || "all".includes(q) || "tất cả".includes(q)
-        ? [{ id: "all", label: "All members", type: "all" }]
+      !q ||
+      allLabel.toLowerCase().includes(q) ||
+      "all".includes(q) ||
+      "tất cả".includes(q)
+        ? [{ id: "all", label: allLabel, type: "all" }]
         : [];
 
     const memberItems: MentionItem[] = members
