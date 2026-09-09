@@ -1050,6 +1050,7 @@
     "waitingToJoinHostHint": "Chỉ chủ trì mới thấy",
     "waitingToBeAdmitted": "Đang chờ được duyệt",
     "admitAll": "Duyệt tất cả",
+    "unconfirmedGuest": "Khách chưa xác nhận",
     "unconfirmedUsers_one": "{{count}} khách chưa xác nhận",
     "unconfirmedUsers_other": "{{count}} khách chưa xác nhận",
     "joinRequestActions": "Thao tác yêu cầu vào phòng",

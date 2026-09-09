@@ -5,9 +5,11 @@ import { useTranslation } from "react-i18next";
 import { AvatarGroup, AvatarGroupCount } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import type { MeetingJoinRequest } from "@uniwork/core/types";
 import { meetingLocale } from "./meeting-datetime";
-import { requestDisplayName } from "./meeting-join-request-row";
+import { MeetingJoinRequestRow, requestDisplayName } from "./meeting-join-request-row";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useJoinRequestActions } from "./use-join-request-actions";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
 const PREVIEW_AVATARS = 4;
@@ -24,11 +26,91 @@ export function MeetingWaitingToJoinCard({
 }) {
   const { t, i18n } = useTranslation();
   const { pending, count } = usePendingJoinRequests(meetingId);
+  const { approveOne, rejectOne, approving, rejecting } = useJoinRequestActions(meetingId);
 
-  if (count === 0) return null;
+  const first = pending[0];
+  if (!first || count === 0) return null;
 
+  const viewAll =
+    onViewAll ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-auto w-full justify-center gap-1 py-1.5 text-brand hover:bg-transparent hover:text-brand"
+        onClick={onViewAll}
+      >
+        {t("meetings.viewAllJoinRequestsCount", { count })}
+        <ChevronRight aria-hidden className="size-4" />
+      </Button>
+    ) : null;
+
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-3", className)}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <h2 className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
+          {t("meetings.waitingToJoin")}
+        </h2>
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">
+          {t("meetings.waitingToJoinHostHint")}
+        </span>
+      </div>
+
+      {count === 1 ? (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              size="lg"
+              className="rounded-full"
+              disabled={approving}
+              onClick={() => approveOne(first.id)}
+            >
+              {t("meetings.approve")}
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              className="rounded-full"
+              disabled={rejecting}
+              onClick={() => rejectOne(first.id)}
+            >
+              {t("meetings.reject")}
+            </Button>
+          </div>
+          <MeetingJoinRequestRow
+            request={first}
+            variant="overlay"
+            approving={approving}
+            rejecting={rejecting}
+            onApprove={() => approveOne(first.id)}
+            onReject={() => rejectOne(first.id)}
+          />
+        </>
+      ) : (
+        <WaitingGuestsPreview pending={pending} count={count} language={i18n.language} onViewAll={onViewAll} />
+      )}
+
+      {viewAll}
+    </div>
+  );
+}
+
+function WaitingGuestsPreview({
+  pending,
+  count,
+  language,
+  onViewAll,
+}: {
+  pending: MeetingJoinRequest[];
+  count: number;
+  language: string;
+  onViewAll?: () => void;
+}) {
+  const { t } = useTranslation();
   const names = pending.map(requestDisplayName);
-  const nameList = new Intl.ListFormat(meetingLocale(i18n.language), {
+  const nameList = new Intl.ListFormat(meetingLocale(language), {
     style: "long",
     type: "conjunction",
   }).format(names);
@@ -55,45 +137,18 @@ export function MeetingWaitingToJoinCard({
   const previewClassName =
     "flex w-full min-w-0 flex-col items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-left";
 
+  if (!onViewAll) {
+    return <div className={previewClassName}>{preview}</div>;
+  }
+
   return (
-    <div className={cn("flex min-w-0 flex-col gap-3", className)}>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <h2 className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
-          {t("meetings.waitingToJoin")}
-        </h2>
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">
-          {t("meetings.waitingToJoinHostHint")}
-        </span>
-      </div>
-
-      {onViewAll ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className={cn(
-            previewClassName,
-            "h-auto whitespace-normal font-normal hover:bg-muted/80",
-          )}
-          onClick={onViewAll}
-        >
-          {preview}
-        </Button>
-      ) : (
-        <div className={previewClassName}>{preview}</div>
-      )}
-
-      {onViewAll ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-auto w-full justify-center gap-1 py-1.5 text-brand hover:bg-transparent hover:text-brand"
-          onClick={onViewAll}
-        >
-          {t("meetings.viewAllJoinRequestsCount", { count })}
-          <ChevronRight aria-hidden className="size-4" />
-        </Button>
-      ) : null}
-    </div>
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(previewClassName, "h-auto whitespace-normal font-normal hover:bg-muted/80")}
+      onClick={onViewAll}
+    >
+      {preview}
+    </Button>
   );
 }
