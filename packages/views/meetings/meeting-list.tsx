@@ -1,6 +1,7 @@
 "use client";
 import { Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { displayMeetingStatus, isScheduledMeetingLive } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import type { Meeting } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -104,7 +105,7 @@ function MeetingDayCards({
     <ul className="hidden space-y-2 lg:block">
       {items.map((m) => {
         const host = hostName(m.host_user_id ?? m.created_by);
-        const live = m.status === "IN_PROGRESS";
+        const live = isScheduledMeetingLive(m);
         return (
           <li key={m.id}>
             <MeetingCardRow
@@ -124,7 +125,7 @@ function MeetingDayCards({
                 </div>
               </MeetingCardRowMain>
               <MeetingCardRowActions>
-                <MeetingStatusBadge status={m.status} />
+                <MeetingStatusBadge status={displayMeetingStatus(m)} />
                 {live ? (
                   <Button
                     type="button"
@@ -166,7 +167,7 @@ function MeetingDayMobileList({
     <ul className="space-y-2 lg:hidden">
       {items.map((m) => {
         const host = hostName(m.host_user_id ?? m.created_by);
-        const live = m.status === "IN_PROGRESS";
+        const live = isScheduledMeetingLive(m);
         return (
           <li key={m.id}>
             <MeetingCardRow className={cn(live && "border-brand/30 bg-brand/5")}>
@@ -191,7 +192,7 @@ function MeetingDayMobileList({
                     <span className="hidden sm:inline">{t("meetings.joinNow")}</span>
                   </Button>
                 ) : (
-                  <MeetingStatusBadge status={m.status} />
+                  <MeetingStatusBadge status={displayMeetingStatus(m)} />
                 )}
               </MeetingCardRowActions>
             </MeetingCardRow>

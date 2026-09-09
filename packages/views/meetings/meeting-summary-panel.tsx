@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarPlus, CheckCircle2, ChevronDown, FileAudio, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
+import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
+import { useMembers } from "@uniwork/core/workspaces";
 import { toastApiError } from "../toast-api-error";
 import { meetingLocale } from "./meeting-datetime";
 import {
@@ -19,6 +21,7 @@ import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 import { PanelCard } from "../common/panel-card";
 
 /** Browser download of an .ics the API already authenticated for us. */
@@ -74,8 +77,15 @@ export function MeetingSummaryPanel({
   const { data: recordings } = useRecordings(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
   const createTasks = useCreateTasksFromSummary(workspaceId, meetingId);
+  const { data: members } = useMembers(workspaceId);
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [showTranscript, setShowTranscript] = useState(false);
+
+  const memberPreview = useMemo(
+    () => (members ?? []).map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
+    [members],
+  );
 
   const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
@@ -99,15 +109,25 @@ export function MeetingSummaryPanel({
   }
 
   function onCreateTasks() {
-    const items = actionItems.filter((_, i) => picked.has(i)).map((it) => ({ title: it.title, description: it.owner ? `${t("meetings.owner")}: ${it.owner}` : undefined }));
+    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides);
     if (items.length === 0) return;
     createTasks.mutate(items, {
       onSuccess: (ids) => {
         toast.success(t("meetings.tasksCreated", { count: ids.length }));
         setPicked(new Set());
+        setAssigneeOverrides({});
       },
       onError: (err) => toastApiError(err, t("common.error")),
     });
+  }
+
+  function assigneeLabel(index: number, owner?: string) {
+    const override = assigneeOverrides[index];
+    if (override) {
+      return members?.find((m) => m.user_id === override)?.display_name;
+    }
+    const previewId = previewAssigneeId(owner, memberPreview);
+    return previewId ? members?.find((m) => m.user_id === previewId)?.display_name : undefined;
   }
 
   return (
@@ -162,33 +182,51 @@ export function MeetingSummaryPanel({
                     <li
                       key={i}
                       className={cn(
-                        "flex items-start gap-3 px-3 py-2.5 text-body text-foreground transition-colors",
+                        "space-y-1.5 px-3 py-2.5 text-body text-foreground transition-colors",
                         picked.has(i) && "bg-surface-selected",
                       )}
                     >
-                      {canHost ? (
-                        <Checkbox
-                          aria-label={it.title}
-                          className="mt-0.5"
-                          checked={picked.has(i)}
-                          onCheckedChange={(v) =>
-                            setPicked((s) => {
-                              const n = new Set(s);
-                              if (v) n.add(i);
-                              else n.delete(i);
-                              return n;
-                            })
+                      <div className="flex items-start gap-3">
+                        {canHost ? (
+                          <Checkbox
+                            aria-label={it.title}
+                            className="mt-0.5"
+                            checked={picked.has(i)}
+                            onCheckedChange={(v) =>
+                              setPicked((s) => {
+                                const n = new Set(s);
+                                if (v) n.add(i);
+                                else n.delete(i);
+                                return n;
+                              })
+                            }
+                          />
+                        ) : null}
+                        <span className="min-w-0 flex-1">
+                          {it.title}
+                          {it.owner || it.due ? (
+                            <span className="ml-1.5 text-caption text-muted-foreground">
+                              {[it.owner, it.due].filter(Boolean).join(" · ")}
+                            </span>
+                          ) : null}
+                          {canHost && assigneeLabel(i, it.owner) ? (
+                            <span className="ml-1.5 text-caption text-brand">
+                              → {assigneeLabel(i, it.owner)}
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
+                      {canHost && picked.has(i) ? (
+                        <MeetingAssigneeSelect
+                          workspaceId={workspaceId}
+                          value={assigneeOverrides[i]}
+                          suggestedOwner={it.owner}
+                          onChange={(userId) =>
+                            setAssigneeOverrides((prev) => ({ ...prev, [i]: userId }))
                           }
+                          className="ml-7 h-8 max-w-xs"
                         />
                       ) : null}
-                      <span className="min-w-0 flex-1">
-                        {it.title}
-                        {it.owner || it.due ? (
-                          <span className="ml-1.5 text-caption text-muted-foreground">
-                            {[it.owner, it.due].filter(Boolean).join(" · ")}
-                          </span>
-                        ) : null}
-                      </span>
                     </li>
                   ))}
                 </ul>

@@ -24,9 +24,11 @@ import {
   listRecordings,
   listTranscript,
   meetingToken,
+  setParticipantPublish,
   startRecording,
   stopRecording,
   updateMeeting,
+  extendMeeting,
 } from "./meetings";
 
 const json = (body: unknown, status = 200) =>
@@ -130,6 +132,16 @@ describe("meetings endpoints", () => {
     expect((await createJoinRequest("m1"))?.id).toBe("r1");
     await expect(createJoinRequest("m1")).resolves.toBeNull();
   });
+
+  it("extendMeeting returns the meeting or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting }));
+    expect((await extendMeeting("m1"))?.id).toBe("m1");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/extend");
+    expect(JSON.parse(String(init.body))).toEqual({ minutes: 15 });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: 1 }));
+    await expect(extendMeeting("m1")).resolves.toBeNull();
+  });
 });
 
 describe("meetings D08b endpoints", () => {
@@ -145,10 +157,18 @@ describe("meetings D08b endpoints", () => {
   });
 
   it("capabilities degrade to {} on drift", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: true, recording: false }));
-    expect(await getMeetingCapabilities("ws1")).toEqual({ ai_summary: true, recording: false });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: true, recording: false, server_stt: true }));
+    expect(await getMeetingCapabilities("ws1")).toEqual({ ai_summary: true, recording: false, server_stt: true });
     vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: "yes" }));
     expect(await getMeetingCapabilities("ws1")).toEqual({});
+  });
+
+  it("setParticipantPublish posts enabled flag", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await setParticipantPublish("m1", "p1", false);
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/participants/p1/publish");
+    expect(JSON.parse(String(init.body))).toEqual({ enabled: false });
   });
 
   it("transcript list/append", async () => {

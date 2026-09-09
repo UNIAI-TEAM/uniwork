@@ -110,7 +110,7 @@ describe("MeetingControlBar", () => {
     expect(screen.queryByRole("button", { name: "Ghi hình" })).not.toBeInTheDocument();
   });
 
-  it("starts recording when the host presses record", () => {
+  it("starts recording after the host confirms scope", () => {
     mobile = false;
     handRaised = false;
     startRecording.mockClear();
@@ -127,6 +127,8 @@ describe("MeetingControlBar", () => {
       ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Ghi hình", pressed: false }));
+    expect(startRecording).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Bắt đầu ghi hình" }));
     expect(startRecording).toHaveBeenCalledOnce();
   });
 
@@ -192,5 +194,16 @@ describe("MeetingControlBar", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Mở panel AI" }));
     expect(onOpenCopilot).toHaveBeenCalledOnce();
+  });
+
+  it("asks before leaving the room", () => {
+    mobile = false;
+    handRaised = false;
+    const onLeave = vi.fn();
+    render(wrapWithNav(<MeetingControlBar onLeave={onLeave} />));
+    fireEvent.click(screen.getByRole("button", { name: "Rời phòng" }));
+    expect(onLeave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Rời ngay" }));
+    expect(onLeave).toHaveBeenCalledOnce();
   });
 });

@@ -66,5 +66,7 @@ to everyone.
 ## 6. Deliberately left for later
 
 Recurring meetings + Google Calendar sync, guest cookie completion, native
-mobile, server-side STT (LiveKit Agents), breakout rooms, persisted chat.
-See spec §"Cố ý để lại".
+mobile, breakout rooms. Persisted in-room chat, AUDIENCE role, server-enforced mute,
+and proactive JWT refresh landed post-D08b. **User guide (vi):**
+[`docs/guides/meeting-ai-tasks.md`](guides/meeting-ai-tasks.md). STT worker:
+[`deploy/meeting-stt-agent/`](../deploy/meeting-stt-agent/).

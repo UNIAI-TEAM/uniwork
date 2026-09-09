@@ -17,6 +17,11 @@ type TranscriptLine struct {
 	Text    string
 }
 
+type ChatLine struct {
+	Sender string
+	Text   string
+}
+
 func init() {
 	register(Prompt{
 		ID: "meeting_summary", Version: 1,
@@ -39,6 +44,13 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 				b.WriteString("\nNotes taken during the meeting:\n<untrusted source=\"notes\">\n")
 				for _, n := range notes {
 					fmt.Fprintf(&b, "- %s\n", n)
+				}
+				b.WriteString("</untrusted>\n")
+			}
+			if chat, _ := vars["chat"].([]ChatLine); len(chat) > 0 {
+				b.WriteString("\nIn-meeting chat:\n<untrusted source=\"chat\">\n")
+				for _, c := range chat {
+					fmt.Fprintf(&b, "%s: %s\n", c.Sender, c.Text)
 				}
 				b.WriteString("</untrusted>\n")
 			}

@@ -46,6 +46,17 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("%d %v", len(segs), err)
 	}
 
+	s.rt.STTAgentSecret = "agent-secret"
+	identity := meetings.IdentityForParticipant(seg.ParticipantID.String)
+	agentSeg, err := s.AppendTranscriptFromAgent(ctx, m.ID, identity, "", "Agent line", time.Time{})
+	if err != nil || agentSeg.Text != "Agent line" {
+		t.Fatalf("agent transcript: %+v %v", agentSeg, err)
+	}
+	segs, err = s.Transcript(ctx, ua.ID, m.ID)
+	if err != nil || len(segs) != 2 {
+		t.Fatalf("want 2 segments, got %d %v", len(segs), err)
+	}
+
 	// AI off → 503-coded error; on → row stored with JSON columns.
 	var ce CodedError
 	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !errors.As(err, &ce) || ce.Code != "ai_not_configured" {
@@ -90,11 +101,20 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("expected nil summary, got %+v %v", empty, err)
 	}
 
-	tasks, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, []SummaryTaskItem{{Title: "Gửi báo cáo"}, {Title: "Book phòng", AssigneeID: &ub.ID}})
+	tasks, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, []SummaryTaskItem{
+		{Title: "Gửi báo cáo", Owner: "B"},
+		{Title: "Book phòng", AssigneeID: &ub.ID},
+	})
 	if err != nil || len(tasks) != 2 {
 		t.Fatalf("%d %v", len(tasks), err)
 	}
-	if !strings.Contains(tasks[0].Description, "Từ cuộc họp: AI") || tasks[1].AssigneeID.String != ub.ID {
+	if !strings.Contains(tasks[0].Description, "Từ cuộc họp: AI") || tasks[0].AssigneeID.String != ub.ID {
+		t.Fatalf("owner resolve: %+v", tasks[0])
+	}
+	if tasks[0].OriginType.String != "meeting" || tasks[0].OriginID.String != m.ID {
+		t.Fatalf("origin: type=%s id=%s", tasks[0].OriginType.String, tasks[0].OriginID.String)
+	}
+	if tasks[1].AssigneeID.String != ub.ID {
 		t.Fatalf("%+v", tasks)
 	}
 	if _, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, nil); err == nil {
@@ -113,6 +133,31 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	}
 	if !strings.Contains(fake.Last.Messages[len(fake.Last.Messages)-1].Content, "Output language: English") {
 		t.Fatalf("locale not forwarded")
+	}
+}
+
+func TestSummarizeWithChatOnly(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	s.Tasks = NewTaskService(s.pool, s.q, s.ws, nil)
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: `{"summary":"Chat only.","decisions":[],"action_items":[]}`, Model: "fake"}
+	}}
+	s.AI = ai.NewGateway(s.q, fake, NewAIQuota(s.ent), nil, ai.Options{})
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendChatMessage(ctx, ua.ID, "", m.ID, "Chốt deadline thứ Sáu"); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
+	if sum.Summary != "Chat only." || !strings.Contains(prompt, "Chốt deadline thứ Sáu") || !strings.Contains(prompt, `source="chat"`) {
+		t.Fatalf("prompt=%s sum=%+v", prompt, sum)
 	}
 }
 
@@ -195,6 +240,42 @@ func TestAutoEndOverdue(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no MEETING_AUTO_ENDED audit row")
+	}
+}
+
+func TestExtendEndsAtWhileInProgress(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	start := time.Now().Add(-10 * time.Minute).Truncate(time.Second)
+	end := time.Now().Add(20 * time.Minute).Truncate(time.Second)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{
+		Title: "Live", StartsAt: start, EndsAt: end,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Start(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(45 * time.Minute).Truncate(time.Second)
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{EndsAt: &later}); err == nil {
+		t.Fatal("patch ends_at while in progress")
+	}
+	before := time.Now()
+	up, err := s.Extend(ctx, ua.ID, m.ID, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !up.EndsAt.Time.After(before.Add(14 * time.Minute)) {
+		t.Fatalf("ends_at %v", up.EndsAt.Time)
+	}
+	past := time.Now().Add(-time.Minute)
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{EndsAt: &past}); err == nil {
+		t.Fatal("past ends_at accepted")
+	}
+	nudge := time.Now().Add(time.Minute)
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{StartsAt: &nudge}); err == nil {
+		t.Fatal("starts_at change accepted while in progress")
 	}
 }
 

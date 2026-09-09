@@ -55,6 +55,7 @@ func (s *MeetingService) Join(ctx context.Context, in AdmissionContext) (Admissi
 		return AdmissionDecision{}, err
 	}
 	if !conferenceSessionReady(sess) {
+		s.requeueIdleProviderSession(ctx, dec.Meeting, sess)
 		return AdmissionDecision{
 			Decision:            DecisionWaitingForProvider,
 			Reason:              "PROVIDER_NOT_READY",
@@ -140,6 +141,40 @@ func (s *MeetingService) decisionForStatus(m db.Meeting, p db.MeetingParticipant
 		return AdmissionDecision{Decision: DecisionWaitingForHost, Reason: "MEETING_NOT_STARTED", Meeting: m, Participant: p}, nil
 	}
 	return AdmissionDecision{Decision: DecisionAdmit, Meeting: m, Participant: p}, nil
+}
+
+// requeueIdleProviderSession re-queues the room of a session the provider
+// closed behind UniWork's back — LiveKit's empty timeout is the usual cause,
+// and nobody can join a room that no longer exists. The outbox worker owns the
+// provider call, so join stays off the provider's critical path; the claim in
+// MarkConferenceSessionResyncing is what keeps the lobby's retries from
+// queueing the same instruction over and over. ReconcileProviderDesync stays
+// the backstop for the case where the queued row dies.
+func (s *MeetingService) requeueIdleProviderSession(ctx context.Context, m db.Meeting, sess db.MeetingConferenceSession) {
+	if sess.Status != "IDLE" || sess.ProviderSyncStatus != "SYNCED" {
+		return
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	if _, err := q.MarkConferenceSessionResyncing(ctx, sess.ID); err != nil {
+		return
+	}
+	if err := s.enqueue(ctx, q, m.WorkspaceID, "provider.ensure_session", map[string]string{
+		"meeting_id": m.ID, "session_id": sess.ID, "room_name": sess.ProviderRoomName,
+	}); err != nil {
+		return
+	}
+	_ = s.writeAudit(ctx, q, m.ID, "PROVIDER_ROOM_IDLE_DESYNC", "", m.Status, "IDLE", "{}")
+	if err := tx.Commit(ctx); err != nil {
+		return
+	}
+	if s.metrics != nil {
+		s.metrics.IncProviderDesync()
+	}
 }
 
 func conferenceSessionReady(sess db.MeetingConferenceSession) bool {

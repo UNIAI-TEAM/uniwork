@@ -193,6 +193,16 @@ export async function endMeeting(meetingId: string): Promise<Meeting | null> {
   })?.meeting ?? null;
 }
 
+export async function extendMeeting(meetingId: string, minutes = 15): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/extend`, {
+    method: "POST",
+    body: { minutes },
+  });
+  return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
+    endpoint: "POST /api/v1/meetings/{id}/extend",
+  })?.meeting ?? null;
+}
+
 export async function cancelMeeting(meetingId: string, reason?: string): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}/cancel`, { method: "POST", body: { reason } });
 }
@@ -284,6 +294,17 @@ export async function inviteParticipant(meetingId: string, userId: string) {
 
 export async function removeParticipant(meetingId: string, participantId: string): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}`, { method: "DELETE" });
+}
+
+export async function setParticipantPublish(
+  meetingId: string,
+  participantId: string,
+  enabled: boolean,
+): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/participants/${enc(participantId)}/publish`, {
+    method: "POST",
+    body: { enabled },
+  });
 }
 
 export async function transferHost(meetingId: string, newHostUserId: string): Promise<Meeting | null> {
@@ -412,6 +433,8 @@ export interface SummaryTaskItem {
   description?: string;
   assignee_id?: string;
   due_date?: string;
+  owner?: string;
+  due_spoken?: string;
 }
 
 export async function createTasksFromSummary(meetingId: string, items: SummaryTaskItem[]): Promise<string[]> {

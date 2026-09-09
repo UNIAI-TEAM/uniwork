@@ -146,6 +146,19 @@ func (h *handlers) endMeeting(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]any{"meeting": toMeetingDTO(m)})
 }
 
+func (h *handlers) extendMeeting(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ExtendMeetingSDI
+	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	m, err := h.Meetings.Extend(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Minutes)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]any{"meeting": toMeetingDTO(m)})
+}
+
 func (h *handlers) cancelMeeting(w http.ResponseWriter, r *http.Request) {
 	var in sdi.CancelMeetingSDI
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {

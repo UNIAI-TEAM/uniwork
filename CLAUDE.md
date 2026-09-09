@@ -119,7 +119,7 @@ If logic would be needed by a second host, extract it now:
 
 ```bash
 make dev              # bootstrap this checkout and start everything
-make start            # app processes (migrates first); make stop leaves Postgres/Redis up
+make start            # app + local LiveKit (migrates first); make stop leaves Postgres/Redis/LiveKit up
 make check            # typecheck → lint → unit + contract tests → Go tests → E2E (E2E above GATE_LEVEL=fast)
 make check-full       # the same at strict, E2E included, whatever GATE_LEVEL says
 make gate             # current gate level and what it changes
@@ -517,7 +517,9 @@ Conventional prefixes: `feat(scope)`, `fix(scope)`, `refactor(scope)`,
 `test(scope)`, `docs`, `chore(scope)`, `ci`, `style(scope)`. Atomic, grouped by
 intent; the body carries the reason and what was deliberately left out.
 `.githooks/commit-msg` rejects anything else, and `scripts/governance.test.mjs`
-fails if that hook's list and this line stop agreeing.
+fails if that hook's list and this line stop agreeing. GitHub squash-merge of
+a UniAI PR keeps the PR title (`UNI-nnn: …`); the hook accepts that subject
+the same way it accepts Merge and Revert.
 
 ## Domain Reminders
 

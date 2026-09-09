@@ -12,6 +12,7 @@ import type { CameraPreviewStatus } from "./meeting-camera-preview";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { MeetingInviteShell } from "./meeting-invite-shell";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
+import type { PreJoinChoice } from "./meeting-prejoin";
 
 // Camera preview pulls livekit-client (~130 KB gzip). Lazy-load it so the public
 // invite entry chunk stays under the route budget (scripts/bundle-budget.mjs).
@@ -54,12 +55,13 @@ export function MeetingPublicInviteForm({
   displayName: string;
   onDisplayNameChange: (value: string) => void;
   joinPending: boolean;
-  onJoin: () => void;
+  onJoin: (choice: PreJoinChoice) => void;
   onLogin: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const [audio, setAudio] = useState(true);
   const [video, setVideo] = useState(true);
+  const emitJoin = () => onJoin({ audio, video });
   const { refresh } = useMediaDevices();
   const onPreviewStatus = useCallback(
     (s: CameraPreviewStatus) => s === "live" && refresh(),
@@ -142,7 +144,7 @@ export function MeetingPublicInviteForm({
               autoFocus
               className="h-11"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && trimmedName && !joinPending) onJoin();
+                if (e.key === "Enter" && trimmedName && !joinPending) emitJoin();
               }}
             />
           </Field>
@@ -152,7 +154,7 @@ export function MeetingPublicInviteForm({
             variant="brand"
             className="h-11 w-full text-body font-medium"
             disabled={joinPending || !trimmedName}
-            onClick={onJoin}
+            onClick={emitJoin}
           >
             {joinPending ? (
               <>

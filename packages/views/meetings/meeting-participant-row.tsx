@@ -4,6 +4,7 @@ import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 import { useIsMuted, useIsSpeaking } from "@livekit/components-react";
 import {
+  Eye,
   EyeOff,
   MicOff,
   MoreVertical,
@@ -40,12 +41,16 @@ export function MeetingParticipantRow({
   subtitle,
   canHost,
   onRemove,
+  onRevokeSpeaking,
+  onAllowSpeaking,
   pinned,
 }: {
   participant: Participant;
   subtitle?: string;
   canHost?: boolean;
   onRemove?: () => void;
+  onRevokeSpeaking?: () => void;
+  onAllowSpeaking?: () => void;
   pinned?: boolean;
 }) {
   const { t } = useTranslation();
@@ -122,7 +127,11 @@ export function MeetingParticipantRow({
               {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
-              <EyeOff aria-hidden className="size-4" />
+              {isHidden ? (
+                <Eye aria-hidden className="size-4" />
+              ) : (
+                <EyeOff aria-hidden className="size-4" />
+              )}
               {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
             </DropdownMenuItem>
             {canHost && !participant.isLocal ? (
@@ -131,6 +140,18 @@ export function MeetingParticipantRow({
                   <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
                     <MicOff aria-hidden className="size-4" />
                     {t("meetings.muteParticipant", { name })}
+                  </DropdownMenuItem>
+                ) : null}
+                {canHost && !participant.isLocal && onRevokeSpeaking && !micMuted ? (
+                  <DropdownMenuItem onClick={onRevokeSpeaking}>
+                    <MicOff aria-hidden className="size-4" />
+                    {t("meetings.revokeSpeaking")}
+                  </DropdownMenuItem>
+                ) : null}
+                {canHost && !participant.isLocal && onAllowSpeaking && micMuted ? (
+                  <DropdownMenuItem onClick={onAllowSpeaking}>
+                    <Volume2 aria-hidden className="size-4" />
+                    {t("meetings.allowSpeakingAgain")}
                   </DropdownMenuItem>
                 ) : null}
                 {onRemove ? (

@@ -195,6 +195,15 @@ UPDATE meeting_conference_sessions SET
 WHERE id = sqlc.arg('id')
 RETURNING *;
 
+-- name: MarkConferenceSessionResyncing :one
+-- Claims an IDLE session for one re-ensure. The WHERE clause is the lock that
+-- keeps concurrent joins from queueing the same instruction twice.
+UPDATE meeting_conference_sessions SET
+  provider_sync_status = 'PENDING',
+  updated_at = now()
+WHERE id = $1 AND status = 'IDLE' AND provider_sync_status = 'SYNCED'
+RETURNING *;
+
 -- name: EndConferenceSession :one
 UPDATE meeting_conference_sessions SET
   status = 'ENDED',

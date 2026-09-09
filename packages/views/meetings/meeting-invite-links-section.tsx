@@ -49,7 +49,13 @@ function InviteLinkRow({
   );
 }
 
-export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) {
+export function MeetingInviteLinksSection({
+  meetingId,
+  canCreate = true,
+}: {
+  meetingId: string;
+  canCreate?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const { data: links } = useInviteLinks(meetingId);
   const revoke = useRevokeInviteLink(meetingId);
@@ -71,21 +77,30 @@ export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) 
 
   const visibleActive = showAllActive ? activeLinks : activeLinks.slice(0, VISIBLE_ACTIVE_LIMIT);
   const hiddenActiveCount = Math.max(0, activeLinks.length - VISIBLE_ACTIVE_LIMIT);
+  const empty = activeLinks.length === 0 && inactiveLinks.length === 0;
+
+  if (!canCreate && empty) {
+    return null;
+  }
 
   return (
     <>
       <PanelCard
         id="invite-links-heading"
         title={t("meetings.externalGuestLinks")}
-        description={t("meetings.externalGuestLinksDescription")}
+        description={t(
+          canCreate ? "meetings.externalGuestLinksDescription" : "meetings.externalGuestLinksClosedDescription",
+        )}
         action={
-          <Button type="button" size="sm" variant="outline" className="h-8 gap-1 px-2.5" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-3.5" aria-hidden />
-            {t("meetings.newInviteLink")}
-          </Button>
+          canCreate ? (
+            <Button type="button" size="sm" variant="outline" className="h-8 gap-1 px-2.5" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-3.5" aria-hidden />
+              {t("meetings.newInviteLink")}
+            </Button>
+          ) : undefined
         }
       >
-        {activeLinks.length === 0 && inactiveLinks.length === 0 ? (
+        {empty ? (
           <p className="text-label text-muted-foreground">{t("meetings.noInviteLinks")}</p>
         ) : null}
 
@@ -146,7 +161,9 @@ export function MeetingInviteLinksSection({ meetingId }: { meetingId: string }) 
         ) : null}
       </PanelCard>
 
-      <CreateInviteLinkDialog meetingId={meetingId} open={createOpen} onOpenChange={setCreateOpen} />
+      {canCreate ? (
+        <CreateInviteLinkDialog meetingId={meetingId} open={createOpen} onOpenChange={setCreateOpen} />
+      ) : null}
     </>
   );
 }

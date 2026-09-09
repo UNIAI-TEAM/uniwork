@@ -83,11 +83,11 @@ func TestAutoEndOverdueAtScheduledEnd(t *testing.T) {
 	}
 
 	n, err := s.AutoEndOverdue(ctx, time.Now())
-	if err != nil || n != 1 {
-		t.Fatalf("auto end: %d %v", n, err)
+	if err != nil || n != 0 {
+		t.Fatalf("auto end live room: %d %v", n, err)
 	}
 	got, _ := s.Get(ctx, ua.ID, m.ID)
-	if got.Status != MeetingEnded {
+	if got.Status != MeetingInProgress {
 		t.Fatalf("status %s", got.Status)
 	}
 }

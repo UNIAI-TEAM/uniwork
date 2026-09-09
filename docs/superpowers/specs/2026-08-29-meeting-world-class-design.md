@@ -87,8 +87,10 @@ còn lại**, tối đa 9 tile/trang, phân trang bằng nút ‹ › (`useSpeak
 
 - Recurring meeting + đồng bộ Google Calendar hai chiều (cần OAuth scope mới).
 - Guest cookie hoàn thiện + mobile native.
-- STT server-side / LiveKit Agents; breakout room; caption dịch.
-- Persist chat.
+- STT server-side worker (LiveKit Agents) — ingestion API + `server_stt` capability đã land; xem `2026-09-08-meeting-stt-agents-evaluation.md`.
+- Breakout room; caption dịch.
+
+**Đã ship sau D08b:** chat persist (`meeting_chat_messages`, `POST/GET .../chat`); role `AUDIENCE` + host mute cứng qua `UpdateParticipant` (`POST .../participants/{id}/publish`); proactive JWT refresh trên client.
 
 ## Ranh giới không đổi
 

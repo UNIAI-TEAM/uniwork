@@ -34,6 +34,7 @@ import {
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 import {
   AdjustViewControl,
@@ -44,6 +45,8 @@ import {
   SOLID_DESTRUCTIVE,
 } from "./meeting-control-bar-controls";
 import { MEETING_DARK_BAR, MEETING_DARK_BAR_CHIP } from "./meeting-dark-bar";
+import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
+import { MeetingRecordConfirmDialog } from "./meeting-record-confirm-dialog";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 export function MeetingControlBar({
@@ -79,6 +82,8 @@ export function MeetingControlBar({
   const { t } = useTranslation();
   const mobile = useIsMobile();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [recordConfirmOpen, setRecordConfirmOpen] = useState(false);
   const controlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.controlBarAutoHide);
   const setControlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.setControlBarAutoHide);
   const mic = useTrackToggle({ source: Track.Source.Microphone });
@@ -111,8 +116,19 @@ export function MeetingControlBar({
     ) : null;
 
   const toggleRecording = () => {
-    const m = recording ? stopRec : startRec;
-    m.mutate(undefined, { onError: (err) => toastApiError(err, t("common.error")) });
+    if (recording) {
+      stopRec.mutate(undefined, { onError: (err) => toastApiError(err, t("common.error")) });
+      return;
+    }
+    setRecordConfirmOpen(true);
+  };
+
+  const confirmStartRecording = () => {
+    startRec.mutate(undefined, {
+      onError: (err) => toastApiError(err, t("common.error")),
+      onSuccess: () => toast.success(t("meetings.recordingStarted")),
+    });
+    setRecordConfirmOpen(false);
   };
 
   const recordControl = (inMenu: boolean) =>
@@ -266,7 +282,7 @@ export function MeetingControlBar({
                   type="button"
                   variant="outline"
                   size="icon-lg"
-                  onClick={onLeave}
+                  onClick={() => setLeaveConfirmOpen(true)}
                   aria-label={t("meetings.leave")}
                   className={cn(MEETING_DARK_BAR_CHIP, SOLID_DESTRUCTIVE)}
                 />
@@ -280,20 +296,47 @@ export function MeetingControlBar({
       </TooltipProvider>
   );
 
+  const dialogs = (
+    <>
+      <MeetingRecordConfirmDialog
+        open={recordConfirmOpen}
+        pending={startRec.isPending}
+        onOpenChange={setRecordConfirmOpen}
+        onConfirm={confirmStartRecording}
+      />
+      <MeetingLeaveConfirmDialog
+        open={leaveConfirmOpen}
+        onOpenChange={setLeaveConfirmOpen}
+        onConfirm={() => {
+          setLeaveConfirmOpen(false);
+          onLeave();
+        }}
+      />
+    </>
+  );
+
   if (embedded) {
-    return <div className={className}>{bar}</div>;
+    return (
+      <>
+        <div className={className}>{bar}</div>
+        {dialogs}
+      </>
+    );
   }
 
   return (
-    <footer
-      className={cn(
-        floating
-          ? "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4"
-          : "shrink-0 bg-app-shell px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-4",
-        className,
-      )}
-    >
-      {bar}
-    </footer>
+    <>
+      <footer
+        className={cn(
+          floating
+            ? "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4"
+            : "shrink-0 bg-app-shell px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-4",
+          className,
+        )}
+      >
+        {bar}
+      </footer>
+      {dialogs}
+    </>
   );
 }

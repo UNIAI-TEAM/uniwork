@@ -155,7 +155,7 @@ catalogs:
       version: 5.0.15
 
 overrides:
-  js-yaml: ^4.3.2
+  js-yaml: 4.3.2
   '@tiptap/core': 3.30.6
   '@tiptap/extension-blockquote': 3.30.6
   '@tiptap/extension-bold': 3.30.6

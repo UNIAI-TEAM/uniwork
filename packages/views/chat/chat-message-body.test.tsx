@@ -18,9 +18,16 @@ describe("ChatMessageBody", () => {
     expect(screen.getByText("hello world")).toBeInTheDocument();
   });
 
+  // The markdown renderer is lazy (it carries KaTeX and Shiki), so these two
+  // wait for the chunk; the plain-text case above renders synchronously.
   // The renderer stays behind Suspense even with the module warmed, so these
-  // two still await the boundary; the plain-text case above renders synchronously.
-  const CHUNK_LOAD = { timeout: 5_000 };
+  // two still await the boundary.
+  // Loading that chunk takes longer than the one-second default while the whole
+  // suite runs in parallel under coverage, and under `make check` several view
+  // suites compile at once and the on-demand compile is measured past 8s — see
+  // date-field.test.tsx.
+  const CHUNK_LOAD = { timeout: 20_000 };
+
   it("renders member mention with display name from context", async () => {
     render(
       <ChatMessageBody

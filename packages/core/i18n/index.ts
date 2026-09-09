@@ -26,6 +26,8 @@ export function initI18n() {
       resources: withContent({ vi }),
       interpolation: { escapeValue: false },
       compatibilityJSON: "v4",
+      initAsync: false,
+      react: { useSuspense: false },
     });
   }
   return i18next;
@@ -46,15 +48,28 @@ const loaders: Record<Exclude<SupportedLocale, "vi">, () => Promise<{ default: o
 
 const loaded = new Set<string>(["vi"]);
 
+export function registerLocaleBundle(locale: SupportedLocale, dict: object): void {
+  if (loaded.has(locale)) return;
+  if (Object.keys(dict).length > 0) {
+    i18next.addResourceBundle(locale, "translation", dict, true, true);
+  }
+  loaded.add(locale);
+}
+
+export function applyLocaleSync(locale: SupportedLocale): void {
+  initI18n();
+  if (i18next.language !== locale) {
+    // initAsync: false — language and bundles are applied before render continues.
+    void i18next.changeLanguage(locale);
+  }
+}
+
 export async function ensureLocale(locale: SupportedLocale): Promise<void> {
   if (loaded.has(locale)) return;
   const load = loaders[locale as Exclude<SupportedLocale, "vi">];
   if (!load) return;
   const dict = (await load()).default;
-  if (Object.keys(dict).length > 0) {
-    i18next.addResourceBundle(locale, "translation", dict, true, true);
-  }
-  loaded.add(locale);
+  registerLocaleBundle(locale, dict);
 }
 
 /**

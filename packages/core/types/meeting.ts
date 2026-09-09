@@ -174,5 +174,6 @@ export type MeetingRecording = z.infer<typeof RecordingSchema>;
 export const MeetingCapabilitiesSchema = z.object({
   ai_summary: z.boolean().optional(),
   recording: z.boolean().optional(),
+  server_stt: z.boolean().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;

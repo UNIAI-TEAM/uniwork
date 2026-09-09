@@ -46,6 +46,7 @@ func toRecordingDTO(r db.MeetingRecording, redactHostFields bool) sdo.RecordingD
 func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
 		AISummary: h.Meetings.AIEnabled(), Recording: h.Meetings.RecordingEnabled(r.Context()),
+		ServerSTT: h.Meetings.STTAgentEnabled(),
 	})
 }
 
@@ -55,6 +56,27 @@ func (h *handlers) appendTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seg, err := h.Meetings.AppendTranscript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Text, in.SpokenAt)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.TranscriptSegmentSDO{Segment: toTranscriptDTO(seg)})
+}
+
+const meetingSTTAgentSecretHeader = "X-Meeting-Agent-Secret"
+
+func (h *handlers) appendAgentTranscript(w http.ResponseWriter, r *http.Request) {
+	secret := strings.TrimSpace(r.Header.Get(meetingSTTAgentSecretHeader))
+	if secret == "" || !h.Meetings.STTAgentEnabled() || secret != h.Cfg.MeetingSTTAgentSecret {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "agent secret không hợp lệ")
+		return
+	}
+	var in sdi.AppendAgentTranscriptSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	seg, err := h.Meetings.AppendTranscriptFromAgent(r.Context(), chi.URLParam(r, "meetingID"),
+		strings.TrimSpace(in.ParticipantIdentity), strings.TrimSpace(in.SpeakerName), in.Text, in.SpokenAt)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -114,7 +136,10 @@ func (h *handlers) createSummaryTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]service.SummaryTaskItem, 0, len(in.Items))
 	for _, it := range in.Items {
-		items = append(items, service.SummaryTaskItem{Title: it.Title, Description: it.Description, AssigneeID: it.AssigneeID, DueDate: it.DueDate})
+		items = append(items, service.SummaryTaskItem{
+			Title: it.Title, Description: it.Description, AssigneeID: it.AssigneeID, DueDate: it.DueDate,
+			Owner: it.Owner, DueSpoken: it.DueSpoken,
+		})
 	}
 	tasks, err := h.Meetings.CreateTasksFromSummary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), items)
 	if err != nil {

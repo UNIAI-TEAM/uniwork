@@ -13,9 +13,20 @@ import { useTranslation } from "react-i18next";
 import { isPastScheduledEnd, useEndMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import type { Meeting } from "@uniwork/core/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
+import { toastApiError } from "../toast-api-error";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
 import { MeetingAdmitGuestsButton } from "./meeting-admit-guests-button";
 import {
@@ -39,7 +50,7 @@ export function MeetingStageHeader({
   sidebarOpen,
   onToggleSidebar,
   onOpenSidebar,
-  onOpenJoinOverlay,
+  onOpenPeople,
 }: {
   meeting?: Meeting;
   meetingTitle?: string;
@@ -51,7 +62,7 @@ export function MeetingStageHeader({
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   onOpenSidebar?: () => void;
-  onOpenJoinOverlay?: () => void;
+  onOpenPeople?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const participants = useParticipants();
@@ -60,6 +71,7 @@ export function MeetingStageHeader({
   const end = useEndMeeting(workspaceId ?? "");
   const [now, setNow] = useState(() => Date.now());
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!meeting?.ends_at) return;
@@ -185,7 +197,7 @@ export function MeetingStageHeader({
                 size="sm"
                 className="h-8 !border-destructive !bg-destructive px-2.5 font-semibold !text-destructive-foreground shadow-sm hover:!bg-destructive/90 hover:!text-destructive-foreground"
                 disabled={end.isPending}
-                onClick={() => end.mutate(meeting.id)}
+                onClick={() => setEndConfirmOpen(true)}
               >
                 {t("meetings.end")}
               </Button>
@@ -225,11 +237,7 @@ export function MeetingStageHeader({
             ) : null}
 
             {showHostActions && meeting?.id ? (
-              <MeetingAdmitGuestsButton
-                meetingId={meeting.id}
-                onOpenOverlay={onOpenJoinOverlay}
-                className="hidden sm:inline-flex"
-              />
+              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} />
             ) : null}
 
             {onOpenSidebar ? (
@@ -265,6 +273,28 @@ export function MeetingStageHeader({
       {meeting?.id ? (
         <CreateInviteLinkDialog meetingId={meeting.id} open={inviteOpen} onOpenChange={setInviteOpen} />
       ) : null}
+
+      <AlertDialog open={endConfirmOpen} onOpenChange={setEndConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("meetings.endConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("meetings.endConfirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.back")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={end.isPending}
+              onClick={() => {
+                if (!meeting) return;
+                end.mutate(meeting.id, { onError: (err) => toastApiError(err, t("common.error")) });
+                setEndConfirmOpen(false);
+              }}
+            >
+              {t("meetings.confirmEnd")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

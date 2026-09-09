@@ -13,7 +13,15 @@ export type {
 } from "../api/endpoints/meetings";
 export { activityLabelKey, inviteLinkStatus, isJoinAdmitted } from "./status";
 export type { InviteLinkUiStatus } from "./status";
-export { canEnterScheduledMeeting, isPastScheduledEnd, msUntilScheduledEnd, SCHEDULE_WARN_1_MIN_MS, SCHEDULE_WARN_5_MIN_MS } from "./schedule";
+export {
+  canEnterScheduledMeeting,
+  displayMeetingStatus,
+  isPastScheduledEnd,
+  isScheduledMeetingLive,
+  msUntilScheduledEnd,
+  SCHEDULE_WARN_1_MIN_MS,
+  SCHEDULE_WARN_5_MIN_MS,
+} from "./schedule";
 
 const JOIN_REQUESTS_ROOT = ["meeting-join-requests"] as const;
 
@@ -164,6 +172,14 @@ export function useEndMeeting(workspaceId: string) {
   });
 }
 
+export function useExtendMeeting(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetingId: string) => meetings.extendMeeting(meetingId),
+    onSuccess: (_d, meetingId) => invalidateMeeting(qc, workspaceId, meetingId),
+  });
+}
+
 export function useParticipants(meetingId: string) {
   return useQuery({
     queryKey: meetingKeys.participants(meetingId),
@@ -243,6 +259,13 @@ export function useRemoveParticipant(meetingId: string) {
   return useMutation({
     mutationFn: (participantId: string) => meetings.removeParticipant(meetingId, participantId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.participants(meetingId) }),
+  });
+}
+
+export function useSetParticipantPublish(meetingId: string) {
+  return useMutation({
+    mutationFn: (args: { participantId: string; enabled: boolean }) =>
+      meetings.setParticipantPublish(meetingId, args.participantId, args.enabled),
   });
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
@@ -25,6 +26,7 @@ const (
 	RecordingFailed     = "FAILED"
 
 	transcriptLimit = 5000
+	chatLimit       = 500
 )
 
 func (s *MeetingService) count(event string) {
@@ -63,6 +65,59 @@ func (s *MeetingService) AppendTranscript(ctx context.Context, userID, meetingID
 		if u, err := s.q.GetUserByID(ctx, userID); err == nil {
 			speaker = u.DisplayName
 		}
+	}
+	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
+		ID: util.NewID(), MeetingID: meetingID, ParticipantID: pid, SpeakerName: speaker, Text: text,
+		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
+	})
+	if err != nil {
+		return db.MeetingTranscriptSegment{}, err
+	}
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "transcript.appended", Payload: map[string]string{"meeting_id": meetingID}})
+	return seg, nil
+}
+
+func (s *MeetingService) STTAgentEnabled() bool {
+	return s.rt.STTAgentSecret != ""
+}
+
+// AppendTranscriptFromAgent ingests a diarized segment from a LiveKit Agents
+// worker. The worker authenticates with X-Meeting-Agent-Secret, not a user JWT.
+func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingID, participantIdentity, speakerName, text string, spokenAt time.Time) (db.MeetingTranscriptSegment, error) {
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.MeetingTranscriptSegment{}, ErrNotFound
+		}
+		return db.MeetingTranscriptSegment{}, err
+	}
+	if m.Status != MeetingInProgress {
+		return db.MeetingTranscriptSegment{}, errInvalidState()
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return db.MeetingTranscriptSegment{}, Invalid("nội dung không được để trống")
+	}
+	if len(text) > 4000 {
+		text = text[:4000]
+	}
+	if spokenAt.IsZero() {
+		spokenAt = time.Now().UTC()
+	}
+	pid := pgtype.Text{}
+	speaker := strings.TrimSpace(speakerName)
+	const idPrefix = "uw_participant_"
+	if strings.HasPrefix(participantIdentity, idPrefix) {
+		participantID := strings.TrimPrefix(participantIdentity, idPrefix)
+		if p, err := s.q.GetMeetingParticipant(ctx, participantID); err == nil && p.MeetingID == meetingID {
+			pid = strText(p.ID)
+			if speaker == "" {
+				speaker = p.DisplayNameSnapshot
+			}
+		}
+	}
+	if speaker == "" {
+		speaker = participantIdentity
 	}
 	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
 		ID: util.NewID(), MeetingID: meetingID, ParticipantID: pid, SpeakerName: speaker, Text: text,
@@ -117,15 +172,29 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
 		return db.MeetingSummary{}, errInvalidState()
 	}
-	segs, err := s.q.ListTranscriptSegments(ctx, db.ListTranscriptSegmentsParams{MeetingID: meetingID, Limit: transcriptLimit})
-	if err != nil {
+	var segs []db.MeetingTranscriptSegment
+	var notes []db.ListMeetingNotesRow
+	var chat []db.MeetingChatMessage
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		segs, err = s.q.ListTranscriptSegments(gctx, db.ListTranscriptSegmentsParams{MeetingID: meetingID, Limit: transcriptLimit})
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		notes, err = s.q.ListMeetingNotes(gctx, meetingID)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		chat, err = s.q.ListMeetingChatMessages(gctx, db.ListMeetingChatMessagesParams{MeetingID: meetingID, Limit: chatLimit})
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return db.MeetingSummary{}, err
 	}
-	notes, err := s.q.ListMeetingNotes(ctx, meetingID)
-	if err != nil {
-		return db.MeetingSummary{}, err
-	}
-	if len(segs) == 0 && len(notes) == 0 {
+	if len(segs) == 0 && len(notes) == 0 && len(chat) == 0 {
 		return db.MeetingSummary{}, coded(http.StatusConflict, "nothing_to_summarize", "chưa có transcript hay ghi chú nào để tóm tắt")
 	}
 	orgID, err := s.organizationOf(ctx, m)
@@ -140,10 +209,14 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	for _, n := range notes {
 		noteBodies = append(noteBodies, n.Body)
 	}
+	chatLines := make([]ai.ChatLine, 0, len(chat))
+	for _, c := range chat {
+		chatLines = append(chatLines, ai.ChatLine{Sender: c.SenderName, Text: c.Message})
+	}
 	resp, err := s.AI.Complete(ctx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
-		Vars: map[string]any{"title": m.Title, "agenda": m.Description, "locale": locale, "transcript": transcript, "notes": noteBodies},
+		Vars: map[string]any{"title": m.Title, "agenda": m.Description, "locale": locale, "transcript": transcript, "notes": noteBodies, "chat": chatLines},
 	})
 	if err != nil {
 		s.count("summary_error")
@@ -179,6 +252,8 @@ type SummaryTaskItem struct {
 	Description string
 	AssigneeID  *string
 	DueDate     *string
+	Owner       string
+	DueSpoken   string
 }
 
 // CreateTasksFromSummary turns chosen action items into workspace tasks.
@@ -196,9 +271,38 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 	if len(items) > 50 {
 		return nil, Invalid("tối đa 50 việc mỗi lần")
 	}
+	candidates, err := s.loadAssigneeCandidates(ctx, meetingID, m.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	anchor := meetingDueAnchor(m)
+	meetingOrigin := meetingID
 	out := make([]db.Task, 0, len(items))
 	for _, it := range items {
+		assigneeID := it.AssigneeID
+		if assigneeID == nil && strings.TrimSpace(it.Owner) != "" {
+			assigneeID = candidates.resolve(it.Owner)
+		}
+		dueDate := it.DueDate
+		if dueDate == nil && strings.TrimSpace(it.DueSpoken) != "" {
+			dueDate = parseMeetingDueSpoken(it.DueSpoken, anchor)
+		}
 		desc := strings.TrimSpace(it.Description)
+		var extra []string
+		if strings.TrimSpace(it.Owner) != "" && assigneeID == nil {
+			extra = append(extra, "Người phụ trách (AI): "+strings.TrimSpace(it.Owner))
+		}
+		if strings.TrimSpace(it.DueSpoken) != "" && dueDate == nil {
+			extra = append(extra, "Hạn (AI): "+strings.TrimSpace(it.DueSpoken))
+		}
+		if len(extra) > 0 {
+			block := strings.Join(extra, "\n")
+			if desc == "" {
+				desc = block
+			} else {
+				desc = desc + "\n" + block
+			}
+		}
 		origin := "Từ cuộc họp: " + m.Title
 		if desc == "" {
 			desc = origin
@@ -206,7 +310,8 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 			desc = desc + "\n\n" + origin
 		}
 		t, err := s.Tasks.Create(ctx, Human(userID), m.WorkspaceID, CreateTaskInput{
-			Title: it.Title, Description: desc, AssigneeID: it.AssigneeID, DueDate: it.DueDate,
+			Title: it.Title, Description: desc, AssigneeID: assigneeID, DueDate: dueDate,
+			OriginType: "meeting", OriginID: &meetingOrigin,
 		})
 		if err != nil {
 			return out, err
@@ -320,7 +425,8 @@ func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev Pro
 // ---- Auto end ----------------------------------------------------------------
 
 // AutoEndOverdue ends IN_PROGRESS meetings whose planned end (ends_at) has
-// passed. Returns how many ended.
+// passed and that no longer have an open conference. A live room stays in
+// overtime until a host ends it.
 func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int, error) {
 	rows, err := s.q.ListOverdueInProgressMeetings(ctx, pgtype.Timestamptz{Time: now, Valid: true})
 	if err != nil {
@@ -328,6 +434,9 @@ func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int
 	}
 	n := 0
 	for _, m := range rows {
+		if sess, err := s.q.GetOpenConferenceSession(ctx, m.ID); err == nil && sess.ID != "" {
+			continue
+		}
 		if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
 			n++
 			s.count("auto_ended")
