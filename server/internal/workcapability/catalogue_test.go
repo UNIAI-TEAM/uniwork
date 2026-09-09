@@ -14,9 +14,7 @@ func TestCatalogueMatchesInitialRolloutContract(t *testing.T) {
 			ExplanationKey: "capabilities.surface_not_ready",
 		},
 		"tasks.attachments": {
-			Status:         Unavailable,
-			ReasonCode:     "surface_not_ready",
-			ExplanationKey: "capabilities.surface_not_ready",
+			Status: Available,
 		},
 		"tasks.agent_runs": {
 			Status:         Unavailable,

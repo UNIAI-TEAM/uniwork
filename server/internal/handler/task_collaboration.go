@@ -226,18 +226,6 @@ func (h *handlers) unsubscribeTaskSubtree(w http.ResponseWriter, r *http.Request
 	respondJSON(w, 200, map[string]string{"status": "ok"})
 }
 
-func (h *handlers) listTaskAttachments(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.ListTaskAttachments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
-}
-
-func (h *handlers) getAttachment(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.GetAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")))
-}
-
-func (h *handlers) deleteAttachment(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.DeleteAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID")))
-}
-
 func (h *handlers) getTaskTimeline(w http.ResponseWriter, r *http.Request) {
 	h.mapServiceError(w, h.Tasks.GetTaskTimeline(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
 }

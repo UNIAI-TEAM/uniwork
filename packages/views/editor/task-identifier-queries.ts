@@ -1,5 +1,3 @@
-import type { QueryClient } from "@tanstack/react-query";
-
 export function taskIdentifierOptions(_wsId: string, identifier: string) {
   return {
     queryKey: ["task-identifier", identifier] as const,
@@ -23,11 +21,12 @@ export const workspaceKeys = {
   squads: (wsId: string) => ["squads", wsId] as const,
 };
 
-export function flattenIssueBuckets(_cache: unknown): unknown[] {
+export function flattenTaskBuckets(_cache: unknown): unknown[] {
   return [];
 }
 
-export const issueKeys = {
+/** Editor-local list key factory — distinct from `@uniwork/core` `taskKeys`. */
+export const editorTaskKeys = {
   list: (wsId: string) => ["tasks", "list", wsId] as const,
 };
 

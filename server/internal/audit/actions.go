@@ -61,6 +61,8 @@ const (
 	ActionTaskReactionRemoved    = "task.reaction_removed"
 	ActionTaskSubscribed         = "task.subscribed"
 	ActionTaskUnsubscribed       = "task.unsubscribed"
+	ActionAttachmentUploaded     = "attachment.uploaded"
+	ActionAttachmentDeleted      = "attachment.deleted"
 
 	ActionTaskStatusCreated   = "task_status.created"
 	ActionTaskStatusUpdated   = "task_status.updated"

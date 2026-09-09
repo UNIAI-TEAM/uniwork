@@ -410,7 +410,11 @@ export function MermaidDiagram({ chart }: { chart: string }) {
       } catch (err) {
         if (!cancelled) {
           setRendered(null);
-          setError(err instanceof Error ? err.message : "Failed to render Mermaid diagram");
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("editor.mermaid.render_error"),
+          );
         }
       }
     }
@@ -469,7 +473,7 @@ export function MermaidDiagram({ chart }: { chart: string }) {
     <div
       ref={containerRef}
       className="mermaid-diagram"
-      aria-label="Mermaid diagram"
+      aria-label={t("editor.mermaid.diagram_label")}
       style={containerStyle}
       data-overflow-start={overflow.start ? "" : undefined}
       data-overflow-end={overflow.end ? "" : undefined}
@@ -496,7 +500,7 @@ export function MermaidDiagram({ chart }: { chart: string }) {
                 height: rendered.layout ? `${rendered.layout.height}px` : undefined,
                 width: rendered.layout ? `${rendered.layout.width}px` : undefined,
               }}
-              title="Mermaid diagram"
+              title={t("editor.mermaid.diagram_label")}
             />
           </div>
           <div className="mermaid-diagram-toolbar">

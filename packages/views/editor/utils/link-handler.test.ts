@@ -3,23 +3,21 @@ import {
   openLink,
   parseWorkspaceEntityLink,
   toInternalAppPath,
+  type OpenLinkNavigate,
 } from "./link-handler";
 
 const APP_ORIGIN = "https://app.uniwork.ai";
+const CURRENT_SLUG = "acme/eng";
 
-function navigatedPaths(): string[] {
-  return dispatched.map((e) => (e as CustomEvent<{ path: string }>).detail.path);
-}
-
-let dispatched: Event[] = [];
+let navigated: Array<{ path: string; disposition?: string }> = [];
+let navigate: OpenLinkNavigate;
 let openSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  dispatched = [];
-  vi.spyOn(window, "dispatchEvent").mockImplementation((e: Event) => {
-    dispatched.push(e);
-    return true;
-  });
+  navigated = [];
+  navigate = (path, disposition) => {
+    navigated.push({ path, disposition });
+  };
   openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
 });
 
@@ -30,8 +28,8 @@ afterEach(() => {
 describe("toInternalAppPath", () => {
   it("returns the path (with search and hash) for a URL on the app origin", () => {
     expect(
-      toInternalAppPath(`${APP_ORIGIN}/acme/issues/UNI-0?tab=a#c`, APP_ORIGIN),
-    ).toBe("/acme/issues/UNI-0?tab=a#c");
+      toInternalAppPath(`${APP_ORIGIN}/acme/eng/tasks/UNI-0?tab=a#c`, APP_ORIGIN),
+    ).toBe("/acme/eng/tasks/UNI-0?tab=a#c");
   });
 
   it("returns null for another origin", () => {
@@ -39,7 +37,7 @@ describe("toInternalAppPath", () => {
   });
 
   it("returns null when the platform exposes no app origin", () => {
-    expect(toInternalAppPath(`${APP_ORIGIN}/acme/issues/1`, null)).toBeNull();
+    expect(toInternalAppPath(`${APP_ORIGIN}/acme/eng/tasks/1`, null)).toBeNull();
   });
 
   it("keeps backend-served paths external so downloads and assets still work", () => {
@@ -74,20 +72,20 @@ describe("toInternalAppPath", () => {
 });
 
 describe("openLink", () => {
-  it("navigates in-app for a URL pointing back at this deployment (UNI-0)", () => {
-    openLink(`${APP_ORIGIN}/acme/issues/UNI-0`, "acme", APP_ORIGIN);
-    expect(navigatedPaths()).toEqual(["/acme/issues/UNI-0"]);
+  it("navigates in-app for a URL pointing back at this deployment", () => {
+    openLink(`${APP_ORIGIN}/acme/eng/tasks/UNI-0`, CURRENT_SLUG, APP_ORIGIN, "push", navigate);
+    expect(navigated).toEqual([{ path: "/acme/eng/tasks/UNI-0", disposition: "push" }]);
     expect(openSpy).not.toHaveBeenCalled();
   });
 
   it("navigates in-app for a cross-workspace app URL without rewriting the slug", () => {
-    openLink(`${APP_ORIGIN}/other/issues/UNI-0`, "acme", APP_ORIGIN);
-    expect(navigatedPaths()).toEqual(["/other/issues/UNI-0"]);
+    openLink(`${APP_ORIGIN}/other/ws/tasks/UNI-0`, CURRENT_SLUG, APP_ORIGIN, "push", navigate);
+    expect(navigated).toEqual([{ path: "/other/ws/tasks/UNI-0", disposition: "push" }]);
   });
 
   it("opens an external URL in a new window", () => {
-    openLink("https://github.com/uniwork-ai/uniwork/pull/1", "acme", APP_ORIGIN);
-    expect(dispatched).toHaveLength(0);
+    openLink("https://github.com/uniwork-ai/uniwork/pull/1", CURRENT_SLUG, APP_ORIGIN, "push", navigate);
+    expect(navigated).toHaveLength(0);
     expect(openSpy).toHaveBeenCalledWith(
       "https://github.com/uniwork-ai/uniwork/pull/1",
       "_blank",
@@ -96,38 +94,44 @@ describe("openLink", () => {
   });
 
   it("still opens an app URL externally when no app origin is known", () => {
-    openLink(`${APP_ORIGIN}/acme/issues/UNI-0`, "acme");
-    expect(dispatched).toHaveLength(0);
+    openLink(`${APP_ORIGIN}/acme/eng/tasks/UNI-0`, CURRENT_SLUG, undefined, "push", navigate);
+    expect(navigated).toHaveLength(0);
     expect(openSpy).toHaveBeenCalled();
   });
 
-  it("prefixes the current slug on a slugless workspace path", () => {
-    openLink("/issues/UNI-0", "acme", APP_ORIGIN);
-    expect(navigatedPaths()).toEqual(["/acme/issues/UNI-0"]);
+  it("prefixes the current org/ws slug on a slugless workspace path", () => {
+    openLink("/tasks/UNI-0", CURRENT_SLUG, APP_ORIGIN, "push", navigate);
+    expect(navigated).toEqual([{ path: "/acme/eng/tasks/UNI-0", disposition: "push" }]);
   });
 
-  it("leaves a path that already carries a slug alone", () => {
-    openLink("/other/issues/UNI-0", "acme", APP_ORIGIN);
-    expect(navigatedPaths()).toEqual(["/other/issues/UNI-0"]);
+  it("leaves a path that already carries org/ws alone", () => {
+    openLink("/other/ws/tasks/UNI-0", CURRENT_SLUG, APP_ORIGIN, "push", navigate);
+    expect(navigated).toEqual([{ path: "/other/ws/tasks/UNI-0", disposition: "push" }]);
   });
 
-  it("defaults the disposition to push and carries an explicit click intent through the event", () => {
-    openLink("/acme/issues/UNI-0", "acme", APP_ORIGIN);
-    openLink("/acme/issues/UNI-0", "acme", APP_ORIGIN, "background-tab");
-    const details = dispatched.map(
-      (e) => (e as CustomEvent<{ path: string; disposition: string }>).detail,
-    );
-    expect(details).toEqual([
-      { path: "/acme/issues/UNI-0", disposition: "push" },
-      { path: "/acme/issues/UNI-0", disposition: "background-tab" },
+  it("defaults the disposition to push and carries an explicit click intent", () => {
+    openLink("/acme/eng/tasks/UNI-0", CURRENT_SLUG, APP_ORIGIN, "push", navigate);
+    openLink("/acme/eng/tasks/UNI-0", CURRENT_SLUG, APP_ORIGIN, "background-tab", navigate);
+    expect(navigated).toEqual([
+      { path: "/acme/eng/tasks/UNI-0", disposition: "push" },
+      { path: "/acme/eng/tasks/UNI-0", disposition: "background-tab" },
     ]);
   });
 
   it("ignores the intent for an external URL — it always hands off to the browser", () => {
-    openLink("https://github.com/a/b", "acme", APP_ORIGIN, "foreground-tab");
-    expect(dispatched).toHaveLength(0);
+    openLink("https://github.com/a/b", CURRENT_SLUG, APP_ORIGIN, "foreground-tab", navigate);
+    expect(navigated).toHaveLength(0);
     expect(openSpy).toHaveBeenCalledWith(
       "https://github.com/a/b",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("falls back without navigate by opening a tab for non-push intents", () => {
+    openLink("/acme/eng/tasks/UNI-0", CURRENT_SLUG, APP_ORIGIN, "background-tab");
+    expect(openSpy).toHaveBeenCalledWith(
+      "/acme/eng/tasks/UNI-0",
       "_blank",
       "noopener,noreferrer",
     );
@@ -136,28 +140,28 @@ describe("openLink", () => {
 
 describe("parseWorkspaceEntityLink", () => {
   const PROJECT_ID = "8f14e45f-ceea-4d0e-a1a2-9b1c0d3e4f5a";
-  const ISSUE_ID = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
+  const TASK_ID = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
 
   it("parses an absolute project URL on the app origin", () => {
     expect(
       parseWorkspaceEntityLink(
-        `${APP_ORIGIN}/acme/projects/${PROJECT_ID}`,
+        `${APP_ORIGIN}/acme/eng/projects/${PROJECT_ID}`,
         APP_ORIGIN,
       ),
-    ).toEqual({ kind: "project", id: PROJECT_ID, slug: "acme" });
+    ).toEqual({ kind: "project", id: PROJECT_ID, slug: "acme/eng" });
   });
 
-  it("parses an absolute issue URL on the app origin", () => {
+  it("parses an absolute task URL on the app origin", () => {
     expect(
-      parseWorkspaceEntityLink(`${APP_ORIGIN}/acme/issues/${ISSUE_ID}`, APP_ORIGIN),
-    ).toEqual({ kind: "issue", id: ISSUE_ID, slug: "acme" });
+      parseWorkspaceEntityLink(`${APP_ORIGIN}/acme/eng/tasks/${TASK_ID}`, APP_ORIGIN),
+    ).toEqual({ kind: "task", id: TASK_ID, slug: "acme/eng" });
   });
 
   it("parses a site-relative path without needing an app origin", () => {
-    expect(parseWorkspaceEntityLink(`/acme/projects/${PROJECT_ID}`)).toEqual({
+    expect(parseWorkspaceEntityLink(`/acme/eng/projects/${PROJECT_ID}`)).toEqual({
       kind: "project",
       id: PROJECT_ID,
-      slug: "acme",
+      slug: "acme/eng",
     });
   });
 
@@ -172,7 +176,7 @@ describe("parseWorkspaceEntityLink", () => {
   it("returns null for another origin", () => {
     expect(
       parseWorkspaceEntityLink(
-        `https://evil.example/acme/projects/${PROJECT_ID}`,
+        `https://evil.example/acme/eng/projects/${PROJECT_ID}`,
         APP_ORIGIN,
       ),
     ).toBeNull();
@@ -205,59 +209,61 @@ describe("parseWorkspaceEntityLink", () => {
   });
 
   it("returns null for a list page", () => {
-    expect(parseWorkspaceEntityLink("/acme/projects")).toBeNull();
+    expect(parseWorkspaceEntityLink("/acme/eng/projects")).toBeNull();
   });
 
   it("returns null for a deeper route under the entity", () => {
     expect(
-      parseWorkspaceEntityLink(`/acme/projects/${PROJECT_ID}/settings`),
+      parseWorkspaceEntityLink(`/acme/eng/projects/${PROJECT_ID}/settings`),
     ).toBeNull();
   });
 
   it("returns null for an entity route this parser has no chip for", () => {
-    expect(parseWorkspaceEntityLink(`/acme/agents/${PROJECT_ID}`)).toBeNull();
+    expect(parseWorkspaceEntityLink(`/acme/eng/agents/${PROJECT_ID}`)).toBeNull();
   });
 
   // A query string or fragment addresses something narrower than the entity
   // page, and a chip cannot carry it.
   it("returns null when the link carries a query string or fragment", () => {
     expect(
-      parseWorkspaceEntityLink(`/acme/projects/${PROJECT_ID}?tab=issues`),
+      parseWorkspaceEntityLink(`/acme/eng/projects/${PROJECT_ID}?tab=tasks`),
     ).toBeNull();
     expect(
-      parseWorkspaceEntityLink(`/acme/issues/${ISSUE_ID}#comment-3`),
+      parseWorkspaceEntityLink(`/acme/eng/tasks/${TASK_ID}#comment-3`),
     ).toBeNull();
   });
 
-  // `copyLink` / `openInNewTab` build `paths.issueDetail(identifier || id)` and
-  // the issue route rewrites a UUID URL back to the identifier, so this — not
-  // the UUID form — is what a user actually copies out of the app.
-  it("parses an issue addressed by identifier", () => {
-    expect(parseWorkspaceEntityLink("/acme/issues/UNI-0")).toEqual({
-      kind: "issue",
+  // Copy-link builds paths.workspace(org, ws).task(identifier || id).
+  it("parses a task addressed by identifier", () => {
+    expect(parseWorkspaceEntityLink("/acme/eng/tasks/UNI-0")).toEqual({
+      kind: "task",
       id: "UNI-0",
-      slug: "acme",
+      slug: "acme/eng",
     });
   });
 
   // A project has no shorthand, so an identifier-shaped id under /projects/
   // addresses nothing this parser could resolve.
   it("returns null for an identifier-shaped project id", () => {
-    expect(parseWorkspaceEntityLink("/acme/projects/UNI-0")).toBeNull();
+    expect(parseWorkspaceEntityLink("/acme/eng/projects/UNI-0")).toBeNull();
   });
 
   it("returns null for an id that is neither a UUID nor an identifier", () => {
-    expect(parseWorkspaceEntityLink("/acme/issues/roadmap")).toBeNull();
+    expect(parseWorkspaceEntityLink("/acme/eng/tasks/roadmap")).toBeNull();
     // Lowercase is not the identifier form — matching it would turn ordinary
     // hyphenated path segments into entity references.
-    expect(parseWorkspaceEntityLink("/acme/issues/mul-1")).toBeNull();
+    expect(parseWorkspaceEntityLink("/acme/eng/tasks/mul-1")).toBeNull();
   });
 
-  it("returns null when the slug position holds a reserved slug", () => {
-    expect(parseWorkspaceEntityLink(`/login/projects/${PROJECT_ID}`)).toBeNull();
+  it("returns null when the org position holds a reserved slug", () => {
+    expect(parseWorkspaceEntityLink(`/login/eng/projects/${PROJECT_ID}`)).toBeNull();
+  });
+
+  it("returns null for the single-segment workspace shape", () => {
+    expect(parseWorkspaceEntityLink(`/acme/tasks/UNI-0`)).toBeNull();
   });
 
   it("returns null for a malformed percent-escape", () => {
-    expect(parseWorkspaceEntityLink("/acme/projects/%E0%A4%A")).toBeNull();
+    expect(parseWorkspaceEntityLink("/acme/eng/projects/%E0%A4%A")).toBeNull();
   });
 });

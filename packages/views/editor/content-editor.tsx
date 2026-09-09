@@ -63,10 +63,14 @@ import {
   insertUploadPlaceholder,
   settleUploadNode,
 } from "./extensions/file-upload";
-import { useConfigStore } from "./editor-config";
+import { useConfigStore } from "@uniwork/core/editor/config-store";
 import { preprocessMarkdown } from "./utils/preprocess";
 import { repairEmptyListItems } from "./utils/repair-list-items";
-import { resolveClickIntent } from "@uniwork/views/navigation";
+import {
+  resolveClickIntent,
+  useOptionalNavigation,
+  type LinkClickIntent,
+} from "@uniwork/views/navigation";
 import { useAppOrigin } from "./use-app-origin";
 import { openLink, isMentionHref } from "./utils/link-handler";
 import { EditorBubbleMenu } from "./bubble-menu";
@@ -218,9 +222,9 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       return merged;
     }, [attachments, sessionUploads]);
 
-    // Current workspace slug kept in a ref so the click handler always sees the
+    // Current org/ws slug kept in a ref so the click handler always sees the
     // latest value without recreating the editor. Used by openLink to prefix
-    // legacy /issues/... style paths that lack a workspace slug.
+    // legacy /tasks/... style paths that lack an org/workspace prefix.
     const workspaceSlug = useEditorWorkspaceSlug();
     const workspaceSlugRef = useRef(workspaceSlug);
     workspaceSlugRef.current = workspaceSlug;
@@ -231,6 +235,31 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const appOrigin = useAppOrigin();
     const appOriginRef = useRef(appOrigin);
     appOriginRef.current = appOrigin;
+
+    const navigation = useOptionalNavigation();
+    const navigateRef = useRef<(path: string, disposition?: LinkClickIntent) => void>(
+      () => undefined,
+    );
+    navigateRef.current = (path, disposition = "push") => {
+      if (!navigation) {
+        if (disposition === "push") {
+          window.location.assign(path);
+        } else {
+          window.open(path, "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
+      if (disposition === "push") {
+        navigation.push(path);
+        return;
+      }
+      // NavigationAdapter has no background-tab API — open a shareable URL.
+      window.open(
+        navigation.getShareableUrl(path),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    };
 
     // Keep refs in sync without recreating editor
     onUpdateRef.current = onUpdate;
@@ -252,10 +281,10 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     // the slug ref) and returns null outside a workspace, for non-identifier
     // tokens, or when the prefix can't match this workspace, so no network call
     // happens for those; the exact-match filter enforces correctness.
-    const resolveIssueIdentifierRef = useRef<TaskIdentifierResolver | undefined>(
+    const resolveTaskIdentifierRef = useRef<TaskIdentifierResolver | undefined>(
       undefined,
     );
-    resolveIssueIdentifierRef.current = async (identifier) => {
+    resolveTaskIdentifierRef.current = async (identifier) => {
       if (!isTaskIdentifier(identifier)) return null;
       const slug = workspaceSlugRef.current;
       if (!slug) return null;
@@ -353,7 +382,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
           onRenderError: (error: unknown) =>
             quickActionMenuRef.current?.onRenderError?.(error),
         },
-        resolveIssueIdentifierRef,
+        resolveTaskIdentifierRef,
       }),
       onUpdate: ({ editor: ed }) => {
         if (!onUpdateRef.current) return;
@@ -393,6 +422,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
               workspaceSlugRef.current,
               appOriginRef.current,
               resolveClickIntent(event),
+              (path, disposition) => navigateRef.current(path, disposition),
             );
             return true;
           },
@@ -411,6 +441,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
               workspaceSlugRef.current,
               appOriginRef.current,
               "background-tab",
+              (path, disposition) => navigateRef.current(path, disposition),
             );
             return true;
           },

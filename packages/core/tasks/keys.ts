@@ -44,4 +44,5 @@ export const taskKeys = {
   projectResources: (wsId: string, projectId: string) =>
     ["project-resources", wsId, projectId] as const,
   subscribers: (taskId: string) => ["task-subscribers", taskId] as const,
+  attachments: (wsId: string, taskId: string) => ["task-attachments", wsId, taskId] as const,
 };

@@ -1,3 +1,5 @@
+"use client";
+
 import { create } from "zustand";
 
 export type EditorConfigState = {
@@ -5,7 +7,7 @@ export type EditorConfigState = {
   cdnSigned: boolean;
 };
 
-/** Zustand store + hook for editor CDN config. */
+/** In-memory CDN config for editor attachment URLs. No localStorage. */
 export const useConfigStore = create<EditorConfigState>(() => ({
   cdnDomain: "",
   cdnSigned: false,

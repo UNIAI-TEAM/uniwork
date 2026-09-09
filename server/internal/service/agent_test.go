@@ -32,7 +32,7 @@ func agentFixture(t *testing.T) (*AgentService, *TaskService, *WorkspaceService,
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewAgentService(pool, q, orgs, ws), NewTaskService(pool, q, ws), ws, ua, ub, org, v.Workspace
+	return NewAgentService(pool, q, orgs, ws), NewTaskService(pool, q, ws, nil), ws, ua, ub, org, v.Workspace
 }
 
 func TestDefaultAgentSeededAndJoinsWorkspaces(t *testing.T) {

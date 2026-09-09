@@ -58,8 +58,8 @@ export {
 } from "./attachment-api";
 export { resolvePublicFileUrlWithBase } from "./resolve-file-url";
 export {
-  flattenIssueBuckets,
-  issueKeys,
+  flattenTaskBuckets,
+  editorTaskKeys,
   PAGINATED_CATEGORIES,
   workspaceKeys as editorWorkspaceKeys,
 } from "./task-identifier-queries";

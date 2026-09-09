@@ -182,13 +182,13 @@ export interface EditorExtensionsOptions {
    */
   quickActionMenu?: BuiltinCommandSuggestionOptions;
   /**
-   * Resolver for Linear-style bare issue-identifier autolinking. When present
+   * Resolver for Linear-style bare task-identifier autolinking. When present
    * (and mentions are enabled), typing a boundary after `UNI-0` or pasting
-   * text with identifiers resolves them and swaps in real issue mentions. A
+   * text with identifiers resolves them and swaps in real task mentions. A
    * ref so the editor is created once while the resolver reads live workspace
    * context; the setup layer owns React Query + workspace access.
    */
-  resolveIssueIdentifierRef?: RefObject<TaskIdentifierResolver | undefined>;
+  resolveTaskIdentifierRef?: RefObject<TaskIdentifierResolver | undefined>;
 }
 
 export function createEditorExtensions(
@@ -268,13 +268,13 @@ export function createEditorExtensions(
           ? { suggestion: createMentionSuggestion(options.queryClient, { mode: options.mentionMode, getContextItems: options.getMentionContextItems }) }
           : {}),
     }),
-    // Linear-style bare identifier → issue mention. Attached only when a
+    // Linear-style bare identifier → task mention. Attached only when a
     // resolver is provided AND mention creation is enabled (an editor that
     // suppresses new mentions should not synthesise them from identifiers).
-    ...(!options.disableMentions && options.resolveIssueIdentifierRef
+    ...(!options.disableMentions && options.resolveTaskIdentifierRef
       ? [
           createTaskIdentifierAutolinkExtension({
-            resolveRef: options.resolveIssueIdentifierRef,
+            resolveRef: options.resolveTaskIdentifierRef,
           }),
         ]
       : []),

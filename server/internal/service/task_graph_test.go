@@ -174,7 +174,7 @@ func TestSetDependencyCrossWorkspaceRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s2 := NewTaskService(s.pool, s.q, wsSvc)
+	s2 := NewTaskService(s.pool, s.q, wsSvc, nil)
 	other, err := s2.Create(ctx, actor, v2.Workspace.ID, CreateTaskInput{Title: "Other WS"})
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestSetDependencyInvisibleOtherWorkspaceNotCrossWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sB := NewTaskService(s.pool, s.q, wsSvc)
+	sB := NewTaskService(s.pool, s.q, wsSvc, nil)
 	foreign, err := sB.Create(ctx, Human(ub.ID), vB.Workspace.ID, CreateTaskInput{Title: "Foreign"})
 	if err != nil {
 		t.Fatal(err)

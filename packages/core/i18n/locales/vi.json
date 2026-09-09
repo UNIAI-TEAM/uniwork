@@ -2494,6 +2494,7 @@
     },
     "mermaid": {
       "render_error": "Unable to render Mermaid diagram.",
+      "diagram_label": "Mermaid diagram",
       "rendering": "Rendering diagram…",
       "viewer_title": "Diagram",
       "canvas_label": "Diagram canvas. Drag to pan, scroll to zoom.",

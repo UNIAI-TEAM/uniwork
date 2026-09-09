@@ -1,8 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -30,14 +32,28 @@ func (m *memStorage) Upload(_ context.Context, key string, data []byte, contentT
 	return m.ObjectURL(key), nil
 }
 
-func (m *memStorage) Delete(context.Context, string)             {}
-func (m *memStorage) DeleteObject(context.Context, string) error { return nil }
-func (m *memStorage) DeleteKeys(context.Context, []string)       {}
-func (m *memStorage) KeyFromURL(u string) string                 { return strings.TrimPrefix(u, "mem://") }
-func (m *memStorage) ObjectURL(key string) string                { return "mem://" + key }
-func (m *memStorage) CdnDomain() string                          { return "" }
-func (m *memStorage) GetReader(context.Context, string) (io.ReadCloser, error) {
-	return nil, nil
+func (m *memStorage) Delete(_ context.Context, key string) {
+	delete(m.objects, key)
+	delete(m.types, key)
+}
+func (m *memStorage) DeleteObject(ctx context.Context, key string) error {
+	m.Delete(ctx, key)
+	return nil
+}
+func (m *memStorage) DeleteKeys(ctx context.Context, keys []string) {
+	for _, k := range keys {
+		m.Delete(ctx, k)
+	}
+}
+func (m *memStorage) KeyFromURL(u string) string  { return strings.TrimPrefix(u, "mem://") }
+func (m *memStorage) ObjectURL(key string) string { return "mem://" + key }
+func (m *memStorage) CdnDomain() string           { return "" }
+func (m *memStorage) GetReader(_ context.Context, key string) (io.ReadCloser, error) {
+	data, ok := m.objects[key]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 // The CSV has to open in Excel on a Vietnamese Windows install, which means a
