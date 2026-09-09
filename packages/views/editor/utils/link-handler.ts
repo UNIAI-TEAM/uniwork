@@ -270,8 +270,8 @@ export type OpenLinkNavigate = (
  * `intent` is how the user clicked (see `resolveClickIntent`). External links
  * ignore it: they always hand off to the browser / system browser.
  *
- * Without `navigate`, internal links fall back to `location.assign` (push) or
- * `window.open` (tab intents) so clicks are never a silent no-op.
+ * Without `navigate`, internal push is a no-op (isolated mounts); tab intents
+ * still `window.open` so middle-click / modifier clicks are not silent.
  */
 export function openLink(
   href: string,

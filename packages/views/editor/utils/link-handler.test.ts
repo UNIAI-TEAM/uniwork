@@ -3,6 +3,7 @@ import {
   openLink,
   parseWorkspaceEntityLink,
   toInternalAppPath,
+  isMentionHref,
   type OpenLinkNavigate,
 } from "./link-handler";
 
@@ -135,6 +136,14 @@ describe("openLink", () => {
       "_blank",
       "noopener,noreferrer",
     );
+  });
+
+  it("no-ops push without navigate and recognizes mention hrefs", () => {
+    openLink("/acme/eng/tasks/UNI-0", CURRENT_SLUG, APP_ORIGIN, "push");
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(isMentionHref("mention://member/u1")).toBe(true);
+    expect(isMentionHref("https://example.com")).toBe(false);
+    expect(isMentionHref(null)).toBe(false);
   });
 });
 

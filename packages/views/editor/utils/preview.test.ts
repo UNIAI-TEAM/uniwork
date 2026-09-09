@@ -57,6 +57,19 @@ describe("getPreviewKind", () => {
   it("falls through to extension when content_type is mislabeled", () => {
     expect(getPreviewKind("application/octet-stream", "manual.pdf")).toBe("pdf");
   });
+
+  it("detects media from extension when content type is empty", () => {
+    expect(getPreviewKind("", "clip.webm")).toBe("video");
+    expect(getPreviewKind("", "note.flac")).toBe("audio");
+    expect(getPreviewKind("video/webm; codecs=vp9", "x")).toBe("video");
+    expect(getPreviewKind("audio/ogg; codecs=opus", "x")).toBe("audio");
+    expect(getPreviewKind("image/png", "photo.png")).toBe("image");
+  });
+
+  it("strips content-type parameters before matching", () => {
+    expect(getPreviewKind("application/pdf; charset=binary", "x")).toBe("pdf");
+    expect(getPreviewKind("text/html; charset=utf-8", "x")).toBe("html");
+  });
 });
 
 describe("isPreviewable", () => {

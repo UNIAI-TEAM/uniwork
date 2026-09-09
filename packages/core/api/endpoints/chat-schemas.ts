@@ -48,6 +48,13 @@ export const ChatMessageSchema = z.object({
       size_bytes: z.number().optional().default(0),
     })
     .optional(),
+  file: z
+    .object({
+      filename: z.string().optional().default(""),
+      content_type: z.string().optional().default(""),
+      size_bytes: z.number().optional().default(0),
+    })
+    .optional(),
   poll: z
     .object({
       question: z.string(),

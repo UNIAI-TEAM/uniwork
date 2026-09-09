@@ -63,7 +63,12 @@ import {
 import { useConfigStore } from "@uniwork/core/editor/config-store";
 import { preprocessMarkdown } from "./utils/preprocess";
 import { repairEmptyListItems } from "./utils/repair-list-items";
-import { navigateWithFallback, resolveClickIntent, useOptionalNavigation } from "@uniwork/views/navigation";
+import {
+  navigateWithFallback,
+  resolveClickIntent,
+  useOptionalNavigation,
+  type LinkClickIntent,
+} from "@uniwork/views/navigation";
 import { createTaskIdentifierResolver } from "./content-editor-task-resolver";
 import { useAppOrigin } from "./use-app-origin";
 import { openLink, isMentionHref } from "./utils/link-handler";
@@ -231,10 +236,10 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     appOriginRef.current = appOrigin;
 
     const navigation = useOptionalNavigation();
-    const navigateRef = useRef<(path: string, disposition?: Parameters<typeof navigateWithFallback>[2]) => void>(
+    const navigateRef = useRef<(path: string, disposition?: LinkClickIntent) => void>(
       () => undefined,
     );
-    navigateRef.current = (path, disposition) => {
+    navigateRef.current = (path, disposition = "push") => {
       navigateWithFallback(navigation, path, disposition);
     };
 

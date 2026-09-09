@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
-import { filterBulletinMessages, isBulletinMessage } from "./chat-room-bulletin-utils";
+import { filterBulletinMessages, isBulletinMessage, bulletinMessagePreview } from "./chat-room-bulletin-utils";
 
 describe("chat-room-bulletin-utils", () => {
   const rows: ChatMessageRecord[] = [
@@ -69,5 +69,31 @@ describe("chat-room-bulletin-utils", () => {
     expect(filterBulletinMessages([...rows], "polls").map((row) => row.id)).toEqual(["m3"]);
     expect(filterBulletinMessages([...rows], "pinned").map((row) => row.id)).toEqual(["m1"]);
     expect(filterBulletinMessages([...rows], "all").map((row) => row.id)).toEqual(["m2", "m1", "m3"]);
+  });
+
+  it("filters reminder tab and builds previews", () => {
+    const reminder: ChatMessageRecord = {
+      ...rows[0]!,
+      id: "m4",
+      kind: "reminder",
+      pinned: false,
+      body: "",
+      reminder: { body: "standup", remind_at: "2026-03-27T09:00:00Z", repeat: "none" },
+      created_at: "2026-03-26T12:00:00Z",
+    };
+    expect(filterBulletinMessages([...rows, reminder], "reminders").map((row) => row.id)).toEqual([
+      "m4",
+    ]);
+    expect(bulletinMessagePreview(rows[1]!, "Call")).toBe("team note");
+    expect(bulletinMessagePreview(rows[2]!, "Call")).toBe("Lunch?");
+    expect(bulletinMessagePreview(reminder, "Call")).toContain("standup");
+    expect(
+      bulletinMessagePreview(
+        { ...rows[0]!, kind: "voice_call_log", body: "", pinned: false },
+        "Call",
+      ),
+    ).toBe("Call");
+    expect(bulletinMessagePreview({ ...rows[0]!, body: "   " }, "Call")).toBe("…");
+    expect(bulletinMessagePreview({ ...rows[0]!, body: "short" }, "Call")).toBe("short");
   });
 });

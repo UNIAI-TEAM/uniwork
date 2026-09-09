@@ -69,6 +69,7 @@ type ChatMessageRow struct {
 	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
 	Voice             *VoiceMessageInfo
+	File              *FileMessageInfo
 	Poll              *ChatPollInfo
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo

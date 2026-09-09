@@ -23,11 +23,11 @@ import {
   useResolveDMRoom,
   useSendChatRoomMessage,
   useSendChatVoiceMessage,
+  useSendChatFileMessage,
   useUnblockChatUser,
   useChatSendOutboxFlush,
   useChatSendOutboxCount,
 } from "@uniwork/core/chat";
-import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
 import { useChatTypingSync } from "@uniwork/core/chat/use-chat-typing-sync";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -46,6 +46,7 @@ import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageContent } from "./chat-page-content";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
+import { useChatMediaSend } from "./use-chat-media-send";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
 import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
 import { useNativeTyping } from "./use-native-typing";
@@ -76,6 +77,7 @@ export function ChatPageView({
   const leaveRoom = useLeaveChatRoom(workspaceId);
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
+  const sendFileMessage = useSendChatFileMessage(workspaceId);
   useChatSendOutboxFlush(workspaceId, currentUserId);
   const pendingOutboxCount = useChatSendOutboxCount(workspaceId);
   const blockUser = useBlockChatUser(workspaceId);
@@ -379,25 +381,15 @@ export function ChatPageView({
     }
   }, [activeContact, unblockUser, t]);
 
-  const handleSendVoice = useCallback(
-    async ({ blob, durationMs }: { blob: Blob; durationMs: number }) => {
-      let roomId = activeRoomId;
-      if (!roomId && target.kind === "workspace") {
-        const room = await ensureRoom.mutateAsync();
-        roomId = room?.room_id ?? null;
-      }
-      if (!roomId) throw new Error(t("chat.room_load_failed"));
-      await sendVoiceMessage.mutateAsync({
-        roomId,
-        file: blob,
-        duration_ms: durationMs,
-        client_msg_id: newChatClientMsgId(),
-        reply_to_message_id: replyTo?.id,
-      });
-      setReplyTo(null);
-    },
-    [activeRoomId, ensureRoom, replyTo?.id, sendVoiceMessage, t, target.kind],
-  );
+  const { handleSendVoice, handleSendFile } = useChatMediaSend({
+    activeRoomId,
+    targetKind: target.kind,
+    replyToId: replyTo?.id,
+    ensureRoom,
+    sendVoiceMessage,
+    sendFileMessage,
+    clearReply: () => setReplyTo(null),
+  });
 
   if (!authReady) {
     return (
@@ -450,6 +442,7 @@ export function ChatPageView({
         onSend={() => void provisionAndSend()}
         onSendMedia={(body) => void sendMessageBody(body)}
         onSendVoice={handleSendVoice}
+        onSendFile={handleSendFile}
         groupSettingsOpen={groupSettingsOpen}
         onGroupSettingsOpenChange={setGroupSettingsOpen}
         dmSettingsOpen={dmSettingsOpen}

@@ -47,7 +47,9 @@ describe("ChatMessageRow", () => {
           senderLabel="Me"
           isOwn
           showReadReceipt
-          replyPreview="Earlier message"
+          workspaceId="ws1"
+          roomId="room1"
+          replyToMessage={message({ id: "m0", body: "Earlier message" })}
           onReply={vi.fn()}
           onReact={vi.fn()}
         />,

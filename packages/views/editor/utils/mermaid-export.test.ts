@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { buildExportSvg, diagramFilenameStem } from "./mermaid-export";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  buildExportSvg,
+  diagramFilenameStem,
+  downloadBlob,
+  renderSvgToPngBlob,
+} from "./mermaid-export";
 
 const BASE_OPTIONS = {
   background: "rgb(240, 240, 240)",
@@ -118,5 +123,103 @@ describe("diagramFilenameStem", () => {
 
     expect(stem.length).toBeLessThanOrEqual(40);
     expect(stem.endsWith("-")).toBe(false);
+  });
+});
+
+describe("downloadBlob", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("creates a temporary anchor click and revokes the object URL asynchronously", () => {
+    vi.useFakeTimers();
+    const createObjectURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:diagram");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const click = vi.fn();
+    const remove = vi.fn();
+    const anchor = {
+      href: "",
+      download: "",
+      rel: "",
+      click,
+      remove,
+    } as unknown as HTMLAnchorElement;
+    const createElement = vi.spyOn(document, "createElement").mockReturnValue(anchor);
+    const appendChild = vi
+      .spyOn(document.body, "appendChild")
+      .mockImplementation((node) => node);
+
+    downloadBlob(new Blob(["x"], { type: "text/plain" }), "diagram.mmd");
+
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(createElement).toHaveBeenCalledWith("a");
+    expect(anchor.download).toBe("diagram.mmd");
+    expect(anchor.rel).toBe("noopener");
+    expect(appendChild).toHaveBeenCalledWith(anchor);
+    expect(click).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:diagram");
+  });
+});
+
+describe("renderSvgToPngBlob", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("rasterizes standalone SVG markup through canvas", async () => {
+    class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:svg");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    const drawImage = vi.fn();
+    const toBlob = vi.fn((cb: (blob: Blob | null) => void) => {
+      cb(new Blob(["png"], { type: "image/png" }));
+    });
+    const realCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") {
+        return {
+          width: 0,
+          height: 0,
+          getContext: () => ({ drawImage }),
+          toBlob,
+        } as unknown as HTMLCanvasElement;
+      }
+      return realCreateElement(tag);
+    });
+
+    const blob = await renderSvgToPngBlob("<svg/>", { width: 10, height: 5 }, 2);
+    expect(blob.type).toBe("image/png");
+    expect(drawImage).toHaveBeenCalled();
+  });
+
+  it("rejects when the SVG image fails to load", async () => {
+    class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:svg");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    await expect(renderSvgToPngBlob("<svg/>", { width: 1, height: 1 })).rejects.toThrow(
+      /Failed to load SVG/,
+    );
   });
 });

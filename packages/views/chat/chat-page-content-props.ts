@@ -40,6 +40,7 @@ export type ChatPageContentProps = {
   onSend: () => void;
   onSendMedia: (body: string) => void | Promise<void>;
   onSendVoice: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
+  onSendFile: (file: File) => Promise<void>;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   dmSettingsOpen: boolean;

@@ -1,28 +1,19 @@
 import type { LinkClickIntent } from "./click-intent";
 import type { NavigationAdapter } from "./types";
+import { navigateInternal } from "./navigate-internal";
 
 /**
- * Routes in-app when a NavigationAdapter is wired; otherwise falls back to a
- * full navigation so the editor still works in tests and hosts without the
- * adapter (see onboarding-logout-button for the optional-nav pattern).
+ * Routes in-app when a NavigationAdapter is wired. Without a provider (tests /
+ * isolated mounts) push is a no-op — same as OnboardingLogoutButton's optional
+ * nav — and tab intents still `window.open`.
+ *
+ * Prefer this name at call sites that arrived with the task-detail editor
+ * transplant; `navigateInternal` is the same helper.
  */
 export function navigateWithFallback(
   navigation: NavigationAdapter | null,
   path: string,
   disposition: LinkClickIntent = "push",
 ): void {
-  if (!navigation) {
-    if (disposition === "push") {
-      // eslint-disable-next-line no-restricted-syntax -- host without NavigationAdapter
-      window.location.assign(path);
-    } else {
-      window.open(path, "_blank", "noopener,noreferrer");
-    }
-    return;
-  }
-  if (disposition === "push") {
-    navigation.push(path);
-    return;
-  }
-  window.open(navigation.getShareableUrl(path), "_blank", "noopener,noreferrer");
+  navigateInternal(navigation, path, disposition);
 }

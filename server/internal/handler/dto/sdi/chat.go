@@ -22,6 +22,13 @@ type SendChatVoiceMessageSDI struct {
 	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 }
 
+// SendChatFileMessageSDI is multipart POST .../messages/file.
+type SendChatFileMessageSDI struct {
+	File             []byte  `formData:"file" description:"Attachment (JPEG, PNG, GIF, WebP, PDF, or plain text; max 25 MiB)"`
+	ClientMsgID      string  `formData:"client_msg_id" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
 // CreateChatPollSDI creates a poll in a chat room.
 type CreateChatPollSDI struct {
 	Question string              `json:"question" description:"Poll question" example:"Ăn trưa ở đâu?"`

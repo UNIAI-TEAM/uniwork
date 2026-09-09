@@ -27,6 +27,13 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
         }
       : undefined,
     voice: record.voice,
+    file: record.file
+      ? {
+          filename: record.file.filename,
+          content_type: record.file.content_type,
+          size_bytes: record.file.size_bytes,
+        }
+      : undefined,
     poll: record.poll
       ? {
           question: record.poll.question,

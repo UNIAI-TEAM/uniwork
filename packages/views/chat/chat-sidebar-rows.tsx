@@ -49,6 +49,7 @@ export function SidebarNavItem({
     youLabel: string;
     voiceCallLabel: string;
     voiceMessageLabel: string;
+    fileMessageLabel?: string;
     yesterdayLabel: string;
     nicknamesByUserId?: Record<string, string>;
   };
@@ -75,6 +76,7 @@ export function SidebarNavItem({
     youLabel: previewOptions.youLabel,
     voiceCallLabel: previewOptions.voiceCallLabel,
     voiceMessageLabel: previewOptions.voiceMessageLabel,
+    fileMessageLabel: previewOptions.fileMessageLabel,
     nicknamesByUserId: previewOptions.nicknamesByUserId,
   });
   const timeLabel = formatChatSidebarTime(preview?.createdAt, {

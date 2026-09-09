@@ -19,6 +19,11 @@ export interface ChatMessage {
     content_type: string;
     size_bytes: number;
   };
+  file?: {
+    filename: string;
+    content_type: string;
+    size_bytes: number;
+  };
   poll?: {
     question: string;
     options: { id: string; label: string; votes: number }[];

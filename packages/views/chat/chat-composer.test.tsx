@@ -45,6 +45,7 @@ describe("ChatComposer", () => {
     fireEvent.click(screen.getByLabelText("Đính kèm"));
     expect(await screen.findByRole("menuitem", { name: "Tạo bình chọn" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Tạo nhắc hẹn" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Đính kèm tệp" })).toBeInTheDocument();
   });
 
   it("hides create poll in dm conversations", async () => {
