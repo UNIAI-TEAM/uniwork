@@ -4149,16 +4149,20 @@
       "target_path": "packages/views/tasks/blocked-trigger-copy.test.ts",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/stubs/blocked-trigger-copy.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/issues/blocked-trigger-copy.ts",
       "target_path": "packages/views/tasks/blocked-trigger-copy.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/editor/stubs/blocked-trigger-copy.ts",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/issues/components/attribution-badge.test.tsx",
@@ -4607,16 +4611,20 @@
       "target_path": "packages/views/tasks/components/task-usage-dialog.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/issues/components/issue-usage-dialog.tsx",
       "target_path": "packages/views/tasks/components/task-usage-dialog.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/issues/components/issues-cold-load-loop.test.tsx",
@@ -5181,8 +5189,10 @@
       "target_path": "packages/views/tasks/components/task-run-labels.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/issues/components/task-status-icon.tsx",
@@ -5317,16 +5327,20 @@
       "target_path": "packages/views/tasks/components/workspace-agent-working-chip.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/issues/components/workspace-agent-working-chip.tsx",
       "target_path": "packages/views/tasks/components/workspace-agent-working-chip.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/tasks/detail/components/agent-run-panel.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/issues/current-issue-render-context.tsx",
@@ -5787,8 +5801,10 @@
       "target_path": "packages/views/layout/app-sidebar.tsx",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/layout/app-sidebar.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/layout/global-shortcuts.chat.test.tsx",
@@ -5939,8 +5955,10 @@
       "target_path": "packages/views/locales/en/runtimes.json",
       "kind": "locale",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/i18n/locales/en.json",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/locales/en/search.json",
@@ -5963,8 +5981,10 @@
       "target_path": "packages/views/locales/en/squads.json",
       "kind": "locale",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/core/i18n/locales/en.json",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/locales/en/usage.json",
@@ -6505,8 +6525,10 @@
       "target_path": "packages/views/projects/components/local-directory-hint.test.tsx",
       "kind": "test",
       "disposition": "adapted",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/projects/components/local-directory-hint.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
     },
     {
       "source_path": "packages/views/projects/components/local-directory-hint.tsx",
@@ -6951,8 +6973,10 @@
       "target_path": "packages/views/squads/components/squad-detail-page.tsx",
       "kind": "source",
       "disposition": "stubbed",
-      "verification_state": "pending",
-      "owner_issue": "UNI-426"
+      "verification_state": "verified",
+      "owner_issue": "UNI-426",
+      "evidence_path": "packages/views/squads/squads-list-page.tsx",
+      "evidence_commit": "7b92091bcbfbb18ceaace876f879b0ee949918ca"
     },
     {
       "source_path": "packages/views/workspace/no-access-page.test.tsx",

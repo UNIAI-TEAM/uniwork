@@ -158,7 +158,9 @@
     "account": "Tài khoản",
     "skip_to_content": "Tới nội dung chính",
     "people": "Danh bạ",
-    "projects": "Dự án"
+    "projects": "Dự án",
+    "squads": "Squad",
+    "runtimes": "Runtime"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -640,7 +642,10 @@
       "column_menu": "Menu cột",
       "add_task": "Thêm task",
       "agent_chip_stub": "Agent",
-      "vcs_chip_stub": "VCS"
+      "vcs_chip_stub": "VCS",
+      "agent_trigger": "Chạy agent",
+      "squad_assign": "Gán squad",
+      "actions": "Thao tác"
     },
     "view": {
       "section": "Kiểu hiển thị",
@@ -684,6 +689,8 @@
       "priority": "Độ ưu tiên",
       "assignee": "Người nhận",
       "assignee_mixed": "Khác nhau",
+      "agent_trigger": "Chạy agent",
+      "squad_assign": "Gán squad",
       "delete": "Xóa",
       "cancel": "Hủy",
       "update_success": "Đã cập nhật {{count}} task",
@@ -843,6 +850,19 @@
       "activity_stub_reason": "Lịch sử hoạt động chưa khả dụng — bình luận vẫn hiện bên dưới.",
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
+      "agentRun": {
+        "section": "Nhật ký chạy agent",
+        "empty": "Chưa có lần chạy agent nào.",
+        "start": "Chạy agent",
+        "usage": "Mức dùng",
+        "retry": "Chạy lại",
+        "terminate": "Dừng"
+      },
+      "pullRequests": {
+        "section": "Pull requests",
+        "empty": "Chưa gắn pull request nào.",
+        "link": "Gắn pull request"
+      },
       "subscribe": "Theo dõi",
       "unsubscribe": "Bỏ theo dõi",
       "attachments_section": "Đính kèm",
@@ -2442,6 +2462,26 @@
       "toast_remove_failed": "Không gỡ được tài nguyên",
       "toast_renamed": "Đã đổi tên",
       "toast_rename_failed": "Không đổi tên được"
+    }
+  },
+  "squads": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Squad mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Squad",
+      "new_squad": "Tạo squad",
+      "empty": "Chưa có squad",
+      "create_first": "Tạo squad đầu tiên"
+    }
+  },
+  "runtimes": {
+    "unavailable_title": "Chưa khả dụng",
+    "unavailable_description": "Runtime mở khi parity quản lý công việc được bật cho workspace này.",
+    "page": {
+      "title": "Runtime",
+      "new_runtime": "Tạo runtime",
+      "empty": "Chưa có runtime",
+      "create_first": "Tạo runtime đầu tiên"
     }
   },
   "editor": {

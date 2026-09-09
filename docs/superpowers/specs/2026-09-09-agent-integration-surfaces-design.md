@@ -1,6 +1,6 @@
 # UniWork — Agent/integration surfaces (UNI-426 lát cắt 6)
 
-> **Trạng thái:** in-progress — thiết kế duyệt 2026-09-09; plan `../plans/2026-09-09-agent-integration-surfaces.md`
+> **Trạng thái:** in-progress — thiết kế duyệt 2026-09-09; plan Tasks 1–10 shipped (stub chrome + shells + overlay); capabilities agent* vẫn Unavailable; F-05 / umbrella vẫn MỘT PHẦN
 
 **Ngày:** 2026-09-09  
 **Issue:** UNI-519 (sub-issue dưới UNI-426 · lát cắt 6)  

@@ -3,6 +3,10 @@
 import { useTranslation } from "react-i18next";
 import type { Task } from "@uniwork/core/types";
 import { AgentBadge } from "../../agents/agent-badge";
+import {
+  AgentTriggerStub,
+  SquadAssignStub,
+} from "../surface/agent-squad-gates";
 
 /**
  * Suite TaskSurface list mode. Separate from MVP `../list-view.tsx`, which
@@ -26,7 +30,8 @@ export function ListView({
             <th className="py-2 pr-4 font-medium">{t("tasks.status")}</th>
             <th className="py-2 pr-4 font-medium">{t("tasks.priority")}</th>
             <th className="py-2 pr-4 font-medium">{t("tasks.assignee")}</th>
-            <th className="py-2 font-medium">{t("tasks.dueDate")}</th>
+            <th className="py-2 pr-4 font-medium">{t("tasks.dueDate")}</th>
+            <th className="py-2 font-medium">{t("tasks.surface.actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -53,7 +58,19 @@ export function ListView({
                   <AgentBadge className="ml-2" />
                 ) : null}
               </td>
-              <td className="py-2 text-muted-foreground">{task.due_date ?? ""}</td>
+              <td className="py-2 pr-4 text-muted-foreground">
+                {task.due_date ?? ""}
+              </td>
+              <td
+                className="py-2"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex flex-wrap gap-1">
+                  <AgentTriggerStub testId="list-agent-trigger" />
+                  <SquadAssignStub testId="list-squad-assign" />
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
