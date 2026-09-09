@@ -424,7 +424,7 @@ export function MermaidDiagram({ chart }: { chart: string }) {
     return () => {
       cancelled = true;
     };
-  }, [chart, diagramId, themeVersion]);
+  }, [chart, diagramId, themeVersion, t]);
 
   const overflow = useHorizontalOverflow(scrollRef, [rendered?.inlineDocument]);
   const openViewer = useCallback(() => setViewerOpen(true), []);
