@@ -19,6 +19,7 @@
     "./tasks/views/*": "./tasks/views/*.tsx",
     "./my-tasks": "./my-tasks/index.ts",
     "./my-tasks/*": "./my-tasks/*.tsx",
+    "./projects": "./projects/index.ts",
     "./projects/*": "./projects/*.tsx",
     "./projects/components/*": "./projects/components/*.tsx",
     "./meetings/meeting-invite-session": "./meetings/meeting-invite-session.ts",

@@ -2281,6 +2281,8 @@
     "member_count": "{{count}} members"
   },
   "projects": {
+    "unavailable_title": "Not available yet",
+    "unavailable_description": "Projects open when work-management parity is enabled for this workspace.",
     "page": {
       "title": "Projects",
       "new_project": "New project",
