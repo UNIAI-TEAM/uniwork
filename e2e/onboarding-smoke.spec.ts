@@ -48,7 +48,10 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
     page.waitForURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 30_000 }),
     page.getByRole("button", { name: "Đã hiểu" }).click(),
   ]);
-  await expect(page.getByRole("textbox").first()).toHaveValue("Bắt đầu với UniWork");
+  // Suite detail: title starts as a readonly control; sub-task input is also a textbox.
+  await expect(page.getByRole("button", { name: "Bắt đầu với UniWork" })).toBeVisible({
+    timeout: 15_000,
+  });
 
   // Vào lại /onboarding khi đã onboard → bị đẩy về workspace
   await page.goto("/onboarding");

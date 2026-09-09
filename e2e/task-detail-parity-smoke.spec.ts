@@ -42,7 +42,7 @@ async function onboardToTasks(page: Page) {
 
 async function createAndOpenTask(page: Page) {
   await page.goto(`/${orgSlug}/${wsSlug}/tasks`);
-  await page.getByRole("button", { name: "Việc mới" }).click();
+  await page.getByRole("button", { name: "Tạo việc" }).click();
   await page.getByLabel("Tiêu đề").fill(taskTitle);
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 15_000 });

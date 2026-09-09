@@ -39,7 +39,10 @@ test("projects suite: list + detail TaskSurface always on", async ({ page }) => 
   await expect(page.getByRole("link", { name: "Dự án" })).toBeVisible({ timeout: 15_000 });
 
   await page.goto(`/${orgSlug}/${wsSlug}/projects`);
-  await expect(page.getByRole("heading", { name: "Dự án" })).toBeVisible({ timeout: 15_000 });
+  // Empty-state h2 "Chưa có dự án" substring-matches "Dự án"; pin the page h1.
+  await expect(page.getByRole("heading", { name: "Dự án", exact: true, level: 1 })).toBeVisible({
+    timeout: 15_000,
+  });
 
   await page.getByRole("button", { name: "Dự án mới" }).click();
   await page.getByLabel("Tiêu đề dự án").fill(projectTitle);

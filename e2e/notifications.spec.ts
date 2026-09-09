@@ -60,7 +60,7 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
 
   // A: create a task and hand it to B.
   await owner.goto(`/${orgSlug}/${wsSlug}/tasks`);
-  await owner.getByRole("button", { name: "Việc mới" }).click();
+  await owner.getByRole("button", { name: "Tạo việc" }).click();
   await owner.getByLabel("Tiêu đề").fill(`Việc cho B ${stamp}`);
   await owner.getByRole("button", { name: "Tạo", exact: true }).click();
   await owner.getByText(`Việc cho B ${stamp}`).click();
