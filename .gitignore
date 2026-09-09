@@ -50,3 +50,5 @@ server/internal/handler/data/
 .claude/
 .github/
 .codex/
+.pnpm-store/
+
