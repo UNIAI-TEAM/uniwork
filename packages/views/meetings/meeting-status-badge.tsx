@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   SCHEDULED: "outline",
   IN_PROGRESS: "default",
+  OVERTIME: "outline",
   ENDED: "secondary",
   CANCELED: "destructive",
 };
