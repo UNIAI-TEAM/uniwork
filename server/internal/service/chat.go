@@ -69,6 +69,10 @@ type ChatMessageRow struct {
 	Body              string
 	Kind              string
 	ReplyToMessageID  *string
+	ThreadRootID      *string
+	ReplyCount        int
+	LastReplyAt       *time.Time
+	ThreadUnread      bool
 	CreatedAt         time.Time
 	Reactions         map[string]int
 	Pinned            bool
@@ -573,6 +577,7 @@ func chatMessageRowFromDBForViewer(msg db.ChatMessage, senderDisplayName, viewer
 		msg.Kind, msg.Body, msg.Metadata, msg.ReplyToMessageID, msg.EditedAt, msg.CreatedAt, viewerID,
 	)
 	out.ClientMsgID = msg.ClientMsgID.String
+	applyThreadFields(&out, msg.ThreadRootID, msg.ReplyCount, msg.LastReplyAt)
 	return out
 }
 

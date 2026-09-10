@@ -60,13 +60,20 @@ const workspace: Workspace = {
   organization_name: "Org",
 };
 
+function windowFromNow(startOffsetMs: number, durationMs = 30 * 60_000): { starts_at: string; ends_at: string } {
+  const start = Date.now() + startOffsetMs;
+  return {
+    starts_at: new Date(start).toISOString(),
+    ends_at: new Date(start + durationMs).toISOString(),
+  };
+}
+
 const meeting = {
   id: "m1",
   workspace_id: "w1",
   title: "Standup",
   description: "agenda",
-  starts_at: new Date(Date.now() + 60 * 60_000).toISOString(),
-  ends_at: new Date(Date.now() + 90 * 60_000).toISOString(),
+  ...windowFromNow(60 * 60_000),
   room_name: "uw_mtg_m1",
   created_by: "u-host",
   status: "SCHEDULED",

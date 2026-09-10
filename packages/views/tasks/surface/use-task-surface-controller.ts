@@ -35,6 +35,7 @@ import {
   type TaskSurfaceSelection,
 } from "./selection-context";
 import type { TaskSurfaceMode } from "./types";
+import { projectSurfaceTasks } from "./task-surface-projection";
 import { useTaskSurfaceData } from "./use-task-surface-data";
 import { useTaskGroupBranches } from "./use-task-group-branches";
 import { ganttCanvasRows } from "../modes/gantt-canvas";
@@ -144,6 +145,9 @@ export function useTaskSurfaceController({
   });
 
   const ganttShowCompleted = useViewStore((s) => s.ganttShowCompleted);
+  const showSubTasks = useViewStore((s) => s.showSubTasks);
+  const sortBy = useViewStore((s) => s.sortBy);
+  const sortDirection = useViewStore((s) => s.sortDirection);
 
   const groupBranches = useTaskGroupBranches({
     workspaceId,
@@ -350,7 +354,18 @@ export function useTaskSurfaceController({
     : tableEnabled
       ? false
       : data.isRefreshing;
-  const surfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
+  const rawSurfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
+  const surfaceTasks = useMemo(
+    () =>
+      tableEnabled
+        ? rawSurfaceTasks
+        : projectSurfaceTasks(rawSurfaceTasks, {
+            showSubTasks,
+            sortBy,
+            sortDirection,
+          }),
+    [rawSurfaceTasks, showSubTasks, sortBy, sortDirection, tableEnabled],
+  );
   const ganttTasks = useMemo(
     () =>
       ganttEnabled

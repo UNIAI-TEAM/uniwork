@@ -55,6 +55,8 @@ export function MyTasksPageView({
             isRefreshing={controller.isRefreshing}
             scope={scope}
             onScopeChange={setScope}
+            projectGroupingDisabled={controller.projectGroupingDisabled}
+            projectGroupingReasonKey={controller.projectGroupingReasonKey}
           />
         )}
         renderEmpty={() => (

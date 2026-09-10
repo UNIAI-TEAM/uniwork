@@ -21,9 +21,11 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useTranslation } from "react-i18next";
+import type { TaskGrouping } from "@uniwork/core/tasks/stores/view-store";
 import type { Task, TaskStatus } from "@uniwork/core/types";
+import type { ActorKind } from "@uniwork/core/types/audit";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
-import { BoardCardContent } from "./board-card";
+import { BoardCardContent, type BoardCardMeta } from "./board-card";
 import {
   BoardColumn,
   BOARD_CARD_WIDTH,
@@ -36,13 +38,18 @@ import {
   getMoveUpdates,
   insertIdByPosition,
   makeKanbanCollision,
+  assigneeGroupId,
+  projectGroupId,
   statusGroupId,
   taskMatchesGroup,
 } from "./board-drag-utils";
 import { HiddenColumnsPanel } from "./hidden-columns-panel";
 import { useBoardDragPan } from "./use-board-drag-pan";
 import { useDragSettle } from "./use-drag-settle";
-import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
+import {
+  useTaskSurfaceActionsOptional,
+  type TaskCreateDefaults,
+} from "../surface/actions-context";
 
 const EMPTY_IDS: string[] = [];
 
@@ -50,54 +57,123 @@ const EMPTY_IDS: string[] = [];
  * Suite TaskSurface board mode — kanban columns, cards, drag settle,
  * drag-pan, and Virtuoso. Separate from MVP `../board-view.tsx`.
  *
- * Property / Projects deep grouping stays stubbed until those capabilities
- * ship; agent chips are gated in the card.
+ * Property grouping stays stubbed until the property catalog is wired; agent
+ * chips are gated in the card.
  */
 function BoardViewImpl({
   categories,
   tasks,
+  cardMeta,
+  projects = [],
   onOpenTask,
-  projectGroupingDisabled = true,
-  projectGroupingReasonKey,
 }: {
   categories: readonly string[];
   tasks: Task[];
+  cardMeta?: ReadonlyMap<string, BoardCardMeta>;
+  projects?: readonly { id: string; title: string }[];
   onOpenTask?: (id: string) => void;
-  /** Projects board grouping is stubbed until Projects UI ships. */
-  projectGroupingDisabled?: boolean;
-  projectGroupingReasonKey?: string;
 }) {
   const { t } = useTranslation();
   const actions = useTaskSurfaceActionsOptional();
   const hiddenStatusCategories = useViewStore((s) => s.hiddenStatusCategories);
+  const storedGrouping = useViewStore((s) => s.grouping);
+  const sortBy = useViewStore((s) => s.sortBy);
+  const grouping: Exclude<TaskGrouping, `property:${string}`> =
+    storedGrouping === "assignee" || storedGrouping === "project"
+      ? storedGrouping
+      : "status";
 
   const visibleCategories = useMemo(
     () =>
-      categories.filter(
-        (category) =>
-          !hiddenStatusCategories.includes(category as TaskStatus),
-      ),
-    [categories, hiddenStatusCategories],
+      grouping === "status"
+        ? categories.filter(
+            (category) =>
+              !hiddenStatusCategories.includes(category as TaskStatus),
+          )
+        : [],
+    [categories, grouping, hiddenStatusCategories],
   );
 
   const hiddenStatuses = useMemo(
     () =>
-      categories.filter((category) =>
-        hiddenStatusCategories.includes(category as TaskStatus),
-      ),
-    [categories, hiddenStatusCategories],
+      grouping === "status"
+        ? categories.filter((category) =>
+            hiddenStatusCategories.includes(category as TaskStatus),
+          )
+        : [],
+    [categories, grouping, hiddenStatusCategories],
   );
 
-  const groups = useMemo<BoardColumnGroup[]>(
-    () =>
-      visibleCategories.map((status) => ({
-        id: statusGroupId(status),
-        title: status,
-        status,
-        createData: { status },
-      })),
-    [visibleCategories],
-  );
+  const groups = useMemo<BoardColumnGroup[]>(() => {
+    if (grouping === "assignee") {
+      const byId = new Map<string, BoardColumnGroup>();
+      const unassigned: BoardColumnGroup = {
+        id: assigneeGroupId("human", null),
+        title: t("tasks.unassigned"),
+        kind: "assignee",
+        assigneeId: null,
+        createData: { assignee_id: null },
+      };
+      byId.set(unassigned.id, unassigned);
+      for (const task of tasks) {
+        if (!task.assignee_id) continue;
+        const kind = (task.assignee_kind || "human") as ActorKind;
+        const id = assigneeGroupId(kind, task.assignee_id);
+        if (byId.has(id)) continue;
+        byId.set(id, {
+          id,
+          title: task.assignee?.display_name || task.assignee_id,
+          kind: "assignee",
+          assigneeId: task.assignee_id,
+          assigneeKind: kind,
+          createData: {
+            assignee_id: task.assignee_id,
+            assignee_kind: kind,
+          },
+        });
+      }
+      return [...byId.values()];
+    }
+
+    if (grouping === "project") {
+      const byId = new Map<string, BoardColumnGroup>();
+      const noProject: BoardColumnGroup = {
+        id: projectGroupId(null),
+        title: t("tasks.swimlane.no_project"),
+        kind: "project",
+        projectId: null,
+      };
+      byId.set(noProject.id, noProject);
+      for (const project of projects) {
+        byId.set(projectGroupId(project.id), {
+          id: projectGroupId(project.id),
+          title: project.title,
+          kind: "project",
+          projectId: project.id,
+        });
+      }
+      for (const task of tasks) {
+        if (!task.project_id) continue;
+        const id = projectGroupId(task.project_id);
+        if (byId.has(id)) continue;
+        byId.set(id, {
+          id,
+          title: cardMeta?.get(task.id)?.projectName || task.project_id,
+          kind: "project",
+          projectId: task.project_id,
+        });
+      }
+      return [...byId.values()];
+    }
+
+    return visibleCategories.map((status) => ({
+      id: statusGroupId(status),
+      title: status,
+      kind: "status" as const,
+      status,
+      createData: { status },
+    }));
+  }, [cardMeta, grouping, projects, t, tasks, visibleCategories]);
 
   const groupIds = useMemo(
     () => new Set(groups.map((group) => group.id)),
@@ -287,7 +363,7 @@ function BoardViewImpl({
   );
 
   const onCreateTask = useCallback(
-    (defaults: { status?: string }) => {
+    (defaults: TaskCreateDefaults) => {
       actions?.createTask(defaults);
     },
     [actions],
@@ -300,24 +376,11 @@ function BoardViewImpl({
     }
     return counts;
   }, [hiddenStatuses, tasks]);
+  const sortLabel =
+    sortBy === "position" ? null : t("tasks.display.sorted_drag_hint");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
-        <button
-          type="button"
-          disabled={projectGroupingDisabled}
-          title={
-            projectGroupingDisabled && projectGroupingReasonKey
-              ? t(projectGroupingReasonKey)
-              : undefined
-          }
-          className="rounded-md border border-border px-2.5 py-1.5 text-caption text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {t("tasks.surface.group_by_project")}
-        </button>
-      </div>
-
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
@@ -333,7 +396,7 @@ function BoardViewImpl({
           onPointerUp={pan.onPointerUp}
           onPointerCancel={pan.onPointerCancel}
           onLostPointerCapture={pan.onLostPointerCapture}
-          className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-2"
+          className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-4 pb-4 pt-2"
         >
           {groups.map((group) => (
             <BoardColumn
@@ -341,9 +404,12 @@ function BoardViewImpl({
               group={group}
               taskIds={columns[group.id] ?? EMPTY_IDS}
               taskMap={taskMapRef.current}
+              cardMeta={cardMeta}
               totalCount={group.totalCount}
               onCreateTask={onCreateTask}
               onOpenTask={onOpenTask}
+              sortLabel={sortLabel}
+              disableDragging={grouping === "project"}
             />
           ))}
           {hiddenStatuses.length > 0 ? (
@@ -360,7 +426,10 @@ function BoardViewImpl({
               style={{ width: BOARD_CARD_WIDTH }}
               className="rotate-1 cursor-grabbing opacity-90 shadow-lg shadow-black/10"
             >
-              <BoardCardContent task={activeTask} />
+              <BoardCardContent
+                task={activeTask}
+                meta={cardMeta?.get(activeTask.id)}
+              />
             </div>
           ) : null}
         </DragOverlay>

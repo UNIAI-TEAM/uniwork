@@ -5,6 +5,10 @@ export interface ChatMessage {
   kind?: string;
   ts: number;
   replyToEventId?: string;
+  threadRootId?: string;
+  replyCount?: number;
+  lastReplyAt?: number;
+  threadUnread?: boolean;
   editedAt?: number;
   pinned?: boolean;
   mentionedUserIds?: string[];

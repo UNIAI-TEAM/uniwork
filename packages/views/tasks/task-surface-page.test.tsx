@@ -52,6 +52,9 @@ describe("TaskSurfacePage", () => {
       ),
     );
 
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Công việc" }),
+    ).toBeInTheDocument();
     expect(await screen.findByTestId("task-mode-switcher")).toBeInTheDocument();
     await openModeMenu();
     expect(screen.getByTestId("task-mode-board")).toBeInTheDocument();

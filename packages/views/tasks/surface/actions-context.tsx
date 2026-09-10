@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import type { Task } from "@uniwork/core/types";
+import type { ActorKind } from "@uniwork/core/types/audit";
 
 export type TaskSurfaceMutationOptions = {
   errorMessage?: string;
@@ -15,6 +16,7 @@ export type TaskCreateDefaults = {
   status?: string;
   priority?: string;
   assignee_id?: string | null;
+  assignee_kind?: ActorKind;
 };
 
 export interface TaskSurfaceActions {

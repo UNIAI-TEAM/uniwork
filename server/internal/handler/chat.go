@@ -27,6 +27,18 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.ReplyToMessageID != nil {
 		out.ReplyToMessageID = m.ReplyToMessageID
 	}
+	if m.ThreadRootID != nil {
+		out.ThreadRootID = m.ThreadRootID
+	}
+	if m.ReplyCount > 0 {
+		out.ReplyCount = m.ReplyCount
+	}
+	if m.LastReplyAt != nil {
+		out.LastReplyAt = m.LastReplyAt.Format(time.RFC3339)
+	}
+	if m.ThreadUnread {
+		out.ThreadUnread = true
+	}
 	if len(m.Reactions) > 0 {
 		out.Reactions = m.Reactions
 	}

@@ -42,6 +42,7 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `chat.channel.archived` | 1 | `room_id`, `workspace_id` | workspace | outbox |
 | `chat.channel.created` | 1 | `room_id`, `workspace_id` | workspace | outbox |
 | `chat.channel.updated` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
+| `chat.thread.replied` | 1 | `room_id`, `thread_root_id`, `message_id` | chat | ephemeral |
 | `chat.room.activity` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
 | `chat.room.created` | 1 | `room_id` | room | outbox |
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | room | outbox |

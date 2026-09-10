@@ -76,8 +76,6 @@ describe("modes/BoardView", () => {
           <BoardView
             categories={[...TASK_STATUSES]}
             tasks={[sample]}
-            projectGroupingDisabled
-            projectGroupingReasonKey="capabilities.unknown"
           />
         </ViewStoreProvider>,
       ),
@@ -94,6 +92,9 @@ describe("modes/BoardView", () => {
     expect(screen.getByTestId("board-column-backlog")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-in_review")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-blocked")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Nhóm theo dự án" }),
+    ).toBeNull();
   });
 
   it("does not mount board agent trigger or squad assign chrome", async () => {
@@ -104,8 +105,6 @@ describe("modes/BoardView", () => {
           <BoardView
             categories={[...TASK_STATUSES]}
             tasks={[sample]}
-            projectGroupingDisabled
-            projectGroupingReasonKey="capabilities.unknown"
           />
         </ViewStoreProvider>,
       ),
@@ -114,5 +113,38 @@ describe("modes/BoardView", () => {
     expect(await screen.findByText("Suite card")).toBeInTheDocument();
     expect(screen.queryByTestId("board-agent-trigger")).toBeNull();
     expect(screen.queryByTestId("board-squad-assign")).toBeNull();
+  });
+
+  it("rebuilds columns when grouping by assignee", async () => {
+    const store = getTaskSurfaceViewStore("board-view-assignee-grouping");
+    store.getState().setGrouping("assignee");
+    const assigned = {
+      ...sample,
+      assignee_id: "u2",
+      assignee: {
+        kind: "human" as const,
+        id: "u2",
+        display_name: "Bình",
+      },
+    };
+    const unassigned = { ...sample, id: "t2", title: "No owner" };
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardView
+            categories={[...TASK_STATUSES]}
+            tasks={[assigned, unassigned]}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(
+      await screen.findByTestId("board-column-assignee:human:u2"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bình")).toBeInTheDocument();
+    expect(screen.getByText("Chưa giao")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-column-todo")).toBeNull();
   });
 });

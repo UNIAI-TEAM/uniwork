@@ -183,6 +183,9 @@ type ChatMessage struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	SenderKind       string             `json:"sender_kind"`
 	ClientMsgID      pgtype.Text        `json:"client_msg_id"`
+	ThreadRootID     pgtype.Text        `json:"thread_root_id"`
+	ReplyCount       int32              `json:"reply_count"`
+	LastReplyAt      pgtype.Timestamptz `json:"last_reply_at"`
 }
 
 type ChatRoom struct {
@@ -220,6 +223,20 @@ type ChatRoomMember struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	SendRestricted bool               `json:"send_restricted"`
+}
+
+type ChatThreadFollower struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         string             `json:"room_id"`
+	ThreadRootID   string             `json:"thread_root_id"`
+	UserID         string             `json:"user_id"`
+	Reason         string             `json:"reason"`
+	Muted          bool               `json:"muted"`
+	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type ChatUserNickname struct {

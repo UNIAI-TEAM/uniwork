@@ -19,6 +19,6 @@ describe("status-config", () => {
 
   it("falls back for unknown status strings", () => {
     expect(statusColumnBg("todo")).toBe(STATUS_CONFIG.todo.columnBg);
-    expect(statusColumnBg("not-a-status")).toBe("bg-muted/40");
+    expect(statusColumnBg("not-a-status")).toBe("bg-muted/20");
   });
 });

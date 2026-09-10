@@ -118,6 +118,10 @@ export function useSetTaskParent(workspaceId: string) {
       suite.setTaskParent(taskId, body),
     onSuccess: (_d, { taskId, body }) => {
       void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.groupedRoot(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.myTasks(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
       void qc.invalidateQueries({ queryKey: taskKeys.children(taskId) });
       if (body.parent_task_id) {

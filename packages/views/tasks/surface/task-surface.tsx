@@ -6,12 +6,14 @@ import { ListTodo, Plus } from "lucide-react";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
+import { useChildTaskProgress, useProjects } from "@uniwork/core/tasks";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
 import { BoardView } from "../modes/board-view";
+import type { BoardCardMeta } from "../modes/board-card";
 import { GanttView } from "../modes/gantt-view";
 import { ListView } from "../modes/list-view";
 import { SwimLaneView } from "../modes/swimlane-view";
@@ -80,6 +82,8 @@ function TaskSurfaceContent({
     modes: availableModes,
   });
   const { data: membersData } = useMembers(workspaceId);
+  const { data: projectsData } = useProjects(workspaceId);
+  const { data: childProgressData } = useChildTaskProgress(workspaceId);
   const batchMembers = useMemo(
     () =>
       (membersData ?? []).map((m) => ({
@@ -88,6 +92,28 @@ function TaskSurfaceContent({
       })),
     [membersData],
   );
+  const boardCardMeta = useMemo(() => {
+    const projectNames = new Map(
+      (projectsData?.projects ?? []).map((project) => [project.id, project.title]),
+    );
+    const progressByTask = new Map(
+      (childProgressData ?? []).map((progress) => [
+        progress.parent_task_id,
+        progress,
+      ]),
+    );
+    return new Map<string, BoardCardMeta>(
+      controller.surfaceTasks.map((task) => [
+        task.id,
+        {
+          projectName: task.project_id
+            ? projectNames.get(task.project_id)
+            : undefined,
+          childProgress: progressByTask.get(task.id),
+        },
+      ]),
+    );
+  }, [childProgressData, controller.surfaceTasks, projectsData?.projects]);
 
   const renderContext = useMemo(
     () => ({ controller }),
@@ -107,6 +133,9 @@ function TaskSurfaceContent({
         scopedTasks={controller.surfaceTasks}
         isRefreshing={controller.isRefreshing}
         lockProjectFilter={scope.type === "project"}
+        showProjectGrouping={scope.type !== "project"}
+        projectGroupingDisabled={controller.projectGroupingDisabled}
+        projectGroupingReasonKey={controller.projectGroupingReasonKey}
         saveViewScope={
           scope.type === "workspace"
             ? { kind: "workspace" }
@@ -147,8 +176,8 @@ function TaskSurfaceContent({
                 <BoardView
                   categories={controller.boardCategories}
                   tasks={controller.surfaceTasks}
-                  projectGroupingDisabled={controller.projectGroupingDisabled}
-                  projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                  cardMeta={boardCardMeta}
+                  projects={projectsData?.projects}
                   onOpenTask={onOpenTask}
                 />
               ) : controller.viewMode === "table" ? (

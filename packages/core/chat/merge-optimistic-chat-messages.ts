@@ -10,6 +10,7 @@ export type OptimisticChatMessage = {
   kind?: string;
   ts: number;
   replyToEventId?: string;
+  threadRootId?: string;
   priority?: ComposerMessagePriority;
   reactions: Record<string, number>;
   clientMsgId: string;
@@ -35,6 +36,7 @@ export function pendingToOptimisticChatMessage(
     body: entry.body,
     ts: entry.createdAt,
     replyToEventId: entry.reply_to_message_id,
+    threadRootId: entry.thread_root_id,
     priority: entry.priority,
     reactions: {},
     deliveryStatus: entry.status,

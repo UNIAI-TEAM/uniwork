@@ -207,7 +207,8 @@ function handleChatRealtimeEvent(
   const messageId = payload.message_id;
   switch (type) {
     case "chat.message.created":
-    case "chat.message.updated": {
+    case "chat.message.updated":
+    case "chat.thread.replied": {
       if (roomId && messageId) {
         chatScheduler.scheduleUpsert(roomId, messageId);
         return true;
