@@ -18,13 +18,7 @@ import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import type { ChildProgress, Task } from "@uniwork/core/types";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
-
-const priorityClass: Record<Task["priority"], string> = {
-  low: "bg-muted text-muted-foreground",
-  medium: "bg-info/10 text-info",
-  high: "bg-warning/10 text-warning",
-  urgent: "bg-destructive/10 text-destructive",
-};
+import { PriorityFlag } from "./status-pill";
 
 export interface BoardCardMeta {
   projectName?: string;
@@ -48,7 +42,6 @@ export const BoardCardContent = memo(function BoardCardContent({
   const dueDate = cardProperties.dueDate ? task.due_date : undefined;
   const dateRange = [startDate, dueDate].filter(Boolean).join(" – ");
   const assignee = cardProperties.assignee ? task.assignee : undefined;
-  const priorityLabel = t(`tasks.priority_${task.priority}`);
 
   return (
     <div className="rounded-lg border border-border bg-surface px-2.5 py-2.5 shadow-sm transition-[background-color,border-color,box-shadow] group-hover/card:border-foreground/15 group-hover/card:bg-surface-hover group-hover/card:shadow-md">
@@ -60,16 +53,7 @@ export const BoardCardContent = memo(function BoardCardContent({
             </p>
           ) : null}
         </div>
-        {cardProperties.priority ? (
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-1.5 py-0.5 text-micro font-medium",
-              priorityClass[task.priority],
-            )}
-          >
-            {priorityLabel}
-          </span>
-        ) : null}
+        {cardProperties.priority ? <PriorityFlag priority={task.priority} withLabel /> : null}
       </div>
 
       <p className="mt-1.5 line-clamp-2 text-pretty text-body font-medium leading-snug">

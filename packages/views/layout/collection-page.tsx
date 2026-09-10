@@ -8,14 +8,16 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "@uniwork/ui/components/ui/empty";
+import { IconTile, type IconTileTone, type Tint, tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PAGE_LEADING_ICON, PageHeader } from "./page-header";
 
 interface CollectionPageHeaderProps {
   icon: LucideIcon;
+  /** Module tint for the leading glyph; omitted, it stays neutral. */
+  tone?: Tint;
   title: ReactNode;
   count?: number;
   description?: ReactNode;
@@ -27,12 +29,12 @@ interface CollectionPageHeaderProps {
  * Header of a list screen: entity icon, title, optional count and supporting
  * copy on the left; page-level actions on the right.
  */
-export function CollectionPageHeader({ icon: Icon, title, count, description, actions, className }: CollectionPageHeaderProps) {
+export function CollectionPageHeader({ icon: Icon, tone, title, count, description, actions, className }: CollectionPageHeaderProps) {
   return (
     <PageHeader className={className}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className={PAGE_LEADING_ICON}>
-          <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+          <Icon aria-hidden="true" className={cn("size-4", tone ? tintForegroundClass[tone] : "text-muted-foreground")} />
         </span>
         <h1 className="truncate text-body font-medium">{title}</h1>
         {typeof count === "number" && count > 0 ? (
@@ -124,23 +126,16 @@ export function CollectionPageHeaderLinkAction({
   );
 }
 
-type PageStateTone = "muted" | "destructive" | "warning";
-
 interface CollectionPageStateProps {
   icon: LucideIcon;
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
-  tone?: PageStateTone;
+  /** A module tint for an empty state, a signal tone for an error state. */
+  tone?: IconTileTone;
   role?: "alert" | "status";
   className?: string;
 }
-
-const stateToneClass: Record<PageStateTone, string> = {
-  muted: "text-muted-foreground",
-  destructive: "text-destructive",
-  warning: "text-warning",
-};
 
 /**
  * Centered empty / error / not-found state for a list screen. Truthful by
@@ -150,9 +145,7 @@ export function CollectionPageState({ icon: Icon, title, description, actions, t
   return (
     <Empty role={role} className={cn("rounded-none border-0 px-6 py-16", className)}>
       <EmptyHeader>
-        <EmptyMedia variant="icon" className={cn("size-12 rounded-full [&_svg]:size-6", stateToneClass[tone])}>
-          <Icon aria-hidden="true" />
-        </EmptyMedia>
+        <IconTile icon={Icon} size="lg" tone={tone} />
         <EmptyTitle>{title}</EmptyTitle>
         {description ? <EmptyDescription className="max-w-md">{description}</EmptyDescription> : null}
       </EmptyHeader>

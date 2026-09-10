@@ -14,12 +14,17 @@ export function MeetingStatusBadge({ status, className }: { status?: string; cla
   const { t } = useTranslation();
   const key = status && status in STATUS_VARIANT ? status : "SCHEDULED";
   const live = key === "IN_PROGRESS";
+  // Live wears the meetings tint (identity), not a signal colour: a meeting
+  // in progress is not a warning. Recording, which IS a state, stays red.
   return (
-    <Badge variant={STATUS_VARIANT[key]} className={cn(live && "gap-1.5", className)}>
+    <Badge
+      variant={STATUS_VARIANT[key]}
+      className={cn(live && "gap-1.5 bg-tint-violet text-tint-violet-foreground", className)}
+    >
       {live ? (
         <span
           aria-hidden
-          className="size-1.5 animate-pulse rounded-full bg-brand-foreground motion-reduce:animate-none"
+          className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
         />
       ) : null}
       {t(`meetings.status_${key}`)}

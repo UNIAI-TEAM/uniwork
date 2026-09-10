@@ -6,6 +6,7 @@ import { useStore } from "zustand";
 import { myTasksViewStore } from "@uniwork/core/tasks/stores/my-tasks-view-store";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { PageHeader } from "../layout/page-header";
 import { TaskSurface } from "../tasks/surface/task-surface";
 import type { TaskSurfaceMode } from "../tasks/surface/types";
@@ -62,6 +63,7 @@ export function MyTasksPageView({
         renderEmpty={() => (
           <CollectionPageState
             icon={ListTodo}
+            tone={moduleTone("my_tasks")}
             title={t("myTasks.page.empty_title")}
             description={t("myTasks.page.empty_description")}
           />

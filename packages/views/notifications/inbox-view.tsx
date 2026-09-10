@@ -19,6 +19,7 @@ import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { NotificationRow } from "./notification-row";
@@ -128,6 +129,7 @@ export function InboxView() {
     <div className="flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
         icon={Inbox}
+        tone={moduleTone("inbox")}
         title={t("nav.inbox")}
         count={unreadHere}
         actions={
@@ -176,6 +178,7 @@ export function InboxView() {
       ) : ordered.length === 0 ? (
         <CollectionPageState
           icon={Inbox}
+          tone={moduleTone("inbox")}
           role="status"
           title={filter === "unread" ? t("notifications.empty_unread_title") : t("notifications.empty_title")}
           description={t("notifications.empty_description")}

@@ -14,7 +14,8 @@ describe("status-config", () => {
         "todo",
       ].sort(),
     );
-    expect(STATUS_CONFIG.blocked.iconColor).toContain("destructive");
+    expect(STATUS_CONFIG.blocked.tone).toBe("red");
+    expect(STATUS_CONFIG.done.tone).toBe("green");
   });
 
   it("falls back for unknown status strings", () => {
