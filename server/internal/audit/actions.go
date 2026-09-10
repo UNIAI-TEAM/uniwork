@@ -104,6 +104,8 @@ const (
 	ActionChatRoomMemberRemoved = "chat.room.member_removed"
 	ActionChatChannelUpdated    = "chat.channel.updated"
 	ActionChatChannelArchived   = "chat.channel.archived"
+	ActionChatMessageLinked     = "chat.message.linked"
+	ActionChatThreadTaskLinked  = "chat.thread.task_linked"
 
 	ActionSubscriptionChanged = "subscription.changed"
 

@@ -26,6 +26,7 @@ export interface TaskPatch {
   /** Read with assignee_id; omitted means human. */
   assignee_kind?: ActorKind;
   due_date?: string | null;
+  project_id?: string | null;
 }
 
 export interface CreateTaskBody {

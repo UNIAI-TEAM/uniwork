@@ -205,3 +205,36 @@ export function patchChatMentionCreated(
     );
   });
 }
+
+/**
+ * Invalidate message↔task link queries. Does not touch message list caches so
+ * optimistic / pending sends stay put.
+ */
+export function invalidateChatMessageLinks(
+  qc: QueryClient,
+  wsId: string,
+  messageId: string,
+): void {
+  if (!messageId) return;
+  void qc.invalidateQueries({ queryKey: chatKeys.messageLinks(wsId, messageId) });
+}
+
+/** `chat.message.linked` — refresh links for the message; leave message lists alone. */
+export function patchChatMessageLinked(
+  qc: QueryClient,
+  wsId: string,
+  _roomId: string,
+  messageId: string,
+): void {
+  invalidateChatMessageLinks(qc, wsId, messageId);
+}
+
+/** `chat.thread.linked` — links hang off the thread root message id. */
+export function patchChatThreadLinked(
+  qc: QueryClient,
+  wsId: string,
+  _roomId: string,
+  threadRootId: string,
+): void {
+  invalidateChatMessageLinks(qc, wsId, threadRootId);
+}

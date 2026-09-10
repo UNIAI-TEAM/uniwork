@@ -383,6 +383,41 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "rooms", "ws1"]));
   });
 
+  it("invalidates message links on chat.message.linked without dropping message cache", () => {
+    const qc = new QueryClient();
+    const messages = [
+      {
+        id: "m1",
+        room_id: "dm1",
+        workspace_id: "ws1",
+        sender_id: "u1",
+        sender_display_name: "Ada",
+        kind: "text",
+        body: "hello",
+        created_at: "2026-01-01T10:00:00Z",
+        pinned: false,
+        mentioned_user_ids: [],
+        reactions: {},
+        reply_count: 0,
+        thread_unread: false,
+      },
+    ];
+    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), messages);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const client = fakeClient();
+    renderHook(() => useRealtimeSync(client, "ws1"), {
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    client.emit({
+      type: "chat.message.linked",
+      payload: { room_id: "dm1", message_id: "m1", target_id: "t1" },
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.messageLinks("ws1", "m1"),
+    });
+    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "dm1"))).toEqual(messages);
+  });
+
   it("invalidates workspace keys after a reconnect without every message list", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

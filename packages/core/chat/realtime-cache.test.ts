@@ -10,6 +10,8 @@ import {
   isChatThreadReply,
   mergeMessageIntoList,
   patchChatMessageDeleted,
+  patchChatMessageLinked,
+  patchChatThreadLinked,
   patchRoomSidebarFromMessage,
   removeMessageFromList,
 } from "./realtime-cache";
@@ -160,5 +162,31 @@ describe("thread reply cache patches", () => {
         (m) => m.id,
       ),
     ).toEqual(["r1"]);
+  });
+});
+
+describe("message / thread link cache patches", () => {
+  it("invalidates messageLinks without touching message lists", () => {
+    const qc = new QueryClient();
+    const messages = [sampleMessage("m1", "2026-01-01T10:00:00Z")];
+    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), messages);
+    qc.setQueryData(chatKeys.messageLinks("ws1", "m1"), [{ id: "l1" }]);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    patchChatMessageLinked(qc, "ws1", "room1", "m1");
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.messageLinks("ws1", "m1"),
+    });
+    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toEqual(messages);
+  });
+
+  it("invalidates links for the thread root on chat.thread.linked", () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    patchChatThreadLinked(qc, "ws1", "room1", "root1");
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.messageLinks("ws1", "root1"),
+    });
   });
 });

@@ -102,7 +102,9 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:flex-row sm:justify-end",
+        // No negative margins: DialogContent often uses p-0 (chat/create flows);
+        // -mx-4/-mb-4 assumed the default p-4 and pulled buttons into the border.
+        "flex flex-col-reverse gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

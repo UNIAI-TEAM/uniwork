@@ -19,9 +19,11 @@ const idempotencyScopeCommentCreate = "tasks.comment_create"
 
 // AddCommentInput is a threaded comment create (optional parent).
 type AddCommentInput struct {
-	Body        string
-	ParentID    *string
-	CommentType string
+	Body          string
+	ParentID      *string
+	CommentType   string
+	Origin        string  // e.g. "chat" when mirrored from a thread reply
+	ChatMessageID *string // set when the comment mirrors a chat message
 }
 
 // UpdateCommentInput edits comment body (revision bump).
@@ -49,6 +51,14 @@ func validateReactionEmoji(emoji string) (string, error) {
 
 func (s *TaskService) commentActorType(kind audit.Kind) string {
 	return normalizedCreatorType(kind)
+}
+
+func commentOrigin(origin string) pgtype.Text {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: origin, Valid: true}
 }
 
 func (s *TaskService) loadComment(ctx context.Context, actor Actor, commentID string) (db.TaskComment, error) {
@@ -130,9 +140,19 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 	c, err := q.CreateTaskCommentThreaded(ctx, db.CreateTaskCommentThreadedParams{
 		ID: util.NewID(), OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 		TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
-		ParentCommentID: parentText, CommentType: commentType,
+		Origin: commentOrigin(in.Origin), ParentCommentID: parentText, CommentType: commentType,
+		ChatMessageID: optText(in.ChatMessageID),
 	})
 	if err != nil {
+		if in.ChatMessageID != nil && isUniqueViolation(err) {
+			existing, lookupErr := s.q.GetTaskCommentByChatMessageID(ctx, pgtype.Text{
+				String: strings.TrimSpace(*in.ChatMessageID), Valid: true,
+			})
+			if lookupErr != nil {
+				return db.TaskComment{}, lookupErr
+			}
+			return existing, nil
+		}
 		return db.TaskComment{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{

@@ -12,6 +12,8 @@ vi.mock("../chat/realtime-cache", () => ({
   fetchAndPatchChatMessage: vi.fn(),
   patchChatMessageDeleted: vi.fn(),
   patchChatMentionCreated: vi.fn(),
+  patchChatMessageLinked: vi.fn(),
+  patchChatThreadLinked: vi.fn(),
 }));
 
 describe("createChatRealtimePatchScheduler", () => {
@@ -68,6 +70,14 @@ describe("createChatRealtimePatchScheduler", () => {
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     scheduler.scheduleRoomActivity();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+    await scheduler.dispose();
+  });
+
+  it("scheduleMessageLinked invalidates without waiting for debounce", async () => {
+    const { patchChatMessageLinked } = await import("../chat/realtime-cache");
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    scheduler.scheduleMessageLinked("room1", "m1");
+    expect(patchChatMessageLinked).toHaveBeenCalledWith(qc, "ws1", "room1", "m1");
     await scheduler.dispose();
   });
 

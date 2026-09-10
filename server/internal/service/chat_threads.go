@@ -241,6 +241,21 @@ func (s *ChatService) SendThreadReply(
 		}
 	}
 	_ = q.TouchChatRoomUpdatedAt(ctx, room.ID)
+
+	if link, err := q.GetChatThreadTaskLinkByThread(ctx, threadRootID); err == nil {
+		if err := auditRecorder.Emit(ctx, q, Human(userID), audit.Event{
+			Topic: "chat.thread.reply_linked", Version: 1,
+			OrganizationID: orgID, WorkspaceID: anchorWS,
+			Payload: map[string]string{
+				"thread_root_id": threadRootID, "message_id": msg.ID, "task_id": link.TaskID,
+			},
+		}); err != nil {
+			return ChatMessageRow{}, err
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return ChatMessageRow{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return ChatMessageRow{}, err
 	}
