@@ -93,9 +93,16 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 // drop its cache the way the flag.updated consumer does in production.
 var testFlagOverrides *featureflags.DBProvider
 
+// testPool is the pool of the last newTestDeps. testutil.DB takes a
+// session-level advisory lock for the life of the test, so a helper that
+// opens a second pool inside the same test waits on its own lock forever;
+// helpers that need SQL after the server is up read this instead.
+var testPool *pgxpool.Pool
+
 func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps, *pgxpool.Pool) {
 	t.Helper()
 	pool := testutil.DB(t)
+	testPool = pool
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	orgs := service.NewOrganizationService(pool, q)

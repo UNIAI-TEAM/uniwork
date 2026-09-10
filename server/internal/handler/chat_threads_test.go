@@ -6,15 +6,21 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
-	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// enableChatWorkHubFlag flips chat_work_hub on through the fixture's own pool.
+// It must run AFTER setupChatFixture: a fresh testutil.DB here would block on
+// the advisory lock that pool already holds (CI's handler shard sat at
+// TestChatThreadHTTP until its 30-minute timeout) and would truncate the
+// fixture's rows besides.
 func enableChatWorkHubFlag(t *testing.T) {
 	t.Helper()
-	pool := testutil.DB(t)
-	q := db.New(pool)
+	if testPool == nil {
+		t.Fatal("enableChatWorkHubFlag: call setupChatFixture first")
+	}
+	q := db.New(testPool)
 	if _, err := q.UpsertFlagOverride(context.Background(), db.UpsertFlagOverrideParams{
 		ID:        util.NewID(),
 		FlagKey:   "chat_work_hub",
