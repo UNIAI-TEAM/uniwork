@@ -11,6 +11,7 @@ import { useDepartments, usePeople } from "@uniwork/core/people";
 import { usePeopleViewStore } from "@uniwork/core/people/view-store";
 import type { PeopleFilters } from "@uniwork/core/types/people";
 import { CollectionPageHeader, CollectionPageHeaderLinkAction, CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { PeopleCards } from "./people-cards";
 import { PeopleCardsSkeleton, PeopleRowsSkeleton } from "./people-skeleton";
@@ -80,6 +81,7 @@ export function PeopleView() {
     <div className="flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
         icon={Users}
+        tone={moduleTone("people")}
         title={t("people.title")}
         count={totalActive}
         actions={
@@ -132,6 +134,7 @@ export function PeopleView() {
       ) : people.length === 0 ? (
         <CollectionPageState
           icon={Users}
+          tone={moduleTone("people")}
           title={filtered ? t("people.empty_filtered_title") : t("people.empty_title")}
           description={filtered ? t("people.empty_filtered_description") : t("people.empty_description")}
         />

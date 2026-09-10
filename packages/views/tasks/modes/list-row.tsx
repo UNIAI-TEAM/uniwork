@@ -7,21 +7,15 @@ import {
   type AnimateLayoutChanges,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, Flag, FolderKanban, ListChecks } from "lucide-react";
+import { CalendarDays, FolderKanban, ListChecks } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import type { Task } from "@uniwork/core/types";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { BoardCardMeta } from "./board-card";
+import { PriorityFlag, StatusIcon } from "./status-pill";
 import { useTaskSurfaceSelectionOptional } from "../surface/selection-context";
-
-const priorityClass: Record<Task["priority"], string> = {
-  low: "text-muted-foreground",
-  medium: "text-info",
-  high: "text-warning",
-  urgent: "text-destructive",
-};
 
 function actorInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase() || "?";
@@ -79,13 +73,9 @@ function TaskListRowContent({
     >
       <div className="relative flex size-4 shrink-0 items-center justify-center">
         {cardProperties.priority ? (
-          <Flag
-            className={cn(
-              "size-3.5 group-hover/row:hidden",
-              priorityClass[task.priority],
-              selected && "hidden",
-            )}
-            aria-label={t(`tasks.priority_${task.priority}`)}
+          <PriorityFlag
+            priority={task.priority}
+            className={cn("group-hover/row:hidden", selected && "hidden")}
           />
         ) : null}
         <input
@@ -113,6 +103,7 @@ function TaskListRowContent({
         >
           {task.identifier}
         </span>
+        <StatusIcon status={task.status} />
         <span className="min-w-0 flex-1 truncate text-foreground">
           {task.title}
         </span>

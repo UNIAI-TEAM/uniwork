@@ -38,6 +38,7 @@ import {
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { ProjectsListGrid } from "./projects-list-grid";
 import { ProjectsListTable } from "./projects-list-table";
@@ -344,6 +345,7 @@ export function ProjectsListPage({
     <div className="relative flex min-h-0 flex-1 flex-col">
       <CollectionPageHeader
         icon={FolderKanban}
+        tone={moduleTone("projects")}
         title={t("projects.page.title")}
         count={projects.length}
         actions={
@@ -358,6 +360,7 @@ export function ProjectsListPage({
       {showEmpty ? (
         <CollectionPageState
           icon={FolderKanban}
+          tone={moduleTone("projects")}
           title={t("projects.page.empty")}
           actions={
             <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>

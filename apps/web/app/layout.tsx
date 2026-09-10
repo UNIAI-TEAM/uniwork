@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 // Before `metadata` is evaluated: it reads the public origin from the runtime
 // config, and this module is the only place that config is populated.
@@ -9,11 +9,18 @@ import { resolveRequestLocale } from "../platform/locale-server";
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-inter", display: "swap" });
-// Serif biên tập cho headline onboarding; cần italic cho <em> trong h1.
-const sourceSerif = Source_Serif_4({
+// Ba họ chữ theo hệ ClickUp (tokens.css): Plus Jakarta Sans cho tiêu đề — cần
+// italic cho <em> trong h1 onboarding; JetBrains Mono cho nhãn phân loại
+// (Sometype Mono của ClickUp không có subset tiếng Việt).
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin", "vietnamese"],
   style: ["normal", "italic"],
-  variable: "--font-source-serif",
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin", "vietnamese"],
+  variable: "--font-jetbrains-mono",
   display: "swap",
 });
 
@@ -48,8 +55,8 @@ function siteOrigin(): URL {
  */
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
-    { media: "(prefers-color-scheme: dark)", color: "#111113" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f9fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#111111" },
   ],
 };
 
@@ -79,7 +86,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const initialDictionary =
     locale === "en" ? (await import("@uniwork/core/i18n/locales/en.json")).default : undefined;
   return (
-    <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${sourceSerif.variable}`}>
+    <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans">
         <Providers initialLocale={locale} initialDictionary={initialDictionary}>
           {children}

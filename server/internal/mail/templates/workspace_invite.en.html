@@ -1,10 +1,10 @@
 {{define "preheader"}}{{.Data.InviterName}} invited you to {{.Data.WorkspaceName}} · expires in {{expires .Data.Expires .Locale}}{{end}}
 {{define "content"}}
-<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#18181b">You're invited to {{.Data.WorkspaceName}}</h1></td></tr>
-<tr><td style="padding-bottom:24px;font-size:15px;line-height:24px;color:#52525b"><strong style="color:#18181b;font-weight:600">{{.Data.InviterName}}</strong> invited you to collaborate in the <strong style="color:#18181b;font-weight:600">{{.Data.WorkspaceName}}</strong> workspace on UniWork.</td></tr>
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">You're invited to {{.Data.WorkspaceName}}</h1></td></tr>
+<tr><td style="padding-bottom:24px;font-size:15px;line-height:24px;color:#646464"><strong style="color:#202020;font-weight:600">{{.Data.InviterName}}</strong> invited you to collaborate in the <strong style="color:#202020;font-weight:600">{{.Data.WorkspaceName}}</strong> workspace on UniWork.</td></tr>
 <tr><td style="padding-bottom:24px">{{button .Data.AcceptURL "Accept invitation"}}</td></tr>
-<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#52525b">The invitation expires in <strong style="color:#18181b;font-weight:600">{{expires .Data.Expires .Locale}}</strong>. Sign in or create an account with this email address to join.</td></tr>
-<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;padding-bottom:16px;font-size:13px;line-height:20px;color:#52525b">Don't know the sender? You can ignore this email — nothing will change.</td></tr>
-<tr><td style="font-size:12px;line-height:18px;color:#71717a">Button not working? Copy this link into your browser:<br><a href="{{.Data.AcceptURL}}" style="display:inline-block;padding:8px 0;color:#52525b;text-decoration:underline;word-break:break-all">{{.Data.AcceptURL}}</a></td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">The invitation expires in <strong style="color:#202020;font-weight:600">{{expires .Data.Expires .Locale}}</strong>. Sign in or create an account with this email address to join.</td></tr>
+<tr><td style="border-top:1px solid #cfcfcf;padding-top:20px;padding-bottom:16px;font-size:13px;line-height:20px;color:#646464">Don't know the sender? You can ignore this email — nothing will change.</td></tr>
+<tr><td style="font-size:12px;line-height:18px;color:#71717a">Button not working? Copy this link into your browser:<br><a href="{{.Data.AcceptURL}}" style="display:inline-block;padding:8px 0;color:#646464;text-decoration:underline;word-break:break-all">{{.Data.AcceptURL}}</a></td></tr>
 {{end}}
 {{define "footer"}}You received this email because a UniWork member invited you.{{end}}

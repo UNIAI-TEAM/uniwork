@@ -2,127 +2,191 @@
    any subtree, e.g. the onboarding rail). Views never hardcode a colour —
    they use the semantic slots below through their Tailwind aliases.
 
+   Source of the palette (2026-09-10): the ClickUp marketing system — ink-black
+   CTAs, violet #7612FA as the single brand signal, white cards on a #F8F9FA
+   canvas with thin grey borders, Plus Jakarta Sans headings over Inter copy.
+   ClickUp publishes light values only; every dark value here is derived from
+   its deep-panel (#1E1E1E) and dark-footer (#111111) greys and measured.
+
    Every themed slot is declared in BOTH `:root` and `.dark`. Custom
    properties are computed and then inherited, so a slot missing from `.dark`
    silently carries its light value into every dark subtree; the token
    contract test (tokens.test.ts) fails when the two blocks drift. */
 :root {
-  /* Shell and canvas. */
-  --app-shell: #f4f4f5;
-  --page-canvas: #fafafa;
-  --background: #fafafa;
-  --foreground: #18181b;
+  /* Shell and canvas. ClickUp: canvas white for cards, surface #F8F9FA for
+     bands, surfaceAlt #F1F1F9 for utility panels. The app maps those to
+     card → page → shell so the sidebar sits one step below the content. */
+  --app-shell: #f1f1f9;
+  --page-canvas: #f8f9fa;
+  --background: #f8f9fa;
+  --foreground: #202020;
 
   --surface: #ffffff;
-  --surface-foreground: #18181b;
+  --surface-foreground: #202020;
   --surface-raised: #ffffff;
-  --surface-hover: #f4f4f5;
-  --surface-selected: #ecf3ff;
-  --surface-selected-foreground: #18181b;
-  --surface-border: #e4e4e7;
+  --surface-hover: #f1f1f9;
+  --surface-selected: #efedfd;
+  --surface-selected-foreground: #202020;
+  --surface-border: #cfcfcf;
 
   --card: #ffffff;
-  --card-foreground: #18181b;
+  --card-foreground: #202020;
   --popover: #ffffff;
-  --popover-foreground: #18181b;
+  --popover-foreground: #202020;
 
   /* shadcn's "primary" is the high-contrast neutral used by solid buttons,
-     not the brand hue. Brand keeps its own slot. */
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #52525b;
+     not the brand hue. ClickUp's conversion CTA is this same ink black, so
+     the two systems agree here. Brand keeps its own slot. */
+  --primary: #202020;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1f9;
+  --secondary-foreground: #202020;
+  --accent: #f1f1f9;
+  --accent-foreground: #202020;
+  --muted: #f1f1f9;
+  --muted-foreground: #646464;
   /* Non-text marks only (chevrons, separators, empty-state glyphs): clears
-     the 3:1 floor of WCAG 1.4.11 but not the 4.5:1 text floor. */
-  --faint-foreground: #6d6d76;
+     the 3:1 floor of WCAG 1.4.11 (3.28 background / 3.45 surface / 3.07
+     muted) but not the 4.5:1 text floor. */
+  --faint-foreground: #8a8a8a;
 
   /* Colour is a signal, not decoration. The signal slots double as text
-     colours, so they hold the ≥ 4.5:1 text-safe value on every light surface
-     (success 4.6:1, warning 4.6:1). --destructive is measured one step
-     further: the pattern it is actually used in is `text-destructive` on
-     `bg-destructive/10`, with `/20` as the hover of the destructive button,
-     and #dc2626 fell to 3.94:1 there — passing on white, failing everywhere
-     it ships. #ad1a1a holds 4.5:1 on its own /10 and /20 tint over
-     background, surface and muted; e2e/admin-contrast.spec.ts measures it on
-     the suspended banner. */
-  /* The mark's own deep blue, flattened and lightened until it clears the
-     4.5:1 text floor: hue 262 against the logo gradient's 263. The previous
-     #2f5aff sat at hue 266 and measured 5.00 on --background; this reads 5.25
-     on the same surface, so the realignment costs no contrast. */
-  --brand: #0b5bf5;
+     colours, so they hold the ≥ 4.5:1 text-safe value on every light surface.
+     ClickUp's raw success (#30A46C, 3.16:1), warning (#FFC53D, 1.58:1),
+     error (#E5484D, 3.91:1) and link (#0091FF, 3.23:1) are fill colours and
+     fail as text, so each slot is that hue darkened until it clears:
+     success 5.44 / warning 5.84 / info 5.14 on --muted, the tightest surface.
+     --destructive is measured one step further: the pattern it is actually
+     used in is `text-destructive` on `bg-destructive/10`, with `/20` as the
+     hover of the destructive button, and it must hold 4.5:1 on its own /20
+     tint over background, surface and muted — #ad1a1a reads 4.50 there;
+     e2e/admin-contrast.spec.ts measures it on the suspended banner. */
+  /* ClickUp's accent, used verbatim: 6.15 on --background, 6.49 on --surface,
+     5.77 on --muted, and still 4.89 on its own /10 tint over muted. */
+  --brand: #7612fa;
   --brand-foreground: #ffffff;
   --destructive: #ad1a1a;
-  --success: #15803d;
-  --warning: #a1580a;
-  --info: #0b5bf5;
+  --success: #137046;
+  --warning: #8a4f04;
+  --info: #0a66bc;
 
-  /* --border is the quiet divider (1.27:1 — separators and card edges only).
-     --input outlines EVERY control (inputs, choice chips, step dots) and must
-     clear WCAG 1.4.11's 3:1 on every surface it sits on: measured 3.41 on
-     background, 3.56 on surface, 3.24 on muted. */
-  --border: #e4e4e7;
+  /* --border is the quiet divider (1.56:1 on surface — separators and card
+     edges only; ClickUp's own #CFCFCF). --input outlines EVERY control
+     (inputs, choice chips, step dots) and must clear WCAG 1.4.11's 3:1 on
+     every surface it sits on: 3.38 on background, 3.56 on surface, 3.17 on
+     muted. ClickUp's borderStrong (#B4B4B4) is 2.07 and cannot take that job. */
+  --border: #cfcfcf;
   --input: #87878f;
-  --ring: #0b5bf5;
-  --radius: 0.625rem;
+  --ring: #7612fa;
+  /* Base of the radius ramp; the explicit stops live in @theme below. */
+  --radius: 12px;
 
   /* Browser-drawn surfaces (selection, caret, scrollbar) read these so every
-     pixel belongs to the palette. */
-  --selection: #d3e3ff;
-  --selection-foreground: #18181b;
+     pixel belongs to the palette. Selection is ClickUp's pale-purple. */
+  --selection: #efedfd;
+  --selection-foreground: #202020;
 
   /* The onboarding rail is a dark panel in BOTH themes, so it is defined once
-     here and not restated in .dark. Lifted above the dark --background so the
-     rail still separates from the page when the whole app is dark. */
-  --rail: #1b1b1f;
+     here and not restated in .dark. ClickUp's deep-panel grey; lifted above
+     the dark --background so the rail still separates from the page when the
+     whole app is dark. */
+  --rail: #1e1e1e;
 
-  --sidebar: #f4f4f5;
-  --sidebar-foreground: #18181b;
-  --sidebar-primary: #0b5bf5;
+  --sidebar: #f1f1f9;
+  --sidebar-foreground: #202020;
+  --sidebar-primary: #7612fa;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ebebec;
-  --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #0b5bf5;
+  --sidebar-accent: #e9e9f6;
+  --sidebar-accent-foreground: #202020;
+  --sidebar-border: #cfcfcf;
+  --sidebar-ring: #7612fa;
 
-  /* Chart ramp: chart-1 is the brand hue so the leading series anchors to
-     the product colour; 2..5 step lighter and less saturated so a stacked bar
-     reads as a hierarchy instead of five equally loud greys. */
-  --chart-1: oklch(0.55 0.16 262);
-  --chart-2: oklch(0.66 0.13 262);
-  --chart-3: oklch(0.76 0.10 262);
-  --chart-4: oklch(0.85 0.06 262);
-  --chart-5: oklch(0.92 0.03 262);
+  /* Chart ramp: chart-1 is the brand hue (oklch 295 ≈ #7612FA) so the leading
+     series anchors to the product colour; 2..5 step lighter and less
+     saturated so a stacked bar reads as a hierarchy instead of five equally
+     loud greys. */
+  --chart-1: oklch(0.52 0.24 295);
+  --chart-2: oklch(0.64 0.18 295);
+  --chart-3: oklch(0.75 0.12 295);
+  --chart-4: oklch(0.85 0.07 295);
+  --chart-5: oklch(0.92 0.03 295);
 
-  /* Chat sender names: distinct hues, text-safe on --surface / --muted. */
-  --chat-sender-1: oklch(0.48 0.14 262);
+  /* Chat sender names: distinct hues, text-safe on --surface / --muted.
+     Sender 1 sits on the brand hue; the old slot at 290 moved to 262 so no
+     two senders share the violet band. */
+  --chat-sender-1: oklch(0.48 0.18 295);
   --chat-sender-2: oklch(0.48 0.14 330);
   --chat-sender-3: oklch(0.45 0.12 145);
   --chat-sender-4: oklch(0.50 0.13 55);
   --chat-sender-5: oklch(0.46 0.12 200);
-  --chat-sender-6: oklch(0.48 0.14 290);
+  --chat-sender-6: oklch(0.48 0.14 262);
   --chat-sender-7: oklch(0.48 0.14 25);
   --chat-sender-8: oklch(0.45 0.11 170);
 
-  --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 1px rgb(15 23 42 / 0.03);
-  --menu-shadow: 0 8px 24px rgb(15 23 42 / 0.08), 0 2px 6px rgb(15 23 42 / 0.05);
-  --floating-shadow: 0 16px 40px rgb(15 23 42 / 0.14), 0 3px 10px rgb(15 23 42 / 0.08);
+  /* ClickUp elevation: borders do the work, shadows stay tiny. feature-card
+     for surfaces, hero-card + a 1px hairline for menus, the agent-card
+     blue-tinted lift for floating layers. */
+  /* Module tints — the second colour family, kept apart from the signal
+     slots above. A tint IDENTIFIES a module (tasks green, meetings violet,
+     chat blue…); a signal REPORTS state. Each pair is a pale fill and the
+     saturated glyph/text colour that reads on it: violet 5.62, blue 5.02,
+     pink 5.64, orange 5.30, green 5.51, yellow 5.70, teal 5.38 — text-safe
+     on the fill and, being darker still, on every light surface. Fills are
+     ClickUp's pale-purple / pale-pink / pale-orange plus the same recipe
+     for the hues ClickUp only ships saturated. */
+  --tint-violet: #efedfd;
+  --tint-violet-foreground: #7612fa;
+  --tint-blue: #e6f0ff;
+  --tint-blue-foreground: #0a66bc;
+  --tint-pink: #fff1fe;
+  --tint-pink-foreground: #b8107f;
+  --tint-orange: #ffece5;
+  --tint-orange-foreground: #a84300;
+  --tint-green: #e6f7ee;
+  --tint-green-foreground: #137046;
+  --tint-yellow: #fff6d6;
+  --tint-yellow-foreground: #8f5300;
+  --tint-teal: #e0f5f2;
+  --tint-teal-foreground: #0d6e66;
+  --tint-gray: #eeeeef;
+  --tint-gray-foreground: #5c5c5c;
+  --tint-red: #fdecec;
+  --tint-red-foreground: #ad1a1a;
+  /* Solid tints: the saturated fill under a WHITE glyph or label — nav
+     tiles, status pills, count badges. Every value holds ≥ 4.5:1 against
+     white (violet 6.49, blue 5.49, pink 5.11, orange 4.82, green 4.85,
+     yellow 4.68, teal 6.11, gray 4.83, red 5.33) so pill text passes as
+     text, not just as a graphic. */
+  /* The one colour that sits ON a solid tint. Constant on purpose — every
+     solid above is measured against it — but a token, so the contract
+     test and the palette lint see it. */
+  --on-solid: #ffffff;
+  --tint-violet-solid: #7612fa;
+  --tint-blue-solid: #0d66d0;
+  --tint-pink-solid: #cc1694;
+  --tint-orange-solid: #c24d00;
+  --tint-green-solid: #16824b;
+  --tint-yellow-solid: #a86400;
+  --tint-teal-solid: #0d6e66;
+  --tint-gray-solid: #6b7280;
+  --tint-red-solid: #cc2a2f;
+
+  --surface-shadow: 0 1px 3px rgb(0 0 0 / 0.10);
+  --menu-shadow: 0 4px 10px rgb(13 21 48 / 0.08), 0 0 1px rgb(0 0 0 / 0.27);
+  --floating-shadow: 0 10px 25px rgb(18 43 165 / 0.10), 0 0 1px rgb(0 0 0 / 0.27);
 
   /* Meeting room — video rail overlay, dark control bar, tile labels. Used
      inside the forced-dark video subtree; values are dark-surface oriented in
      both themes so the in-room chrome stays consistent. */
-  --meeting-rail-overlay-from: rgb(27 27 31 / 0.85);
-  --meeting-rail-overlay-to: rgb(27 27 31 / 0);
-  --meeting-bar-bg: rgb(27 27 31 / 0.92);
+  --meeting-rail-overlay-from: rgb(30 30 30 / 0.85);
+  --meeting-rail-overlay-to: rgb(30 30 30 / 0);
+  --meeting-bar-bg: rgb(30 30 30 / 0.92);
   --meeting-bar-border: rgb(255 255 255 / 0.12);
-  --meeting-bar-foreground: #f4f4f5;
+  --meeting-bar-foreground: #f8f9fa;
   --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
-  --meeting-tile-name-foreground: #fafafa;
+  --meeting-tile-name-foreground: #f8f9fa;
 
   /* Meeting lobby — ambient canvas behind prejoin / waiting screens. */
   --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 16%, transparent);
@@ -133,90 +197,129 @@
 }
 
 .dark {
-  --app-shell: #232326;
-  --page-canvas: #111113;
-  --background: #111113;
-  --foreground: #f4f4f5;
+  /* dark-footer #111111 as the page, one step up for cards, deep-panel
+     #1E1E1E for the shell — the same card → page → shell order as light,
+     mirrored. */
+  --app-shell: #1e1e1e;
+  --page-canvas: #111111;
+  --background: #111111;
+  --foreground: #f8f9fa;
 
-  --surface: #18181b;
-  --surface-foreground: #f4f4f5;
-  --surface-raised: #18181b;
-  --surface-hover: #232326;
-  --surface-selected: #162440;
-  --surface-selected-foreground: #f4f4f5;
-  --surface-border: #2a2a2e;
+  --surface: #181818;
+  --surface-foreground: #f8f9fa;
+  --surface-raised: #181818;
+  --surface-hover: #262626;
+  --surface-selected: #2a1f4a;
+  --surface-selected-foreground: #f8f9fa;
+  --surface-border: #2e2e2e;
 
-  --card: #18181b;
-  --card-foreground: #f4f4f5;
-  --popover: #18181b;
-  --popover-foreground: #f4f4f5;
+  --card: #181818;
+  --card-foreground: #f8f9fa;
+  --popover: #181818;
+  --popover-foreground: #f8f9fa;
 
-  --primary: #f4f4f5;
-  --primary-foreground: #18181b;
-  --secondary: #232326;
-  --secondary-foreground: #f4f4f5;
-  --accent: #232326;
-  --accent-foreground: #f4f4f5;
-  --muted: #232326;
+  --primary: #f8f9fa;
+  --primary-foreground: #202020;
+  --secondary: #262626;
+  --secondary-foreground: #f8f9fa;
+  --accent: #262626;
+  --accent-foreground: #f8f9fa;
+  --muted: #262626;
   --muted-foreground: #a1a1aa;
   --faint-foreground: #8b8b95;
 
-  /* Hue 261 against light's 262. The old pair drifted 4 degrees (266 light /
-     270 dark), which shows as a hue shift when the theme is toggled beside a
-     brand-coloured control. 5.90 on --background, up from 5.66. */
-  --brand: #4d8dff;
-  --brand-foreground: #0d1220;
+  /* ClickUp's product-violet-soft, the light tint of the same hue: 7.29 on
+     --background, 6.86 on --surface, 5.85 on --muted, 6.44 on --rail. The
+     foreground is a near-black violet (7.51 on the brand fill). */
+  --brand: #b38cff;
+  --brand-foreground: #0d0a1f;
   --destructive: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
-  --info: #4d8dff;
+  --info: #5db4ff;
 
-  --border: #2a2a2e;
-  /* Dark: 3.68 background / 3.46 surface / 3.06 muted / 3.35 rail. The old
-     #6b6b74 fell to 2.97 on `muted` — the slug pill's background. */
-  --input: #6d6d76;
-  --ring: #4d8dff;
+  --border: #2e2e2e;
+  /* 4.45 background / 4.18 surface / 3.56 muted / 3.93 rail. The old #6d6d76
+     fell to 2.95 on the new, lighter `muted`. */
+  --input: #7a7a84;
+  --ring: #b38cff;
 
-  --selection: #213d72;
-  --selection-foreground: #f4f4f5;
+  --selection: #2a1f4a;
+  --selection-foreground: #f8f9fa;
 
-  --sidebar: #232326;
-  --sidebar-foreground: #f4f4f5;
-  --sidebar-primary: #4d8dff;
-  --sidebar-primary-foreground: #0d1220;
-  --sidebar-accent: #18181b;
-  --sidebar-accent-foreground: #f4f4f5;
-  --sidebar-border: #2a2a2e;
-  --sidebar-ring: #4d8dff;
+  --sidebar: #1e1e1e;
+  --sidebar-foreground: #f8f9fa;
+  --sidebar-primary: #b38cff;
+  --sidebar-primary-foreground: #0d0a1f;
+  --sidebar-accent: #181818;
+  --sidebar-accent-foreground: #f8f9fa;
+  --sidebar-border: #2e2e2e;
+  --sidebar-ring: #b38cff;
 
-  --chart-1: oklch(0.62 0.16 262);
-  --chart-2: oklch(0.70 0.13 262);
-  --chart-3: oklch(0.78 0.10 262);
-  --chart-4: oklch(0.85 0.06 262);
-  --chart-5: oklch(0.91 0.03 262);
+  --chart-1: oklch(0.72 0.17 295);
+  --chart-2: oklch(0.78 0.13 295);
+  --chart-3: oklch(0.84 0.09 295);
+  --chart-4: oklch(0.89 0.05 295);
+  --chart-5: oklch(0.93 0.02 295);
 
-  --chat-sender-1: oklch(0.74 0.14 262);
+  --chat-sender-1: oklch(0.78 0.14 295);
   --chat-sender-2: oklch(0.74 0.14 330);
   --chat-sender-3: oklch(0.76 0.12 145);
   --chat-sender-4: oklch(0.78 0.13 55);
   --chat-sender-5: oklch(0.76 0.12 200);
-  --chat-sender-6: oklch(0.74 0.14 290);
+  --chat-sender-6: oklch(0.74 0.14 262);
   --chat-sender-7: oklch(0.76 0.14 25);
   --chat-sender-8: oklch(0.76 0.11 170);
 
-  --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 1px 1px rgb(0 0 0 / 0.16);
-  --menu-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.25);
-  --floating-shadow: 0 16px 40px rgb(0 0 0 / 0.5), 0 3px 10px rgb(0 0 0 / 0.35);
+  /* Dark tints: the hue mixed into the surface grey, glyph lifted to the
+     light-theme signal weight. violet 5.82, blue 6.79, pink 6.47, orange
+     7.18, green 8.16, yellow 7.89, teal 7.46 on their fills. */
+  --tint-violet: #2a1f4a;
+  --tint-violet-foreground: #b38cff;
+  --tint-blue: #182640;
+  --tint-blue-foreground: #5db4ff;
+  --tint-pink: #3d1a35;
+  --tint-pink-foreground: #ff7ad9;
+  --tint-orange: #3d2416;
+  --tint-orange-foreground: #ffa06b;
+  --tint-green: #16301f;
+  --tint-green-foreground: #4ade80;
+  --tint-yellow: #3a2f10;
+  --tint-yellow-foreground: #fbbf24;
+  --tint-teal: #123430;
+  --tint-teal-foreground: #3fd6c5;
+  --tint-gray: #262626;
+  --tint-gray-foreground: #a1a1aa;
+  --tint-red: #3d1a1a;
+  --tint-red-foreground: #f87171;
+  /* Solids keep their light values (the white glyph is the same contrast
+     either side) except violet: #7612fa sits at 2.91 on #111111 and the
+     tile would sink into the page, so dark lifts it to #7f3ffa (3.59 on the
+     page, 5.26 under white). The rest clear 3:1 on #111111 already. */
+  --on-solid: #ffffff;
+  --tint-violet-solid: #7f3ffa;
+  --tint-blue-solid: #0d66d0;
+  --tint-pink-solid: #cc1694;
+  --tint-orange-solid: #c24d00;
+  --tint-green-solid: #16824b;
+  --tint-yellow-solid: #a86400;
+  --tint-teal-solid: #0d6e66;
+  --tint-gray-solid: #6b7280;
+  --tint-red-solid: #cc2a2f;
 
-  --meeting-rail-overlay-from: rgb(17 17 19 / 0.9);
-  --meeting-rail-overlay-to: rgb(17 17 19 / 0);
-  --meeting-bar-bg: rgb(17 17 19 / 0.92);
+  --surface-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  --menu-shadow: 0 4px 10px rgb(0 0 0 / 0.4), 0 0 1px rgb(255 255 255 / 0.12);
+  --floating-shadow: 0 10px 25px rgb(0 0 0 / 0.5), 0 0 1px rgb(255 255 255 / 0.12);
+
+  --meeting-rail-overlay-from: rgb(17 17 17 / 0.9);
+  --meeting-rail-overlay-to: rgb(17 17 17 / 0);
+  --meeting-bar-bg: rgb(17 17 17 / 0.92);
   --meeting-bar-border: rgb(255 255 255 / 0.12);
-  --meeting-bar-foreground: #f4f4f5;
+  --meeting-bar-foreground: #f8f9fa;
   --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
-  --meeting-tile-name-foreground: #fafafa;
+  --meeting-tile-name-foreground: #f8f9fa;
 
   --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 22%, transparent);
   --meeting-lobby-glow-b: color-mix(in srgb, var(--chart-2) 14%, transparent);
@@ -287,6 +390,34 @@
   --color-chat-sender-6: var(--chat-sender-6);
   --color-chat-sender-7: var(--chat-sender-7);
   --color-chat-sender-8: var(--chat-sender-8);
+  --color-tint-violet: var(--tint-violet);
+  --color-tint-violet-foreground: var(--tint-violet-foreground);
+  --color-tint-blue: var(--tint-blue);
+  --color-tint-blue-foreground: var(--tint-blue-foreground);
+  --color-tint-pink: var(--tint-pink);
+  --color-tint-pink-foreground: var(--tint-pink-foreground);
+  --color-tint-orange: var(--tint-orange);
+  --color-tint-orange-foreground: var(--tint-orange-foreground);
+  --color-tint-green: var(--tint-green);
+  --color-tint-green-foreground: var(--tint-green-foreground);
+  --color-tint-yellow: var(--tint-yellow);
+  --color-tint-yellow-foreground: var(--tint-yellow-foreground);
+  --color-tint-teal: var(--tint-teal);
+  --color-tint-teal-foreground: var(--tint-teal-foreground);
+  --color-tint-gray: var(--tint-gray);
+  --color-tint-gray-foreground: var(--tint-gray-foreground);
+  --color-tint-red: var(--tint-red);
+  --color-tint-red-foreground: var(--tint-red-foreground);
+  --color-on-solid: var(--on-solid);
+  --color-tint-violet-solid: var(--tint-violet-solid);
+  --color-tint-blue-solid: var(--tint-blue-solid);
+  --color-tint-pink-solid: var(--tint-pink-solid);
+  --color-tint-orange-solid: var(--tint-orange-solid);
+  --color-tint-green-solid: var(--tint-green-solid);
+  --color-tint-yellow-solid: var(--tint-yellow-solid);
+  --color-tint-teal-solid: var(--tint-teal-solid);
+  --color-tint-gray-solid: var(--tint-gray-solid);
+  --color-tint-red-solid: var(--tint-red-solid);
   --color-meeting-bar-bg: var(--meeting-bar-bg);
   --color-meeting-bar-border: var(--meeting-bar-border);
   --color-meeting-bar-foreground: var(--meeting-bar-foreground);
@@ -294,28 +425,53 @@
   --color-meeting-bar-chip-hover: var(--meeting-bar-chip-hover);
   --color-meeting-tile-name-bg: var(--meeting-tile-name-bg);
   --color-meeting-tile-name-foreground: var(--meeting-tile-name-foreground);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
+  /* ClickUp radius ramp, explicit per step: chips and inputs 6–8, cards 12–14,
+     panels 20, section media 32. Pill stays Tailwind's rounded-full. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+  --radius-3xl: 32px;
+  /* Three families. Plus Jakarta Sans for headings (bound to the title /
+     display / hero utilities below), Inter for copy and controls, JetBrains
+     Mono for taxonomy labels — Sometype Mono, ClickUp's own, ships no
+     Vietnamese subset on Google Fonts and would drop every diacritic into
+     the fallback face. */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: var(--font-plus-jakarta), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Role-named scale. Sizes keep the app's 14px density; leading and tracking
+     follow ClickUp's ratios — body copy loose and untracked, headings tighter
+     the larger they get (-0.02em at title, -0.035em at hero). */
   --text-micro: 11px;      --text-micro--line-height: 15px;
   --text-caption: 12px;    --text-caption--line-height: 16px;
   --text-label: 13px;      --text-label--line-height: 18px;
   --text-body: 14px;       --text-body--line-height: 20px;
   --text-body-lg: 15px;    --text-body-lg--line-height: 22px;
-  --text-title-sm: 16px;   --text-title-sm--line-height: 24px;
-  --text-title: 18px;      --text-title--line-height: 28px;
-  --text-title-lg: 20px;   --text-title-lg--line-height: 28px;
-  --text-display-sm: 24px; --text-display-sm--line-height: 32px;
-  --text-display: 36px;    --text-display--line-height: 40px;
-  /* Hero roles (screen-leading headlines only). Leading and tracking travel
-     with the size — larger type needs tighter leading and more negative
-     tracking — so they live in the token instead of being paired by hand. */
-  --text-hero-sm: 36px;    --text-hero-sm--line-height: 38px;  --text-hero-sm--letter-spacing: -0.02em;
-  --text-hero: 48px;       --text-hero--line-height: 50px;     --text-hero--letter-spacing: -0.025em;
-  --text-hero-lg: 60px;    --text-hero-lg--line-height: 62px;  --text-hero-lg--letter-spacing: -0.03em;
+  --text-title-sm: 16px;   --text-title-sm--line-height: 22px;  --text-title-sm--letter-spacing: -0.015em;
+  --text-title: 18px;      --text-title--line-height: 24px;     --text-title--letter-spacing: -0.02em;
+  --text-title-lg: 20px;   --text-title-lg--line-height: 26px;  --text-title-lg--letter-spacing: -0.02em;
+  --text-display-sm: 24px; --text-display-sm--line-height: 30px; --text-display-sm--letter-spacing: -0.025em;
+  --text-display: 36px;    --text-display--line-height: 40px;   --text-display--letter-spacing: -0.03em;
+  /* Hero roles (screen-leading headlines only). ClickUp's 1.1 leading and
+     -0.035em tracking at every step; the size still drops one step on
+     mobile in the view. */
+  --text-hero-sm: 36px;    --text-hero-sm--line-height: 40px;  --text-hero-sm--letter-spacing: -0.035em;
+  --text-hero: 48px;       --text-hero--line-height: 53px;     --text-hero--letter-spacing: -0.035em;
+  --text-hero-lg: 60px;    --text-hero-lg--line-height: 66px;  --text-hero-lg--letter-spacing: -0.035em;
+}
+
+/* Headings take the display family through the type utility itself, so the
+   57 existing call sites of text-title* / text-display* / text-hero* switch
+   without edits and a new one cannot forget. Family only: weight stays with
+   the view (font-medium / font-semibold) because it is set per role there.
+   Declared in the utilities layer so an explicit `font-sans` beside the
+   role class still wins by order. */
+@layer utilities {
+  .text-title-sm, .text-title, .text-title-lg,
+  .text-display-sm, .text-display,
+  .text-hero-sm, .text-hero, .text-hero-lg {
+    font-family: var(--font-display);
+  }
 }
