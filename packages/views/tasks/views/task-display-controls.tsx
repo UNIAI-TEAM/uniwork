@@ -244,16 +244,31 @@ export function TaskDisplayControls({
               {t("tasks.display.card_properties_section")}
             </p>
             {(
-              ["priority", "assignee", "dueDate", "labels"] as const
+              [
+                "priority",
+                "description",
+                "assignee",
+                "startDate",
+                "dueDate",
+                "project",
+                "childProgress",
+                "labels",
+              ] as const
             ).map((key) => (
               <label
                 key={key}
-                className="flex items-center justify-between gap-2 text-body"
+                className="flex items-center justify-between gap-2 text-body has-disabled:cursor-not-allowed has-disabled:opacity-60"
+                title={
+                  key === "labels"
+                    ? t("tasks.display.labels_unavailable")
+                    : undefined
+                }
               >
                 <span>{t(`tasks.display.card_${key}`)}</span>
                 <input
                   type="checkbox"
                   checked={cardProperties[key]}
+                  disabled={key === "labels"}
                   onChange={() => toggleCardProperty(key)}
                 />
               </label>

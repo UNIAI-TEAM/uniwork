@@ -16,7 +16,10 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
-import { DraggableBoardCard } from "./board-card";
+import {
+  DraggableBoardCard,
+  type BoardCardMeta,
+} from "./board-card";
 import { statusColumnBg, STATUS_CONFIG } from "./status-config";
 
 export const BOARD_COL_WIDTH = 280;
@@ -40,6 +43,7 @@ export const BoardColumn = memo(function BoardColumn({
   group,
   taskIds,
   taskMap,
+  cardMeta,
   totalCount,
   footer,
   onCreateTask,
@@ -49,6 +53,7 @@ export const BoardColumn = memo(function BoardColumn({
   group: BoardColumnGroup;
   taskIds: string[];
   taskMap: Map<string, Task>;
+  cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   totalCount?: number;
   footer?: ReactNode;
   onCreateTask?: (defaults: { status?: string }) => void;
@@ -89,6 +94,7 @@ export const BoardColumn = memo(function BoardColumn({
     <div className={index === 0 ? undefined : "pt-2"}>
       <DraggableBoardCard
         task={task}
+        meta={cardMeta?.get(task.id)}
         onOpen={onOpenTask}
         disableSorting={!!sortLabel}
       />
