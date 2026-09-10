@@ -635,6 +635,9 @@
     "surface": {
       "mode_placeholder": "Kiểu hiển thị này chưa sẵn sàng.",
       "group_by_project": "Nhóm theo dự án",
+      "grouping_unavailable": "Nhóm theo dự án chưa khả dụng ở chế độ này.",
+      "more_actions": "Thêm thao tác",
+      "action_unavailable": "Thao tác này chưa được kết nối.",
       "empty_column": "Chưa có task",
       "hide_column": "Ẩn cột",
       "show_column": "Hiện cột",
@@ -737,6 +740,7 @@
     },
     "display": {
       "title": "Hiển thị",
+      "grouping_section": "Nhóm",
       "list_options": "Tùy chọn danh sách",
       "show_subtasks": "Hiện sub-task",
       "card_properties_section": "Trường trên thẻ",

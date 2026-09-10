@@ -7,11 +7,11 @@ export const STATUS_CONFIG: Record<
 > = {
   backlog: {
     iconColor: "text-muted-foreground",
-    columnBg: "bg-muted/40",
+    columnBg: "bg-muted/20",
   },
   todo: {
     iconColor: "text-muted-foreground",
-    columnBg: "bg-muted/40",
+    columnBg: "bg-muted/20",
   },
   in_progress: {
     iconColor: "text-warning",
@@ -31,10 +31,10 @@ export const STATUS_CONFIG: Record<
   },
   cancelled: {
     iconColor: "text-muted-foreground",
-    columnBg: "bg-muted/40",
+    columnBg: "bg-muted/20",
   },
 };
 
 export function statusColumnBg(status: string): string {
-  return STATUS_CONFIG[status as TaskStatus]?.columnBg ?? "bg-muted/40";
+  return STATUS_CONFIG[status as TaskStatus]?.columnBg ?? "bg-muted/20";
 }

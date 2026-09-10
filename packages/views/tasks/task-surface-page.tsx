@@ -4,6 +4,7 @@ import { SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { CollectionPageState } from "../layout/collection-page";
+import { PageHeader } from "../layout/page-header";
 import { TaskSurface } from "./surface/task-surface";
 import type { TaskSurfaceMode } from "./surface/types";
 
@@ -29,6 +30,11 @@ export function TaskSurfacePage({
 
   return (
     <div className="flex h-full flex-col">
+      <PageHeader>
+        <SquareCheckBig className="size-4 text-muted-foreground" aria-hidden />
+        <h1 className="text-body font-medium">{t("tasks.title")}</h1>
+      </PageHeader>
+
       <TaskSurface
         workspaceId={workspaceId}
         scope={WORKSPACE_SCOPE}

@@ -38,6 +38,9 @@ export function TasksHeader({
   isRefreshing = false,
   saveViewScope = { kind: "workspace" },
   lockProjectFilter = false,
+  showProjectGrouping = true,
+  projectGroupingDisabled = true,
+  projectGroupingReasonKey,
 }: {
   workspaceId: string;
   modes: TaskSurfaceMode[];
@@ -46,6 +49,9 @@ export function TasksHeader({
   saveViewScope?: SaveViewScope | null;
   /** When true, hide/lock project filter chips (server already scopes by project). */
   lockProjectFilter?: boolean;
+  showProjectGrouping?: boolean;
+  projectGroupingDisabled?: boolean;
+  projectGroupingReasonKey?: string;
 }) {
   const { t } = useTranslation();
   void scopedTasks;
@@ -104,10 +110,25 @@ export function TasksHeader({
     (s) => s.toggleAgentRunningFilter,
   );
   const agentAvailable = agentCapability.status === "available";
+  const saveLabel = activeView
+    ? isViewOwner
+      ? t("tasks.filters.chip_edit")
+      : t("tasks.filters.chip_save_as")
+    : t("tasks.filters.chip_save");
+
+  const openSaveView = () => {
+    setEditTarget(
+      activeView && isViewOwner
+        ? { view: activeView, fromDefinition: false }
+        : null,
+    );
+    setSaveViewOpen(true);
+  };
 
   return (
     <>
       <div
+        data-testid="tasks-toolbar"
         className={cn(
           "min-h-12 shrink-0 py-2 [-webkit-overflow-scrolling:touch]",
           PAGE_GUTTER,
@@ -173,6 +194,9 @@ export function TasksHeader({
             <TaskDisplayControls
               modes={modes}
               isRefreshing={isRefreshing}
+              showProjectGrouping={showProjectGrouping}
+              projectGroupingDisabled={projectGroupingDisabled}
+              projectGroupingReasonKey={projectGroupingReasonKey}
             />
           </div>
         </div>
@@ -180,25 +204,8 @@ export function TasksHeader({
 
       <FilterChipsBar
         lockProjectFilter={lockProjectFilter}
-        onSave={
-          saveViewScope
-            ? () => {
-                setEditTarget(
-                  activeView && isViewOwner
-                    ? { view: activeView, fromDefinition: false }
-                    : null,
-                );
-                setSaveViewOpen(true);
-              }
-            : undefined
-        }
-        saveLabel={
-          activeView
-            ? isViewOwner
-              ? t("tasks.filters.chip_edit")
-              : t("tasks.filters.chip_save_as")
-            : t("tasks.filters.chip_save")
-        }
+        onSave={saveViewScope ? openSaveView : undefined}
+        saveLabel={saveViewScope ? saveLabel : undefined}
       />
 
       {dialogScope ? (
