@@ -8,6 +8,8 @@ import type { SwimlaneGrouping } from "@uniwork/core/tasks/stores/view-store-typ
 export const COLUMN_WIDTH = 280;
 export const COLUMN_GAP = 16;
 export const SWIMLANE_LANE_SEED_COUNT = 6;
+/** Skip Virtuoso below this count — mirrors board/list thresholds and avoids jsdom sizing loops. */
+export const SWIMLANE_VIRTUALIZE_THRESHOLD = 12;
 const LANE_ID_PREFIX = "lane:";
 export const NONE_LANE_ID = "none";
 export const ORPHAN_LANE_ID = "__orphans__";
