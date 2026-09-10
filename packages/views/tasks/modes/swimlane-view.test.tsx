@@ -6,6 +6,7 @@ import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context
 import { TASK_STATUSES, type Task } from "@uniwork/core/types";
 import { wrap } from "../../test/api-mock";
 import { SwimLaneView } from "./swimlane-view";
+import { STATUS_CONFIG } from "./status-config";
 
 initI18n();
 
@@ -104,8 +105,10 @@ describe("modes/SwimLaneView", () => {
 
     expect((await screen.findAllByText("Saturn")).length).toBeGreaterThan(0);
     expect(screen.getByText("1/2")).toBeInTheDocument();
+    // The cell wears the category's column fill; read it from the config so
+    // a palette change does not masquerade as a swimlane regression.
     expect(screen.getByTestId("swimlane-status-todo")).toHaveClass(
-      "bg-muted/20",
+      STATUS_CONFIG.todo.columnBg,
     );
     expect(screen.getAllByRole("button", { name: "Ẩn cột" })).toHaveLength(7);
   });
