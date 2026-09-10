@@ -45,8 +45,9 @@ to everyone.
 
 ## 4. Lifecycle & calendar
 
-- `RunAutoEnd` (every 60 s, own goroutine): IN_PROGRESS meetings with no open
-  conference past `ends_at`, or still live past `ends_at + 2h` → ENDED, audit
+- `RunAutoEnd` (every 60 s) and `room_finished`: IN_PROGRESS past `ends_at`
+  with no ACTIVE conference → ENDED immediately; ACTIVE rooms stay in
+  overtime until the host extends/ends, or `ends_at + 2h`. Audit
   `MEETING_AUTO_ENDED`, actor `system`.
 - `GET /meetings/{id}/calendar.ics` — RFC 5545 with the join URL
   (`/{org}/{ws}/meetings/{id}`); "Thêm vào lịch" on the detail page.
