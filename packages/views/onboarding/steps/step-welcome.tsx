@@ -47,12 +47,12 @@ export function StepWelcome({
           <div className="flex w-full max-w-[540px] flex-col gap-8">
             <div className="flex items-center gap-2.5">
               <Logo variant="mark" size={22} decorative />
-              <span className="font-serif text-title-lg font-medium tracking-tight text-foreground">
+              <span className="font-display text-title-lg font-medium tracking-tight text-foreground">
                 {t("onboarding.welcome.wordmark")}
               </span>
             </div>
 
-            <h1 className="text-balance font-serif text-hero font-medium leading-[1.04] tracking-tight text-foreground sm:text-hero-lg">
+            <h1 className="text-balance font-display text-hero font-medium leading-[1.04] tracking-tight text-foreground sm:text-hero-lg">
               {t("onboarding.welcome.headline_line1")}{" "}
               <br />
               {t("onboarding.welcome.headline_line2")}{" "}
@@ -84,7 +84,7 @@ export function StepWelcome({
       {/* Cột phải: minh hoạ, ẩn dưới lg để headline + CTA giữ tiêu điểm. */}
       <div className="hidden border-l border-border bg-muted/40 lg:flex lg:flex-1 lg:flex-col lg:overflow-hidden">
         <div className="flex flex-1 flex-col items-center justify-center gap-7 px-8 py-8">
-          <p className="max-w-[440px] text-balance text-center font-serif text-body-lg italic leading-snug text-muted-foreground">
+          <p className="max-w-[440px] text-balance text-center font-display text-body-lg italic leading-snug text-muted-foreground">
             {t("onboarding.welcome.illustration_caption")}
           </p>
           <WelcomeIllustration />
