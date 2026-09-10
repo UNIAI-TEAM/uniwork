@@ -85,7 +85,7 @@ describe("TasksHeader mode switcher", () => {
     ).toBeInTheDocument();
   });
 
-  it("moves project grouping and integrations into their related menus", async () => {
+  it("shows compact display controls and keeps integrations in their menu", async () => {
     const store = getTaskSurfaceViewStore("test-header-action-groups");
 
     render(
@@ -103,8 +103,20 @@ describe("TasksHeader mode switcher", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Hiển thị" }));
-    expect(await screen.findByText("Nhóm theo dự án")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Nhãn" })).toBeDisabled();
+    expect(
+      await screen.findByRole("combobox", { name: "Nhóm" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Sắp xếp" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Hiện sub-task" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Độ ưu tiên" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Nhãn" })).toBeDisabled();
+    expect(screen.queryByRole("checkbox")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
     expect(

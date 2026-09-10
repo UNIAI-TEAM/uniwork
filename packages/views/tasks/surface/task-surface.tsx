@@ -177,6 +177,7 @@ function TaskSurfaceContent({
                   categories={controller.boardCategories}
                   tasks={controller.surfaceTasks}
                   cardMeta={boardCardMeta}
+                  projects={projectsData?.projects}
                   onOpenTask={onOpenTask}
                 />
               ) : controller.viewMode === "table" ? (

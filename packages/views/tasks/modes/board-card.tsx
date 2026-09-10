@@ -147,11 +147,13 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
   meta,
   onOpen,
   disableSorting,
+  disableDragging,
 }: {
   task: Task;
   meta?: BoardCardMeta;
   onOpen?: (id: string) => void;
   disableSorting?: boolean;
+  disableDragging?: boolean;
 }) {
   const {
     attributes,
@@ -164,7 +166,11 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
     id: task.id,
     data: { status: task.status, task },
     animateLayoutChanges,
-    disabled: disableSorting ? { droppable: true } : undefined,
+    disabled: disableDragging
+      ? true
+      : disableSorting
+        ? { droppable: true }
+        : undefined,
   });
 
   const style = {

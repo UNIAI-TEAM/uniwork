@@ -7,6 +7,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { Virtuoso } from "react-virtuoso";
 import { useTranslation } from "react-i18next";
 import type { Task, TaskStatus } from "@uniwork/core/types";
+import type { ActorKind } from "@uniwork/core/types/audit";
 import { useViewStoreApi } from "@uniwork/core/tasks/stores/view-store-context";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -30,14 +31,34 @@ const BOARD_CARD_ESTIMATED_HEIGHT = 110;
 const BOARD_VIRTUALIZE_THRESHOLD = 30;
 const EMPTY_VIRTUOSO_COMPONENTS = {};
 
-export interface BoardColumnGroup {
+interface BoardColumnGroupBase {
   id: string;
   title: string;
-  /** Board columns are CATEGORIES, never raw custom status keys. */
-  status?: string;
   totalCount?: number;
-  createData?: { status?: string };
 }
+
+export type BoardColumnGroup = BoardColumnGroupBase &
+  (
+    | {
+        kind: "status";
+        /** Board status columns are categories, never raw custom status keys. */
+        status: string;
+        createData?: { status?: string };
+      }
+    | {
+        kind: "assignee";
+        assigneeId: string | null;
+        assigneeKind?: ActorKind;
+        createData?: {
+          assignee_id?: string | null;
+          assignee_kind?: ActorKind;
+        };
+      }
+    | {
+        kind: "project";
+        projectId: string | null;
+      }
+  );
 
 export const BoardColumn = memo(function BoardColumn({
   group,
@@ -49,6 +70,7 @@ export const BoardColumn = memo(function BoardColumn({
   onCreateTask,
   onOpenTask,
   sortLabel,
+  disableDragging = false,
 }: {
   group: BoardColumnGroup;
   taskIds: string[];
@@ -56,11 +78,16 @@ export const BoardColumn = memo(function BoardColumn({
   cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   totalCount?: number;
   footer?: ReactNode;
-  onCreateTask?: (defaults: { status?: string }) => void;
+  onCreateTask?: (defaults: {
+    status?: string;
+    assignee_id?: string | null;
+    assignee_kind?: ActorKind;
+  }) => void;
   onOpenTask?: (id: string) => void;
   sortLabel?: string | null;
+  disableDragging?: boolean;
 }) {
-  const status = group.status;
+  const status = group.kind === "status" ? group.status : undefined;
   const cfg = status ? STATUS_CONFIG[status as TaskStatus] : null;
   const { setNodeRef, isOver } = useDroppable({ id: group.id });
   const viewStoreApi = useViewStoreApi();
@@ -97,6 +124,7 @@ export const BoardColumn = memo(function BoardColumn({
         meta={cardMeta?.get(task.id)}
         onOpen={onOpenTask}
         disableSorting={!!sortLabel}
+        disableDragging={disableDragging}
       />
     </div>
   );
@@ -162,7 +190,7 @@ export const BoardColumn = memo(function BoardColumn({
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
-          {onCreateTask ? (
+          {onCreateTask && "createData" in group ? (
             <Button
               variant="ghost"
               size="icon-sm"
