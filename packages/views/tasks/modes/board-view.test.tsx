@@ -76,8 +76,6 @@ describe("modes/BoardView", () => {
           <BoardView
             categories={[...TASK_STATUSES]}
             tasks={[sample]}
-            projectGroupingDisabled
-            projectGroupingReasonKey="capabilities.unknown"
           />
         </ViewStoreProvider>,
       ),
@@ -94,6 +92,9 @@ describe("modes/BoardView", () => {
     expect(screen.getByTestId("board-column-backlog")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-in_review")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-blocked")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Nhóm theo dự án" }),
+    ).toBeNull();
   });
 
   it("does not mount board agent trigger or squad assign chrome", async () => {
@@ -104,8 +105,6 @@ describe("modes/BoardView", () => {
           <BoardView
             categories={[...TASK_STATUSES]}
             tasks={[sample]}
-            projectGroupingDisabled
-            projectGroupingReasonKey="capabilities.unknown"
           />
         </ViewStoreProvider>,
       ),

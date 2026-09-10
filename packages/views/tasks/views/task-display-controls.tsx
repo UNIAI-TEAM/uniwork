@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
   Filter,
+  FolderKanban,
   Paperclip,
   GitBranch,
+  MoreHorizontal,
   SlidersHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +20,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -51,41 +54,6 @@ export function ViewRefreshIndicator({ active }: { active: boolean }) {
         </span>
       ) : null}
     </span>
-  );
-}
-
-function CapabilityStubButton({
-  icon,
-  label,
-  available,
-  reason,
-}: {
-  icon: ReactNode;
-  label: string;
-  available: boolean;
-  reason: string;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={!available}
-            aria-disabled={!available}
-            aria-label={label}
-            className={!available ? "opacity-60" : undefined}
-          />
-        }
-      >
-        {icon}
-      </TooltipTrigger>
-      {!available ? (
-        <TooltipContent side="bottom">{reason}</TooltipContent>
-      ) : null}
-    </Tooltip>
   );
 }
 
@@ -146,9 +114,15 @@ const FILTERS_UNAVAILABLE_REASON_CODE = "filters_not_wired";
 export function TaskDisplayControls({
   modes,
   isRefreshing = false,
+  showProjectGrouping = true,
+  projectGroupingDisabled = true,
+  projectGroupingReasonKey,
 }: {
   modes: TaskSurfaceMode[];
   isRefreshing?: boolean;
+  showProjectGrouping?: boolean;
+  projectGroupingDisabled?: boolean;
+  projectGroupingReasonKey?: string;
 }) {
   const { t } = useTranslation();
   const { data: publicConfig } = usePublicConfig();
@@ -164,6 +138,18 @@ export function TaskDisplayControls({
 
   const filterLabel = t("tasks.filters.add");
   const filterUnavailableReason = t("tasks.filters.unavailable");
+  const unavailableActionReason = t("tasks.surface.action_unavailable");
+  const groupingReason = projectGroupingReasonKey
+    ? t(projectGroupingReasonKey)
+    : t("tasks.surface.grouping_unavailable");
+  const vcsReason =
+    vcs.status === "available"
+      ? unavailableActionReason
+      : t(vcs.explanation_key || "capabilities.unknown");
+  const attachmentsReason =
+    attachments.status === "available"
+      ? unavailableActionReason
+      : t(attachments.explanation_key || "capabilities.unknown");
 
   return (
     <div className="flex shrink-0 items-center gap-1">
@@ -206,19 +192,6 @@ export function TaskDisplayControls({
         </Tooltip>
       )}
 
-      <CapabilityStubButton
-        icon={<GitBranch className="size-3.5" aria-hidden />}
-        label={t("tasks.surface.vcs_chip_stub")}
-        available={vcs.status === "available"}
-        reason={t(vcs.explanation_key || "capabilities.unknown")}
-      />
-      <CapabilityStubButton
-        icon={<Paperclip className="size-3.5" aria-hidden />}
-        label={t("tasks.header.attachments_unavailable")}
-        available={attachments.status === "available"}
-        reason={t(attachments.explanation_key || "capabilities.unknown")}
-      />
-
       <Popover open={displayOpen} onOpenChange={setDisplayOpen}>
         <PopoverTrigger
           render={
@@ -236,6 +209,26 @@ export function TaskDisplayControls({
         </PopoverTrigger>
         <PopoverContent align="end" className="w-64">
           <div className="flex flex-col gap-2">
+            {showProjectGrouping ? (
+              <div className="border-b border-border pb-2">
+                <p className="mb-1 text-caption font-medium text-muted-foreground">
+                  {t("tasks.display.grouping_section")}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled
+                  aria-disabled
+                  title={groupingReason}
+                  className="w-full justify-start gap-1.5 opacity-60"
+                  data-configured-disabled={projectGroupingDisabled || undefined}
+                >
+                  <FolderKanban className="size-3.5" aria-hidden />
+                  {t("tasks.surface.group_by_project")}
+                </Button>
+              </div>
+            ) : null}
             <p className="text-caption font-medium text-muted-foreground">
               {t("tasks.display.list_options")}
             </p>
@@ -270,6 +263,32 @@ export function TaskDisplayControls({
       </Popover>
 
       <TaskModeSwitcher modes={modes} />
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("tasks.surface.more_actions")}
+            />
+          }
+        >
+          <MoreHorizontal className="size-3.5" aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem disabled title={vcsReason}>
+            <GitBranch className="size-3.5" aria-hidden />
+            {t("tasks.surface.vcs_chip_stub")}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled title={attachmentsReason}>
+            <Paperclip className="size-3.5" aria-hidden />
+            {t("tasks.header.attachments_unavailable")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <ViewRefreshIndicator active={isRefreshing} />
     </div>
   );
