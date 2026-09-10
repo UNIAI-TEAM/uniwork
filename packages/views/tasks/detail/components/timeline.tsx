@@ -31,8 +31,9 @@ function commentHashId(): string | null {
 }
 
 /**
- * Task detail timeline: comments from the comments endpoint, activity stub
- * (GetTaskTimeline is still capability_unavailable), AgentRun/PR stubs.
+ * Task detail timeline: comments from the comments endpoint and an activity
+ * stub (GetTaskTimeline is still capability_unavailable). AgentRun/PR chrome
+ * was removed at web cutover.
  */
 export function TaskDetailTimeline({ taskId }: { taskId: string }) {
   const { t } = useTranslation();

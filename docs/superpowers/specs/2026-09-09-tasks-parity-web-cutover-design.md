@@ -1,6 +1,6 @@
 # UniWork — Tasks parity web cutover (UNI-426 lát cắt 8)
 
-> **Trạng thái:** in-progress — thiết kế chờ duyệt 2026-09-09; lát 7 (desktop/mobile hosts) **deferred**; F-05 vẫn `MỘT PHẦN` sau lát này
+> **Trạng thái:** shipped — web cutover done (UNI-521); lát 7 (desktop/mobile hosts) **deferred**; F-05 vẫn `MỘT PHẦN`
 
 **Ngày:** 2026-09-09  
 **Issue:** (tạo sub-issue dưới UNI-426 khi bắt đầu implement — `UNI-426.8`)  

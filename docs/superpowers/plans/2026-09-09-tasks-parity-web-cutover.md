@@ -1,6 +1,6 @@
 # UNI-426.8 · Tasks parity web cutover Implementation Plan
 
-> **Trạng thái:** in-progress — thiết kế duyệt; chờ sub-issue + execute  
+> **Trạng thái:** shipped — thiết kế duyệt; Tasks 1–6 complete (web cutover); Task 7 PR pending; lát 7 hosts deferred; F-05 vẫn `MỘT PHẦN`  
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Hard cutover web — suite Tasks/My Tasks/Projects/detail luôn on; xóa flag `tasks_work_management_parity` + MVP; ẩn hết chrome agent user-facing; F-05 vẫn `MỘT PHẦN`; lát 7 hosts deferred.
@@ -211,15 +211,15 @@ EOF
 - Modify: `docs/roadmap/FEATURE_ROADMAP.md`, umbrella status line, slice6/8 spec status
 - Add: contract assert — `rg`/node test fail nếu còn `tasks_work_management_parity` trong `apps/`, `packages/`, `server/` (exclude `docs/`)
 
-- [ ] **Step 1:** Update E2E specs
+- [x] **Step 1:** Update E2E specs
 
-- [ ] **Step 2:** Docs status — F-05 `MỘT PHẦN`; lát 7 deferred; lát 8 shipped when done
+- [x] **Step 2:** Docs status — F-05 `MỘT PHẦN`; lát 7 deferred; lát 8 shipped when done
 
-- [ ] **Step 3:** Grep gate green
+- [x] **Step 3:** Grep gate green
 
-- [ ] **Step 4:** `make check` / check-worktree PASS
+- [x] **Step 4:** `make check` / check-worktree PASS
 
-- [ ] **Step 5:** Commit
+- [x] **Step 5:** Commit
 
 ```bash
 git commit -m "$(cat <<'EOF'

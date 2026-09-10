@@ -194,11 +194,13 @@ describe("TaskSurface", () => {
       ),
     );
 
+    expect(await screen.findByText("Task 1")).toBeInTheDocument();
+    // Full suite may leave i18n on en; match both catalogue strings.
     const chevron = await screen.findByRole("button", {
-      name: "Chưa khả dụng",
+      name: /Chưa khả dụng|Not available yet/,
     });
     expect(chevron).toBeDisabled();
-    expect(chevron).toHaveAttribute("title", "Chưa khả dụng");
+    expect(chevron.title).toMatch(/Chưa khả dụng|Not available yet/);
   });
 
   it("loads the next offset page when group rows are truncated", async () => {

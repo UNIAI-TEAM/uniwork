@@ -1,6 +1,6 @@
 "use client";
 
-import { Hash, Search, UserPlus, Users } from "lucide-react";
+import { Home, Search, UserPlus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -15,6 +15,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ChatSidebarChannels } from "./chat-sidebar-channels";
 import { CreateGroupDialog } from "./create-group-dialog";
 import { StartDmDialog } from "./start-dm-dialog";
 import { compareRoomPreviewRecency } from "./chat-sidebar-preview";
@@ -39,6 +40,8 @@ export function ChatSidebar({
   onTargetChange,
   contacts,
   groups,
+  channels = [],
+  workHubEnabled = false,
   onCreateGroup,
   creatingGroup = false,
   createGroupOpen: createGroupOpenProp,
@@ -68,7 +71,6 @@ export function ChatSidebar({
   const isRoomNotificationsMuted = (roomId: string | null | undefined) =>
     Boolean(roomId && pinnedByRoomId[roomId]?.notificationsMuted);
   const workspaceTitle = t("chat.workspace_room");
-  const workspaceHint = t("chat.workspace_room_hint");
 
   const filteredGroups = useMemo(
     () =>
@@ -114,12 +116,18 @@ export function ChatSidebar({
   const yesterdayLabel = t("chat.sidebar_yesterday");
 
   const showWorkspace =
-    !filterText ||
-    matchesConversationFilter(workspaceTitle, filterText) ||
-    matchesConversationFilter(workspaceHint, filterText);
+    !filterText || matchesConversationFilter(workspaceTitle, filterText);
 
   const hasListResults =
-    showWorkspace || filteredGroups.length > 0 || filteredContacts.length > 0;
+    showWorkspace ||
+    filteredGroups.length > 0 ||
+    filteredContacts.length > 0 ||
+    (workHubEnabled &&
+      channels.some(
+        (channel) =>
+          matchesConversationFilter(channel.name, filterText) ||
+          matchesConversationFilter(channel.topic ?? "", filterText),
+      ));
 
   const handleCreateGroup = (members: ChatContact[], name: string) => {
     if (!onCreateGroup) return;
@@ -218,16 +226,21 @@ export function ChatSidebar({
 
           {showWorkspace ? (
             <section className="space-y-1">
+              <h2 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("chat.workspace_section")}
+              </h2>
               <SidebarNavItem
                 active={target.kind === "workspace"}
                 onClick={() => onTargetChange({ kind: "workspace" })}
                 avatar={
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <Hash className="size-4" aria-hidden />
+                  <span
+                    className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
+                    aria-hidden
+                  >
+                    <Home className="size-4" />
                   </span>
                 }
                 title={workspaceTitle}
-                fallbackSubtitle={workspaceHint}
                 preview={
                   workspaceRoomId ? roomPreviewsByRoomId[workspaceRoomId] : undefined
                 }
@@ -252,6 +265,25 @@ export function ChatSidebar({
             </section>
           ) : null}
 
+          {workHubEnabled ? (
+            <ChatSidebarChannels
+              workspaceId={workspaceId}
+              currentUserId={currentUserId}
+              channels={channels}
+              activeChannelId={target.kind === "channel" ? target.channel.id : null}
+              onSelectChannel={(channel) => onTargetChange({ kind: "channel", channel })}
+              unreadByRoomId={unreadByRoomId}
+              mentionUnreadByRoomId={mentionUnreadByRoomId}
+              roomPreviewsByRoomId={roomPreviewsByRoomId}
+              unreadBadgesReady={unreadBadgesReady}
+              youLabel={youLabel}
+              voiceCallLabel={voiceCallPreviewLabel}
+              voiceMessageLabel={voiceMessagePreviewLabel}
+              fileMessageLabel={fileMessagePreviewLabel}
+              yesterdayLabel={yesterdayLabel}
+            />
+          ) : null}
+
           {filteredGroups.length > 0 ? (
             <section className="flex min-h-0 flex-col gap-1.5">
               <h2 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
@@ -268,12 +300,14 @@ export function ChatSidebar({
                         active={active}
                         onClick={() => onTargetChange({ kind: "group", group })}
                         avatar={
-                          <ActorAvatar name={group.name} initials={initialOf(group.name)} size="sm" />
+                          <span
+                            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
+                            aria-hidden
+                          >
+                            <Users className="size-4" />
+                          </span>
                         }
                         title={group.name}
-                        fallbackSubtitle={t("chat.group_member_count", {
-                          count: group.member_user_ids.length + 1,
-                        })}
                         preview={roomPreviewsByRoomId[group.room_id]}
                         roomId={group.room_id}
                         contacts={contacts}
@@ -298,13 +332,6 @@ export function ChatSidebar({
                 })}
               </ul>
             </section>
-          ) : !filterText && groups.length === 0 ? (
-            <section className="flex flex-col gap-1.5">
-              <h2 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("chat.groups_title")}
-              </h2>
-              <p className="px-1 text-caption text-muted-foreground">{t("chat.groups_empty")}</p>
-            </section>
           ) : null}
 
           {filteredContacts.length > 0 ? (
@@ -328,7 +355,6 @@ export function ChatSidebar({
                           <ActorAvatar name={label} initials={initialOf(label)} size="sm" />
                         }
                         title={label}
-                        fallbackSubtitle={contact.email}
                         preview={dmRoomId ? roomPreviewsByRoomId[dmRoomId] : undefined}
                         roomId={dmRoomId}
                         contacts={contacts}
@@ -352,13 +378,6 @@ export function ChatSidebar({
                   );
                 })}
               </ul>
-            </section>
-          ) : !filterText && contacts.length === 0 ? (
-            <section className="flex flex-col gap-1.5">
-              <h2 className="px-1 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("chat.contacts_title")}
-              </h2>
-              <p className="px-1 text-caption text-muted-foreground">{t("chat.contacts_empty")}</p>
             </section>
           ) : null}
         </nav>

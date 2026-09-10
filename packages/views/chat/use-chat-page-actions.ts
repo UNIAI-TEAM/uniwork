@@ -15,6 +15,7 @@ import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priori
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type {
   useCreateChatGroup,
   useInviteChatGroupMembers,
@@ -34,6 +35,7 @@ export function useChatPageActions({
   setTarget,
   activeRoomId,
   activeGroup,
+  activeChannel,
   draft,
   setDraft,
   replyTo,
@@ -64,6 +66,7 @@ export function useChatPageActions({
   setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
   activeRoomId: string | null;
   activeGroup: GroupChat | null;
+  activeChannel: ChatRoomRecord | null;
   draft: string;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   replyTo: ChatMessage | null;
@@ -222,22 +225,38 @@ export function useChatPageActions({
 
   const handleAddGroupMembers = useCallback(
     (members: ChatContact[]) => {
-      if (!activeGroup || members.length === 0) return;
+      const inviteRoomId =
+        target.kind === "channel"
+          ? activeChannel?.id
+          : target.kind === "group"
+            ? activeGroup?.room_id
+            : null;
+      if (!inviteRoomId || members.length === 0) return;
       setInvitingMembers(true);
       setConnectError(null);
       void inviteMembers
         .mutateAsync({
-          roomId: activeGroup.room_id,
+          roomId: inviteRoomId,
           memberUserIds: members.map((member) => member.user_id),
         })
         .then((room) => {
-          if (room && activeGroup) {
+          if (room && target.kind === "group" && activeGroup) {
             setTarget({
               kind: "group",
               group: {
                 id: room.id,
                 name: room.name,
                 room_id: room.id,
+                member_user_ids: room.member_user_ids,
+              },
+            });
+          }
+          if (room && target.kind === "channel" && activeChannel) {
+            setTarget({
+              kind: "channel",
+              channel: {
+                ...activeChannel,
+                ...room,
                 member_user_ids: room.member_user_ids,
               },
             });
@@ -251,7 +270,16 @@ export function useChatPageActions({
           setInvitingMembers(false);
         });
     },
-    [activeGroup, inviteMembers, setTarget, setAddMembersOpen, setConnectError, setInvitingMembers],
+    [
+      target.kind,
+      activeChannel,
+      activeGroup,
+      inviteMembers,
+      setTarget,
+      setAddMembersOpen,
+      setConnectError,
+      setInvitingMembers,
+    ],
   );
 
   const handleLeaveConversation = useCallback(

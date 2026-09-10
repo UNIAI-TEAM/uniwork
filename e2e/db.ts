@@ -27,3 +27,24 @@ export async function latestEmailText(to: string, kind: string): Promise<string>
     await c.end();
   }
 }
+
+/**
+ * Platform roles refuse /admin without MFA (F-01). E2E grants the role via
+ * uniwork-admin then stamps mfa_enabled_at so the console gate opens — no
+ * TOTP enrollment UI in these fixtures; the middleware only checks the stamp.
+ */
+export async function enableMfaForE2E(email: string): Promise<void> {
+  const c = new Client({ connectionString: url });
+  await c.connect();
+  try {
+    const r = await c.query(
+      "UPDATE users SET mfa_enabled_at = COALESCE(mfa_enabled_at, now()), updated_at = now() WHERE lower(email) = lower($1)",
+      [email],
+    );
+    if (r.rowCount !== 1) {
+      throw new Error(`enableMfaForE2E: expected 1 user for ${email}, got ${r.rowCount}`);
+    }
+  } finally {
+    await c.end();
+  }
+}

@@ -102,6 +102,8 @@ const (
 	ActionChatRoomCreated       = "chat.room.created"
 	ActionChatRoomMemberAdded   = "chat.room.member_added"
 	ActionChatRoomMemberRemoved = "chat.room.member_removed"
+	ActionChatChannelUpdated    = "chat.channel.updated"
+	ActionChatChannelArchived   = "chat.channel.archived"
 
 	ActionSubscriptionChanged = "subscription.changed"
 

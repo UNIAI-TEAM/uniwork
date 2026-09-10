@@ -92,11 +92,11 @@ type ChatMessageDTO struct {
 	ClientMsgID       string           `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
-// ChatRoomDTO is a dm or group chat room.
+// ChatRoomDTO is a dm, group, or channel chat room.
 type ChatRoomDTO struct {
 	ID                    string                        `json:"id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	Kind                  string                        `json:"kind" description:"dm or group" example:"dm"`
-	Name                  string                        `json:"name" description:"Room display name" example:"Nguyen Van A"`
+	Kind                  string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
+	Name                  string                        `json:"name" description:"Room display name" example:"marketing"`
 	WorkspaceID           string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
 	MentionUnreadCount    int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
@@ -109,7 +109,16 @@ type ChatRoomDTO struct {
 	LastMessageSenderID   string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 	LastMessageSenderName string                        `json:"last_message_sender_name,omitempty" description:"Display name of the latest message author" example:"Nguyen Van A"`
 	LastMessageAt         string                        `json:"last_message_at,omitempty" description:"RFC3339 timestamp of the latest message" example:"2026-03-26T10:00:00Z"`
-	MemberPermissions     *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/workspace rooms"`
+	MemberPermissions     *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/channel rooms"`
+	Visibility            string                        `json:"visibility,omitempty" description:"public or private (channels)" example:"public"`
+	ProjectID             string                        `json:"project_id,omitempty" description:"Linked project id when set"`
+	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
+	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
+}
+
+// ChatChannelListSDO is GET .../chat/channels.
+type ChatChannelListSDO struct {
+	Rooms []ChatRoomDTO `json:"rooms"`
 }
 
 // ChatRoomMemberPermissionsDTO configures what non-admin members may do.

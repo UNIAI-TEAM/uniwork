@@ -36,13 +36,16 @@ test("a task edit shows up in the organization's audit log", async ({ page }) =>
     page.getByRole("button", { name: "Đã hiểu" }).click(),
   ]);
 
-  // An ordinary edit. Nothing about it mentions auditing.
-  const title = page.getByRole("textbox").first();
+  // An ordinary edit. Suite title is lazy: click to activate the TipTap textbox.
+  await page.getByRole("button", { name: "Bắt đầu với UniWork" }).click();
+  const title = page.getByRole("textbox", { name: "Tiêu đề công việc" });
+  await expect(title).toBeVisible({ timeout: 15_000 });
   await title.fill(`Việc đã đổi ${stamp}`);
   await title.blur();
-
-  // The task's own activity list is the same rows, through the workspace gate.
-  await expect(page.getByText("Cập nhật task").first()).toBeVisible({ timeout: 15_000 });
+  // Suite timeline is comments-only for now; the org audit log is the F-08 proof.
+  await expect(page.getByRole("button", { name: `Việc đã đổi ${stamp}` })).toBeVisible({
+    timeout: 15_000,
+  });
 
   await page.goto(`/${orgSlug}/doi-audit/settings?tab=audit`);
   await expect(page.getByRole("heading", { name: "Bảo mật & Nhật ký" })).toBeVisible();

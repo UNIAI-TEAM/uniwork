@@ -43,7 +43,7 @@ test("⌘J answers from the asker's own workspace only", async ({ browser, page:
   test.skip(!(await askButton.isVisible().catch(() => false)), "AI provider not configured on this server");
 
   const title = `Việc cho UNI ${stamp}`;
-  await a.getByRole("button", { name: "Việc mới" }).click();
+  await a.getByRole("button", { name: "Tạo việc" }).click();
   await a.getByLabel("Tiêu đề").fill(title);
   await a.getByRole("button", { name: "Tạo", exact: true }).click();
   await expect(a.getByText(title)).toBeVisible();

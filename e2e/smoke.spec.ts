@@ -29,7 +29,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`);
 
   // tạo task
-  await page.getByRole("button", { name: "Việc mới" }).click();
+  await page.getByRole("button", { name: "Tạo việc" }).click();
   await page.getByLabel("Tiêu đề").fill("Task từ e2e");
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
   await expect(page.getByText("Task từ e2e")).toBeVisible();

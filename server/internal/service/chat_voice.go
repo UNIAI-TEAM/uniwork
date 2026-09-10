@@ -228,6 +228,37 @@ func (s *ChatService) requireVoiceTokenAccess(ctx context.Context, room db.ChatR
 			return retryErr
 		}
 		return nil
+	case chatRoomKindChannel:
+		if room.IsDefault {
+			if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+				RoomID: room.ID, UserID: userID,
+			}); err == nil {
+				return nil
+			} else if !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+			if syncErr := s.syncWorkspaceRoomMembers(ctx, room.ID, wsID); syncErr != nil {
+				return syncErr
+			}
+			if _, retryErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+				RoomID: room.ID, UserID: userID,
+			}); retryErr != nil {
+				if errors.Is(retryErr, pgx.ErrNoRows) {
+					return ErrForbidden
+				}
+				return retryErr
+			}
+			return nil
+		}
+		if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+			RoomID: room.ID, UserID: userID,
+		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrForbidden
+			}
+			return err
+		}
+		return nil
 	default:
 		return ErrForbidden
 	}
@@ -390,7 +421,7 @@ func (s *ChatService) authorizeVoiceSignalRoom(
 	if rErr != nil {
 		return db.ChatRoom{}, rErr
 	}
-	if room.Kind == chatRoomKindWorkspace {
+	if isWorkspaceDefaultRoom(room) {
 		return db.ChatRoom{}, ErrForbidden
 	}
 	if !room.OrganizationID.Valid || room.OrganizationID.String != w.OrganizationID {

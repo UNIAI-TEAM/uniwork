@@ -216,6 +216,7 @@ func main() {
 	}
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
 	chatSvc.TenorAPIKey = cfg.TenorAPIKey
+	taskSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	// Directory and department events belong to the organization, so every
