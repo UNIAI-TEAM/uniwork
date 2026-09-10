@@ -62,6 +62,52 @@ export function getTaskTableSelectionRange(
   return taskIds.slice(start, end + 1);
 }
 
+/** Build the visible parent/child projection from the rows already loaded. */
+export function buildTaskTableHierarchy(
+  tasks: Task[],
+  directChildCount: ReadonlyMap<string, number>,
+  collapsedParentIds: ReadonlySet<string>,
+): Array<Extract<TaskTableDisplayRow, { kind: "task" }>> {
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const childrenByParent = new Map<string, Task[]>();
+  for (const task of tasks) {
+    const parentId = task.parent_task_id;
+    if (!parentId || !taskById.has(parentId)) continue;
+    const children = childrenByParent.get(parentId) ?? [];
+    children.push(task);
+    childrenByParent.set(parentId, children);
+  }
+
+  const rows: Array<Extract<TaskTableDisplayRow, { kind: "task" }>> = [];
+  const visited = new Set<string>();
+  const append = (task: Task, depth: number) => {
+    if (visited.has(task.id)) return;
+    visited.add(task.id);
+    const children = childrenByParent.get(task.id) ?? [];
+    const collapsed = collapsedParentIds.has(task.id);
+    rows.push({
+      kind: "task",
+      key: task.id,
+      task,
+      depth,
+      hasChildren:
+        children.length > 0 || (directChildCount.get(task.id) ?? 0) > 0,
+      collapsed,
+    });
+    if (collapsed) return;
+    for (const child of children) append(child, depth + 1);
+  };
+
+  for (const task of tasks) {
+    if (!task.parent_task_id || !taskById.has(task.parent_task_id)) {
+      append(task, 0);
+    }
+  }
+  // Malformed cyclic data must remain visible instead of disappearing.
+  for (const task of tasks) append(task, 0);
+  return rows;
+}
+
 /**
  * Refresh task objects inside a frozen row snapshot while a cell editor is
  * open — structure stays put; values stay live.
@@ -149,30 +195,34 @@ export function buildTaskTableCsv(headers: string[], rows: unknown[][]) {
 }
 
 /** Map view-store grouping to the suite `group_by` string. */
-export function tableGroupBy(
-  grouping: string,
-  opts?: { projectsAvailable?: boolean },
-): string {
-  if (grouping === "project" && !opts?.projectsAvailable) return "status";
+export function tableGroupBy(grouping: string): string {
   if (grouping === "none") return "status";
-  if (
-    grouping === "status" ||
-    grouping === "assignee" ||
-    grouping === "project"
-  ) {
+  if (grouping === "status" || grouping === "assignee") {
     return grouping;
   }
-  // Property grouping stays on status until property catalog lands.
+  // Project and property grouping stay client-ungrouped until their table API
+  // contracts land. Rows still need a valid fallback group_by value.
   if (grouping.startsWith("property:")) return "status";
   return "status";
 }
 
+export function tableUsesServerGrouping(grouping: string): boolean {
+  if (grouping === "none" || grouping.startsWith("property:")) return false;
+  return grouping === "status" || grouping === "assignee";
+}
+
 export function groupLabelFromDescriptor(
   key: string,
-  value: { kind: string; status?: string; priority?: string },
+  value: {
+    kind: string;
+    status?: string;
+    priority?: string;
+    actor?: { id?: string };
+  },
   translateStatus: (status: string) => string,
   translatePriority: (priority: string) => string,
   unassignedLabel: string,
+  resolveAssignee?: (id: string) => string | undefined,
 ): string {
   if (value.kind === "status" && value.status) {
     return translateStatus(value.status);
@@ -181,7 +231,14 @@ export function groupLabelFromDescriptor(
     return translatePriority(value.priority);
   }
   if (value.kind === "assignee") {
-    return key.includes(":") ? key.split(":").slice(1).join(":") : unassignedLabel;
+    const id =
+      value.actor?.id ??
+      (key === "assignee"
+        ? ""
+        : key.includes(":")
+          ? key.split(":").slice(1).join(":")
+          : key);
+    return id ? (resolveAssignee?.(id) ?? id) : unassignedLabel;
   }
   return key;
 }

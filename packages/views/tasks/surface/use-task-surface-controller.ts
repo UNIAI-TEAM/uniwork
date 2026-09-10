@@ -6,6 +6,7 @@ import type {
   TableFacetsResult,
   TableFilter,
 } from "@uniwork/core/api/endpoints/tasks-table";
+import type { TaskPatch } from "@uniwork/core/api/endpoints/tasks";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import {
@@ -20,7 +21,13 @@ import {
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { planSurfaceQuery } from "@uniwork/core/tasks/surface/query-plan";
 import { taskScopeKey, type TaskScope } from "@uniwork/core/tasks/surface/scope";
-import { TASK_STATUSES, type Task, type TaskStatus } from "@uniwork/core/types";
+import {
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+  type Task,
+  type TaskPriority,
+  type TaskStatus,
+} from "@uniwork/core/types";
 import type { ActorKind } from "@uniwork/core/types/audit";
 import {
   type TaskTableFacetSpec,
@@ -47,6 +54,46 @@ const EMPTY_CONFIG = {
 } as const;
 
 const EMPTY_TASKS: Task[] = [];
+
+function taskPatchFromSurfaceUpdates(
+  updates: Record<string, unknown>,
+): TaskPatch {
+  const patch: TaskPatch = {};
+  if (typeof updates.title === "string") patch.title = updates.title;
+  if (typeof updates.description === "string") {
+    patch.description = updates.description;
+  }
+  if (
+    typeof updates.status === "string" &&
+    TASK_STATUSES.includes(updates.status as TaskStatus)
+  ) {
+    patch.status = updates.status as TaskStatus;
+  }
+  if (
+    typeof updates.priority === "string" &&
+    TASK_PRIORITIES.includes(updates.priority as TaskPriority)
+  ) {
+    patch.priority = updates.priority as TaskPriority;
+  }
+  if (typeof updates.position === "number") patch.position = updates.position;
+  if (
+    updates.assignee_id === null ||
+    typeof updates.assignee_id === "string"
+  ) {
+    patch.assignee_id = updates.assignee_id;
+    if (
+      updates.assignee_kind === "human" ||
+      updates.assignee_kind === "agent" ||
+      updates.assignee_kind === "system"
+    ) {
+      patch.assignee_kind = updates.assignee_kind;
+    }
+  }
+  if (updates.due_date === null || typeof updates.due_date === "string") {
+    patch.due_date = updates.due_date;
+  }
+  return patch;
+}
 
 export interface TaskSurfaceController {
   scopeKey: string;
@@ -166,7 +213,7 @@ export function useTaskSurfaceController({
       ...(scope.type === "project" ? { project_id: scope.projectId } : {}),
     },
   );
-  const updateTask = useUpdateTask(workspaceId);
+  const updateTaskMutation = useUpdateTask(workspaceId);
   const batchUpdateTasks = useBatchUpdateTasks(workspaceId);
   const batchDeleteTasks = useBatchDeleteTasks(workspaceId);
   const { data: publicConfig } = usePublicConfig();
@@ -268,7 +315,7 @@ export function useTaskSurfaceController({
       ) {
         return;
       }
-      updateTask.mutate(
+      updateTaskMutation.mutate(
         {
           taskId,
           patch: {
@@ -289,6 +336,31 @@ export function useTaskSurfaceController({
             if (task) options?.onSuccess?.(task);
           },
           onError: (err) => options?.onError?.(err),
+          onSettled: () => options?.onSettled?.(),
+        },
+      );
+    },
+    [updateTaskMutation],
+  );
+
+  const updateSurfaceTask = useCallback(
+    (
+      taskId: string,
+      updates: Record<string, unknown>,
+      options?: TaskSurfaceMutationOptions,
+    ) => {
+      const patch = taskPatchFromSurfaceUpdates(updates);
+      if (Object.keys(patch).length === 0) {
+        options?.onSettled?.();
+        return;
+      }
+      updateTaskMutation.mutate(
+        { taskId, patch },
+        {
+          onSuccess: (task) => {
+            if (task) options?.onSuccess?.(task);
+          },
+          onError: (err) => options?.onError?.(err),
           onSettled: () => {
             void queryClient.invalidateQueries({
               queryKey: taskKeys.groupedRoot(workspaceId),
@@ -298,17 +370,17 @@ export function useTaskSurfaceController({
         },
       );
     },
-    [queryClient, updateTask, workspaceId],
+    [queryClient, updateTaskMutation, workspaceId],
   );
 
   const actions = useMemo<TaskSurfaceActions>(
     () => ({
       isPending:
-        updateTask.isPending ||
+        updateTaskMutation.isPending ||
         batchUpdateTasks.isPending ||
         batchDeleteTasks.isPending,
       createTask: (defaults) => openCreateTask(defaults),
-      updateTask: () => {},
+      updateTask: updateSurfaceTask,
       moveTask,
       batchUpdate: async (taskIds, updates) => {
         await batchUpdateTasks.mutateAsync({
@@ -330,7 +402,8 @@ export function useTaskSurfaceController({
       batchUpdateTasks,
       moveTask,
       openCreateTask,
-      updateTask.isPending,
+      updateSurfaceTask,
+      updateTaskMutation.isPending,
     ],
   );
 

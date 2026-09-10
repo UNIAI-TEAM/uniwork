@@ -818,14 +818,21 @@
       "load_more_retry": "Thử lại",
       "showing_of_total": "Hiển thị {{shown}}/{{total}}",
       "unavailable_cell": "Chưa có",
+      "empty_value": "Trống",
+      "labels_empty": "Workspace chưa có nhãn",
+      "sort_ascending": "Sắp xếp tăng dần",
+      "sort_descending": "Sắp xếp giảm dần",
       "grouping": {
-        "none": "Trạng thái (mặc định)",
+        "none": "Không nhóm",
         "status": "Trạng thái",
         "assignee": "Người phụ trách",
         "project": "Dự án"
       },
       "columns": {
         "trigger": "Cột",
+        "add": "Thêm cột",
+        "hide": "Ẩn cột",
+        "reorder": "Sắp xếp lại cột {{column}}",
         "search_placeholder": "Tìm cột…",
         "system_section": "Hệ thống",
         "property_section": "Thuộc tính",

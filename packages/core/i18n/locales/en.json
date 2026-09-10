@@ -819,14 +819,21 @@
       "load_more_retry": "Retry",
       "showing_of_total": "Showing {{shown}} of {{total}}",
       "unavailable_cell": "Unavailable",
+      "empty_value": "Empty",
+      "labels_empty": "No labels in this workspace",
+      "sort_ascending": "Sort ascending",
+      "sort_descending": "Sort descending",
       "grouping": {
-        "none": "Status (default)",
+        "none": "No grouping",
         "status": "Status",
         "assignee": "Assignee",
         "project": "Project"
       },
       "columns": {
         "trigger": "Columns",
+        "add": "Add column",
+        "hide": "Hide column",
+        "reorder": "Reorder {{column}} column",
         "search_placeholder": "Search columns…",
         "system_section": "System",
         "property_section": "Properties",
