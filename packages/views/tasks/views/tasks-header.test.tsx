@@ -33,6 +33,105 @@ async function openModeMenu() {
 }
 
 describe("TasksHeader mode switcher", () => {
+  it("keeps secondary actions out of the main toolbar without an empty chips row", () => {
+    const store = getTaskSurfaceViewStore("test-header-layout");
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <TasksHeader
+            workspaceId="w1"
+            modes={["board", "list"]}
+            scopedTasks={[]}
+            projectGroupingDisabled
+            projectGroupingReasonKey="capabilities.unknown"
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    const toolbar = screen.getByTestId("tasks-toolbar");
+    expect(toolbar).not.toContainElement(
+      screen.queryByRole("button", { name: "Lưu view" }),
+    );
+    expect(toolbar).not.toContainElement(
+      screen.queryByRole("button", { name: "Nhóm theo dự án" }),
+    );
+    expect(screen.queryByTestId("tasks-filter-chips")).toBeNull();
+  });
+
+  it("groups view creation and management in one view menu", async () => {
+    const store = getTaskSurfaceViewStore("test-header-view-menu");
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <TasksHeader workspaceId="w1" modes={["board"]} scopedTasks={[]} />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(screen.queryByRole("button", { name: "View mới" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Quản lý view" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thêm view" }));
+    expect(
+      await screen.findByRole("menuitem", { name: "View mới" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Quản lý view" }),
+    ).toBeInTheDocument();
+  });
+
+  it("moves project grouping and integrations into their related menus", async () => {
+    const store = getTaskSurfaceViewStore("test-header-action-groups");
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <TasksHeader
+            workspaceId="w1"
+            modes={["board"]}
+            scopedTasks={[]}
+            projectGroupingDisabled
+            projectGroupingReasonKey="capabilities.unknown"
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Hiển thị" }));
+    expect(await screen.findByText("Nhóm theo dự án")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
+    expect(
+      await screen.findByRole("menuitem", { name: "VCS" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Đính kèm" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows save view beside active filter chips", () => {
+    const store = getTaskSurfaceViewStore("test-header-save-filtered-view");
+    store.getState().toggleStatusFilter("todo");
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <TasksHeader workspaceId="w1" modes={["board"]} scopedTasks={[]} />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    const chips = screen.getByTestId("tasks-filter-chips");
+    expect(chips).toContainElement(
+      screen.getByRole("button", { name: "Lưu view" }),
+    );
+  });
+
   it("exposes every mode passed via props (workspace five)", async () => {
     const store = getTaskSurfaceViewStore("test-header-modes");
     store.getState().setViewMode("list");

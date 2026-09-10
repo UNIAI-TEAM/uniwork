@@ -636,6 +636,9 @@
     "surface": {
       "mode_placeholder": "This view mode is not available yet.",
       "group_by_project": "Group by project",
+      "grouping_unavailable": "Project grouping is not available in this mode.",
+      "more_actions": "More actions",
+      "action_unavailable": "This action is not connected yet.",
       "empty_column": "No tasks",
       "hide_column": "Hide column",
       "show_column": "Show column",
@@ -738,6 +741,7 @@
     },
     "display": {
       "title": "Display",
+      "grouping_section": "Group",
       "list_options": "List options",
       "show_subtasks": "Show sub-tasks",
       "card_properties_section": "Card fields",

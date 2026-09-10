@@ -56,18 +56,18 @@ function getActiveFilterCount(
 export function FilterChipsBar({
   dateFilter = null,
   onDateFilterChange,
-  onSave,
-  saveLabel,
   filterMenu,
   lockProjectFilter = false,
+  onSave,
+  saveLabel,
 }: {
   dateFilter?: TaskDateFilter | null;
   onDateFilterChange?: (filter: TaskDateFilter | null) => void;
-  onSave?: () => void;
-  saveLabel?: string;
   filterMenu?: ReactNode;
   /** When true, project filter is server-scoped — hide from count/clear. */
   lockProjectFilter?: boolean;
+  onSave?: () => void;
+  saveLabel?: string;
 }) {
   const { t } = useTranslation();
   const statusFilters = useViewStore((s) => s.statusFilters);
@@ -175,12 +175,13 @@ export function FilterChipsBar({
     dateFilter,
     lockProjectFilter,
   );
-  // Filter entry lives in TaskDisplayControls; chips bar only shows active
-  // chips / clear / save (plus an optional working filterMenu if a host passes one).
-  if (activeCount === 0 && !filterMenu && !onSave) return null;
+  // Filter entry lives in TaskDisplayControls; this row only exists when it
+  // has active state to explain (or a host supplies a working filter menu).
+  if (activeCount === 0 && !filterMenu) return null;
 
   return (
     <div
+      data-testid="tasks-filter-chips"
       className={cn(
         "flex min-h-9 shrink-0 flex-wrap items-center gap-1.5 py-1.5",
         PAGE_GUTTER,
@@ -208,22 +209,24 @@ export function FilterChipsBar({
         </span>
       ))}
       {activeCount > 0 ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            clearFilters();
-            onDateFilterChange?.(null);
-          }}
-        >
-          {t("tasks.filters.clear")}
-        </Button>
-      ) : null}
-      {onSave ? (
-        <Button type="button" variant="outline" size="sm" onClick={onSave}>
-          {saveLabel ?? t("tasks.filters.chip_save")}
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              clearFilters();
+              onDateFilterChange?.(null);
+            }}
+          >
+            {t("tasks.filters.clear")}
+          </Button>
+          {onSave && saveLabel ? (
+            <Button type="button" variant="outline" size="sm" onClick={onSave}>
+              {saveLabel}
+            </Button>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

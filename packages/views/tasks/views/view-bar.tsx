@@ -35,10 +35,11 @@ import {
 import type { TaskViewScope } from "@uniwork/core/tasks/views/active-view-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@uniwork/ui/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -46,11 +47,7 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ManageViewsDialog } from "./manage-views-dialog";
-import {
-  DeleteViewConfirm,
-  ViewListPanel,
-  type ViewBarItem,
-} from "./view-bar-popover";
+import type { ViewBarItem } from "./view-bar-popover";
 
 export interface ViewBarBuiltin {
   key: string;
@@ -133,8 +130,6 @@ export function ViewBar({
 
   const prefs = parsePrefs(prefQuery.data?.prefs);
   const [manageOpen, setManageOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [deleting, setDeleting] = useState<TaskView | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -203,7 +198,7 @@ export function ViewBar({
           items={visible.map((item) => item.barItemId)}
           strategy={horizontalListSortingStrategy}
         >
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+          <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden">
             {visible.map((item) => {
               const builtin =
                 item.kind === "builtin"
@@ -252,8 +247,8 @@ export function ViewBar({
         </SortableContext>
       </DndContext>
 
-      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-        <PopoverTrigger
+      <DropdownMenu>
+        <DropdownMenuTrigger
           render={
             <Button
               type="button"
@@ -264,50 +259,18 @@ export function ViewBar({
           }
         >
           <Layers className="size-3.5" aria-hidden />
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-0">
-          <ViewListPanel
-            items={ordered}
-            activeViewId={activeView?.id ?? null}
-            onSelect={(item) => {
-              setMoreOpen(false);
-              if (item.kind === "builtin") {
-                const b = builtins.find(
-                  (x) => `builtin:${x.key}` === item.barItemId,
-                );
-                if (b?.disabled) return;
-                b?.onSelect();
-              } else {
-                onSelectView(item.view ?? null);
-              }
-            }}
-            onEdit={(view) => {
-              setMoreOpen(false);
-              onEditView(view);
-            }}
-            onDelete={(view) => setDeleting(view)}
-          />
-        </PopoverContent>
-      </Popover>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={t("tasks.view_bar.new")}
-        onClick={onNewView}
-      >
-        <Plus className="size-3.5" aria-hidden />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={t("tasks.view_bar.manage")}
-        onClick={() => setManageOpen(true)}
-      >
-        <Settings2 className="size-3.5" aria-hidden />
-      </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuItem onClick={onNewView}>
+            <Plus className="size-3.5" aria-hidden />
+            {t("tasks.view_bar.new")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setManageOpen(true)}>
+            <Settings2 className="size-3.5" aria-hidden />
+            {t("tasks.view_bar.manage")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <ManageViewsDialog
         open={manageOpen}
@@ -327,16 +290,6 @@ export function ViewBar({
         }}
       />
 
-      <DeleteViewConfirm
-        view={deleting}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null);
-        }}
-        onConfirm={async (view) => {
-          await deleteView.mutateAsync(view.id);
-          if (activeView?.id === view.id) onSelectView(null);
-        }}
-      />
     </div>
   );
 }

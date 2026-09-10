@@ -60,6 +60,8 @@ export function MyTasksHeader({
   isRefreshing = false,
   scope,
   onScopeChange,
+  projectGroupingDisabled = true,
+  projectGroupingReasonKey,
 }: {
   workspaceId: string;
   modes: TaskSurfaceMode[];
@@ -67,6 +69,8 @@ export function MyTasksHeader({
   isRefreshing?: boolean;
   scope: MyTasksScope;
   onScopeChange: (scope: MyTasksScope) => void;
+  projectGroupingDisabled?: boolean;
+  projectGroupingReasonKey?: string;
 }) {
   const { t } = useTranslation();
   void scopedTasks;
@@ -103,6 +107,20 @@ export function MyTasksHeader({
   const involvedReason = t(
     agentCapability.explanation_key || "capabilities.unknown",
   );
+  const saveLabel = activeView
+    ? isViewOwner
+      ? t("tasks.filters.chip_edit")
+      : t("tasks.filters.chip_save_as")
+    : t("tasks.filters.chip_save");
+
+  const openSaveView = () => {
+    setEditTarget(
+      activeView && isViewOwner
+        ? { view: activeView, fromDefinition: false }
+        : null,
+    );
+    setSaveViewOpen(true);
+  };
 
   const scopeMeta = useMemo(
     () =>
@@ -212,28 +230,17 @@ export function MyTasksHeader({
           </DropdownMenu>
 
           <div className="flex shrink-0 items-center gap-1">
-            <TaskDisplayControls modes={modes} isRefreshing={isRefreshing} />
+            <TaskDisplayControls
+              modes={modes}
+              isRefreshing={isRefreshing}
+              projectGroupingDisabled={projectGroupingDisabled}
+              projectGroupingReasonKey={projectGroupingReasonKey}
+            />
           </div>
         </div>
       </div>
 
-      <FilterChipsBar
-        onSave={() => {
-          setEditTarget(
-            activeView && isViewOwner
-              ? { view: activeView, fromDefinition: false }
-              : null,
-          );
-          setSaveViewOpen(true);
-        }}
-        saveLabel={
-          activeView
-            ? isViewOwner
-              ? t("tasks.filters.chip_edit")
-              : t("tasks.filters.chip_save_as")
-            : t("tasks.filters.chip_save")
-        }
-      />
+      <FilterChipsBar onSave={openSaveView} saveLabel={saveLabel} />
 
       <SaveViewDialog
         workspaceId={workspaceId}

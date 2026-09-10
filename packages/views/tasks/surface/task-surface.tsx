@@ -107,6 +107,9 @@ function TaskSurfaceContent({
         scopedTasks={controller.surfaceTasks}
         isRefreshing={controller.isRefreshing}
         lockProjectFilter={scope.type === "project"}
+        showProjectGrouping={scope.type !== "project"}
+        projectGroupingDisabled={controller.projectGroupingDisabled}
+        projectGroupingReasonKey={controller.projectGroupingReasonKey}
         saveViewScope={
           scope.type === "workspace"
             ? { kind: "workspace" }
@@ -147,8 +150,6 @@ function TaskSurfaceContent({
                 <BoardView
                   categories={controller.boardCategories}
                   tasks={controller.surfaceTasks}
-                  projectGroupingDisabled={controller.projectGroupingDisabled}
-                  projectGroupingReasonKey={controller.projectGroupingReasonKey}
                   onOpenTask={onOpenTask}
                 />
               ) : controller.viewMode === "table" ? (
