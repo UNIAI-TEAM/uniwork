@@ -54,8 +54,8 @@ func raw(s string) htmltemplate.HTML { return htmltemplate.HTML(s) }
 func button(href, label string) htmltemplate.HTML {
 	h := htmltemplate.HTMLEscapeString(href)
 	l := htmltemplate.HTMLEscapeString(label)
-	return htmltemplate.HTML(`<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="` + h + `" style="height:48px;v-text-anchor:middle;width:240px" arcsize="21%" stroke="f" fillcolor="#18181b"><w:anchorlock/><center style="color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600">` + l + `</center></v:roundrect><![endif]-->` +
-		`<!--[if !mso]><!--><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="background:#18181b;border-radius:10px"><a href="` + h + `" style="display:inline-block;padding:14px 24px;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px">` + l + `</a></td></tr></table><!--<![endif]-->`)
+	return htmltemplate.HTML(`<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="` + h + `" style="height:48px;v-text-anchor:middle;width:240px" arcsize="21%" stroke="f" fillcolor="#202020"><w:anchorlock/><center style="color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:600">` + l + `</center></v:roundrect><![endif]-->` +
+		`<!--[if !mso]><!--><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="background:#202020;border-radius:10px"><a href="` + h + `" style="display:inline-block;padding:14px 24px;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px">` + l + `</a></td></tr></table><!--<![endif]-->`)
 }
 
 // expires renders a TTL the way people say it: whole days as days, whole
