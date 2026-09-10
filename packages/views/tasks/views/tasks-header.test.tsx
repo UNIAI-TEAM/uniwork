@@ -104,6 +104,7 @@ describe("TasksHeader mode switcher", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hiển thị" }));
     expect(await screen.findByText("Nhóm theo dự án")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Nhãn" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
     expect(

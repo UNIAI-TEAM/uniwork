@@ -22,7 +22,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Task, TaskStatus } from "@uniwork/core/types";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
-import { BoardCardContent } from "./board-card";
+import { BoardCardContent, type BoardCardMeta } from "./board-card";
 import {
   BoardColumn,
   BOARD_CARD_WIDTH,
@@ -55,10 +55,12 @@ const EMPTY_IDS: string[] = [];
 function BoardViewImpl({
   categories,
   tasks,
+  cardMeta,
   onOpenTask,
 }: {
   categories: readonly string[];
   tasks: Task[];
+  cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   onOpenTask?: (id: string) => void;
 }) {
   const actions = useTaskSurfaceActionsOptional();
@@ -319,6 +321,7 @@ function BoardViewImpl({
               group={group}
               taskIds={columns[group.id] ?? EMPTY_IDS}
               taskMap={taskMapRef.current}
+              cardMeta={cardMeta}
               totalCount={group.totalCount}
               onCreateTask={onCreateTask}
               onOpenTask={onOpenTask}
@@ -338,7 +341,10 @@ function BoardViewImpl({
               style={{ width: BOARD_CARD_WIDTH }}
               className="rotate-1 cursor-grabbing opacity-90 shadow-lg shadow-black/10"
             >
-              <BoardCardContent task={activeTask} />
+              <BoardCardContent
+                task={activeTask}
+                meta={cardMeta?.get(activeTask.id)}
+              />
             </div>
           ) : null}
         </DragOverlay>

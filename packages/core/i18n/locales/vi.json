@@ -745,9 +745,17 @@
       "show_subtasks": "Hiện sub-task",
       "card_properties_section": "Trường trên thẻ",
       "card_priority": "Độ ưu tiên",
+      "card_description": "Mô tả",
       "card_assignee": "Người nhận",
+      "card_startDate": "Ngày bắt đầu",
       "card_dueDate": "Hạn",
-      "card_labels": "Nhãn"
+      "card_project": "Dự án",
+      "card_childProgress": "Tiến độ sub-task",
+      "card_labels": "Nhãn",
+      "labels_unavailable": "Danh sách task chưa trả về quan hệ nhãn."
+    },
+    "card": {
+      "child_progress": "Tiến độ sub-task"
     },
     "header": {
       "attachments_unavailable": "Đính kèm"

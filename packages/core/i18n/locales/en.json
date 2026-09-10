@@ -746,9 +746,17 @@
       "show_subtasks": "Show sub-tasks",
       "card_properties_section": "Card fields",
       "card_priority": "Priority",
+      "card_description": "Description",
       "card_assignee": "Assignee",
+      "card_startDate": "Start date",
       "card_dueDate": "Due date",
-      "card_labels": "Labels"
+      "card_project": "Project",
+      "card_childProgress": "Sub-task progress",
+      "card_labels": "Labels",
+      "labels_unavailable": "The task list does not return label relations yet."
+    },
+    "card": {
+      "child_progress": "Sub-task progress"
     },
     "header": {
       "attachments_unavailable": "Attachments"
