@@ -92,6 +92,17 @@ function TaskSurfaceContent({
       })),
     [membersData],
   );
+  const tableMembers = useMemo(
+    () =>
+      (membersData ?? []).map((member) => ({
+        id: member.user_id,
+        name: member.display_name || member.email,
+        ...(typeof member.avatar_url === "string"
+          ? { avatarUrl: member.avatar_url }
+          : {}),
+      })),
+    [membersData],
+  );
   const boardCardMeta = useMemo(() => {
     const projectNames = new Map(
       (projectsData?.projects ?? []).map((project) => [project.id, project.title]),
@@ -186,6 +197,9 @@ function TaskSurfaceContent({
                 <TableView
                   workspaceId={workspaceId}
                   filter={controller.tableFilter}
+                  members={tableMembers}
+                  projects={projectsData?.projects}
+                  childProgress={childProgressData}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
                   onOpenTask={onOpenTask}

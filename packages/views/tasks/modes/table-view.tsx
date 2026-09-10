@@ -16,6 +16,11 @@ import {
 } from "@uniwork/core/tasks/stores/view-store";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { DataTable } from "@uniwork/ui/components/ui/data-table";
+import type { ChildProgress, Project } from "@uniwork/core/types";
+import { useTaskLabels } from "@uniwork/core/tasks";
+import { toastApiError } from "../../toast-api-error";
+import { BatchActionToolbar } from "../views/batch-action-toolbar";
+import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
 import { TaskTableGroupRow } from "./table-group-row";
 import { TaskTableLoadMoreRow } from "./table-load-more-row";
@@ -29,27 +34,38 @@ import {
   type TaskTableDisplayRow,
 } from "./table-view-model";
 import { useTableViewData } from "./use-table-view-data";
+import type { TableMember } from "./table-cell-editors";
+
+const EMPTY_MEMBERS: TableMember[] = [];
+const EMPTY_PROJECTS: Project[] = [];
+const EMPTY_CHILD_PROGRESS: ChildProgress[] = [];
 
 /**
  * Suite TaskSurface table mode — baseline table structure (groups, rows,
  * DataTable, column picker, selection) on suite table APIs.
  *
- * Deep property editors and Projects grouping stay visible-disabled until
- * those capabilities ship. Agent chrome is not mounted after web cutover.
+ * Project grouping and custom-property editors stay visible-disabled until
+ * their table API contracts ship. Agent chrome is not mounted after cutover.
  */
 export function TableView({
   workspaceId,
   filter,
+  members = EMPTY_MEMBERS,
+  projects = EMPTY_PROJECTS,
+  childProgress = EMPTY_CHILD_PROGRESS,
   projectGroupingDisabled = true,
   projectGroupingReasonKey = "capabilities.unknown",
   propertiesDisabled = true,
   propertiesDisabledReasonKey = "capabilities.unknown",
-  editingDisabled = true,
+  editingDisabled = false,
   editingDisabledReasonKey = "capabilities.unknown",
   onOpenTask,
 }: {
   workspaceId: string;
   filter?: TableFilter;
+  members?: TableMember[];
+  projects?: Project[];
+  childProgress?: ChildProgress[];
   projectGroupingDisabled?: boolean;
   projectGroupingReasonKey?: string;
   propertiesDisabled?: boolean;
@@ -59,12 +75,16 @@ export function TableView({
   onOpenTask?: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const actions = useTaskSurfaceActionsOptional();
+  const labelsQuery = useTaskLabels(workspaceId);
   const selection = useTaskSurfaceSelection();
   const selectionAnchorRef = useRef<string | null>(null);
   const [search, setSearch] = useState("");
+  const tableProjectGroupingReasonKey = "capabilities.surface_not_ready";
 
   const tableColumns = useViewStore((s) => s.tableColumns);
   const setTableColumnWidth = useViewStore((s) => s.setTableColumnWidth);
+  const toggleTableColumn = useViewStore((s) => s.toggleTableColumn);
   const toggleTableGroupCollapsed = useViewStore(
     (s) => s.toggleTableGroupCollapsed,
   );
@@ -72,12 +92,35 @@ export function TableView({
   const sortDirection = useViewStore((s) => s.sortDirection);
   const setSortBy = useViewStore((s) => s.setSortBy);
   const setSortDirection = useViewStore((s) => s.setSortDirection);
+  const showSubTasks = useViewStore((s) => s.showSubTasks);
+  const tableCollapsedParents = useViewStore((s) => s.tableCollapsedParents);
+  const toggleTableParentCollapsed = useViewStore(
+    (s) => s.toggleTableParentCollapsed,
+  );
+
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.title])),
+    [projects],
+  );
+  const childProgressByTask = useMemo(
+    () =>
+      new Map(
+        childProgress.map((progress) => [progress.parent_task_id, progress]),
+      ),
+    [childProgress],
+  );
+  const assigneeNames = useMemo(
+    () => new Map(members.map((member) => [member.id, member.name])),
+    [members],
+  );
 
   const data = useTableViewData({
     workspaceId,
     filter,
-    projectsAvailable: !projectGroupingDisabled,
     search,
+    collapsedParentIds: tableCollapsedParents,
+    showSubTasks,
+    assigneeNames,
   });
 
   const columnKeys = useMemo(
@@ -160,8 +203,12 @@ export function TableView({
       visibleTaskIds,
       editingDisabled,
       editingDisabledReason: t(editingDisabledReasonKey),
-      hierarchyDisabled: true,
-      hierarchyDisabledReason: t("tasks.table.hierarchy_unavailable"),
+      hierarchyDisabled: !showSubTasks,
+      workspaceId,
+      members,
+      labels: labelsQuery.data?.labels ?? [],
+      projectNames,
+      childProgress: childProgressByTask,
       columnLabel,
       sortBy,
       sortDirection,
@@ -169,21 +216,41 @@ export function TableView({
       handleTaskSelection,
       selectAllVisible,
       clearVisibleSelection,
+      updateTask: (taskId, updates) => {
+        actions?.updateTask(taskId, updates, {
+          onError: (error) => toastApiError(error, t("common.error")),
+        });
+      },
+      toggleTableParentCollapsed,
+      toggleTableColumn,
+      propertiesDisabled,
+      propertiesDisabledReason: t(propertiesDisabledReasonKey),
       selectedIds: selection.selectedIds,
     }),
     [
       clearVisibleSelection,
+      actions,
+      childProgressByTask,
       columnLabel,
       editingDisabled,
       editingDisabledReasonKey,
       handleTaskSelection,
+      labelsQuery.data?.labels,
+      members,
       onSort,
+      projectNames,
+      propertiesDisabled,
+      propertiesDisabledReasonKey,
       selectAllVisible,
       selection.selectedIds,
+      showSubTasks,
       sortBy,
       sortDirection,
       t,
+      toggleTableParentCollapsed,
+      toggleTableColumn,
       visibleTaskIds,
+      workspaceId,
     ],
   );
 
@@ -193,7 +260,10 @@ export function TableView({
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.key,
     columnResizeMode: "onChange",
-    state: { columnSizing },
+    state: {
+      columnSizing,
+      columnPinning: { left: ["__select", "title"], right: [] },
+    },
     onColumnSizingChange: (updater) => {
       const next =
         typeof updater === "function" ? updater(columnSizing) : updater;
@@ -215,8 +285,12 @@ export function TableView({
       <TableViewToolbar
         search={search}
         onSearchChange={setSearch}
-        projectGroupingDisabled={projectGroupingDisabled}
-        projectGroupingReason={projectGroupingReasonKey}
+        projectGroupingDisabled
+        projectGroupingReason={
+          projectGroupingDisabled
+            ? projectGroupingReasonKey
+            : tableProjectGroupingReasonKey
+        }
         propertiesDisabled={propertiesDisabled}
         propertiesDisabledReason={t(propertiesDisabledReasonKey)}
       />
@@ -268,6 +342,11 @@ export function TableView({
           }}
         />
       )}
+      <BatchActionToolbar
+        workspaceId={workspaceId}
+        tasks={data.loadedTasks}
+        members={members}
+      />
     </div>
   );
 }

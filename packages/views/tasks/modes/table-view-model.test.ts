@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTaskTableHierarchy,
   buildTaskTableCsv,
   calculateTaskTableColumn,
   getTaskTableSelectionRange,
@@ -7,6 +8,7 @@ import {
   refreshFrozenTableRows,
   sortTasksForTable,
   tableGroupBy,
+  tableUsesServerGrouping,
   type TaskTableDisplayRow,
 } from "./table-view-model";
 import type { Task } from "@uniwork/core/types";
@@ -36,14 +38,17 @@ function task(over: Partial<Task> & { id: string; title: string }): Task {
 }
 
 describe("table-view-model", () => {
-  it("maps grouping to suite group_by and stubs project when unavailable", () => {
-    // Default store value "none" is status grouping; label is tasks.table.grouping.none.
+  it("maps grouping to the group_by values supported by the table API", () => {
+    // Ungrouped rows still use a supported server sort key without group_key.
     expect(tableGroupBy("none")).toBe("status");
     expect(tableGroupBy("status")).toBe("status");
     expect(tableGroupBy("assignee")).toBe("assignee");
-    expect(tableGroupBy("project", { projectsAvailable: false })).toBe("status");
-    expect(tableGroupBy("project", { projectsAvailable: true })).toBe("project");
+    expect(tableGroupBy("project")).toBe("status");
     expect(tableGroupBy("property:abc")).toBe("status");
+    expect(tableUsesServerGrouping("none")).toBe(false);
+    expect(tableUsesServerGrouping("status")).toBe(true);
+    expect(tableUsesServerGrouping("assignee")).toBe(true);
+    expect(tableUsesServerGrouping("project")).toBe(false);
   });
 
   it("builds selection ranges and refreshes frozen task rows", () => {
@@ -65,6 +70,31 @@ describe("table-view-model", () => {
     const live = { ...sample, title: "Beta" };
     const next = refreshFrozenTableRows(snapshot, new Map([["t1", live]]));
     expect(next[0]).toMatchObject({ kind: "task", task: { title: "Beta" } });
+  });
+
+  it("projects loaded tasks into a collapsible hierarchy", () => {
+    const parent = task({ id: "parent", title: "Parent" });
+    const child = task({
+      id: "child",
+      title: "Child",
+      parent_task_id: parent.id,
+    });
+    const expanded = buildTaskTableHierarchy(
+      [child, parent],
+      new Map([[parent.id, 1]]),
+      new Set(),
+    );
+    expect(expanded.map((row) => [row.task.id, row.depth])).toEqual([
+      ["parent", 0],
+      ["child", 1],
+    ]);
+    expect(
+      buildTaskTableHierarchy(
+        [child, parent],
+        new Map([[parent.id, 1]]),
+        new Set([parent.id]),
+      ).map((row) => row.task.id),
+    ).toEqual(["parent"]);
   });
 
   it("counts column values and escapes CSV formula cells", () => {
@@ -233,6 +263,16 @@ describe("table-view-model", () => {
         "Unassigned",
       ),
     ).toBe("human:u1");
+    expect(
+      groupLabelFromDescriptor(
+        "u1",
+        { kind: "assignee", actor: { id: "u1" } },
+        (s) => s,
+        (p) => p,
+        "Unassigned",
+        (id) => (id === "u1" ? "Nguyen Ba Vinh" : undefined),
+      ),
+    ).toBe("Nguyen Ba Vinh");
     expect(
       groupLabelFromDescriptor(
         "assignee",

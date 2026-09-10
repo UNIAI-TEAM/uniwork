@@ -14,13 +14,16 @@ import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import type { Task } from "@uniwork/core/types";
 import {
   TABLE_PAGE_SIZE,
+  buildTaskTableHierarchy,
   groupLabelFromDescriptor,
   sortTasksForTable,
   tableGroupBy,
+  tableUsesServerGrouping,
   type TaskTableDisplayRow,
 } from "./table-view-model";
 
 const EMPTY_GROUPS: TableGroupsResult["groups"] = [];
+const EMPTY_PARENT_IDS: string[] = [];
 
 export interface UseTableViewDataResult {
   displayRows: TaskTableDisplayRow[];
@@ -34,20 +37,27 @@ export interface UseTableViewDataResult {
 }
 
 type PageQuery = {
-  groupKey: string;
+  branchKey: string;
+  groupKey: string | null;
   pageIndex: number;
 };
+
+const UNGROUPED_BRANCH = "__ungrouped";
 
 export function useTableViewData({
   workspaceId,
   filter,
-  projectsAvailable = false,
   search = "",
+  collapsedParentIds = EMPTY_PARENT_IDS,
+  showSubTasks = true,
+  assigneeNames,
 }: {
   workspaceId: string;
   filter?: TableFilter;
-  projectsAvailable?: boolean;
   search?: string;
+  collapsedParentIds?: string[];
+  showSubTasks?: boolean;
+  assigneeNames?: ReadonlyMap<string, string>;
 }): UseTableViewDataResult {
   const { t } = useTranslation();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
@@ -55,7 +65,8 @@ export function useTableViewData({
   const sortBy = useViewStore((s) => s.sortBy);
   const sortDirection = useViewStore((s) => s.sortDirection);
 
-  const groupBy = tableGroupBy(tableGrouping, { projectsAvailable });
+  const groupBy = tableGroupBy(tableGrouping);
+  const usesServerGrouping = tableUsesServerGrouping(tableGrouping);
   const tableColumns = useViewStore((s) => s.tableColumns);
   const columns = useMemo(
     () => tableColumns.map((column) => column.key),
@@ -73,7 +84,10 @@ export function useTableViewData({
     [columns, filter, groupBy],
   );
 
-  const groupsQuery = useTableGroups(workspaceId, groupsBody);
+  const groupsQuery = useTableGroups(
+    workspaceId,
+    usesServerGrouping ? groupsBody : null,
+  );
   const groups = groupsQuery.data?.groups ?? EMPTY_GROUPS;
   const collapsed = useMemo(
     () => new Set(tableCollapsedGroups),
@@ -84,19 +98,34 @@ export function useTableViewData({
 
   useEffect(() => {
     setPagesByGroup({});
-  }, [workspaceId, groupBy, columns, filter]);
+  }, [workspaceId, groupBy, columns, filter, usesServerGrouping]);
 
   const pageQueries = useMemo((): PageQuery[] => {
     const list: PageQuery[] = [];
+    if (!usesServerGrouping) {
+      const pages = pagesByGroup[UNGROUPED_BRANCH] ?? 1;
+      for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
+        list.push({
+          branchKey: UNGROUPED_BRANCH,
+          groupKey: null,
+          pageIndex,
+        });
+      }
+      return list;
+    }
     for (const group of groups) {
       if (collapsed.has(group.key)) continue;
       const pages = pagesByGroup[group.key] ?? 1;
       for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
-        list.push({ groupKey: group.key, pageIndex });
+        list.push({
+          branchKey: group.key,
+          groupKey: group.key,
+          pageIndex,
+        });
       }
     }
     return list;
-  }, [collapsed, groups, pagesByGroup]);
+  }, [collapsed, groups, pagesByGroup, usesServerGrouping]);
 
   const rowQueries = useQueries({
     queries: pageQueries.map(({ groupKey, pageIndex }) => ({
@@ -149,7 +178,7 @@ export function useTableViewData({
   );
 
   const pagesForGroup = useCallback(
-    (groupKey: string) => {
+    (branchKey: string) => {
       const pages: Array<{
         data?: TableRowsResult;
         isLoading: boolean;
@@ -157,7 +186,7 @@ export function useTableViewData({
         isFetching: boolean;
       }> = [];
       pageQueries.forEach((page, index) => {
-        if (page.groupKey !== groupKey) return;
+        if (page.branchKey !== branchKey) return;
         const query = rowQueries[index];
         if (!query) return;
         pages.push({
@@ -175,46 +204,37 @@ export function useTableViewData({
   const displayRows = useMemo(() => {
     const rows: TaskTableDisplayRow[] = [];
     const needle = search.trim().toLocaleLowerCase();
+    const collapsedParents = new Set(collapsedParentIds);
 
-    if (groupsQuery.isLoading && groups.length === 0) {
+    if (
+      (usesServerGrouping && groupsQuery.isLoading && groups.length === 0) ||
+      (!usesServerGrouping &&
+        rowQueries.some((query) => query.isLoading && !query.data))
+    ) {
       for (let i = 0; i < 8; i += 1) {
         rows.push({ kind: "skeleton", key: `skeleton:${i}` });
       }
       return rows;
     }
 
-    for (const group of groups) {
-      const isCollapsed = collapsed.has(group.key);
-      rows.push({
-        kind: "group",
-        key: group.key,
-        label: groupLabelFromDescriptor(
-          group.key,
-          group.value,
-          translateStatus,
-          translatePriority,
-          t("tasks.unassigned"),
-        ),
-        count: group.count,
-        collapsed: isCollapsed,
-      });
-
-      if (isCollapsed) continue;
-
-      const pages = pagesForGroup(group.key);
+    const appendBranch = (
+      branchKey: string,
+      groupTotalHint: number,
+    ) => {
+      const pages = pagesForGroup(branchKey);
       const anyLoading = pages.some((page) => page.isLoading && !page.data);
       if (pages.length === 0 || anyLoading) {
-        for (let i = 0; i < Math.min(group.count, 3); i += 1) {
+        for (let i = 0; i < Math.min(groupTotalHint || 3, 3); i += 1) {
           rows.push({
             kind: "skeleton",
-            key: `skeleton:${group.key}:${i}`,
+            key: `skeleton:${branchKey}:${i}`,
           });
         }
-        continue;
+        return;
       }
 
       const accumulated: Array<{ task: Task; direct_child_count: number }> = [];
-      let groupTotal = group.count;
+      let groupTotal = groupTotalHint;
       let lastError = false;
       let fetchingMore = false;
       for (const page of pages) {
@@ -234,29 +254,34 @@ export function useTableViewData({
       const childCountById = new Map(
         accumulated.map((row) => [row.task.id, row.direct_child_count]),
       );
+      const hierarchyRows = showSubTasks
+        ? buildTaskTableHierarchy(tasks, childCountById, collapsedParents)
+        : tasks
+            .filter((task) => !task.parent_task_id)
+            .map((task) => ({
+              kind: "task" as const,
+              key: task.id,
+              task,
+              depth: 0,
+              hasChildren: false,
+              collapsed: false,
+            }));
 
-      for (const task of tasks) {
+      for (const row of hierarchyRows) {
         if (
           needle &&
-          !task.title.toLocaleLowerCase().includes(needle) &&
-          !(task.identifier ?? "").toLocaleLowerCase().includes(needle)
+          !row.task.title.toLocaleLowerCase().includes(needle) &&
+          !(row.task.identifier ?? "").toLocaleLowerCase().includes(needle)
         ) {
           continue;
         }
-        rows.push({
-          kind: "task",
-          key: task.id,
-          task,
-          depth: 0,
-          hasChildren: (childCountById.get(task.id) ?? 0) > 0,
-          collapsed: false,
-        });
+        rows.push(row);
       }
 
       if (accumulated.length < groupTotal) {
         rows.push({
           kind: "load_more",
-          key: `load_more:${group.key}`,
+          key: `load_more:${branchKey}`,
           state: lastError
             ? "error"
             : fetchingMore
@@ -264,24 +289,54 @@ export function useTableViewData({
               : "has_more",
           total: groupTotal,
           loadedCount: accumulated.length,
-          onLoad: () => loadMore(group.key),
+          onLoad: () => loadMore(branchKey),
         });
       }
+    };
+
+    if (!usesServerGrouping) {
+      appendBranch(UNGROUPED_BRANCH, 0);
+      return rows;
+    }
+
+    for (const group of groups) {
+      const isCollapsed = collapsed.has(group.key);
+      rows.push({
+        kind: "group",
+        key: group.key,
+        label: groupLabelFromDescriptor(
+          group.key,
+          group.value,
+          translateStatus,
+          translatePriority,
+          t("tasks.unassigned"),
+          (id) => assigneeNames?.get(id),
+        ),
+        count: group.count,
+        collapsed: isCollapsed,
+      });
+
+      if (isCollapsed) continue;
+      appendBranch(group.key, group.count);
     }
 
     return rows;
   }, [
     collapsed,
+    collapsedParentIds,
+    assigneeNames,
     groups,
     groupsQuery.isLoading,
     loadMore,
     pagesForGroup,
     search,
+    showSubTasks,
     sortBy,
     sortDirection,
     t,
     translatePriority,
     translateStatus,
+    usesServerGrouping,
   ]);
 
   const loadedTasks = useMemo(() => {
@@ -293,14 +348,20 @@ export function useTableViewData({
     return [...byId.values()];
   }, [rowQueries]);
 
-  const isLoading =
-    groupsQuery.isLoading ||
-    (groups.length > 0 &&
-      rowQueries.some((query) => query.isLoading && !query.data));
+  const rowsLoading = rowQueries.some(
+    (query) => query.isLoading && !query.data,
+  );
+  const isLoading = usesServerGrouping
+    ? groupsQuery.isLoading || (groups.length > 0 && rowsLoading)
+    : rowsLoading;
   const isRefreshing =
     (groupsQuery.isFetching && !groupsQuery.isLoading) ||
     rowQueries.some((query) => query.isFetching && !query.isLoading);
-  const total = groupsQuery.data?.total ?? loadedTasks.length;
+  const ungroupedTotal = (rowQueries[0]?.data as TableRowsResult | undefined)
+    ?.total;
+  const total = usesServerGrouping
+    ? (groupsQuery.data?.total ?? loadedTasks.length)
+    : (ungroupedTotal ?? loadedTasks.length);
   const isEmpty = !isLoading && total === 0;
 
   return {
@@ -311,6 +372,8 @@ export function useTableViewData({
     isRefreshing,
     isEmpty,
     groupBy,
-    groupsError: groupsQuery.isError,
+    groupsError: usesServerGrouping
+      ? groupsQuery.isError
+      : rowQueries.some((query) => query.isError && !query.data),
   };
 }
