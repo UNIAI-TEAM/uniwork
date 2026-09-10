@@ -33,6 +33,7 @@ type ChatService struct {
 	q           *db.Queries
 	ws          *WorkspaceService
 	pub         EventPublisher
+	tasks       *TaskService
 	TenorAPIKey string
 }
 

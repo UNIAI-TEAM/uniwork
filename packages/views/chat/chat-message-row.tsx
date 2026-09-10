@@ -13,6 +13,7 @@ import { ChatMessageBody } from "./chat-message-body";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
+import { MessageTaskCard } from "./message-task-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
 
@@ -34,6 +35,9 @@ export function ChatMessageRow({
   onPin,
   onCopy,
   onDelete,
+  onCreateTask,
+  onLinkTask,
+  workHubEnabled = false,
   showSenderName = false,
   compactTop = false,
   showAvatar = true,
@@ -54,6 +58,9 @@ export function ChatMessageRow({
   onPin?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
   onDelete?: (message: ChatMessage) => void;
+  onCreateTask?: (message: ChatMessage) => void;
+  onLinkTask?: (message: ChatMessage) => void;
+  workHubEnabled?: boolean;
   showSenderName?: boolean;
   compactTop?: boolean;
   showAvatar?: boolean;
@@ -108,6 +115,8 @@ export function ChatMessageRow({
             onPin={onPin}
             onCopy={onCopy}
             onDelete={onDelete}
+            onCreateTask={workHubEnabled ? onCreateTask : undefined}
+            onLinkTask={workHubEnabled ? onLinkTask : undefined}
             canEdit={canEdit}
           />
         ) : null}
@@ -186,6 +195,14 @@ export function ChatMessageRow({
               ? t("chat.thread_replies_unread", { count: message.replyCount })
               : t("chat.thread_replies", { count: message.replyCount })}
           </button>
+        ) : null}
+
+        {workHubEnabled && workspaceId && !isPending ? (
+          <MessageTaskCard
+            workspaceId={workspaceId}
+            messageId={message.id}
+            className={cn(isOwn && "items-end self-end")}
+          />
         ) : null}
 
         {showReadReceipt ? (

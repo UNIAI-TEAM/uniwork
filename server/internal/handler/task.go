@@ -247,5 +247,8 @@ func parseTaskPatch(raw map[string]json.RawMessage) (service.UpdateTaskInput, er
 	if in.DueDate, err = nullable("due_date"); err != nil {
 		return in, err
 	}
+	if in.ProjectID, err = nullable("project_id"); err != nil {
+		return in, err
+	}
 	return in, nil
 }

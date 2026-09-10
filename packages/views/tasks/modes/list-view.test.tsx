@@ -1,5 +1,4 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
@@ -61,8 +60,7 @@ function renderList(
 }
 
 describe("modes/ListView", () => {
-  it("groups rows by status and collapses a section", async () => {
-    const user = userEvent.setup();
+  it("groups rows by status and collapses a section", () => {
     const { store } = renderList();
 
     expect(screen.getByTestId("list-group-todo")).toHaveTextContent("Suite row");
@@ -70,7 +68,7 @@ describe("modes/ListView", () => {
       "Chưa có task",
     );
 
-    await user.click(screen.getByRole("button", { name: /Cần làm/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Cần làm/ }));
 
     expect(store.getState().listCollapsedStatuses).toContain("todo");
   });
@@ -107,8 +105,7 @@ describe("modes/ListView", () => {
     expect(screen.queryByText("Saturn")).toBeNull();
   });
 
-  it("opens the task from its row action", async () => {
-    const user = userEvent.setup();
+  it("opens the task from its row action", () => {
     const onOpenTask = vi.fn();
     renderIndex += 1;
     const store = getTaskSurfaceViewStore(`list-open-${renderIndex}`);
@@ -124,7 +121,7 @@ describe("modes/ListView", () => {
       ),
     );
 
-    await user.click(screen.getByRole("button", { name: /Suite row/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Suite row/ }));
     expect(onOpenTask).toHaveBeenCalledWith("t1");
   });
 

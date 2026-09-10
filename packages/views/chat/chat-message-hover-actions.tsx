@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import {
   Copy,
+  Link2,
+  ListTodo,
   MessageSquareText,
   MoreHorizontal,
   Pencil,
@@ -74,6 +76,8 @@ export function ChatMessageHoverActions({
   onPin,
   onCopy,
   onDelete,
+  onCreateTask,
+  onLinkTask,
   canEdit = true,
 }: {
   message: ChatMessage;
@@ -85,6 +89,8 @@ export function ChatMessageHoverActions({
   onPin?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
   onDelete?: (message: ChatMessage) => void;
+  onCreateTask?: (message: ChatMessage) => void;
+  onLinkTask?: (message: ChatMessage) => void;
   /** When false, the edit control stays visible but disabled. */
   canEdit?: boolean;
 }) {
@@ -92,6 +98,7 @@ export function ChatMessageHoverActions({
   const canInteract = Boolean(onReply && onReact);
   const canDelete = isOwn && Boolean(onDelete);
   const pinLabel = message.pinned ? t("chat.action_unpin") : t("chat.action_pin");
+  const workHubActions = Boolean(onCreateTask || onLinkTask);
 
   if (!canInteract) return null;
 
@@ -146,6 +153,21 @@ export function ChatMessageHoverActions({
             }
           />
           <DropdownMenuContent align={isOwn ? "end" : "start"}>
+            {workHubActions ? (
+              <>
+                <DropdownMenuItem
+                  onClick={() => onCreateTask?.(message)}
+                  disabled={!onCreateTask}
+                >
+                  <ListTodo className="size-4" aria-hidden />
+                  {t("chat.link.create_task")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onLinkTask?.(message)} disabled={!onLinkTask}>
+                  <Link2 className="size-4" aria-hidden />
+                  {t("chat.link.link_task")}
+                </DropdownMenuItem>
+              </>
+            ) : null}
             <DropdownMenuItem onClick={() => onCopy?.(message)} disabled={!onCopy}>
               <Copy className="size-4" aria-hidden />
               {t("chat.action_copy")}

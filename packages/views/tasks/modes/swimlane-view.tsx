@@ -37,6 +37,7 @@ import {
   COLUMN_GAP,
   COLUMN_WIDTH,
   SWIMLANE_LANE_SEED_COUNT,
+  SWIMLANE_VIRTUALIZE_THRESHOLD,
   cellId,
   laneIdFor,
   makeSwimLaneCollision,
@@ -441,7 +442,8 @@ function SwimLaneViewImpl({
               items={nonPinnedLaneIds}
               strategy={verticalListSortingStrategy}
             >
-              {scrollEl ? (
+              {laneGroups.length > SWIMLANE_VIRTUALIZE_THRESHOLD &&
+              scrollEl ? (
                 <Virtuoso
                   customScrollParent={scrollEl}
                   data={laneGroups}
@@ -454,11 +456,12 @@ function SwimLaneViewImpl({
                   itemContent={renderLane}
                 />
               ) : (
-                laneGroups
-                  .slice(0, SWIMLANE_LANE_SEED_COUNT)
-                  .map((lane, index) => (
-                    <div key={lane.key}>{renderLane(index, lane)}</div>
-                  ))
+                (laneGroups.length > SWIMLANE_VIRTUALIZE_THRESHOLD
+                  ? laneGroups.slice(0, SWIMLANE_LANE_SEED_COUNT)
+                  : laneGroups
+                ).map((lane, index) => (
+                  <div key={lane.key}>{renderLane(index, lane)}</div>
+                ))
               )}
             </SortableContext>
           </div>

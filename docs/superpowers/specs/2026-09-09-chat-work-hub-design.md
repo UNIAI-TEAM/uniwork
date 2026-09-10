@@ -331,8 +331,8 @@ Rời kênh dùng `POST /chat/rooms/{roomID}/leave` đã có. Thành viên kênh
 | `chat.channel.archived` | 1 | `room_id`, `workspace_id` | workspace | outbox |
 | `chat.thread.replied` | 1 | `room_id`, `thread_root_id`, `message_id` | chat | ephemeral |
 | `chat.thread.linked` | 1 | `room_id`, `thread_root_id`, `task_id` | room | outbox |
-| `chat.message.linked` | 1 | `room_id`, `message_id`, `target_type`, `target_id` | room | outbox |
-| `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | `-` | outbox |
+| `chat.message.linked` | 1 | `room_id`, `message_id`, `target_id` | room | outbox |
+| `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | - | outbox |
 
 Ba dòng cần giải thích:
 

@@ -230,6 +230,21 @@ function handleChatRealtimeEvent(
       chatScheduler.scheduleRoomActivity();
       return true;
     }
+    case "chat.message.linked": {
+      if (messageId) {
+        chatScheduler.scheduleMessageLinked(roomId ?? "", messageId);
+        return true;
+      }
+      return false;
+    }
+    case "chat.thread.linked": {
+      const threadRootId = payload.thread_root_id;
+      if (threadRootId) {
+        chatScheduler.scheduleThreadLinked(roomId ?? "", threadRootId);
+        return true;
+      }
+      return false;
+    }
     default:
       return false;
   }

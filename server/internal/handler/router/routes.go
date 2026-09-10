@@ -305,6 +305,12 @@ type Routes struct {
 	UnfollowChatThread          http.HandlerFunc
 	MarkChatThreadRead          http.HandlerFunc
 	ListChatThreads             http.HandlerFunc
+	CreateTaskFromChatMessage   http.HandlerFunc
+	CreateChatMessageLink       http.HandlerFunc
+	ListChatMessageLinks        http.HandlerFunc
+	DeleteChatMessageLink       http.HandlerFunc
+	SyncChatThreadTask          http.HandlerFunc
+	UnsyncChatThreadTask        http.HandlerFunc
 	ListChatRoomMembers         http.HandlerFunc
 	PatchChatRoomMember         http.HandlerFunc
 	PatchChatRoom               http.HandlerFunc

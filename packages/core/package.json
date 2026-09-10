@@ -52,6 +52,7 @@
     "./chat/pending-message-id": "./chat/pending-message-id.ts",
     "./chat/merge-optimistic-chat-messages": "./chat/merge-optimistic-chat-messages.ts",
     "./chat/realtime-cache": "./chat/realtime-cache.ts",
+    "./chat/message-links": "./chat/message-links.ts",
     "./chat/active-chat-room-store": "./chat/active-chat-room-store.ts",
     "./chat/sidebar-typing-store": "./chat/sidebar-typing-store.ts",
     "./chat/use-chat-typing-sync": "./chat/use-chat-typing-sync.ts",
