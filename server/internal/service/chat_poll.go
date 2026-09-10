@@ -202,7 +202,7 @@ func (s *ChatService) SendPollMessage(
 		},
 	}
 	switch room.Kind {
-	case chatRoomKindWorkspace:
+	case chatRoomKindWorkspace, chatRoomKindChannel:
 		s.pub.Publish(ctx, anchorWS, ev)
 	default:
 		s.publishChatRoomEvent(ctx, room.ID, ev)

@@ -73,7 +73,7 @@ describe("ChatSidebar", () => {
     expect(onTargetChange).toHaveBeenCalledWith({ kind: "dm", contact });
   });
 
-  it("shows empty states when there are no groups or contacts", () => {
+  it("hides empty group and contact sections instead of long hints", () => {
     render(
       wrap(
         <ChatSidebar
@@ -87,8 +87,11 @@ describe("ChatSidebar", () => {
       ),
     );
 
-    expect(screen.getByText(/Chưa có nhóm nào/)).toBeInTheDocument();
-    expect(screen.getByText(/Chưa có cuộc trò chuyện/)).toBeInTheDocument();
+    expect(screen.queryByText(/Chưa có nhóm nào/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Chưa có cuộc trò chuyện/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nhóm/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tin nhắn trực tiếp/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Workspace/i)).toBeInTheDocument();
   });
 
   it("shows contact nickname in conversation list", () => {

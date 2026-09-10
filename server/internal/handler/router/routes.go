@@ -292,6 +292,13 @@ type Routes struct {
 	ResolveDM                   http.HandlerFunc
 	CreateChatGroup             http.HandlerFunc
 	InviteChatGroupMembers      http.HandlerFunc
+	CreateChatChannel           http.HandlerFunc
+	ListChatChannels            http.HandlerFunc
+	ListProjectChatChannels     http.HandlerFunc
+	UpdateChatChannel           http.HandlerFunc
+	JoinChatChannel             http.HandlerFunc
+	ArchiveChatChannel          http.HandlerFunc
+	UnarchiveChatChannel        http.HandlerFunc
 	ListChatRoomMembers         http.HandlerFunc
 	PatchChatRoomMember         http.HandlerFunc
 	PatchChatRoom               http.HandlerFunc

@@ -23,14 +23,16 @@ export function useChatVoiceHandlers({
   activeRoomId,
   activeContact,
   activeGroup,
+  activeChannel = null,
   startCall,
   acceptCall,
   declineCall,
 }: {
-  targetKind: "workspace" | "dm" | "group";
+  targetKind: "workspace" | "dm" | "group" | "channel";
   activeRoomId: string | null;
   activeContact: ChatContact | null;
   activeGroup: GroupChat | null;
+  activeChannel?: { name: string } | null;
   startCall: (
     roomId: string,
     label: string,
@@ -55,6 +57,10 @@ export function useChatVoiceHandlers({
         if (!activeGroup) return;
         label = activeGroup.name;
         callKind = "group";
+      } else if (targetKind === "channel") {
+        if (!activeChannel) return;
+        label = `#${activeChannel.name}`;
+        callKind = "group";
       }
       if (!label || !callKind) return;
       try {
@@ -71,7 +77,7 @@ export function useChatVoiceHandlers({
         toast.error(voiceCallErrorMessage(err, t));
       }
     },
-    [targetKind, activeRoomId, activeContact, activeGroup, startCall, t],
+    [targetKind, activeRoomId, activeContact, activeGroup, activeChannel, startCall, t],
   );
 
   const handleStartVoiceCall = useCallback(async () => {

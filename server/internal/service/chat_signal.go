@@ -16,7 +16,7 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if err != nil {
 		return err
 	}
-	if room.Kind == chatRoomKindWorkspace {
+	if isWorkspaceDefaultRoom(room) {
 		return Invalid("cuộc gọi thoại không khả dụng trong phòng workspace")
 	}
 	if room.Kind != chatRoomKindDM && room.Kind != chatRoomKindGroup {
@@ -124,7 +124,7 @@ func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roo
 		},
 	}
 	switch room.Kind {
-	case chatRoomKindWorkspace:
+	case chatRoomKindWorkspace, chatRoomKindChannel:
 		s.pub.Publish(ctx, workspaceID, ev)
 	default:
 		s.publishChatRoomEvent(ctx, roomID, ev)

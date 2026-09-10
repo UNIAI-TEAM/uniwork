@@ -20,7 +20,7 @@ const (
 	chatRoomKindGroup = "group"
 )
 
-// ChatRoomSummary is a dm or group room visible to the caller.
+// ChatRoomSummary is a dm, group, or channel room visible to the caller.
 type ChatRoomSummary struct {
 	ID                    string
 	Kind                  string
@@ -38,6 +38,10 @@ type ChatRoomSummary struct {
 	LastMessageSenderName string
 	LastMessageAt         *time.Time
 	MemberPermissions     ChatRoomMemberPermissions
+	Visibility            string
+	ProjectID             string
+	Topic                 string
+	IsDefault             bool
 }
 
 type CreateGroupInput struct {
@@ -45,7 +49,7 @@ type CreateGroupInput struct {
 	MemberUserIDs []string
 }
 
-// ListChatRooms returns dm, group, and workspace rooms for a workspace member.
+// ListChatRooms returns dm, group, workspace/default, and joined channels for a workspace member.
 func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID string) ([]ChatRoomSummary, error) {
 	w, err := s.workspaceForChat(ctx, userID, workspaceID)
 	if err != nil {
@@ -64,9 +68,13 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 			return nil, mErr
 		}
 		wsSummary := ChatRoomSummary{
-			ID: wsRoom.ID, Kind: chatRoomKindWorkspace, Name: wsRoom.Name,
+			ID: wsRoom.ID, Kind: wsRoom.Kind, Name: wsRoom.Name,
 			WorkspaceID: workspaceID, UnreadCount: unread, MentionUnreadCount: mentionUnread,
 			MemberPermissions: memberPermissionsFromRaw(wsRoom.MemberPermissions),
+			Visibility:        wsRoom.Visibility,
+			Topic:             wsRoom.Topic,
+			IsDefault:         wsRoom.IsDefault,
+			ProjectID:         textOrEmpty(wsRoom.ProjectID),
 		}
 		if preview, pErr := s.q.GetLatestChatMessageByRoom(ctx, db.GetLatestChatMessageByRoomParams{
 			RoomID: wsRoom.ID, WorkspaceID: workspaceID,
@@ -127,6 +135,25 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 			row.LastMessageBody, row.LastMessageKind, row.LastMessageSenderID,
 			row.LastMessageSenderName, row.LastMessageAt,
 		))
+		out = append(out, summary)
+	}
+
+	// ListChatRoomsForMember stays dm/group-only; channels are workspace-scoped via ListChatChannelsMine.
+	channelRows, err := s.q.ListChatChannelsMine(ctx, db.ListChatChannelsMineParams{
+		UserID: userID, WorkspaceID: pgtype.Text{String: workspaceID, Valid: true},
+	})
+	if err != nil {
+		// Do not fail the whole sidebar (DMs/groups) if channel preview scan breaks.
+		return out, nil
+	}
+	for _, row := range channelRows {
+		if row.IsDefault {
+			continue // already included via GetWorkspaceChatRoom
+		}
+		summary, err := s.channelSummaryFromMineRow(ctx, userID, row)
+		if err != nil {
+			continue
+		}
 		out = append(out, summary)
 	}
 	return out, nil
@@ -262,8 +289,11 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	if room.Kind != chatRoomKindGroup {
-		return ChatRoomSummary{}, Invalid("chỉ có thể mời thành viên vào nhóm chat")
+	if room.Kind != chatRoomKindGroup && room.Kind != chatRoomKindChannel {
+		return ChatRoomSummary{}, Invalid("chỉ có thể mời thành viên vào nhóm hoặc kênh chat")
+	}
+	if room.Kind == chatRoomKindChannel && room.IsDefault {
+		return ChatRoomSummary{}, Invalid("kênh mặc định đồng bộ thành viên từ workspace")
 	}
 	orgID := roomOrganizationID(room)
 	anchorWS := roomAnchorWorkspaceID(room)
@@ -323,8 +353,8 @@ func (s *ChatService) RemoveWorkspaceRoomMember(
 	if err != nil {
 		return err
 	}
-	if room.Kind != chatRoomKindWorkspace {
-		return Invalid("chỉ có thể xóa thành viên khỏi phòng workspace")
+	if room.Kind != chatRoomKindWorkspace && !(room.Kind == chatRoomKindChannel && room.IsDefault) {
+		return Invalid("chỉ có thể xóa thành viên khỏi kênh mặc định của workspace")
 	}
 	actor, err := s.ws.RequireMember(ctx, workspaceID, actorID)
 	if err != nil {
@@ -347,14 +377,14 @@ func (s *ChatService) RemoveWorkspaceRoomMember(
 	return nil
 }
 
-// LeaveChatRoom marks the caller as left for a dm or group room.
+// LeaveChatRoom marks the caller as left for a dm, group, or non-default channel.
 func (s *ChatService) LeaveChatRoom(ctx context.Context, userID, workspaceID, roomID string) error {
 	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return err
 	}
-	if room.Kind == chatRoomKindWorkspace {
-		return Invalid("không thể rời phòng workspace")
+	if room.Kind == chatRoomKindWorkspace || room.IsDefault {
+		return Invalid("không thể rời kênh mặc định của workspace")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -409,6 +439,11 @@ func (s *ChatService) createChatRoom(
 		MemberSetKey:    pgtype.Text{String: memberSetKey, Valid: true},
 		LivekitRoomName: liveKitRoomFromChatID(roomID),
 		CreatedBy:       creatorID,
+		CreatedByKind:   string(audit.KindHuman),
+		Visibility:      chatVisibilityPrivate,
+		ProjectID:       pgtype.Text{},
+		Topic:           "",
+		IsDefault:       false,
 	})
 	if err != nil {
 		return db.ChatRoom{}, err
@@ -458,6 +493,20 @@ func (s *ChatService) ensureExistingRoomAccess(ctx context.Context, room db.Chat
 }
 
 func (s *ChatService) authorizeRoom(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
+	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, true)
+}
+
+// authorizeRoomRead allows reading a public channel without joining.
+func (s *ChatService) authorizeRoomRead(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
+	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, false)
+}
+
+// authorizeRoomMember requires active membership (send / moderate).
+func (s *ChatService) authorizeRoomMember(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
+	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, true)
+}
+
+func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {
 	w, err := s.workspaceForChat(ctx, userID, workspaceID)
 	if err != nil {
 		return db.ChatRoom{}, err
@@ -469,8 +518,11 @@ func (s *ChatService) authorizeRoom(ctx context.Context, userID, workspaceID, ro
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
+	if room.ArchivedAt.Valid {
+		return db.ChatRoom{}, ErrNotFound
+	}
 	switch room.Kind {
-	case chatRoomKindWorkspace:
+	case chatRoomKindWorkspace, chatRoomKindChannel:
 		if !room.WorkspaceID.Valid || room.WorkspaceID.String != workspaceID {
 			return db.ChatRoom{}, ErrNotFound
 		}
@@ -479,13 +531,30 @@ func (s *ChatService) authorizeRoom(ctx context.Context, userID, workspaceID, ro
 			return db.ChatRoom{}, ErrNotFound
 		}
 	}
-	if _, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+
+	_, memErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
-	}); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+	})
+	isMember := memErr == nil
+	if memErr != nil && !errors.Is(memErr, pgx.ErrNoRows) {
+		return db.ChatRoom{}, memErr
+	}
+
+	if room.Kind == chatRoomKindChannel && room.Visibility == chatVisibilityPublic && !requireMember {
+		// Public channels: workspace members may read without joining.
+		return room, nil
+	}
+	if !isMember {
+		if room.Kind == chatRoomKindChannel {
+			if requireMember && room.Visibility == chatVisibilityPublic {
+				return db.ChatRoom{}, errChatNotMember()
+			}
+			return db.ChatRoom{}, errChatChannelPrivate()
+		}
+		if errors.Is(memErr, pgx.ErrNoRows) {
 			return db.ChatRoom{}, ErrForbidden
 		}
-		return db.ChatRoom{}, err
+		return db.ChatRoom{}, memErr
 	}
 	if room.Kind == chatRoomKindDM && !s.userInVoiceRoomMemberSet(room, userID) {
 		return db.ChatRoom{}, ErrForbidden

@@ -31,8 +31,11 @@ export function ChatPageContent({
   headerTitle,
   contacts,
   groups,
+  channels,
+  workHubEnabled,
   activeContact,
   activeGroup,
+  activeChannel,
   workspaceId,
   messageRefreshKey,
   activeRoomId,
@@ -73,6 +76,8 @@ export function ChatPageContent({
   onAddMembersOpenChange,
   createGroupOpen,
   onCreateGroupOpenChange,
+  channelSettingsOpen,
+  onChannelSettingsOpenChange,
   creatingGroup,
   onCreateGroup,
   invitingMembers,
@@ -80,6 +85,7 @@ export function ChatPageContent({
   leavingConversation,
   onLeaveGroup,
   onLeaveDm,
+  onLeaveChannel,
   groupMemberProfiles,
   typingLabel,
   onVoiceCall,
@@ -214,11 +220,13 @@ export function ChatPageContent({
     <>
       <ChatPageContentDialogs
         target={target}
+        setTarget={setTarget}
         workspaceId={workspaceId}
         headerTitle={headerTitle}
         contacts={contacts}
         activeContact={activeContact}
         activeGroup={activeGroup}
+        activeChannel={activeChannel}
         currentUserId={currentUserId}
         workspaceRoomId={workspaceRoomId}
         nicknamesByUserId={nicknamesByUserId}
@@ -227,6 +235,9 @@ export function ChatPageContent({
         onGroupSettingsOpenChange={onGroupSettingsOpenChange}
         dmSettingsOpen={dmSettingsOpen}
         onDmSettingsOpenChange={onDmSettingsOpenChange}
+        channelSettingsOpen={channelSettingsOpen}
+        onChannelSettingsOpenChange={onChannelSettingsOpenChange}
+        workHubEnabled={workHubEnabled}
         dmBlockedByMe={dmBlockedByMe}
         dmBlockedMe={dmBlockedMe}
         onBlockContact={onBlockContact}
@@ -240,6 +251,7 @@ export function ChatPageContent({
         leavingConversation={leavingConversation}
         onLeaveGroup={onLeaveGroup}
         onLeaveDm={onLeaveDm}
+        onLeaveChannel={onLeaveChannel}
         workspaceMembers={workspaceMembers}
         workspaceSettingsOpen={workspaceSettingsOpen}
         onWorkspaceSettingsOpenChange={onWorkspaceSettingsOpenChange}
@@ -279,6 +291,8 @@ export function ChatPageContent({
               onTargetChange={handleTargetChange}
               contacts={contacts}
               groups={groups}
+              channels={channels}
+              workHubEnabled={workHubEnabled}
               onCreateGroup={onCreateGroup}
               creatingGroup={creatingGroup}
               createGroupOpen={createGroupOpen}
@@ -288,6 +302,7 @@ export function ChatPageContent({
               mentionUnreadByRoomId={mentionUnreadByRoomId}
               roomPreviewsByRoomId={roomPreviewsByRoomId}
               unreadBadgesReady={unreadBadgesReady}
+              nicknamesByUserId={nicknamesByUserId}
               embedded
             />
           </div>
@@ -308,7 +323,7 @@ export function ChatPageContent({
                 </Button>
               </div>
             ) : null}
-            {connectError && (target.kind === "dm" || target.kind === "group") ? (
+            {connectError && (target.kind === "dm" || target.kind === "group" || target.kind === "channel") ? (
               <p className="border-b border-border bg-surface px-4 py-2 text-caption text-muted-foreground">
                 {connectError}
               </p>
@@ -329,7 +344,9 @@ export function ChatPageContent({
                       ? t("chat.group_description")
                       : target.kind === "group"
                         ? t("chat.group_loading")
-                        : t("chat.dm_hint")
+                        : target.kind === "channel"
+                          ? t("chat.channel.loading")
+                          : t("chat.dm_hint")
                   }
                 />
               </div>
@@ -367,6 +384,22 @@ export function ChatPageContent({
                     sidebarCollapsed={sidebarCollapsed}
                     onToggleSidebar={handleToggleSidebar}
                     onOpenSettings={() => onGroupSettingsOpenChange(true)}
+                    onOpenSearch={() => onMessageSearchOpenChange(true)}
+                    onVoiceCall={onVoiceCall}
+                    voiceCallDisabled={voiceCallDisabled}
+                    onVideoCall={onVideoCall}
+                    videoCallDisabled={videoCallDisabled}
+                  />
+                ) : null}
+                {!messageSearchOpen && target.kind === "channel" && activeChannel ? (
+                  <GroupChatToolbar
+                    title={headerTitle}
+                    memberCount={activeChannel.member_user_ids.length + 1}
+                    backAriaLabel={backToListLabel}
+                    onBack={handleBackToConversationList}
+                    sidebarCollapsed={sidebarCollapsed}
+                    onToggleSidebar={handleToggleSidebar}
+                    onOpenSettings={() => onChannelSettingsOpenChange(true)}
                     onOpenSearch={() => onMessageSearchOpenChange(true)}
                     onVoiceCall={onVoiceCall}
                     voiceCallDisabled={voiceCallDisabled}
@@ -414,14 +447,22 @@ export function ChatPageContent({
                       ? t("chat.group_description")
                       : target.kind === "group"
                         ? t("chat.group_empty", { name: headerTitle })
-                        : t("chat.dm_empty", {
-                            name: displayLabelForChatContact(target.contact, nicknamesByUserId),
-                          })
+                        : target.kind === "channel"
+                          ? t("chat.channel.empty_thread", { name: headerTitle })
+                          : target.kind === "dm"
+                            ? t("chat.dm_empty", {
+                                name: displayLabelForChatContact(target.contact, nicknamesByUserId),
+                              })
+                            : t("chat.empty_description")
                   }
                   replyTo={replyTo}
                   onReplyToChange={onReplyToChange}
                   refreshKey={messageRefreshKey}
-                  showSenderName={target.kind === "workspace" || target.kind === "group"}
+                  showSenderName={
+                    target.kind === "workspace" ||
+                    target.kind === "group" ||
+                    target.kind === "channel"
+                  }
                   embedded
                   anchorMessageId={jumpToMessageId}
                   onClearAnchor={() => onJumpToMessageIdChange(null)}
@@ -440,7 +481,11 @@ export function ChatPageContent({
                   onSendFile={onSendFile}
                   disabled={showLoading || !activeRoomId || dmBlocked || chatSendRestricted}
                   mentionCandidates={
-                    target.kind === "workspace" || target.kind === "group" ? mentionCandidates : undefined
+                    target.kind === "workspace" ||
+                    target.kind === "group" ||
+                    target.kind === "channel"
+                      ? mentionCandidates
+                      : undefined
                   }
                   placeholder={
                     dmBlocked

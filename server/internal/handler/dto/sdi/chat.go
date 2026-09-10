@@ -114,6 +114,24 @@ type PatchChatRoomSDI struct {
 	MemberPermissions *ChatRoomMemberPermissionsSDI `json:"member_permissions,omitempty" description:"Permissions granted to regular members"`
 }
 
+// CreateChatChannelSDI is POST .../chat/channels.
+type CreateChatChannelSDI struct {
+	Name          string   `json:"name" description:"Channel name (1–80 chars)" example:"marketing"`
+	Visibility    string   `json:"visibility" description:"public or private" example:"public"`
+	Topic         string   `json:"topic,omitempty" description:"One-line topic ≤280 chars" example:"Chiến dịch Q3"`
+	ProjectID     string   `json:"project_id,omitempty" description:"Optional project to attach" example:"01J8X4PROJ0N1P2Q3R4S5T6U7V8"`
+	MemberUserIDs []string `json:"member_user_ids,omitempty" description:"Initial members (creator always included)"`
+}
+
+// UpdateChatChannelSDI is PATCH .../chat/channels/{roomID}.
+// ProjectID uses a pointer so null clears the link.
+type UpdateChatChannelSDI struct {
+	Name       *string `json:"name,omitempty" description:"Channel name" example:"marketing"`
+	Topic      *string `json:"topic,omitempty" description:"One-line topic"`
+	Visibility *string `json:"visibility,omitempty" description:"public or private"`
+	ProjectID  *string `json:"project_id,omitempty" description:"Project id; null clears the link"`
+}
+
 // ChatRoomMemberPermissionsSDI configures what non-admin members may do.
 type ChatRoomMemberPermissionsSDI struct {
 	AllowChangeProfile *bool `json:"allow_change_profile,omitempty" description:"Members may change group name and avatar" example:"true"`

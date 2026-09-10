@@ -16,6 +16,9 @@ import { z } from "zod";
 export const WS_EVENT_TYPES = [
   "ai.usage.updated",
   "audit.exported",
+  "chat.channel.archived",
+  "chat.channel.created",
+  "chat.channel.updated",
   "chat.mention.created",
   "chat.message",
   "chat.message.created",

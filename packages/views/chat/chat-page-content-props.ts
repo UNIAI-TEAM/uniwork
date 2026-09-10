@@ -1,5 +1,6 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { Member } from "@uniwork/core/types/workspace";
 import type { ChatSidebarTarget } from "./chat-sidebar";
@@ -14,8 +15,11 @@ export type ChatPageContentProps = {
   headerTitle: string;
   contacts: ChatContact[];
   groups: GroupChat[];
+  channels: ChatRoomRecord[];
+  workHubEnabled: boolean;
   activeContact: ChatContact | null;
   activeGroup: GroupChat | null;
+  activeChannel: ChatRoomRecord | null;
   workspaceId: string;
   messageRefreshKey?: number;
   activeRoomId: string | null;
@@ -56,6 +60,8 @@ export type ChatPageContentProps = {
   onAddMembersOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createGroupOpen: boolean;
   onCreateGroupOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  channelSettingsOpen: boolean;
+  onChannelSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   creatingGroup: boolean;
   onCreateGroup: (members: ChatContact[], name: string) => void;
   invitingMembers: boolean;
@@ -63,6 +69,7 @@ export type ChatPageContentProps = {
   leavingConversation: boolean;
   onLeaveGroup: () => void;
   onLeaveDm: () => void;
+  onLeaveChannel: () => void;
   groupMemberProfiles: Record<string, GroupMemberProfile>;
   typingLabel: string | null;
   onVoiceCall: () => void;
