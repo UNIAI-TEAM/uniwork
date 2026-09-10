@@ -34,7 +34,9 @@ async function onboardToTasks(page: Page) {
 
 async function createAndOpenTask(page: Page) {
   await page.goto(`/${orgSlug}/${wsSlug}/tasks`);
-  await page.getByRole("button", { name: "Việc mới" }).click();
+  // Topbar create — not "Việc mới": welcome-task body also contains that phrase,
+  // so a substring role match hits board cards instead of a create control.
+  await page.getByRole("button", { name: "Tạo việc" }).click();
   await page.getByLabel("Tiêu đề").fill(taskTitle);
   await page.getByRole("button", { name: "Tạo", exact: true }).click();
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 15_000 });
