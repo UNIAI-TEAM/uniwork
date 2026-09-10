@@ -265,8 +265,7 @@ WHERE m.status = 'IN_PROGRESS'
     NOT EXISTS (
       SELECT 1 FROM meeting_conference_sessions s
       WHERE s.meeting_id = m.id
-        AND s.status <> 'ENDED'
-        AND s.status <> 'FAILED'
+        AND s.status = 'ACTIVE'
     )
     OR m.ends_at < $2
   )
@@ -278,8 +277,8 @@ type ListOverdueInProgressMeetingsParams struct {
 	OvertimeCutoff pgtype.Timestamptz `json:"overtime_cutoff"`
 }
 
-// Empty rooms past ends_at, or live rooms whose ends_at is older than the
-// overtime cutoff (now − 2h). Open session = status not ENDED/FAILED.
+// Empty/idle rooms past ends_at, or ACTIVE rooms past the overtime cutoff
+// (now − 2h). Live = session status ACTIVE only; IDLE does not keep the row.
 func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOverdueInProgressMeetingsParams) ([]Meeting, error) {
 	rows, err := q.db.Query(ctx, listOverdueInProgressMeetings, arg.Now, arg.OvertimeCutoff)
 	if err != nil {
