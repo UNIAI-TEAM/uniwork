@@ -155,7 +155,9 @@ export function useTaskSurfaceController({
   });
 
   const statusesQuery = useTaskStatuses(
-    boardEnabled || swimlaneEnabled ? workspaceId : "",
+    boardEnabled || swimlaneEnabled || effectiveViewMode === "list"
+      ? workspaceId
+      : "",
   );
   const groupedQuery = useGroupedTasks(
     boardEnabled && scope.type !== "my" ? workspaceId : "",

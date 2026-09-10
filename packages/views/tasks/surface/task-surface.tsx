@@ -169,7 +169,9 @@ function TaskSurfaceContent({
             <div className={cn("flex min-h-0 flex-1 flex-col")}>
               {controller.viewMode === "list" ? (
                 <ListView
+                  categories={controller.boardCategories}
                   tasks={controller.surfaceTasks}
+                  cardMeta={boardCardMeta}
                   onOpenTask={onOpenTask}
                 />
               ) : controller.viewMode === "board" ? (

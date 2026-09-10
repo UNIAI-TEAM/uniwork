@@ -774,6 +774,11 @@
     "card": {
       "child_progress": "Sub-task progress"
     },
+    "list": {
+      "select_status": "Select all tasks in {{status}}",
+      "select_task": "Select {{title}}",
+      "add_task": "Add task to {{status}}"
+    },
     "header": {
       "attachments_unavailable": "Attachments"
     },

@@ -773,6 +773,11 @@
     "card": {
       "child_progress": "Tiến độ sub-task"
     },
+    "list": {
+      "select_status": "Chọn tất cả task trong {{status}}",
+      "select_task": "Chọn {{title}}",
+      "add_task": "Thêm task vào {{status}}"
+    },
     "header": {
       "attachments_unavailable": "Đính kèm"
     },
