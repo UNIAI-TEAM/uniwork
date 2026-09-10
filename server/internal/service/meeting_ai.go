@@ -27,6 +27,10 @@ const (
 
 	transcriptLimit = 5000
 	chatLimit       = 500
+
+	// autoEndOvertime is the hard cap after ends_at while a conference is still open.
+	autoEndOvertime = 2 * time.Hour
+	autoEndInterval = 60 * time.Second
 )
 
 func (s *MeetingService) count(event string) {
@@ -424,19 +428,19 @@ func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev Pro
 
 // ---- Auto end ----------------------------------------------------------------
 
-// AutoEndOverdue ends IN_PROGRESS meetings whose planned end (ends_at) has
-// passed and that no longer have an open conference. A live room stays in
-// overtime until a host ends it.
+// AutoEndOverdue ends IN_PROGRESS meetings that are past ends_at with no
+// ACTIVE conference, or still ACTIVE but past ends_at + autoEndOvertime.
+// IDLE / PENDING / missing session count as empty.
 func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int, error) {
-	rows, err := s.q.ListOverdueInProgressMeetings(ctx, pgtype.Timestamptz{Time: now, Valid: true})
+	rows, err := s.q.ListOverdueInProgressMeetings(ctx, db.ListOverdueInProgressMeetingsParams{
+		Now:            pgtype.Timestamptz{Time: now, Valid: true},
+		OvertimeCutoff: pgtype.Timestamptz{Time: now.Add(-autoEndOvertime), Valid: true},
+	})
 	if err != nil {
 		return 0, err
 	}
 	n := 0
 	for _, m := range rows {
-		if sess, err := s.q.GetOpenConferenceSession(ctx, m.ID); err == nil && sess.ID != "" {
-			continue
-		}
 		if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
 			n++
 			s.count("auto_ended")
@@ -445,8 +449,27 @@ func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int
 	return n, nil
 }
 
+// endIfOverdueEmpty ends an IN_PROGRESS meeting whose window has passed and
+// whose conference is no longer ACTIVE. room_finished calls this so an empty
+// overtime room does not wait for the next RunAutoEnd tick.
+func (s *MeetingService) endIfOverdueEmpty(ctx context.Context, meetingID string) {
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil || m.Status != MeetingInProgress {
+		return
+	}
+	if !meetingPastScheduledEnd(m, time.Now().UTC()) {
+		return
+	}
+	if sess, err := s.q.GetOpenConferenceSession(ctx, meetingID); err == nil && sess.Status == "ACTIVE" {
+		return
+	}
+	if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
+		s.count("auto_ended")
+	}
+}
+
 func (s *MeetingService) RunAutoEnd(ctx context.Context) {
-	t := time.NewTicker(10 * time.Second)
+	t := time.NewTicker(autoEndInterval)
 	defer t.Stop()
 	for {
 		select {

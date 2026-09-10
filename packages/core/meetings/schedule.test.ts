@@ -36,13 +36,14 @@ describe("meeting schedule helpers", () => {
     ).toBe(true);
   });
 
-  it("treats overtime IN_PROGRESS as not live and as ended for display", () => {
+  it("treats overtime IN_PROGRESS as not live and as overtime for display", () => {
     const past = Date.parse("2026-09-03T10:05:00.000Z");
     const inside = Date.parse("2026-09-03T09:59:00.000Z");
     expect(isScheduledMeetingLive({ ends_at: endsAt, status: "IN_PROGRESS" }, past)).toBe(false);
     expect(isScheduledMeetingLive({ ends_at: endsAt, status: "IN_PROGRESS" }, inside)).toBe(true);
-    expect(displayMeetingStatus({ ends_at: endsAt, status: "IN_PROGRESS" }, past)).toBe("ENDED");
+    expect(displayMeetingStatus({ ends_at: endsAt, status: "IN_PROGRESS" }, past)).toBe("OVERTIME");
     expect(displayMeetingStatus({ ends_at: endsAt, status: "IN_PROGRESS" }, inside)).toBe("IN_PROGRESS");
+    expect(displayMeetingStatus({ ends_at: endsAt, status: "SCHEDULED" }, past)).toBe("ENDED");
     expect(displayMeetingStatus({ ends_at: endsAt, status: "CANCELED" }, past)).toBe("CANCELED");
   });
 });

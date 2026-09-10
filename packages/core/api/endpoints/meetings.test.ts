@@ -178,10 +178,12 @@ describe("meetings D08b endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ segments: [{ id: 1 }] }));
     expect(await listTranscript("m1")).toEqual([]);
     vi.mocked(fetch).mockResolvedValueOnce(json({ segment: seg }));
-    await appendTranscript("m1", "hi", "2026-08-29T02:00:00Z");
+    expect(await appendTranscript("m1", "hi", "2026-08-29T02:00:00Z")).toEqual(seg);
     const init = vi.mocked(fetch).mock.calls[2]![1] as RequestInit;
     expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe("http://api.test/api/v1/meetings/m1/transcript");
     expect(JSON.parse(String(init.body))).toEqual({ text: "hi", spoken_at: "2026-08-29T02:00:00Z" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ segment: { id: 1 } }));
+    expect(await appendTranscript("m1", "hi")).toBeNull();
   });
 
   it("chat list/append", async () => {

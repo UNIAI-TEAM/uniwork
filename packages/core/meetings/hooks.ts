@@ -2,7 +2,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
 import { taskKeys } from "../tasks/hooks";
-import type { Meeting, MeetingChatMessage } from "../types/meeting";
+import type { Meeting, MeetingChatMessage, MeetingTranscriptSegment } from "../types/meeting";
 
 export type {
   CreateMeetingBody,
@@ -354,7 +354,20 @@ export function useTranscript(meetingId: string, enabled = true) {
     queryKey: meetingKeys.transcript(meetingId),
     queryFn: () => meetings.listTranscript(meetingId),
     enabled: !!meetingId && enabled,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
   });
+}
+
+export function upsertMeetingTranscriptSegment(
+  prev: MeetingTranscriptSegment[] | undefined,
+  saved: MeetingTranscriptSegment,
+): MeetingTranscriptSegment[] {
+  const list = prev ?? [];
+  if (list.some((s) => s.id === saved.id)) return list;
+  return [...list, saved].sort(
+    (a, b) => Date.parse(a.spoken_at) - Date.parse(b.spoken_at) || a.id.localeCompare(b.id),
+  );
 }
 
 export function useAppendTranscript(meetingId: string) {
@@ -362,7 +375,12 @@ export function useAppendTranscript(meetingId: string) {
   return useMutation({
     mutationFn: (args: { text: string; spokenAt?: string }) =>
       meetings.appendTranscript(meetingId, args.text, args.spokenAt),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.transcript(meetingId) }),
+    onSuccess: (saved) => {
+      if (!saved) return;
+      qc.setQueryData<MeetingTranscriptSegment[]>(meetingKeys.transcript(meetingId), (prev) =>
+        upsertMeetingTranscriptSegment(prev, saved),
+      );
+    },
   });
 }
 
