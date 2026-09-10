@@ -349,6 +349,39 @@ func TestWebhookDoesNotChangeMeetingStatus(t *testing.T) {
 	}
 }
 
+func TestWebhookEndsOverdueEmptyRoom(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	pastStart := time.Now().Add(-2 * time.Hour)
+	pastEnd := time.Now().Add(-5 * time.Minute)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{
+		Title: "Overdue empty", StartsAt: pastStart, EndsAt: pastEnd,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.StartMeeting(ctx, db.StartMeetingParams{
+		UpdatedBy: strText(ua.ID), ID: m.ID, Version: m.Version,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
+		ID: util.NewID(), MeetingID: m.ID, ProviderKey: s.rt.ProviderKey,
+		ProviderRoomName: meetings.RoomNameForMeeting(m.ID),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.HandleProviderEvent(ctx, ProviderNeutralEvent{
+		Type: "conference.room_finished", RoomName: meetings.RoomNameForMeeting(m.ID), ProviderEventID: "e-overdue",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(ctx, ua.ID, m.ID)
+	if got.Status != MeetingEnded {
+		t.Fatalf("status %s", got.Status)
+	}
+}
+
 func TestGuestAutoAdmitViaInviteLink(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()

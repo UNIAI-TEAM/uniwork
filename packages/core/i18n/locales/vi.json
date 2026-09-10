@@ -955,6 +955,7 @@
     "status": "Trạng thái",
     "status_SCHEDULED": "Đã lên lịch",
     "status_IN_PROGRESS": "Đang diễn ra",
+    "status_OVERTIME": "Quá giờ",
     "status_ENDED": "Đã kết thúc",
     "status_CANCELED": "Đã huỷ",
     "waitingForHost": "Đang chờ người chủ trì bắt đầu cuộc họp",

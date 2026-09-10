@@ -140,11 +140,12 @@ describe("modes/BoardView", () => {
       ),
     );
 
-    expect(
-      await screen.findByTestId("board-column-assignee:human:u2"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Bình")).toBeInTheDocument();
-    expect(screen.getByText("Chưa giao")).toBeInTheDocument();
+    const assignedColumn = await screen.findByTestId(
+      "board-column-assignee:human:u2",
+    );
+    expect(assignedColumn).toBeInTheDocument();
+    expect(screen.getByTitle("Bình")).toHaveTextContent("Bình");
+    expect(screen.getByTitle("Chưa giao")).toHaveTextContent("Chưa giao");
     expect(screen.queryByTestId("board-column-todo")).toBeNull();
   });
 });

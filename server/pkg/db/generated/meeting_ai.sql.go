@@ -261,11 +261,26 @@ const listOverdueInProgressMeetings = `-- name: ListOverdueInProgressMeetings :m
 SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
+  AND (
+    NOT EXISTS (
+      SELECT 1 FROM meeting_conference_sessions s
+      WHERE s.meeting_id = m.id
+        AND s.status = 'ACTIVE'
+    )
+    OR m.ends_at < $2
+  )
 LIMIT 50
 `
 
-func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, endsAt pgtype.Timestamptz) ([]Meeting, error) {
-	rows, err := q.db.Query(ctx, listOverdueInProgressMeetings, endsAt)
+type ListOverdueInProgressMeetingsParams struct {
+	Now            pgtype.Timestamptz `json:"now"`
+	OvertimeCutoff pgtype.Timestamptz `json:"overtime_cutoff"`
+}
+
+// Empty/idle rooms past ends_at, or ACTIVE rooms past the overtime cutoff
+// (now − 2h). Live = session status ACTIVE only; IDLE does not keep the row.
+func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOverdueInProgressMeetingsParams) ([]Meeting, error) {
+	rows, err := q.db.Query(ctx, listOverdueInProgressMeetings, arg.Now, arg.OvertimeCutoff)
 	if err != nil {
 		return nil, err
 	}

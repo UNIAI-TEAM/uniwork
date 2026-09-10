@@ -178,7 +178,6 @@ export function MeetingRoomCopilotTab({
         value={section}
         onChange={setSection}
         label={sectionLabel}
-        spread
         className="mb-2"
       />
 

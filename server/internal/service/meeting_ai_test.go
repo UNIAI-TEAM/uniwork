@@ -12,6 +12,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -240,6 +241,99 @@ func TestAutoEndOverdue(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no MEETING_AUTO_ENDED audit row")
+	}
+
+	// Idle room past ends_at: empty, end immediately.
+	idleStart := time.Now().Add(-2 * time.Hour)
+	idleEnd := time.Now().Add(-30 * time.Minute)
+	idle, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Idle OT", StartsAt: idleStart, EndsAt: idleEnd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.StartMeeting(ctx, db.StartMeetingParams{UpdatedBy: strText(ua.ID), ID: idle.ID, Version: idle.Version}); err != nil {
+		t.Fatal(err)
+	}
+	idleSess, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
+		ID: util.NewID(), MeetingID: idle.ID, ProviderKey: s.rt.ProviderKey,
+		ProviderRoomName: meetings.RoomNameForMeeting(idle.ID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
+		ID: idleSess.ID, Status: strText("IDLE"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n, err = s.AutoEndOverdue(ctx, time.Now())
+	if err != nil || n != 1 {
+		t.Fatalf("idle past end: %d %v", n, err)
+	}
+	gotIdle, _ := s.Get(ctx, ua.ID, idle.ID)
+	if gotIdle.Status != MeetingEnded {
+		t.Fatalf("idle status %s", gotIdle.Status)
+	}
+
+	// ACTIVE room past ends_at but within overtime: keep.
+	liveStart := time.Now().Add(-2 * time.Hour)
+	liveEnd := time.Now().Add(-30 * time.Minute)
+	live, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Live OT", StartsAt: liveStart, EndsAt: liveEnd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.StartMeeting(ctx, db.StartMeetingParams{UpdatedBy: strText(ua.ID), ID: live.ID, Version: live.Version}); err != nil {
+		t.Fatal(err)
+	}
+	liveSess, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
+		ID: util.NewID(), MeetingID: live.ID, ProviderKey: s.rt.ProviderKey,
+		ProviderRoomName: meetings.RoomNameForMeeting(live.ID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
+		ID: liveSess.ID, Status: strText("ACTIVE"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n, err = s.AutoEndOverdue(ctx, time.Now())
+	if err != nil || n != 0 {
+		t.Fatalf("live within overtime: %d %v", n, err)
+	}
+	gotLive, _ := s.Get(ctx, ua.ID, live.ID)
+	if gotLive.Status != MeetingInProgress {
+		t.Fatalf("live status %s", gotLive.Status)
+	}
+
+	// ACTIVE room past ends_at + 2h: hard cap.
+	capStart := time.Now().Add(-5 * time.Hour)
+	capEnd := time.Now().Add(-3 * time.Hour)
+	capped, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Capped", StartsAt: capStart, EndsAt: capEnd})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.StartMeeting(ctx, db.StartMeetingParams{UpdatedBy: strText(ua.ID), ID: capped.ID, Version: capped.Version}); err != nil {
+		t.Fatal(err)
+	}
+	capSess, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
+		ID: util.NewID(), MeetingID: capped.ID, ProviderKey: s.rt.ProviderKey,
+		ProviderRoomName: meetings.RoomNameForMeeting(capped.ID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
+		ID: capSess.ID, Status: strText("ACTIVE"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n, err = s.AutoEndOverdue(ctx, time.Now())
+	if err != nil || n != 1 {
+		t.Fatalf("live past overtime: %d %v", n, err)
+	}
+	gotCap, _ := s.Get(ctx, ua.ID, capped.ID)
+	if gotCap.Status != MeetingEnded {
+		t.Fatalf("capped status %s", gotCap.Status)
 	}
 }
 

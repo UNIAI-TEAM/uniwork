@@ -408,4 +408,19 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["chat", "messages", "ws1"]));
     expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["chat", "room-messages", "ws1"]));
   });
+
+  it("coalesces transcript.appended until the longer debounce", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "transcript.appended", payload: { meeting_id: "m1" } });
+    client.emit({ type: "transcript.appended", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["meeting-transcript", "m1"]));
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(keysCalled(invalidate).filter((k) => k === JSON.stringify(["meeting-transcript", "m1"]))).toHaveLength(1);
+  });
 });

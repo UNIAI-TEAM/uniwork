@@ -6,7 +6,9 @@ import {
   forgetIdentity,
   initialSignalsState,
   REACTION_TTL_MS,
+  muteRequesterIdentities,
   reduceSignal,
+  shouldHonorMuteRequest,
 } from "./meeting-signals";
 
 describe("meeting signals", () => {
@@ -55,5 +57,17 @@ describe("meeting signals", () => {
     expect(reduceSignal(initialSignalsState, "host", { kind: "mute_request", target: "a" }, 0)).toBe(
       initialSignalsState,
     );
+  });
+
+  it("maps host participants to LiveKit identities and ignores others", () => {
+    const host = { id: "p-host", user_id: "u-host", role: "ATTENDEE" };
+    const namedHost = { id: "p-role", user_id: "u-other", role: "HOST" };
+    const guest = { id: "p-guest", user_id: "u-guest", role: "ATTENDEE" };
+    expect(muteRequesterIdentities("u-host", [host, namedHost, guest])).toEqual([
+      "uw_participant_p-host",
+      "uw_participant_p-role",
+    ]);
+    expect(shouldHonorMuteRequest("uw_participant_p-host", ["uw_participant_p-host"])).toBe(true);
+    expect(shouldHonorMuteRequest("uw_participant_p-guest", ["uw_participant_p-host"])).toBe(false);
   });
 });

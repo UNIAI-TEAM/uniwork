@@ -956,6 +956,7 @@
     "status": "Status",
     "status_SCHEDULED": "Scheduled",
     "status_IN_PROGRESS": "In progress",
+    "status_OVERTIME": "Overtime",
     "status_ENDED": "Ended",
     "status_CANCELED": "Canceled",
     "waitingForHost": "Waiting for the host to start this meeting",

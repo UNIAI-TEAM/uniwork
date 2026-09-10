@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useDataChannel, useLocalParticipant, useParticipants, useTrackToggle } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import {
@@ -10,6 +10,7 @@ import {
   initialSignalsState,
   reduceSignal,
   REACTION_TTL_MS,
+  shouldHonorMuteRequest,
   SIGNAL_TOPIC,
   type MeetingSignal,
   type SignalsState,
@@ -27,19 +28,37 @@ type SignalsApi = SignalsState & {
 const Ctx = createContext<SignalsApi | null>(null);
 
 /** Client state for the room: lives only as long as the room is mounted. */
-export function MeetingSignalsProvider({ children }: { children: ReactNode }) {
+export function MeetingSignalsProvider({
+  children,
+  canHost = false,
+  hostIdentities = [],
+}: {
+  children: ReactNode;
+  canHost?: boolean;
+  hostIdentities?: readonly string[];
+}) {
   const [state, setState] = useState<SignalsState>(initialSignalsState);
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
   const mic = useTrackToggle({ source: Track.Source.Microphone });
   const localIdentity = localParticipant.identity;
+  const hostIdentitiesRef = useRef(hostIdentities);
+  hostIdentitiesRef.current = hostIdentities;
+  const canHostRef = useRef(canHost);
+  canHostRef.current = canHost;
 
   const { send } = useDataChannel(SIGNAL_TOPIC, (msg) => {
     const signal = decodeSignal(msg.payload);
     const from = msg.from?.identity;
     if (!signal || !from) return;
     if (signal.kind === "mute_request") {
-      if (signal.target === localIdentity && mic.enabled) void mic.toggle(false);
+      if (
+        shouldHonorMuteRequest(from, hostIdentitiesRef.current) &&
+        signal.target === localIdentity &&
+        mic.enabled
+      ) {
+        void mic.toggle(false);
+      }
       return;
     }
     setState((s) => reduceSignal(s, from, signal, Date.now()));
@@ -47,6 +66,7 @@ export function MeetingSignalsProvider({ children }: { children: ReactNode }) {
 
   const publish = useCallback(
     (signal: MeetingSignal) => {
+      if (signal.kind === "mute_request" && !canHostRef.current) return;
       void send(encodeSignal(signal), { reliable: true, topic: SIGNAL_TOPIC });
       // LiveKit does not echo our own data messages: apply locally.
       if (signal.kind !== "mute_request") setState((s) => reduceSignal(s, localIdentity, signal, Date.now()));
