@@ -74,10 +74,11 @@ spotlight / sidebar, pin, ẩn camera tắt. Phân trang ‹ › (`useSpeakingPa
 
 ### 4. Vòng đời & lịch
 
-- Worker `RunAutoEnd` (goroutine riêng, mỗi 60s): `IN_PROGRESS` và
-  (không có conference session mở **và** `ends_at < now`) **hoặc**
-  (còn session mở **và** `ends_at + 2h < now`). Actor `system`. Audit
-  `MEETING_AUTO_ENDED`. Một SQL, không N+1 session.
+- Worker `RunAutoEnd` (goroutine riêng, mỗi 60s) và `room_finished`:
+  `IN_PROGRESS` quá `ends_at` với session không `ACTIVE` (IDLE / PENDING /
+  không session) → `ENDED` ngay. Session `ACTIVE` (còn người) giữ overtime
+  để host gia hạn hoặc kết thúc; trần 2h (`ends_at + 2h`) là cầu chì.
+  Actor `system`. Audit `MEETING_AUTO_ENDED`. Một SQL, không N+1 session.
 - `GET /meetings/{id}/calendar.ics` — file iCalendar chuẩn RFC 5545 (stdlib
   `text/template` không cần lib). Nút "Thêm vào lịch" ở detail.
 
