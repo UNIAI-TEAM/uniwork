@@ -515,7 +515,20 @@ func chatMessageRowFromListRow(row db.ListChatMessagesByRoomRow, viewerID string
 		row.Kind, row.Body, row.Metadata, row.ReplyToMessageID, row.EditedAt, row.CreatedAt, viewerID,
 	)
 	out.ClientMsgID = row.ClientMsgID.String
+	applyThreadFields(&out, row.ThreadRootID, row.ReplyCount, row.LastReplyAt)
 	return out
+}
+
+func applyThreadFields(out *ChatMessageRow, threadRootID pgtype.Text, replyCount int32, lastReplyAt pgtype.Timestamptz) {
+	if threadRootID.Valid {
+		s := threadRootID.String
+		out.ThreadRootID = &s
+	}
+	out.ReplyCount = int(replyCount)
+	if lastReplyAt.Valid {
+		t := lastReplyAt.Time
+		out.LastReplyAt = &t
+	}
 }
 
 func chatMessageRowFromMessageFields(

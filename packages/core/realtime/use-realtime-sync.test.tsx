@@ -258,6 +258,8 @@ describe("useRealtimeSync", () => {
       pinned: false,
       mentioned_user_ids: [],
       reactions: {},
+      reply_count: 0,
+      thread_unread: false,
     });
     const qc = new QueryClient();
     qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), []);
@@ -290,6 +292,8 @@ describe("useRealtimeSync", () => {
       pinned: false,
       mentioned_user_ids: [],
       reactions: {},
+      reply_count: 0,
+      thread_unread: false,
     });
     const qc = new QueryClient();
     qc.setQueryData(chatKeys.room("ws1"), { workspace_id: "ws1", room_id: "ws-room" });
@@ -306,6 +310,66 @@ describe("useRealtimeSync", () => {
     });
     expect(invalidate).not.toHaveBeenCalled();
     expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.messages("ws1"))).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it("routes chat.thread.replied into the thread cache, not the main timeline", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({
+      id: "r1",
+      room_id: "dm1",
+      workspace_id: "ws1",
+      sender_id: "u2",
+      sender_display_name: "Bob",
+      kind: "text",
+      body: "thread reply",
+      thread_root_id: "root1",
+      created_at: "2026-01-01T10:01:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
+      reply_count: 0,
+      thread_unread: false,
+    });
+    const qc = new QueryClient();
+    qc.setQueryData(chatKeys.roomMessages("ws1", "dm1"), [
+      {
+        id: "root1",
+        room_id: "dm1",
+        workspace_id: "ws1",
+        sender_id: "u1",
+        sender_display_name: "Ada",
+        kind: "text",
+        body: "root",
+        created_at: "2026-01-01T10:00:00Z",
+        pinned: false,
+        mentioned_user_ids: [],
+        reactions: {},
+        reply_count: 0,
+        thread_unread: false,
+      },
+    ]);
+    const client = fakeClient();
+    renderHook(() => useRealtimeSync(client, "ws1"), {
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    client.emit({
+      type: "chat.thread.replied",
+      payload: { room_id: "dm1", thread_root_id: "root1", message_id: "r1" },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(
+      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.map((m) => m.id),
+    ).toEqual(["root1"]);
+    expect(
+      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))?.[0]?.reply_count,
+    ).toBe(1);
+    expect(
+      qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.threadMessages("ws1", "dm1", "root1")),
+    ).toHaveLength(1);
     vi.useRealTimers();
   });
 

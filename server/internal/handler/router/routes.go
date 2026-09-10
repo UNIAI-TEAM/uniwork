@@ -299,6 +299,12 @@ type Routes struct {
 	JoinChatChannel             http.HandlerFunc
 	ArchiveChatChannel          http.HandlerFunc
 	UnarchiveChatChannel        http.HandlerFunc
+	ListChatThreadMessages      http.HandlerFunc
+	SendChatThreadMessage       http.HandlerFunc
+	FollowChatThread            http.HandlerFunc
+	UnfollowChatThread          http.HandlerFunc
+	MarkChatThreadRead          http.HandlerFunc
+	ListChatThreads             http.HandlerFunc
 	ListChatRoomMembers         http.HandlerFunc
 	PatchChatRoomMember         http.HandlerFunc
 	PatchChatRoom               http.HandlerFunc

@@ -1541,6 +1541,8 @@
     "pinned_bar_jump": "Xem tin đã ghim: {{preview}}",
     "thread_title": "Chủ đề",
     "close_thread": "Đóng chủ đề",
+    "thread_replies": "{{count}} trả lời",
+    "thread_replies_unread": "{{count}} trả lời · chưa đọc",
     "replying_to": "Trả lời: {{preview}}",
     "cancel_reply": "Hủy",
     "groups_title": "Nhóm",

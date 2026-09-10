@@ -249,6 +249,20 @@ export function ChatFileMessageRow({
               ))}
             </div>
           ) : null}
+          {(message.replyCount ?? 0) > 0 && onThread && !message.threadRootId ? (
+            <button
+              type="button"
+              className={cn(
+                "mt-1 px-1 text-left text-caption font-medium text-brand hover:underline",
+                isOwn && "self-end",
+              )}
+              onClick={() => onThread(message)}
+            >
+              {message.threadUnread
+                ? t("chat.thread_replies_unread", { count: message.replyCount })
+                : t("chat.thread_replies", { count: message.replyCount })}
+            </button>
+          ) : null}
         </div>
       </div>
     </article>

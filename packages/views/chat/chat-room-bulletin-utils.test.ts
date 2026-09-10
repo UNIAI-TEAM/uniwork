@@ -16,6 +16,8 @@ describe("chat-room-bulletin-utils", () => {
       pinned: true,
       mentioned_user_ids: [],
       reactions: {},
+      reply_count: 0,
+      thread_unread: false,
     },
     {
       id: "m2",
@@ -29,6 +31,8 @@ describe("chat-room-bulletin-utils", () => {
       pinned: false,
       mentioned_user_ids: [],
       reactions: {},
+      reply_count: 0,
+      thread_unread: false,
       note: { body: "team note", pin_to_top: false },
     },
     {
@@ -43,6 +47,8 @@ describe("chat-room-bulletin-utils", () => {
       pinned: false,
       mentioned_user_ids: [],
       reactions: {},
+      reply_count: 0,
+      thread_unread: false,
       poll: {
         question: "Lunch?",
         options: [],
