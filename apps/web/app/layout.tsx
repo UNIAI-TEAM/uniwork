@@ -5,6 +5,7 @@ import "./globals.css";
 // config, and this module is the only place that config is populated.
 import "../platform/runtime-config";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
+import { accentBootScript } from "@uniwork/ui/lib/accent";
 import { resolveRequestLocale } from "../platform/locale-server";
 import { Providers } from "./providers";
 
@@ -88,6 +89,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans">
+        {/* Applies the stored accent theme before first paint, the way
+            next-themes applies `.dark`. Without it the app paints one
+            frame of the default violet and then repaints. */}
+        <script dangerouslySetInnerHTML={{ __html: accentBootScript() }} />
         <Providers initialLocale={locale} initialDictionary={initialDictionary}>
           {children}
         </Providers>

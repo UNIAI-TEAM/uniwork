@@ -270,7 +270,23 @@
       "language": "Ngôn ngữ",
       "languageVi": "Tiếng Việt",
       "languageEn": "English",
-      "toastSaved": "Đã lưu"
+      "toastSaved": "Đã lưu",
+      "themes": "Giao diện",
+      "themesHint": "Chỉ lưu trên thiết bị này. Máy khác của bạn giữ lựa chọn riêng.",
+      "appearance": "Chế độ hiển thị",
+      "accent": "Màu nhấn",
+      "accents": {
+        "black": "Đen",
+        "purple": "Tím",
+        "blue": "Xanh dương",
+        "pink": "Hồng",
+        "violet": "Tím violet",
+        "indigo": "Chàm",
+        "orange": "Cam",
+        "teal": "Xanh mòng két",
+        "bronze": "Đồng",
+        "mint": "Bạc hà"
+      }
     },
     "workspace": {
       "section": "Workspace",
