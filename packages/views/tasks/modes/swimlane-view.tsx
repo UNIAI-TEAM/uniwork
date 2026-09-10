@@ -54,11 +54,17 @@ const EMPTY_CONFIG = {
   work_management_capabilities: {},
 } as const;
 
+// One shared empty list. A `projects = []` default is a fresh array on every
+// render, which re-derives projectTitles → laneGroups → cells and lets the
+// `setLocalCells(cells)` effect schedule itself forever (React's
+// "Maximum update depth exceeded" in swimlane-view.test).
+const NO_PROJECTS: readonly { id: string; title: string }[] = [];
+
 function SwimLaneViewImpl({
   tasks,
   categories = TASK_STATUSES,
   groupBranches,
-  projects = [],
+  projects = NO_PROJECTS,
   cardMeta,
   onOpenTask,
   projectGroupingDisabled = true,
