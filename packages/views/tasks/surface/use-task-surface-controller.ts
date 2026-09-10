@@ -35,6 +35,7 @@ import {
   type TaskSurfaceSelection,
 } from "./selection-context";
 import type { TaskSurfaceMode } from "./types";
+import { projectSurfaceTasks } from "./task-surface-projection";
 import { useTaskSurfaceData } from "./use-task-surface-data";
 import { useTaskGroupBranches } from "./use-task-group-branches";
 import { ganttCanvasRows } from "../modes/gantt-canvas";
@@ -144,6 +145,9 @@ export function useTaskSurfaceController({
   });
 
   const ganttShowCompleted = useViewStore((s) => s.ganttShowCompleted);
+  const showSubTasks = useViewStore((s) => s.showSubTasks);
+  const sortBy = useViewStore((s) => s.sortBy);
+  const sortDirection = useViewStore((s) => s.sortDirection);
 
   const groupBranches = useTaskGroupBranches({
     workspaceId,
@@ -151,7 +155,9 @@ export function useTaskSurfaceController({
   });
 
   const statusesQuery = useTaskStatuses(
-    boardEnabled || swimlaneEnabled ? workspaceId : "",
+    boardEnabled || swimlaneEnabled || effectiveViewMode === "list"
+      ? workspaceId
+      : "",
   );
   const groupedQuery = useGroupedTasks(
     boardEnabled && scope.type !== "my" ? workspaceId : "",
@@ -215,8 +221,9 @@ export function useTaskSurfaceController({
   const projectGroupingDisabled = projectsCapability.status !== "available";
   const projectGroupingReasonKey =
     projectsCapability.explanation_key || "capabilities.unknown";
-  // Parent swimlanes need parent_task_id on list DTO + hierarchy chrome.
-  const parentGroupingDisabled = true;
+  // parent_task_id is part of the suite list DTO, so client-built parent
+  // lanes are available even before server-side grouped pagination is wired.
+  const parentGroupingDisabled = false;
   const parentGroupingReasonKey = "tasks.swimlane.parent_unavailable";
 
   const scopeKey = taskScopeKey(scope);
@@ -350,7 +357,18 @@ export function useTaskSurfaceController({
     : tableEnabled
       ? false
       : data.isRefreshing;
-  const surfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
+  const rawSurfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
+  const surfaceTasks = useMemo(
+    () =>
+      tableEnabled
+        ? rawSurfaceTasks
+        : projectSurfaceTasks(rawSurfaceTasks, {
+            showSubTasks,
+            sortBy,
+            sortDirection,
+          }),
+    [rawSurfaceTasks, showSubTasks, sortBy, sortDirection, tableEnabled],
+  );
   const ganttTasks = useMemo(
     () =>
       ganttEnabled

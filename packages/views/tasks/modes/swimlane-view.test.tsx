@@ -63,4 +63,50 @@ describe("modes/SwimLaneView", () => {
       screen.getByTestId("swimlane-lane-assignee:none"),
     ).toBeInTheDocument();
   });
+
+  it("matches the board-style status header and renders project metadata", async () => {
+    const store = getTaskSurfaceViewStore("swimlane-project-parity");
+    store.getState().setSwimlaneGrouping("project");
+    const task = sample({
+      id: "project-task",
+      title: "Project lane task",
+      project_id: "project-1",
+    });
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <SwimLaneView
+            categories={[...TASK_STATUSES]}
+            tasks={[task]}
+            projects={[{ id: "project-1", title: "Saturn" }]}
+            cardMeta={
+              new Map([
+                [
+                  task.id,
+                  {
+                    projectName: "Saturn",
+                    childProgress: {
+                      parent_task_id: task.id,
+                      done: 1,
+                      total: 2,
+                    },
+                  },
+                ],
+              ])
+            }
+            projectGroupingDisabled={false}
+            parentGroupingDisabled={false}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect((await screen.findAllByText("Saturn")).length).toBeGreaterThan(0);
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+    expect(screen.getByTestId("swimlane-status-todo")).toHaveClass(
+      "bg-muted/20",
+    );
+    expect(screen.getAllByRole("button", { name: "Ẩn cột" })).toHaveLength(7);
+  });
 });

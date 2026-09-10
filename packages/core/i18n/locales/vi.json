@@ -740,14 +740,43 @@
     },
     "display": {
       "title": "Hiển thị",
+      "tooltip": "Điều chỉnh cách hiển thị công việc",
       "grouping_section": "Nhóm",
-      "list_options": "Tùy chọn danh sách",
+      "group_status": "Trạng thái",
+      "group_assignee": "Người phụ trách",
+      "group_project": "Dự án",
+      "group_parent": "Task cha",
+      "ordering_section": "Sắp xếp",
+      "sort_position": "Thủ công",
+      "sort_status": "Trạng thái",
+      "sort_priority": "Độ ưu tiên",
+      "sort_start_date": "Ngày bắt đầu",
+      "sort_due_date": "Hạn",
+      "sort_created_at": "Ngày tạo",
+      "sort_updated_at": "Ngày cập nhật",
+      "sort_title": "Tiêu đề",
+      "ascending_title": "Tăng dần",
+      "descending_title": "Giảm dần",
+      "sorted_drag_hint": "Thứ tự đang do Sắp xếp kiểm soát",
       "show_subtasks": "Hiện sub-task",
-      "card_properties_section": "Trường trên thẻ",
+      "card_properties_section": "Thuộc tính trên thẻ",
       "card_priority": "Độ ưu tiên",
+      "card_description": "Mô tả",
       "card_assignee": "Người nhận",
+      "card_startDate": "Ngày bắt đầu",
       "card_dueDate": "Hạn",
-      "card_labels": "Nhãn"
+      "card_project": "Dự án",
+      "card_childProgress": "Tiến độ sub-task",
+      "card_labels": "Nhãn",
+      "labels_unavailable": "Danh sách task chưa trả về quan hệ nhãn."
+    },
+    "card": {
+      "child_progress": "Tiến độ sub-task"
+    },
+    "list": {
+      "select_status": "Chọn tất cả task trong {{status}}",
+      "select_task": "Chọn {{title}}",
+      "add_task": "Thêm task vào {{status}}"
     },
     "header": {
       "attachments_unavailable": "Đính kèm"

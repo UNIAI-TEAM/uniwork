@@ -28,7 +28,7 @@ import {
   useViewStoreApi,
 } from "@uniwork/core/tasks/stores/view-store-context";
 import { TASK_STATUSES, type Task, type TaskStatus } from "@uniwork/core/types";
-import { BoardCardContent } from "./board-card";
+import { BoardCardContent, type BoardCardMeta } from "./board-card";
 import { HiddenColumnsPanel } from "./hidden-columns-panel";
 import { sortTasksForTable } from "./table-view-model";
 import { applySwimlaneDragEnd, applySwimlaneDragOver } from "./swimlane-drag";
@@ -43,6 +43,7 @@ import {
   parseLaneId,
 } from "./swimlane-ids";
 import { buildLanesForGrouping, type LaneGroup } from "./swimlane-lanes";
+import { SwimlaneStatusHeader } from "./swimlane-status-header";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import type { TaskGroupBranches } from "../surface/use-task-group-branches";
 
@@ -56,6 +57,8 @@ function SwimLaneViewImpl({
   tasks,
   categories = TASK_STATUSES,
   groupBranches,
+  projects = [],
+  cardMeta,
   onOpenTask,
   projectGroupingDisabled = true,
   projectGroupingReasonKey,
@@ -65,6 +68,8 @@ function SwimLaneViewImpl({
   tasks: Task[];
   categories?: readonly string[];
   groupBranches?: TaskGroupBranches;
+  projects?: readonly { id: string; title: string }[];
+  cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   onOpenTask?: (id: string) => void;
   projectGroupingDisabled?: boolean;
   projectGroupingReasonKey?: string;
@@ -139,7 +144,10 @@ function SwimLaneViewImpl({
     [tasks],
   );
 
-  const projectTitles = useMemo(() => new Map<string, string>(), []);
+  const projectTitles = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.title])),
+    [projects],
+  );
 
   const laneGroups = useMemo(
     () =>
@@ -343,10 +351,13 @@ function SwimLaneViewImpl({
     }),
     [sortedStatuses.length],
   );
+  const trackWidth =
+    sortedStatuses.length * COLUMN_WIDTH +
+    Math.max(0, sortedStatuses.length - 1) * COLUMN_GAP;
 
   const renderLane = useCallback(
     (_index: number, lane: LaneGroup) => (
-      <div className="mb-4 px-3">
+      <div className="mb-4">
         <DraggableSwimLane
           lane={lane}
           grouping={effectiveGrouping}
@@ -355,6 +366,7 @@ function SwimLaneViewImpl({
           localCells={localCells}
           sortedStatuses={sortedStatuses}
           taskMap={taskMap}
+          cardMeta={cardMeta}
           gridStyle={gridStyle}
           onCreateTask={(defaults) => actions?.createTask(defaults)}
           onOpenTask={onOpenTask}
@@ -369,6 +381,7 @@ function SwimLaneViewImpl({
       localCells,
       sortedStatuses,
       taskMap,
+      cardMeta,
       gridStyle,
       actions,
       onOpenTask,
@@ -407,56 +420,63 @@ function SwimLaneViewImpl({
             {groupingHint}
           </p>
         ) : null}
-        <div ref={setScrollEl} className="min-h-0 flex-1 overflow-auto">
-          <div className="sticky top-0 z-10 border-b bg-background px-3 py-2">
-            <div className="grid" style={gridStyle}>
-              {sortedStatuses.map((status) => (
-                <div
-                  key={status}
-                  className="flex items-center gap-2 text-caption font-medium text-muted-foreground"
-                >
-                  <span>{t(`tasks.status_${status}`)}</span>
-                  <span>{statusTotals[status] ?? 0}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <SortableContext
-            items={nonPinnedLaneIds}
-            strategy={verticalListSortingStrategy}
+        <div
+          ref={setScrollEl}
+          data-tab-scroll-root="swimlane"
+          className="flex min-h-0 flex-1 gap-4 overflow-auto p-4"
+        >
+          <div
+            className="flex shrink-0 flex-col"
+            style={{ width: trackWidth }}
           >
-            {scrollEl ? (
-              <Virtuoso
-                customScrollParent={scrollEl}
-                data={laneGroups}
-                computeItemKey={(_i, lane) => lane.key}
-                initialItemCount={Math.min(
-                  laneGroups.length,
-                  SWIMLANE_LANE_SEED_COUNT,
-                )}
-                increaseViewportBy={{ top: 600, bottom: 600 }}
-                itemContent={renderLane}
-              />
-            ) : (
-              laneGroups.slice(0, SWIMLANE_LANE_SEED_COUNT).map((lane, index) => (
-                <div key={lane.key}>{renderLane(index, lane)}</div>
-              ))
-            )}
-          </SortableContext>
+            <SwimlaneStatusHeader
+              statuses={sortedStatuses}
+              totals={statusTotals}
+              gridStyle={gridStyle}
+              onHideStatus={(status) =>
+                viewStoreApi.getState().hideStatus(status)
+              }
+            />
+            <SortableContext
+              items={nonPinnedLaneIds}
+              strategy={verticalListSortingStrategy}
+            >
+              {scrollEl ? (
+                <Virtuoso
+                  customScrollParent={scrollEl}
+                  data={laneGroups}
+                  computeItemKey={(_i, lane) => lane.key}
+                  initialItemCount={Math.min(
+                    laneGroups.length,
+                    SWIMLANE_LANE_SEED_COUNT,
+                  )}
+                  increaseViewportBy={{ top: 600, bottom: 600 }}
+                  itemContent={renderLane}
+                />
+              ) : (
+                laneGroups
+                  .slice(0, SWIMLANE_LANE_SEED_COUNT)
+                  .map((lane, index) => (
+                    <div key={lane.key}>{renderLane(index, lane)}</div>
+                  ))
+              )}
+            </SortableContext>
+          </div>
           {hiddenStatuses.length > 0 ? (
-            <div className="px-3 py-4">
-              <HiddenColumnsPanel
-                hiddenStatuses={hiddenStatuses}
-                taskCounts={statusTotals}
-              />
-            </div>
+            <HiddenColumnsPanel
+              hiddenStatuses={hiddenStatuses}
+              taskCounts={statusTotals}
+            />
           ) : null}
         </div>
       </div>
       <DragOverlay dropAnimation={null}>
         {activeTask ? (
           <div className="w-[280px] rotate-2 scale-105 cursor-grabbing opacity-90 shadow-lg shadow-black/10">
-            <BoardCardContent task={activeTask} />
+            <BoardCardContent
+              task={activeTask}
+              meta={cardMeta?.get(activeTask.id)}
+            />
           </div>
         ) : null}
       </DragOverlay>

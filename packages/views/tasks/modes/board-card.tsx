@@ -7,90 +7,131 @@ import {
   type AnimateLayoutChanges,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays } from "lucide-react";
+import {
+  CalendarDays,
+  Clock3,
+  FolderKanban,
+  ListChecks,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { capabilityState } from "@uniwork/core/capabilities";
-import { usePublicConfig } from "@uniwork/core/feature-flags";
-import type { Task } from "@uniwork/core/types";
+import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
+import type { ChildProgress, Task } from "@uniwork/core/types";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 
-const EMPTY_CONFIG = {
-  flags: {},
-  rum_sample_rate: 0,
-  work_management_capabilities: {},
-} as const;
-
 const priorityClass: Record<Task["priority"], string> = {
-  low: "text-muted-foreground",
-  medium: "text-muted-foreground",
-  high: "text-warning",
-  urgent: "text-destructive",
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-info/10 text-info",
+  high: "bg-warning/10 text-warning",
+  urgent: "bg-destructive/10 text-destructive",
 };
+
+export interface BoardCardMeta {
+  projectName?: string;
+  childProgress?: ChildProgress;
+}
+
+function actorInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "?";
+}
 
 export const BoardCardContent = memo(function BoardCardContent({
   task,
+  meta,
 }: {
   task: Task;
+  meta?: BoardCardMeta;
 }) {
   const { t } = useTranslation();
-  const { data: publicConfig } = usePublicConfig();
-  const vcsCapability = capabilityState(
-    publicConfig ?? EMPTY_CONFIG,
-    "tasks.vcs",
-  );
-  const vcsAvailable = vcsCapability.status === "available";
+  const cardProperties = useViewStore((s) => s.cardProperties);
+  const startDate = cardProperties.startDate ? task.start_date : undefined;
+  const dueDate = cardProperties.dueDate ? task.due_date : undefined;
+  const dateRange = [startDate, dueDate].filter(Boolean).join(" – ");
+  const assignee = cardProperties.assignee ? task.assignee : undefined;
+  const priorityLabel = t(`tasks.priority_${task.priority}`);
 
   return (
-    <div className="rounded-lg border border-border bg-surface px-2.5 py-3 shadow-sm transition-colors group-hover/card:border-foreground/15 group-hover/card:bg-surface-hover">
+    <div className="rounded-lg border border-border bg-surface px-2.5 py-2.5 shadow-sm transition-[background-color,border-color,box-shadow] group-hover/card:border-foreground/15 group-hover/card:bg-surface-hover group-hover/card:shadow-md">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span
-            aria-label={t(`tasks.priority_${task.priority}`)}
-            className={cn(
-              "inline-flex size-5 shrink-0 items-center justify-center text-micro font-medium",
-              priorityClass[task.priority],
-            )}
-          >
-            {t(`tasks.priority_${task.priority}`).slice(0, 1)}
-          </span>
           {task.identifier ? (
             <p className="truncate text-caption text-muted-foreground">
               {task.identifier}
             </p>
           ) : null}
         </div>
-        <span
-          className={cn(
-            "shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-micro text-muted-foreground",
-            !vcsAvailable && "cursor-not-allowed opacity-60",
-          )}
-          title={
-            vcsAvailable
-              ? undefined
-              : t(vcsCapability.explanation_key || "capabilities.unknown")
-          }
-          aria-disabled={!vcsAvailable}
-        >
-          {t("tasks.surface.vcs_chip_stub")}
-        </span>
+        {cardProperties.priority ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-1.5 py-0.5 text-micro font-medium",
+              priorityClass[task.priority],
+            )}
+          >
+            {priorityLabel}
+          </span>
+        ) : null}
       </div>
 
-      <p className="mt-1 line-clamp-2 text-body font-medium leading-snug">
+      <p className="mt-1.5 line-clamp-2 text-pretty text-body font-medium leading-snug">
         {task.title}
       </p>
 
-      {task.description ? (
-        <p className="mt-1 line-clamp-1 text-caption text-muted-foreground">
+      {cardProperties.description && task.description ? (
+        <p className="mt-1 line-clamp-2 text-pretty text-caption leading-relaxed text-muted-foreground">
           {task.description}
         </p>
       ) : null}
 
-      {task.due_date ? (
-        <div className="mt-2 flex items-center gap-1 text-caption text-muted-foreground">
-          <CalendarDays className="size-3" aria-hidden />
-          <span>{task.due_date}</span>
+      {cardProperties.project && meta?.projectName ? (
+        <div className="mt-2 flex min-w-0 items-center gap-1 text-caption text-muted-foreground">
+          <FolderKanban className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">{meta.projectName}</span>
         </div>
       ) : null}
+
+      {dateRange || (cardProperties.childProgress && meta?.childProgress) ? (
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
+          {dateRange ? (
+            <span className="inline-flex items-center gap-1">
+              <CalendarDays className="size-3 shrink-0" aria-hidden />
+              <span className="tabular-nums">{dateRange}</span>
+            </span>
+          ) : null}
+          {cardProperties.childProgress && meta?.childProgress ? (
+            <span
+              className="inline-flex items-center gap-1"
+              aria-label={t("tasks.card.child_progress")}
+            >
+              <ListChecks className="size-3 shrink-0" aria-hidden />
+              <span className="tabular-nums">
+                {meta.childProgress.done}/{meta.childProgress.total}
+              </span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/70 pt-2">
+        {assignee ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+            <ActorAvatar
+              name={assignee.display_name}
+              initials={actorInitial(assignee.display_name)}
+              avatarUrl={assignee.avatar_url}
+              isAgent={assignee.kind === "agent"}
+              isSystem={assignee.kind === "system"}
+              size="xs"
+            />
+            <span className="truncate">{assignee.display_name}</span>
+          </span>
+        ) : (
+          <span />
+        )}
+        <span className="inline-flex shrink-0 items-center gap-1 text-micro tabular-nums text-muted-foreground">
+          <Clock3 className="size-3" aria-hidden />
+          {task.updated_at.slice(0, 10)}
+        </span>
+      </div>
     </div>
   );
 });
@@ -103,12 +144,16 @@ const animateLayoutChanges: AnimateLayoutChanges = (args) => {
 
 export const DraggableBoardCard = memo(function DraggableBoardCard({
   task,
+  meta,
   onOpen,
   disableSorting,
+  disableDragging,
 }: {
   task: Task;
+  meta?: BoardCardMeta;
   onOpen?: (id: string) => void;
   disableSorting?: boolean;
+  disableDragging?: boolean;
 }) {
   const {
     attributes,
@@ -121,7 +166,11 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
     id: task.id,
     data: { status: task.status, task },
     animateLayoutChanges,
-    disabled: disableSorting ? { droppable: true } : undefined,
+    disabled: disableDragging
+      ? true
+      : disableSorting
+        ? { droppable: true }
+        : undefined,
   });
 
   const style = {
@@ -150,7 +199,7 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
           isDragging && "pointer-events-none",
         )}
       >
-        <BoardCardContent task={task} />
+        <BoardCardContent task={task} meta={meta} />
       </button>
     </div>
   );

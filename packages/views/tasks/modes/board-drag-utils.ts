@@ -4,12 +4,17 @@ import {
   type CollisionDetection,
 } from "@dnd-kit/core";
 import type { Task, TaskStatus } from "@uniwork/core/types";
+import type { ActorKind } from "@uniwork/core/types/audit";
 import type { BoardColumnGroup } from "./board-column";
 
 export type DragMoveUpdates = {
   status?: TaskStatus;
+  assignee_id?: string | null;
+  assignee_kind?: ActorKind;
   position: number;
 };
+
+const EMPTY_GROUP_VALUE = "__none__";
 
 export function makeKanbanCollision(groupIds: Set<string>): CollisionDetection {
   return (args) => {
@@ -27,6 +32,17 @@ export function statusGroupId(status: string): string {
   return `status:${status}`;
 }
 
+export function assigneeGroupId(
+  kind: ActorKind | string,
+  assigneeId: string | null,
+): string {
+  return `assignee:${kind}:${assigneeId ?? EMPTY_GROUP_VALUE}`;
+}
+
+export function projectGroupId(projectId: string | null): string {
+  return `project:${projectId ?? EMPTY_GROUP_VALUE}`;
+}
+
 export function buildColumns(
   tasks: Task[],
   groups: BoardColumnGroup[],
@@ -34,8 +50,8 @@ export function buildColumns(
   const cols: Record<string, string[]> = {};
   for (const group of groups) cols[group.id] = [];
   for (const task of tasks) {
-    const gid = statusGroupId(task.status);
-    if (cols[gid]) cols[gid].push(task.id);
+    const group = groups.find((candidate) => taskMatchesGroup(task, candidate));
+    if (group) cols[group.id]!.push(task.id);
   }
   return cols;
 }
@@ -81,18 +97,44 @@ export function findColumn(
 }
 
 export function taskMatchesGroup(task: Task, group: BoardColumnGroup): boolean {
-  if (group.status) return task.status === group.status;
-  return false;
+  if (group.kind === "status") return task.status === group.status;
+  if (group.kind === "project") {
+    return (task.project_id ?? null) === group.projectId;
+  }
+  const taskKind = (task.assignee_kind || "human") as ActorKind;
+  return (
+    (task.assignee_id ?? null) === group.assigneeId &&
+    (group.assigneeId === null || taskKind === (group.assigneeKind ?? "human"))
+  );
 }
 
 export function getMoveUpdates(
   group: BoardColumnGroup,
   position: number,
-  task?: Pick<Task, "status">,
+  task?: Pick<
+    Task,
+    "status" | "assignee_id" | "assignee_kind" | "project_id"
+  >,
 ): DragMoveUpdates {
-  if (group.status) {
+  if (group.kind === "status") {
     if (task && task.status === group.status) return { position };
     return { status: group.status as TaskStatus, position };
+  }
+  if (group.kind === "assignee") {
+    const taskKind = (task?.assignee_kind || "human") as ActorKind;
+    const alreadyMatches =
+      task !== undefined &&
+      (task.assignee_id ?? null) === group.assigneeId &&
+      (group.assigneeId === null ||
+        taskKind === (group.assigneeKind ?? "human"));
+    if (alreadyMatches) return { position };
+    return {
+      position,
+      assignee_id: group.assigneeId,
+      ...(group.assigneeId
+        ? { assignee_kind: group.assigneeKind ?? "human" }
+        : {}),
+    };
   }
   return { position };
 }
