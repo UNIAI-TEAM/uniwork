@@ -7,6 +7,10 @@ export const chatKeys = {
     ["chat", "project-channels", wsId, projectId] as const,
   messages: (wsId: string) => ["chat", "messages", wsId] as const,
   roomMessages: (wsId: string, roomId: string) => ["chat", "room-messages", wsId, roomId] as const,
+  threadMessages: (wsId: string, roomId: string, threadRootId: string) =>
+    ["chat", "thread-messages", wsId, roomId, threadRootId] as const,
+  followedThreads: (wsId: string, unread = false) =>
+    ["chat", "followed-threads", wsId, unread] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
     ["chat", "room-message-search", wsId, roomId, query] as const,
   roomMembers: (wsId: string, roomId: string) => ["chat", "room-members", wsId, roomId] as const,

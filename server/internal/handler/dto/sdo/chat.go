@@ -77,6 +77,10 @@ type ChatMessageDTO struct {
 	Kind              string           `json:"kind,omitempty" description:"text or voice_call_log" example:"text"`
 	Body              string           `json:"body" description:"Message text" example:"Xin chào team!"`
 	ReplyToMessageID  *string          `json:"reply_to_message_id,omitempty" description:"Replied message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	ThreadRootID      *string          `json:"thread_root_id,omitempty" description:"Thread root message id when this is a reply" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	ReplyCount        int              `json:"reply_count,omitempty" description:"Reply count on a thread root" example:"3"`
+	LastReplyAt       string           `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply on a thread root"`
+	ThreadUnread      bool             `json:"thread_unread,omitempty" description:"Caller has unread replies in this thread"`
 	CreatedAt         string           `json:"created_at" description:"RFC3339 timestamp" example:"2026-03-26T10:00:00Z"`
 	EditedAt          string           `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
 	Pinned            bool             `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
@@ -119,6 +123,25 @@ type ChatRoomDTO struct {
 // ChatChannelListSDO is GET .../chat/channels.
 type ChatChannelListSDO struct {
 	Rooms []ChatRoomDTO `json:"rooms"`
+}
+
+// ChatThreadDTO is one followed thread summary.
+type ChatThreadDTO struct {
+	ThreadRootID string `json:"thread_root_id" description:"Root message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	RoomID       string `json:"room_id" description:"Chat room id"`
+	WorkspaceID  string `json:"workspace_id" description:"Workspace id"`
+	RootBody     string `json:"root_body" description:"Root message body preview"`
+	RootSenderID string `json:"root_sender_id" description:"Root author user id"`
+	ReplyCount   int    `json:"reply_count" description:"Number of replies" example:"3"`
+	LastReplyAt  string `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply"`
+	RootCreated  string `json:"root_created_at" description:"RFC3339 of root message"`
+	Unread       bool   `json:"unread" description:"Caller has unread replies"`
+	Reason       string `json:"reason,omitempty" description:"Why the caller follows: author|replied|mentioned|manual"`
+}
+
+// ChatThreadListSDO is GET .../chat/threads.
+type ChatThreadListSDO struct {
+	Threads []ChatThreadDTO `json:"threads"`
 }
 
 // ChatRoomMemberPermissionsDTO configures what non-admin members may do.

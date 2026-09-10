@@ -142,6 +142,11 @@ func pathParamSDI(path string) any {
 			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
 			MessageID   string `path:"messageID" description:"ULID tin nhắn" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "workspaceID,messageID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			MessageID   string `path:"messageID" description:"ULID tin nhắn gốc của thread" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "workspaceID,roomID,userID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

@@ -23,6 +23,7 @@ import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPageContentDialogs } from "./chat-page-content-dialogs";
+import { chatComposerPlaceholder } from "./chat-composer-placeholder";
 
 export function ChatPageContent({
   target,
@@ -53,6 +54,7 @@ export function ChatPageContent({
   nameContext,
   replyTo,
   onReplyToChange,
+  onActiveThreadRootIdChange,
   draft,
   onDraftChange,
   composerPriority,
@@ -457,6 +459,8 @@ export function ChatPageContent({
                   }
                   replyTo={replyTo}
                   onReplyToChange={onReplyToChange}
+                  workHubEnabled={workHubEnabled}
+                  onActiveThreadRootIdChange={onActiveThreadRootIdChange}
                   refreshKey={messageRefreshKey}
                   showSenderName={
                     target.kind === "workspace" ||
@@ -487,15 +491,11 @@ export function ChatPageContent({
                       ? mentionCandidates
                       : undefined
                   }
-                  placeholder={
-                    dmBlocked
-                      ? t("chat.block_composer_placeholder")
-                      : chatSendMutedByModerator
-                        ? t("chat.mute_composer_placeholder")
-                        : chatSendRestricted
-                          ? t("chat.room_send_forbidden_placeholder")
-                          : t("chat.message_placeholder")
-                  }
+                  placeholder={chatComposerPlaceholder(t, {
+                    dmBlocked,
+                    chatSendMutedByModerator,
+                    chatSendRestricted,
+                  })}
                   sendLabel={t("chat.send")}
                   typingLabel={typingLabel}
                   onAttachAction={handleAttachAction}

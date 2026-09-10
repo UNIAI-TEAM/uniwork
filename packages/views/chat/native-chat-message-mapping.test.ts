@@ -14,6 +14,8 @@ const base: ChatMessageRecord = {
   pinned: false,
   mentioned_user_ids: [],
   reactions: {},
+  reply_count: 0,
+  thread_unread: false,
 };
 
 describe("toChatMessage", () => {

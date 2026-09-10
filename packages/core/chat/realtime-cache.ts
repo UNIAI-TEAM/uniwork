@@ -65,12 +65,65 @@ export function patchRoomSidebarFromMessage(
   });
 }
 
+/** Thread replies belong on the root's thread cache, never the main room timeline. */
+export function isChatThreadReply(message: ChatMessageRecord): boolean {
+  return Boolean(message.thread_root_id);
+}
+
+export function bumpThreadRootReplyCount(
+  existing: ChatMessageRecord[] | undefined,
+  reply: ChatMessageRecord,
+): ChatMessageRecord[] | undefined {
+  const rootId = reply.thread_root_id;
+  if (!existing || !rootId) return existing;
+  return existing.map((entry) => {
+    if (entry.id !== rootId) return entry;
+    return {
+      ...entry,
+      reply_count: (entry.reply_count ?? 0) + 1,
+      last_reply_at: reply.created_at,
+    };
+  });
+}
+
+function patchThreadReplyCaches(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  message: ChatMessageRecord,
+): void {
+  const rootId = message.thread_root_id;
+  if (!rootId) return;
+
+  const threadKey = chatKeys.threadMessages(wsId, roomId, rootId);
+  const prior = qc.getQueryData<ChatMessageRecord[]>(threadKey);
+  const alreadyPresent = prior?.some((entry) => entry.id === message.id) ?? false;
+
+  qc.setQueryData<ChatMessageRecord[]>(threadKey, (old) => mergeMessageIntoList(old, message));
+
+  const patchMainList = (old: ChatMessageRecord[] | undefined) => {
+    const withoutReply = removeMessageFromList(old, message.id);
+    if (alreadyPresent) return withoutReply;
+    return bumpThreadRootReplyCount(withoutReply, message) ?? withoutReply;
+  };
+
+  qc.setQueryData<ChatMessageRecord[]>(chatKeys.roomMessages(wsId, roomId), patchMainList);
+  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
+  if (wsRoom?.room_id === roomId) {
+    qc.setQueryData<ChatMessageRecord[]>(chatKeys.messages(wsId), patchMainList);
+  }
+}
+
 function patchMessageCaches(
   qc: QueryClient,
   wsId: string,
   roomId: string,
   message: ChatMessageRecord,
 ): void {
+  if (isChatThreadReply(message)) {
+    patchThreadReplyCaches(qc, wsId, roomId, message);
+    return;
+  }
   qc.setQueryData<ChatMessageRecord[]>(chatKeys.roomMessages(wsId, roomId), (old) =>
     mergeMessageIntoList(old, message),
   );
@@ -100,6 +153,8 @@ export async function fetchAndPatchChatMessage(
   const message = await getChatRoomMessage(wsId, roomId, messageId);
   if (!message) return;
   patchMessageCaches(qc, wsId, roomId, message);
+  // Thread replies stay off the channel preview; followers get chat.thread.replied.
+  if (isChatThreadReply(message)) return;
   const viewerId = currentUserId();
   const isOwn = viewerId != null && message.sender_id === viewerId;
   const viewing = isViewingRoom(wsId, roomId);
@@ -125,6 +180,11 @@ export function patchChatMessageDeleted(
       removeMessageFromList(old, messageId),
     );
   }
+  // Thread message caches are keyed by root; drop the id from any cached thread list.
+  qc.setQueriesData<ChatMessageRecord[]>(
+    { queryKey: ["chat", "thread-messages", wsId, roomId] },
+    (old) => removeMessageFromList(old, messageId),
+  );
 }
 
 export function patchChatMentionCreated(

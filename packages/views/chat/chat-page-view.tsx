@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   mergeActiveDmContact,
@@ -22,6 +21,7 @@ import {
   useChatNicknames,
   useResolveDMRoom,
   useSendChatRoomMessage,
+  useSendChatThreadMessage,
   useSendChatVoiceMessage,
   useSendChatFileMessage,
   useUnblockChatUser,
@@ -35,7 +35,6 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useCurrentMember } from "@uniwork/core/permissions";
-import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
@@ -44,6 +43,7 @@ import { useChatReminderNotifications } from "./use-chat-reminder-notify";
 import { buildChatNameContext, chatHeaderTitle } from "./chat-page-utils";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
+import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { ChatPageContent } from "./chat-page-content";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
@@ -112,6 +112,7 @@ export function ChatPageView({
   const [draft, setDraft] = useState("");
   const [composerPriority, setComposerPriority] = useState<ComposerMessagePriority | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -183,11 +184,13 @@ export function ChatPageView({
         : target.kind === "channel"
           ? (activeChannel?.id ?? null)
           : (activeGroup?.room_id ?? null);
+  const sendThreadMessage = useSendChatThreadMessage(workspaceId, activeRoomId ?? "");
 
   useEffect(() => {
     setMessageSearchOpen(false);
     setJumpToMessageId(null);
     setComposerPriority(null);
+    setActiveThreadRootId(null);
   }, [activeRoomId]);
 
   useEffect(() => {
@@ -282,8 +285,11 @@ export function ChatPageView({
       setDraft,
       replyTo,
       setReplyTo,
+      activeThreadRootId,
+      workHubEnabled,
       ensureRoom,
       sendRoomMessage,
+      sendThreadMessage,
       resolveDM,
       createGroup,
       inviteMembers,
@@ -406,16 +412,7 @@ export function ChatPageView({
   });
 
   if (!authReady) {
-    return (
-      <div className="flex h-full flex-col">
-        <CollectionPageHeader icon={MessageSquare} title={t("chat.title")} />
-        <CollectionPageState
-          icon={MessageSquare}
-          title={t("chat.loading")}
-          description={t("chat.group_description")}
-        />
-      </div>
-    );
+    return <ChatPageAuthLoading />;
   }
 
   const callControlsDisabled =
@@ -423,6 +420,10 @@ export function ChatPageView({
   const leaveRoomAnd = (cleanup: () => void) => {
     if (activeRoomId) void handleLeaveConversation(activeRoomId, cleanup);
   };
+  const messageRefreshKey = Math.max(
+    sendRoomMessage.isSuccess ? sendRoomMessage.submittedAt : 0,
+    sendVoiceMessage.isSuccess ? sendVoiceMessage.submittedAt : 0,
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -439,10 +440,7 @@ export function ChatPageView({
         activeGroup={activeGroup}
         activeChannel={activeChannel}
         workspaceId={workspaceId}
-        messageRefreshKey={Math.max(
-          sendRoomMessage.isSuccess ? sendRoomMessage.submittedAt : 0,
-          sendVoiceMessage.isSuccess ? sendVoiceMessage.submittedAt : 0,
-        )}
+        messageRefreshKey={messageRefreshKey}
         activeRoomId={activeRoomId}
         showLoading={showLoading}
         connectError={connectError}
@@ -458,6 +456,7 @@ export function ChatPageView({
         nameContext={nameContext}
         replyTo={replyTo}
         onReplyToChange={setReplyTo}
+        onActiveThreadRootIdChange={setActiveThreadRootId}
         draft={draft}
         onDraftChange={setDraft}
         composerPriority={composerPriority}

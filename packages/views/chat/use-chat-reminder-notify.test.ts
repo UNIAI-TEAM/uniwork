@@ -42,6 +42,8 @@ function reminderRow(id: string, remindAt: string, body = "Họp team"): ChatMes
     pinned: false,
     mentioned_user_ids: [],
     reactions: {},
+    reply_count: 0,
+    thread_unread: false,
     reminder: { body, remind_at: remindAt, repeat: "none" },
   };
 }

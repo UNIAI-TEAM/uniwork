@@ -47,6 +47,9 @@ SELECT
   m.body,
   m.metadata,
   m.reply_to_message_id,
+  m.thread_root_id,
+  m.reply_count,
+  m.last_reply_at,
   m.edited_at,
   m.created_at,
   m.client_msg_id,
@@ -56,6 +59,7 @@ INNER JOIN users u ON u.id = m.sender_id
 WHERE m.room_id = $1
   AND m.workspace_id = $2
   AND m.deleted_at IS NULL
+  AND m.thread_root_id IS NULL
   AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
 ORDER BY m.created_at DESC
 LIMIT sqlc.arg(msg_limit);
@@ -83,9 +87,9 @@ INSERT INTO chat_messages (
 
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id)
+  $1, $2, $3, $4, $5, 'text', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(thread_root_id)
 ) RETURNING *;
 
 -- name: CreateChatVoiceMessage :one
@@ -487,4 +491,127 @@ WHERE m.room_id = $1
   AND m.created_at <= sqlc.arg(before_or_at)
 ORDER BY m.created_at DESC
 LIMIT sqlc.arg(msg_limit);
+
+-- name: GetChatMessageByID :one
+SELECT * FROM chat_messages
+WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: ListChatThreadMessages :many
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.thread_root_id,
+  m.reply_count,
+  m.last_reply_at,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.room_id = $1
+  AND m.workspace_id = $2
+  AND m.deleted_at IS NULL
+  AND (
+    m.id = sqlc.arg(thread_root_id)
+    OR m.thread_root_id = sqlc.arg(thread_root_id)
+  )
+  AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
+ORDER BY m.created_at DESC
+LIMIT sqlc.arg(msg_limit);
+
+-- name: BumpChatThreadReplyStats :one
+UPDATE chat_messages
+SET reply_count = reply_count + 1,
+    last_reply_at = sqlc.arg(replied_at)
+WHERE id = sqlc.arg(thread_root_id)
+  AND room_id = sqlc.arg(room_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND thread_root_id IS NULL
+  AND deleted_at IS NULL
+RETURNING *;
+
+-- name: UpsertChatThreadFollower :exec
+INSERT INTO chat_thread_followers (
+  id, organization_id, workspace_id, room_id, thread_root_id, user_id, reason, muted, last_read_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, false, sqlc.narg(last_read_at)
+)
+ON CONFLICT (thread_root_id, user_id) DO UPDATE SET
+  updated_at = now(),
+  muted = CASE
+    WHEN chat_thread_followers.muted THEN true
+    ELSE false
+  END,
+  reason = CASE
+    WHEN chat_thread_followers.reason = 'author' THEN chat_thread_followers.reason
+    WHEN EXCLUDED.reason = 'author' THEN EXCLUDED.reason
+    WHEN chat_thread_followers.reason = 'replied' THEN chat_thread_followers.reason
+    WHEN EXCLUDED.reason = 'replied' THEN EXCLUDED.reason
+    ELSE EXCLUDED.reason
+  END,
+  last_read_at = COALESCE(EXCLUDED.last_read_at, chat_thread_followers.last_read_at);
+
+-- name: MuteChatThreadFollower :exec
+UPDATE chat_thread_followers
+SET muted = true, updated_at = now()
+WHERE thread_root_id = $1 AND user_id = $2;
+
+-- name: UnmuteChatThreadFollower :exec
+UPDATE chat_thread_followers
+SET muted = false, updated_at = now()
+WHERE thread_root_id = $1 AND user_id = $2;
+
+-- name: MarkChatThreadRead :exec
+UPDATE chat_thread_followers
+SET last_read_at = sqlc.arg(last_read_at), updated_at = now()
+WHERE thread_root_id = $1 AND user_id = $2;
+
+-- name: GetChatThreadFollower :one
+SELECT * FROM chat_thread_followers
+WHERE thread_root_id = $1 AND user_id = $2;
+
+-- name: ListChatThreadFollowerUserIDs :many
+SELECT user_id FROM chat_thread_followers
+WHERE thread_root_id = $1 AND muted = false;
+
+-- name: ListChatThreadsForFollower :many
+SELECT
+  root.id AS thread_root_id,
+  root.room_id,
+  root.workspace_id,
+  root.body AS root_body,
+  root.sender_id AS root_sender_id,
+  root.reply_count,
+  root.last_reply_at,
+  root.created_at AS root_created_at,
+  f.last_read_at,
+  f.muted,
+  f.reason,
+  CASE
+    WHEN root.last_reply_at IS NULL THEN false
+    WHEN f.last_read_at IS NULL THEN true
+    ELSE root.last_reply_at > f.last_read_at
+  END AS unread
+FROM chat_thread_followers f
+INNER JOIN chat_messages root ON root.id = f.thread_root_id AND root.deleted_at IS NULL
+WHERE f.user_id = sqlc.arg(user_id)
+  AND f.workspace_id = sqlc.arg(workspace_id)
+  AND f.muted = false
+  AND root.reply_count > 0
+  AND (
+    sqlc.arg(unread_only)::bool = false
+    OR (
+      root.last_reply_at IS NOT NULL
+      AND (f.last_read_at IS NULL OR root.last_reply_at > f.last_read_at)
+    )
+  )
+ORDER BY COALESCE(root.last_reply_at, root.created_at) DESC
+LIMIT sqlc.arg(result_limit);
 

@@ -40,8 +40,11 @@ export function useChatPageActions({
   setDraft,
   replyTo,
   setReplyTo,
+  activeThreadRootId = null,
+  workHubEnabled = false,
   ensureRoom,
   sendRoomMessage,
+  sendThreadMessage,
   resolveDM,
   createGroup,
   inviteMembers,
@@ -71,8 +74,18 @@ export function useChatPageActions({
   setDraft: React.Dispatch<React.SetStateAction<string>>;
   replyTo: ChatMessage | null;
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
+  activeThreadRootId?: string | null;
+  workHubEnabled?: boolean;
   ensureRoom: { mutateAsync: () => Promise<{ room_id?: string | null }> };
   sendRoomMessage: Pick<ReturnType<typeof useSendChatRoomMessage>, "mutateAsync">;
+  sendThreadMessage?: {
+    mutateAsync: (input: {
+      threadRootId: string;
+      body: string;
+      client_msg_id?: string;
+      priority?: string;
+    }) => Promise<unknown>;
+  };
   resolveDM: Pick<ReturnType<typeof useResolveDMRoom>, "mutateAsync">;
   createGroup: Pick<ReturnType<typeof useCreateChatGroup>, "mutateAsync">;
   inviteMembers: Pick<ReturnType<typeof useInviteChatGroupMembers>, "mutateAsync">;
@@ -113,7 +126,9 @@ export function useChatPageActions({
         roomId,
         body: trimmed,
         client_msg_id: newChatClientMsgId(),
-        ...(replyTo ? { reply_to_message_id: replyTo.id } : {}),
+        ...(replyTo && !(workHubEnabled && activeThreadRootId)
+          ? { reply_to_message_id: replyTo.id }
+          : {}),
         ...(composerPriority ? { priority: composerPriority } : {}),
       };
 
@@ -127,9 +142,15 @@ export function useChatPageActions({
       };
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (workHubEnabled && activeThreadRootId) {
+          setConnectError(t("chat.send_queued_offline"));
+          return;
+        }
         queueForLater();
         return;
       }
+
+      const sendingInThread = Boolean(workHubEnabled && activeThreadRootId && sendThreadMessage);
 
       usePendingChatMessagesStore.getState().upsert({
         workspaceId,
@@ -139,12 +160,24 @@ export function useChatPageActions({
         senderId: currentUserId,
         createdAt: Date.now(),
         reply_to_message_id: payload.reply_to_message_id,
+        ...(sendingInThread && activeThreadRootId
+          ? { thread_root_id: activeThreadRootId }
+          : {}),
         priority: payload.priority,
         status: "sending",
       });
 
       try {
-        await sendRoomMessage.mutateAsync(payload);
+        if (sendingInThread && activeThreadRootId && sendThreadMessage) {
+          await sendThreadMessage.mutateAsync({
+            threadRootId: activeThreadRootId,
+            body: payload.body,
+            client_msg_id: payload.client_msg_id,
+            priority: payload.priority,
+          });
+        } else {
+          await sendRoomMessage.mutateAsync(payload);
+        }
         setReplyTo(null);
         setDraft("");
         setComposerPriority?.(null);
@@ -169,8 +202,11 @@ export function useChatPageActions({
       ensureRoom,
       resolveDM,
       sendRoomMessage,
+      sendThreadMessage,
       replyTo,
       setReplyTo,
+      activeThreadRootId,
+      workHubEnabled,
       setDraft,
       setConnectError,
       composerPriority,

@@ -1547,6 +1547,8 @@
     "pinned_bar_jump": "Jump to pinned message: {{preview}}",
     "thread_title": "Thread",
     "close_thread": "Close thread",
+    "thread_replies": "{{count}} replies",
+    "thread_replies_unread": "{{count}} replies · unread",
     "replying_to": "Replying to: {{preview}}",
     "cancel_reply": "Cancel",
     "groups_title": "Groups",

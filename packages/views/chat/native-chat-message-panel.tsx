@@ -3,37 +3,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
-import { mergeOptimisticChatMessages } from "@uniwork/core/chat/merge-optimistic-chat-messages";
 import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import { listChatRoomMessages, listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
 import {
   useChatRoomMessages,
+  useChatThreadMessages,
   useClearDeliveredChatSends,
   useDeleteChatMessage,
   useEditChatMessage,
+  useMarkChatThreadRead,
   useToggleChatMessagePin,
   useToggleChatReaction,
 } from "@uniwork/core/chat";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { serializeComposerDraftToMessageBody } from "./chat-mention-utils";
 import { ChatMessageEditDialog } from "./chat-message-edit-dialog";
-import { ChatMessageRow } from "./chat-message-row";
 import type { ChatMessage } from "./chat-messages";
-import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import { CHAT_MESSAGE_INITIAL, CHAT_MESSAGE_MAX_IN_MEMORY, CHAT_MESSAGE_PAGE_SIZE } from "./chat-messages";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
-import { ChatPollMessageRow } from "./chat-poll-message-row";
-import { ChatReminderMessageRow } from "./chat-reminder-message-row";
-import { ChatNoteMessageRow } from "./chat-note-message-row";
-import { VoiceCallLogRow } from "./voice-call-log-row";
-import { ChatVoiceMessageRow } from "./chat-voice-message-row";
-import { ChatFileMessageRow } from "./chat-file-message-row";
 import { ChatReplyComposerBar } from "./chat-reply-quote";
 import { VirtualChatMessageList } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
-import { senderLabelFor, toChatMessage } from "./native-chat-message-mapping";
-import { messageGrouping } from "./native-chat-message-grouping";
+import { toChatMessage } from "./native-chat-message-mapping";
+import { renderNativeChatMessage } from "./native-chat-message-item";
+import {
+  buildMainTimelineMessages,
+  buildThreadViewMessages,
+} from "./native-chat-message-timeline";
 
 export function NativeChatMessagePanel({
   workspaceId,
@@ -50,6 +47,8 @@ export function NativeChatMessagePanel({
   anchorMessageId = null,
   onClearAnchor,
   canPinMessages = true,
+  workHubEnabled = false,
+  onActiveThreadRootIdChange,
 }: {
   workspaceId: string;
   roomId: string;
@@ -65,6 +64,8 @@ export function NativeChatMessagePanel({
   anchorMessageId?: string | null;
   onClearAnchor?: () => void;
   canPinMessages?: boolean;
+  workHubEnabled?: boolean;
+  onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
 }) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -78,7 +79,15 @@ export function NativeChatMessagePanel({
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [loadingAnchor, setLoadingAnchor] = useState(false);
   const { data: latestRows = [] } = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
+  const threadQuery = useChatThreadMessages(
+    workspaceId,
+    roomId,
+    threadRoot?.id ?? "",
+    workHubEnabled && !!threadRoot,
+  );
+  const markThreadRead = useMarkChatThreadRead(workspaceId);
   useClearDeliveredChatSends(latestRows);
+  useClearDeliveredChatSends(threadQuery.data ?? []);
   const pendingEntries = usePendingChatMessagesStore(
     useShallow((state) => state.listForRoom(workspaceId, roomId)),
   );
@@ -107,8 +116,12 @@ export function NativeChatMessagePanel({
     (message: ChatMessage) => {
       setThreadRoot(message);
       onReplyToChange(message);
+      onActiveThreadRootIdChange?.(message.id);
+      if (workHubEnabled) {
+        void markThreadRead.mutateAsync(message.id).catch(() => undefined);
+      }
     },
-    [onReplyToChange],
+    [markThreadRead, onActiveThreadRootIdChange, onReplyToChange, workHubEnabled],
   );
 
   const handleEdit = useCallback((message: ChatMessage) => {
@@ -141,16 +154,13 @@ export function NativeChatMessagePanel({
     [roomId, togglePin],
   );
 
-  const handleCopy = useCallback(
-    async (message: ChatMessage) => {
-      try {
-        await navigator.clipboard.writeText(message.body);
-      } catch {
-        // Clipboard may be unavailable in tests or insecure contexts.
-      }
-    },
-    [],
-  );
+  const handleCopy = useCallback(async (message: ChatMessage) => {
+    try {
+      await navigator.clipboard.writeText(message.body);
+    } catch {
+      // Clipboard may be unavailable in tests or insecure contexts.
+    }
+  }, []);
 
   const handleDelete = useCallback(
     async (message: ChatMessage) => {
@@ -161,33 +171,43 @@ export function NativeChatMessagePanel({
     [deleteMessage, onReplyToChange, replyTo?.id, roomId, threadRoot?.id],
   );
 
-  const allMessages = useMemo(() => {
-    if (anchorMessages) return anchorMessages;
-    const latest = latestRows.map(toChatMessage);
-    const mergedLatest = mergeOptimisticChatMessages(
-      latest,
-      pendingEntries,
-      outboxEntries,
+  const allMessages = useMemo(
+    () =>
+      buildMainTimelineMessages({
+        anchorMessages,
+        latestRows,
+        olderMessages,
+        pendingEntries,
+        outboxEntries,
+        currentUserId,
+        workHubEnabled,
+      }),
+    [
+      anchorMessages,
       currentUserId,
-    ) as ChatMessage[];
-    if (olderMessages.length === 0) return mergedLatest;
-    const seen = new Set<string>();
-    const merged: ChatMessage[] = [];
-    for (const message of [...olderMessages, ...mergedLatest]) {
-      if (seen.has(message.id)) continue;
-      seen.add(message.id);
-      merged.push(message);
-    }
-    return merged.sort((a, b) => a.ts - b.ts);
-  }, [anchorMessages, currentUserId, latestRows, olderMessages, outboxEntries, pendingEntries]);
+      latestRows,
+      olderMessages,
+      outboxEntries,
+      pendingEntries,
+      workHubEnabled,
+    ],
+  );
 
   const messages = useMemo(() => {
     if (!threadRoot) return allMessages;
-    return allMessages.filter(
-      (message) =>
-        message.id === threadRoot.id || message.replyToEventId === threadRoot.id,
-    );
-  }, [allMessages, threadRoot]);
+    return buildThreadViewMessages({
+      allMessages,
+      threadRoot,
+      threadRows: threadQuery.data,
+      pendingEntries,
+      currentUserId,
+      workHubEnabled,
+    });
+  }, [allMessages, currentUserId, pendingEntries, threadQuery.data, threadRoot, workHubEnabled]);
+
+  useEffect(() => {
+    onActiveThreadRootIdChange?.(threadRoot?.id ?? null);
+  }, [onActiveThreadRootIdChange, threadRoot?.id]);
 
   useEffect(() => {
     stickToBottomRef.current = true;
@@ -197,7 +217,8 @@ export function NativeChatMessagePanel({
     setAnchorMessages(null);
     setHighlightMessageId(null);
     setHasMore(latestRows.length >= CHAT_MESSAGE_INITIAL);
-  }, [roomId, onReplyToChange, latestRows.length]);
+    onActiveThreadRootIdChange?.(null);
+  }, [roomId, onReplyToChange, onActiveThreadRootIdChange, latestRows.length]);
 
   useEffect(() => {
     if (!anchorMessageId) {
@@ -280,135 +301,29 @@ export function NativeChatMessagePanel({
   const messagesById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
   const renderMessage = useCallback(
-    (index: number) => {
-      const message = messages[index];
-      if (!message) return null;
-      if (message.kind === "reminder" && message.reminder) {
-        const { compactTop } = messageGrouping(messages, index);
-        return (
-          <ChatReminderMessageRow
-            key={message.id}
-            reminder={message.reminder}
-            senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-            showSenderName={showSenderName}
-            compactTop={compactTop}
-          />
-        );
-      }
-      if (message.kind === "note" && message.note) {
-        const { compactTop } = messageGrouping(messages, index);
-        return (
-          <ChatNoteMessageRow
-            key={message.id}
-            note={message.note}
-            senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-            showSenderName={showSenderName}
-            compactTop={compactTop}
-          />
-        );
-      }
-      if (message.kind === "poll" && message.poll) {
-        const { compactTop } = messageGrouping(messages, index);
-        return (
-          <ChatPollMessageRow
-            key={message.id}
-            messageId={message.id}
-            workspaceId={workspaceId}
-            roomId={roomId}
-            poll={message.poll}
-            senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-            showSenderName={showSenderName}
-            compactTop={compactTop}
-            nameContext={nameContext}
-            currentUserId={currentUserId}
-            youLabel={youLabel}
-          />
-        );
-      }
-      if (message.kind === "voice_call_log" || message.voiceCall) {
-        return (
-          <VoiceCallLogRow
-            key={message.id}
-            message={message}
-            currentUserId={currentUserId}
-          />
-        );
-      }
-      if (message.kind === "voice" && message.voice) {
-        const isOwn = message.sender === currentUserId;
-        const { compactTop, showAvatar } = messageGrouping(messages, index);
-        return (
-          <ChatVoiceMessageRow
-            key={message.id}
-            workspaceId={workspaceId}
-            roomId={roomId}
-            message={message}
-            senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-            isOwn={isOwn}
-            showSenderName={showSenderName}
-            compactTop={compactTop}
-            showAvatar={showAvatar}
-          />
-        );
-      }
-      if (message.kind === "file" && message.file) {
-        const isOwn = message.sender === currentUserId;
-        const { compactTop, showAvatar } = messageGrouping(messages, index);
-        const replyTarget = message.replyToEventId
-          ? messagesById.get(message.replyToEventId)
-          : undefined;
-        return (
-          <ChatFileMessageRow
-            key={message.id}
-            workspaceId={workspaceId}
-            roomId={roomId}
-            message={message}
-            senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-            isOwn={isOwn}
-            showSenderName={showSenderName}
-            compactTop={compactTop}
-            showAvatar={showAvatar}
-            replyToMessage={replyTarget}
-            onReply={onReplyToChange}
-            onReact={handleReact}
-            onThread={handleThread}
-            onPin={canPinMessages ? handlePin : undefined}
-            onCopy={handleCopy}
-            onDelete={handleDelete}
-          />
-        );
-      }
-      const isOwn = message.sender === currentUserId;
-      const isPending = Boolean(message.deliveryStatus) || isPendingChatMessageId(message.id);
-      const replyTarget = message.replyToEventId
-        ? messagesById.get(message.replyToEventId)
-        : undefined;
-      const { compactTop, showAvatar } = messageGrouping(messages, index);
-      return (
-        <ChatMessageRow
-          key={message.id}
-          message={message}
-          isOwn={isOwn}
-          showReadReceipt={false}
-          senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-          replyToMessage={replyTarget}
-          workspaceId={workspaceId}
-          roomId={roomId}
-          onReply={isPending ? undefined : onReplyToChange}
-          onReact={isPending ? undefined : handleReact}
-          onThread={isPending ? undefined : handleThread}
-          onEdit={isPending ? undefined : handleEdit}
-          onPin={isPending || !canPinMessages ? undefined : handlePin}
-          onCopy={isPending ? undefined : handleCopy}
-          onDelete={isPending ? undefined : handleDelete}
-          showSenderName={showSenderName}
-          compactTop={compactTop}
-          nameContext={nameContext}
-          showAvatar={showAvatar}
-          highlighted={message.id === highlightMessageId}
-        />
-      );
-    },
+    (index: number) =>
+      renderNativeChatMessage({
+        messages,
+        index,
+        messagesById,
+        workspaceId,
+        roomId,
+        currentUserId,
+        youLabel,
+        nameContext,
+        showSenderName,
+        canPinMessages,
+        highlightMessageId,
+        actions: {
+          onReply: onReplyToChange,
+          onReact: handleReact,
+          onThread: handleThread,
+          onEdit: handleEdit,
+          onPin: handlePin,
+          onCopy: handleCopy,
+          onDelete: handleDelete,
+        },
+      }),
     [
       canPinMessages,
       currentUserId,
@@ -456,6 +371,7 @@ export function NativeChatMessagePanel({
             onClick={() => {
               setThreadRoot(null);
               onReplyToChange(null);
+              onActiveThreadRootIdChange?.(null);
             }}
           >
             {t("chat.close_thread")}

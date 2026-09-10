@@ -1,6 +1,7 @@
 export * from "./chat-schemas";
 export * from "./chat-rooms";
 export * from "./chat-channels";
+export * from "./chat-threads";
 export * from "./chat-messages";
 export * from "./chat-users";
 export * from "./chat-media";
