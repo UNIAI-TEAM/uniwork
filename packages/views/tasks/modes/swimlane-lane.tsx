@@ -3,16 +3,25 @@
 import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronRight, GripVertical } from "lucide-react";
+import {
+  ChevronRight,
+  FolderKanban,
+  GripVertical,
+  Pencil,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SwimlaneGrouping } from "@uniwork/core/tasks/stores/view-store-types";
 import type { Task, TaskStatus } from "@uniwork/core/types";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { Button } from "@uniwork/ui/components/ui/button";
+import type { BoardCardMeta } from "./board-card";
 import { SwimLaneCell } from "./swimlane-cell";
 import { cellId, laneIdFor } from "./swimlane-ids";
 import type { LaneGroup } from "./swimlane-lanes";
+import { STATUS_CONFIG } from "./status-config";
 import type { TaskGroupPageState } from "../surface/use-task-group-branches";
 
 const EMPTY_CONFIG = {
@@ -29,6 +38,7 @@ export const DraggableSwimLane = memo(function DraggableSwimLane({
   localCells,
   sortedStatuses,
   taskMap,
+  cardMeta,
   gridStyle,
   onCreateTask,
   onOpenTask,
@@ -41,6 +51,7 @@ export const DraggableSwimLane = memo(function DraggableSwimLane({
   localCells: Record<string, Record<string, string[]>>;
   sortedStatuses: TaskStatus[];
   taskMap: Map<string, Task>;
+  cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   gridStyle: React.CSSProperties;
   onCreateTask?: (defaults: Record<string, unknown>) => void;
   onOpenTask?: (id: string) => void;
@@ -109,7 +120,7 @@ export const DraggableSwimLane = memo(function DraggableSwimLane({
           {lane.actor ? (
             <span
               className={cn(
-                "inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-micro",
+                "inline-flex shrink-0",
                 lane.actor.kind === "agent" &&
                   !agentAvailable &&
                   "cursor-not-allowed opacity-60",
@@ -125,12 +136,33 @@ export const DraggableSwimLane = memo(function DraggableSwimLane({
                 lane.actor.kind === "agent" ? !agentAvailable : undefined
               }
             >
-              {(lane.title || "?").slice(0, 1).toUpperCase()}
+              <ActorAvatar
+                name={lane.title}
+                initials={(lane.title || "?").slice(0, 1).toUpperCase()}
+                isAgent={lane.actor.kind === "agent"}
+                size="xs"
+              />
             </span>
+          ) : null}
+          {lane.parentTask ? (
+            <span
+              className={cn(
+                "size-2.5 shrink-0 rounded-full bg-current",
+                STATUS_CONFIG[lane.parentTask.status]?.iconColor ??
+                  "text-muted-foreground",
+              )}
+              aria-hidden
+            />
+          ) : null}
+          {lane.projectId ? (
+            <FolderKanban
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
           ) : null}
           <span className="truncate text-body font-semibold">{lane.title}</span>
           {lane.identifier ? (
-            <span className="shrink-0 text-caption text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-micro font-medium tabular-nums text-muted-foreground">
               {lane.identifier}
             </span>
           ) : null}
@@ -138,6 +170,19 @@ export const DraggableSwimLane = memo(function DraggableSwimLane({
             {laneTotal}
           </span>
         </button>
+        {lane.parentTask && onOpenTask ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground"
+            aria-label={t("tasks.swimlane.open_parent")}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => onOpenTask(lane.parentTask!.id)}
+          >
+            <Pencil className="size-3" aria-hidden />
+          </Button>
+        ) : null}
       </div>
       {!isCollapsed ? (
         <div className="grid" style={gridStyle}>
@@ -150,6 +195,7 @@ export const DraggableSwimLane = memo(function DraggableSwimLane({
                 cellId={cellId(lane.key, status)}
                 taskIds={ids}
                 taskMap={taskMap}
+                cardMeta={cardMeta}
                 status={status}
                 lane={lane}
                 onCreateTask={onCreateTask}

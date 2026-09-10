@@ -196,6 +196,8 @@ function TaskSurfaceContent({
                 <SwimLaneView
                   tasks={controller.surfaceTasks}
                   categories={controller.boardCategories}
+                  projects={projectsData?.projects}
+                  cardMeta={boardCardMeta}
                   groupBranches={controller.groupBranches}
                   projectGroupingDisabled={controller.projectGroupingDisabled}
                   projectGroupingReasonKey={controller.projectGroupingReasonKey}
