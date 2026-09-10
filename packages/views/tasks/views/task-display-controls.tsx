@@ -431,7 +431,6 @@ export function TaskDisplayControls({
                 <Switch
                   size="sm"
                   checked={showSubTasks}
-                  aria-label={t("tasks.display.show_subtasks")}
                   onCheckedChange={() => toggleShowSubTasks()}
                 />
               </label>
@@ -461,7 +460,6 @@ export function TaskDisplayControls({
                           size="sm"
                           checked={disabled ? false : cardProperties[key]}
                           disabled={disabled}
-                          aria-label={label}
                           onCheckedChange={() => toggleCardProperty(key)}
                         />
                       </label>

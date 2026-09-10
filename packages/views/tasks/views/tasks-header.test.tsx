@@ -115,7 +115,10 @@ describe("TasksHeader mode switcher", () => {
     expect(
       screen.getByRole("switch", { name: "Độ ưu tiên" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Nhãn" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Nhãn" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(screen.queryByRole("checkbox")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
