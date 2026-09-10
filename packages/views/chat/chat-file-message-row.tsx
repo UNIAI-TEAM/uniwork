@@ -11,6 +11,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import { ChatReplyQuote } from "./chat-reply-quote";
+import { MessageTaskCard } from "./message-task-card";
 
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
@@ -38,6 +39,9 @@ export function ChatFileMessageRow({
   onPin,
   onCopy,
   onDelete,
+  onCreateTask,
+  onLinkTask,
+  workHubEnabled = false,
 }: {
   workspaceId: string;
   roomId: string;
@@ -54,6 +58,9 @@ export function ChatFileMessageRow({
   onPin?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
   onDelete?: (message: ChatMessage) => void;
+  onCreateTask?: (message: ChatMessage) => void;
+  onLinkTask?: (message: ChatMessage) => void;
+  workHubEnabled?: boolean;
 }) {
   const { t } = useTranslation();
   const file = message.file;
@@ -154,6 +161,8 @@ export function ChatFileMessageRow({
             onPin={onPin}
             onCopy={onCopy}
             onDelete={onDelete}
+            onCreateTask={workHubEnabled ? onCreateTask : undefined}
+            onLinkTask={workHubEnabled ? onLinkTask : undefined}
             canEdit={false}
           />
           {showSenderName && !isOwn ? (
@@ -262,6 +271,13 @@ export function ChatFileMessageRow({
                 ? t("chat.thread_replies_unread", { count: message.replyCount })
                 : t("chat.thread_replies", { count: message.replyCount })}
             </button>
+          ) : null}
+          {workHubEnabled ? (
+            <MessageTaskCard
+              workspaceId={workspaceId}
+              messageId={message.id}
+              className={cn("mt-1", isOwn && "items-end self-end")}
+            />
           ) : null}
         </div>
       </div>

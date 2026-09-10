@@ -47,6 +47,10 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 		s := t.DueDate.Time.Format("2006-01-02")
 		out.DueDate = &s
 	}
+	if t.ProjectID.Valid {
+		s := t.ProjectID.String
+		out.ProjectID = &s
+	}
 	return out
 }
 
@@ -233,6 +237,9 @@ func parseTaskPatch(raw map[string]json.RawMessage) (service.UpdateTaskInput, er
 		return in, err
 	}
 	if in.DueDate, err = nullable("due_date"); err != nil {
+		return in, err
+	}
+	if in.ProjectID, err = nullable("project_id"); err != nil {
 		return in, err
 	}
 	return in, nil

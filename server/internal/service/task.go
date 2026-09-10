@@ -46,9 +46,10 @@ type CreateTaskInput struct {
 	DueDate      *string
 	OriginType   string
 	OriginID     *string
+	ProjectID    *string // optional; must belong to the same workspace
 }
 
-// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate con trỏ
+// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate/ProjectID con trỏ
 // kép — con trỏ tới nil = xóa giá trị.
 type UpdateTaskInput struct {
 	Title        *string
@@ -59,6 +60,7 @@ type UpdateTaskInput struct {
 	AssigneeID   **string
 	AssigneeKind string // read only when AssigneeID is set; "" means human
 	DueDate      **string
+	ProjectID    **string
 }
 
 // assigneeKind validates the assignee pair: humans and agents must already be
@@ -164,6 +166,7 @@ func taskAuditFields(t db.Task) map[string]any {
 		"assignee_kind": t.AssigneeKind,
 		"due_date":      dateOrNil(t.DueDate),
 		"position":      t.Position,
+		"project_id":    audit.Text(t.ProjectID.Valid, t.ProjectID.String),
 	}
 }
 
@@ -216,6 +219,10 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	projectID, err := s.normalizeProjectID(ctx, ws.OrganizationID, workspaceID, in.ProjectID)
+	if err != nil {
+		return db.Task{}, err
+	}
 	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: "todo",
 	})
@@ -237,6 +244,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),
 		OriginType: originTypeText(in.OriginType), OriginID: optText(in.OriginID),
+		ProjectID: projectID,
 	})
 	if err != nil {
 		return db.Task{}, err
@@ -362,6 +370,19 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 			return db.Task{}, err
 		}
 	}
+	if in.ProjectID != nil {
+		projectID, perr := s.normalizeProjectID(ctx, before.OrganizationID, before.WorkspaceID, *in.ProjectID)
+		if perr != nil {
+			return db.Task{}, perr
+		}
+		task, err = q.SetTaskProjectID(ctx, db.SetTaskProjectIDParams{
+			ID: before.ID, ProjectID: projectID,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
 		Actor:        actor,
@@ -442,4 +463,27 @@ func parseDate(s *string) (pgtype.Date, error) {
 		return pgtype.Date{}, Invalid("due_date phải dạng YYYY-MM-DD")
 	}
 	return pgtype.Date{Time: t, Valid: true}, nil
+}
+
+// normalizeProjectID returns a nullable project id after checking it belongs
+// to the workspace. A nil / empty input clears (Valid=false).
+func (s *TaskService) normalizeProjectID(
+	ctx context.Context, organizationID, workspaceID string, projectID *string,
+) (pgtype.Text, error) {
+	if projectID == nil {
+		return pgtype.Text{}, nil
+	}
+	id := strings.TrimSpace(*projectID)
+	if id == "" {
+		return pgtype.Text{}, nil
+	}
+	if _, err := s.q.GetProject(ctx, db.GetProjectParams{
+		ID: id, OrganizationID: organizationID, WorkspaceID: workspaceID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.Text{}, ErrNotFound
+		}
+		return pgtype.Text{}, err
+	}
+	return pgtype.Text{String: id, Valid: true}, nil
 }

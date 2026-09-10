@@ -5,6 +5,8 @@ import {
   fetchAndPatchChatMessage,
   patchChatMessageDeleted,
   patchChatMentionCreated,
+  patchChatMessageLinked,
+  patchChatThreadLinked,
 } from "../chat/realtime-cache";
 import { chatKeys } from "../chat/hooks";
 
@@ -70,6 +72,12 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     },
     scheduleRoomActivity() {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+    },
+    scheduleMessageLinked(roomId: string, messageId: string) {
+      patchChatMessageLinked(qc, wsId, roomId, messageId);
+    },
+    scheduleThreadLinked(roomId: string, threadRootId: string) {
+      patchChatThreadLinked(qc, wsId, roomId, threadRootId);
     },
     async dispose() {
       if (timer != null) clearTimeout(timer);

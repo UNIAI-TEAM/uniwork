@@ -170,22 +170,37 @@ type ChatBlock struct {
 }
 
 type ChatMessage struct {
-	ID               string             `json:"id"`
-	RoomID           string             `json:"room_id"`
-	WorkspaceID      string             `json:"workspace_id"`
-	SenderID         string             `json:"sender_id"`
-	Kind             string             `json:"kind"`
-	Body             string             `json:"body"`
-	Metadata         []byte             `json:"metadata"`
-	ReplyToMessageID pgtype.Text        `json:"reply_to_message_id"`
-	EditedAt         pgtype.Timestamptz `json:"edited_at"`
-	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	SenderKind       string             `json:"sender_kind"`
-	ClientMsgID      pgtype.Text        `json:"client_msg_id"`
-	ThreadRootID     pgtype.Text        `json:"thread_root_id"`
-	ReplyCount       int32              `json:"reply_count"`
-	LastReplyAt      pgtype.Timestamptz `json:"last_reply_at"`
+	ID                    string             `json:"id"`
+	RoomID                string             `json:"room_id"`
+	WorkspaceID           string             `json:"workspace_id"`
+	SenderID              string             `json:"sender_id"`
+	Kind                  string             `json:"kind"`
+	Body                  string             `json:"body"`
+	Metadata              []byte             `json:"metadata"`
+	ReplyToMessageID      pgtype.Text        `json:"reply_to_message_id"`
+	EditedAt              pgtype.Timestamptz `json:"edited_at"`
+	DeletedAt             pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	SenderKind            string             `json:"sender_kind"`
+	ClientMsgID           pgtype.Text        `json:"client_msg_id"`
+	ThreadRootID          pgtype.Text        `json:"thread_root_id"`
+	ReplyCount            int32              `json:"reply_count"`
+	LastReplyAt           pgtype.Timestamptz `json:"last_reply_at"`
+	MirroredFromCommentID pgtype.Text        `json:"mirrored_from_comment_id"`
+}
+
+type ChatMessageLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         string             `json:"room_id"`
+	MessageID      string             `json:"message_id"`
+	TargetType     string             `json:"target_type"`
+	TargetID       string             `json:"target_id"`
+	Relation       string             `json:"relation"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type ChatRoom struct {
@@ -237,6 +252,19 @@ type ChatThreadFollower struct {
 	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ChatThreadTaskLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         string             `json:"room_id"`
+	ThreadRootID   string             `json:"thread_root_id"`
+	TaskID         string             `json:"task_id"`
+	Direction      string             `json:"direction"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type ChatUserNickname struct {
@@ -860,6 +888,7 @@ type TaskComment struct {
 	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
 	Revision        int64              `json:"revision"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ChatMessageID   pgtype.Text        `json:"chat_message_id"`
 }
 
 type TaskDependency struct {

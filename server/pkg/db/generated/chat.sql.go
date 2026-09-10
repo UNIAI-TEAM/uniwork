@@ -58,7 +58,7 @@ WHERE id = $2
   AND workspace_id = $4
   AND thread_root_id IS NULL
   AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type BumpChatThreadReplyStatsParams struct {
@@ -93,6 +93,7 @@ func (q *Queries) BumpChatThreadReplyStats(ctx context.Context, arg BumpChatThre
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -102,7 +103,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'file', $6, $7, $8, $9
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type CreateChatFileMessageParams struct {
@@ -147,6 +148,7 @@ func (q *Queries) CreateChatFileMessage(ctx context.Context, arg CreateChatFileM
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -156,7 +158,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type CreateChatMessageParams struct {
@@ -201,6 +203,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -210,7 +213,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'note', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type CreateChatNoteMessageParams struct {
@@ -249,6 +252,7 @@ func (q *Queries) CreateChatNoteMessage(ctx context.Context, arg CreateChatNoteM
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -258,7 +262,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'poll', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type CreateChatPollMessageParams struct {
@@ -297,6 +301,7 @@ func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollM
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -306,7 +311,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'reminder', $5, $6
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type CreateChatReminderMessageParams struct {
@@ -345,6 +350,7 @@ func (q *Queries) CreateChatReminderMessage(ctx context.Context, arg CreateChatR
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -420,7 +426,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata
 ) VALUES (
   $1, $2, $3, $4, 'voice_call_log', '', $5
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type CreateChatVoiceCallLogParams struct {
@@ -457,6 +463,7 @@ func (q *Queries) CreateChatVoiceCallLog(ctx context.Context, arg CreateChatVoic
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -466,7 +473,7 @@ INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id
 ) VALUES (
   $1, $2, $3, $4, $5, 'voice', '', $6, $7, $8
-) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type CreateChatVoiceMessageParams struct {
@@ -509,6 +516,7 @@ func (q *Queries) CreateChatVoiceMessage(ctx context.Context, arg CreateChatVoic
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -562,7 +570,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 }
 
 const getChatMessageByClientMsgID = `-- name: GetChatMessageByClientMsgID :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id FROM chat_messages
 WHERE room_id = $1
   AND sender_id = $2
   AND client_msg_id = $3
@@ -595,12 +603,13 @@ func (q *Queries) GetChatMessageByClientMsgID(ctx context.Context, arg GetChatMe
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id FROM chat_messages
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -624,12 +633,13 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id string) (ChatMessag
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
 
 const getChatMessageInRoom = `-- name: GetChatMessageInRoom :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id FROM chat_messages
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
 `
 
@@ -659,6 +669,7 @@ func (q *Queries) GetChatMessageInRoom(ctx context.Context, arg GetChatMessageIn
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -2036,7 +2047,7 @@ const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :one
 UPDATE chat_messages
 SET deleted_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $4 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type SoftDeleteChatMessageParams struct {
@@ -2071,6 +2082,7 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -2197,7 +2209,7 @@ const updateChatMessageBody = `-- name: UpdateChatMessageBody :one
 UPDATE chat_messages
 SET body = $4, edited_at = now()
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND sender_id = $5 AND kind = 'text' AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type UpdateChatMessageBodyParams struct {
@@ -2234,6 +2246,7 @@ func (q *Queries) UpdateChatMessageBody(ctx context.Context, arg UpdateChatMessa
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }
@@ -2242,7 +2255,7 @@ const updateChatMessageMetadata = `-- name: UpdateChatMessageMetadata :one
 UPDATE chat_messages
 SET metadata = $4
 WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
 `
 
 type UpdateChatMessageMetadataParams struct {
@@ -2277,6 +2290,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 		&i.ThreadRootID,
 		&i.ReplyCount,
 		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
 	)
 	return i, err
 }

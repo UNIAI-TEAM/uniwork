@@ -31,6 +31,7 @@ import {
   buildMainTimelineMessages,
   buildThreadViewMessages,
 } from "./native-chat-message-timeline";
+import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 
 export function NativeChatMessagePanel({
   workspaceId,
@@ -100,6 +101,10 @@ export function NativeChatMessagePanel({
   const editMessage = useEditChatMessage(workspaceId);
   const deleteMessage = useDeleteChatMessage(workspaceId);
   const togglePin = useToggleChatMessagePin(workspaceId);
+  const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(
+    workspaceId,
+    workHubEnabled,
+  );
 
   const handleReact = useCallback(
     (message: ChatMessage) => {
@@ -314,6 +319,7 @@ export function NativeChatMessagePanel({
         showSenderName,
         canPinMessages,
         highlightMessageId,
+        workHubEnabled,
         actions: {
           onReply: onReplyToChange,
           onReact: handleReact,
@@ -322,6 +328,8 @@ export function NativeChatMessagePanel({
           onPin: handlePin,
           onCopy: handleCopy,
           onDelete: handleDelete,
+          onCreateTask: taskLinkActions?.onCreateTask,
+          onLinkTask: taskLinkActions?.onLinkTask,
         },
       }),
     [
@@ -340,6 +348,8 @@ export function NativeChatMessagePanel({
       onReplyToChange,
       roomId,
       showSenderName,
+      taskLinkActions,
+      workHubEnabled,
       workspaceId,
       youLabel,
     ],
@@ -427,6 +437,7 @@ export function NativeChatMessagePanel({
           void handleSaveEdit(body);
         }}
       />
+      {taskLinkDialogs}
     </div>
   );
 }

@@ -38,6 +38,8 @@ interface DateFieldProps {
   max?: string;
   disabled?: boolean;
   className?: string;
+  /** False when nested in a Dialog so the calendar stays clickable. */
+  modal?: boolean;
 }
 
 /**
@@ -45,7 +47,16 @@ interface DateFieldProps {
  * day in the UI locale and opens a Popover + Calendar. The value stays a
  * "YYYY-MM-DD" string so callers keep the same wiring as `<input type="date">`.
  */
-export function DateField({ id, value, onChange, min, max, disabled, className }: DateFieldProps) {
+export function DateField({
+  id,
+  value,
+  onChange,
+  min,
+  max,
+  disabled,
+  className,
+  modal = true,
+}: DateFieldProps) {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const selected = dateOnlyToLocalDate(value);
@@ -56,7 +67,7 @@ export function DateField({ id, value, onChange, min, max, disabled, className }
     : t("common.date_pick");
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal={modal} open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         id={id}
         type="button"

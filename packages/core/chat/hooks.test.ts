@@ -40,6 +40,7 @@ describe("chat room helpers", () => {
   it("chatKeys builds stable query keys", () => {
     expect(chatKeys.room("ws1")).toEqual(["chat", "room", "ws1"]);
     expect(chatKeys.roomMessages("ws1", "r1")).toEqual(["chat", "room-messages", "ws1", "r1"]);
+    expect(chatKeys.messageLinks("ws1", "m1")).toEqual(["chat", "message-links", "ws1", "m1"]);
     expect(chatKeys.block("ws1", "u1")).toEqual(["chat", "block", "ws1", "u1"]);
   });
 

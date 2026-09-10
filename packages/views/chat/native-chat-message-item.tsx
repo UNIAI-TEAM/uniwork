@@ -22,6 +22,8 @@ export type NativeChatMessageActions = {
   onPin: (message: ChatMessage) => void;
   onCopy: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
+  onCreateTask?: (message: ChatMessage) => void;
+  onLinkTask?: (message: ChatMessage) => void;
 };
 
 export function renderNativeChatMessage(input: {
@@ -36,6 +38,7 @@ export function renderNativeChatMessage(input: {
   showSenderName: boolean;
   canPinMessages: boolean;
   highlightMessageId: string | null;
+  workHubEnabled?: boolean;
   actions: NativeChatMessageActions;
 }): ReactNode {
   const {
@@ -50,6 +53,7 @@ export function renderNativeChatMessage(input: {
     showSenderName,
     canPinMessages,
     highlightMessageId,
+    workHubEnabled = false,
     actions,
   } = input;
   const message = messages[index];
@@ -143,6 +147,9 @@ export function renderNativeChatMessage(input: {
         onPin={canPinMessages ? actions.onPin : undefined}
         onCopy={actions.onCopy}
         onDelete={actions.onDelete}
+        onCreateTask={workHubEnabled ? actions.onCreateTask : undefined}
+        onLinkTask={workHubEnabled ? actions.onLinkTask : undefined}
+        workHubEnabled={workHubEnabled}
       />
     );
   }
@@ -170,6 +177,9 @@ export function renderNativeChatMessage(input: {
       onPin={isPending || !canPinMessages ? undefined : actions.onPin}
       onCopy={isPending ? undefined : actions.onCopy}
       onDelete={isPending ? undefined : actions.onDelete}
+      onCreateTask={isPending || !workHubEnabled ? undefined : actions.onCreateTask}
+      onLinkTask={isPending || !workHubEnabled ? undefined : actions.onLinkTask}
+      workHubEnabled={workHubEnabled}
       showSenderName={showSenderName}
       compactTop={compactTop}
       nameContext={nameContext}

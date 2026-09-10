@@ -653,6 +653,48 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatMessageLinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "link me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "from chat"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.LinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, CreateChatMessageLinkInput{
+				TargetType: "task", TargetID: task.ID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatThreadTaskLinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
+				Name: "audit-sync", Visibility: "public",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			root, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "synced"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.SyncThreadTask(f.ctx, f.owner.ID, w.ID, root.ID, SyncThreadTaskInput{
+				TaskID: task.ID, Direction: "both",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -732,6 +774,8 @@ func auditActions() []string {
 		audit.ActionChatRoomMemberRemoved,
 		audit.ActionChatChannelUpdated,
 		audit.ActionChatChannelArchived,
+		audit.ActionChatMessageLinked,
+		audit.ActionChatThreadTaskLinked,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
@@ -776,14 +820,17 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
 	orgMembers := NewOrganizationMemberService(pool, q, orgs)
 	orgMembers.SetMail(renderer, &fakeOutbox{})
+	tasks := NewTaskService(pool, q, ws, newMemStorage())
+	chat := NewChatService(pool, q, ws, NopPublisher{})
+	chat.SetTasks(tasks)
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
 		auth: auth, orgs: orgs, orgMem: orgMembers,
 		people: NewPeopleService(pool, q, orgs), depts: NewDepartmentService(pool, q, orgs), ws: ws,
-		tasks:   NewTaskService(pool, q, ws, newMemStorage()),
+		tasks:   tasks,
 		agents:  NewAgentService(pool, q, orgs, ws),
 		billing: NewBillingService(pool, q, orgs, nil),
-		chat:    NewChatService(pool, q, ws, NopPublisher{}),
+		chat:    chat,
 		reset:   NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
 		admin:   NewAdminService(pool, q, NewBillingService(pool, q, orgs, nil), NewEntitlementService(pool, q)),
 	}

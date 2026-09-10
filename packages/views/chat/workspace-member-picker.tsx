@@ -103,7 +103,7 @@ export function WorkspaceMemberPickerList({
   }
 
   return (
-    <ul className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-1">
+    <ul className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-2">
       {members.map((member) => {
         const contact = memberToChatContact(member);
         const label = memberDisplayLabel(member);
@@ -111,7 +111,7 @@ export function WorkspaceMemberPickerList({
           <li key={member.user_id}>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-surface"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-surface"
               onClick={() => onPick(contact)}
             >
               <ActorAvatar name={label} initials={initialOf(label)} size="sm" />

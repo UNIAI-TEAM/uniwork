@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"testing"
 )
 
@@ -184,9 +183,4 @@ func TestListChatRoomsIncludesJoinedChannels(t *testing.T) {
 	if !found {
 		t.Fatal("created channel missing from ListChatRooms (sidebar source)")
 	}
-}
-
-func codedIs(err error, code string) bool {
-	var ce CodedError
-	return errors.As(err, &ce) && ce.Code == code
 }

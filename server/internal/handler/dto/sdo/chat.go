@@ -213,3 +213,19 @@ type ChatRoomMemberDTO struct {
 type ChatRoomMemberListSDO struct {
 	Members []ChatRoomMemberDTO `json:"members"`
 }
+
+// ChatMessageLinkDTO is one link from a chat message to another entity.
+type ChatMessageLinkDTO struct {
+	ID         string `json:"id" description:"Link id" example:"01J8X4LNK0N1P2Q3R4S5T6U7V8"`
+	MessageID  string `json:"message_id" description:"Chat message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	TargetType string `json:"target_type" description:"task in this release" example:"task"`
+	TargetID   string `json:"target_id" description:"Target entity id" example:"01J8X4TSK0N1P2Q3R4S5T6U7V8"`
+	Relation   string `json:"relation" description:"created_from or mentions" example:"mentions"`
+	CreatedBy  string `json:"created_by" description:"User who created the link" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	CreatedAt  string `json:"created_at" description:"RFC3339 timestamp" example:"2026-09-10T10:00:00Z"`
+}
+
+// ChatMessageLinkListSDO is GET .../chat/messages/{messageID}/links.
+type ChatMessageLinkListSDO struct {
+	Links []ChatMessageLinkDTO `json:"links"`
+}

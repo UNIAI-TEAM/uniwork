@@ -33,6 +33,7 @@ type TaskDTO struct {
 	CreatedByKind string    `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
 	CreatedAt     string    `json:"created_at" example:"2026-08-27T09:00:00Z"`
 	UpdatedAt     string    `json:"updated_at" example:"2026-08-27T09:00:00Z"`
+	ProjectID     *string   `json:"project_id,omitempty" description:"Project ULID khi task thuộc một project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 }
 
 type CommentDTO struct {
