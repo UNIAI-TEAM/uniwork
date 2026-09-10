@@ -101,10 +101,15 @@
   --sidebar-border: #cfcfcf;
   --sidebar-ring: #7612fa;
 
-  /* Chart ramp: chart-1 is the brand hue (oklch 295 ≈ #7612FA) so the leading
-     series anchors to the product colour; 2..5 step lighter and less
+  /* Chart ramp: chart-1 is the DEFAULT brand hue (oklch 295 ≈ #7612FA) so the
+     leading series anchors to the product colour; 2..5 step lighter and less
      saturated so a stacked bar reads as a hierarchy instead of five equally
-     loud greys. */
+     loud greys.
+
+     The ramp deliberately does NOT follow the accent theme. Two of the accents
+     are near-achromatic (black, bronze), and deriving five steps from their
+     chroma yields five near-identical greys — a legible chart matters more than
+     a chart that matches the sidebar. */
   --chart-1: oklch(0.52 0.24 295);
   --chart-2: oklch(0.64 0.18 295);
   --chart-3: oklch(0.75 0.12 295);
@@ -326,6 +331,56 @@
   --meeting-lobby-vignette-from: color-mix(in srgb, var(--background) 35%, transparent);
   --meeting-lobby-vignette-to: color-mix(in srgb, var(--background) 92%, transparent);
   --meeting-lobby-grid: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+/* Accent themes. The second theming axis: light/dark picks the palette, the
+   accent moves the BRAND slots inside it. `--accent-h/c/l/l-dark` are written
+   onto <html> from `lib/accent.ts` (one table, no hex repeated here) and the
+   default accent — violet — writes nothing, so `:root` / `.dark` above stay the
+   unmodified, measured baseline.
+
+   The light selector is `html:not(.dark)[data-accent]`, not `:root[data-accent]`:
+   both `.dark` and the accent land on the SAME element, so a selector of equal
+   specificity would resolve by source order and a light accent block would
+   repaint the dark theme. The `:not(.dark)` makes it win only in its own theme
+   regardless of where it sits in the file.
+
+   The dark selector also has to reach `.dark` SUBTREES, not just `html.dark`.
+   The meeting room and its menus are dark panels inside a light page, and the
+   `.dark` block above matches those elements directly — a declaration on the
+   element always beats a value inherited from <html>, so an accented app
+   rendered its meeting chrome back in the default violet. `:where()` keeps the
+   ancestor part at zero specificity so this stays a plain `.dark` selector that
+   wins on source order, exactly like the block it is extending.
+
+   Lightness is per accent (see the table): light brand sits at ~0.5 so white
+   label text clears 4.5:1 on the fill and the same colour still clears it as
+   text on the canvas; dark brand sits at ~0.8 against the #111 page, with its
+   foreground dropped to near-ink. Derived slots use color-mix off `--brand`
+   rather than a second oklch() so they cannot drift out of step with it. */
+html:not(.dark)[data-accent] {
+  --brand: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+  --ring: var(--brand);
+  --sidebar-primary: var(--brand);
+  --sidebar-ring: var(--brand);
+  --surface-selected: color-mix(in oklab, var(--brand) 11%, #ffffff);
+  --selection: var(--surface-selected);
+  --sidebar-accent: color-mix(in oklab, var(--brand) 9%, var(--sidebar));
+}
+
+:where([data-accent]) .dark,
+html.dark[data-accent] {
+  --brand: oklch(var(--accent-l-dark) calc(var(--accent-c) * 0.55) var(--accent-h));
+  --brand-foreground: oklch(0.17 calc(var(--accent-c) * 0.3) var(--accent-h));
+  --ring: var(--brand);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-ring: var(--brand);
+  --surface-selected: color-mix(in oklab, var(--brand) 24%, #111111);
+  --selection: var(--surface-selected);
+  /* Light lifts the sidebar hover toward the accent, dark deepens it; keeping
+     the #181818 base preserves that direction instead of inverting it. */
+  --sidebar-accent: color-mix(in oklab, var(--brand) 7%, #181818);
 }
 
 /* Tailwind mapping. Lives beside the tokens it maps so that any consumer —
