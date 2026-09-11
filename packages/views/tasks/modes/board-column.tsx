@@ -22,6 +22,7 @@ import {
   type BoardCardMeta,
 } from "./board-card";
 import { statusColumnBg, STATUS_CONFIG } from "./status-config";
+import { StatusPill } from "./status-pill";
 
 export const BOARD_COL_WIDTH = 280;
 export const BOARD_CARD_WIDTH = BOARD_COL_WIDTH - 16 - 8;
@@ -145,20 +146,20 @@ export const BoardColumn = memo(function BoardColumn({
       )}
     >
       <div className="mb-2 flex items-center justify-between px-1.5">
-        <div className="flex min-w-0 items-center gap-2">
+        <div
+          className="flex min-w-0 items-center gap-2"
+          role="heading"
+          aria-level={3}
+          aria-label={`${title}, ${count}`}
+        >
           {status ? (
-            <span
-              className={cn(
-                "size-2.5 shrink-0 rounded-full bg-current",
-                cfg?.iconColor ?? "text-muted-foreground",
-              )}
-              aria-hidden
-            />
-          ) : null}
-          <span className="truncate text-body font-medium" title={title}>
-            {title}
-          </span>
-          <span className="shrink-0 rounded-full bg-background px-1.5 py-0.5 text-micro font-medium tabular-nums text-muted-foreground">
+            <StatusPill status={status} label={title} className="max-w-full" />
+          ) : (
+            <span className="truncate text-body font-medium" title={title}>
+              {title}
+            </span>
+          )}
+          <span className="shrink-0 text-caption font-medium tabular-nums text-muted-foreground">
             {count}
           </span>
         </div>

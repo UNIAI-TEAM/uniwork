@@ -75,7 +75,7 @@ export function AuthShell({
                 Centred, it lands on the same optical line as the form opposite.
                 Regular weight and the same 24px as the form's heading: a brand
                 statement beside the headline, not a second headline. */}
-            <p className="my-auto max-w-[22rem] text-balance font-serif text-title-lg leading-snug text-foreground lg:text-display-sm">
+            <p className="my-auto max-w-[22rem] text-balance font-display text-title-lg leading-snug text-foreground lg:text-display-sm">
               {t("auth.railTagline")}
             </p>
           </BrandRail>

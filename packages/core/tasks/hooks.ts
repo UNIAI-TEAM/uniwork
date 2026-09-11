@@ -143,6 +143,7 @@ export function useUpdateTask(workspaceId: string) {
     onSettled: (_d, _e, { taskId }) => {
       void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.groupedRoot(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
     },
   });

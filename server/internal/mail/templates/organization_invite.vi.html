@@ -1,10 +1,10 @@
 {{define "preheader"}}{{.Data.InviterName}} mời bạn vào {{.Data.OrganizationName}} · lời mời hết hạn sau {{expires .Data.Expires .Locale}}{{end}}
 {{define "content"}}
-<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#18181b">Bạn được mời vào {{.Data.OrganizationName}}</h1></td></tr>
-<tr><td style="padding-bottom:24px;font-size:15px;line-height:24px;color:#52525b"><strong style="color:#18181b;font-weight:600">{{.Data.InviterName}}</strong> mời bạn tham gia tổ chức <strong style="color:#18181b;font-weight:600">{{.Data.OrganizationName}}</strong> trên UniWork.</td></tr>
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Bạn được mời vào {{.Data.OrganizationName}}</h1></td></tr>
+<tr><td style="padding-bottom:24px;font-size:15px;line-height:24px;color:#646464"><strong style="color:#202020;font-weight:600">{{.Data.InviterName}}</strong> mời bạn tham gia tổ chức <strong style="color:#202020;font-weight:600">{{.Data.OrganizationName}}</strong> trên UniWork.</td></tr>
 <tr><td style="padding-bottom:24px">{{button .Data.AcceptURL "Chấp nhận lời mời"}}</td></tr>
-<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#52525b">Lời mời hết hạn sau <strong style="color:#18181b;font-weight:600">{{expires .Data.Expires .Locale}}</strong>. Đăng nhập hoặc tạo tài khoản bằng đúng địa chỉ email này để tham gia.</td></tr>
-<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;padding-bottom:16px;font-size:13px;line-height:20px;color:#52525b">Không quen người mời? Bỏ qua email này, không có gì thay đổi.</td></tr>
-<tr><td style="font-size:12px;line-height:18px;color:#71717a">Nút không hoạt động? Sao chép liên kết này vào trình duyệt:<br><a href="{{.Data.AcceptURL}}" style="display:inline-block;padding:8px 0;color:#52525b;text-decoration:underline;word-break:break-all">{{.Data.AcceptURL}}</a></td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">Lời mời hết hạn sau <strong style="color:#202020;font-weight:600">{{expires .Data.Expires .Locale}}</strong>. Đăng nhập hoặc tạo tài khoản bằng đúng địa chỉ email này để tham gia.</td></tr>
+<tr><td style="border-top:1px solid #cfcfcf;padding-top:20px;padding-bottom:16px;font-size:13px;line-height:20px;color:#646464">Không quen người mời? Bỏ qua email này, không có gì thay đổi.</td></tr>
+<tr><td style="font-size:12px;line-height:18px;color:#71717a">Nút không hoạt động? Sao chép liên kết này vào trình duyệt:<br><a href="{{.Data.AcceptURL}}" style="display:inline-block;padding:8px 0;color:#646464;text-decoration:underline;word-break:break-all">{{.Data.AcceptURL}}</a></td></tr>
 {{end}}
 {{define "footer"}}Bạn nhận email này vì một thành viên UniWork đã mời bạn.{{end}}

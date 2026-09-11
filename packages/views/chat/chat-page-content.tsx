@@ -7,6 +7,7 @@ import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { ChatComposer, type ComposerAttachAction } from "./chat-composer";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { DmChatToolbar } from "./dm-settings-sheet";
@@ -339,8 +340,7 @@ export function ChatPageContent({
             {showLoading ? (
               <div className="flex flex-1 items-center justify-center p-6">
                 <CollectionPageState
-                  icon={MessageSquare}
-                  title={t("chat.loading")}
+                  icon={MessageSquare} tone={moduleTone("chat")} title={t("chat.loading")}
                   description={
                     target.kind === "workspace"
                       ? t("chat.group_description")

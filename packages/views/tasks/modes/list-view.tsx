@@ -39,6 +39,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import type { BoardCardMeta } from "./board-card";
 import type { BoardColumnGroup } from "./board-column";
+import { StatusPill } from "./status-pill";
 import {
   buildColumns,
   computePosition,
@@ -149,20 +150,16 @@ function ListStatusSection({
             />
           </div>
         ) : null}
-        <CollapsibleTrigger className="group/trigger flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left">
+        <CollapsibleTrigger
+          className="group/trigger flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left"
+          aria-label={`${label}, ${tasks.length}`}
+        >
           <ChevronRight
             className="size-3.5 shrink-0 text-muted-foreground transition-transform group-aria-expanded/trigger:rotate-90"
             aria-hidden
           />
-          <span
-            className={cn(
-              "size-2.5 shrink-0 rounded-full bg-current",
-              cfg?.iconColor ?? "text-muted-foreground",
-            )}
-            aria-hidden
-          />
-          <span className="truncate text-caption font-semibold">{label}</span>
-          <span className="text-caption tabular-nums text-muted-foreground">
+          <StatusPill status={status} label={label} />
+          <span className="text-caption font-medium tabular-nums text-muted-foreground">
             {tasks.length}
           </span>
         </CollapsibleTrigger>

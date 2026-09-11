@@ -41,6 +41,9 @@ import { PAGE_GUTTER } from "../../../layout/page-header";
 import { useWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
+import { cn } from "@uniwork/ui/lib/utils";
+import { tintClass } from "@uniwork/ui/components/common/icon-tile";
+import { tintFromColor } from "@uniwork/ui/lib/tint-from-color";
 
 const EMPTY_CONFIG = {
   flags: {},
@@ -310,7 +313,7 @@ export function TaskDetailPropertiesSidebar({
                     type="button"
                     variant="secondary"
                     size="sm"
-                    className="h-7 px-2 text-caption"
+                    className={cn("h-7 px-2 text-caption hover:opacity-80", tintClass[tintFromColor(l.color)])}
                     onClick={() => detachLabel.mutate(l.id)}
                   >
                     {l.name}

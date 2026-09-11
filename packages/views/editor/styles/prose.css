@@ -455,12 +455,12 @@
   color: var(--muted-foreground);
 }
 
-/* Text highlight (`==text==` → <mark>). Single yellow tint that stays legible
-   in both light and dark themes; `color: inherit` keeps the underlying text
-   color so highlighted links/code remain readable. box-decoration-break clones
-   the background across wrapped lines (same approach as inline code above). */
+/* Text highlight (`==text==` → <mark>). The yellow tint's solid at 35% stays
+   legible in both themes; `color: inherit` keeps the underlying text color so
+   highlighted links/code remain readable. box-decoration-break clones the
+   background across wrapped lines (same approach as inline code above). */
 .rich-text-editor mark {
-  background-color: color-mix(in srgb, #facc15 45%, transparent);
+  background-color: color-mix(in srgb, var(--tint-yellow-solid) 35%, transparent);
   color: inherit;
   border-radius: 0.2em;
   padding: 0 0.15em;

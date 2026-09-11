@@ -40,33 +40,38 @@ export function TableViewToolbar({
   const { t } = useTranslation();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
   const setTableGrouping = useViewStore((s) => s.setTableGrouping);
+  const displayedGrouping =
+    tableGrouping === "project" && projectGroupingDisabled
+      ? "none"
+      : tableGrouping;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+    <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
       <TableTaskSearch
         value={search}
         onChange={onSearchChange}
         placeholder={t("tasks.table.search_placeholder")}
         clearLabel={t("tasks.table.search_clear")}
-        className="max-w-sm"
+        className="w-56 shrink-0"
       />
+      <span className="mr-auto" />
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-1.5"
+              className="h-7 gap-1.5"
             />
           }
         >
           <Layers className="size-3.5" aria-hidden />
-          {t(`tasks.table.grouping.${tableGrouping}`)}
+          {t(`tasks.table.grouping.${displayedGrouping}`)}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuRadioGroup
-            value={tableGrouping}
+            value={displayedGrouping}
             onValueChange={(value) => {
               if (value === "project" && projectGroupingDisabled) return;
               setTableGrouping(value as TableGrouping);
@@ -93,7 +98,7 @@ export function TableViewToolbar({
         propertiesDisabled={propertiesDisabled}
         propertiesDisabledReason={propertiesDisabledReason}
         trigger={
-          <Button type="button" variant="outline" size="sm" className="gap-1.5">
+          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5">
             <Columns3 className="size-3.5" aria-hidden />
             {t("tasks.table.columns.trigger")}
           </Button>
