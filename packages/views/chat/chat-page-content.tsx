@@ -3,16 +3,12 @@
 import { MessageSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { ChatComposer, type ComposerAttachAction } from "./chat-composer";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
-import { DmChatToolbar } from "./dm-settings-sheet";
-import { GroupChatToolbar } from "./group-settings-sheet";
-import { WorkspaceChatToolbar } from "./workspace-settings-sheet";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import { ChatSidebar } from "./chat-sidebar";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
@@ -24,6 +20,10 @@ import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPageContentDialogs } from "./chat-page-content-dialogs";
+import {
+  ChatPageConversationToolbar,
+  chatPageEmptyLabel,
+} from "./chat-page-conversation-toolbar";
 import { chatComposerPlaceholder } from "./chat-composer-placeholder";
 
 export function ChatPageContent({
@@ -107,11 +107,13 @@ export function ChatPageContent({
   canPinMessages,
   canCreatePolls,
   canCreateNotes,
+  peerLastReadAt = null,
   t,
 }: ChatPageContentProps) {
   const [createPollOpen, setCreatePollOpen] = useState(false);
   const [createReminderOpen, setCreateReminderOpen] = useState(false);
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
+  const [createPostOpen, setCreatePostOpen] = useState(false);
   const [mobileListMode, setMobileListMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -208,6 +210,15 @@ export function ChatPageContent({
       setCreateNoteOpen(true);
       return;
     }
+    if (action === "create_post") {
+      if (!canCreateNotes) {
+        toast.error(t("chat.post_create_forbidden"));
+        return;
+      }
+      if (!activeRoomId) return;
+      setCreatePostOpen(true);
+      return;
+    }
     if (action === "mark_important") {
       onComposerPriorityChange(toggleComposerPriority(composerPriority, "important"));
       return;
@@ -267,6 +278,8 @@ export function ChatPageContent({
         onCreateReminderOpenChange={setCreateReminderOpen}
         createNoteOpen={createNoteOpen}
         onCreateNoteOpenChange={setCreateNoteOpen}
+        createPostOpen={createPostOpen}
+        onCreatePostOpenChange={setCreatePostOpen}
       />
 
       {/* Chat fills the content inset: the message list is the screen here, so
@@ -365,62 +378,24 @@ export function ChatPageContent({
                     onJumpToMessage={onJumpToMessageIdChange}
                   />
                 ) : null}
-                {!messageSearchOpen && target.kind === "workspace" ? (
-                  <WorkspaceChatToolbar
-                    title={headerTitle}
-                    memberCount={workspaceMembers.length}
-                    backAriaLabel={backToListLabel}
-                    onBack={handleBackToConversationList}
-                    sidebarCollapsed={sidebarCollapsed}
-                    onToggleSidebar={handleToggleSidebar}
-                    onOpenSettings={() => onWorkspaceSettingsOpenChange(true)}
-                    onOpenSearch={() => onMessageSearchOpenChange(true)}
-                  />
-                ) : null}
-                {!messageSearchOpen && target.kind === "group" && activeGroup ? (
-                  <GroupChatToolbar
-                    title={headerTitle}
-                    memberCount={activeGroup.member_user_ids.length + 1}
-                    backAriaLabel={backToListLabel}
-                    onBack={handleBackToConversationList}
-                    sidebarCollapsed={sidebarCollapsed}
-                    onToggleSidebar={handleToggleSidebar}
-                    onOpenSettings={() => onGroupSettingsOpenChange(true)}
-                    onOpenSearch={() => onMessageSearchOpenChange(true)}
-                    onVoiceCall={onVoiceCall}
-                    voiceCallDisabled={voiceCallDisabled}
-                    onVideoCall={onVideoCall}
-                    videoCallDisabled={videoCallDisabled}
-                  />
-                ) : null}
-                {!messageSearchOpen && target.kind === "channel" && activeChannel ? (
-                  <GroupChatToolbar
-                    title={headerTitle}
-                    memberCount={activeChannel.member_user_ids.length + 1}
-                    backAriaLabel={backToListLabel}
-                    onBack={handleBackToConversationList}
-                    sidebarCollapsed={sidebarCollapsed}
-                    onToggleSidebar={handleToggleSidebar}
-                    onOpenSettings={() => onChannelSettingsOpenChange(true)}
-                    onOpenSearch={() => onMessageSearchOpenChange(true)}
-                    onVoiceCall={onVoiceCall}
-                    voiceCallDisabled={voiceCallDisabled}
-                    onVideoCall={onVideoCall}
-                    videoCallDisabled={videoCallDisabled}
-                  />
-                ) : null}
-                {!messageSearchOpen && target.kind === "dm" && activeContact ? (
-                  <DmChatToolbar
-                    contact={
-                      contacts.find((entry) => entry.user_id === activeContact.user_id) ??
-                      activeContact
-                    }
+                {!messageSearchOpen ? (
+                  <ChatPageConversationToolbar
+                    target={target}
+                    headerTitle={headerTitle}
+                    contacts={contacts}
+                    activeContact={activeContact}
+                    activeGroup={activeGroup}
+                    activeChannel={activeChannel}
+                    workspaceMembersCount={workspaceMembers.length}
                     nicknamesByUserId={nicknamesByUserId}
-                    backAriaLabel={backToListLabel}
-                    onBack={handleBackToConversationList}
+                    backToListLabel={backToListLabel}
                     sidebarCollapsed={sidebarCollapsed}
+                    onBack={handleBackToConversationList}
                     onToggleSidebar={handleToggleSidebar}
-                    onOpenSettings={() => onDmSettingsOpenChange(true)}
+                    onOpenWorkspaceSettings={() => onWorkspaceSettingsOpenChange(true)}
+                    onOpenGroupSettings={() => onGroupSettingsOpenChange(true)}
+                    onOpenChannelSettings={() => onChannelSettingsOpenChange(true)}
+                    onOpenDmSettings={() => onDmSettingsOpenChange(true)}
                     onOpenSearch={() => onMessageSearchOpenChange(true)}
                     onVoiceCall={onVoiceCall}
                     voiceCallDisabled={voiceCallDisabled}
@@ -444,19 +419,7 @@ export function ChatPageContent({
                   currentUserId={currentUserId}
                   nameContext={nameContext}
                   youLabel={t("chat.you")}
-                  emptyLabel={
-                    target.kind === "workspace"
-                      ? t("chat.group_description")
-                      : target.kind === "group"
-                        ? t("chat.group_empty", { name: headerTitle })
-                        : target.kind === "channel"
-                          ? t("chat.channel.empty_thread", { name: headerTitle })
-                          : target.kind === "dm"
-                            ? t("chat.dm_empty", {
-                                name: displayLabelForChatContact(target.contact, nicknamesByUserId),
-                              })
-                            : t("chat.empty_description")
-                  }
+                  emptyLabel={chatPageEmptyLabel(t, target, headerTitle, nicknamesByUserId)}
                   replyTo={replyTo}
                   onReplyToChange={onReplyToChange}
                   workHubEnabled={workHubEnabled}
@@ -471,6 +434,7 @@ export function ChatPageContent({
                   anchorMessageId={jumpToMessageId}
                   onClearAnchor={() => onJumpToMessageIdChange(null)}
                   canPinMessages={canPinMessages}
+                  peerLastReadAt={peerLastReadAt}
                 />
 
                 <ChatComposer

@@ -29,7 +29,6 @@ import {
   useChatSendOutboxCount,
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
-import { useChatTypingSync } from "@uniwork/core/chat/use-chat-typing-sync";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
@@ -48,6 +47,7 @@ import { ChatPageContent } from "./chat-page-content";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatMediaSend } from "./use-chat-media-send";
+import { useChatPageSignals } from "./use-chat-page-signals";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
 import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
 import { useNativeTyping } from "./use-native-typing";
@@ -243,7 +243,10 @@ export function ChatPageView({
     [rooms, activeRoomId, target.kind],
   );
   useChatRoomScopes(chatScopeRoomIds);
-  useChatTypingSync(currentUserId);
+  useChatPageSignals(workspaceId, currentUserId, authReady);
+
+  const peerLastReadAt =
+    target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : null;
 
   const showLoading =
     !authReady ||
@@ -508,6 +511,7 @@ export function ChatPageView({
         canPinMessages={canPinMessages}
         canCreatePolls={canCreatePolls}
         canCreateNotes={canCreateNotes}
+        peerLastReadAt={peerLastReadAt}
         t={t}
       />
       <VoiceCallOverlay

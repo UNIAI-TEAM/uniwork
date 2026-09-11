@@ -143,6 +143,7 @@ var catalogue = []EventDef{
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_added", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
@@ -206,6 +207,8 @@ var catalogue = []EventDef{
 	{Topic: "provider.ensure_session", Version: 1, Payload: []string{"meeting_id", "room_name", "session_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "provider.remove_participant", Version: 1, Payload: []string{"room_name", "identity"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "provider.end_session", Version: 1, Payload: []string{"room_name"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "user.offline", Version: 1, Payload: []string{"user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	{Topic: "user.presence", Version: 1, Payload: []string{"user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "webhook.deliver", Version: 1, Payload: []string{"subscription_id", "event_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 }
 

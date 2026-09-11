@@ -12,6 +12,7 @@ type SendChatMessageSDI struct {
 	Poll             *CreateChatPollSDI     `json:"poll,omitempty" description:"Create a poll message instead of plain text"`
 	Reminder         *CreateChatReminderSDI `json:"reminder,omitempty" description:"Create a reminder message instead of plain text"`
 	Note             *CreateChatNoteSDI     `json:"note,omitempty" description:"Create a note message instead of plain text"`
+	Post             *CreateChatPostSDI     `json:"post,omitempty" description:"Create a channel post (announcement) instead of plain text"`
 }
 
 // SendChatVoiceMessageSDI is multipart POST .../messages/voice.
@@ -64,6 +65,13 @@ type CreateChatNoteSDI struct {
 	PinToTop bool   `json:"pin_to_top,omitempty" description:"Pin note to top of chat" example:"false"`
 }
 
+// CreateChatPostSDI creates an announcement post in a chat room.
+type CreateChatPostSDI struct {
+	Title    string `json:"title" description:"Post title" example:"Lịch nghỉ lễ 2/9"`
+	Body     string `json:"body" description:"Post body (markdown-friendly plain text)" example:"Đăng ký nghỉ trước 20/8."`
+	PinToTop bool   `json:"pin_to_top,omitempty" description:"Pin post to top of chat" example:"false"`
+}
+
 // CreateGroupSDI is POST /workspaces/{workspaceID}/chat/groups.
 type CreateGroupSDI struct {
 	Name          string   `json:"name" description:"Group display name" example:"Team Alpha"`
@@ -90,6 +98,11 @@ type MintChatVoiceTokenSDI struct {
 type VoiceSignalSDI struct {
 	CallID          string `json:"call_id" description:"Client-generated voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	DurationSeconds *int   `json:"duration_seconds,omitempty" description:"Connected call duration in seconds (hangup only)" example:"125"`
+}
+
+// ChatPresenceSDI is POST .../chat/presence.
+type ChatPresenceSDI struct {
+	State string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
 }
 
 // ToggleChatReactionSDI is POST .../messages/{messageID}/reactions.

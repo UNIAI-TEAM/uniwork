@@ -5,6 +5,7 @@ import { ChannelSettingsSheet } from "./channel-settings-sheet";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
+import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { DmSettingsSheet } from "./dm-settings-sheet";
 import { GroupSettingsSheet } from "./group-settings-sheet";
 import { WorkspaceSettingsSheet } from "./workspace-settings-sheet";
@@ -58,6 +59,8 @@ type ChatPageContentDialogsProps = Pick<
   onCreateReminderOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createNoteOpen: boolean;
   onCreateNoteOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  createPostOpen: boolean;
+  onCreatePostOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function ChatPageContentDialogs({
@@ -106,6 +109,8 @@ export function ChatPageContentDialogs({
   onCreateReminderOpenChange,
   createNoteOpen,
   onCreateNoteOpenChange,
+  createPostOpen,
+  onCreatePostOpenChange,
 }: ChatPageContentDialogsProps) {
   return (
     <>
@@ -129,6 +134,15 @@ export function ChatPageContentDialogs({
         <ChatCreateNoteDialog
           open={createNoteOpen}
           onOpenChange={onCreateNoteOpenChange}
+          workspaceId={workspaceId}
+          roomId={activeRoomId}
+          canPinToTop={canPinMessages}
+        />
+      ) : null}
+      {activeRoomId ? (
+        <ChatCreatePostDialog
+          open={createPostOpen}
+          onOpenChange={onCreatePostOpenChange}
           workspaceId={workspaceId}
           roomId={activeRoomId}
           canPinToTop={canPinMessages}

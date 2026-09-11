@@ -67,6 +67,13 @@ type ChatNoteDTO struct {
 	PinToTop bool   `json:"pin_to_top" description:"Whether the note is pinned to top" example:"false"`
 }
 
+// ChatPostDTO is announcement metadata attached to a post message.
+type ChatPostDTO struct {
+	Title    string `json:"title" description:"Post title" example:"Lịch nghỉ lễ 2/9"`
+	Body     string `json:"body" description:"Post body" example:"Đăng ký nghỉ trước 20/8."`
+	PinToTop bool   `json:"pin_to_top" description:"Whether the post is pinned to top" example:"false"`
+}
+
 // ChatMessageDTO is a stored chat message.
 type ChatMessageDTO struct {
 	ID                string           `json:"id" description:"Message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
@@ -92,6 +99,7 @@ type ChatMessageDTO struct {
 	Poll              *ChatPollDTO     `json:"poll,omitempty" description:"Poll payload when kind is poll"`
 	Reminder          *ChatReminderDTO `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
 	Note              *ChatNoteDTO     `json:"note,omitempty" description:"Note payload when kind is note"`
+	Post              *ChatPostDTO     `json:"post,omitempty" description:"Post payload when kind is post"`
 	Priority          string           `json:"priority,omitempty" description:"important or urgent message flag" example:"important"`
 	ClientMsgID       string           `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
@@ -108,6 +116,7 @@ type ChatRoomDTO struct {
 	PeerUserID            string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 	PeerEmail             string                        `json:"peer_email,omitempty" description:"DM peer email" example:"peer@example.com"`
 	PeerDisplayName       string                        `json:"peer_display_name,omitempty" description:"DM peer display name" example:"Nguyen Van A"`
+	PeerLastReadAt        string                        `json:"peer_last_read_at,omitempty" description:"RFC3339 DM peer read cursor" example:"2026-03-26T10:00:00Z"`
 	LastMessageBody       string                        `json:"last_message_body,omitempty" description:"Plain-text preview of the latest message" example:"@Binh check this"`
 	LastMessageKind       string                        `json:"last_message_kind,omitempty" description:"Kind of the latest message" example:"text"`
 	LastMessageSenderID   string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`

@@ -337,6 +337,7 @@ export function useTableViewData({
     translatePriority,
     translateStatus,
     usesServerGrouping,
+    rowQueries,
   ]);
 
   const loadedTasks = useMemo(() => {

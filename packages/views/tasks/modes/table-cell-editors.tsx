@@ -64,6 +64,7 @@ export function TableStatusCell({
   const color = STATUS_CONFIG[value]?.iconColor ?? "text-muted-foreground";
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
     <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -119,6 +120,7 @@ export function TablePriorityCell({
 }) {
   const { t } = useTranslation();
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
     <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -189,6 +191,7 @@ export function TableAssigneeCell({
   const { t } = useTranslation();
   const selected = members.find((member) => member.id === assigneeId);
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
     <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -248,6 +251,7 @@ export function TableDueDateCell({
   onChange: (value: string | null) => void;
 }) {
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
     <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
       <DateField
         value={value ?? ""}
@@ -291,6 +295,7 @@ export function TableLabelsCell({
   const pending = attach.isPending || detach.isPending;
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
     <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
       <DropdownMenu>
         <DropdownMenuTrigger

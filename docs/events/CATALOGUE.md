@@ -50,6 +50,7 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `chat.room.created` | 1 | `room_id` | room | outbox |
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | room | outbox |
 | `chat.room.member_removed` | 1 | `room_id`, `user_id` | room | outbox |
+| `chat.room.read` | 1 | `room_id`, `user_id` | chat | ephemeral |
 | `chat.room.updated` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
 | `chat.typing` | 1 | `room_id`, `user_id` | chat | ephemeral |
 | `chat.voice.accept` | 1 | `room_id`, `user_id` | user | ephemeral |
@@ -139,6 +140,8 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
 | `project_resource.updated` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
 | `transcript.appended` | 1 | `meeting_id` | workspace | ephemeral |
+| `user.offline` | 1 | `user_id` | workspace | ephemeral |
+| `user.presence` | 1 | `user_id` | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | - | outbox |
 | `workspace.created` | 1 | `workspace_id`, `organization_id` | workspace | outbox |
 | `workspace.updated` | 1 | `workspace_id`, `organization_id` | workspace | outbox |

@@ -84,6 +84,7 @@ type ChatMessageRow struct {
 	Poll              *ChatPollInfo
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo
+	Post              *ChatPostInfo
 	Priority          string
 	EditedAt          *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
@@ -283,7 +284,7 @@ func (s *ChatService) ListRoomMessages(
 	if err != nil {
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, roomAnchorWorkspaceID(room), roomID, in)
+	return s.listMessages(ctx, userID, room, in)
 }
 
 // GetRoomMessage returns one message in a room the caller may access.
@@ -347,12 +348,14 @@ func (s *ChatService) ListWorkspaceMessages(
 		}
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, workspaceID, room.ID, in)
+	return s.listMessages(ctx, userID, room, in)
 }
 
 func (s *ChatService) listMessages(
-	ctx context.Context, userID, workspaceID, roomID string, in ListChatMessagesInput,
+	ctx context.Context, userID string, room db.ChatRoom, in ListChatMessagesInput,
 ) ([]ChatMessageRow, error) {
+	workspaceID := roomAnchorWorkspaceID(room)
+	roomID := room.ID
 	limit := in.Limit
 	if limit <= 0 {
 		limit = defaultChatMessageLimit
@@ -382,6 +385,7 @@ func (s *ChatService) listMessages(
 		_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
 			RoomID: roomID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: last.CreatedAt, Valid: true},
 		})
+		s.publishChatRoomRead(ctx, room, userID)
 	}
 	return out, nil
 }

@@ -92,3 +92,21 @@ func (h *handlers) signalChatTyping(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
 }
+
+func (h *handlers) signalChatPresence(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ChatPresenceSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	err := h.Chat.SignalPresence(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		in.State,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
