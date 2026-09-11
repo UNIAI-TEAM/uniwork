@@ -2,6 +2,7 @@
 
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
@@ -21,12 +22,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
+import {
+  UI_EASE_OUT,
+  UI_MOTION_DISTANCE,
+  UI_MOTION_DURATION,
+} from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AskUniButton } from "../ai/ask-uni-button";
 import { AskUniPanel } from "../ai/ask-uni-panel";
 import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
+import { useNavigation } from "../navigation";
 import { PAGE_GUTTER } from "./page-header";
 import { useWorkspace } from "./workspace-context";
 
@@ -40,12 +47,36 @@ const THEME_ICONS = {
 
 export function WorkspaceChrome({ children }: { children: ReactNode }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const { pathname } = useNavigation();
+  const reduceMotion = useReducedMotion() ?? false;
   return (
     <>
       <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
       <SearchCommand onCreateTask={() => setCreateOpen(true)} />
       <AskUniPanel />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+      <AnimatePresence initial={false} mode="wait">
+        <motion.div
+          key={pathname}
+          initial={{
+            opacity: 0,
+            y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle,
+          }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{
+            opacity: 0,
+            y: reduceMotion ? 0 : -UI_MOTION_DISTANCE.subtle,
+          }}
+          transition={{
+            duration: reduceMotion
+              ? UI_MOTION_DURATION.micro
+              : UI_MOTION_DURATION.fast,
+            ease: UI_EASE_OUT,
+          }}
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
     </>
   );
 }

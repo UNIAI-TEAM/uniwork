@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -90,5 +90,14 @@ describe("TaskDetailSuitePage", () => {
     expect(
       screen.getByRole("complementary", { name: /thuộc tính|properties/i }),
     ).toBeInTheDocument();
+
+    const sidebarToggle = screen.getByRole("button", {
+      name: /hiện hoặc ẩn thuộc tính|show or hide properties/i,
+    });
+    expect(sidebarToggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(sidebarToggle);
+    await waitFor(() => {
+      expect(sidebarToggle).toHaveAttribute("aria-expanded", "false");
+    });
   });
 });

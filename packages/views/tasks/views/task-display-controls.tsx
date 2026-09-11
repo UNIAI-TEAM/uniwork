@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import {
-  ArrowDown,
-  ArrowUp,
   Filter,
   Paperclip,
   GitBranch,
@@ -13,15 +11,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
-import {
-  CARD_PROPERTY_OPTIONS,
-  GROUPING_OPTIONS,
-  SORT_OPTIONS,
-  SWIMLANE_GROUPINGS,
-  type SortField,
-  type SwimlaneGrouping,
-  type TaskGrouping,
-} from "@uniwork/core/tasks/stores/view-store";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@uniwork/core/types";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -41,21 +30,13 @@ import {
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
-import { Switch } from "@uniwork/ui/components/ui/switch";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import type { TaskSurfaceMode } from "../surface/types";
+import { TaskDisplaySettings } from "./task-display-settings";
 import { TaskModeSwitcher } from "./task-mode-switcher";
 
 const EMPTY_CONFIG = {
@@ -150,26 +131,9 @@ export function TaskDisplayControls({
   const attachments = capabilityState(config, "tasks.attachments");
   const [displayOpen, setDisplayOpen] = useState(false);
 
-  const showSubTasks = useViewStore((s) => s.showSubTasks);
-  const toggleShowSubTasks = useViewStore((s) => s.toggleShowSubTasks);
-  const cardProperties = useViewStore((s) => s.cardProperties);
-  const toggleCardProperty = useViewStore((s) => s.toggleCardProperty);
-  const viewMode = useViewStore((s) => s.viewMode);
-  const grouping = useViewStore((s) => s.grouping);
-  const setGrouping = useViewStore((s) => s.setGrouping);
-  const swimlaneGrouping = useViewStore((s) => s.swimlaneGrouping);
-  const setSwimlaneGrouping = useViewStore((s) => s.setSwimlaneGrouping);
-  const sortBy = useViewStore((s) => s.sortBy);
-  const setSortBy = useViewStore((s) => s.setSortBy);
-  const sortDirection = useViewStore((s) => s.sortDirection);
-  const setSortDirection = useViewStore((s) => s.setSortDirection);
-
   const filterLabel = t("tasks.filters.add");
   const filterUnavailableReason = t("tasks.filters.unavailable");
   const unavailableActionReason = t("tasks.surface.action_unavailable");
-  const groupingReason = projectGroupingReasonKey
-    ? t(projectGroupingReasonKey)
-    : t("tasks.surface.grouping_unavailable");
   const vcsReason =
     vcs.status === "available"
       ? unavailableActionReason
@@ -178,18 +142,6 @@ export function TaskDisplayControls({
     attachments.status === "available"
       ? unavailableActionReason
       : t(attachments.explanation_key || "capabilities.unknown");
-  const groupingOptions = GROUPING_OPTIONS.filter(
-    (option) => option.value !== "project" || showProjectGrouping,
-  );
-  const effectiveGrouping = groupingOptions.some(
-    (option) => option.value === grouping,
-  )
-    ? grouping
-    : "status";
-  const effectiveSortBy = SORT_OPTIONS.some((option) => option.value === sortBy)
-    ? sortBy
-    : "position";
-
   return (
     <div className="flex shrink-0 items-center gap-1">
       {TASK_FILTERS_WIRED ? (
@@ -256,219 +208,13 @@ export function TaskDisplayControls({
           </TooltipContent>
         </Tooltip>
         <PopoverContent align="end" className="w-64 p-3">
-          <div className="space-y-3">
-            {viewMode === "board" ? (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-caption font-medium text-muted-foreground">
-                  {t("tasks.display.grouping_section")}
-                </span>
-                <Select
-                  items={groupingOptions.map((option) => ({
-                    value: option.value,
-                    label: t(`tasks.display.group_${option.value}`),
-                  }))}
-                  value={effectiveGrouping}
-                  onValueChange={(value) => {
-                    if (value) setGrouping(value as TaskGrouping);
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="w-32"
-                    aria-label={t("tasks.display.grouping_section")}
-                  >
-                    <SelectValue>
-                      {t(`tasks.display.group_${effectiveGrouping}`)}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectGroup>
-                      {groupingOptions.map((option) => (
-                        <SelectItem
-                          key={option.value}
-                          value={option.value}
-                          disabled={
-                            option.value === "project" &&
-                            projectGroupingDisabled
-                          }
-                          title={
-                            option.value === "project" &&
-                            projectGroupingDisabled
-                              ? groupingReason
-                              : undefined
-                          }
-                        >
-                          {t(`tasks.display.group_${option.value}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-
-            {viewMode === "swimlane" ? (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-caption font-medium text-muted-foreground">
-                  {t("tasks.display.grouping_section")}
-                </span>
-                <Select
-                  items={SWIMLANE_GROUPINGS.map((value) => ({
-                    value,
-                    label: t(`tasks.display.group_${value}`),
-                  }))}
-                  value={swimlaneGrouping}
-                  onValueChange={(value) => {
-                    if (value) {
-                      setSwimlaneGrouping(value as SwimlaneGrouping);
-                    }
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="w-32"
-                    aria-label={t("tasks.display.grouping_section")}
-                  >
-                    <SelectValue>
-                      {t(`tasks.display.group_${swimlaneGrouping}`)}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectGroup>
-                      {SWIMLANE_GROUPINGS.map((value) => (
-                        <SelectItem
-                          key={value}
-                          value={value}
-                          disabled={
-                            value === "parent" ||
-                            (value === "project" && projectGroupingDisabled)
-                          }
-                          title={
-                            value === "parent"
-                              ? t("tasks.swimlane.parent_unavailable")
-                              : value === "project" && projectGroupingDisabled
-                                ? groupingReason
-                                : undefined
-                          }
-                        >
-                          {t(`tasks.display.group_${value}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-caption font-medium text-muted-foreground">
-                {t("tasks.display.ordering_section")}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <Select
-                  items={SORT_OPTIONS.map((option) => ({
-                    value: option.value,
-                    label: t(`tasks.display.sort_${option.value}`),
-                  }))}
-                  value={effectiveSortBy}
-                  onValueChange={(value) => {
-                    if (value) setSortBy(value as SortField);
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="w-28"
-                    aria-label={t("tasks.display.ordering_section")}
-                  >
-                    <SelectValue>
-                      {t(`tasks.display.sort_${effectiveSortBy}`)}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectGroup>
-                      {SORT_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {t(`tasks.display.sort_${option.value}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                {effectiveSortBy !== "position" ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label={
-                      sortDirection === "asc"
-                        ? t("tasks.display.ascending_title")
-                        : t("tasks.display.descending_title")
-                    }
-                    title={
-                      sortDirection === "asc"
-                        ? t("tasks.display.ascending_title")
-                        : t("tasks.display.descending_title")
-                    }
-                    onClick={() =>
-                      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-                    }
-                  >
-                    {sortDirection === "asc" ? (
-                      <ArrowUp className="size-3.5" aria-hidden />
-                    ) : (
-                      <ArrowDown className="size-3.5" aria-hidden />
-                    )}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-
-            {viewMode !== "table" ? (
-              <label className="flex cursor-pointer items-center justify-between gap-3">
-                <span className="text-caption font-medium text-muted-foreground">
-                  {t("tasks.display.show_subtasks")}
-                </span>
-                <Switch
-                  size="sm"
-                  checked={showSubTasks}
-                  onCheckedChange={() => toggleShowSubTasks()}
-                />
-              </label>
-            ) : null}
-
-            {viewMode !== "table" ? (
-              <div>
-                <p className="text-caption font-medium text-muted-foreground">
-                  {t("tasks.display.card_properties_section")}
-                </p>
-                <div className="mt-2 space-y-2.5">
-                  {CARD_PROPERTY_OPTIONS.map(({ key }) => {
-                    const disabled = key === "labels";
-                    const label = t(`tasks.display.card_${key}`);
-                    return (
-                      <label
-                        key={key}
-                        className="flex cursor-pointer items-center justify-between gap-3 text-body has-data-disabled:cursor-not-allowed has-data-disabled:opacity-60"
-                        title={
-                          disabled
-                            ? t("tasks.display.labels_unavailable")
-                            : undefined
-                        }
-                      >
-                        <span>{label}</span>
-                        <Switch
-                          size="sm"
-                          checked={disabled ? false : cardProperties[key]}
-                          disabled={disabled}
-                          onCheckedChange={() => toggleCardProperty(key)}
-                        />
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <TaskDisplaySettings
+            modes={modes}
+            showProjectGrouping={showProjectGrouping}
+            projectGroupingDisabled={projectGroupingDisabled}
+            projectGroupingReasonKey={projectGroupingReasonKey}
+            labelsDisabled
+          />
         </PopoverContent>
       </Popover>
 
