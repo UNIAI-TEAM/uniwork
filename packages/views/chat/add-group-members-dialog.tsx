@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, UserPlus, X } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toChatContactFromLookup, useLookupChatUser } from "@uniwork/core/chat";
@@ -19,6 +19,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { SelectedMemberChips } from "./selected-member-chips";
 
 function initialOf(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || "?";
@@ -94,9 +95,9 @@ export function AddGroupMembersDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="border-b border-border px-4 py-4">
-          <DialogTitle>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
+        <DialogHeader className="space-y-1.5 border-b border-border px-5 py-4">
+          <DialogTitle className="text-title">
             {isChannel ? t("chat.channel.add_members_title") : t("chat.add_group_members_title")}
           </DialogTitle>
           <DialogDescription>
@@ -106,17 +107,31 @@ export function AddGroupMembersDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 px-4 py-4">
+        <div className="space-y-4 px-5 py-4">
+          <SelectedMemberChips
+            members={pendingMembers}
+            onRemove={(userId) =>
+              setPendingMembers((prev) => prev.filter((entry) => entry.user_id !== userId))
+            }
+            emptyLabel={t("chat.add_group_members_hint")}
+          />
+
           <div className="space-y-2">
-            <Label htmlFor="add-group-member-search">{t("chat.group_members_label")}</Label>
+            <Label htmlFor="add-group-member-search" className="text-label font-medium">
+              {t("chat.group_members_label")}
+            </Label>
             <form
-              className="flex gap-2"
+              className="relative"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!normalized.includes("@")) return;
                 setSearchActive(true);
               }}
             >
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
               <Input
                 id="add-group-member-search"
                 value={memberQuery}
@@ -127,10 +142,8 @@ export function AddGroupMembersDialog({
                 placeholder={t("chat.search_email_group")}
                 type="email"
                 autoComplete="off"
+                className="rounded-xl pl-9"
               />
-              <Button type="submit" variant="outline" size="icon" aria-label={t("chat.search_action")}>
-                <Search className="size-4" aria-hidden />
-              </Button>
             </form>
 
             {searchActive && lookup.isFetching ? (
@@ -142,7 +155,7 @@ export function AddGroupMembersDialog({
             ) : null}
 
             {searchActive && lookup.data ? (
-              <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
+              <div className="flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2.5">
                 <ActorAvatar
                   name={lookup.data.display_name}
                   initials={initialOf(lookup.data.display_name)}
@@ -157,7 +170,7 @@ export function AddGroupMembersDialog({
                     {isChannel ? t("chat.channel.already_member") : t("chat.already_in_group")}
                   </span>
                 ) : (
-                  <Button type="button" size="sm" onClick={addFromSearch}>
+                  <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={addFromSearch}>
                     {isChannel ? t("chat.channel.add_to_channel") : t("chat.add_to_group")}
                   </Button>
                 )}
@@ -166,13 +179,13 @@ export function AddGroupMembersDialog({
 
             {pickableContacts.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-caption text-muted-foreground">{t("chat.group_from_contacts")}</p>
-                <ul className="max-h-28 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
+                <p className="text-label font-medium text-foreground">{t("chat.group_from_contacts")}</p>
+                <ul className="max-h-36 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/60">
                   {pickableContacts.map((contact) => (
                     <li key={contact.user_id}>
                       <button
                         type="button"
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-muted"
+                        className="group flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
                         onClick={() => addMember(contact)}
                       >
                         <ActorAvatar
@@ -180,10 +193,13 @@ export function AddGroupMembersDialog({
                           initials={initialOf(contact.display_name)}
                           size="sm"
                         />
-                        <span className="min-w-0 flex-1 truncate text-body text-foreground">
+                        <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
                           {displayLabelForChatContact(contact)}
                         </span>
-                        <UserPlus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <UserPlus
+                          className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                          aria-hidden
+                        />
                       </button>
                     </li>
                   ))}
@@ -191,46 +207,21 @@ export function AddGroupMembersDialog({
               </div>
             ) : null}
           </div>
-
-          {pendingMembers.length > 0 ? (
-            <ul className="space-y-1 rounded-md border border-border p-2">
-              {pendingMembers.map((member) => (
-                <li key={member.user_id} className="flex items-center gap-2 rounded-md px-1 py-1">
-                  <ActorAvatar
-                    name={member.display_name}
-                    initials={initialOf(member.display_name)}
-                    size="sm"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-body text-foreground">
-                    {displayLabelForChatContact(member)}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("chat.remove_member", {
-                      name: displayLabelForChatContact(member),
-                    })}
-                    onClick={() =>
-                      setPendingMembers((prev) => prev.filter((entry) => entry.user_id !== member.user_id))
-                    }
-                  >
-                    <X className="size-4" aria-hidden />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-caption text-muted-foreground">{t("chat.add_group_members_hint")}</p>
-          )}
         </div>
 
-        <DialogFooter className="border-t border-border px-5 py-4 sm:justify-between">
-          <Button type="button" variant="outline" disabled={inviting} onClick={() => handleOpenChange(false)}>
+        <DialogFooter className="border-t border-border px-5 py-3.5 sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full"
+            disabled={inviting}
+            onClick={() => handleOpenChange(false)}
+          >
             {t("chat.cancel_group")}
           </Button>
           <Button
             type="button"
+            className="rounded-full"
             disabled={pendingMembers.length === 0 || inviting}
             onClick={() => onInvite(pendingMembers)}
           >

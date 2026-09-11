@@ -17,7 +17,18 @@ describe("ChatFileMessageRow", () => {
     vi.mocked(loadChatFileBlob).mockReset();
   });
 
-  it("renders filename, size, and download control for non-image files", () => {
+  it("renders filename, size, download, and inline PDF preview", async () => {
+    vi.mocked(loadChatFileBlob).mockResolvedValue(
+      new Blob(["%PDF"], { type: "application/pdf" }),
+    );
+    const createObjectURL = vi.fn(() => "blob:pdf");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    });
+
     render(
       wrap(
         <ChatFileMessageRow
@@ -48,7 +59,10 @@ describe("ChatFileMessageRow", () => {
     expect(screen.getByText("sprint.pdf")).toBeInTheDocument();
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tải tệp" })).toBeInTheDocument();
-    expect(loadChatFileBlob).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTitle("Xem trước PDF")).toHaveAttribute("src", "blob:pdf");
+    });
+    expect(loadChatFileBlob).toHaveBeenCalledWith("ws1", "room1", "message1");
   });
 
   it("loads and shows an inline image preview", async () => {

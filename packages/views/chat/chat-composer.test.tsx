@@ -17,8 +17,10 @@ vi.mock("./chat-sticker-packs", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { info: vi.fn() },
+  toast: { info: vi.fn(), error: vi.fn() },
 }));
+
+import { toast } from "sonner";
 
 describe("ChatComposer", () => {
   it("renders composer toolbar and opens attach menu", async () => {
@@ -184,5 +186,53 @@ describe("ChatComposer", () => {
     expect(screen.getByRole("button", { name: "Gửi" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
     await waitFor(() => expect(stopTrack).toHaveBeenCalled());
+  });
+
+  it("pastes an accepted image into onSendFile", () => {
+    const onSendFile = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={onSendFile}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    const file = new File(["png"], "shot.png", { type: "image/png" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [file] },
+    });
+    expect(onSendFile).toHaveBeenCalledWith(file);
+  });
+
+  it("rejects unsupported paste types", () => {
+    const onSendFile = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={onSendFile}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: {
+        files: [new File(["x"], "virus.exe", { type: "application/octet-stream" })],
+      },
+    });
+    expect(onSendFile).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
   });
 });
