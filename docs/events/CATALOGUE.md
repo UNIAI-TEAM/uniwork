@@ -45,6 +45,10 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 | `chat.thread.replied` | 1 | `room_id`, `thread_root_id`, `message_id` | chat | ephemeral |
 | `chat.thread.linked` | 1 | `room_id`, `thread_root_id`, `task_id` | room | outbox |
 | `chat.message.linked` | 1 | `room_id`, `message_id`, `target_id` | room | outbox |
+| `chat.follow_up.created` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | user | outbox |
+| `chat.follow_up.updated` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | user | outbox |
+| `chat.follow_up.completed` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | user | outbox |
+| `chat.follow_up.deleted` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | user | outbox |
 | `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | - | outbox |
 | `chat.room.activity` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
 | `chat.room.created` | 1 | `room_id` | room | outbox |

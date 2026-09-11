@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import {
+  Bookmark,
   Copy,
   Link2,
   ListTodo,
@@ -78,6 +79,7 @@ export function ChatMessageHoverActions({
   onDelete,
   onCreateTask,
   onLinkTask,
+  onFollowUp,
   canEdit = true,
 }: {
   message: ChatMessage;
@@ -91,6 +93,7 @@ export function ChatMessageHoverActions({
   onDelete?: (message: ChatMessage) => void;
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
+  onFollowUp?: (message: ChatMessage) => void;
   /** When false, the edit control stays visible but disabled. */
   canEdit?: boolean;
 }) {
@@ -98,7 +101,7 @@ export function ChatMessageHoverActions({
   const canInteract = Boolean(onReply && onReact);
   const canDelete = isOwn && Boolean(onDelete);
   const pinLabel = message.pinned ? t("chat.action_unpin") : t("chat.action_pin");
-  const workHubActions = Boolean(onCreateTask || onLinkTask);
+  const workHubActions = Boolean(onCreateTask || onLinkTask || onFollowUp);
 
   if (!canInteract) return null;
 
@@ -155,6 +158,10 @@ export function ChatMessageHoverActions({
           <DropdownMenuContent align={isOwn ? "end" : "start"}>
             {workHubActions ? (
               <>
+                <DropdownMenuItem onClick={() => onFollowUp?.(message)} disabled={!onFollowUp}>
+                  <Bookmark className="size-4" aria-hidden />
+                  {t("chat.follow_up.action")}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => onCreateTask?.(message)}
                   disabled={!onCreateTask}

@@ -5,6 +5,7 @@ export * from "./chat-hooks-rooms";
 export * from "./channel-hooks";
 export * from "./thread-hooks";
 export * from "./link-hooks";
+export * from "./follow-up-hooks";
 export * from "./chat-hooks-messages";
 export * from "./chat-contacts-hooks";
 export * from "./chat-groups-hooks";

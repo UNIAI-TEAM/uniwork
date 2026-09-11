@@ -41,6 +41,7 @@ export function ChatFileMessageRow({
   onDelete,
   onCreateTask,
   onLinkTask,
+  onFollowUp,
   workHubEnabled = false,
 }: {
   workspaceId: string;
@@ -60,6 +61,7 @@ export function ChatFileMessageRow({
   onDelete?: (message: ChatMessage) => void;
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
+  onFollowUp?: (message: ChatMessage) => void;
   workHubEnabled?: boolean;
 }) {
   const { t } = useTranslation();
@@ -165,6 +167,7 @@ export function ChatFileMessageRow({
             onDelete={onDelete}
             onCreateTask={workHubEnabled ? onCreateTask : undefined}
             onLinkTask={workHubEnabled ? onLinkTask : undefined}
+            onFollowUp={workHubEnabled ? onFollowUp : undefined}
             canEdit={false}
           />
           {showSenderName && !isOwn ? (

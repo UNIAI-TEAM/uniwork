@@ -221,7 +221,8 @@
         "meeting_starting": "Họp sắp bắt đầu",
         "member_added": "Được thêm vào workspace",
         "role_changed": "Vai trò thay đổi",
-        "audit_export_ready": "Bản xuất nhật ký sẵn sàng"
+        "audit_export_ready": "Bản xuất nhật ký sẵn sàng",
+        "chat_follow_up": "FollowUp tin nhắn"
       }
     },
     "page": {
@@ -1516,6 +1517,12 @@
     "search_jump_banner": "Đang xem vị trí tin nhắn đã tìm",
     "search_back_to_latest": "Về tin mới nhất",
     "search_no_results": "Không có cuộc trò chuyện nào khớp.",
+    "filter_aria": "Lọc cuộc trò chuyện",
+    "filter_all": "Tất cả",
+    "filter_dm": "Tin nhắn",
+    "filter_group": "Nhóm",
+    "filter_channel": "Kênh",
+    "filter_workspace": "Workspace",
     "add_dm_aria": "Nhắn tin với người mới",
     "create_group_aria": "Tạo nhóm chat",
     "start_dm_title": "Nhắn tin riêng",
@@ -1640,6 +1647,31 @@
     "thread_replies_unread": "{{count}} trả lời · chưa đọc",
     "replying_to": "Trả lời: {{preview}}",
     "cancel_reply": "Hủy",
+    "follow_up": {
+      "action": "Theo dõi sau",
+      "list_title": "Follow-up của tôi",
+      "list_description": "Tin nhắn bạn đánh dấu để xử lý sau. Cũng hiện trong Hộp thư.",
+      "loading": "Đang tải…",
+      "load_failed": "Không tải được Follow-up.",
+      "empty": "Chưa có Follow-up đang mở.",
+      "untitled": "Tin nhắn đã đánh dấu",
+      "message_missing": "Tin nhắn không còn hoặc đã xóa",
+      "unknown_room": "Cuộc hội thoại",
+      "note": "Ghi chú: {{note}}",
+      "due": "Hạn {{date}}",
+      "no_due": "Không có hạn",
+      "complete": "Xong",
+      "convert": "Thành task",
+      "delete": "Xóa",
+      "created": "Đã thêm Follow-up",
+      "completed": "Đã hoàn thành Follow-up",
+      "converted": "Đã tạo task từ Follow-up",
+      "deleted": "Đã xóa Follow-up",
+      "create_failed": "Không thêm được Follow-up",
+      "update_failed": "Không cập nhật được Follow-up",
+      "convert_failed": "Không chuyển được thành task",
+      "delete_failed": "Không xóa được Follow-up"
+    },
     "link": {
       "create_task": "Tạo task",
       "link_task": "Gắn task",
@@ -2263,7 +2295,8 @@
       "meeting_starting": "“{{meeting}}” bắt đầu sau {{minutes}} phút",
       "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
       "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
-      "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng"
+      "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng",
+      "chat_follow_up": "Bạn đã gắn FollowUp cho một tin nhắn"
     }
   },
   "ai": {

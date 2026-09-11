@@ -51,6 +51,7 @@ export function NativeChatMessagePanel({
   canPinMessages = true,
   workHubEnabled = false,
   peerLastReadAt = null,
+  onFollowUp,
   onActiveThreadRootIdChange,
 }: {
   workspaceId: string;
@@ -69,6 +70,7 @@ export function NativeChatMessagePanel({
   canPinMessages?: boolean;
   workHubEnabled?: boolean;
   peerLastReadAt?: string | null;
+  onFollowUp?: (message: ChatMessage) => void;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
 }) {
   const { t } = useTranslation();
@@ -362,6 +364,7 @@ export function NativeChatMessagePanel({
           onDelete: handleDelete,
           onCreateTask: taskLinkActions?.onCreateTask,
           onLinkTask: taskLinkActions?.onLinkTask,
+          onFollowUp,
         },
       }),
     [
@@ -377,6 +380,7 @@ export function NativeChatMessagePanel({
       messages,
       messagesById,
       nameContext,
+      onFollowUp,
       onReplyToChange,
       peerLastReadAt,
       roomId,

@@ -311,6 +311,11 @@ type Routes struct {
 	DeleteChatMessageLink       http.HandlerFunc
 	SyncChatThreadTask          http.HandlerFunc
 	UnsyncChatThreadTask        http.HandlerFunc
+	ListChatFollowUps           http.HandlerFunc
+	CreateChatFollowUp          http.HandlerFunc
+	PatchChatFollowUp           http.HandlerFunc
+	DeleteChatFollowUp          http.HandlerFunc
+	ConvertChatFollowUpToTask   http.HandlerFunc
 	ListChatRoomMembers         http.HandlerFunc
 	PatchChatRoomMember         http.HandlerFunc
 	PatchChatRoom               http.HandlerFunc

@@ -26,6 +26,7 @@ export type NativeChatMessageActions = {
   onDelete: (message: ChatMessage) => void;
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
+  onFollowUp?: (message: ChatMessage) => void;
 };
 
 export function renderNativeChatMessage(input: {
@@ -165,6 +166,7 @@ export function renderNativeChatMessage(input: {
         onDelete={actions.onDelete}
         onCreateTask={workHubEnabled ? actions.onCreateTask : undefined}
         onLinkTask={workHubEnabled ? actions.onLinkTask : undefined}
+        onFollowUp={workHubEnabled ? actions.onFollowUp : undefined}
         workHubEnabled={workHubEnabled}
       />
     );
@@ -200,6 +202,7 @@ export function renderNativeChatMessage(input: {
       onDelete={isPending ? undefined : actions.onDelete}
       onCreateTask={isPending || !workHubEnabled ? undefined : actions.onCreateTask}
       onLinkTask={isPending || !workHubEnabled ? undefined : actions.onLinkTask}
+      onFollowUp={isPending || !workHubEnabled ? undefined : actions.onFollowUp}
       workHubEnabled={workHubEnabled}
       showSenderName={showSenderName}
       compactTop={compactTop}
