@@ -1,0 +1,122 @@
+# Nightly load test (spec F-11 §6.6). Seeds a synthetic dataset, starts the
+# API and runs the k6 scenarios in scripts/load. 500 VU must pass; 5000 VU is
+# reported only (OPEN_QUESTIONS O5). Results are kept 90 days; a red run
+# opens (or updates) a tracking issue instead of blocking anything.
+#
+# On a pull request labelled `perf` only the 50 VU smoke runs, against a
+# small dataset, and does block that PR.
+name: Perf
+
+on:
+  schedule:
+    - cron: "0 19 * * *" # 02:00 Asia/Ho_Chi_Minh
+  workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GO_VERSION: "1.27"
+
+jobs:
+  k6:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'perf')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: uniwork
+          POSTGRES_USER: uniwork
+          POSTGRES_PASSWORD: uniwork
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uniwork -d uniwork"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: perf-secret
+      PORT: "8080"
+      FRONTEND_ORIGIN: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:8080
+      APP_ENV: production
+      LOG_FORMAT: json
+      LOG_LEVEL: warn
+      METRICS_ADDR: 127.0.0.1:9090
+      BASE_URL: http://localhost:8080
+      NIGHTLY: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+      - name: Build, migrate, seed, start
+        run: |
+          cd server
+          go build -o bin/server ./cmd/server
+          go run ./cmd/migrate up
+          if [ "$NIGHTLY" = "true" ]; then
+            go run ./cmd/seed --orgs 50 --users 5000 --tasks 1000000
+            echo "SEED_USERS=5000" >> "$GITHUB_ENV"
+          else
+            go run ./cmd/seed --orgs 5 --users 200 --tasks 20000
+            echo "SEED_USERS=200" >> "$GITHUB_ENV"
+          fi
+          nohup bin/server > /tmp/server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/readyz && break; sleep 1; done
+          curl -sf http://localhost:8080/readyz
+      - uses: grafana/setup-k6-action@v1
+      - name: Smoke (50 VU)
+        run: k6 run --summary-export=scripts/load/results/smoke.json scripts/load/smoke.k6.js
+      - name: Read 500 VU
+        if: env.NIGHTLY == 'true'
+        run: k6 run --summary-export=scripts/load/results/read-500.json scripts/load/read-500.k6.js
+      - name: Write mixed 200 VU
+        if: env.NIGHTLY == 'true'
+        run: k6 run --summary-export=scripts/load/results/write-mixed.json scripts/load/write-mixed.k6.js
+      - name: Read 5000 VU (report only until phase C)
+        if: env.NIGHTLY == 'true'
+        continue-on-error: true
+        run: k6 run --summary-export=scripts/load/results/read-5000.json scripts/load/read-5000.k6.js
+      - name: Keep results 90 days
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-${{ github.run_id }}
+          path: |
+            scripts/load/results/
+            /tmp/server.log
+          retention-days: 90
+          if-no-files-found: ignore
+      - name: Open a tracking issue on a red nightly
+        if: failure() && env.NIGHTLY == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="perf: nightly k6 red on $(date -u +%F)"
+          body="Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Runbook: docs/runbooks/ApiLatencyP95High.md · Thresholds: scripts/load/perf-lib.js"
+          existing=$(gh issue list --label perf --state open --search "nightly k6 red" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label perf
+          fi

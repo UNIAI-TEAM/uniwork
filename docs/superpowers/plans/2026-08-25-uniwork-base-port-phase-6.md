@@ -1,5 +1,7 @@
 # UniWork Base Port — Pha 6 (Tooling, CI, bộ tài liệu agent)
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Đưa vận hành của uniwork lên ngang usf — Makefile tự mô tả với worktree isolation, pipeline `make check`, CI 4 job, `.env.example` đủ mọi knob đang dùng — và viết bộ tài liệu agent (`AGENTS.md`, `CLAUDE.md`, `docs/conventions.md`) mô tả **đúng cái đã tồn tại** sau Pha 0–4.

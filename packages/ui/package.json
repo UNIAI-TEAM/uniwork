@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "lint": "eslint . --max-warnings 0"
   },
   "exports": {
@@ -30,6 +30,7 @@
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "catalog:",
+    "date-fns": "catalog:",
     "embla-carousel-react": "^8.6.0",
     "emoji-mart": "^5.6.0",
     "input-otp": "^1.4.2",
@@ -65,6 +66,7 @@
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitejs/plugin-react": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "^9.32.0",
     "jsdom": "catalog:",
     "typescript": "catalog:",

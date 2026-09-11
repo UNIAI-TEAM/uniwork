@@ -66,36 +66,8 @@ export function clearRegisteredWorkspaceDrafts(
  * Reset all registered draft stores' in-memory state. Called on logout before
  * auth is cleared, so no draft survives into the next login on the same tab.
  */
-/**
- * Work that must be stopped BEFORE drafts are cleared.
- *
- * Upstream this was a direct call into the upload coordinator, for a reason
- * worth keeping: an upload that settles after the draft is wiped resurrects a
- * placeholder, and its bytes can bind an attachment under the next session.
- * There is no upload layer here yet, so the ordering guarantee is expressed as
- * a registration point instead of an import — whatever holds in-flight work
- * registers here and the guarantee holds without this file knowing about it.
- */
-const preResetHooks = new Set<() => void>();
-
-export function registerDraftPreReset(abort: () => void): () => void {
-  preResetHooks.add(abort);
-  return () => preResetHooks.delete(abort);
-}
-
-export function resetAllRegisteredDrafts(): void {
-  for (const abort of preResetHooks) abort();
-  for (const entry of entries.values()) {
-    entry.resetInMemory();
-  }
-}
-
 /** Test-only: drop all registrations. */
 export function __clearDraftCleanupRegistryForTest(): void {
   entries.clear();
 }
 
-/** Test-only: inspect registered keys. */
-export function __getRegisteredDraftKeysForTest(): string[] {
-  return [...entries.keys()];
-}

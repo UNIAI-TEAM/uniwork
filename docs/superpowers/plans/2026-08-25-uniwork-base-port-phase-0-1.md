@@ -1,5 +1,7 @@
 # UniWork Base Port — Pha 0 + 1 (Nền tảng build & hợp đồng token)
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Đưa repo uniwork về trạng thái sẵn sàng nhận ~31.000 dòng code hạ tầng của usf — công cụ build đúng phiên bản, luật ranh giới package do máy kiểm, cache turbo không giả xanh, và hợp đồng design token tương thích shadcn.

@@ -1,5 +1,7 @@
 # UniWork Base Port — Pha 3 (Sweep Tầng 1: Server Go)
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Mang lớp hạ tầng server của usf sang uniwork — middleware, realtime hub + Redis relay, storage local/S3, metrics Prometheus, events bus, feature flags, util, migrations lint — mỗi lô có test đi kèm hoặc consumer thật.

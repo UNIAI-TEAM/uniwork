@@ -33,6 +33,11 @@ const COLORS = [
   "sidebar", "sidebar-foreground", "sidebar-primary", "sidebar-primary-foreground",
   "sidebar-accent", "sidebar-accent-foreground", "sidebar-border", "sidebar-ring",
   "chart-1", "chart-2", "chart-3", "chart-4", "chart-5",
+  "chat-sender-1", "chat-sender-2", "chat-sender-3", "chat-sender-4",
+  "chat-sender-5", "chat-sender-6", "chat-sender-7", "chat-sender-8",
+  "meeting-bar-bg", "meeting-bar-border", "meeting-bar-foreground",
+  "meeting-bar-chip-bg", "meeting-bar-chip-hover",
+  "meeting-tile-name-bg", "meeting-tile-name-foreground",
 ] as const;
 
 const twMerge = extendTailwindMerge({

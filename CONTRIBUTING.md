@@ -24,17 +24,27 @@ có DB và cổng riêng: `make worktree-env && make setup-worktree`.
 | Bạn sắp làm gì | Đọc trước |
 | --- | --- |
 | Bất cứ việc gì | [`CLAUDE.md`](CLAUDE.md) |
+| Thắc mắc "sao lại cấm X" | [`docs/adr/`](docs/adr/README.md) |
 | Đặt tên route/package/file/cột DB/type | [`docs/conventions.md`](docs/conventions.md) § 1 |
+| Thêm / sửa HTTP API (SDI, SDO, Swagger) | [`docs/api-sdi-sdo.md`](docs/api-sdi-sdo.md) |
 | Sửa `packages/core/i18n/locales/` | `docs/conventions.md` § 2 (glossary vi–en) |
 | Viết chữ tiếng Việt lên UI | `docs/conventions.md` § 3 (giọng văn) |
 | Hiểu vì sao sản phẩm tồn tại | [`PRODUCT.md`](PRODUCT.md) |
+| Hiểu vì sao xây lại và đích đến | [`docs/vision/PROJECT_VISION.md`](docs/vision/PROJECT_VISION.md) |
+| Chọn việc gì làm tiếp, spec nào bám theo | [`docs/roadmap/FEATURE_ROADMAP.md`](docs/roadmap/FEATURE_ROADMAP.md) |
+| Xem bản cũ (Lovable) làm gì | [`docs/roadmap/LEGACY_REFERENCE_MAP.md`](docs/roadmap/LEGACY_REFERENCE_MAP.md) |
+| Đi từ roadmap đến release | [`docs/engineering/FEATURE_WORKFLOW.md`](docs/engineering/FEATURE_WORKFLOW.md) |
+| Biết khi nào được gọi là xong | [`docs/engineering/DEFINITION_OF_DONE.md`](docs/engineering/DEFINITION_OF_DONE.md) |
+| Nhận việc, mở PR, đóng việc trên UniAI | [`docs/engineering/UNIAI_TRACKING.md`](docs/engineering/UNIAI_TRACKING.md) (`make issue-start`, `make issue-pr`, `make issue-done`) |
 
 Đừng đọc lướt CLAUDE.md. Mỗi luật trong đó đều có tên một test, một lint rule
 hoặc một lệnh đứng cạnh — biết luật nào chặn mình sẽ nhanh hơn là để CI nói.
 
 ## 3. Cái gì sẽ chặn bạn
 
-Ba tầng, từ nhanh tới chậm:
+Ba tầng, từ nhanh tới chậm. Mức siết của cả ba theo một từ trong file `GATE_LEVEL`
+(`fast` / `standard` / `strict`, xem [`docs/engineering/GATE_LEVELS.md`](docs/engineering/GATE_LEVELS.md));
+`make gate` cho biết mức hiện tại. Mô tả dưới đây là mức `standard`.
 
 **Lúc commit** (`.githooks/`, tự nối qua `pnpm install`)
 
@@ -53,7 +63,9 @@ typecheck → lint → unit + contract test → Go (`-race`) → Playwright.
 
 **Lúc CI chạy** (`.github/workflows/ci.yml`)
 
-Mọi thứ trừ Playwright. Playwright cần app đang chạy nên nó ở lại `make check`.
+Tất cả những gì `make check` chạy, cộng thêm `pnpm audit`, `govulncheck` và
+gitleaks. Job `e2e` tự dựng server + bản build production của web rồi chạy
+Playwright — spec đỏ trên CI là chặn merge, không phải "chạy lại ở máy tôi".
 
 ## 4. Ranh giới package là lỗi lint, không phải quy ước
 

@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { createBrowserCookieLocaleAdapter, initI18n, type SupportedLocale } from "@uniwork/core/i18n";
+import { api } from "@uniwork/core";
+import { useAuthStore } from "@uniwork/core/auth";
+import { createBrowserCookieLocaleAdapter, type SupportedLocale } from "@uniwork/core/i18n";
+import { syncRequestLocale } from "@uniwork/core/i18n/sync-request-locale";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 
 /**
@@ -9,20 +12,37 @@ import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
  * the server (resolveRequestLocale) and is applied during render on both
  * sides, so server HTML and the first client render agree; switching later
  * (the settings page) goes through the adapter and i18n.changeLanguage.
+ *
+ * `initialDictionary` is the English resource bag when the request locale is
+ * `en` — loaded only on the server so `en.json` stays out of the shared
+ * client chunk (see sync-request-locale.ts).
  */
 export function WebLocaleProvider({
   initialLocale,
+  initialDictionary,
   children,
 }: {
   initialLocale: SupportedLocale;
+  initialDictionary?: object;
   children: ReactNode;
 }) {
-  const [adapter] = useState(createBrowserCookieLocaleAdapter);
+  const [adapter] = useState(() => {
+    const base = createBrowserCookieLocaleAdapter();
+    return {
+      ...base,
+      persist(locale: SupportedLocale) {
+        base.persist(locale);
+        // Mail follows the user's language; a failed sync only affects the
+        // next mail's language, so it is fire-and-forget.
+        if (useAuthStore.getState().user) void api.auth.patchMe({ locale }).catch(() => {});
+      },
+    };
+  });
   const [applied] = useState(() => {
-    const i18n = initI18n();
-    if (i18n.language !== initialLocale) void i18n.changeLanguage(initialLocale);
+    syncRequestLocale(initialLocale, initialDictionary);
     return initialLocale;
   });
+
   useEffect(() => {
     document.documentElement.lang = applied;
   }, [applied]);

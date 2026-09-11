@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ActorKind } from "../../types/audit";
 import {
   TaskCommentSchema,
   TaskSchema,
@@ -22,13 +23,18 @@ export interface TaskPatch {
   priority?: TaskPriority;
   position?: number;
   assignee_id?: string | null;
+  /** Read with assignee_id; omitted means human. */
+  assignee_kind?: ActorKind;
   due_date?: string | null;
+  project_id?: string | null;
 }
 
 export interface CreateTaskBody {
   title: string;
   description?: string;
   priority?: TaskPriority;
+  assignee_id?: string;
+  assignee_kind?: ActorKind;
 }
 
 const enc = encodeURIComponent;
@@ -47,8 +53,18 @@ export async function getTask(taskId: string): Promise<Task | null> {
   })?.task ?? null;
 }
 
-export async function createTask(workspaceId: string, body: CreateTaskBody): Promise<Task | null> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/tasks`, { method: "POST", body });
+export async function createTask(
+  workspaceId: string,
+  body: CreateTaskBody,
+  opts?: { idempotencyKey?: string },
+): Promise<Task | null> {
+  const headers: Record<string, string> = {};
+  if (opts?.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/tasks`, {
+    method: "POST",
+    body,
+    headers,
+  });
   return parseWithFallback<{ task: Task } | null>(raw, TaskResponse, null, {
     endpoint: "POST /api/v1/workspaces/{ws}/tasks",
   })?.task ?? null;

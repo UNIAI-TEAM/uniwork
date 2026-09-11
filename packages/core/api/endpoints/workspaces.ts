@@ -2,22 +2,24 @@ import { z } from "zod";
 import {
   MemberSchema,
   PendingInvitationSchema,
+  WorkspaceMembershipSchema,
   WorkspaceSchema,
   type Member,
   type PendingInvitation,
   type Workspace,
+  type WorkspaceMembership,
 } from "../../types/workspace";
+import { OrganizationSchema, type Organization } from "../../types/organization";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 
 const WorkspacesResponse = z.object({ workspaces: z.array(WorkspaceSchema) });
 const WorkspaceResponse = z.object({ workspace: WorkspaceSchema });
 const MembersResponse = z.object({ members: z.array(MemberSchema) });
+const MembershipResponse = z.object({ membership: WorkspaceMembershipSchema });
 const MyInvitationsResponse = z.object({ invitations: z.array(PendingInvitationSchema) });
 const InviteResponse = z.object({
-  invitations: z.array(
-    z.object({ id: z.string(), email: z.string(), role: z.string(), token: z.string() }),
-  ),
+  invitations: z.array(z.object({ id: z.string(), email: z.string(), role: z.string() })),
   skipped: z.array(z.string()),
 });
 export type InviteResult = z.infer<typeof InviteResponse>;
@@ -52,6 +54,32 @@ export async function listMembers(workspaceId: string): Promise<Member[]> {
   }).members;
 }
 
+export async function getMyMembership(workspaceId: string): Promise<WorkspaceMembership | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/me`);
+  return (
+    parseWithFallback<{ membership: WorkspaceMembership } | null>(raw, MembershipResponse, null, {
+      endpoint: "GET /api/v1/workspaces/{ws}/me",
+    })?.membership ?? null
+  );
+}
+
+export async function updateMemberRole(
+  workspaceId: string,
+  userId: string,
+  body: { role: "admin" | "member" },
+): Promise<unknown> {
+  return request(`/api/v1/workspaces/${enc(workspaceId)}/members/${enc(userId)}`, {
+    method: "PATCH",
+    body,
+  });
+}
+
+export async function removeMember(workspaceId: string, userId: string): Promise<void> {
+  await request(`/api/v1/workspaces/${enc(workspaceId)}/members/${enc(userId)}`, {
+    method: "DELETE",
+  });
+}
+
 export async function invite(
   workspaceId: string,
   body: { emails: string[]; role: "admin" | "member" },
@@ -75,11 +103,31 @@ export async function myInvitations(): Promise<PendingInvitation[]> {
   ).invitations;
 }
 
-export async function acceptInvite(token: string): Promise<Workspace | null> {
+/**
+ * Accepting an invitation always names the organization; `workspace` is null
+ * for an invitation to the organization itself, and the caller then sends the
+ * new member to the workspace picker rather than into a team they are not in
+ * (F-03).
+ */
+export interface AcceptInviteResult {
+  organization: Organization | null;
+  workspace: Workspace | null;
+}
+
+const AcceptInviteResponse = z.object({
+  organization: OrganizationSchema.nullish(),
+  workspace: WorkspaceSchema.nullish(),
+});
+
+export async function acceptInvite(token: string): Promise<AcceptInviteResult> {
   const raw = await request(`/api/v1/invitations/${enc(token)}/accept`, { method: "POST" });
-  return parseWithFallback<{ workspace: Workspace } | null>(raw, WorkspaceResponse, null, {
-    endpoint: "POST /api/v1/invitations/{token}/accept",
-  })?.workspace ?? null;
+  const parsed = parseWithFallback<{ organization?: Organization | null; workspace?: Workspace | null } | null>(
+    raw,
+    AcceptInviteResponse,
+    null,
+    { endpoint: "POST /api/v1/invitations/{token}/accept" },
+  );
+  return { organization: parsed?.organization ?? null, workspace: parsed?.workspace ?? null };
 }
 
 export async function patchWorkspace(workspaceId: string, body: { name: string }): Promise<Workspace | null> {

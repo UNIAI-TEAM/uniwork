@@ -2,7 +2,7 @@
 import { Loader2 } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useRegister } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { SessionResponse } from "@uniwork/core/types";
@@ -31,7 +31,7 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
   // wired to that field. Anything else is a form-level failure: guessing which
   // input caused it would point the user at the wrong box.
   const emailTaken = reg.error instanceof ApiError && reg.error.code === "conflict";
-  const errorMsg = emailTaken ? t("auth.emailTaken") : reg.error ? t("common.error") : null;
+  const errorMsg = emailTaken ? t("auth.emailTaken") : reg.error ? (apiErrorMessage(reg.error) ?? t("common.error")) : null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +94,12 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
         </FieldGroup>
 
         <div className="flex flex-col gap-4">
-          <Button type="submit" size="lg" className="w-full" aria-disabled={reg.isPending || undefined}>
+          <Button
+            type="submit"
+            size="lg"
+            className="h-10 w-full pointer-coarse:h-11 aria-disabled:cursor-progress aria-disabled:opacity-100"
+            aria-disabled={reg.isPending || undefined}
+          >
             {reg.isPending ? (
               <>
                 <Loader2 aria-hidden className="animate-spin" />
@@ -105,7 +110,7 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
             )}
           </Button>
           <GoogleButton />
-          <p className="text-center text-label text-muted-foreground">
+          <p className="text-center text-body text-muted-foreground">
             {t("auth.hasAccount")}{" "}
             <AppLink href={paths.login()} className={AUTH_LINK}>
               {t("auth.login")}

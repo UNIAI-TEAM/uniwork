@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
 import type { Workspace } from "@uniwork/core/types";
 import { useAcceptInvite } from "@uniwork/core/workspaces";
@@ -11,7 +12,12 @@ export function AcceptInviteView({
   onAnon,
 }: {
   token: string;
-  onAccepted: (ws: Workspace) => void;
+  /**
+   * `workspace` is null for an invitation to the organization itself: the
+   * person is in the company but in no team yet, so the host sends them to the
+   * workspace picker instead of into a workspace (F-03).
+   */
+  onAccepted: (workspace: Workspace | null) => void;
   onAnon: () => void;
 }) {
   const { t } = useTranslation();
@@ -24,14 +30,14 @@ export function AcceptInviteView({
     if (status === "authed" && !fired.current) {
       fired.current = true;
       accept.mutate(token, {
-        onSuccess: (workspace) => {
-          if (workspace) onAccepted(workspace);
-        },
+        onSuccess: (result) => onAccepted(result.workspace),
       });
     }
   }, [status, token, accept, onAccepted, onAnon]);
 
   return (
-    <p className="p-8 text-muted-foreground">{accept.error ? t("common.error") : t("common.loading")}</p>
+    <p className="p-8 text-muted-foreground">
+      {accept.error ? (apiErrorMessage(accept.error) ?? t("common.error")) : t("common.loading")}
+    </p>
   );
 }

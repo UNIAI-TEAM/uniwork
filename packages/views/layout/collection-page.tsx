@@ -2,20 +2,22 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import {
   Empty,
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "@uniwork/ui/components/ui/empty";
+import { IconTile, type IconTileTone, type Tint, tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PAGE_LEADING_ICON, PageHeader } from "./page-header";
 
 interface CollectionPageHeaderProps {
   icon: LucideIcon;
+  /** Module tint for the leading glyph; omitted, it stays neutral. */
+  tone?: Tint;
   title: ReactNode;
   count?: number;
   description?: ReactNode;
@@ -27,12 +29,12 @@ interface CollectionPageHeaderProps {
  * Header of a list screen: entity icon, title, optional count and supporting
  * copy on the left; page-level actions on the right.
  */
-export function CollectionPageHeader({ icon: Icon, title, count, description, actions, className }: CollectionPageHeaderProps) {
+export function CollectionPageHeader({ icon: Icon, tone, title, count, description, actions, className }: CollectionPageHeaderProps) {
   return (
     <PageHeader className={className}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className={PAGE_LEADING_ICON}>
-          <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+          <Icon aria-hidden="true" className={cn("size-4", tone ? tintForegroundClass[tone] : "text-muted-foreground")} />
         </span>
         <h1 className="truncate text-body font-medium">{title}</h1>
         {typeof count === "number" && count > 0 ? (
@@ -42,8 +44,22 @@ export function CollectionPageHeader({ icon: Icon, title, count, description, ac
           <p className="ml-2 hidden min-w-0 truncate text-caption text-muted-foreground md:block">{description}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center justify-end gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex shrink-0 items-center justify-end gap-2">{actions}</div>
+      ) : null}
     </PageHeader>
+  );
+}
+
+/** Icon-only below md, labelled above md — the shape every header action takes. */
+const HEADER_ACTION_SHAPE = "h-8 w-8 gap-1 px-0 md:w-auto md:px-2.5";
+
+function HeaderActionContent({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <>
+      <Icon aria-hidden="true" className="size-3.5" />
+      <span className="hidden md:inline">{label}</span>
+    </>
   );
 }
 
@@ -54,7 +70,7 @@ interface CollectionPageHeaderActionProps extends Omit<ComponentProps<typeof But
 
 /** Responsive header action: icon-only below md, labelled above md. */
 export function CollectionPageHeaderAction({
-  icon: Icon,
+  icon,
   label,
   className,
   type = "button",
@@ -67,33 +83,59 @@ export function CollectionPageHeaderAction({
       type={type}
       size={size}
       variant={variant}
-      className={cn("h-8 w-8 gap-1 px-0 md:w-auto md:px-2.5", className)}
+      className={cn(HEADER_ACTION_SHAPE, className)}
       aria-label={props["aria-label"] ?? label}
       {...props}
     >
-      <Icon aria-hidden="true" className="size-3.5" />
-      <span className="hidden md:inline">{label}</span>
+      <HeaderActionContent icon={icon} label={label} />
     </Button>
   );
 }
 
-type PageStateTone = "muted" | "destructive" | "warning";
+interface CollectionPageHeaderLinkActionProps
+  extends Omit<ComponentProps<typeof ButtonLink>, "children"> {
+  icon: LucideIcon;
+  label: string;
+}
+
+/**
+ * The same header action for an action that is a navigation rather than a
+ * command — a download the browser saves, a file opened in a new tab. It goes
+ * through `ButtonLink`, not `<Button render={<a/>}>`, so the anchor keeps link
+ * semantics; see the comment on `ButtonLink` for what the button primitive does
+ * to an `<a>` instead.
+ */
+export function CollectionPageHeaderLinkAction({
+  icon,
+  label,
+  className,
+  size = "sm",
+  variant = "outline",
+  ...props
+}: CollectionPageHeaderLinkActionProps) {
+  return (
+    <ButtonLink
+      size={size}
+      variant={variant}
+      className={cn(HEADER_ACTION_SHAPE, className)}
+      aria-label={props["aria-label"] ?? label}
+      {...props}
+    >
+      <HeaderActionContent icon={icon} label={label} />
+    </ButtonLink>
+  );
+}
 
 interface CollectionPageStateProps {
   icon: LucideIcon;
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
-  tone?: PageStateTone;
+  /** A module tint for an empty state, a signal tone for an error state. */
+  tone?: IconTileTone;
   role?: "alert" | "status";
   className?: string;
 }
-
-const stateToneClass: Record<PageStateTone, string> = {
-  muted: "text-muted-foreground",
-  destructive: "text-destructive",
-  warning: "text-warning",
-};
 
 /**
  * Centered empty / error / not-found state for a list screen. Truthful by
@@ -103,9 +145,7 @@ export function CollectionPageState({ icon: Icon, title, description, actions, t
   return (
     <Empty role={role} className={cn("rounded-none border-0 px-6 py-16", className)}>
       <EmptyHeader>
-        <EmptyMedia variant="icon" className={cn("size-12 rounded-full [&_svg]:size-6", stateToneClass[tone])}>
-          <Icon aria-hidden="true" />
-        </EmptyMedia>
+        <IconTile icon={Icon} size="lg" tone={tone} />
         <EmptyTitle>{title}</EmptyTitle>
         {description ? <EmptyDescription className="max-w-md">{description}</EmptyDescription> : null}
       </EmptyHeader>

@@ -1,0 +1,25 @@
+# Local LiveKit for meeting rooms. Does not replace Postgres/Redis in docker-compose.yml.
+#
+# Started automatically by `make start` / `make dev` (scripts/ensure-livekit.sh).
+# Manual: `make livekit-up` or `docker compose -f docker-compose.livekit.yml up`.
+#
+# Then in .env (or leave blank — make start fills local defaults):
+#   LIVEKIT_URL=ws://localhost:7880
+#   LIVEKIT_API_KEY=devkey
+#   LIVEKIT_API_SECRET=secret_must_be_at_least_32_chars
+name: uniwork-livekit
+services:
+  livekit:
+    # livekit-client 2.22 talks to /rtc/v1; v1.8.4 only has /rtc and 404s validate in a reconnect loop.
+    image: livekit/livekit-server:v1.9.12
+    command: ["--config", "/etc/livekit.yaml"]
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    extra_hosts:
+      # Linux Docker: webhook to the API on the host. Docker Desktop already provides this.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Written by scripts/ensure-livekit.sh from livekit.dev.yaml (webhook PORT).
+      - ./livekit.dev.yaml.local:/etc/livekit.yaml:ro

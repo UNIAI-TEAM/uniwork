@@ -1,0 +1,17 @@
+port: 7880
+rtc:
+  tcp_port: 7881
+  # Single UDP port is more reliable on Docker Desktop (macOS/Windows) than a wide range.
+  udp_port: 7882
+  use_external_ip: false
+  # Advertise localhost so the browser can reach ICE candidates from Docker.
+  node_ip: 127.0.0.1
+keys:
+  # LiveKit v1.9+ requires secrets >= 32 chars (dev only).
+  devkey: secret_must_be_at_least_32_chars
+logging:
+  level: info
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:8080/api/v1/integrations/livekit/webhook

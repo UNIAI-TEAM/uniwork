@@ -53,7 +53,7 @@ function sanitizeShortcutChord(value: unknown): ShortcutChord | null | undefined
 }
 
 /** Drop unknown actions and malformed chords instead of letting storage crash matching/UI. */
-export function sanitizeShortcutOverrides(value: unknown): ShortcutOverrides {
+function sanitizeShortcutOverrides(value: unknown): ShortcutOverrides {
   if (!isRecord(value)) return {};
   const overrides: ShortcutOverrides = {};
   for (const [actionId, rawShortcut] of Object.entries(value)) {
@@ -79,7 +79,7 @@ interface ShortcutState {
   resetAll: () => void;
 }
 
-export function migrateShortcutState(
+function migrateShortcutState(
   persisted: unknown,
   version: number,
 ): { overrides: ShortcutOverrides } {

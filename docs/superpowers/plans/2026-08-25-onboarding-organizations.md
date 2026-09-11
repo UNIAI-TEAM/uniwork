@@ -1,5 +1,7 @@
 # Onboarding chuẩn usf + Tổ chức — Kế hoạch triển khai
 
+> **Trạng thái:** shipped
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Thêm tầng Tổ chức (organization) trên workspace và thay màn tạo-workspace tối giản bằng flow onboarding 4 bước (Về bạn → Tổ chức → Workspace → Mời đồng nghiệp) có chất lượng giao diện/tính năng ngang usf, kết thúc bằng landing 🎉 + task hướng dẫn.

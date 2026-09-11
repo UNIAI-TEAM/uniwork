@@ -11,13 +11,13 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
-    "next": "^16.2.5",
+    "@uniwork/views": "workspace:*",
+    "next": "^16.3.4",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "@uniwork/core": "workspace:*",
-    "@uniwork/views": "workspace:*",
-    "@tanstack/react-query": "catalog:"
+    "web-vitals": "^6.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",

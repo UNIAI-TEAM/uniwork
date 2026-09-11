@@ -9,7 +9,24 @@ import (
 	"log/slog"
 )
 
+const (
+	KindVerificationCode = "verification_code"
+	KindPasswordReset    = "password_reset"
+	KindWorkspaceInvite  = "workspace_invite"
+	// An invitation to the organization itself, with no workspace behind it
+	// (F-03). Its own kind because the copy says "join the company", which is
+	// not what the workspace invitation says.
+	KindOrganizationInvite = "organization_invite"
+	KindWelcome            = "welcome"
+	KindNotificationDigest = "notification_digest"
+	// A sign-in from a browser the account has never used (F-01).
+	KindNewLogin = "new_login"
+)
+
 type Message struct {
+	Kind    string // Kind* constants
+	Locale  string // "vi" | "en"
+	UserID  string // "" when the recipient has no account (invites)
 	To      string
 	Subject string
 	HTML    string
@@ -50,6 +67,6 @@ func (s LogSender) Send(_ context.Context, msg Message) error {
 	if log == nil {
 		log = slog.Default()
 	}
-	log.Info("mail not configured, printing message", "to", msg.To, "subject", msg.Subject, "text", msg.Text)
+	log.Info("mail not configured, printing message", "kind", msg.Kind, "to", msg.To, "subject", msg.Subject, "text", msg.Text) // log-pii-ok: dev sink replaces SMTP; the address is the message
 	return nil
 }

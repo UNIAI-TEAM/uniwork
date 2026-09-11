@@ -2,6 +2,7 @@
 
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import type { ComponentProps } from "react"
 
 import { cn } from "@uniwork/ui/lib/utils"
 
@@ -14,7 +15,7 @@ import { cn } from "@uniwork/ui/lib/utils"
 // rendered page. One global outline is also what keeps the "exactly one focus
 // ring, not two nested" contract in the same spec.
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -101,4 +102,32 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+// A link that looks like a button. Deliberately not `<Button render={<a/>}>`:
+// Base UI's button asserts on the element it lands on, and both answers are
+// wrong for a real anchor. Left at `nativeButton` (the default) it errors —
+// "expected a native <button>" — and stamps `type="button"`, which on an `<a>`
+// is a MIME hint, not a behaviour. Set to `nativeButton={false}` it stops
+// erroring but stamps `role="button"` over the anchor, which is what tells a
+// screen reader the thing navigates. The styling is all these call sites ever
+// wanted, so take `buttonVariants` and leave the anchor an anchor.
+function ButtonLink({
+  className,
+  variant = "default",
+  size = "default",
+  children,
+  ...props
+}: ComponentProps<"a"> & VariantProps<typeof buttonVariants>) {
+  // `children` is destructured rather than spread so jsx-a11y can see the
+  // anchor has content; through `{...props}` the rule reads it as empty.
+  return (
+    <a
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    >
+      {children}
+    </a>
+  )
+}
+
+export { Button, ButtonLink, buttonVariants }

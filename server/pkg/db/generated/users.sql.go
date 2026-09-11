@@ -11,10 +11,86 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const anonymizeUser = `-- name: AnonymizeUser :one
+UPDATE users SET
+  email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, google_id = NULL,
+  totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
+  platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
+  deleted_at = now(), updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+`
+
+type AnonymizeUserParams struct {
+	ID          string `json:"id"`
+	Email       string `json:"email"`
+	DisplayName string `json:"display_name"`
+}
+
+// Nghị định 13 deletion: identity fields go, the row and its audit trail stay.
+func (q *Queries) AnonymizeUser(ctx context.Context, arg AnonymizeUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, anonymizeUser, arg.ID, arg.Email, arg.DisplayName)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const consumeUserRecoveryCode = `-- name: ConsumeUserRecoveryCode :execrows
+UPDATE users SET mfa_recovery_codes = array_remove(mfa_recovery_codes, $2::text), updated_at = now()
+WHERE id = $1 AND $2::text = ANY(mfa_recovery_codes)
+`
+
+type ConsumeUserRecoveryCodeParams struct {
+	ID      string `json:"id"`
+	Column2 string `json:"column_2"`
+}
+
+// Removing the hash is the single-use guarantee; zero rows means it was not there.
+func (q *Queries) ConsumeUserRecoveryCode(ctx context.Context, arg ConsumeUserRecoveryCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, consumeUserRecoveryCode, arg.ID, arg.Column2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const countOwnedOrganizationsForUser = `-- name: CountOwnedOrganizationsForUser :one
+SELECT count(*) FROM organization_members WHERE user_id = $1 AND role = 'owner'
+`
+
+func (q *Queries) CountOwnedOrganizationsForUser(ctx context.Context, userID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countOwnedOrganizationsForUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createGoogleUser = `-- name: CreateGoogleUser :one
-INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at)
-VALUES ($1, $2, $3, $4, $5, now())
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at, locale)
+VALUES ($1, $2, $3, $4, $5, now(), $6)
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
 type CreateGoogleUserParams struct {
@@ -23,6 +99,7 @@ type CreateGoogleUserParams struct {
 	DisplayName string      `json:"display_name"`
 	AvatarUrl   pgtype.Text `json:"avatar_url"`
 	GoogleID    pgtype.Text `json:"google_id"`
+	Locale      string      `json:"locale"`
 }
 
 func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserParams) (User, error) {
@@ -32,6 +109,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		arg.DisplayName,
 		arg.AvatarUrl,
 		arg.GoogleID,
+		arg.Locale,
 	)
 	var i User
 	err := row.Scan(
@@ -46,14 +124,24 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, email, password_hash, display_name)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+INSERT INTO users (id, email, password_hash, display_name, locale)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
 type CreateUserParams struct {
@@ -61,6 +149,7 @@ type CreateUserParams struct {
 	Email        string      `json:"email"`
 	PasswordHash pgtype.Text `json:"password_hash"`
 	DisplayName  string      `json:"display_name"`
+	Locale       string      `json:"locale"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -69,6 +158,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Email,
 		arg.PasswordHash,
 		arg.DisplayName,
+		arg.Locale,
 	)
 	var i User
 	err := row.Scan(
@@ -83,12 +173,107 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const deactivateAllOrganizationMembershipsForUser = `-- name: DeactivateAllOrganizationMembershipsForUser :exec
+UPDATE organization_members SET deactivated_at = now(), deactivated_by = $1, updated_at = now()
+WHERE user_id = $1 AND deactivated_at IS NULL
+`
+
+func (q *Queries) DeactivateAllOrganizationMembershipsForUser(ctx context.Context, deactivatedBy pgtype.Text) error {
+	_, err := q.db.Exec(ctx, deactivateAllOrganizationMembershipsForUser, deactivatedBy)
+	return err
+}
+
+const disableUserMFA = `-- name: DisableUserMFA :one
+UPDATE users SET totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}', updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+`
+
+func (q *Queries) DisableUserMFA(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRow(ctx, disableUserMFA, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const enableUserMFA = `-- name: EnableUserMFA :one
+UPDATE users SET mfa_enabled_at = now(), mfa_recovery_codes = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+`
+
+type EnableUserMFAParams struct {
+	ID               string   `json:"id"`
+	MfaRecoveryCodes []string `json:"mfa_recovery_codes"`
+}
+
+func (q *Queries) EnableUserMFA(ctx context.Context, arg EnableUserMFAParams) (User, error) {
+	row := q.db.QueryRow(ctx, enableUserMFA, arg.ID, arg.MfaRecoveryCodes)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -106,12 +291,22 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id FROM users WHERE google_id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at FROM users WHERE google_id = $1
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error) {
@@ -129,12 +324,22 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -152,8 +357,48 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const getUsersByIDs = `-- name: GetUsersByIDs :many
+SELECT id, display_name, avatar_url FROM users WHERE id = ANY($1::text[])
+`
+
+type GetUsersByIDsRow struct {
+	ID          string      `json:"id"`
+	DisplayName string      `json:"display_name"`
+	AvatarUrl   pgtype.Text `json:"avatar_url"`
+}
+
+func (q *Queries) GetUsersByIDs(ctx context.Context, ids []string) ([]GetUsersByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUsersByIDsRow{}
+	for rows.Next() {
+		var i GetUsersByIDsRow
+		if err := rows.Scan(&i.ID, &i.DisplayName, &i.AvatarUrl); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const linkGoogleAccount = `-- name: LinkGoogleAccount :one
@@ -163,7 +408,7 @@ UPDATE users SET
   avatar_url = COALESCE(avatar_url, $3),
   updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
 type LinkGoogleAccountParams struct {
@@ -187,6 +432,16 @@ func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountPa
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -194,7 +449,7 @@ func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountPa
 const markEmailVerified = `-- name: MarkEmailVerified :one
 UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
 func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error) {
@@ -212,6 +467,16 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -219,7 +484,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 const markUserOnboarded = `-- name: MarkUserOnboarded :one
 UPDATE users SET onboarded_at = COALESCE(onboarded_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
 func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error) {
@@ -237,6 +502,16 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -246,7 +521,7 @@ UPDATE users SET
   onboarding_questionnaire = COALESCE($1, onboarding_questionnaire),
   updated_at = now()
 WHERE id = $2
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
 type PatchUserOnboardingParams struct {
@@ -269,14 +544,102 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const revokeAllPushSubscriptionsForUser = `-- name: RevokeAllPushSubscriptionsForUser :exec
+UPDATE push_subscriptions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeAllPushSubscriptionsForUser(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, revokeAllPushSubscriptionsForUser, userID)
+	return err
+}
+
+const scrubMemberProfilesForUser = `-- name: ScrubMemberProfilesForUser :exec
+UPDATE organization_member_profiles SET
+  phone = NULL, phone_visible = false, location = NULL, bio = NULL, employee_code = NULL,
+  search_text = '', updated_at = now()
+WHERE user_id = $1
+`
+
+func (q *Queries) ScrubMemberProfilesForUser(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, scrubMemberProfilesForUser, userID)
+	return err
+}
+
+const setUserMatrixUserID = `-- name: SetUserMatrixUserID :one
+UPDATE users SET matrix_user_id = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+`
+
+type SetUserMatrixUserIDParams struct {
+	ID           string      `json:"id"`
+	MatrixUserID pgtype.Text `json:"matrix_user_id"`
+}
+
+func (q *Queries) SetUserMatrixUserID(ctx context.Context, arg SetUserMatrixUserIDParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserMatrixUserID, arg.ID, arg.MatrixUserID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const setUserTOTPSecret = `-- name: SetUserTOTPSecret :exec
+
+UPDATE users SET totp_secret = $2, updated_at = now() WHERE id = $1
+`
+
+type SetUserTOTPSecretParams struct {
+	ID         string      `json:"id"`
+	TotpSecret pgtype.Text `json:"totp_secret"`
+}
+
+// Identity hardening (F-01, UNI-432).
+// A fresh enrolment: the sealed secret is stored, MFA stays off until confirmed.
+func (q *Queries) SetUserTOTPSecret(ctx context.Context, arg SetUserTOTPSecretParams) error {
+	_, err := q.db.Exec(ctx, setUserTOTPSecret, arg.ID, arg.TotpSecret)
+	return err
 }
 
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
 UPDATE users SET avatar_url = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
 type UpdateUserAvatarParams struct {
@@ -299,23 +662,33 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const updateUserDisplayName = `-- name: UpdateUserDisplayName :one
-UPDATE users SET display_name = $2, updated_at = now()
+const updateUserPassword = `-- name: UpdateUserPassword :one
+UPDATE users SET password_hash = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
 `
 
-type UpdateUserDisplayNameParams struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
+type UpdateUserPasswordParams struct {
+	ID           string      `json:"id"`
+	PasswordHash pgtype.Text `json:"password_hash"`
 }
 
-func (q *Queries) UpdateUserDisplayName(ctx context.Context, arg UpdateUserDisplayNameParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserDisplayName, arg.ID, arg.DisplayName)
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -329,6 +702,69 @@ func (q *Queries) UpdateUserDisplayName(ctx context.Context, arg UpdateUserDispl
 		&i.OnboardingQuestionnaire,
 		&i.EmailVerifiedAt,
 		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET
+  display_name = COALESCE($1, display_name),
+  locale       = COALESCE($2, locale),
+  timezone     = COALESCE($3, timezone),
+  updated_at   = now()
+WHERE id = $4
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+`
+
+type UpdateUserProfileParams struct {
+	DisplayName pgtype.Text `json:"display_name"`
+	Locale      pgtype.Text `json:"locale"`
+	Timezone    pgtype.Text `json:"timezone"`
+	ID          string      `json:"id"`
+}
+
+// Nil arguments keep the current value, so one statement serves both
+// PATCH /me shapes and the two fields commit together.
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.DisplayName,
+		arg.Locale,
+		arg.Timezone,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
 	)
 	return i, err
 }

@@ -1,9 +1,22 @@
 "use client";
 
 import { useRef } from "react";
-import { CalendarDays, ChevronsUpDown, LogOut, Settings, SquareCheckBig, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronsUpDown,
+  FolderKanban,
+  Inbox,
+  ListTodo,
+  LogOut,
+  MessageSquare,
+  Settings,
+  SquareCheckBig,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { useScrollFade } from "@uniwork/ui/hooks/use-scroll-fade";
@@ -24,6 +37,7 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -33,16 +47,22 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
 import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
+import { IconTile, tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
+import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.tasks" | "nav.meetings";
+  key: "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
+  module: ModuleKey;
   href: string;
   icon: LucideIcon;
+  badge?: number;
 }
 
+/* Active row: pale-violet fill with brand text, the ClickUp selected state.
+   The glyph keeps its module tint on every row; the label alone changes. */
 const navButtonClass =
-  "text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground";
+  "text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-surface-selected data-active:text-brand data-active:hover:bg-surface-selected";
 
 /** First letter of the first word, which is all an avatar has room for at 32px. */
 function initialOf(name: string) {
@@ -63,10 +83,17 @@ export function AppSidebar() {
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
+  const unread = useUnreadCount();
+  const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
 
   const items: NavItem[] = [
-    { key: "nav.tasks", href: ws.tasks(), icon: SquareCheckBig },
-    { key: "nav.meetings", href: ws.meetings(), icon: CalendarDays },
+    { key: "nav.inbox", module: "inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
+    { key: "nav.tasks", module: "tasks", href: ws.tasks(), icon: SquareCheckBig },
+    { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks(), icon: ListTodo },
+    { key: "nav.projects", module: "projects", href: ws.projects(), icon: FolderKanban },
+    { key: "nav.meetings", module: "meetings", href: ws.meetings(), icon: CalendarDays },
+    { key: "nav.chat", module: "chat", href: ws.chat(), icon: MessageSquare },
+    { key: "nav.people", module: "people", href: ws.people(), icon: Users },
   ];
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
@@ -95,7 +122,7 @@ export function AppSidebar() {
           <SidebarGroup className="group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {items.map(({ key, href, icon: Icon }) => {
+                {items.map(({ key, module, href, icon: Icon, badge }) => {
                   const active = isActive(href);
                   return (
                     <SidebarMenuItem key={href}>
@@ -111,8 +138,16 @@ export function AppSidebar() {
                           />
                         }
                       >
-                        <Icon aria-hidden />
+                        <IconTile icon={Icon} size="xs" variant="solid" tone={moduleTone(module)} className="[&_svg]:size-3" />
                         <span>{t(key)}</span>
+                        {badge ? (
+                          <SidebarMenuBadge
+                            aria-label={t("notifications.bell_unread", { count: badge })}
+                            className={cn("rounded-full", tintSolidClass.pink)}
+                          >
+                            {badge > 99 ? "99+" : badge}
+                          </SidebarMenuBadge>
+                        ) : null}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -167,8 +202,11 @@ export function AppSidebar() {
                     variant="destructive"
                     onClick={async () => {
                       dismissSheet();
-                      await logout();
-                      replace(paths.login());
+                      try {
+                        await logout();
+                      } finally {
+                        replace(paths.login());
+                      }
                     }}
                   >
                     <LogOut aria-hidden />

@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "3d37828e9",
+  "owner_issue": "UNI-502",
+  "entries": [
+    {
+      "source_path": "packages/views/projects/components/projects-page.tsx",
+      "target_path": "packages/views/projects/components/projects-page.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/projects-page.test.tsx",
+      "target_path": "packages/views/projects/components/projects-page.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-detail.tsx",
+      "target_path": "packages/views/projects/components/project-detail.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-detail.test.tsx",
+      "target_path": "packages/views/projects/components/project-detail.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-resources-section.tsx",
+      "target_path": "packages/views/projects/components/project-resources-section.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-resources-rename.test.tsx",
+      "target_path": "packages/views/projects/components/project-resources-rename.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-start-date-picker.tsx",
+      "target_path": "packages/views/projects/components/project-start-date-picker.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-due-date-picker.tsx",
+      "target_path": "packages/views/projects/components/project-due-date-picker.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-date-pickers.test.tsx",
+      "target_path": "packages/views/projects/components/project-date-pickers.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-lead-picker.tsx",
+      "target_path": "packages/views/projects/components/project-lead-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-picker.tsx",
+      "target_path": "packages/views/projects/components/project-picker.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-picker.test.tsx",
+      "target_path": "packages/views/projects/components/project-picker.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-picker.open-state.test.tsx",
+      "target_path": "packages/views/projects/components/project-picker.open-state.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-mention-card.tsx",
+      "target_path": "packages/views/projects/components/project-mention-card.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-issue-metrics.ts",
+      "target_path": "packages/views/projects/components/project-task-metrics.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-issue-metrics.test.ts",
+      "target_path": "packages/views/projects/components/project-task-metrics.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-icon.tsx",
+      "target_path": "packages/views/projects/components/project-icon.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-chip.tsx",
+      "target_path": "packages/views/projects/components/project-chip.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-chip.test.tsx",
+      "target_path": "packages/views/projects/components/project-chip.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-badge.tsx",
+      "target_path": "packages/views/projects/components/project-badge.tsx",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-mode-dialog.tsx",
+      "target_path": "packages/views/projects/components/local-directory-mode-dialog.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-mode-dialog.test.tsx",
+      "target_path": "packages/views/projects/components/local-directory-mode-dialog.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-label.ts",
+      "target_path": "packages/views/projects/components/local-directory-label.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-label.test.ts",
+      "target_path": "packages/views/projects/components/local-directory-label.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-hint.tsx",
+      "target_path": "packages/views/projects/components/local-directory-hint.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-hint.test.tsx",
+      "target_path": "packages/views/projects/components/local-directory-hint.test.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/labels.ts",
+      "target_path": "packages/views/projects/components/labels.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/projects/components/index.ts",
+      "target_path": "packages/views/projects/components/index.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/projects/stores/view-store.ts",
+      "target_path": "packages/core/projects/stores/view-store.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/core/projects/stores/view-store.test.ts",
+      "target_path": "packages/core/projects/stores/view-store.test.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/core/projects/config.ts",
+      "target_path": "packages/core/projects/config.ts",
+      "disposition": "port"
+    },
+    {
+      "source_path": "packages/core/projects/queries.ts",
+      "target_path": "packages/core/tasks/hooks-projects.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/projects/mutations.ts",
+      "target_path": "packages/core/tasks/hooks-projects.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/projects/mutations.test.tsx",
+      "target_path": "packages/core/tasks/hooks-projects.test.tsx",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/projects/resource-queries.ts",
+      "target_path": "packages/core/tasks/hooks-projects.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/projects/draft-store.ts",
+      "target_path": "packages/core/projects/stores/draft-store.ts",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/core/projects/index.ts",
+      "target_path": "packages/core/projects/index.ts",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/projects/page.tsx",
+      "target_path": "apps/web/app/[orgSlug]/[workspaceSlug]/projects/page.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/projects/[id]/page.tsx",
+      "target_path": "apps/web/app/[orgSlug]/[workspaceSlug]/projects/[projectId]/page.tsx",
+      "disposition": "adapt"
+    },
+    {
+      "source_path": "packages/views/editor/title-editor.tsx",
+      "target_path": "packages/views/projects/components/project-detail.tsx",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/views/editor/content-editor.tsx",
+      "target_path": "packages/views/projects/components/project-detail.tsx",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/ui/hooks/use-mobile.ts",
+      "target_path": "packages/views/projects/components/project-detail.tsx",
+      "disposition": "skip_later_slice"
+    },
+    {
+      "source_path": "packages/views/platform/local-directory.ts",
+      "target_path": "packages/views/projects/components/project-resources-section.tsx",
+      "disposition": "skip_later_slice"
+    }
+  ]
+}

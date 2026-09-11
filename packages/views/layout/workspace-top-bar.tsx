@@ -4,7 +4,7 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type SupportedLocale } from "@uniwork/core/i18n";
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -22,6 +22,9 @@ import {
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { AskUniButton } from "../ai/ask-uni-button";
+import { AskUniPanel } from "../ai/ask-uni-panel";
+import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
 import { PAGE_GUTTER } from "./page-header";
@@ -41,7 +44,8 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
     <>
       <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
       <SearchCommand onCreateTask={() => setCreateOpen(true)} />
-      {children}
+      <AskUniPanel />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
     </>
   );
 }
@@ -116,6 +120,8 @@ export function WorkspaceTopBar({
     >
       <SidebarTrigger size="icon" />
       <div className="flex-1" />
+      <AskUniButton />
+      <NotificationBell />
       <IconTooltipButton label={createLabel} onClick={() => onCreateOpenChange(true)}>
         <Plus aria-hidden className="size-4" />
       </IconTooltipButton>
@@ -189,7 +195,7 @@ export function WorkspaceTopBar({
               if (!next || next === currentLocale) return;
               const locale = next as SupportedLocale;
               localeAdapter.persist(locale);
-              void i18n.changeLanguage(locale);
+              void setLocale(locale);
               document.documentElement.lang = locale;
               toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
             }}

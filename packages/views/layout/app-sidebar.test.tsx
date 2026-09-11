@@ -12,7 +12,7 @@ initI18n();
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "An",
-  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
+  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
 };
 const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team", organization_id: "o1",
@@ -83,11 +83,29 @@ describe("AppSidebar", () => {
     expect(useAuthStore.getState().status).toBe("anon");
   });
 
-  it("shows only tasks and meetings in the workspace nav", () => {
+  it("always shows tasks, my-tasks and projects in the workspace nav", () => {
     renderSidebar("/acme/team/tasks");
-    expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Công việc" })).toHaveAttribute(
+      "href",
+      "/acme/team/tasks",
+    );
+    expect(screen.getByRole("link", { name: "Việc của tôi" })).toHaveAttribute(
+      "href",
+      "/acme/team/my-tasks",
+    );
+    expect(screen.getByRole("link", { name: "Dự án" })).toHaveAttribute(
+      "href",
+      "/acme/team/projects",
+    );
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Trò chuyện" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Thành viên" })).toBeNull();
+  });
+
+  it("never shows squads or runtimes in the workspace nav", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.queryByRole("link", { name: "Squad" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Runtime" })).toBeNull();
   });
 
   it("keeps icon controls visible when collapsed to the icon rail", () => {

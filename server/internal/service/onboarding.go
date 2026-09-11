@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/service/templates"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -21,13 +24,14 @@ var validCompletionPaths = map[string]bool{"": true, "full": true, "invite_skipp
 	"skip_existing": true, "invite_accept": true}
 
 type OnboardingService struct {
-	q   *db.Queries
-	ws  *WorkspaceService
-	pub EventPublisher
+	q      *db.Queries
+	ws     *WorkspaceService
+	render mail.Renderer
+	out    mail.Enqueuer
 }
 
-func NewOnboardingService(q *db.Queries, ws *WorkspaceService, pub EventPublisher) *OnboardingService {
-	return &OnboardingService{q: q, ws: ws, pub: pub}
+func NewOnboardingService(q *db.Queries, ws *WorkspaceService, r mail.Renderer, out mail.Enqueuer) *OnboardingService {
+	return &OnboardingService{q: q, ws: ws, render: r, out: out}
 }
 
 // questionnaire chỉ validate shape; server không suy diễn gì từ nội dung.
@@ -90,7 +94,44 @@ func (s *OnboardingService) Complete(ctx context.Context, userID, path, workspac
 			return db.User{}, err
 		}
 	}
-	return s.q.MarkUserOnboarded(ctx, userID)
+	before, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return db.User{}, err
+	}
+	first := !before.OnboardedAt.Valid
+	u, err := s.q.MarkUserOnboarded(ctx, userID)
+	if err != nil {
+		return db.User{}, err
+	}
+	if first && (path == "full" || path == "invite_accept") && workspaceID != "" {
+		s.sendWelcome(ctx, u, workspaceID)
+	}
+	return u, nil
+}
+
+// sendWelcome queues the welcome mail. Complete already guards this to the
+// user's first-ever onboarding via onboarded_at, so no extra dedup check
+// against the (prunable) emails table is needed here. Failures are logged:
+// onboarding must not fail because of a greeting.
+func (s *OnboardingService) sendWelcome(ctx context.Context, u db.User, workspaceID string) {
+	view, err := s.ws.GetView(ctx, u.ID, workspaceID)
+	if err != nil {
+		slog.Warn("welcome mail: workspace view", "user", u.ID, "err", err)
+		return
+	}
+	msg, err := s.render.Welcome(u.Email, u.Locale, u.ID, mail.WelcomeData{
+		DisplayName: u.DisplayName, WorkspaceName: view.Name,
+		WorkspaceURL: s.render.AppURL + "/" + view.OrganizationSlug + "/" + view.Slug,
+	})
+	if err != nil {
+		slog.Warn("welcome mail: render", "user", u.ID, "err", err)
+		return
+	}
+	if _, err := s.out.Enqueue(ctx, s.q, msg); err != nil {
+		slog.Warn("welcome mail: enqueue", "user", u.ID, "err", err)
+		return
+	}
+	s.out.Kick()
 }
 
 // SeedWelcomeTask: đúng 1 task hướng dẫn / (workspace, user); lần 2 trả task cũ.
@@ -98,25 +139,65 @@ func (s *OnboardingService) SeedWelcomeTask(ctx context.Context, userID, workspa
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return db.Task{}, false, err
 	}
-	if existing, err := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{WorkspaceID: workspaceID, CreatedBy: userID}); err == nil {
-		return existing, false, nil
-	}
-	maxPos, err := s.q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{WorkspaceID: workspaceID, Status: "in_progress"})
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
 		return db.Task{}, false, err
 	}
-	task, err := s.q.CreateWelcomeTask(ctx, db.CreateWelcomeTaskParams{
-		ID: util.NewID(), WorkspaceID: workspaceID,
-		Title: templates.WelcomeTaskTitle, Description: templates.WelcomeTaskBody,
+	if existing, err := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, CreatedBy: userID,
+	}); err == nil {
+		return existing, false, nil
+	}
+	tx, err := s.ws.pool.Begin(ctx)
+	if err != nil {
+		return db.Task{}, false, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: "in_progress",
+	})
+	if err != nil {
+		return db.Task{}, false, err
+	}
+	number, err := q.NextTaskNumber(ctx, db.NextTaskNumberParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return db.Task{}, false, err
+	}
+	task, err := q.CreateWelcomeTask(ctx, db.CreateWelcomeTaskParams{
+		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Number: number, Title: templates.WelcomeTaskTitle, Description: templates.WelcomeTaskBody,
 		AssigneeID: pgtype.Text{String: userID, Valid: true}, Position: maxPos + 1024,
+		CreatedBy: userID, CreatorID: "onboarding", CreatorType: "system",
+		Revision: 1, LastActivityAt: nowTz(),
 	})
 	if isUniqueViolation(err) { // đua với chính mình (StrictMode) → đọc lại
-		existing, gerr := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{WorkspaceID: workspaceID, CreatedBy: userID})
+		existing, gerr := s.q.GetWelcomeTask(ctx, db.GetWelcomeTaskParams{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, CreatedBy: userID,
+		})
 		return existing, false, gerr
 	}
 	if err != nil {
 		return db.Task{}, false, err
 	}
-	s.pub.Publish(ctx, workspaceID, Event{Type: "task.created", Payload: map[string]string{"task_id": task.ID}})
+	// The onboarding seed is a real task creation: it belongs in the log the
+	// same as any other, with the system named as the actor.
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Actor:        audit.System("onboarding"),
+		Action:       audit.ActionTaskCreated,
+		ResourceType: "task", ResourceID: task.ID,
+		Metadata: map[string]any{"seeded_for": userID},
+	}, audit.Event{Topic: "task.created", Payload: map[string]string{
+		"task_id": task.ID, "workspace_id": workspaceID,
+	}}); err != nil {
+		return db.Task{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.Task{}, false, err
+	}
 	return task, true, nil
 }

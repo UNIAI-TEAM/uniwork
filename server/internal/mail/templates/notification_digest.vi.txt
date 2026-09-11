@@ -1,0 +1,11 @@
+Subject: Hôm nay có gì mới trong UniWork
+
+Chào {{.Data.DisplayName}}, thông báo bạn chưa xem trong 24 giờ qua:
+{{range .Data.Groups}}
+{{if .Workspace}}[{{.Workspace}}]{{end}}
+{{range .Items}}- {{.Title}}{{if gt .Count 1}} ({{.Count}} thay đổi){{end}}
+  {{.URL}}
+{{end}}{{end}}{{if gt .Data.More 0}}
+và {{.Data.More}} thông báo khác
+{{end}}
+Tắt email này trong Cài đặt › Thông báo: {{.Data.SettingsURL}}

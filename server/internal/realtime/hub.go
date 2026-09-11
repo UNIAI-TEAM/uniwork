@@ -26,6 +26,12 @@ type MembershipChecker interface {
 // SlugResolver translates a workspace slug to its UUID.
 type SlugResolver func(ctx context.Context, slug string) (workspaceID string, err error)
 
+// OrganizationResolver names the organization a workspace belongs to, so a
+// connection can join the organization scope without the client being told
+// which organization it is in. Optional: without it the connection simply
+// receives no organization-scoped events.
+type OrganizationResolver func(ctx context.Context, workspaceID string) (organizationID string, err error)
+
 // TokenParser turns a bearer token into a user ID. The hub does not know how
 // tokens are minted — the auth package does — so it is handed the parser
 // instead of a secret. Personal access tokens, if they ever exist, are the
@@ -219,11 +225,14 @@ func sk(t, id string) scopeKey { return scopeKey{Type: t, ID: id} }
 // Client represents a single WebSocket connection with identity and the set
 // of scopes it is currently subscribed to.
 type Client struct {
-	hub         *Hub
-	conn        *websocket.Conn
-	send        chan []byte
-	userID      string
-	workspaceID string
+	hub            *Hub
+	conn           *websocket.Conn
+	send           chan []byte
+	userID         string
+	workspaceID    string
+	organizationID string
+	// lobbyMeetingID is set for public meeting lobby sockets; subscribed after register.
+	lobbyMeetingID string
 
 	// subscriptions is guarded by hub.mu. Tracks the scopes this client is
 	// currently in. Used to clean up rooms on disconnect.
@@ -281,6 +290,7 @@ type Hub struct {
 	mu         sync.RWMutex
 
 	authorizer ScopeAuthorizer
+	orgOf      OrganizationResolver
 
 	// Subscription lifecycle hooks. Both can be nil.
 	onFirstSubscriber SubscriptionCallback
@@ -305,6 +315,20 @@ func (h *Hub) SetAuthorizer(a ScopeAuthorizer) {
 	h.authorizer = a
 }
 
+// SetOrganizationResolver wires the lookup that puts a connection into its
+// organization scope. Safe to call before Run.
+func (h *Hub) SetOrganizationResolver(f OrganizationResolver) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.orgOf = f
+}
+
+func (h *Hub) organizationResolver() OrganizationResolver {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.orgOf
+}
+
 // SetSubscriptionCallbacks registers callbacks fired when a scope on this
 // node transitions from 0→1 subscribers (onFirst) or 1→0 (onLast). The
 // Redis relay uses these to start/stop a per-scope consumer loop.
@@ -327,9 +351,17 @@ func (h *Hub) Run() {
 			M.ConnectsTotal.Add(1)
 			M.ActiveConnections.Add(1)
 			// Auto-subscribe to the workspace and user scopes.
-			h.subscribe(client, ScopeWorkspace, client.workspaceID)
-			if client.userID != "" {
+			if client.workspaceID != "" {
+				h.subscribe(client, ScopeWorkspace, client.workspaceID)
+			}
+			if client.userID != "" && client.workspaceID != "" {
 				h.subscribe(client, ScopeUser, client.userID)
+			}
+			if client.organizationID != "" {
+				h.subscribe(client, ScopeOrganization, client.organizationID)
+			}
+			if client.lobbyMeetingID != "" {
+				h.subscribe(client, ScopeMeeting, client.lobbyMeetingID)
 			}
 			slog.Info("ws client connected", "workspace_id", client.workspaceID, "user_id", client.userID, "total_clients", total)
 
@@ -823,12 +855,24 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, parse TokenParser, resolveS
 		"client_os", clientOS,
 	)
 
+	// The organization scope is best-effort: a failed lookup costs the
+	// connection its directory updates, never the connection itself.
+	var organizationID string
+	if resolveOrg := hub.organizationResolver(); resolveOrg != nil {
+		if orgID, err := resolveOrg(r.Context(), workspaceID); err == nil {
+			organizationID = orgID
+		} else {
+			slog.Warn("ws: organization scope unavailable", "workspace_id", workspaceID, "error", err)
+		}
+	}
+
 	client := &Client{
-		hub:         hub,
-		conn:        conn,
-		send:        make(chan []byte, 256),
-		userID:      userID,
-		workspaceID: workspaceID,
+		hub:            hub,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		userID:         userID,
+		workspaceID:    workspaceID,
+		organizationID: organizationID,
 	}
 	hub.register <- client
 
@@ -917,9 +961,11 @@ func (c *Client) handleFrame(raw []byte) {
 
 func (c *Client) handleSubscribe(scope, id string) {
 	switch scope {
-	case ScopeWorkspace, ScopeUser:
+	case ScopeWorkspace, ScopeUser, ScopeOrganization:
 		// Implicit scopes — only allowed if it matches the connection identity.
-		if (scope == ScopeWorkspace && id != c.workspaceID) || (scope == ScopeUser && id != c.userID) {
+		if (scope == ScopeWorkspace && id != c.workspaceID) ||
+			(scope == ScopeUser && id != c.userID) ||
+			(scope == ScopeOrganization && (c.organizationID == "" || id != c.organizationID)) {
 			M.SubscribeDeniedTotal(scope).Add(1)
 			c.sendJSON(map[string]any{
 				"type": "subscribe_error",
@@ -933,7 +979,7 @@ func (c *Client) handleSubscribe(scope, id string) {
 		}
 		// Already auto-subscribed at connect time; reply ack idempotently.
 		c.hub.subscribe(c, scope, id)
-	case ScopeTask:
+	case ScopeTask, ScopeChat:
 		auth := c.hub.authorizer
 		if auth != nil {
 			ok, err := auth.AuthorizeScope(context.Background(), c.userID, c.workspaceID, scope, id)
@@ -955,6 +1001,17 @@ func (c *Client) handleSubscribe(scope, id string) {
 			}
 		}
 		c.hub.subscribe(c, scope, id)
+	case ScopeMeeting:
+		M.SubscribeDeniedTotal(scope).Add(1)
+		c.sendJSON(map[string]any{
+			"type": "subscribe_error",
+			"payload": map[string]string{
+				"scope": scope,
+				"id":    id,
+				"error": "forbidden",
+			},
+		})
+		return
 	default:
 		M.SubscribeDeniedTotal(scope).Add(1)
 		c.sendJSON(map[string]any{

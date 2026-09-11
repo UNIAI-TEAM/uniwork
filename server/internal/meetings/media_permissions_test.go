@@ -1,0 +1,18 @@
+package meetings
+
+import "testing"
+
+func TestMediaPermissionsForRole(t *testing.T) {
+	mod := MediaPermissionsForRole("MODERATOR")
+	if !mod.CanPublish || !mod.CanSubscribe {
+		t.Fatal("moderator should publish and subscribe")
+	}
+	att := MediaPermissionsForRole("ATTENDEE")
+	if !att.CanPublish || !att.CanPublishData {
+		t.Fatal("attendee should have full media in current product")
+	}
+	aud := MediaPermissionsForRole("AUDIENCE")
+	if aud.CanPublish || !aud.CanSubscribe || !aud.CanPublishData {
+		t.Fatal("audience should subscribe and use data channel only")
+	}
+}

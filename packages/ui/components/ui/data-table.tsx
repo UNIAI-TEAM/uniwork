@@ -467,10 +467,15 @@ export function DataTable<TData>({
                           )}
                       {!header.isPlaceholder &&
                         header.column.getCanResize() && (
+                          // A focusable separator is the ARIA window-splitter
+                          // pattern; jsx-a11y files separator as non-interactive
+                          // and cannot see the resize handlers.
+                          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
                           <div
                             role="separator"
                             aria-label={`Resize ${headerLabel} column`}
                             aria-orientation="vertical"
+                            /* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */
                             tabIndex={0}
                             className={cn(
                               // The line sits exactly on the column's own

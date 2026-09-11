@@ -1,0 +1,16 @@
+# Config for the gitleaks scan in .github/workflows/ci.yml (default rules +
+# this allowlist). Add an entry here only for a placeholder that is provably
+# not a credential, and say which one in the comment.
+[extend]
+useDefault = true
+
+[allowlist]
+# .cursor/ was a vendored ECC skill tree, removed in 6d3baf1 and again in
+# UNI-464 (governance.test.mjs now refuses it). Its
+# api-design skill carried example `X-API-Key:` headers in prose; the files
+# are gone from HEAD but stay in history.
+paths = ['''^\.cursor/''']
+# RFC 6238 appendix B test vector (base32 of the ASCII seed
+# "12345678901234567890"); it is printed in the RFC and cannot be a
+# credential. totp_test.go no longer spells it out, but commit e44d7c4 did.
+regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']

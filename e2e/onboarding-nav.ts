@@ -11,7 +11,7 @@ import { registerVerified } from "./auth-nav";
  * lỗi focus đã sống sót ở đó. Một helper đi được tới BẤT KỲ bước nào là cách
  * duy nhất để các spec đó phủ hết mà không nhân bản kịch bản đăng ký.
  */
-export const ONBOARDING_STEPS = ["about_you", "organization", "workspace", "invite"] as const;
+const ONBOARDING_STEPS = ["about_you", "organization", "workspace", "invite"] as const;
 export type OnboardingStepName = (typeof ONBOARDING_STEPS)[number];
 
 /** Tên tổ chức/workspace sinh theo tag để hai spec chạy song song không đụng slug. */
@@ -21,7 +21,7 @@ export interface OnboardingRun {
   wsName: string;
 }
 
-export async function registerAndStart(page: Page, tag: string): Promise<OnboardingRun> {
+async function registerAndStart(page: Page, tag: string): Promise<OnboardingRun> {
   const { stamp } = await registerVerified(page, tag);
   await page.getByRole("button", { name: /Bắt đầu/ }).click();
   await page.getByText("Cho chúng tôi biết đôi chút về bạn.").waitFor();
@@ -61,7 +61,7 @@ export async function walkOnboarding(
   await page.getByLabel("Email đồng nghiệp").fill(`invitee-${run.stamp}@example.com`);
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Gửi lời mời" }).click();
-  await page.getByRole("button", { name: "Sao chép" }).first().waitFor();
+  await page.getByText("Đã gửi email").first().waitFor();
   await visit("invite", run);
 }
 
@@ -89,11 +89,11 @@ export async function reachStep(page: Page, target: OnboardingStepName, tag: str
   await page.getByRole("heading", { name: /Mời đồng nghiệp/ }).waitFor();
 
   // Chip trước, rồi gửi: chip dựng ra nút xoá của mỗi chip, còn lần gửi dựng ra
-  // danh sách `InviteRow` với nút sao chép. Cả hai đều là vùng chạm và điểm
+  // danh sách `InviteRow` với dòng "Đã gửi email". Cả hai đều là vùng chạm và điểm
   // dừng Tab mà không spec nào từng chạm tới.
   await page.getByLabel("Email đồng nghiệp").fill(`invitee-${run.stamp}@example.com`);
   await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "Gửi lời mời" }).click();
-  await page.getByRole("button", { name: "Sao chép" }).first().waitFor();
+  await page.getByText("Đã gửi email").first().waitFor();
   return run;
 }

@@ -13,7 +13,7 @@ import { resetAuthStoreForTests, useAuthStore } from "./store";
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "A",
-  onboarded_at: null, email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {},
+  onboarded_at: null, email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
 };
 
 describe("auth store", () => {
@@ -69,6 +69,20 @@ describe("auth store", () => {
     useAuthStore.getState().setUser(user);
     setAccessToken(null);
     expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+  });
+
+  it("does not downgrade authed session when a stale refresh completes", async () => {
+    let resolveRefresh: (value: null) => void = () => undefined;
+    vi.mocked(auth.refreshSession).mockReturnValueOnce(
+      new Promise<null>((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+    const initPromise = useAuthStore.getState().initialize();
+    useAuthStore.getState().setUser(user);
+    resolveRefresh(null);
+    await initPromise;
+    expect(useAuthStore.getState()).toMatchObject({ user, status: "authed" });
   });
 
   it("selectors return stable references between renders", () => {

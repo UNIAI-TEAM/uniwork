@@ -1,0 +1,13 @@
+Subject: Welcome to UniWork
+
+Hi {{.Data.DisplayName}}, you're all set
+
+Your workspace {{.Data.WorkspaceName}} is ready. Three things to start with:
+
+1. Create your first task and assign it to someone.
+2. Invite teammates from the Members page.
+3. Schedule a meeting and take notes right in UniWork.
+
+Open workspace:
+
+    {{.Data.WorkspaceURL}}

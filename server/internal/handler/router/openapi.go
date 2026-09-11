@@ -1,0 +1,398 @@
+package router
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"regexp"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/swaggest/openapi-go"
+	"github.com/swaggest/openapi-go/openapi3"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
+)
+
+// apiOp is the common OpenAPI description for one Chi route: method+path
+// come from the router, SDI/SDO from the handler's request/response types.
+type apiOp struct {
+	summary     string
+	description string
+	tags        []string
+	sdi         any
+	sdo         any
+	status      int
+	auth        bool
+	// produces names a non-JSON success body (the CSV export). The route then
+	// has no SDO to reflect, so the content type is what documents it.
+	produces string
+}
+
+type apiCatalog struct {
+	ops []struct {
+		method string
+		path   string
+		apiOp
+	}
+}
+
+func (c *apiCatalog) add(method, path string, op apiOp) {
+	c.ops = append(c.ops, struct {
+		method string
+		path   string
+		apiOp
+	}{method: method, path: path, apiOp: op})
+}
+
+func (c *apiCatalog) marshalJSON() ([]byte, error) {
+	reflector := openapi3.Reflector{}
+	reflector.Spec = &openapi3.Spec{Openapi: "3.0.3"}
+	reflector.Spec.Info.
+		WithTitle("UniWork API").
+		WithVersion("1.0").
+		WithDescription("HTTP API for UniWork. Access tokens go in Authorization as Bearer <jwt>. Register and login also set the HttpOnly cookie uniwork_refresh on /api/v1/auth.")
+	reflector.SpecEns().SetHTTPBearerTokenSecurity("BearerAuth", "JWT", "JWT access token")
+
+	for _, op := range c.ops {
+		oc, err := reflector.NewOperationContext(op.method, op.path)
+		if err != nil {
+			return nil, err
+		}
+		oc.SetSummary(op.summary)
+		if op.description != "" {
+			oc.SetDescription(op.description)
+		}
+		if len(op.tags) > 0 {
+			oc.SetTags(op.tags...)
+		}
+		if op.sdi != nil {
+			oc.AddReqStructure(op.sdi)
+		}
+		if pathParamRE.MatchString(op.path) {
+			ps := pathParamSDI(op.path)
+			if ps == nil {
+				return nil, fmt.Errorf("openapi: add pathParamSDI case for %s", op.path)
+			}
+			oc.AddReqStructure(ps)
+		}
+		status := op.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		switch {
+		case op.sdo != nil:
+			oc.AddRespStructure(op.sdo, func(cu *openapi.ContentUnit) { cu.HTTPStatus = status })
+		case op.produces != "":
+			oc.AddRespStructure(new(string), func(cu *openapi.ContentUnit) {
+				cu.HTTPStatus = status
+				cu.ContentType = op.produces
+			})
+		}
+		oc.AddRespStructure(new(sdo.ErrorSDO), func(cu *openapi.ContentUnit) { cu.HTTPStatus = http.StatusBadRequest })
+		if op.auth {
+			oc.AddSecurity("BearerAuth")
+			oc.AddRespStructure(new(sdo.ErrorSDO), func(cu *openapi.ContentUnit) { cu.HTTPStatus = http.StatusUnauthorized })
+		}
+		if err := reflector.AddOperation(oc); err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal(reflector.Spec)
+}
+
+var pathParamRE = regexp.MustCompile(`\{([^}/]+)\}`)
+
+func pathParamSDI(path string) any {
+	names := pathParamRE.FindAllStringSubmatch(path, -1)
+	if len(names) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(names))
+	for _, m := range names {
+		keys = append(keys, m[1])
+	}
+	switch strings.Join(keys, ",") {
+	case "org":
+		return struct {
+			Org string `path:"org" description:"Slug tổ chức" example:"acme"`
+		}{}
+	case "org,wsSlug":
+		return struct {
+			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`
+			WsSlug string `path:"wsSlug" description:"Slug workspace" example:"team"`
+		}{}
+	case "workspaceID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "conversationID":
+		return struct {
+			ConversationID string `path:"conversationID" description:"ULID hội thoại Ask UNI" example:"01K4AICONV000000000000001"`
+		}{}
+	case "workspaceID,roomID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,roomID,messageID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+			MessageID   string `path:"messageID" description:"ULID tin nhắn" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,messageID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			MessageID   string `path:"messageID" description:"ULID tin nhắn gốc của thread" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,messageID,linkID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			MessageID   string `path:"messageID" description:"ULID tin nhắn" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+			LinkID      string `path:"linkID" description:"ULID liên kết tin nhắn" example:"01J8X4LNK0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,roomID,userID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+			UserID      string `path:"userID" description:"ULID người dùng" example:"01J8X4USER0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "org,departmentId":
+		return struct {
+			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
+			DepartmentId string `path:"departmentId" description:"ULID phòng ban" example:"01J8X4DEPT0N1P2Q3R4S5T6U"`
+		}{}
+	case "org,invitationId":
+		return struct {
+			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
+			InvitationId string `path:"invitationId" description:"ULID lời mời" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
+		}{}
+	case "org,userID":
+		return struct {
+			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`
+			UserID string `path:"userID" description:"ULID thành viên" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,userID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			UserID      string `path:"userID" description:"ULID thành viên" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "sessionId":
+		return struct {
+			SessionId string `path:"sessionId" description:"ULID phiên đăng nhập" example:"01J8X4SESS0N1P2Q3R4S5T6U7"`
+		}{}
+	case "taskID":
+		return struct {
+			TaskID string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (prefix không phân biệt hoa thường)" example:"ALP-42"`
+		}{}
+	case "taskID,dependsOnTaskID":
+		return struct {
+			TaskID          string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			DependsOnTaskID string `path:"dependsOnTaskID" description:"ULID công việc phụ thuộc" example:"01J8X4TASKN1P2Q3R4S5T6U8"`
+		}{}
+	case "meetingID":
+		return struct {
+			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+		}{}
+	case "participantID":
+		return struct {
+			ParticipantID string `path:"participantID" description:"ULID người tham dự" example:"01J8X4PARTN1P2Q3R4S5T6"`
+		}{}
+	case "meetingID,participantID":
+		return struct {
+			MeetingID     string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			ParticipantID string `path:"participantID" description:"ULID người tham dự" example:"01J8X4PARTN1P2Q3R4S5T6"`
+		}{}
+	case "meetingID,invitationID":
+		return struct {
+			MeetingID    string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			InvitationID string `path:"invitationID" description:"ULID lời mời" example:"01J8X4INVN1P2Q3R4S5T6U"`
+		}{}
+	case "meetingID,linkId":
+		return struct {
+			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			LinkId    string `path:"linkId" description:"ULID invite link" example:"01J8X4LINKN1P2Q3R4S5T"`
+		}{}
+	case "requestId":
+		return struct {
+			RequestId string `path:"requestId" description:"ULID join request" example:"01J8X4JREQN1P2Q3R4S5"`
+		}{}
+	case "agentID":
+		return struct {
+			AgentID string `path:"agentID" description:"ULID agent" example:"01J8X4AGENT0N1P2Q3R4S5T6"`
+		}{}
+	case "orgID":
+		return struct {
+			OrgID string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+		}{}
+	case "traceID":
+		return struct {
+			TraceID string `path:"traceID" description:"Trace id (X-Trace-Id) hoặc correlation id" example:"0af7651916cd43dd8448eb211c80319c"`
+		}{}
+	case "key":
+		return struct {
+			Key string `path:"key" description:"Khóa feature flag" example:"agents_assignee"`
+		}{}
+	case "orgID,eventID":
+		return struct {
+			OrgID   string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			EventID string `path:"eventID" description:"ULID bản ghi nhật ký" example:"01J8X4AUDIT0N1P2Q3R4S5T6"`
+		}{}
+	case "orgID,exportID":
+		return struct {
+			OrgID    string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
+			ExportID string `path:"exportID" description:"ULID bản xuất nhật ký" example:"01J8X4EXPORT0N1P2Q3R4S5T"`
+		}{}
+	case "workspaceID,resourceType,resourceID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task hoặc meeting" example:"task"`
+			ResourceID   string `path:"resourceID" description:"ULID tài nguyên" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+		}{}
+	case "workspaceID,id":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ID          string `path:"id" description:"ULID mục catalog" example:"01J8X4CAT0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,itemType,itemID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ItemType    string `path:"itemType" description:"task|project|task_view" example:"task"`
+			ItemID      string `path:"itemID" description:"ULID mục ghim" example:"01J8X4TSK0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "workspaceID,projectID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ProjectID   string `path:"projectID" description:"ULID project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+		}{}
+	case "workspaceID,projectID,resourceID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ProjectID   string `path:"projectID" description:"ULID project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+			ResourceID  string `path:"resourceID" description:"ULID project resource" example:"01J8X4PRES0N1P2Q3R4S5T6U"`
+		}{}
+	case "taskID,labelID":
+		return struct {
+			TaskID  string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			LabelID string `path:"labelID" description:"ULID nhãn" example:"01J8X4LBL0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "taskID,propertyID":
+		return struct {
+			TaskID     string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			PropertyID string `path:"propertyID" description:"ULID thuộc tính" example:"01J8X4PROP0N1P2Q3R4S5T6U7"`
+		}{}
+	case "taskID,quickActionID":
+		return struct {
+			TaskID        string `path:"taskID" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			QuickActionID string `path:"quickActionID" description:"ULID quick action" example:"01J8X4QACT0N1P2Q3R4S5T6"`
+		}{}
+	case "taskID,agentTaskID":
+		return struct {
+			TaskID      string `path:"taskID" description:"ULID công việc cha" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			AgentTaskID string `path:"agentTaskID" description:"ULID agent task lồng" example:"01J8X4ATSK0N1P2Q3R4S5T6"`
+		}{}
+	case "workspaceID,connectionID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ConnectionID string `path:"connectionID" description:"ULID VCS connection" example:"01J8X4VCS0N1P2Q3R4S5T6U7"`
+		}{}
+	case "commentID":
+		return struct {
+			CommentID string `path:"commentID" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+		}{}
+	case "attachmentID":
+		return struct {
+			AttachmentID string `path:"attachmentID" description:"ULID đính kèm" example:"01J8X4ATTN1P2Q3R4S5T6U7"`
+		}{}
+	case "token":
+		return struct {
+			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`
+		}{}
+	default:
+		return nil
+	}
+}
+
+// api binds a Chi router to the OpenAPI catalog so a route is documented
+// from the same method+path that Chi serves.
+type api struct {
+	r      chi.Router
+	cat    *apiCatalog
+	prefix string
+}
+
+func newAPI(r chi.Router, cat *apiCatalog) api {
+	return api{r: r, cat: cat}
+}
+
+func (a api) Route(pattern string, fn func(api)) {
+	a.r.Route(pattern, func(r chi.Router) {
+		fn(api{r: r, cat: a.cat, prefix: joinRoute(a.prefix, pattern)})
+	})
+}
+
+func (a api) Group(fn func(api)) {
+	a.r.Group(func(r chi.Router) {
+		fn(api{r: r, cat: a.cat, prefix: a.prefix})
+	})
+}
+
+func (a api) Use(mws ...func(http.Handler) http.Handler) {
+	a.r.Use(mws...)
+}
+
+func (a api) With(mws ...func(http.Handler) http.Handler) api {
+	return api{r: a.r.With(mws...), cat: a.cat, prefix: a.prefix}
+}
+
+func (a api) Get(path string, h http.HandlerFunc, op apiOp) {
+	a.r.Get(path, h)
+	a.cat.add(http.MethodGet, joinRoute(a.prefix, path), op)
+}
+
+func (a api) Post(path string, h http.HandlerFunc, op apiOp) {
+	a.r.Post(path, h)
+	a.cat.add(http.MethodPost, joinRoute(a.prefix, path), op)
+}
+
+func (a api) Patch(path string, h http.HandlerFunc, op apiOp) {
+	a.r.Patch(path, h)
+	a.cat.add(http.MethodPatch, joinRoute(a.prefix, path), op)
+}
+
+func (a api) Delete(path string, h http.HandlerFunc, op apiOp) {
+	a.r.Delete(path, h)
+	a.cat.add(http.MethodDelete, joinRoute(a.prefix, path), op)
+}
+
+func (a api) Put(path string, h http.HandlerFunc, op apiOp) {
+	a.r.Put(path, h)
+	a.cat.add(http.MethodPut, joinRoute(a.prefix, path), op)
+}
+
+func joinRoute(prefix, path string) string {
+	if prefix == "" {
+		return path
+	}
+	if path == "" || path == "/" {
+		return prefix
+	}
+	return strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(path, "/")
+}
+
+func mountSwagger(r chi.Router, cat *apiCatalog) {
+	spec, err := cat.marshalJSON()
+	if err != nil {
+		panic("openapi spec: " + err.Error())
+	}
+	r.Get("/swagger/doc.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(spec)
+	})
+	r.Get("/swagger", func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, "/swagger/index.html", http.StatusFound)
+	})
+	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
+}

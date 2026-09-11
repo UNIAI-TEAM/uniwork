@@ -42,14 +42,16 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
   await page.getByRole("heading", { name: /Mời đồng nghiệp vào Đội Alpha/ }).waitFor();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
 
-  await expect(page).toHaveURL(new RegExp(`/to-chuc-${stamp}/doi-alpha/tasks$`));
+  await expect(page).toHaveURL(new RegExp(`/to-chuc-${stamp}/doi-alpha/tasks$`), { timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Đã hiểu" })).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click();
-  // First client-side visit to the task detail route: under `make check` the
-  // dev server compiles it while Go's -race suite is hammering the machine,
-  // and that alone has exceeded the default 5s. Timing, not behaviour.
-  await expect(page).toHaveURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 15_000 });
-  await expect(page.getByRole("textbox").first()).toHaveValue("Bắt đầu với UniWork");
+  await Promise.all([
+    page.waitForURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 30_000 }),
+    page.getByRole("button", { name: "Đã hiểu" }).click(),
+  ]);
+  // Suite detail: title starts as a readonly control; sub-task input is also a textbox.
+  await expect(page.getByRole("button", { name: "Bắt đầu với UniWork" })).toBeVisible({
+    timeout: 15_000,
+  });
 
   // Vào lại /onboarding khi đã onboard → bị đẩy về workspace
   await page.goto("/onboarding");

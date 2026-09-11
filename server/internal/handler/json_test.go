@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
 func TestDecodeRejectsOversizedBodyWith413(t *testing.T) {
@@ -22,7 +24,7 @@ func TestDecodeRejectsOversizedBodyWith413(t *testing.T) {
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want 413", rec.Code)
 	}
-	var out errorBody
+	var out sdo.ErrorSDO
 	if err := json.NewDecoder(rec.Body).Decode(&out); err != nil || out.Error.Code != "payload_too_large" {
 		t.Fatalf("body = %+v, err = %v", out, err)
 	}

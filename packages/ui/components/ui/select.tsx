@@ -11,16 +11,41 @@ type SelectProps<
   Multiple extends boolean | undefined = false,
 > = SelectPrimitive.Root.Props<Value, Multiple> & {
   items: NonNullable<SelectPrimitive.Root.Props<Value, Multiple>["items"]>
+  /** Accessible name for the default trigger: pair with `<FieldLabel htmlFor>`. */
+  id?: string
+  "aria-label"?: string
 }
 
 /**
  * Base UI renders the raw value unless Root receives an items label map.
  * Keep items required so every select has a single source for value labels.
  */
-function Select<Value, Multiple extends boolean | undefined = false>(
-  props: SelectProps<Value, Multiple>
-) {
-  return <SelectPrimitive.Root {...props} />
+function Select<Value, Multiple extends boolean | undefined = false>({
+  children,
+  id,
+  "aria-label": ariaLabel,
+  ...props
+}: SelectProps<Value, Multiple>) {
+  // Without children Base UI mounts nothing visible; a bare `<Select items />`
+  // gets the standard trigger + list so every call site renders a control.
+  const items = props.items
+  const fallback =
+    children ??
+    (Array.isArray(items) ? (
+      <>
+        <SelectTrigger id={id} aria-label={ariaLabel} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {items.map((item: { value: unknown; label: React.ReactNode }) => (
+            <SelectItem key={String(item.value)} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </>
+    ) : null)
+  return <SelectPrimitive.Root {...props}>{fallback}</SelectPrimitive.Root>
 }
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
@@ -62,7 +87,7 @@ function SelectTrigger({
         // could not lift this off 32px however it tried. `min-height` wins over
         // `height` no matter the specificity, which is also how `Button` holds
         // its own 44px floor.
-        "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-body whitespace-nowrap transition-colors outline-none select-none pointer-coarse:min-h-11 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-body whitespace-nowrap transition-colors outline-none select-none pointer-coarse:min-h-11 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}

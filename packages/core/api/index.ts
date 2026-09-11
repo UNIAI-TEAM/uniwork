@@ -9,15 +9,25 @@
 // Hooks import from ./endpoints; nothing outside this directory calls
 // `request` directly, so the compiler is what keeps every response behind a
 // schema.
-export { ApiError, errorCode, refreshSession } from "./http";
+export { ApiError, apiErrorMessage, correlationIdOf, errorCode, refreshSession } from "./http";
+export { GUEST_SESSION_HEADER, getGuestSession, setGuestSession } from "./guest-session";
 export type { RequestOpts } from "./http";
 export { parseWithFallback, setSchemaLogger } from "./schema";
 export type { ParseOptions } from "./schema";
 export { WSClient } from "./ws-client";
+export type { WSClientIdentity, WSConnectionState } from "./ws-client";
 export type { WSEventType as WSTransportEventType, WSMessage } from "./ws-types";
 
 export * as auth from "./endpoints/auth";
 export * as organizations from "./endpoints/organizations";
 export * as workspaces from "./endpoints/workspaces";
 export * as tasks from "./endpoints/tasks";
+export * as tasksSuite from "./endpoints/tasks-suite";
+export * as tasksTable from "./endpoints/tasks-table";
+export * as taskCatalog from "./endpoints/task-catalog";
+export * as taskViews from "./endpoints/task-views";
+export * as projects from "./endpoints/projects";
+export * as taskCollaboration from "./endpoints/task-collaboration";
+export * as taskAttachments from "./endpoints/task-attachments";
 export * as meetings from "./endpoints/meetings";
+export * as chat from "./endpoints/chat";

@@ -15,11 +15,19 @@ type RegistryOptions struct {
 	Realtime *realtime.Metrics
 	Version  string
 	Commit   string
+	// DBQueries is the pool tracer's histogram; nil when tracing is off.
+	DBQueries *DBQueryTracer
 }
 
 type Registry struct {
-	Gatherer prometheus.Gatherer
-	HTTP     *HTTPMetrics
+	Gatherer      prometheus.Gatherer
+	HTTP          *HTTPMetrics
+	Emails        *prometheus.CounterVec
+	Meetings      *Meetings
+	Outbox        *Outbox
+	Notifications *Notifications
+	AI            *AI
+	WebVitals     *WebVitals
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -39,14 +47,46 @@ func NewRegistry(opts RegistryOptions) *Registry {
 
 	if opts.Pool != nil {
 		reg.MustRegister(NewDBCollector(opts.Pool))
+		reg.MustRegister(NewMeetingLagCollector(opts.Pool))
+		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
 		reg.MustRegister(NewRealtimeCollector(opts.Realtime))
 	}
+	if opts.DBQueries != nil {
+		reg.MustRegister(opts.DBQueries.Collectors()...)
+	}
+
+	emails := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "uniwork_emails_total",
+		Help: "Outbox delivery outcomes by kind.",
+	}, []string{"kind", "result"})
+	reg.MustRegister(emails)
+
+	meetingMetrics := NewMeetings()
+	reg.MustRegister(meetingMetrics.Collectors()...)
+
+	outboxMetrics := NewOutbox()
+	reg.MustRegister(outboxMetrics.Collectors()...)
+
+	notificationMetrics := NewNotifications()
+	reg.MustRegister(notificationMetrics.Collectors()...)
+
+	aiMetrics := NewAI()
+	reg.MustRegister(aiMetrics.Collectors()...)
+
+	webVitals := NewWebVitals()
+	reg.MustRegister(webVitals.Collectors()...)
 
 	return &Registry{
-		Gatherer: reg,
-		HTTP:     httpMetrics,
+		Gatherer:      reg,
+		HTTP:          httpMetrics,
+		Emails:        emails,
+		Meetings:      meetingMetrics,
+		Outbox:        outboxMetrics,
+		Notifications: notificationMetrics,
+		AI:            aiMetrics,
+		WebVitals:     webVitals,
 	}
 }
 

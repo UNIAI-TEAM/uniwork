@@ -14,6 +14,7 @@ import (
 	"github.com/lmittmann/tint"
 
 	"github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 )
 
 // isTerminal reports whether f is attached to a terminal. ANSI colour is only
@@ -26,12 +27,22 @@ func isTerminal(f *os.File) bool {
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
+// newHandler picks the sink by LOG_FORMAT: json for production (one object
+// per line, trace_id and tenant fields from telemetry), tint text otherwise.
+// Either way the telemetry wrapper stamps trace_id on context-aware lines.
 func newHandler() slog.Handler {
-	return tint.NewTextHandler(os.Stderr, &tint.Options{
-		Level:      parseLevel(os.Getenv("LOG_LEVEL")),
-		TimeFormat: "15:04:05.000",
-		NoColor:    !isTerminal(os.Stderr),
-	})
+	level := parseLevel(os.Getenv("LOG_LEVEL"))
+	var h slog.Handler
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_FORMAT")), "json") {
+		h = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
+	} else {
+		h = tint.NewTextHandler(os.Stderr, &tint.Options{
+			Level:      level,
+			TimeFormat: "15:04:05.000",
+			NoColor:    !isTerminal(os.Stderr),
+		})
+	}
+	return telemetry.WrapLogHandler(h)
 }
 
 // Init installs the process-wide slog default so bare slog.Info/Warn calls

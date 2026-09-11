@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
@@ -14,12 +14,15 @@ beforeEach(() => {
 });
 
 describe("GoogleButton", () => {
-  it("renders nothing while providers load or when Google is off", async () => {
+  it("holds the space while providers load and gives it back when Google is off", async () => {
     requestMock.mockResolvedValue({ google: false });
-    render(wrap(<GoogleButton />));
+    const { container } = render(wrap(<GoogleButton />));
+    // Reserved, not shown: nothing to read, nothing to click, no layout jump.
+    expect(container.querySelector("[data-slot=google-placeholder]")).not.toBeNull();
     expect(screen.queryByRole("link", { name: "Tiếp tục với Google" })).toBeNull();
-    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(() => expect(container.querySelector("[data-slot=google-placeholder]")).toBeNull());
     expect(screen.queryByRole("link", { name: "Tiếp tục với Google" })).toBeNull();
+    expect(container.textContent).toBe("");
   });
 
   it("links to the API start route with the sanitized next path when Google is on", async () => {

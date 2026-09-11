@@ -7,6 +7,57 @@ import { execFileSync } from "node:child_process";
 const root = path.resolve(import.meta.dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
+/** Mode Git records for a tracked path (`undefined` when not in the index). */
+function gitIndexMode(relPath) {
+  const line = execFileSync("git", ["ls-files", "-s", "--", relPath], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+  if (!line) return undefined;
+  return Number.parseInt(line.split(/\s+/)[0], 8);
+}
+
+function gitSymlinkTarget(relPath) {
+  return execFileSync("git", ["show", `HEAD:${relPath}`], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+}
+
+function agentsMdIsSymlink() {
+  const agents = path.join(root, "AGENTS.md");
+  if (fs.lstatSync(agents).isSymbolicLink()) {
+    return fs.readlinkSync(agents) === "CLAUDE.md";
+  }
+  // Windows often materializes symlinks as plain files when core.symlinks=false.
+  if (process.platform === "win32" && gitIndexMode("AGENTS.md") === 0o120000) {
+    return gitSymlinkTarget("AGENTS.md") === "CLAUDE.md";
+  }
+  return false;
+}
+
+function agentsMdMatchesClaude() {
+  const agents = path.join(root, "AGENTS.md");
+  if (fs.lstatSync(agents).isSymbolicLink()) {
+    return read("AGENTS.md") === read("CLAUDE.md");
+  }
+  if (process.platform === "win32" && gitIndexMode("AGENTS.md") === 0o120000) {
+    return gitSymlinkTarget("AGENTS.md") === "CLAUDE.md";
+  }
+  return read("AGENTS.md") === read("CLAUDE.md");
+}
+
+function isExecutable(relPath) {
+  const abs = path.join(root, relPath);
+  if (fs.statSync(abs).mode & 0o111) return true;
+  // NTFS has no Unix execute bit; Git stores the mode in the index instead.
+  if (process.platform === "win32") {
+    const mode = gitIndexMode(relPath);
+    return mode !== undefined && (mode & 0o111) !== 0;
+  }
+  return false;
+}
+
 // A governance rule fails in a way no other test notices: nothing breaks, the
 // rule simply stops applying and everyone keeps reading the document that says
 // it does. These assertions are the only thing standing between "we have rules"
@@ -17,10 +68,19 @@ test("AGENTS.md is CLAUDE.md, not a shorter copy of it", () => {
   // 56-line pointer saying "see CLAUDE.md", every agent arriving that way
   // missed the API-compatibility, backend-HTTP, testing and verification rules
   // entirely. A symlink is the only version of this that cannot drift.
-  const stat = fs.lstatSync(path.join(root, "AGENTS.md"));
-  assert.ok(stat.isSymbolicLink(), "AGENTS.md must be a symlink to CLAUDE.md");
-  assert.equal(fs.readlinkSync(path.join(root, "AGENTS.md")), "CLAUDE.md");
-  assert.equal(read("AGENTS.md"), read("CLAUDE.md"));
+  assert.ok(agentsMdIsSymlink(), "AGENTS.md must be a symlink to CLAUDE.md");
+  assert.ok(agentsMdMatchesClaude(), "AGENTS.md must resolve to CLAUDE.md content");
+});
+
+test("no editor-specific rules tree is tracked beside AGENTS.md", () => {
+  // CLAUDE.md § Local Gates: Cursor, Codex and Copilot read AGENTS.md; a second
+  // ruleset beside it drifts silently. .cursor/ came back once as 825 tracked
+  // files under a .gitignore entry that already excluded it (`git add -f`).
+  const tracked = execFileSync("git", ["ls-files", "--", ".cursor", ".cursorrules", ".wsl-*.sh"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim();
+  assert.equal(tracked, "", `tracked editor/personal files:\n${tracked}`);
 });
 
 test("pnpm install wires core.hooksPath at .githooks", () => {
@@ -35,12 +95,12 @@ test("pnpm install wires core.hooksPath at .githooks", () => {
 });
 
 test("both hooks exist and are executable", () => {
-  for (const hook of ["pre-commit", "commit-msg"]) {
+  for (const hook of ["pre-commit", "commit-msg", "prepare-commit-msg"]) {
     const p = path.join(root, ".githooks", hook);
     assert.ok(fs.existsSync(p), `.githooks/${hook} is missing`);
     // Git will not run a hook without the execute bit, and it says nothing when
     // it skips one — the commit just succeeds.
-    assert.ok(fs.statSync(p).mode & 0o111, `.githooks/${hook} is not executable`);
+    assert.ok(isExecutable(`.githooks/${hook}`), `.githooks/${hook} is not executable`);
   }
 });
 
@@ -72,7 +132,7 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
   const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
   const rejected = subjects.filter(
-    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!)/.test(s),
+    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
   );
   assert.deepEqual(rejected, [], "commit-msg would reject commits already in history");
 });
@@ -96,8 +156,76 @@ test("the docs a newcomer is pointed at exist", () => {
   // the first thing a new contributor learns about how much the docs are worth.
   for (const f of ["CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md",
                    "PRODUCT.md", "README.md", "docs/conventions.md",
+                   "docs/api-sdi-sdo.md",
                    ".github/CODEOWNERS", ".github/pull_request_template.md"]) {
     assert.ok(fs.existsSync(path.join(root, f)), `${f} is missing`);
+  }
+});
+
+test("GATE_LEVEL is one word and every gate that claims to read it does", () => {
+  // docs/engineering/GATE_LEVELS.md lists which files loosen with the level.
+  // A reader that stops reading the file keeps enforcing one level forever
+  // while the doc says otherwise; a fourth word in the file would resolve to
+  // strict everywhere and nobody would notice why.
+  const level = read("GATE_LEVEL").trim();
+  assert.ok(["fast", "standard", "strict"].includes(level), `GATE_LEVEL is "${level}"; expected fast | standard | strict`);
+  for (const f of [".githooks/pre-commit", "scripts/check.sh", ".github/workflows/ci.yml",
+                   ".github/workflows/uniai-link.yml", "docs/engineering/DEFINITION_OF_DONE.md",
+                   "docs/engineering/FEATURE_WORKFLOW.md",
+                   "scripts/coverage-gate.ts", "scripts/lint-gate.sh"]) {
+    assert.match(read(f), /GATE_LEVEL/, `${f} is listed in GATE_LEVELS.md as a reader but never mentions GATE_LEVEL`);
+    assert.ok(read("docs/engineering/GATE_LEVELS.md").includes(`\`${f}\``), `GATE_LEVELS.md does not list ${f}`);
+  }
+  assert.match(read("CLAUDE.md"), /\n## Gate Level\n/, "CLAUDE.md needs a Gate Level section");
+  for (const w of ["fast", "standard", "strict"]) {
+    assert.ok(read("CLAUDE.md").split("\n## Gate Level\n")[1].split("\n## ")[0].includes(`\`${w}\``), `CLAUDE.md § Gate Level does not name ${w}`);
+  }
+  // The four [fast] items are the floor; they are the same in both files.
+  const fast = (t) => [...t.matchAll(/\*\*([^*]+)\*\* `\[fast\]`/g)].map((m) => m[1]).sort();
+  assert.equal(fast(read("docs/engineering/DEFINITION_OF_DONE.md")).length, 4, "DoD marks exactly four [fast] items");
+  assert.deepEqual(fast(read(".github/pull_request_template.md")), fast(read("docs/engineering/DEFINITION_OF_DONE.md")));
+});
+
+test("the PR template ticks exactly the DoD items the DoD page lists", () => {
+  // DEFINITION_OF_DONE.md explains each item and how to check it; the PR
+  // template is where it is actually ticked. Two lists drift the moment one
+  // is edited alone, and the one people read is the template.
+  const labels = (text, re) => [...text.matchAll(re)].map((m) => m[1]).sort();
+  const page = labels(read("docs/engineering/DEFINITION_OF_DONE.md"), /^\d+\. \*\*([^*]+)\*\*/gm);
+  const template = labels(read(".github/pull_request_template.md"), /^- \[ \] \*\*([^*]+)\*\*/gm);
+  assert.ok(page.length >= 8 && page.length <= 12, `DoD has ${page.length} items; keep it around ten`);
+  assert.deepEqual(template, page, "PR template and DEFINITION_OF_DONE.md list different DoD items");
+});
+
+test("every ADR is numbered once and carries a status", () => {
+  // docs/adr/ is where the "why" behind a CLAUDE.md "never" lives. An ADR
+  // without a status is a draft nobody closed; two with the same number is a
+  // merge that nobody read.
+  const files = fs.readdirSync(path.join(root, "docs/adr")).filter((f) => /^\d{4}-.*\.md$/.test(f));
+  assert.ok(files.length > 0, "docs/adr has no records");
+  const numbers = files.map((f) => f.slice(0, 4));
+  assert.equal(new Set(numbers).size, numbers.length, `duplicate ADR numbers: ${numbers.join(", ")}`);
+  for (const f of files) {
+    assert.match(
+      read(`docs/adr/${f}`),
+      /^\*\*Trạng thái:\*\* (accepted|superseded by \d{4}|deprecated)/m,
+      `docs/adr/${f} needs a "**Trạng thái:** accepted | superseded by NNNN | deprecated" line`,
+    );
+    assert.ok(read("docs/adr/README.md").includes(`(${f})`), `docs/adr/README.md does not list ${f}`);
+  }
+});
+
+test("every plan says whether it shipped", () => {
+  // Plans are read by agents as if they were current. A plan that shipped a
+  // month ago and still reads like a to-do list sends the next agent to
+  // re-implement it.
+  const dir = "docs/superpowers/plans";
+  for (const f of fs.readdirSync(path.join(root, dir)).filter((f) => f.endsWith(".md"))) {
+    assert.match(
+      read(`${dir}/${f}`),
+      /^> \*\*Trạng thái:\*\* (shipped|in-progress|superseded|abandoned)\b/m,
+      `${dir}/${f} needs a "> **Trạng thái:** shipped | in-progress | superseded | abandoned" line under its title`,
+    );
   }
 });
 
@@ -152,12 +280,12 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
       rel = path.relative(CORE, path.resolve(path.dirname(from), spec));
       if (rel.startsWith("..")) return null;
     } else return null;
-    return rel ? rel.split("/")[0] : "__barrel__";
+    return rel ? rel.split(/[/\\]/)[0] : "__barrel__";
   };
 
   const edges = new Map(modules.map((m) => [m, new Set()]));
   for (const f of walk(CORE)) {
-    const owner = path.relative(CORE, f).split("/")[0];
+    const owner = path.relative(CORE, f).split(/[/\\]/)[0];
     if (!edges.has(owner)) continue;
     for (const spec of specifiers(f)) {
       const t = target(spec, f);
@@ -193,4 +321,38 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
     "are unreachable. Wired one up? Remove it from the list. Added a new " +
     "orphan? Say so, or delete it.",
   );
+
+  // Tracking dead code is not the same as removing it. The list above was
+  // accurate and unchanged for a month; past this date it has to be empty —
+  // wire each module to a host or delete it. Move the date only with a
+  // reason in the commit body.
+  const ORPHANS_DEADLINE = "2026-09-30";
+  if (new Date() > new Date(ORPHANS_DEADLINE)) {
+    assert.deepEqual(
+      orphans, [],
+      `packages/core still has unreachable modules after ${ORPHANS_DEADLINE}: ` +
+      `${orphans.join(", ")}. Wire them or delete them.`,
+    );
+  }
+});
+
+test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
+  // docs/engineering/UNIAI_TRACKING.md says every PR names a UNI-nnn issue and
+  // every issue-branch commit carries a Refs trailer. Those claims rest on
+  // three files; if any goes missing the doc keeps promising what nothing does.
+  assert.ok(isExecutable("scripts/uniai.sh"), "scripts/uniai.sh is not executable");
+  assert.ok(fs.existsSync(path.join(root, ".github/workflows/uniai-link.yml")), "uniai-link workflow is missing");
+  assert.match(read(".github/workflows/uniai-link.yml"), /UNI-\[0-9\]\+/, "uniai-link must grep for UNI-nnn");
+  // No issue, no code, at every level: fast must not turn a missing key into a warning.
+  assert.doesNotMatch(read(".github/workflows/uniai-link.yml"), /=\s*fast\b/, "uniai-link must not special-case fast");
+  assert.match(
+    read(".githooks/commit-msg"),
+    /UNI-\[0-9\]\*:/,
+    "commit-msg must accept squash-merged UniAI PR titles (UNI-nnn: …)",
+  );
+  assert.match(read(".githooks/prepare-commit-msg"), /Refs: /, "prepare-commit-msg must add the Refs trailer");
+  assert.match(read("CLAUDE.md"), /\n## Project Tracking \(UniAI\)\n/, "CLAUDE.md needs a Project Tracking (UniAI) section");
+  for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {
+    assert.match(read("Makefile"), new RegExp(`^${t}:`, "m"), `Makefile target ${t} is missing`);
+  }
 });

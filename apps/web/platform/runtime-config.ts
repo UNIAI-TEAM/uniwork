@@ -15,4 +15,11 @@ configureRuntime({
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
   wsUrl: process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  chatScopeSubscriptionLimit: parseChatScopeLimit(process.env.NEXT_PUBLIC_CHAT_SCOPE_LIMIT),
 });
+
+function parseChatScopeLimit(raw: string | undefined): number {
+  const n = Number.parseInt(raw ?? "", 10);
+  if (!Number.isFinite(n) || n < 1) return 25;
+  return n;
+}

@@ -63,8 +63,14 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// A CORS preflight is not a request the client made; counting it
+			// halves every budget for browsers and none for curl.
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
 			ip := extractIP(r, trustedProxies)
-			key := rateLimitKey(r.URL.Path, ip)
+			key := rateLimitKey(limit, r.URL.Path, ip)
 			ctx := r.Context()
 
 			count, err := rateLimitScript.Run(ctx, rdb, []string{key}, int(window.Seconds())).Int64()
@@ -77,7 +83,10 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(window.Seconds())))
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
-				json.NewEncoder(w).Encode(map[string]string{"error": "too many requests"})
+				// Same envelope as handler.respondError; the client maps the code.
+				json.NewEncoder(w).Encode(map[string]map[string]string{
+					"error": {"code": "rate_limited", "message": "too many requests"},
+				})
 				return
 			}
 
@@ -88,6 +97,12 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 
 // extractIP determines the client IP for rate limiting purposes.
 // It only honors X-Forwarded-For when RemoteAddr is from a trusted proxy.
+// ClientIP is the address a session records and the rate limiter keys on;
+// X-Forwarded-For counts only behind a trusted proxy.
+func ClientIP(r *http.Request, trustedProxies []*net.IPNet) string {
+	return extractIP(r, trustedProxies)
+}
+
 func extractIP(r *http.Request, trustedProxies []*net.IPNet) string {
 	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -127,8 +142,11 @@ func isTrustedProxy(ip net.IP, cidrs []*net.IPNet) bool {
 	return false
 }
 
-func rateLimitKey(path, ip string) string {
+// The limit is part of the key: the router stacks a global limiter over a
+// per-route one on the same path, and two limiters on one counter charge
+// every request twice.
+func rateLimitKey(limit int, path, ip string) string {
 	sanitized := strings.TrimPrefix(path, "/")
 	sanitized = strings.ReplaceAll(sanitized, "/", ":")
-	return fmt.Sprintf("uw:ratelimit:%s:%s", sanitized, ip)
+	return fmt.Sprintf("uw:ratelimit:%d:%s:%s", limit, sanitized, ip)
 }

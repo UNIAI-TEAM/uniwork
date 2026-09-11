@@ -1,0 +1,9 @@
+{{define "preheader"}}A new sign-in to your UniWork account{{end}}
+{{define "content"}}
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">New device sign-in</h1></td></tr>
+<tr><td style="padding-bottom:16px;font-size:15px;line-height:24px;color:#646464">Your UniWork account was just signed in from a browser it has not used before.</td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">Browser: <strong style="color:#202020;font-weight:600">{{.Data.UserAgent}}</strong><br>IP address: <strong style="color:#202020;font-weight:600">{{.Data.IP}}</strong><br>When: <strong style="color:#202020;font-weight:600">{{.Data.At.Format "2006-01-02 15:04 MST"}}</strong></td></tr>
+<tr><td style="padding-bottom:24px">{{button .Data.SessionsURL "Review active sessions"}}</td></tr>
+<tr><td style="border-top:1px solid #cfcfcf;padding-top:20px;font-size:13px;line-height:20px;color:#646464">If this was you, nothing to do. If not, revoke the session under Settings → Security and change your password now.</td></tr>
+{{end}}
+{{define "footer"}}You received this email because your UniWork account was just signed in from a new device.{{end}}

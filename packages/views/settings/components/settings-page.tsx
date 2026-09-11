@@ -1,7 +1,7 @@
 "use client";
 
-import { Plug, Settings, SlidersHorizontal, User, Users } from "lucide-react";
-import { useMemo } from "react";
+import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
+import { Suspense, lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
@@ -9,27 +9,57 @@ import { CollapsedNavTrigger } from "../../layout/page-header";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
-import { IntegrationsTab } from "./integrations-tab";
-import { MembersTab } from "./members-tab";
-import { PreferencesTab } from "./preferences-tab";
-import { WorkspaceTab } from "./workspace-tab";
 
-const ACCOUNT_TAB_KEYS = ["profile", "preferences"] as const;
+// The security tab (MFA enrolment, sessions, deletion) loads when opened so
+// the settings route stays inside its bundle ceiling.
+// Only the open panel is mounted, so every tab but the default one is a
+// chunk fetched on the click that reveals it. SecurityTab has been split
+// this way since the gate landed; the rest follow it.
+const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
+const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })));
+const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
+const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
+const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
+const IntegrationsTab = lazy(() => import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })));
+const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
+const NotificationsTab = lazy(() => import("./notifications-tab").then((m) => ({ default: m.NotificationsTab })));
+const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ default: m.OrganizationTab })));
+const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
+const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
+
+const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
 const ACCOUNT_TAB_ICONS = {
   profile: User,
+  security: ShieldCheck,
   preferences: SlidersHorizontal,
+  notifications: Bell,
 } as const;
 
-const WORKSPACE_TAB_KEYS = ["general", "members", "integrations"] as const;
+const WORKSPACE_TAB_KEYS = ["general", "members", "integrations", "billing", "ai", "audit"] as const;
 const WORKSPACE_TAB_VALUES = {
   general: "workspace",
   members: "members",
   integrations: "integrations",
+  billing: "billing",
+  ai: "ai",
+  audit: "audit",
 } as const;
 const WORKSPACE_TAB_ICONS = {
   general: Settings,
   members: Users,
   integrations: Plug,
+  billing: CreditCard,
+  ai: Sparkles,
+  audit: ScrollText,
+} as const;
+
+// The organization group is a third tier beside "my account" and the current
+// workspace: departments and org-level membership belong to the company, not
+// to one workspace (F-03).
+const ORGANIZATION_TAB_KEYS = ["organization", "departments"] as const;
+const ORGANIZATION_TAB_ICONS = {
+  organization: Building2,
+  departments: Network,
 } as const;
 
 const DEFAULT_TAB = "profile";
@@ -50,6 +80,7 @@ export function SettingsPage() {
     () =>
       new Set<string>([
         ...ACCOUNT_TAB_KEYS,
+        ...ORGANIZATION_TAB_KEYS,
         ...WORKSPACE_TAB_KEYS.map((key) => WORKSPACE_TAB_VALUES[key]),
       ]),
     [],
@@ -95,6 +126,19 @@ export function SettingsPage() {
           })}
 
           <span className="hidden truncate px-2 pt-4 pb-1 text-caption font-medium text-muted-foreground md:block">
+            {workspace.organization_name}
+          </span>
+          {ORGANIZATION_TAB_KEYS.map((key) => {
+            const Icon = ORGANIZATION_TAB_ICONS[key];
+            return (
+              <TabsTrigger key={key} value={key} className={SETTINGS_TAB_TRIGGER_CLASS}>
+                <Icon className="h-4 w-4" aria-hidden />
+                {t(`page.tabs.${key}`)}
+              </TabsTrigger>
+            );
+          })}
+
+          <span className="hidden truncate px-2 pt-4 pb-1 text-caption font-medium text-muted-foreground md:block">
             {workspace.name}
           </span>
           {WORKSPACE_TAB_KEYS.map((key) => {
@@ -118,17 +162,60 @@ export function SettingsPage() {
           <TabsContent value="profile">
             <AccountTab />
           </TabsContent>
+          <TabsContent value="security">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <SecurityTab />
+            </Suspense>
+          </TabsContent>
           <TabsContent value="preferences">
-            <PreferencesTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <PreferencesTab />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="notifications">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <NotificationsTab />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="organization">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <OrganizationTab />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="departments">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <DepartmentsTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="workspace">
-            <WorkspaceTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <WorkspaceTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="members">
-            <MembersTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <MembersTab />
+            </Suspense>
           </TabsContent>
           <TabsContent value="integrations">
-            <IntegrationsTab />
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <IntegrationsTab />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="billing">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <BillingTab />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="ai">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <AiTab />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="audit">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <AuditTab />
+            </Suspense>
           </TabsContent>
         </div>
       </div>

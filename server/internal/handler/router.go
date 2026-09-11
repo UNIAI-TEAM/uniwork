@@ -2,19 +2,18 @@ package handler
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
-	"time"
 
-	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/events"
+	rt "github.com/unicomhub/uniwork/server/internal/handler/router"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	mw "github.com/unicomhub/uniwork/server/internal/middleware"
+	"github.com/unicomhub/uniwork/server/internal/notification"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
@@ -22,20 +21,31 @@ import (
 )
 
 type Deps struct {
-	Cfg          config.Config
-	Log          *slog.Logger
-	Minter       auth.TokenMinter
-	Auth         *service.AuthService
-	Verification *service.VerificationService
-	GoogleAuth   *service.GoogleAuthService
+	Cfg           config.Config
+	Log           *slog.Logger
+	Minter        auth.TokenMinter
+	Auth          *service.AuthService
+	Verification  *service.VerificationService
+	PasswordReset *service.PasswordResetService
+	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
 	Google        GoogleExchanger
 	Organizations *service.OrganizationService
+	OrgMembers    *service.OrganizationMemberService
+	People        *service.PeopleService
+	Departments   *service.DepartmentService
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
+	Agents        *service.AgentService
+	Actors        *service.ActorService
+	Audit         *service.AuditService
+	Billing       *service.BillingService
+	Notifications *notification.Service
+	AskUNI        *service.AskUNIService
 	Meetings      *service.MeetingService
+	Chat          *service.ChatService
 	Hub           *realtime.Hub
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -55,105 +65,375 @@ type Deps struct {
 	// HTTPMetrics is nil unless METRICS_ADDR is set; when present every request
 	// is counted and timed by chi route pattern.
 	HTTPMetrics *metrics.HTTPMetrics
+	// Readiness backs /readyz; nil (tests) answers 503.
+	Readiness *service.Readiness
+	// WebVitals is nil unless METRICS_ADDR is set; /rum then only answers 204.
+	WebVitals *metrics.WebVitals
+	// Admin is the platform console (F-11); nil leaves /api/v1/admin unmounted.
+	Admin *service.AdminService
+	// Version and Commit are the build stamps main.go carries into /admin/system.
+	Version string
+	Commit  string
 }
 
 type handlers struct {
 	Deps
+	// proxies is TRUSTED_PROXIES parsed once; sessions record the client
+	// address the same way the rate limiter keys on it.
+	proxies []*net.IPNet
 }
 
+// New builds the HTTP handler. Routes live in package router, split by
+// OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
-	h := &handlers{Deps: d}
-	r := chi.NewRouter()
-	// Order matters: RequestID first so every later middleware and the access
-	// log see it; ClientMetadata before RequestLogger so the log line carries
-	// the client dimensions; Recoverer inside the logger so a panic still
-	// produces an access-log entry with its status.
-	//
-	// Nothing here rewrites r.RemoteAddr from X-Forwarded-For (chi's RealIP
-	// does, unconditionally, which lets any client pick its own rate-limit
-	// bucket with one header). Each consumer that needs the client address —
-	// the rate limiter, the WebSocket origin check — applies TRUSTED_PROXIES
-	// itself. router_test.go pins this.
-	r.Use(chimw.RequestID)
-	r.Use(mw.ClientMetadata)
-	r.Use(mw.RequestLogger)
-	r.Use(chimw.Recoverer)
-	r.Use(mw.ContentSecurityPolicy)
-	if d.HTTPMetrics != nil {
-		r.Use(d.HTTPMetrics.Middleware)
-	}
-	// Rate limits are per IP and per path, and only exist with Redis (the
-	// counters must be shared across API nodes). The global budget covers
-	// normal use; the credential endpoints get a smaller one because they
-	// are the only ones worth brute-forcing. 60/min still leaves room for an
-	// office behind one NAT address (or the e2e suite registering a user per
-	// spec from localhost) — 20 did not.
-	proxies := mw.ParseTrustedProxies(d.Cfg.TrustedProxies)
-	if d.Redis != nil {
-		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, proxies))
-	}
-	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type"},
-		AllowCredentials: true,
-	}))
-	r.Get("/healthz", h.health)
-	// The local backend serves its own files; S3 objects are reached through
-	// the URL storage returned, so this route only exists for local storage.
-	if local, ok := d.Storage.(*storage.LocalStorage); ok {
-		r.Get("/uploads/*", func(w http.ResponseWriter, r *http.Request) {
-			local.ServeFile(w, r, chi.URLParam(r, "*"))
-		})
-	}
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/ws", h.ws)
-		r.With(credentialLimit).Post("/auth/register", h.register)
-		r.With(credentialLimit).Post("/auth/login", h.login)
-		r.Post("/auth/refresh", h.refresh)
-		r.Post("/auth/logout", h.logout)
-		r.Get("/auth/providers", h.authProviders)
-		r.With(credentialLimit).Get("/auth/google/start", h.googleStart)
-		r.With(credentialLimit).Get("/auth/google/callback", h.googleCallback)
-		r.Group(func(r chi.Router) {
-			r.Use(mw.RequireAuth(d.Minter))
-			r.Get("/me", h.me)
-			r.Patch("/me", h.patchMe)
-			r.With(credentialLimit).Post("/me/email/verify", h.verifyEmail)
-			r.With(credentialLimit).Post("/me/email/resend", h.resendVerification)
-			r.Post("/me/avatar", h.uploadAvatar)
-			r.Patch("/me/onboarding", h.patchOnboarding)
-			r.Post("/me/onboarding/complete", h.completeOnboarding)
-			r.Get("/me/invitations", h.myInvitations)
-			r.Get("/orgs", h.listOrganizations)
-			r.Post("/orgs", h.createOrganization)
-			r.Get("/orgs/{org}", h.getOrganization)                         // {org} = slug
-			r.Get("/orgs/{org}/workspaces/{wsSlug}", h.getWorkspaceBySlugs) // {org} = slug
-			r.Get("/orgs/{org}/workspaces", h.listOrgWorkspaces)            // {org} = id
-			r.Post("/orgs/{org}/workspaces", h.createOrgWorkspace)          // {org} = id
-			r.Get("/workspaces", h.listWorkspaces)
-			r.Patch("/workspaces/{workspaceID}", h.patchWorkspace)
-			r.Get("/workspaces/{workspaceID}/members", h.listMembers)
-			r.Post("/workspaces/{workspaceID}/invitations", h.createInvitation)
-			r.Post("/workspaces/{workspaceID}/welcome-task", h.seedWelcomeTask)
-			r.Post("/invitations/{token}/accept", h.acceptInvitation)
-			r.Get("/workspaces/{workspaceID}/tasks", h.listTasks)
-			r.Post("/workspaces/{workspaceID}/tasks", h.createTask)
-			r.Get("/tasks/{taskID}", h.getTask)
-			r.Patch("/tasks/{taskID}", h.updateTask)
-			r.Delete("/tasks/{taskID}", h.deleteTask)
-			r.Get("/tasks/{taskID}/comments", h.listComments)
-			r.Post("/tasks/{taskID}/comments", h.createComment)
-			r.Get("/workspaces/{workspaceID}/meetings", h.listMeetings)
-			r.Post("/workspaces/{workspaceID}/meetings", h.createMeeting)
-			r.Get("/meetings/{meetingID}", h.getMeeting)
-			r.Patch("/meetings/{meetingID}", h.updateMeeting)
-			r.Delete("/meetings/{meetingID}", h.deleteMeeting)
-			r.Get("/meetings/{meetingID}/notes", h.listNotes)
-			r.Post("/meetings/{meetingID}/notes", h.createNote)
-			r.Post("/meetings/{meetingID}/token", h.meetingToken)
-		})
+	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
+	return rt.New(rt.Deps{
+		Cfg:           d.Cfg,
+		Minter:        d.Minter,
+		Redis:         d.Redis,
+		Storage:       d.Storage,
+		HTTPMetrics:   d.HTTPMetrics,
+		PlatformRoles: platformRoles(d.Admin),
+		FeatureFlags:  d.FeatureFlags,
+	}, rt.Routes{
+		Health: h.health,
+		Ready:  h.ready,
+
+		Config:                     h.config,
+		RUM:                        h.rum,
+		AdminMe:                    h.adminMe,
+		AdminListOrganizations:     h.adminListOrganizations,
+		AdminGetOrganization:       h.adminGetOrganization,
+		AdminSuspendOrganization:   h.adminSuspendOrganization,
+		AdminUnsuspendOrganization: h.adminUnsuspendOrganization,
+		AdminChangePlan:            h.adminChangePlan,
+		AdminTrace:                 h.adminTrace,
+		AdminSystem:                h.adminSystem,
+		AdminListFlags:             h.adminListFlags,
+		AdminListFlagOverrides:     h.adminListFlagOverrides,
+		AdminListAllFlagOverrides:  h.adminListAllFlagOverrides,
+		AdminSetFlagOverride:       h.adminSetFlagOverride,
+		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
+		WS:                         h.ws,
+
+		Register:       h.register,
+		Login:          h.login,
+		ForgotPassword: h.forgotPassword,
+		ResetPassword:  h.resetPassword,
+		Refresh:        h.refresh,
+		Logout:         h.logout,
+		MFAVerify:      h.mfaVerify,
+		AuthProviders:  h.authProviders,
+		GoogleStart:    h.googleStart,
+		GoogleCallback: h.googleCallback,
+
+		Me:                  h.me,
+		PatchMe:             h.patchMe,
+		UploadAvatar:        h.uploadAvatar,
+		VerifyEmail:         h.verifyEmail,
+		ResendVerification:  h.resendVerification,
+		MFASetup:            h.mfaSetup,
+		MFAConfirm:          h.mfaConfirm,
+		MFADisable:          h.mfaDisable,
+		ListSessions:        h.listSessions,
+		RevokeSession:       h.revokeSession,
+		RevokeOtherSessions: h.revokeOtherSessions,
+		DeleteAccount:       h.deleteAccount,
+		PatchOnboarding:     h.patchOnboarding,
+		CompleteOnboarding:  h.completeOnboarding,
+		MyInvitations:       h.myInvitations,
+
+		ListOrganizations:  h.listOrganizations,
+		CreateOrganization: h.createOrganization,
+		GetOrganization:    h.getOrganization,
+		ListOrgWorkspaces:  h.listOrgWorkspaces,
+		CreateOrgWorkspace: h.createOrgWorkspace,
+
+		ListOrgMembers:      h.listOrgMembers,
+		GetOrgMembershipMe:  h.getOrgMembershipMe,
+		PatchOrgMember:      h.patchOrgMember,
+		DeactivateOrgMember: h.deactivateOrgMember,
+		ReactivateOrgMember: h.reactivateOrgMember,
+		LeaveOrganization:   h.leaveOrganization,
+
+		InviteToOrganization: h.inviteToOrganization,
+		ListOrgInvitations:   h.listOrgInvitations,
+		RevokeOrgInvitation:  h.revokeOrgInvitation,
+		TransferOrgOwnership: h.transferOrgOwnership,
+
+		ListPeople:         h.listPeople,
+		GetPerson:          h.getPerson,
+		PatchPersonProfile: h.patchPersonProfile,
+		ExportPeople:       h.exportPeople,
+
+		ListDepartments:    h.listDepartments,
+		CreateDepartment:   h.createDepartment,
+		PatchDepartment:    h.patchDepartment,
+		ArchiveDepartment:  h.archiveDepartment,
+		ReorderDepartments: h.reorderDepartments,
+
+		GetWorkspaceBySlugs: h.getWorkspaceBySlugs,
+		ListWorkspaces:      h.listWorkspaces,
+		PatchWorkspace:      h.patchWorkspace,
+		GetWorkspaceMe:      h.getWorkspaceMe,
+		ListMembers:         h.listMembers,
+		PatchMember:         h.patchMember,
+		DeleteMember:        h.deleteMember,
+		CreateInvitation:    h.createInvitation,
+		AcceptInvitation:    h.acceptInvitation,
+
+		SeedWelcomeTask: h.seedWelcomeTask,
+
+		ListTasks:             h.listTasks,
+		CreateTask:            h.createTask,
+		GetTask:               h.getTask,
+		UpdateTask:            h.updateTask,
+		PutTaskSuite:          h.putTaskSuite,
+		DeleteTask:            h.deleteTask,
+		ListComments:          h.listComments,
+		CreateComment:         h.createComment,
+		QueryTasks:            h.queryTasks,
+		GroupedTasks:          h.groupedTasks,
+		BatchUpdateTasks:      h.batchUpdateTasks,
+		BatchDeleteTasks:      h.batchDeleteTasks,
+		ListMyTasks:           h.listMyTasks,
+		ListTaskChildren:      h.listTaskChildren,
+		ListChildrenByParents: h.listChildrenByParents,
+		ChildTaskProgress:     h.childTaskProgress,
+		SetTaskParent:         h.setTaskParent,
+		SetTaskDependency:     h.setTaskDependency,
+		RemoveTaskDependency:  h.removeTaskDependency,
+		TableGroups:           h.tableGroups,
+		TableRows:             h.tableRows,
+		TableFacets:           h.tableFacets,
+
+		ListTaskStatuses:        h.listTaskStatuses,
+		CreateTaskStatus:        h.createTaskStatus,
+		PatchTaskStatus:         h.patchTaskStatus,
+		DeleteTaskStatus:        h.deleteTaskStatus,
+		ReorderTaskStatuses:     h.reorderTaskStatuses,
+		ListTaskLabels:          h.listTaskLabels,
+		GetTaskLabel:            h.getTaskLabel,
+		CreateTaskLabel:         h.createTaskLabel,
+		PutTaskLabel:            h.putTaskLabel,
+		DeleteTaskLabel:         h.deleteTaskLabel,
+		ListTaskLabelsOnTask:    h.listTaskLabelsOnTask,
+		AttachTaskLabel:         h.attachTaskLabel,
+		DetachTaskLabel:         h.detachTaskLabel,
+		ListTaskProperties:      h.listTaskProperties,
+		CreateTaskProperty:      h.createTaskProperty,
+		PatchTaskProperty:       h.patchTaskProperty,
+		PutTaskPropertyValue:    h.putTaskPropertyValue,
+		DeleteTaskPropertyValue: h.deleteTaskPropertyValue,
+
+		ListTaskViews:         h.listTaskViews,
+		CreateTaskView:        h.createTaskView,
+		GetTaskView:           h.getTaskView,
+		PatchTaskView:         h.patchTaskView,
+		DeleteTaskView:        h.deleteTaskView,
+		GetTaskViewPreference: h.getTaskViewPreference,
+		PutTaskViewPreference: h.putTaskViewPreference,
+		ListPins:              h.listPins,
+		CreatePin:             h.createPin,
+		DeletePin:             h.deletePin,
+		ReorderPins:           h.reorderPins,
+
+		ListProjects:          h.listProjects,
+		SearchProjects:        h.searchProjects,
+		CreateProject:         h.createProject,
+		GetProject:            h.getProject,
+		PutProject:            h.putProject,
+		DeleteProject:         h.deleteProject,
+		ListProjectResources:  h.listProjectResources,
+		CreateProjectResource: h.createProjectResource,
+		PutProjectResource:    h.putProjectResource,
+		DeleteProjectResource: h.deleteProjectResource,
+
+		UpdateComment:          h.updateComment,
+		DeleteComment:          h.deleteComment,
+		ResolveComment:         h.resolveComment,
+		UnresolveComment:       h.unresolveComment,
+		AddCommentReaction:     h.addCommentReaction,
+		RemoveCommentReaction:  h.removeCommentReaction,
+		AddTaskReaction:        h.addTaskReaction,
+		RemoveTaskReaction:     h.removeTaskReaction,
+		ListTaskSubscribers:    h.listTaskSubscribers,
+		SubscribeTask:          h.subscribeTask,
+		UnsubscribeTask:        h.unsubscribeTask,
+		UnsubscribeTaskSubtree: h.unsubscribeTaskSubtree,
+		ListTaskAttachments:    h.listTaskAttachments,
+		UploadTaskAttachment:   h.uploadTaskAttachment,
+		GetAttachment:          h.getAttachment,
+		GetAttachmentContent:   h.getAttachmentContent,
+		DownloadAttachment:     h.downloadAttachment,
+		DeleteAttachment:       h.deleteAttachment,
+		GetTaskTimeline:        h.getTaskTimeline,
+		CommentSubTaskPreview:  h.commentSubTaskPreview,
+		CreateCommentSubTasks:  h.createCommentSubTasks,
+		PreviewCommentTriggers: h.previewCommentTriggers,
+
+		WorkManagementCapabilityStub: h.workManagementCapabilityStub,
+
+		ListNotifications:          h.listNotifications,
+		UnreadNotificationCount:    h.unreadNotificationCount,
+		MarkNotificationsRead:      h.markNotificationsRead,
+		MarkNotificationsUnread:    h.markNotificationsUnread,
+		ArchiveNotifications:       h.archiveNotifications,
+		GetNotificationPreferences: h.getNotificationPreferences,
+		PutNotificationPreferences: h.putNotificationPreferences,
+		PushConfig:                 h.pushConfig,
+		SubscribePush:              h.subscribePush,
+		UnsubscribePush:            h.unsubscribePush,
+
+		AiCapabilities:       h.aiCapabilities,
+		AskUni:               h.askUni,
+		ListAiConversations:  h.listAiConversations,
+		ListAiMessages:       h.listAiMessages,
+		DeleteAiConversation: h.deleteAiConversation,
+		WorkspaceAiUsage:     h.workspaceAiUsage,
+		OrganizationAiUsage:  h.organizationAiUsage,
+
+		ListPlans:          h.listPlans,
+		GetSubscription:    h.getSubscription,
+		ChangePlan:         h.changePlan,
+		CancelSubscription: h.cancelSubscription,
+		ResumeSubscription: h.resumeSubscription,
+		CreateCheckout:     h.createCheckout,
+
+		ListOrgAgents:       h.listOrgAgents,
+		CreateOrgAgent:      h.createOrgAgent,
+		PatchAgent:          h.patchAgent,
+		ListWorkspaceAgents: h.listWorkspaceAgents,
+		AddWorkspaceAgent:   h.addWorkspaceAgent,
+
+		ListAuditEvents:     h.listAuditEvents,
+		GetAuditEvent:       h.getAuditEvent,
+		ListResourceHistory: h.listResourceHistory,
+		GetAuditRetention:   h.getAuditRetention,
+		SetAuditRetention:   h.setAuditRetention,
+		ListAuditExports:    h.listAuditExports,
+		CreateAuditExport:   h.createAuditExport,
+		GetAuditExport:      h.getAuditExport,
+
+		ListMeetings:          h.listMeetings,
+		CreateMeeting:         h.createMeeting,
+		CreateInstantMeeting:  h.createInstantMeeting,
+		GetMeeting:            h.getMeeting,
+		UpdateMeeting:         h.updateMeeting,
+		DeleteMeeting:         h.deleteMeeting,
+		StartMeeting:          h.startMeeting,
+		EndMeeting:            h.endMeeting,
+		ExtendMeeting:         h.extendMeeting,
+		CancelMeeting:         h.cancelMeeting,
+		TransferHost:          h.transferHost,
+		ListNotes:             h.listNotes,
+		CreateNote:            h.createNote,
+		MeetingToken:          h.meetingToken,
+		JoinMeeting:           h.joinMeeting,
+		ListParticipants:      h.listParticipants,
+		InviteParticipant:     h.inviteParticipant,
+		ListInvitations:       h.listInvitations,
+		RespondInvitation:     h.respondInvitation,
+		RemoveParticipant:     h.removeParticipant,
+		SetParticipantPublish: h.setParticipantPublish,
+		ListInviteLinks:       h.listInviteLinks,
+		CreateInviteLink:      h.createInviteLink,
+		RevokeInviteLink:      h.revokeInviteLink,
+		ResolveInviteLink:     h.resolveInviteLink,
+		ListJoinRequests:      h.listJoinRequests,
+		CreateJoinRequest:     h.createJoinRequest,
+		ApproveJoinRequest:    h.approveJoinRequest,
+		RejectJoinRequest:     h.rejectJoinRequest,
+		CancelJoinRequest:     h.cancelJoinRequest,
+		MeetingStatistics:     h.meetingStatistics,
+		MeetingActivity:       h.meetingActivity,
+		AppendTranscript:      h.appendTranscript,
+		AppendAgentTranscript: h.appendAgentTranscript,
+		ListTranscript:        h.listTranscript,
+		AppendChatMessage:     h.appendChatMessage,
+		ListChatMessages:      h.listChatMessages,
+		GetMeetingSummary:     h.getMeetingSummary,
+		CreateSummary:         h.createSummary,
+		CreateSummaryTasks:    h.createSummaryTasks,
+		StartRecording:        h.startRecording,
+		StopRecording:         h.stopRecording,
+		ListRecordings:        h.listRecordings,
+		MeetingCalendar:       h.meetingCalendar,
+		MeetingCapabilities:   h.meetingCapabilities,
+		LiveKitWebhook:        h.livekitWebhook,
+		MeetingLobbyWS:        h.meetingLobbyWS,
+
+		LookupChatUser:              h.lookupChatUser,
+		GetChatBlockStatus:          h.getChatBlockStatus,
+		BlockChatUser:               h.blockChatUser,
+		UnblockChatUser:             h.unblockChatUser,
+		ListChatNicknames:           h.listChatNicknames,
+		SetChatNickname:             h.setChatNickname,
+		SearchChatGifs:              h.searchChatGifs,
+		TrendingChatGifs:            h.trendingChatGifs,
+		SearchChatStickers:          h.searchChatStickers,
+		TrendingChatStickers:        h.trendingChatStickers,
+		GetChatMediaStatus:          h.getChatMediaStatus,
+		MintChatVoiceToken:          h.mintChatVoiceToken,
+		ListPendingChatVoiceInvites: h.listPendingChatVoiceInvites,
+		GetWorkspaceChatRoom:        h.getWorkspaceChatRoom,
+		EnsureWorkspaceChatRoom:     h.ensureWorkspaceChatRoom,
+		ListChatRooms:               h.listChatRooms,
+		ResolveDM:                   h.resolveDM,
+		CreateChatGroup:             h.createChatGroup,
+		InviteChatGroupMembers:      h.inviteChatGroupMembers,
+		CreateChatChannel:           h.createChatChannel,
+		ListChatChannels:            h.listChatChannels,
+		ListProjectChatChannels:     h.listProjectChatChannels,
+		UpdateChatChannel:           h.updateChatChannel,
+		JoinChatChannel:             h.joinChatChannel,
+		ArchiveChatChannel:          h.archiveChatChannel,
+		UnarchiveChatChannel:        h.unarchiveChatChannel,
+		ListChatThreadMessages:      h.listChatThreadMessages,
+		SendChatThreadMessage:       h.sendChatThreadMessage,
+		FollowChatThread:            h.followChatThread,
+		UnfollowChatThread:          h.unfollowChatThread,
+		MarkChatThreadRead:          h.markChatThreadRead,
+		ListChatThreads:             h.listChatThreads,
+		CreateTaskFromChatMessage:   h.createTaskFromChatMessage,
+		CreateChatMessageLink:       h.createChatMessageLink,
+		ListChatMessageLinks:        h.listChatMessageLinks,
+		DeleteChatMessageLink:       h.deleteChatMessageLink,
+		SyncChatThreadTask:          h.syncChatThreadTask,
+		UnsyncChatThreadTask:        h.unsyncChatThreadTask,
+		ListChatRoomMembers:         h.listChatRoomMembers,
+		PatchChatRoomMember:         h.patchChatRoomMember,
+		PatchChatRoom:               h.patchChatRoom,
+		RemoveChatRoomMember:        h.removeWorkspaceChatRoomMember,
+		LeaveChatRoom:               h.leaveChatRoom,
+		ListWorkspaceChatMessages:   h.listWorkspaceChatMessages,
+		SendWorkspaceChatMessage:    h.sendWorkspaceChatMessage,
+		ListChatRoomMessages:        h.listChatRoomMessages,
+		GetChatRoomMessage:          h.getChatRoomMessage,
+		SearchChatRoomMessages:      h.searchChatRoomMessages,
+		ListChatRoomMessagesAround:  h.listChatRoomMessagesAround,
+		SendChatRoomMessage:         h.sendChatRoomMessage,
+		SendChatVoiceMessage:        h.sendChatVoiceMessage,
+		StreamChatVoiceMessage:      h.streamChatVoiceMessage,
+		SendChatFileMessage:         h.sendChatFileMessage,
+		StreamChatFileMessage:       h.streamChatFileMessage,
+		VoteChatPollMessage:         h.voteChatPollMessage,
+		ToggleChatMessageReaction:   h.toggleChatMessageReaction,
+		EditChatMessage:             h.editChatMessage,
+		DeleteChatMessage:           h.deleteChatMessage,
+		ToggleChatMessagePin:        h.toggleChatMessagePin,
+		SignalChatVoiceInvite:       h.signalChatVoiceInvite,
+		SignalChatVoiceAccept:       h.signalChatVoiceAccept,
+		SignalChatVoiceHangup:       h.signalChatVoiceHangup,
+		SignalChatTyping:            h.signalChatTyping,
+		SignalChatPresence:          h.signalChatPresence,
 	})
-	return r
+}
+
+// platformRoles keeps a nil *AdminService from becoming a non-nil interface.
+func platformRoles(a *service.AdminService) mw.PlatformRoleSource {
+	if a == nil {
+		return nil
+	}
+	return a
 }

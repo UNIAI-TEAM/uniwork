@@ -7,6 +7,8 @@ export const OrganizationSchema = z.object({
   // The caller's role in the organization. Lenient string: an unknown role
   // must still parse — permissions treat anything unrecognised as "member".
   role: z.string().optional(),
+  /** active | suspended | archived; absent on older servers. */
+  status: z.string().optional(),
 });
 export type Organization = z.infer<typeof OrganizationSchema>;
 

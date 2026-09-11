@@ -112,6 +112,20 @@ func (m *Metrics) lastRedisErr() string {
 	return m.redisLastErr
 }
 
+func (m *Metrics) RangeSubscribes(fn func(scopeType string, count int64)) {
+	m.subscribeTotal.Range(func(k, v any) bool {
+		fn(k.(string), v.(*atomic.Int64).Load())
+		return true
+	})
+}
+
+func (m *Metrics) RangeEventsSent(fn func(eventType string, count int64)) {
+	m.eventSent.Range(func(k, v any) bool {
+		fn(k.(string), v.(*atomic.Int64).Load())
+		return true
+	})
+}
+
 func snapshotCounters(s *sync.Map) map[string]int64 {
 	out := map[string]int64{}
 	s.Range(func(k, v any) bool {

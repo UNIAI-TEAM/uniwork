@@ -16,14 +16,14 @@ func newAuthService(t *testing.T) *AuthService {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	m := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
-	return NewAuthService(q, m, time.Hour, nil)
+	return NewAuthService(pool, q, m, time.Hour, nil)
 }
 
 func TestRegisterLoginRefresh(t *testing.T) {
 	s := newAuthService(t)
 	ctx := context.Background()
 
-	sess, err := s.Register(ctx, "a@example.com", "password123", "An")
+	sess, err := s.Register(ctx, "a@example.com", "password123", "An", "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestRegisterLoginRefresh(t *testing.T) {
 		t.Fatal("empty tokens")
 	}
 
-	if _, err := s.Register(ctx, "a@example.com", "x2345678", "An"); err != ErrConflict {
+	if _, err := s.Register(ctx, "a@example.com", "x2345678", "An", "vi"); err != ErrConflict {
 		t.Fatalf("duplicate email: got %v, want ErrConflict", err)
 	}
 
@@ -66,10 +66,10 @@ func TestRegisterLoginRefresh(t *testing.T) {
 func TestRegisterValidation(t *testing.T) {
 	s := newAuthService(t)
 	ctx := context.Background()
-	if _, err := s.Register(ctx, "bad-email", "password123", "An"); err == nil {
+	if _, err := s.Register(ctx, "bad-email", "password123", "An", "vi"); err == nil {
 		t.Fatal("bad email accepted")
 	}
-	if _, err := s.Register(ctx, "b@example.com", "short", "An"); err == nil {
+	if _, err := s.Register(ctx, "b@example.com", "short", "An", "vi"); err == nil {
 		t.Fatal("short password accepted")
 	}
 }
@@ -95,18 +95,20 @@ func TestLoginRejectsUserWithoutPassword(t *testing.T) {
 func TestUpdateProfile(t *testing.T) {
 	s := newAuthService(t)
 	ctx := context.Background()
-	sess, err := s.Register(ctx, "patch@example.com", "password123", "Before")
+	sess, err := s.Register(ctx, "patch@example.com", "password123", "Before", "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := s.UpdateProfile(ctx, sess.User.ID, "  After  ")
+	name := "  After  "
+	updated, err := s.UpdateProfile(ctx, sess.User.ID, &name, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if updated.DisplayName != "After" {
 		t.Fatalf("display_name = %q", updated.DisplayName)
 	}
-	if _, err := s.UpdateProfile(ctx, sess.User.ID, "   "); err == nil {
+	empty := "   "
+	if _, err := s.UpdateProfile(ctx, sess.User.ID, &empty, nil, nil); err == nil {
 		t.Fatal("empty display name accepted")
 	}
 }

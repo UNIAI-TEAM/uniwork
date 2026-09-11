@@ -129,3 +129,80 @@ func TestSlowClientDoesNotBlockBroadcast(t *testing.T) {
 	}
 	recvOrTimeout(t, ok.send)
 }
+
+func newLobbyClient(t *testing.T, hub *Hub, meetingID string, buffer int) *Client {
+	t.Helper()
+	c := &Client{
+		hub:            hub,
+		send:           make(chan []byte, buffer),
+		userID:         "guest:test",
+		lobbyMeetingID: meetingID,
+		subscriptions:  make(map[scopeKey]bool),
+	}
+	hub.register <- c
+	deadline := time.Now().Add(time.Second)
+	for !hub.HasLocalSubscribers(ScopeMeeting, meetingID) || !inMeetingRoom(hub, c, meetingID) {
+		if time.Now().After(deadline) {
+			t.Fatal("lobby client never subscribed to its meeting scope")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return c
+}
+
+func inMeetingRoom(hub *Hub, c *Client, meetingID string) bool {
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	_, ok := hub.rooms[sk(ScopeMeeting, meetingID)][c]
+	return ok
+}
+
+func TestPublisherMirrorsChatMessageToMeetingLobbyScope(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+	lobby := newLobbyClient(t, hub, "mtg-1", 8)
+	member := newRegisteredClient(t, hub, "ws1", 8)
+
+	pub := NewPublisher(hub, slog.Default())
+	pub.Publish(context.Background(), "ws1", service.Event{
+		Type:    "chat.message",
+		Payload: map[string]string{"meeting_id": "mtg-1"},
+	})
+
+	for _, c := range []*Client{lobby, member} {
+		var ev service.Event
+		if err := json.Unmarshal(recvOrTimeout(t, c.send), &ev); err != nil {
+			t.Fatalf("frame is not an event: %v", err)
+		}
+		if ev.Type != "chat.message" || ev.Payload["meeting_id"] != "mtg-1" {
+			t.Fatalf("unexpected event %+v", ev)
+		}
+	}
+}
+
+func TestPublisherDeliversToChatScopeOnly(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+	inRoom := newRegisteredClient(t, hub, "ws1", 8)
+	hub.subscribe(inRoom, ScopeChat, "room-a")
+	outRoom := newRegisteredClient(t, hub, "ws1", 8)
+
+	pub := NewPublisher(hub, slog.Default())
+	pub.PublishToScope(context.Background(), ScopeChat, "room-a", service.Event{
+		Type:    "chat.typing",
+		Payload: map[string]string{"room_id": "room-a"},
+	})
+
+	var ev service.Event
+	if err := json.Unmarshal(recvOrTimeout(t, inRoom.send), &ev); err != nil {
+		t.Fatalf("frame is not an event: %v", err)
+	}
+	if ev.Type != "chat.typing" {
+		t.Fatalf("unexpected event %+v", ev)
+	}
+	select {
+	case <-outRoom.send:
+		t.Fatal("client not subscribed to room-a received the event")
+	case <-time.After(50 * time.Millisecond):
+	}
+}

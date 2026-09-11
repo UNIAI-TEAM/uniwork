@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "owner_issue": "UNI-502",
+  "note": "Deterministic verification overlay for slice-4-owned projects list/detail/resources entries only. Regeneration merges this with slice1–3; do not invent verification for later UNI-426 slices.",
+  "entries": [
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/projects/[id]/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "apps/web/app/[orgSlug]/[workspaceSlug]/projects/[projectId]/page.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "apps/web/app/[workspaceSlug]/(dashboard)/projects/page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "apps/web/app/[orgSlug]/[workspaceSlug]/projects/page.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/core/projects/config.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/projects/config.ts",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/core/projects/stores/view-store.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/projects/stores/view-store.test.ts",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/core/projects/stores/view-store.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/core/projects/stores/view-store.ts",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/local-directory-hint.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/local-directory-hint.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-badge.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/components/project-badge.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-detail.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/project-detail-page.test.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-detail.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/project-detail-page.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-icon.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/components/project-icon.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-issue-metrics.test.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/project-row-metrics.test.ts",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-issue-metrics.ts",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/project-row-metrics.ts",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-resources-rename.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/project-resources-section.test.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/project-resources-section.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/project-resources-section.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/projects-page.test.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/projects-list-page.test.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    },
+    {
+      "source_path": "packages/views/projects/components/projects-page.tsx",
+      "verification_state": "verified",
+      "evidence_path": "packages/views/projects/projects-list-page.tsx",
+      "evidence_commit": "246f8c5b21f42a1207d74c4387e2fe82cdde7769"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { toastApiError } from "../../toast-api-error";
 import { useAuthStore, usePatchMe, useUploadAvatar } from "@uniwork/core/auth";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -37,7 +38,7 @@ export function AccountTab() {
 
   const saveProfile = useCallback(
     async (name: string) => {
-      const updated = await patchMe.mutateAsync(name);
+      const updated = await patchMe.mutateAsync({ display_name: name });
       if (!updated) throw new Error(t("profile.toastFailed"));
     },
     [patchMe, t],
@@ -48,7 +49,7 @@ export function AccountTab() {
     savedValue: savedName,
     onSave: saveProfile,
     onSuccess: () => toast.success(t("profile.toastUpdated"), { id: "settings-auto-save" }),
-    onError: () => toast.error(t("profile.toastFailed")),
+    onError: (err) => toastApiError(err, t("profile.toastFailed")),
     enabled: !!user && displayName.trim().length > 0,
     isEqual: namesEqual,
   });
@@ -58,8 +59,8 @@ export function AccountTab() {
     try {
       await uploadAvatar.mutateAsync(file);
       toast.success(t("profile.toastAvatarUpdated"), { id: "settings-auto-save" });
-    } catch {
-      toast.error(t("profile.toastFailed"));
+    } catch (err) {
+      toastApiError(err, t("profile.toastFailed"));
     }
   };
 
@@ -99,6 +100,7 @@ export function AccountTab() {
               <input
                 ref={fileRef}
                 type="file"
+                aria-label={t("profile.avatar")}
                 accept="image/png,image/jpeg,image/gif,image/webp"
                 className="sr-only"
                 onChange={(e) => void onAvatarPick(e.target.files?.[0])}

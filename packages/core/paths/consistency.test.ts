@@ -21,7 +21,7 @@ function routeTemplates(dir: string): string[] {
       const p = join(d, name);
       if (statSync(p).isDirectory()) walk(p);
       else if (name === "page.tsx") {
-        const rel = relative(APP_DIR, d);
+        const rel = relative(APP_DIR, d).replace(/\\/g, "/");
         const segs = rel
           .split("/")
           .filter((s) => s && !s.startsWith("(")) // route groups are invisible
@@ -45,14 +45,25 @@ function builderTemplates(): string[] {
     paths.register(),
     paths.verify(),
     paths.authCallback(),
+    paths.forgotPassword(),
+    paths.resetPassword(),
     paths.onboarding(),
     paths.newWorkspace(),
     paths.invitations(),
     paths.workspaces(),
     paths.invite(ID),
+    paths.meetingInvite(ID),
+    paths.meetingInviteRoom(ID),
+    paths.admin.root(),
+    paths.admin.organizations(),
+    paths.admin.organization(ID),
+    paths.admin.flags(),
+    paths.admin.trace(),
+    paths.admin.quota(),
+    paths.admin.system(),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.members(), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.inbox(), ws.members(), ws.people(), ws.person(ID), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p

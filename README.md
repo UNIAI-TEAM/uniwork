@@ -33,9 +33,32 @@ make check-worktree
 
 ## Video call (LiveKit)
 
-Tạo project free ở https://cloud.livekit.io, điền vào `.env`:
-`LIVEKIT_URL` (wss://…livekit.cloud), `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
-restart server.
+Cloud: create a free project at https://cloud.livekit.io and set `LIVEKIT_URL`
+(wss://…livekit.cloud), `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env`, then
+restart the API.
+
+Local (dev only):
+
+```sh
+docker compose -f docker-compose.livekit.yml up
+```
+
+Set `LIVEKIT_URL=ws://localhost:7880`, `LIVEKIT_API_KEY=devkey`,
+`LIVEKIT_API_SECRET=secret_must_be_at_least_32_chars` (see `livekit.dev.yaml`). Join tokens expire after
+`LIVEKIT_TOKEN_TTL` (default 2m); the web client calls `POST /meetings/{id}/join`
+again on reconnect. A LiveKit JWT minted before a RemoveParticipant remains
+valid until that TTL — UniWork still revokes access grants immediately.
+
+Local object storage (MinIO, for uploads such as chat voice):
+
+```sh
+make minio-up
+```
+
+Set `STORAGE_BACKEND=s3`, `AWS_ACCESS_KEY_ID=minioadmin`,
+`AWS_SECRET_ACCESS_KEY=minioadmin`, `AWS_ENDPOINT_URL=http://localhost:9000`,
+`S3_BUCKET=uniwork`, `S3_REGION=us-east-1` in `.env`, then restart the API.
+Console: http://localhost:9001
 
 ## Kiểm tra
 

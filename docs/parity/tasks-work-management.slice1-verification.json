@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "owner_issue": "UNI-495",
+  "note": "Deterministic verification overlay for slice-1-owned manifest entries only. Regeneration merges this file; do not invent verification for later UNI-426 slices.",
+  "entries": [
+    {
+      "source_path": "capability:desktop.host",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
+    },
+    {
+      "source_path": "capability:mobile.host",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
+    },
+    {
+      "source_path": "capability:tasks.agent_runs",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
+    },
+    {
+      "source_path": "capability:tasks.local_workdir",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
+    },
+    {
+      "source_path": "capability:tasks.squads",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
+    },
+    {
+      "source_path": "capability:tasks.vcs",
+      "verification_state": "verified",
+      "evidence_path": "server/internal/workcapability/catalogue.go",
+      "evidence_commit": "017d8be7a9e83eab6ba0009379cf6c5cdddecd12"
+    }
+  ]
+}

@@ -1,11 +1,29 @@
 import { describe, expect, it } from "vitest";
 import {
+  canChangeMemberRole,
+  canChangeOrgRole,
   canCreateWorkspaceInOrg,
+  canDeactivateMember,
+  canDeleteComment,
   canDeleteMeeting,
   canDeleteTask,
+  canEditComment,
+  canEditEmploymentFields,
+  canEditProfile,
   canEditTask,
+  canExportPeople,
   canInviteMembers,
+  canLeaveOrg,
+  canManageAgents,
+  canManageAuditSettings,
+  canManageBilling,
+  canManageDepartments,
+  canManageOrgMembers,
+  canViewBilling,
   canManageMembers,
+  canReadAuditLog,
+  canRemoveMember,
+  canTransferOwnership,
   canUpdateWorkspaceSettings,
 } from "./rules";
 import type { PermissionContext } from "./types";
@@ -15,6 +33,32 @@ const ctx = (over: Partial<PermissionContext>): PermissionContext => ({
   orgRole: null,
   wsRole: null,
   ...over,
+});
+
+describe("canViewBilling / canManageBilling — mirror BillingService (billing.go)", () => {
+  it("owners and admins view; only owners manage", () => {
+    expect(canViewBilling(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canViewBilling(ctx({ orgRole: "admin" })).allowed).toBe(true);
+    expect(canManageBilling(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canManageBilling(ctx({ orgRole: "admin" })).reason).toBe("not_owner_role");
+  });
+  it("members, non-members and signed-out users are denied", () => {
+    expect(canViewBilling(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
+    expect(canViewBilling(ctx({ orgRole: null })).reason).toBe("not_org_member");
+    expect(canManageBilling(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
+  });
+});
+
+describe("canManageAgents — mirrors AgentService.Create/Update (agent.go)", () => {
+  it("allows organization owners and admins", () => {
+    expect(canManageAgents(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canManageAgents(ctx({ orgRole: "admin" })).allowed).toBe(true);
+  });
+  it("denies organization members, non-members and signed-out users", () => {
+    expect(canManageAgents(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
+    expect(canManageAgents(ctx({ orgRole: null })).reason).toBe("not_member");
+    expect(canManageAgents(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
+  });
 });
 
 describe("canInviteMembers — mirrors workspace.go:136", () => {
@@ -32,6 +76,26 @@ describe("canInviteMembers — mirrors workspace.go:136", () => {
   it("carries copy for the UI on every denial", () => {
     expect(canInviteMembers(ctx({ wsRole: "member" })).message.length).toBeGreaterThan(0);
     expect(canManageMembers(ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+  });
+});
+
+describe("canRemoveMember / canChangeMemberRole", () => {
+  const member = { user_id: "u2", role: "member" };
+  const owner = { user_id: "u9", role: "owner" };
+
+  it("allows admin-like actors on non-owner targets", () => {
+    expect(canRemoveMember(member, ctx({ wsRole: "admin" })).allowed).toBe(true);
+    expect(canChangeMemberRole(member, ctx({ wsRole: "owner" })).allowed).toBe(true);
+  });
+  it("allows a member to leave themselves", () => {
+    expect(canRemoveMember({ user_id: "u1", role: "member" }, ctx({ wsRole: "member" })).allowed).toBe(
+      true,
+    );
+  });
+  it("denies plain members removing others and protects owners", () => {
+    expect(canRemoveMember(member, ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+    expect(canRemoveMember(owner, ctx({ wsRole: "admin" })).reason).toBe("not_owner_role");
+    expect(canChangeMemberRole(owner, ctx({ wsRole: "admin" })).reason).toBe("not_owner_role");
   });
 });
 
@@ -56,15 +120,109 @@ describe("canCreateWorkspaceInOrg — mirrors workspace.go:44", () => {
   });
 });
 
+describe("audit rules — mirror AuditService.RequireOrgAdmin and its owner checks", () => {
+  it("lets organization owners and admins read the log", () => {
+    expect(canReadAuditLog(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canReadAuditLog(ctx({ orgRole: "admin" })).allowed).toBe(true);
+  });
+  it("denies a plain organization member with not_admin_role", () => {
+    expect(canReadAuditLog(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
+  });
+  it("denies a workspace admin who is not in the organization", () => {
+    expect(canReadAuditLog(ctx({ orgRole: null, wsRole: "admin" })).reason).toBe("not_org_member");
+  });
+  it("reserves retention and export for the owner", () => {
+    expect(canManageAuditSettings(ctx({ orgRole: "owner" })).allowed).toBe(true);
+    expect(canManageAuditSettings(ctx({ orgRole: "admin" })).reason).toBe("not_owner_role");
+    expect(canManageAuditSettings(ctx({ orgRole: "member" })).reason).toBe("not_admin_role");
+  });
+});
+
 describe("task and meeting rules — membership only, as the backend gates today", () => {
   it("lets any workspace member delete or edit a task, creator or not", () => {
     const task = null;
     expect(canDeleteTask(task, ctx({ wsRole: "member" })).allowed).toBe(true);
     expect(canEditTask(task, ctx({ wsRole: "member" })).allowed).toBe(true);
-    expect(canDeleteMeeting(ctx({ wsRole: "member" })).allowed).toBe(true);
+    expect(canDeleteMeeting(null, ctx({ wsRole: "member" })).allowed).toBe(false);
+    expect(canDeleteMeeting({ host_user_id: "u1" }, ctx({ userId: "u1", wsRole: "member" })).allowed).toBe(true);
+    expect(canDeleteMeeting(null, ctx({ wsRole: "admin" })).allowed).toBe(true);
   });
   it("denies outside the workspace", () => {
     expect(canDeleteTask(null, ctx({ wsRole: null })).reason).toBe("not_member");
-    expect(canDeleteMeeting(ctx({ userId: null })).reason).toBe("not_authenticated");
+    expect(canDeleteMeeting(null, ctx({ userId: null })).reason).toBe("not_authenticated");
+  });
+});
+
+describe("comment authorship policy (not wired to Tasks yet)", () => {
+  it("allows author or admin-like to edit/delete", () => {
+    expect(canEditComment("u1", ctx({ userId: "u1", wsRole: "member" })).allowed).toBe(true);
+    expect(canDeleteComment("u2", ctx({ userId: "u1", wsRole: "admin" })).allowed).toBe(true);
+    expect(canEditComment("u2", ctx({ userId: "u1", wsRole: "member" })).reason).toBe(
+      "not_resource_owner",
+    );
+  });
+});
+
+describe("Organization & People — mirror OrganizationMemberService and PeopleService", () => {
+  const owner = ctx({ orgRole: "owner" });
+  const admin = ctx({ orgRole: "admin" });
+  const member = ctx({ orgRole: "member" });
+
+  it("a deactivated membership denies everything, whatever the role says", () => {
+    const off = ctx({ orgRole: "owner", orgMemberStatus: "deactivated" });
+    for (const decision of [
+      canEditProfile({ user_id: "u1" }, off),
+      canEditEmploymentFields(off),
+      canManageOrgMembers(off),
+      canChangeOrgRole({ user_id: "u2", role: "member" }, off),
+      canDeactivateMember({ user_id: "u2", role: "member" }, off),
+      canTransferOwnership(off),
+      canLeaveOrg(off),
+      canManageDepartments(off),
+      canExportPeople(off),
+    ]) {
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toBe("member_deactivated");
+    }
+  });
+
+  it("a person edits their own profile; the company-owned fields need an admin", () => {
+    expect(canEditProfile({ user_id: "u1" }, member).allowed).toBe(true);
+    expect(canEditProfile({ user_id: "u2" }, member).reason).toBe("not_resource_owner");
+    expect(canEditProfile({ user_id: "u2" }, admin).allowed).toBe(true);
+    expect(canEditEmploymentFields(member).reason).toBe("not_admin_role");
+    expect(canEditEmploymentFields(admin).allowed).toBe(true);
+  });
+
+  it("ownership is never a role change, and nobody changes their own role", () => {
+    expect(canChangeOrgRole({ user_id: "u2", role: "member" }, admin).allowed).toBe(true);
+    expect(canChangeOrgRole({ user_id: "u2", role: "owner" }, owner).reason).toBe("last_owner");
+    expect(canChangeOrgRole({ user_id: "u1", role: "admin" }, owner).reason).toBe("not_resource_owner");
+    expect(canChangeOrgRole({ user_id: "u2", role: "member" }, member).reason).toBe("not_admin_role");
+  });
+
+  it("only the owner deactivates an admin, and nobody deactivates themselves", () => {
+    expect(canDeactivateMember({ user_id: "u2", role: "member" }, admin).allowed).toBe(true);
+    expect(canDeactivateMember({ user_id: "u2", role: "admin" }, admin).reason).toBe("not_owner_role");
+    expect(canDeactivateMember({ user_id: "u2", role: "admin" }, owner).allowed).toBe(true);
+    expect(canDeactivateMember({ user_id: "u2", role: "owner" }, owner).reason).toBe("last_owner");
+    expect(canDeactivateMember({ user_id: "u1", role: "admin" }, owner).reason).toBe("not_resource_owner");
+  });
+
+  it("the owner hands the organization over and cannot simply leave", () => {
+    expect(canTransferOwnership(owner).allowed).toBe(true);
+    expect(canTransferOwnership(admin).reason).toBe("not_owner_role");
+    expect(canLeaveOrg(owner).reason).toBe("last_owner");
+    expect(canLeaveOrg(admin).allowed).toBe(true);
+    expect(canLeaveOrg(member).allowed).toBe(true);
+  });
+
+  it("reading the directory is open to members; shaping and exporting it are not", () => {
+    expect(canManageDepartments(member).reason).toBe("not_admin_role");
+    expect(canManageDepartments(admin).allowed).toBe(true);
+    expect(canExportPeople(member).reason).toBe("not_admin_role");
+    expect(canExportPeople(owner).allowed).toBe(true);
+    expect(canExportPeople(ctx({ orgRole: null })).reason).toBe("not_org_member");
+    expect(canExportPeople(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
   });
 });

@@ -52,9 +52,12 @@ NEXT_PUBLIC_WS_URL=ws://localhost:${backend_port}
 NEXT_PUBLIC_APP_URL=${frontend_origin}
 E2E_BASE_URL=${frontend_origin}
 
-LIVEKIT_URL=
-LIVEKIT_API_KEY=
-LIVEKIT_API_SECRET=
+# Shared local LiveKit (make start / make livekit-up). Webhook targets this worktree's PORT.
+LIVEKIT_URL=ws://localhost:7880
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=secret_must_be_at_least_32_chars
+MEETING_PROVIDER=livekit
+ENABLE_SWAGGER=true
 EOF
 
 echo "Generated $ENV_FILE for worktree '$worktree_name'"

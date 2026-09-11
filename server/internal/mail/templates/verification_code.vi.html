@@ -1,0 +1,13 @@
+{{define "preheader"}}Mã xác thực {{.Data.Code}} · hết hạn sau {{expires .Data.Expires .Locale}}{{end}}
+{{define "content"}}
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Xác thực email</h1></td></tr>
+<tr><td style="padding-bottom:24px;font-size:15px;line-height:24px;color:#646464">Nhập mã dưới đây để hoàn tất đăng ký UniWork.</td></tr>
+<tr><td align="center" style="padding-bottom:24px">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center"><tr>
+    <td class="code" style="background:#f1f1f9;border:1px solid #cfcfcf;border-radius:12px;padding:18px 28px;font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:36px;line-height:44px;font-weight:700;letter-spacing:0.28em;text-indent:0.28em;color:#202020;text-align:center">{{.Data.Code}}</td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">Mã có hiệu lực trong <strong style="color:#202020;font-weight:600">{{expires .Data.Expires .Locale}}</strong> và chỉ dùng được một lần.</td></tr>
+<tr><td style="border-top:1px solid #cfcfcf;padding-top:20px;font-size:13px;line-height:20px;color:#646464">Đừng chia sẻ mã này với ai. Nếu bạn không đăng ký UniWork, bỏ qua email này, không có gì thay đổi.</td></tr>
+{{end}}
+{{define "footer"}}Bạn nhận email này vì vừa đăng ký UniWork.{{end}}

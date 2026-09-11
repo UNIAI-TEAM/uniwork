@@ -8,9 +8,7 @@ import {
 /**
  * Action identifiers are declared by the domain, not here. This module owns the
  * chord machinery — parsing, matching, platform reservations — and knows
- * nothing about which actions exist. UniWork's own list lands with the tier-2
- * port; until then SHORTCUT_ACTIONS is empty and the store has nothing to bind,
- * which is the honest state rather than usf's actions in disguise.
+ * nothing about which actions exist; SHORTCUT_ACTIONS below is UniWork's list.
  */
 export type ShortcutActionId = string;
 
@@ -61,7 +59,14 @@ export function createShortcutChord(
 const primary = (key: string) =>
   createShortcutChord(key, { primary: true });
 
-export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [];
+/**
+ * UniWork's own actions. `ai.askUni` opens the Ask UNI panel (spec F-09 §6);
+ * it is allowed inside editors because the panel is where you go to ask
+ * about the thing you are typing.
+ */
+export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
+  { id: "ai.askUni", category: "general", defaultShortcut: primary("J"), allowInEditable: true },
+];
 
 export const SHORTCUT_ACTION_BY_ID = Object.fromEntries(
   SHORTCUT_ACTIONS.map((action) => [action.id, action]),
@@ -94,7 +99,7 @@ function eventKey(event: KeyboardEvent): string | null {
   return key;
 }
 
-export function isShortcutChordActionable(shortcut: ShortcutChord): boolean {
+function isShortcutChordActionable(shortcut: ShortcutChord): boolean {
   return shortcut.key.length > 0 &&
     !MODIFIER_KEYS.has(shortcut.key) &&
     !NON_ACTIONABLE_KEYS.has(shortcut.key);

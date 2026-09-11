@@ -68,6 +68,8 @@ function ActorAvatar({
         <img
           src={avatarUrl}
           alt={name}
+          width={px}
+          height={px}
           className="h-full w-full object-cover"
           onError={() => setImgError(true)}
         />

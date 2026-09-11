@@ -25,7 +25,7 @@ export default function AuthCallbackPage() {
     }
     if (status !== "authed" || !user) return;
     void (async () => {
-      const workspaces = await api.workspaces.list();
+      const workspaces = await api.workspaces.list().catch(() => []);
       const destination = await resolveLoggedInDestination(user, workspaces);
       // A verified, onboarded user goes where they were headed; anyone still
       // owing a gate step goes through it first.

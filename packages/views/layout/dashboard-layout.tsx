@@ -10,6 +10,7 @@ import { NavigationProgress } from "./navigation-progress";
 import { WorkspaceChrome } from "./workspace-top-bar";
 import { WorkspaceLoader } from "./workspace-loader";
 import { WorkspaceProvider } from "./workspace-context";
+import { WorkspaceRealtimeSync } from "./workspace-realtime-sync";
 
 interface DashboardLayoutProps {
   orgSlug: string;
@@ -41,6 +42,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
       {({ user, workspace }) => (
         <WorkspaceProvider workspace={workspace} user={user}>
           <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
+            <WorkspaceRealtimeSync />
             <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
               {/* First in the DOM so it is the first tab stop; visible only
                   while focused. */}

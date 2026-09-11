@@ -1,0 +1,41 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "exclude": [
+    "catalog"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/**/*.mjs",
+        "scripts/load/*.k6.js"
+      ],
+      "ignoreDependencies": [
+        "@playwright/test",
+        "playwright-core",
+        "k6"
+      ]
+    },
+    "apps/web": {
+      "ignore": [
+        "public/sw.js"
+      ]
+    },
+    "packages/*": {},
+    "packages/views": {
+      "ignoreExportsUsedInFile": true
+    },
+    "e2e": {
+      "entry": [
+        "*.spec.ts"
+      ],
+      "ignoreBinaries": [
+        "go"
+      ]
+    },
+    "packages/tsconfig": {
+      "ignoreUnresolved": [
+        "next"
+      ]
+    }
+  }
+}

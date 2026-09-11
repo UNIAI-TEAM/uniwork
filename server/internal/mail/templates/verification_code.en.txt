@@ -1,0 +1,11 @@
+Subject: {{.Data.Code}} is your UniWork verification code
+
+Verify your email
+
+Enter the code below to finish signing up for UniWork:
+
+    {{.Data.Code}}
+
+The code is valid for {{expires .Data.Expires .Locale}} and can be used once.
+
+Never share this code with anyone. If you did not sign up for UniWork, you can ignore this email — nothing will change.

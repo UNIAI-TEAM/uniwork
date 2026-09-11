@@ -1,0 +1,124 @@
+package sdi
+
+import "time"
+
+// CreateMeetingSDI is POST /api/v1/workspaces/{workspaceID}/meetings.
+type CreateMeetingSDI struct {
+	Title            string    `json:"title" minLength:"1" description:"Tiêu đề cuộc họp" example:"Standup tuần"`
+	Description      string    `json:"description" description:"Agenda tùy chọn" example:"Review sprint"`
+	StartsAt         time.Time `json:"starts_at" description:"Thời điểm bắt đầu (RFC3339)" example:"2026-08-28T02:00:00Z"`
+	EndsAt           time.Time `json:"ends_at" description:"Thời điểm kết thúc (RFC3339)" example:"2026-08-28T02:30:00Z"`
+	Timezone         string    `json:"timezone" example:"Asia/Ho_Chi_Minh"`
+	AllowJoinRequest *bool     `json:"allow_join_request"`
+	ProjectID        string    `json:"project_id" example:""`
+	AttendeeUserIDs  []string  `json:"attendee_user_ids"`
+}
+
+type CreateInstantMeetingSDI struct {
+	Title string `json:"title" example:"Họp nhanh"`
+}
+
+// PatchMeetingSDI is PATCH /api/v1/meetings/{meetingID}.
+type PatchMeetingSDI struct {
+	Title            *string    `json:"title" example:"Standup tuần"`
+	Description      *string    `json:"description" example:"Review sprint"`
+	StartsAt         *time.Time `json:"starts_at" example:"2026-08-28T02:00:00Z"`
+	EndsAt           *time.Time `json:"ends_at" example:"2026-08-28T02:30:00Z"`
+	Timezone         *string    `json:"timezone"`
+	AllowJoinRequest *bool      `json:"allow_join_request"`
+	ProjectID        *string    `json:"project_id"`
+}
+
+type CreateNoteSDI struct {
+	Body string `json:"body" minLength:"1" description:"Nội dung ghi chú" example:"Quyết định ship vào thứ Sáu."`
+}
+
+type InviteParticipantSDI struct {
+	UserID string `json:"user_id" minLength:"1" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+}
+
+type InvitationResponseSDI struct {
+	Response string `json:"response" example:"ACCEPTED"`
+}
+
+type HostTransferSDI struct {
+	NewHostUserID string `json:"new_host_user_id" minLength:"1"`
+}
+
+type CancelMeetingSDI struct {
+	Reason string `json:"reason" example:"trùng lịch"`
+}
+
+// ExtendMeetingSDI is POST /api/v1/meetings/{meetingID}/extend.
+type ExtendMeetingSDI struct {
+	Minutes int `json:"minutes" description:"Số phút gia hạn; mặc định 15, tối đa 120" example:"15"`
+}
+
+type CreateInviteLinkSDI struct {
+	Name       string    `json:"name" example:"Khách bên ngoài"`
+	AccessMode string    `json:"access_mode" example:"AUTO_ADMIT"`
+	ExpiresAt  time.Time `json:"expires_at"`
+	MaxUses    *int32    `json:"max_uses"`
+}
+
+type ResolveInviteLinkSDI struct {
+	LinkID string `json:"link_id"`
+	Secret string `json:"secret"`
+}
+
+type JoinMeetingSDI struct {
+	InviteLinkID string `json:"invite_link_id"`
+	Secret       string `json:"secret"`
+	DisplayName  string `json:"display_name"`
+}
+
+type CreateJoinRequestSDI struct {
+	DisplayName string `json:"display_name"`
+}
+
+type RejectJoinRequestSDI struct {
+	Reason string `json:"reason"`
+}
+
+// AppendTranscriptSDI is POST /api/v1/meetings/{meetingID}/transcript.
+type AppendTranscriptSDI struct {
+	Text     string    `json:"text" minLength:"1" description:"Một câu đã nhận dạng xong" example:"Chốt ship vào thứ Sáu."`
+	SpokenAt time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now" example:"2026-08-29T02:00:00Z"`
+}
+
+// AppendAgentTranscriptSDI is POST /api/v1/meetings/{meetingID}/transcript/agent.
+type AppendAgentTranscriptSDI struct {
+	ParticipantIdentity string    `json:"participant_identity" minLength:"1" description:"LiveKit identity uw_participant_{id}" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V"`
+	SpeakerName         string    `json:"speaker_name" description:"Tên hiển thị; trống = lấy từ participant" example:"Nguyễn Văn An"`
+	Text                string    `json:"text" minLength:"1" example:"Chốt ship vào thứ Sáu."`
+	SpokenAt            time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now"`
+}
+
+// SetParticipantPublishSDI toggles server-enforced CanPublish on LiveKit.
+type SetParticipantPublishSDI struct {
+	Enabled bool `json:"enabled" description:"true = cho phép mic/camera; false = revoke publish" example:"false"`
+}
+
+// CreateSummarySDI is POST /api/v1/meetings/{meetingID}/summary.
+type CreateSummarySDI struct {
+	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en" example:"vi"`
+}
+
+type SummaryTaskItemSDI struct {
+	Title       string  `json:"title" minLength:"1" example:"Gửi báo cáo sprint"`
+	Description string  `json:"description"`
+	AssigneeID  *string `json:"assignee_id"`
+	DueDate     *string `json:"due_date" description:"YYYY-MM-DD" example:"2026-09-05"`
+	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; server resolve sang assignee_id"`
+	DueSpoken   string  `json:"due_spoken" description:"Hạn nói trong họp; server parse sang due_date"`
+}
+
+// SummaryTasksSDI is POST /api/v1/meetings/{meetingID}/summary/tasks.
+type SummaryTasksSDI struct {
+	Items []SummaryTaskItemSDI `json:"items"`
+}
+
+// AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
+type AppendChatSDI struct {
+	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`
+}

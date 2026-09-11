@@ -16,7 +16,7 @@ export default function VerifyPage() {
     if (status === "anon") replace(paths.login());
     // Already verified (or arrived here by hand): move on to whatever is next.
     if (status === "authed" && user && step !== "verify") {
-      void (async () => replace(await resolveLoggedInDestination(user, await api.workspaces.list())))();
+      void (async () => replace(await resolveLoggedInDestination(user, await api.workspaces.list().catch(() => []))))();
     }
   }, [status, user, step, replace]);
 
@@ -24,7 +24,7 @@ export default function VerifyPage() {
   return (
     <VerifyEmailView
       onSuccess={async (verified) => {
-        const workspaces = await api.workspaces.list();
+        const workspaces = await api.workspaces.list().catch(() => []);
         push(await resolveLoggedInDestination(verified, workspaces));
       }}
     />

@@ -1,5 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { coverageThresholds } from "../../scripts/coverage-gate";
+import { vitestPoolOptions } from "../../scripts/vitest-pool";
 
 export default defineConfig({
   plugins: [react()],
@@ -7,5 +9,22 @@ export default defineConfig({
   // have to mount. `setup.ts` unmounts between cases — without it Testing
   // Library keeps every previous render in the same document and any
   // `getByTestId` finds several matches.
-  test: { environment: "jsdom", setupFiles: ["./test/setup.ts"] },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./test/setup.ts"],
+    ...vitestPoolOptions(),
+    // 5s tripped under `make check`: three suites run in parallel with v8
+    // coverage on. A test that needs more than this is a real problem.
+    testTimeout: 30_000,
+    coverage: {
+      provider: "v8",
+      include: ["**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}", "test/**", "**/*.config.*"],
+      reporter: ["text-summary"],
+      // docs/engineering/GATE_LEVELS.md — at GATE_LEVEL=fast a drop below
+      // these prints the summary and passes; standard and above fail on it.
+      // The numbers themselves only go up (docs/adr/0014-*.md).
+      thresholds: coverageThresholds({ statements: 58, branches: 53, functions: 47, lines: 60 }),
+    },
+  },
 });

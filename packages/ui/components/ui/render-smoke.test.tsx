@@ -39,6 +39,13 @@ const NEEDS_PARENT = new Map<string, string>([
   ],
 ]);
 
+const HEAVY_IMPORTS = new Set([
+  "calendar",
+  "chart",
+  "combobox",
+  "command",
+]);
+
 const DIR = resolve(process.cwd(), "components/ui");
 
 /** `alert-dialog.tsx` → `AlertDialog`. The registry names roots this way. */
@@ -67,8 +74,9 @@ describe("every primitive", () => {
     // (calendar, chart, command) pulls recharts / cmdk / date-fns through the
     // transform pipeline, and under `make check` this suite shares the CPU
     // with two other vitest workers and a -race Go build. It passed in 1.5s
-    // alone and tripped the 5s default under that load.
-    it(name, { timeout: 30_000 }, async () => {
+    // alone and tripped the 5s default under that load; coverage doubled it again.
+    const timeoutMs = HEAVY_IMPORTS.has(name) ? 120_000 : 60_000;
+    it(name, { timeout: timeoutMs }, async () => {
       const mod = (await import(`./${name}`)) as Record<string, unknown>;
       const exports = Object.keys(mod);
       expect(exports.length, `${name} exports nothing`).toBeGreaterThan(0);

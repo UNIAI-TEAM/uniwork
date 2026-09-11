@@ -1,0 +1,126 @@
+import { render, screen, within } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { setSessionUser } from "@uniwork/core/auth";
+import { initI18n } from "@uniwork/core/i18n";
+import type { Meeting, User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { requestMock, wrapWithNav } from "../test/api-mock";
+import { MeetingList } from "./meeting-list";
+
+const me: User = {
+  id: "u-host",
+  email: "me@x.com",
+  display_name: "Me",
+  onboarded_at: "2026-08-25T00:00:00Z",
+  email_verified_at: "2026-08-25T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
+
+const workspace: Workspace = {
+  id: "w1",
+  slug: "team",
+  name: "Team",
+  organization_id: "o1",
+  organization_slug: "org",
+  organization_name: "Org",
+};
+
+function windowFromNow(startOffsetMs: number, durationMs = 30 * 60_000): { starts_at: string; ends_at: string } {
+  const start = Date.now() + startOffsetMs;
+  return {
+    starts_at: new Date(start).toISOString(),
+    ends_at: new Date(start + durationMs).toISOString(),
+  };
+}
+
+const meetings: Meeting[] = [
+  {
+    id: "m1",
+    workspace_id: "w1",
+    title: "Standup",
+    description: "",
+    ...windowFromNow(24 * 60 * 60_000),
+    room_name: "uw_mtg_m1",
+    created_by: "u-host",
+    status: "SCHEDULED",
+    host_user_id: "u-host",
+  },
+  {
+    id: "m2",
+    workspace_id: "w1",
+    title: "Retro",
+    description: "",
+    ...windowFromNow(2 * 60_000, 60 * 60_000),
+    room_name: "uw_mtg_m2",
+    created_by: "u-host",
+    status: "IN_PROGRESS",
+    host_user_id: "u-host",
+  },
+];
+
+function shell(ui: React.ReactElement) {
+  return wrapWithNav(
+    <WorkspaceProvider workspace={workspace} user={me}>
+      {ui}
+    </WorkspaceProvider>,
+  );
+}
+
+beforeAll(() => {
+  initI18n();
+});
+
+beforeEach(() => {
+  requestMock.mockReset();
+  setSessionUser(me);
+  requestMock.mockImplementation((path: unknown) => {
+    if (String(path).endsWith("/members")) {
+      return Promise.resolve({
+        members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }],
+      });
+    }
+    return Promise.resolve({});
+  });
+});
+
+describe("MeetingList", () => {
+  it("renders grouped rows with host names and join actions", async () => {
+    render(shell(<MeetingList workspaceId="w1" meetings={meetings} onOpenRoom={() => {}} />));
+
+    expect(await screen.findAllByText("Standup")).not.toHaveLength(0);
+    expect(screen.getAllByText("Retro").length).toBeGreaterThan(0);
+    expect(await screen.findAllByText("Me")).toHaveLength(4);
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    const retroRow = rows.find((row) => within(row).queryByText("Retro"));
+    expect(within(retroRow!).getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
+  });
+
+  it("hides join and shows ended when the scheduled window is over", async () => {
+    const overtime: Meeting = {
+      ...meetings[1]!,
+      id: "m-over",
+      title: "Overtime standup",
+      ...windowFromNow(-10 * 60_000, 5 * 60_000),
+      status: "IN_PROGRESS",
+    };
+    render(shell(<MeetingList workspaceId="w1" meetings={[overtime]} onOpenRoom={() => {}} />));
+    expect(await screen.findAllByText("Overtime standup")).not.toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Vào ngay" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Đã kết thúc").length).toBeGreaterThan(0);
+  });
+
+  it("marks today's meetings in the day heading", async () => {
+    const today = new Date();
+    const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const todayMeeting: Meeting = {
+      ...meetings[0]!,
+      starts_at: `${day}T02:00:00Z`,
+      ends_at: `${day}T02:30:00Z`,
+    };
+    render(shell(<MeetingList workspaceId="w1" meetings={[todayMeeting]} onOpenRoom={() => {}} />));
+    expect(await screen.findByText("Hôm nay")).toBeInTheDocument();
+  });
+});

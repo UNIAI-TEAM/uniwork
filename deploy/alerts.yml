@@ -1,0 +1,102 @@
+# Prometheus alert rules for the UniWork API (spec §6.5). Every rule links the
+# runbook that says what to look at; scripts/alerts-runbooks.test.mjs fails
+# when a runbook is missing or a runbook has no rule.
+groups:
+  - name: uniwork-api
+    rules:
+      - alert: ApiErrorRateHigh
+        expr: |
+          sum(rate(uniwork_http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(uniwork_http_requests_total[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: "1"
+        annotations:
+          summary: "API trả 5xx trên 2% tổng request"
+          description: "Tỷ lệ 5xx/tổng request của uniwork-api vượt 2% liên tục 5 phút (hiện {{ $value | humanizePercentage }})."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/ApiErrorRateHigh.md
+
+      - alert: ApiLatencyP95High
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(uniwork_http_request_duration_seconds_bucket{method="GET"}[5m]))) > 0.4
+        for: 10m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "p95 GET vượt 400 ms"
+          description: "p95 thời gian phản hồi các route GET của uniwork-api vượt 400 ms liên tục 10 phút (hiện {{ $value | humanizeDuration }})."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/ApiLatencyP95High.md
+
+      - alert: ReadinessFailing
+        expr: probe_success{job="readyz"} == 0
+        for: 2m
+        labels:
+          severity: "1"
+        annotations:
+          summary: "/readyz trả 503 quá 2 phút"
+          description: "Blackbox probe GET /readyz của uniwork-api thất bại liên tục 2 phút: DB, Redis hoặc migration đang lệch."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/ReadinessFailing.md
+
+  - name: uniwork-outbox-realtime
+    rules:
+      - alert: OutboxLagHigh
+        expr: max(uniwork_outbox_pending_age_seconds) > 60
+        for: 2m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Outbox có dòng chờ quá 60 giây"
+          description: "Dòng outbox_events chưa gửi cũ nhất đã {{ $value | humanizeDuration }}: worker đứng hoặc một consumer đang chặn."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OutboxLagHigh.md
+
+      - alert: OutboxDeadLetter
+        expr: sum(increase(uniwork_outbox_dead_total[15m])) > 0
+        for: 0m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Có dòng outbox mới bị dead letter"
+          description: "{{ $value | printf \"%.0f\" }} dòng outbox_events chuyển sang dead letter trong 15 phút qua; chúng không tự chạy lại."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OutboxDeadLetter.md
+
+      - alert: RealtimePublishSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(uniwork_realtime_publish_latency_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "p95 commit → frame realtime vượt 1 giây"
+          description: "p95 độ trễ từ lúc commit tới lúc gửi frame WebSocket vượt 1 giây (hiện {{ $value | humanizeDuration }}); bảng công việc cập nhật chậm."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/RealtimePublishSlow.md
+
+  - name: uniwork-ai
+    rules:
+      - alert: AiCostSpike
+        expr: |
+          sum(increase(uniwork_ai_cost_usd_total[1h]))
+            > 3 * (sum(increase(uniwork_ai_cost_usd_total[7d])) / 168)
+          and sum(increase(uniwork_ai_cost_usd_total[1h])) > 1
+        for: 0m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Chi phí AI 1 giờ gấp 3 lần trung bình 7 ngày"
+          description: "Chi phí AI trong 1 giờ qua là {{ $value | printf \"%.2f\" }} USD, hơn 3 lần trung bình giờ của 7 ngày trước (sàn 1 USD để bỏ nhiễu lúc mới bật)."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/AiCostSpike.md
+
+  - name: uniwork-web-vitals
+    rules:
+      - alert: WebVitalsLCPPoor
+        expr: |
+          histogram_quantile(0.75,
+            sum by (le) (rate(uniwork_web_vitals_seconds_bucket{metric="lcp"}[30m]))) > 2.5
+        for: 30m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "p75 LCP vượt 2,5 giây"
+          description: "p75 Largest Contentful Paint đo từ trình duyệt người dùng (RUM) vượt 2,5 giây liên tục 30 phút (hiện {{ $value | humanizeDuration }})."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/WebVitalsLCPPoor.md

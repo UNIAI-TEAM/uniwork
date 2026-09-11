@@ -19,22 +19,39 @@ vi.mock("@uniwork/core/api/http", async (orig) => {
   };
 });
 
-// jsdom không có canvas: DotSphere đã tự thoát khi getContext trả null.
-HTMLCanvasElement.prototype.getContext = (() => null) as never;
+// DOM shims for jsdom. Pure-logic suites that set `@vitest-environment node`
+// still load this setup file — skip every DOM patch there.
+if (typeof document !== "undefined") {
+  // jsdom không có canvas: DotSphere đã tự thoát khi getContext trả null.
+  if (typeof HTMLCanvasElement !== "undefined") {
+    HTMLCanvasElement.prototype.getContext = (() => null) as never;
+  }
 
-// jsdom không có ResizeObserver (useScrollFade dùng).
-class RO {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+  // jsdom has no PointerEvent; Base UI builds one when a Switch or Toggle is
+  // clicked. A MouseEvent subclass is enough for the handlers to run.
+  if (typeof (globalThis as { PointerEvent?: unknown }).PointerEvent === "undefined") {
+    class PE extends MouseEvent {
+      pointerId = 1;
+      pointerType = "mouse";
+      isPrimary = true;
+    }
+    (globalThis as unknown as { PointerEvent: typeof PE }).PointerEvent = PE;
+  }
+
+  // jsdom không có ResizeObserver (useScrollFade dùng).
+  class RO {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: typeof RO }).ResizeObserver ??= RO;
+
+  // jsdom has no layout, so input-otp's caret/click handling cannot ask which
+  // element sits under a point. Answering "none" keeps the input usable.
+  if (typeof document.elementFromPoint !== "function") {
+    document.elementFromPoint = () => null;
+  }
+
+  // jsdom: cmdk calls scrollIntoView when focusing CommandItems.
+  Element.prototype.scrollIntoView ??= () => {};
 }
-(globalThis as unknown as { ResizeObserver: typeof RO }).ResizeObserver ??= RO;
-
-// jsdom has no layout, so input-otp's caret/click handling cannot ask which
-// element sits under a point. Answering "none" keeps the input usable.
-if (typeof document.elementFromPoint !== "function") {
-  document.elementFromPoint = () => null;
-}
-
-// jsdom: cmdk calls scrollIntoView when focusing CommandItems.
-Element.prototype.scrollIntoView ??= () => {};

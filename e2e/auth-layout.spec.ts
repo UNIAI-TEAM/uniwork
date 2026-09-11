@@ -26,7 +26,9 @@ for (const route of ["/login", "/register"] as const) {
 
       const m = await page.evaluate(() => {
         const rail = document.querySelector("aside")!.getBoundingClientRect();
-        const column = document.querySelector("main > div")!.getBoundingClientRect();
+        const column = document
+          .querySelector("main > div")!
+          .getBoundingClientRect();
         return {
           vw: window.innerWidth,
           railW: rail.width,
@@ -36,19 +38,30 @@ for (const route of ["/login", "/register"] as const) {
       });
 
       const share = m.railW / m.vw;
-      expect(share, `${route} @${width}px: rail chiếm ${(share * 100).toFixed(0)}% màn hình`).toBeGreaterThan(0.3);
-      expect(share, `${route} @${width}px: rail chiếm ${(share * 100).toFixed(0)}% màn hình`).toBeLessThan(0.5);
+      expect(
+        share,
+        `${route} @${width}px: rail chiếm ${(share * 100).toFixed(0)}% màn hình`,
+      ).toBeGreaterThan(0.3);
+      expect(
+        share,
+        `${route} @${width}px: rail chiếm ${(share * 100).toFixed(0)}% màn hình`,
+      ).toBeLessThan(0.5);
 
       // Khoảng trống giữa rail và cột form không được rộng hơn chính cột form —
       // quá ngưỡng đó thì hai khối đọc thành hai vật thể rời nhau, không phải
       // một bố cục chia đôi.
       const gutter = m.colX - m.railW;
-      expect(gutter, `${route} @${width}px: trống ${Math.round(gutter)}px vs cột ${Math.round(m.colW)}px`).toBeLessThanOrEqual(m.colW);
+      expect(
+        gutter,
+        `${route} @${width}px: trống ${Math.round(gutter)}px vs cột ${Math.round(m.colW)}px`,
+      ).toBeLessThanOrEqual(m.colW);
     }
   });
 }
 
-test("tiêu đề dẫn được trang ở desktop, và nút hiện mật khẩu đủ lớn cho chuột", async ({ page }) => {
+test("tiêu đề dẫn được trang ở desktop, và nút hiện mật khẩu đủ lớn cho chuột", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/login");
   await page.getByLabel("Mật khẩu", { exact: true }).waitFor();
@@ -56,10 +69,56 @@ test("tiêu đề dẫn được trang ở desktop, và nút hiện mật khẩu
   const h1 = await page
     .locator("h1")
     .evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
-  expect(h1, `h1 ${h1}px — màn duy nhất người chưa đăng nhập thấy`).toBeGreaterThanOrEqual(24);
+  expect(
+    h1,
+    `h1 ${h1}px — màn duy nhất người chưa đăng nhập thấy`,
+  ).toBeGreaterThanOrEqual(24);
 
-  const eye = (await page.getByRole("button", { name: "Hiện mật khẩu" }).boundingBox())!;
-  expect(Math.min(eye.width, eye.height), `nút mắt ${eye.width}x${eye.height}`).toBeGreaterThanOrEqual(32);
+  const eye = (await page
+    .getByRole("button", { name: "Hiện mật khẩu" })
+    .boundingBox())!;
+  expect(
+    Math.min(eye.width, eye.height),
+    `nút mắt ${eye.width}x${eye.height}`,
+  ).toBeGreaterThanOrEqual(32);
+});
+
+/**
+ * Nhấn bằng chuột THẬT, không phải `locator.click()` (Playwright vẫn dispatch
+ * click dù phần tử đã trượt khỏi con trỏ). Lỗi từng có: nút mắt căn giữa bằng
+ * `-translate-y-1/2`, và `buttonVariants` thêm `active:translate-y-px` — cả hai
+ * ghi cùng `--tw-translate-y`, nên lúc nhấn nút rớt 17px ra khỏi con trỏ,
+ * `pointerup` rơi vào ô input và `click` không bao giờ nổ. Enter/Space vẫn
+ * chạy, `fireEvent.click` trong unit test cũng chạy: chỉ người thật là không.
+ */
+test.describe("nút hiện mật khẩu", () => {
+  test.use({ hasTouch: true });
+
+  test("đổi được bằng chuột và bằng chạm", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/login");
+    const password = page.getByLabel("Mật khẩu", { exact: true });
+    await password.waitFor();
+    await password.fill("bi-mat");
+
+    const eye = (await page
+      .getByRole("button", { name: "Hiện mật khẩu" })
+      .boundingBox())!;
+    await page.mouse.move(eye.x + eye.width / 2, eye.y + eye.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(password).toHaveAttribute("type", "text");
+
+    // Chạm: cùng đường đi pointerdown → pointerup, nhưng qua touch.
+    const hide = (await page
+      .getByRole("button", { name: "Ẩn mật khẩu" })
+      .boundingBox())!;
+    await page.touchscreen.tap(
+      hide.x + hide.width / 2,
+      hide.y + hide.height / 2,
+    );
+    await expect(password).toHaveAttribute("type", "password");
+  });
 });
 
 /**
@@ -86,7 +145,8 @@ test("luật autofill tới được trình duyệt sau khi build", async ({ pag
       }
       const walk = (list: CSSRuleList) => {
         for (const rule of Array.from(list)) {
-          if (rule.cssText.includes("-webkit-autofill")) hits.push(rule.cssText);
+          if (rule.cssText.includes("-webkit-autofill"))
+            hits.push(rule.cssText);
           const nested = (rule as CSSGroupingRule).cssRules;
           if (nested) walk(nested);
         }
@@ -96,8 +156,14 @@ test("luật autofill tới được trình duyệt sau khi build", async ({ pag
     return hits;
   });
 
-  expect(found.length, "không tìm thấy luật -webkit-autofill nào trong bảng style").toBeGreaterThan(0);
+  expect(
+    found.length,
+    "không tìm thấy luật -webkit-autofill nào trong bảng style",
+  ).toBeGreaterThan(0);
   const all = found.join("\n");
-  expect(all, "phải repaint bằng box-shadow — autofill bỏ qua background-color").toContain("box-shadow");
+  expect(
+    all,
+    "phải repaint bằng box-shadow — autofill bỏ qua background-color",
+  ).toContain("box-shadow");
   expect(all, "phải có bản cho .dark").toContain(".dark");
 });

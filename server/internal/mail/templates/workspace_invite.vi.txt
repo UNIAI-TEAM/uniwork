@@ -1,0 +1,11 @@
+Subject: {{.Data.InviterName}} mời bạn vào {{.Data.WorkspaceName}} trên UniWork
+
+Bạn được mời vào {{.Data.WorkspaceName}}
+
+{{.Data.InviterName}} mời bạn cùng làm việc trong workspace {{.Data.WorkspaceName}} trên UniWork. Mở liên kết dưới đây để chấp nhận:
+
+    {{.Data.AcceptURL}}
+
+Lời mời hết hạn sau {{expires .Data.Expires .Locale}}. Đăng nhập hoặc tạo tài khoản bằng đúng địa chỉ email này để tham gia.
+
+Không quen người mời? Bỏ qua email này, không có gì thay đổi.

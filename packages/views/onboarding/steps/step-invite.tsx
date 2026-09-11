@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { toast } from "sonner";
+import { toastApiError } from "../../toast-api-error";
 import { EMAIL_RE, EmailChipsInput } from "../../workspace/email-chips-input";
 import { InviteRow, type SentInvite } from "../../workspace/invite-row";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
@@ -51,11 +52,11 @@ export function StepInvite({
       { emails: valid, role },
       {
         onSuccess: (d) => {
-          setSent((s) => [...s, ...d.invitations.map((i) => ({ email: i.email, token: i.token }))]);
+          setSent((s) => [...s, ...d.invitations.map((i) => ({ email: i.email }))]);
           setSkipped(d.skipped);
           setEmails([]);
         },
-        onError: () => toast.error(t("onboarding.step_invite.send_failed")),
+        onError: (err) => toastApiError(err, t("onboarding.step_invite.send_failed")),
       },
     );
   };
@@ -116,7 +117,7 @@ export function StepInvite({
               <FieldDescription>{t("onboarding.step_invite.sent_hint")}</FieldDescription>
               <ul aria-labelledby="invite-list-title" className="flex flex-col gap-2">
                 {sent.map((s) => (
-                  <InviteRow key={s.token} sent={s} />
+                  <InviteRow key={s.email} sent={s} />
                 ))}
               </ul>
               {skipped.length > 0 && <FieldDescription>{t("onboarding.step_invite.skipped_note", { count: skipped.length })}</FieldDescription>}

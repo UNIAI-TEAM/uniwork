@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
 // maxJSONBody caps every JSON request body. The largest legitimate payload
@@ -12,15 +14,6 @@ import (
 // their own limit (see avatar.go).
 const maxJSONBody = 1 << 20
 
-type errorBody struct {
-	Error errorDetail `json:"error"`
-}
-
-type errorDetail struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
 func respondJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -28,7 +21,11 @@ func respondJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func respondError(w http.ResponseWriter, status int, code, msg string) {
-	respondJSON(w, status, errorBody{Error: errorDetail{Code: code, Message: msg}})
+	respondJSON(w, status, sdo.ErrorSDO{Error: sdo.ErrorDetail{Code: code, Message: msg}})
+}
+
+func respondErrorFields(w http.ResponseWriter, status int, code, msg string, fields map[string]any) {
+	respondJSON(w, status, sdo.ErrorSDO{Error: sdo.ErrorDetail{Code: code, Message: msg, Fields: fields}})
 }
 
 // decode reads a JSON body into dst, bounded by limit bytes. On failure it
