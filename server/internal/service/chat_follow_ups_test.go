@@ -181,3 +181,41 @@ func TestFollowUpDeleteAndValidation(t *testing.T) {
 		t.Fatalf("create updates note: err=%v %+v", err, fu3)
 	}
 }
+
+func TestFollowUpIsPersonal(t *testing.T) {
+	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	_ = pub
+	tasks := NewTaskService(pool, q, s.ws, newMemStorage())
+	s.SetTasks(tasks)
+	ctx := context.Background()
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "của A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fu, err := s.CreateFollowUp(ctx, ua.ID, w.ID, msg.ID, "riêng A", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listB, err := s.ListFollowUps(ctx, w.ID, ub.ID, true, 10)
+	if err != nil || len(listB) != 0 {
+		t.Fatalf("B must not see A's follow-ups: err=%v len=%d", err, len(listB))
+	}
+	if _, err := s.PatchFollowUp(ctx, ub.ID, w.ID, fu.ID, PatchFollowUpInput{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("B patch: %v", err)
+	}
+	if err := s.DeleteFollowUp(ctx, ub.ID, w.ID, fu.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("B delete: %v", err)
+	}
+	if _, _, err := s.ConvertFollowUpToTask(ctx, ub.ID, w.ID, fu.ID, CreateTaskFromMessageInput{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("B convert: %v", err)
+	}
+	if _, _, err := s.ConvertFollowUpToTask(ctx, ua.ID, w.ID, "01MISSINGFOLLOWUP0000000000", CreateTaskFromMessageInput{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing convert: %v", err)
+	}
+}
