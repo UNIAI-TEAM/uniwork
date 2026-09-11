@@ -1,6 +1,7 @@
 import {
   AtSign,
   Bell,
+  Bookmark,
   CalendarClock,
   CalendarPlus,
   FileDown,
@@ -23,6 +24,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   member_added: UserPlus,
   role_changed: ShieldCheck,
   audit_export_ready: FileDown,
+  chat_follow_up: Bookmark,
 };
 
 /** One glyph per kind; an unknown kind from a newer server gets the bell. */

@@ -48,12 +48,13 @@ type env struct {
 type rule func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error)
 
 var rules = map[string]rule{
-	"task.updated":        ruleTaskUpdated,
-	"task.comment_added":  ruleTaskCommentAdded,
-	"participant.invited": ruleParticipantInvited,
-	"member.joined":       ruleMemberJoined,
-	"member.role_changed": ruleRoleChanged,
-	"audit.exported":      ruleAuditExported,
+	"task.updated":           ruleTaskUpdated,
+	"task.comment_added":     ruleTaskCommentAdded,
+	"participant.invited":    ruleParticipantInvited,
+	"member.joined":          ruleMemberJoined,
+	"member.role_changed":    ruleRoleChanged,
+	"audit.exported":         ruleAuditExported,
+	"chat.follow_up.created": ruleChatFollowUpCreated,
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to
@@ -371,6 +372,26 @@ func ruleAuditExported(ctx context.Context, e env, ev outbox.Row, p map[string]s
 		UserID: p["user_id"], OrganizationID: p["organization_id"],
 		Kind: KindAuditExportReady, GroupKey: "export:" + p["export_id"],
 		ResourceType: "audit_export", ResourceID: p["export_id"],
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
+	}}, nil
+}
+
+func ruleChatFollowUpCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["user_id"] == "" || p["follow_up_id"] == "" || p["workspace_id"] == "" || p["message_id"] == "" {
+		return nil, nil
+	}
+	ws, err := e.q.GetWorkspaceByID(ctx, p["workspace_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Personal reminder: the creator is the recipient even when they are the actor.
+	return []Draft{{
+		UserID: p["user_id"], OrganizationID: ws.OrganizationID, WorkspaceID: p["workspace_id"],
+		Kind: KindChatFollowUp, GroupKey: "chat_follow_up:" + p["follow_up_id"],
+		ResourceType: "chat_message", ResourceID: p["message_id"],
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
 	}}, nil
 }

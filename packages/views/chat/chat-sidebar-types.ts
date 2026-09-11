@@ -18,6 +18,7 @@ export interface ChatSidebarProps {
   groups: GroupChat[];
   channels?: ChatRoomRecord[];
   workHubEnabled?: boolean;
+  onOpenFollowUps?: () => void;
   onCreateGroup?: (members: ChatContact[], name: string) => void;
   creatingGroup?: boolean;
   createGroupOpen?: boolean;

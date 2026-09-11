@@ -189,6 +189,22 @@ type ChatMessage struct {
 	MirroredFromCommentID pgtype.Text        `json:"mirrored_from_comment_id"`
 }
 
+type ChatMessageFollowUp struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         string             `json:"room_id"`
+	MessageID      string             `json:"message_id"`
+	UserID         string             `json:"user_id"`
+	Note           string             `json:"note"`
+	DueAt          pgtype.Timestamptz `json:"due_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ChatMessageLink struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

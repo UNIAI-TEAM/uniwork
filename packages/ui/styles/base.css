@@ -74,6 +74,17 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); background-clip: content-box; }
+
+/* Hide scrollbar while keeping scroll (chip rows, popovers). Beats the * rules above. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 /* Số trong bảng/đo lường xếp thẳng cột. */
 .font-mono, [data-tabular] { font-variant-numeric: tabular-nums; }
 
@@ -154,7 +165,7 @@ html[data-sidebar-resizing="true"] * {
   background-color: var(--sidebar-border);
 }
 
-/* Button-driven detail sidebar toggles follow the Multica panel contract.
+/* Button-driven detail sidebar toggles follow the shared panel contract.
    Both flex items must transition together: changing only the sidebar makes
    the main panel jump to its final flex-grow on the first frame. */
 [data-right-sidebar-layout][data-right-sidebar-motion="enabled"]
