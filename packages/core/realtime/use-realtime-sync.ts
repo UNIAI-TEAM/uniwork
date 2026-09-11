@@ -97,6 +97,13 @@ function keysFor(
       }
       break;
     }
+    case "chat.follow_up.created":
+    case "chat.follow_up.updated":
+    case "chat.follow_up.completed":
+    case "chat.follow_up.deleted": {
+      push(chatKeys.followUps(wsId));
+      break;
+    }
     case "meeting.created":
     case "meeting.updated":
     case "meeting.deleted":

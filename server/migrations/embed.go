@@ -57,6 +57,15 @@ var chatMigrationRenumbers = map[string]string{
 	"066_chat_messages_client_msg_id_uidx":      "151_chat_messages_client_msg_id_uidx",
 }
 
+// followUpMigrationRenumbers records Follow-ups DDL that briefly used 181–183
+// on the UNI-512 branch before Posts claimed 181 on develop; existing DBs keep
+// the table/indexes and only need the schema_migrations rows renamed.
+var followUpMigrationRenumbers = map[string]string{
+	"181_chat_message_follow_ups":                    "182_chat_message_follow_ups",
+	"182_chat_message_follow_ups_user_message_uidx":  "183_chat_message_follow_ups_user_message_uidx",
+	"183_chat_message_follow_ups_workspace_user_idx": "184_chat_message_follow_ups_workspace_user_idx",
+}
+
 func renameMigrationVersions(ctx context.Context, conn *pgxpool.Conn, renames map[string]string) error {
 	for oldV, newV := range renames {
 		if _, err := conn.Exec(ctx, `
@@ -80,7 +89,60 @@ func reconcileRenamedMigrations(ctx context.Context, conn *pgxpool.Conn) error {
 	if err := renameMigrationVersions(ctx, conn, chatMigrationRenames); err != nil {
 		return err
 	}
-	return renameMigrationVersions(ctx, conn, chatMigrationRenumbers)
+	if err := renameMigrationVersions(ctx, conn, chatMigrationRenumbers); err != nil {
+		return err
+	}
+	if err := renameMigrationVersions(ctx, conn, followUpMigrationRenumbers); err != nil {
+		return err
+	}
+	return backfillFollowUpMigrationsIfPresent(ctx, conn)
+}
+
+// backfillFollowUpMigrationsIfPresent marks Follow-ups versions applied when
+// the matching objects already exist but schema_migrations has no row (dev/test
+// DBs that created them under the temporary 181–183 names, then lost the rows).
+func backfillFollowUpMigrationsIfPresent(ctx context.Context, conn *pgxpool.Conn) error {
+	checks := []struct {
+		version string
+		sql     string
+	}{
+		{
+			"182_chat_message_follow_ups",
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.tables
+				WHERE table_schema = 'public' AND table_name = 'chat_message_follow_ups')`,
+		},
+		{
+			"183_chat_message_follow_ups_user_message_uidx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'uidx_chat_message_follow_ups_user_message')`,
+		},
+		{
+			"184_chat_message_follow_ups_workspace_user_idx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'idx_chat_message_follow_ups_workspace_user')`,
+		},
+	}
+	for _, check := range checks {
+		var present bool
+		if err := conn.QueryRow(ctx, check.sql).Scan(&present); err != nil {
+			return err
+		}
+		if !present {
+			continue
+		}
+		if _, err := conn.Exec(ctx, `
+			INSERT INTO schema_migrations (version)
+			SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+			check.version); err != nil {
+			return fmt.Errorf("backfill follow-up migration version %s: %w", check.version, err)
+		}
+	}
+	return nil
 }
 
 func renamedChatVersions() []string {

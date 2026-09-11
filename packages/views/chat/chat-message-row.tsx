@@ -37,6 +37,7 @@ export function ChatMessageRow({
   onDelete,
   onCreateTask,
   onLinkTask,
+  onFollowUp,
   workHubEnabled = false,
   showSenderName = false,
   compactTop = false,
@@ -60,6 +61,7 @@ export function ChatMessageRow({
   onDelete?: (message: ChatMessage) => void;
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
+  onFollowUp?: (message: ChatMessage) => void;
   workHubEnabled?: boolean;
   showSenderName?: boolean;
   compactTop?: boolean;
@@ -117,6 +119,7 @@ export function ChatMessageRow({
             onDelete={onDelete}
             onCreateTask={workHubEnabled ? onCreateTask : undefined}
             onLinkTask={workHubEnabled ? onLinkTask : undefined}
+            onFollowUp={workHubEnabled ? onFollowUp : undefined}
             canEdit={canEdit}
           />
         ) : null}

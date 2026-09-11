@@ -11,6 +11,8 @@ export function resourceHref(n: Notification, workspace: Workspace): string {
       return ws.meeting(n.resource_id);
     case "audit_export":
       return `${ws.settings()}?tab=audit`;
+    case "chat_message":
+      return ws.chat();
     default:
       return ws.inbox();
   }

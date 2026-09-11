@@ -24,7 +24,9 @@ import {
   ChatPageConversationToolbar,
   chatPageEmptyLabel,
 } from "./chat-page-conversation-toolbar";
+import { ChatPageEmptyConversation } from "./chat-page-empty-conversation";
 import { chatComposerPlaceholder } from "./chat-composer-placeholder";
+import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
 
 export function ChatPageContent({
   target,
@@ -116,6 +118,7 @@ export function ChatPageContent({
   const [createPostOpen, setCreatePostOpen] = useState(false);
   const [mobileListMode, setMobileListMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const followUpUi = useChatFollowUpUi(workspaceId, workHubEnabled);
 
   const showMobileList = mobileListMode || !activeRoomId;
   const showMobileChat = Boolean(activeRoomId) && !mobileListMode;
@@ -309,6 +312,7 @@ export function ChatPageContent({
               groups={groups}
               channels={channels}
               workHubEnabled={workHubEnabled}
+              onOpenFollowUps={followUpUi.openList}
               onCreateGroup={onCreateGroup}
               creatingGroup={creatingGroup}
               createGroupOpen={createGroupOpen}
@@ -423,6 +427,7 @@ export function ChatPageContent({
                   replyTo={replyTo}
                   onReplyToChange={onReplyToChange}
                   workHubEnabled={workHubEnabled}
+                  onFollowUp={followUpUi.onFollowUp}
                   onActiveThreadRootIdChange={onActiveThreadRootIdChange}
                   refreshKey={messageRefreshKey}
                   showSenderName={
@@ -467,17 +472,12 @@ export function ChatPageContent({
                 />
               </>
             ) : (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-                <span className="flex size-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <MessageSquare className="size-8" aria-hidden />
-                </span>
-                <p className="text-body font-medium text-foreground">{t("chat.contacts_title")}</p>
-                <p className="max-w-sm text-caption text-muted-foreground">{t("chat.contacts_hint")}</p>
-              </div>
+              <ChatPageEmptyConversation t={t} />
             )}
           </div>
         </div>
       </div>
+      {followUpUi.sheet}
     </>
   );
 }

@@ -13,6 +13,8 @@ export const chatKeys = {
     ["chat", "followed-threads", wsId, unread] as const,
   messageLinks: (wsId: string, messageId: string) =>
     ["chat", "message-links", wsId, messageId] as const,
+  /** Prefix for all Follow-up list variants; invalidate with this key only. */
+  followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
     ["chat", "room-message-search", wsId, roomId, query] as const,
   roomMembers: (wsId: string, roomId: string) => ["chat", "room-members", wsId, roomId] as const,

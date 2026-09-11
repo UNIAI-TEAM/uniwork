@@ -21,6 +21,14 @@ vi.mock("./create-group-dialog", () => ({
   CreateGroupDialog: () => null,
 }));
 
+vi.mock("./create-channel-dialog", () => ({
+  CreateChannelDialog: () => null,
+}));
+
+vi.mock("./channel-directory-sheet", () => ({
+  ChannelDirectorySheet: () => null,
+}));
+
 const contact = {
   user_id: "u2",
   email: "binh@example.com",
@@ -73,7 +81,7 @@ describe("ChatSidebar", () => {
     expect(onTargetChange).toHaveBeenCalledWith({ kind: "dm", contact });
   });
 
-  it("hides empty group and contact sections instead of long hints", () => {
+  it("shows a flat list with kind filters instead of section headers", () => {
     render(
       wrap(
         <ChatSidebar
@@ -89,9 +97,31 @@ describe("ChatSidebar", () => {
 
     expect(screen.queryByText(/Chưa có nhóm nào/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Chưa có cuộc trò chuyện/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Nhóm/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Tin nhắn trực tiếp/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Workspace/i)).toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: /Lọc cuộc trò chuyện/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tất cả", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tin nhắn", pressed: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Chung/ })).toBeInTheDocument();
+  });
+
+  it("kind filter hides other conversation types", () => {
+    render(
+      wrap(
+        <ChatSidebar
+          currentUserId="self"
+          workspaceId="ws1"
+          target={{ kind: "workspace" }}
+          onTargetChange={vi.fn()}
+          contacts={[contact]}
+          groups={[group]}
+          workspaceRoomId="room-ws"
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tin nhắn" }));
+    expect(screen.getByRole("button", { name: /Binh/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Design/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Chung/ })).not.toBeInTheDocument();
   });
 
   it("shows contact nickname in conversation list", () => {

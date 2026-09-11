@@ -222,7 +222,8 @@
         "meeting_starting": "Meeting starting soon",
         "member_added": "Added to a workspace",
         "role_changed": "Role changed",
-        "audit_export_ready": "Audit export ready"
+        "audit_export_ready": "Audit export ready",
+        "chat_follow_up": "Message FollowUp"
       }
     },
     "page": {
@@ -1487,6 +1488,12 @@
     "search_jump_banner": "Viewing a search result",
     "search_back_to_latest": "Back to latest",
     "search_no_results": "No conversations match your search.",
+    "filter_aria": "Filter conversations",
+    "filter_all": "All",
+    "filter_dm": "Messages",
+    "filter_group": "Groups",
+    "filter_channel": "Channels",
+    "filter_workspace": "Workspace",
     "add_dm_aria": "Message someone new",
     "create_group_aria": "Create group chat",
     "start_dm_title": "New direct message",
@@ -1612,6 +1619,31 @@
     "thread_replies_unread": "{{count}} replies · unread",
     "replying_to": "Replying to: {{preview}}",
     "cancel_reply": "Cancel",
+    "follow_up": {
+      "action": "Follow up",
+      "list_title": "My Follow-ups",
+      "list_description": "Messages you marked to handle later. Also appear in Inbox.",
+      "loading": "Loading…",
+      "load_failed": "Could not load Follow-ups.",
+      "empty": "No open Follow-ups.",
+      "untitled": "Saved message",
+      "message_missing": "Message missing or deleted",
+      "unknown_room": "Conversation",
+      "note": "Note: {{note}}",
+      "due": "Due {{date}}",
+      "no_due": "No due date",
+      "complete": "Done",
+      "convert": "Make task",
+      "delete": "Delete",
+      "created": "Follow-up added",
+      "completed": "Follow-up completed",
+      "converted": "Task created from Follow-up",
+      "deleted": "Follow-up deleted",
+      "create_failed": "Could not add Follow-up",
+      "update_failed": "Could not update Follow-up",
+      "convert_failed": "Could not convert to task",
+      "delete_failed": "Could not delete Follow-up"
+    },
     "link": {
       "create_task": "Create task",
       "link_task": "Link task",
@@ -2238,7 +2270,8 @@
       "meeting_starting": "“{{meeting}}” starts in {{minutes}} minutes",
       "member_added": "{{actor}} added you to workspace {{workspace}}",
       "role_changed": "{{actor}} changed your role to {{role}}",
-      "audit_export_ready": "Your audit export is ready"
+      "audit_export_ready": "Your audit export is ready",
+      "chat_follow_up": "You saved a FollowUp on a message"
     }
   },
   "ai": {
