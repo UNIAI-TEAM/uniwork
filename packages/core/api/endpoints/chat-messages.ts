@@ -100,6 +100,11 @@ export async function sendChatRoomMessage(
       body: string;
       pin_to_top?: boolean;
     };
+    post?: {
+      title: string;
+      body: string;
+      pin_to_top?: boolean;
+    };
     priority?: "important" | "urgent";
   },
 ): Promise<ChatMessageRecord | null> {

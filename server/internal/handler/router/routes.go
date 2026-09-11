@@ -336,4 +336,5 @@ type Routes struct {
 	SignalChatVoiceAccept       http.HandlerFunc
 	SignalChatVoiceHangup       http.HandlerFunc
 	SignalChatTyping            http.HandlerFunc
+	SignalChatPresence          http.HandlerFunc
 }

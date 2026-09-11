@@ -9,12 +9,15 @@ import {
   comparePinnedRoomOrder,
   useChatRoomPreferencesStore,
 } from "@uniwork/core/chat/room-preferences-store";
+import { usePresenceStore } from "@uniwork/core/chat/presence-store";
+import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 import type { PendingInvitation } from "@uniwork/core/types";
 import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ChatPresenceAvatar } from "./chat-presence-avatar";
 import { ChatSidebarChannels } from "./chat-sidebar-channels";
 import { CreateGroupDialog } from "./create-group-dialog";
 import { StartDmDialog } from "./start-dm-dialog";
@@ -56,6 +59,7 @@ export function ChatSidebar({
   embedded = false,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
+  const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
   const [filterQuery, setFilterQuery] = useState("");
   const [startDmOpen, setStartDmOpen] = useState(false);
   const [createGroupOpenInternal, setCreateGroupOpenInternal] = useState(false);
@@ -352,7 +356,14 @@ export function ChatSidebar({
                         active={active}
                         onClick={() => onTargetChange({ kind: "dm", contact })}
                         avatar={
-                          <ActorAvatar name={label} initials={initialOf(label)} size="sm" />
+                          <ChatPresenceAvatar
+                            name={label}
+                            initials={initialOf(label)}
+                            size="sm"
+                            online={Boolean(
+                              onlineUserIds[normalizeTypingUserId(contact.user_id)],
+                            )}
+                          />
                         }
                         title={label}
                         preview={dmRoomId ? roomPreviewsByRoomId[dmRoomId] : undefined}

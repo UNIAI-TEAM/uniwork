@@ -76,6 +76,8 @@ export interface RequestOpts {
    * Content-Type are still owned by the transport.
    */
   headers?: Record<string, string>;
+  /** Keep the request alive across page unload (presence offline, etc.). */
+  keepalive?: boolean;
 }
 
 function baseUrl(): string {
@@ -128,6 +130,7 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     headers,
     credentials: "include",
     body,
+    keepalive: opts.keepalive,
   });
 }
 

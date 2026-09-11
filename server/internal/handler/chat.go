@@ -113,6 +113,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			PinToTop: m.Note.PinToTop,
 		}
 	}
+	if m.Post != nil {
+		out.Post = &sdo.ChatPostDTO{
+			Title:    m.Post.Title,
+			Body:     m.Post.Body,
+			PinToTop: m.Post.PinToTop,
+		}
+	}
 	return out
 }
 
@@ -138,6 +145,9 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
+	}
+	if r.PeerLastReadAt != nil {
+		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
 	}
 	if r.LastMessageAt != nil {
 		out.LastMessageAt = r.LastMessageAt.Format(time.RFC3339)
@@ -534,6 +544,19 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			service.SendNoteMessageInput{
 				Body:             in.Note.Body,
 				PinToTop:         in.Note.PinToTop,
+				ReplyToMessageID: in.ReplyToMessageID,
+			},
+		)
+	} else if in.Post != nil {
+		msg, err = h.Chat.SendPostMessage(
+			r.Context(),
+			userID,
+			workspaceID,
+			roomID,
+			service.SendPostMessageInput{
+				Title:            in.Post.Title,
+				Body:             in.Post.Body,
+				PinToTop:         in.Post.PinToTop,
 				ReplyToMessageID: in.ReplyToMessageID,
 			},
 		)

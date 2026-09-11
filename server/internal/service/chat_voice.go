@@ -552,6 +552,7 @@ func chatMessageRowFromMessageFields(
 		Poll:             pollFromMetadata(kind, metadata, viewerID),
 		Reminder:         reminderFromMetadata(kind, metadata),
 		Note:             noteFromMetadata(kind, metadata, body),
+		Post:             postFromMetadata(kind, metadata, body),
 		Priority:         priorityFromMetadata(metadata),
 	}
 	if editedAt.Valid {

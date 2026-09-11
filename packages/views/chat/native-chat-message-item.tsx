@@ -2,10 +2,12 @@
 
 import type { ReactNode } from "react";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
+import { shouldShowReadReceipt } from "@uniwork/core/chat/read-receipt-utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageRow } from "./chat-message-row";
 import { ChatFileMessageRow } from "./chat-file-message-row";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
+import { ChatPostMessageRow } from "./chat-post-message-row";
 import { ChatPollMessageRow } from "./chat-poll-message-row";
 import { ChatReminderMessageRow } from "./chat-reminder-message-row";
 import { ChatVoiceMessageRow } from "./chat-voice-message-row";
@@ -39,6 +41,7 @@ export function renderNativeChatMessage(input: {
   canPinMessages: boolean;
   highlightMessageId: string | null;
   workHubEnabled?: boolean;
+  peerLastReadAt?: string | null;
   actions: NativeChatMessageActions;
 }): ReactNode {
   const {
@@ -54,6 +57,7 @@ export function renderNativeChatMessage(input: {
     canPinMessages,
     highlightMessageId,
     workHubEnabled = false,
+    peerLastReadAt = null,
     actions,
   } = input;
   const message = messages[index];
@@ -77,6 +81,18 @@ export function renderNativeChatMessage(input: {
       <ChatNoteMessageRow
         key={message.id}
         note={message.note}
+        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        showSenderName={showSenderName}
+        compactTop={compactTop}
+      />
+    );
+  }
+  if (message.kind === "post" && message.post) {
+    const { compactTop } = messageGrouping(messages, index);
+    return (
+      <ChatPostMessageRow
+        key={message.id}
+        post={message.post}
         senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
         showSenderName={showSenderName}
         compactTop={compactTop}
@@ -165,7 +181,12 @@ export function renderNativeChatMessage(input: {
       key={message.id}
       message={message}
       isOwn={isOwn}
-      showReadReceipt={false}
+      showReadReceipt={shouldShowReadReceipt({
+        messages,
+        index,
+        currentUserId,
+        peerLastReadAt,
+      })}
       senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
       replyToMessage={replyTarget}
       workspaceId={workspaceId}

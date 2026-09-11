@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // SignalVoiceInvite notifies organization members of an outgoing voice call.
@@ -130,4 +132,50 @@ func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roo
 		s.publishChatRoomEvent(ctx, roomID, ev)
 	}
 	return nil
+}
+
+// SignalPresence broadcasts that the caller is online or offline in the workspace.
+func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string) error {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+		return err
+	}
+	normalized := strings.ToLower(strings.TrimSpace(state))
+	if normalized == "" {
+		normalized = "online"
+	}
+	if normalized != "online" && normalized != "offline" {
+		return Invalid("state must be online or offline")
+	}
+	topic := "user.presence"
+	if normalized == "online" {
+		if !shouldPublishPresence(userID, time.Now()) {
+			return nil
+		}
+	} else {
+		clearPresenceThrottle(userID)
+		topic = "user.offline"
+	}
+	s.pub.Publish(ctx, workspaceID, Event{
+		Type: topic,
+		Payload: map[string]string{
+			"user_id": userID,
+		},
+	})
+	return nil
+}
+
+func (s *ChatService) publishChatRoomRead(ctx context.Context, room db.ChatRoom, userID string) {
+	ev := Event{
+		Type: "chat.room.read",
+		Payload: map[string]string{
+			"room_id": room.ID,
+			"user_id": userID,
+		},
+	}
+	switch room.Kind {
+	case chatRoomKindWorkspace, chatRoomKindChannel:
+		s.pub.Publish(ctx, roomAnchorWorkspaceID(room), ev)
+	default:
+		s.publishChatRoomEvent(ctx, room.ID, ev)
+	}
 }

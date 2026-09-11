@@ -306,6 +306,55 @@ func (q *Queries) CreateChatPollMessage(ctx context.Context, arg CreateChatPollM
 	return i, err
 }
 
+const createChatPostMessage = `-- name: CreateChatPostMessage :one
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, kind, body, metadata
+) VALUES (
+  $1, $2, $3, $4, 'post', $5, $6
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
+`
+
+type CreateChatPostMessageParams struct {
+	ID          string `json:"id"`
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SenderID    string `json:"sender_id"`
+	Body        string `json:"body"`
+	Metadata    []byte `json:"metadata"`
+}
+
+func (q *Queries) CreateChatPostMessage(ctx context.Context, arg CreateChatPostMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, createChatPostMessage,
+		arg.ID,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.SenderID,
+		arg.Body,
+		arg.Metadata,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+	)
+	return i, err
+}
+
 const createChatReminderMessage = `-- name: CreateChatReminderMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, kind, body, metadata

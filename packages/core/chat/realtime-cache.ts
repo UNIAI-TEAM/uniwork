@@ -4,7 +4,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import { getChatRoomMessage } from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
-import { chatKeys } from "./hooks";
+import { chatKeys } from "./chat-keys";
 import { useActiveChatRoomStore } from "./active-chat-room-store";
 
 export const CHAT_MESSAGE_CACHE_MAX = 1000;

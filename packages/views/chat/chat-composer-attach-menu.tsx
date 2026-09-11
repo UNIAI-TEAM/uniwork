@@ -7,6 +7,7 @@ import {
   CircleAlert,
   Clock,
   FileUp,
+  Megaphone,
   Paperclip,
   StickyNote,
 } from "lucide-react";
@@ -19,6 +20,7 @@ export type ComposerAttachAction =
   | "create_poll"
   | "create_reminder"
   | "create_note"
+  | "create_post"
   | "mark_important"
   | "mark_urgent"
   | "stickers"
@@ -38,6 +40,7 @@ const ATTACH_MENU_ITEMS: ComposerAttachMenuItem[] = [
   { id: "create_poll", icon: BarChart3, labelKey: "composer_create_poll" },
   { id: "create_reminder", icon: Clock, labelKey: "composer_create_reminder" },
   { id: "create_note", icon: StickyNote, labelKey: "composer_create_note" },
+  { id: "create_post", icon: Megaphone, labelKey: "composer_create_post" },
   { separator: true },
   { id: "mark_important", icon: CircleAlert, labelKey: "composer_mark_important" },
   { id: "mark_urgent", icon: Bell, labelKey: "composer_mark_urgent" },

@@ -426,6 +426,7 @@ func New(d Deps) http.Handler {
 		SignalChatVoiceAccept:       h.signalChatVoiceAccept,
 		SignalChatVoiceHangup:       h.signalChatVoiceHangup,
 		SignalChatTyping:            h.signalChatTyping,
+		SignalChatPresence:          h.signalChatPresence,
 	})
 }
 

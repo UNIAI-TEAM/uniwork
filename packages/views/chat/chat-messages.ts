@@ -51,6 +51,11 @@ export interface ChatMessage {
     body: string;
     pinToTop: boolean;
   };
+  post?: {
+    title: string;
+    body: string;
+    pinToTop: boolean;
+  };
   priority?: "important" | "urgent";
   clientMsgId?: string;
   deliveryStatus?: "sending" | "queued";
