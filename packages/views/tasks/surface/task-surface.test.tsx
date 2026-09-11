@@ -105,6 +105,9 @@ describe("TaskSurface", () => {
   });
 
   it("calls table groups endpoint when table mode active", async () => {
+    const store = getTaskSurfaceViewStore("test-ws-table");
+    store.getState().setTableGrouping("status");
+
     render(
       wrap(
         <TaskSurface
@@ -126,6 +129,9 @@ describe("TaskSurface", () => {
   });
 
   it("scopes table groups by project_ids when project scope", async () => {
+    const store = getTaskSurfaceViewStore("test-project-table");
+    store.getState().setTableGrouping("status");
+
     render(
       wrap(
         <TaskSurface
@@ -181,8 +187,11 @@ describe("TaskSurface", () => {
     ).toBe(false);
   });
 
-  it("disables hierarchy chevron when children fetch is unavailable", async () => {
+  it("shows hierarchy chevron when a row reports children", async () => {
     tableChildCount = 2;
+    const store = getTaskSurfaceViewStore("test-ws-table-hierarchy");
+    store.getState().setTableGrouping("status");
+
     render(
       wrap(
         <TaskSurface
@@ -195,12 +204,11 @@ describe("TaskSurface", () => {
     );
 
     expect(await screen.findByText("Task 1")).toBeInTheDocument();
-    // Full suite may leave i18n on en; match both catalogue strings.
+    // Expanded by default → collapse label; i18n may be vi or en.
     const chevron = await screen.findByRole("button", {
-      name: /Chưa khả dụng|Not available yet/,
+      name: /Thu công việc con|Collapse sub-tasks|Mở công việc con|Expand sub-tasks/,
     });
-    expect(chevron).toBeDisabled();
-    expect(chevron.title).toMatch(/Chưa khả dụng|Not available yet/);
+    expect(chevron).toBeEnabled();
   });
 
   it("loads the next offset page when group rows are truncated", async () => {

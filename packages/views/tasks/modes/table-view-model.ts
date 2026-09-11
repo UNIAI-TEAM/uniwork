@@ -94,7 +94,18 @@ export function buildTaskTableHierarchy(
         children.length > 0 || (directChildCount.get(task.id) ?? 0) > 0,
       collapsed,
     });
-    if (collapsed) return;
+    if (collapsed) {
+      // Hide the loaded subtree so the orphan pass cannot re-promote children.
+      const markHidden = (parent: Task) => {
+        for (const child of childrenByParent.get(parent.id) ?? []) {
+          if (visited.has(child.id)) continue;
+          visited.add(child.id);
+          markHidden(child);
+        }
+      };
+      markHidden(task);
+      return;
+    }
     for (const child of children) append(child, depth + 1);
   };
 
@@ -104,7 +115,9 @@ export function buildTaskTableHierarchy(
     }
   }
   // Malformed cyclic data must remain visible instead of disappearing.
-  for (const task of tasks) append(task, 0);
+  for (const task of tasks) {
+    if (!visited.has(task.id)) append(task, 0);
+  }
   return rows;
 }
 
