@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { useTask } from "@uniwork/core/tasks";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
+import {
+  RightSidebarToggle,
+  useAnimatedRightSidebar,
+} from "../../layout/animated-right-sidebar";
 import { useWorkspace } from "../../layout/workspace-context";
 import { TaskDetailEditors } from "./components/task-detail-editors";
 import { TaskDetailResizableLayout } from "./components/task-detail-layout";
@@ -26,6 +30,7 @@ export function TaskDetailSuitePage(props: {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
   const { data: task, isLoading, isError, refetch } = useTask(taskId);
+  const sidebarController = useAnimatedRightSidebar(true);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const attachScroll = useCallback((el: HTMLElement | null) => {
     setScrollEl(el);
@@ -78,8 +83,16 @@ export function TaskDetailSuitePage(props: {
       <BreadcrumbHeader
         segments={segments}
         leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
+        actions={
+          <RightSidebarToggle
+            controller={sidebarController}
+            label={t("tasks.detail.sidebar_toggle")}
+          />
+        }
       />
       <TaskDetailResizableLayout
+        sidebarController={sidebarController}
+        sidebarLabel={t("tasks.detail.sidebar_toggle")}
         main={
           <TaskDetailEditors
             task={task}

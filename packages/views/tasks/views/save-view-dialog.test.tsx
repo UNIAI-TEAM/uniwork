@@ -23,6 +23,24 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   };
 });
 
+vi.mock("@uniwork/core/workspaces", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/workspaces")>();
+  return {
+    ...actual,
+    useMembers: () => ({
+      data: [
+        {
+          workspace_id: "w1",
+          user_id: "member-1",
+          role: "member",
+          email: "member@example.com",
+          display_name: "Member One",
+        },
+      ],
+    }),
+  };
+});
+
 beforeEach(() => {
   createMutate.mockReset();
   createMutate.mockImplementation((_body, opts?: { onSuccess?: (v: unknown) => void }) => {
@@ -31,8 +49,105 @@ beforeEach(() => {
 });
 
 describe("SaveViewDialog", () => {
-  it("calls createTaskView with the draft name and workspace scope", async () => {
+  it("shows the saved-view builder controls", () => {
+    const store = getTaskSurfaceViewStore("test-save-view-controls");
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <SaveViewDialog
+            workspaceId="w1"
+            open
+            onOpenChange={() => {}}
+            scope={{ kind: "workspace" }}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(screen.getByText(/loại người được giao|assignee type/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /thêm bộ lọc|add filter/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /hiển thị mặc định|default display/i })).toBeInTheDocument();
+  });
+
+  it("shows each active filter as a removable summary chip", async () => {
+    const store = getTaskSurfaceViewStore("test-save-view-filter-chips");
+    store.setState({
+      statusFilters: ["todo", "in_progress"],
+      priorityFilters: ["high"],
+    });
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <SaveViewDialog
+            workspaceId="w1"
+            open
+            onOpenChange={() => {}}
+            scope={{ kind: "workspace" }}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(
+      await screen.findByText(/2 trạng thái|2 statuses/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/cao|high/i)).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /gỡ bộ lọc trạng thái|remove status filter/i,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText(/2 trạng thái|2 statuses/i)).not.toBeInTheDocument();
+    });
+    expect(screen.getByText(/cao|high/i)).toBeInTheDocument();
+  });
+
+  it("opens the assignee submenu with grouped member options", async () => {
+    const store = getTaskSurfaceViewStore("test-save-view-assignee-menu");
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <SaveViewDialog
+            workspaceId="w1"
+            open
+            onOpenChange={() => {}}
+            scope={{ kind: "workspace" }}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /thêm bộ lọc|add filter/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /người nhận|assignee/i }),
+    );
+
+    expect(
+      await screen.findByText(/thành viên|members/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Member One")).toBeInTheDocument();
+  });
+
+  it("persists the complete draft display state", async () => {
     const store = getTaskSurfaceViewStore("test-save-view");
+    store.setState({
+      viewMode: "table",
+      cardPropertyIds: ["estimate"],
+      ganttZoom: "month",
+      ganttShowCompleted: true,
+      swimlaneGrouping: "project",
+      tableColumns: [{ key: "title", width: 420 }, { key: "status" }],
+      tableGrouping: "status",
+      tableHierarchy: false,
+    });
 
     render(
       wrap(
@@ -50,7 +165,11 @@ describe("SaveViewDialog", () => {
     fireEvent.change(screen.getByRole("textbox", { name: /tên|name/i }), {
       target: { value: "Focus board" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /lưu|save/i }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /tạo chế độ xem|create view/i,
+      }),
+    );
 
     await waitFor(() => {
       expect(createMutate).toHaveBeenCalled();
@@ -59,9 +178,20 @@ describe("SaveViewDialog", () => {
       name: string;
       scope_type: string;
       visibility: string;
+      display: Record<string, unknown>;
     };
     expect(body.name).toBe("Focus board");
     expect(body.scope_type).toBe("workspace");
     expect(body.visibility).toMatch(/private|workspace/);
+    expect(body.display).toMatchObject({
+      viewMode: "table",
+      cardPropertyIds: ["estimate"],
+      ganttZoom: "month",
+      ganttShowCompleted: true,
+      swimlaneGrouping: "project",
+      tableColumns: [{ key: "title", width: 420 }, { key: "status" }],
+      tableGrouping: "status",
+      tableHierarchy: false,
+    });
   });
 });

@@ -153,3 +153,24 @@ html[data-sidebar-resizing="true"] * {
 [data-sidebar-resizing="true"] [data-sidebar="rail"]::after {
   background-color: var(--sidebar-border);
 }
+
+/* Button-driven detail sidebar toggles follow the Multica panel contract.
+   Both flex items must transition together: changing only the sidebar makes
+   the main panel jump to its final flex-grow on the first frame. */
+[data-right-sidebar-layout][data-right-sidebar-motion="enabled"]
+  > [data-panel] {
+  transition-property: flex-grow;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-right-sidebar-layout]:has(> [data-separator="active"])
+  > [data-panel] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-right-sidebar-layout] > [data-panel] {
+    transition: none;
+  }
+}
