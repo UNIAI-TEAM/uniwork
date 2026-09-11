@@ -6,6 +6,11 @@ import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import {
+  AnimatedRightSidebarLayout,
+  RightSidebarToggle,
+  useAnimatedRightSidebar,
+} from "../layout/animated-right-sidebar";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { TaskSurface } from "../tasks/surface/task-surface";
 import { ProjectDetailHeader } from "./project-detail-header";
@@ -40,6 +45,7 @@ export function ProjectDetailPage({
 }) {
   const { t } = useTranslation();
   const { data: project, isLoading } = useProject(workspaceId, projectId);
+  const sidebarController = useAnimatedRightSidebar(true);
 
   const backLeading = (
     <Button
@@ -102,32 +108,47 @@ export function ProjectDetailPage({
             {project.title}
           </span>
         }
+        actions={
+          <RightSidebarToggle
+            controller={sidebarController}
+            label={t("projects.detail.sidebar_toggle")}
+          />
+        }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <TaskSurface
-            workspaceId={workspaceId}
-            scope={{ type: "project", projectId }}
-            modes={[...PROJECT_SURFACE_MODES]}
-            surfaceKey={`project:${projectId}`}
-            onOpenTask={onOpenTask}
-          />
-        </div>
-
-        <aside
-          className={`shrink-0 overflow-y-auto border-t border-border py-4 lg:w-80 lg:border-l lg:border-t-0 ${PAGE_GUTTER}`}
-        >
-          <div className="space-y-5">
-            <ProjectDetailHeader workspaceId={workspaceId} project={project} />
-            <ProjectProperties workspaceId={workspaceId} project={project} />
-            <ProjectResourcesSection
+      <AnimatedRightSidebarLayout
+        controller={sidebarController}
+        sidebarLabel={t("projects.detail.sidebar_toggle")}
+        sidebarDefaultSize={320}
+        sidebarMinSize={260}
+        sidebarMaxSize={420}
+        main={
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <TaskSurface
               workspaceId={workspaceId}
-              projectId={projectId}
+              scope={{ type: "project", projectId }}
+              modes={[...PROJECT_SURFACE_MODES]}
+              surfaceKey={`project:${projectId}`}
+              onOpenTask={onOpenTask}
             />
           </div>
-        </aside>
-      </div>
+        }
+        sidebar={
+          <aside
+            aria-label={t("projects.detail.sidebar_label")}
+            className={`h-full overflow-y-auto py-4 ${PAGE_GUTTER}`}
+          >
+            <div className="space-y-5">
+              <ProjectDetailHeader workspaceId={workspaceId} project={project} />
+              <ProjectProperties workspaceId={workspaceId} project={project} />
+              <ProjectResourcesSection
+                workspaceId={workspaceId}
+                projectId={projectId}
+              />
+            </div>
+          </aside>
+        }
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Trash2, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { commonTaskFields } from "@uniwork/core/tasks/batch";
@@ -21,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { UI_EASE_OUT, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
@@ -46,6 +48,7 @@ export function BatchActionToolbar({
   const selection = useTaskSurfaceSelection();
   const selectedIds = selection.selectedIds;
   const clear = selection.clear;
+  const reduceMotion = useReducedMotion() ?? false;
 
   const selectedTasks = useMemo(
     () => tasks.filter((task) => selectedIds.has(task.id)),
@@ -105,68 +108,80 @@ export function BatchActionToolbar({
     }
   };
 
-  if (count === 0) return null;
-
   return (
     <>
-      <div
-        className={cn(
-          "z-50",
-          placement === "fixed-bottom"
-            ? "fixed bottom-6 left-1/2 max-w-[calc(100vw-2rem)] -translate-x-1/2"
-            : "mb-2 w-fit",
-        )}
-      >
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 shadow-lg">
-          <div className="mr-1 flex items-center gap-1.5 border-r border-border pr-2 pl-1">
-            <span className="text-body font-medium">
-              {t("tasks.batch.selected", { count })}
-            </span>
-            <button
-              type="button"
-              onClick={clear}
-              className="rounded p-0.5 transition-colors hover:bg-accent"
-              aria-label={t("tasks.batch.clear_selection")}
-            >
-              <X className="size-3.5 text-muted-foreground" aria-hidden />
-            </button>
-          </div>
-
-          <BatchStatusPicker
-            status={common.status}
-            disabled={loading}
-            onUpdate={(updates) => {
-              if (!updates.status) return;
-              void handleBatchUpdate(updates);
-            }}
-          />
-          <BatchPriorityPicker
-            priority={common.priority}
-            disabled={loading}
-            onUpdate={(updates) => void handleBatchUpdate(updates)}
-          />
-          <BatchAssigneePicker
-            assigneeId={common.assignee?.id ?? null}
-            mixed={common.assignee === null}
-            disabled={loading}
-            members={members}
-            onUpdate={(updates) => void handleBatchUpdate(updates)}
-          />
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={loading}
-            onClick={() => setDeleteOpen(true)}
-            className="text-destructive hover:text-destructive"
-            data-testid="batch-delete"
+      <AnimatePresence initial={false}>
+        {count > 0 ? (
+          <div
+            key="task-batch-toolbar"
+            className={cn(
+              "z-50",
+              placement === "fixed-bottom"
+                ? "fixed bottom-6 left-1/2 max-w-[calc(100vw-2rem)] -translate-x-1/2"
+                : "mb-2 w-fit",
+            )}
           >
-            <Trash2 className="mr-1 size-3.5" aria-hidden />
-            {t("tasks.batch.delete")}
-          </Button>
-        </div>
-      </div>
+            <motion.div
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
+              transition={{
+                duration: UI_MOTION_DURATION.fast,
+                ease: UI_EASE_OUT,
+              }}
+              className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 shadow-lg"
+            >
+              <div className="mr-1 flex items-center gap-1.5 border-r border-border pr-2 pl-1">
+                <span className="text-body font-medium">
+                  {t("tasks.batch.selected", { count })}
+                </span>
+                <button
+                  type="button"
+                  onClick={clear}
+                  className="rounded p-0.5 transition-colors hover:bg-accent"
+                  aria-label={t("tasks.batch.clear_selection")}
+                >
+                  <X className="size-3.5 text-muted-foreground" aria-hidden />
+                </button>
+              </div>
+
+              <BatchStatusPicker
+                status={common.status}
+                disabled={loading}
+                onUpdate={(updates) => {
+                  if (!updates.status) return;
+                  void handleBatchUpdate(updates);
+                }}
+              />
+              <BatchPriorityPicker
+                priority={common.priority}
+                disabled={loading}
+                onUpdate={(updates) => void handleBatchUpdate(updates)}
+              />
+              <BatchAssigneePicker
+                assigneeId={common.assignee?.id ?? null}
+                mixed={common.assignee === null}
+                disabled={loading}
+                members={members}
+                onUpdate={(updates) => void handleBatchUpdate(updates)}
+              />
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={loading}
+                onClick={() => setDeleteOpen(true)}
+                className="text-destructive hover:text-destructive"
+                data-testid="batch-delete"
+              >
+                <Trash2 className="mr-1 size-3.5" aria-hidden />
+                {t("tasks.batch.delete")}
+              </Button>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

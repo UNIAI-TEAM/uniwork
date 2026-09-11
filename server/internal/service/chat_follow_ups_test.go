@@ -45,7 +45,8 @@ func TestCreateFollowUp(t *testing.T) {
 	if list[0].MessageBody != "Cần follow sau meeting" {
 		t.Fatalf("list message preview: %+v", list[0])
 	}
-	if list[0].RoomKind != "workspace" {
+	// EnsureWorkspaceRoom creates the default room as kind=channel (is_default).
+	if list[0].RoomKind != "channel" {
 		t.Fatalf("list room kind: %+v", list[0])
 	}
 	if list[0].MessageSenderName == "" {
