@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Bell, CircleAlert, Mic, Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -24,7 +24,12 @@ import {
   getActiveMentionQuery,
   insertMentionToken,
 } from "./chat-mention-utils";
+import {
+  CHAT_FILE_ACCEPT,
+  pickChatAcceptedFiles,
+} from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
+import { useFileDropZone } from "../editor/use-file-drop-zone";
 
 function ComposerPriorityChip({
   priority,
@@ -101,6 +106,26 @@ export function ChatComposer({
   const mentionEnabled = mentionCandidates !== undefined;
   const voiceRecorder = useChatVoiceRecorder();
   const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
+
+  const sendAcceptedFiles = useCallback(
+    (files: File[]) => {
+      if (disabled || !onSendFile) return;
+      const accepted = pickChatAcceptedFiles(files);
+      if (accepted.length === 0) {
+        if (files.length > 0) toast.error(t("chat.file_type_unsupported"));
+        return;
+      }
+      for (const file of accepted) {
+        void onSendFile(file);
+      }
+    },
+    [disabled, onSendFile, t],
+  );
+
+  const { isDragOver, dropZoneProps } = useFileDropZone({
+    enabled: Boolean(onSendFile) && !disabled && !voiceActive,
+    onDrop: sendAcceptedFiles,
+  });
 
   const visibleMentionCandidates = useMemo(() => {
     if (!mentionEnabled || mentionStart === null) return [];
@@ -195,19 +220,33 @@ export function ChatComposer({
     .padStart(2, "0")}`;
 
   return (
-    <div className="flex shrink-0 flex-col gap-1 border-t border-border bg-surface px-3 py-3">
+    <div
+      className={cn(
+        "relative flex shrink-0 flex-col gap-1 border-t border-border bg-surface px-3 py-3",
+        isDragOver && "bg-brand/5",
+      )}
+      {...dropZoneProps}
+    >
+      {isDragOver ? (
+        <p
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-none border-2 border-dashed border-brand bg-brand/10 text-body font-medium text-brand"
+          aria-live="polite"
+        >
+          {t("chat.file_drop_hint")}
+        </p>
+      ) : null}
       <input
         ref={fileInputRef}
         type="file"
         className="sr-only"
-        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,.jpg,.jpeg,.png,.gif,.webp,.pdf,.txt"
+        accept={CHAT_FILE_ACCEPT}
         aria-hidden
         tabIndex={-1}
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
           if (!file || disabled) return;
-          void onSendFile?.(file);
+          sendAcceptedFiles([file]);
         }}
       />
       {typingLabel ? (
@@ -323,6 +362,13 @@ export function ChatComposer({
                   e.currentTarget.value,
                   e.currentTarget.selectionStart ?? e.currentTarget.value.length,
                 );
+              }}
+              onPaste={(e) => {
+                if (!onSendFile || disabled) return;
+                const files = Array.from(e.clipboardData?.files ?? []);
+                if (files.length === 0) return;
+                e.preventDefault();
+                sendAcceptedFiles(files);
               }}
               placeholder={placeholder}
               aria-label={placeholder}

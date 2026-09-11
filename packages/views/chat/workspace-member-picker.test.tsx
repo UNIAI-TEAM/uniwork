@@ -58,8 +58,27 @@ describe("workspace-member-picker", () => {
 
     fireEvent.change(screen.getByLabelText("Tìm thành viên"), { target: { value: "long" } });
     expect(onQueryChange).toHaveBeenCalledWith("long");
-    fireEvent.click(screen.getByRole("button", { name: "Tìm" }));
+    fireEvent.submit(screen.getByLabelText("Tìm thành viên").closest("form")!);
     expect(onSubmit).toHaveBeenCalled();
+  });
+
+  it("clears the query from the clear button", () => {
+    const onQueryChange = vi.fn();
+    render(
+      wrap(
+        <WorkspaceMemberSearchField
+          id="member-search"
+          label="Tìm thành viên"
+          query="long"
+          onQueryChange={onQueryChange}
+          onSubmit={vi.fn()}
+          placeholder="Email"
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Xóa tìm kiếm" }));
+    expect(onQueryChange).toHaveBeenCalledWith("");
   });
 
   it("shows loading and empty member lists", () => {

@@ -75,8 +75,8 @@ export function StartDmDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1 border-b border-border bg-muted/20 px-5 py-4">
-          <DialogTitle>{t("chat.start_dm_title")}</DialogTitle>
+        <DialogHeader className="space-y-1.5 border-b border-border px-5 py-4">
+          <DialogTitle className="text-title">{t("chat.start_dm_title")}</DialogTitle>
           <DialogDescription>{t("chat.start_dm_description")}</DialogDescription>
         </DialogHeader>
 
@@ -122,7 +122,7 @@ export function StartDmDialog({
           ) : null}
         </div>
 
-        <DialogFooter className="border-t border-border bg-muted/10 px-5 py-4">
+        <DialogFooter className="border-t border-border px-5 py-3.5">
           <Button
             type="button"
             variant="outline"

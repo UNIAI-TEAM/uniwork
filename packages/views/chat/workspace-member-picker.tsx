@@ -1,8 +1,8 @@
 "use client";
 
-import { Search, UserPlus } from "lucide-react";
+import { Search, UserPlus, X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { toChatContactFromLookup, useLookupChatUser } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -13,6 +13,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   filterWorkspaceMembers,
   findWorkspaceMemberByEmail,
@@ -41,10 +42,13 @@ export function WorkspaceMemberSearchField({
   placeholder: string;
 }) {
   const { t } = useTranslation();
+  const hasQuery = query.trim().length > 0;
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className="text-label font-medium text-foreground">
+        {label}
+      </Label>
       <form
         className="relative"
         onSubmit={(e) => {
@@ -63,17 +67,20 @@ export function WorkspaceMemberSearchField({
           placeholder={placeholder}
           type="search"
           autoComplete="off"
-          className="rounded-full pl-9 pr-12"
+          className={cn("rounded-xl pl-9", hasQuery ? "pr-10" : "pr-3")}
         />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="icon-sm"
-          className="absolute right-1 top-1/2 size-8 -translate-y-1/2 rounded-full"
-          aria-label={t("chat.search_action")}
-        >
-          <Search className="size-4" aria-hidden />
-        </Button>
+        {hasQuery ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute right-1 top-1/2 size-8 -translate-y-1/2 rounded-full text-muted-foreground hover:text-foreground"
+            aria-label={t("chat.clear_search")}
+            onClick={() => onQueryChange("")}
+          >
+            <X className="size-4" aria-hidden />
+          </Button>
+        ) : null}
       </form>
     </div>
   );
@@ -99,11 +106,11 @@ export function WorkspaceMemberPickerList({
   }
 
   if (members.length === 0) {
-    return <p className="text-caption text-muted-foreground">{emptyLabel}</p>;
+    return <p className="px-1 py-2 text-caption text-muted-foreground">{emptyLabel}</p>;
   }
 
   return (
-    <ul className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-2">
+    <ul className="max-h-52 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/60">
       {members.map((member) => {
         const contact = memberToChatContact(member);
         const label = memberDisplayLabel(member);
@@ -111,17 +118,22 @@ export function WorkspaceMemberPickerList({
           <li key={member.user_id}>
             <button
               type="button"
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-surface"
+              className="group flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
               onClick={() => onPick(contact)}
             >
               <ActorAvatar name={label} initials={initialOf(label)} size="sm" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-body text-foreground">{label}</span>
+                <span className="block truncate text-body font-medium text-foreground">{label}</span>
                 <span className="block truncate text-caption text-muted-foreground">
                   {member.email}
                 </span>
               </span>
-              {actionIcon ?? <UserPlus className="size-4 shrink-0 text-brand" aria-hidden />}
+              {actionIcon ?? (
+                <UserPlus
+                  className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                  aria-hidden
+                />
+              )}
             </button>
           </li>
         );
@@ -193,13 +205,13 @@ export function ExternalMemberLookupRow({
   return (
     <div className="space-y-2">
       <p className="text-caption text-muted-foreground">{hint}</p>
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2">
+      <div className="flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2.5">
         <ActorAvatar name={label} initials={initialOf(label)} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-body font-medium text-foreground">{label}</p>
           <p className="truncate text-caption text-muted-foreground">{lookup.email}</p>
         </div>
-        <Button type="button" size="sm" className="rounded-full" onClick={() => onPick(contact)}>
+        <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={() => onPick(contact)}>
           {actionLabel}
         </Button>
       </div>
