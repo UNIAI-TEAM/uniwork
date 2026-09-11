@@ -188,6 +188,8 @@ func TestFollowUpIsPersonal(t *testing.T) {
 	tasks := NewTaskService(pool, q, s.ws, newMemStorage())
 	s.SetTasks(tasks)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 
 	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
 	if err != nil {
