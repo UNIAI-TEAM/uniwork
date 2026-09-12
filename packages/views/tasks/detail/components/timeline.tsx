@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useResourceHistory } from "@uniwork/core/audit";
-import type { AuditEvent } from "@uniwork/core/types";
+import type { AuditEvent, TaskComment } from "@uniwork/core/types";
 import {
   useAddCommentReaction,
   useComments,
@@ -24,6 +24,7 @@ import { toastApiError } from "../../../toast-api-error";
 import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
+import { buildCommentThreads } from "./comment-thread";
 
 function commentHashId(): string | null {
   if (typeof document === "undefined") return null;
@@ -65,23 +66,13 @@ export function TaskDetailTimeline({
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
-  const roots = useMemo(() => {
-    const list = comments ?? [];
-    return list
-      .filter((c) => !c.parent_id)
-      .slice()
-      .sort((a, b) => {
-        const ta = a.created_at ?? "";
-        const tb = b.created_at ?? "";
-        return ta.localeCompare(tb);
-      });
-  }, [comments]);
+  const threads = useMemo(() => buildCommentThreads(comments ?? []), [comments]);
 
   const entries = useMemo(() => {
-    const commentRows = roots.map((c) => ({
+    const commentRows = threads.map((thread) => ({
       kind: "comment" as const,
-      at: c.created_at ?? "",
-      comment: c,
+      at: thread.root.created_at ?? "",
+      thread,
     }));
     const activityRows = (history.data ?? [])
       .filter((e: AuditEvent) => isTimelineActivity(e))
@@ -93,7 +84,7 @@ export function TaskDetailTimeline({
     return [...commentRows, ...activityRows].sort((a, b) =>
       a.at.localeCompare(b.at),
     );
-  }, [roots, history.data]);
+  }, [threads, history.data]);
 
   const actorNames = useMemo(
     () =>
@@ -112,14 +103,14 @@ export function TaskDetailTimeline({
 
   useEffect(() => {
     const target = commentHashId();
-    if (!target || roots.length === 0) return;
+    if (!target || threads.length === 0) return;
     const el = document.getElementById(`comment-${target}`);
     if (!el) return;
     el.scrollIntoView({ block: "nearest" });
     setHighlightedId(target);
     const fade = window.setTimeout(() => setHighlightedId(null), 2500);
     return () => window.clearTimeout(fade);
-  }, [roots, taskId]);
+  }, [threads, taskId]);
 
   const onCompose = async (body: string): Promise<boolean> => {
     try {
@@ -130,6 +121,51 @@ export function TaskDetailTimeline({
       return false;
     }
   };
+
+  const renderCommentCard = (comment: TaskComment) => (
+    <TaskCommentCard
+      key={comment.id}
+      comment={comment}
+      highlighted={highlightedId === comment.id}
+      onToggleReaction={(emoji) => {
+        addReaction.mutate(
+          { commentId: comment.id, emoji },
+          {
+            onError: () => {
+              removeReaction.mutate(
+                { commentId: comment.id, emoji },
+                {
+                  onError: (err) => toastApiError(err, errFallback),
+                },
+              );
+            },
+          },
+        );
+      }}
+      onEdit={(body) => {
+        updateComment.mutate(
+          { commentId: comment.id, body: { body } },
+          { onError: (err) => toastApiError(err, errFallback) },
+        );
+      }}
+      onResolveToggle={(resolved) => {
+        if (resolved) {
+          resolveComment.mutate(comment.id, {
+            onError: (err) => toastApiError(err, errFallback),
+          });
+        } else {
+          unresolveComment.mutate(comment.id, {
+            onError: (err) => toastApiError(err, errFallback),
+          });
+        }
+      }}
+      onDelete={() => {
+        deleteComment.mutate(comment.id, {
+          onError: (err) => toastApiError(err, errFallback),
+        });
+      }}
+    />
+  );
 
   return (
     <section
@@ -194,51 +230,17 @@ export function TaskDetailTimeline({
               />
             ) : (
               <div
-                key={entry.comment.id}
-                data-testid={`task-timeline-comment-${entry.comment.id}`}
+                key={entry.thread.root.id}
+                data-testid={`task-timeline-comment-${entry.thread.root.id}`}
               >
-                <TaskCommentCard
-                  comment={entry.comment}
-                  highlighted={highlightedId === entry.comment.id}
-                  onToggleReaction={(emoji) => {
-                    addReaction.mutate(
-                      { commentId: entry.comment.id, emoji },
-                      {
-                        onError: () => {
-                          removeReaction.mutate(
-                            { commentId: entry.comment.id, emoji },
-                            {
-                              onError: (err) =>
-                                toastApiError(err, errFallback),
-                            },
-                          );
-                        },
-                      },
-                    );
-                  }}
-                  onEdit={(body) => {
-                    updateComment.mutate(
-                      { commentId: entry.comment.id, body: { body } },
-                      { onError: (err) => toastApiError(err, errFallback) },
-                    );
-                  }}
-                  onResolveToggle={(resolved) => {
-                    if (resolved) {
-                      resolveComment.mutate(entry.comment.id, {
-                        onError: (err) => toastApiError(err, errFallback),
-                      });
-                    } else {
-                      unresolveComment.mutate(entry.comment.id, {
-                        onError: (err) => toastApiError(err, errFallback),
-                      });
-                    }
-                  }}
-                  onDelete={() => {
-                    deleteComment.mutate(entry.comment.id, {
-                      onError: (err) => toastApiError(err, errFallback),
-                    });
-                  }}
-                />
+                {renderCommentCard(entry.thread.root)}
+                {entry.thread.replies.length > 0 ? (
+                  <div className="ml-6 border-l border-border pl-3">
+                    {entry.thread.replies.map((reply) =>
+                      renderCommentCard(reply),
+                    )}
+                  </div>
+                ) : null}
               </div>
             ),
           )
