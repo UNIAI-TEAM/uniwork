@@ -140,3 +140,71 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestListCommentsEmbedsReactions(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Reaction HTTP",
+	})
+	if res.StatusCode != 200 && res.StatusCode != 201 {
+		t.Fatalf("create task: %d %v", res.StatusCode, body)
+	}
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{
+		"body": "một",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, body)
+	}
+	commentID, _ := body["comment"].(map[string]any)["id"].(string)
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/comments/"+commentID+"/reactions", token, map[string]any{
+		"emoji": "👍",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("add reaction: %d %v", res.StatusCode, body)
+	}
+
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/comments", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list comments: %d %v", res.StatusCode, body)
+	}
+	comments, _ := body["comments"].([]any)
+	if len(comments) != 1 {
+		t.Fatalf("comments = %v", body)
+	}
+	first, _ := comments[0].(map[string]any)
+	reactions, ok := first["reactions"].([]any)
+	if !ok {
+		t.Fatalf("reactions thiếu hoặc null: %v", first)
+	}
+	if len(reactions) != 1 {
+		t.Fatalf("reactions = %v, want 1", reactions)
+	}
+	if reactions[0].(map[string]any)["emoji"] != "👍" {
+		t.Fatalf("emoji = %v", reactions[0])
+	}
+}
+
+func TestListCommentsWithoutReactionsReturnsEmptyArrayNotNull(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	_, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "No reaction",
+	})
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+	doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{"body": "một"})
+
+	_, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/comments", token, nil)
+	comments, _ := body["comments"].([]any)
+	first, _ := comments[0].(map[string]any)
+	reactions, ok := first["reactions"].([]any)
+	if !ok {
+		t.Fatalf("reactions phải là mảng rỗng, không phải null: %v", first)
+	}
+	if len(reactions) != 0 {
+		t.Fatalf("reactions = %v, want rỗng", reactions)
+	}
+}

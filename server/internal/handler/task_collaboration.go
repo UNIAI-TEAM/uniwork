@@ -55,6 +55,23 @@ func commentDTOFromListRow(c db.ListTaskCommentsRow) sdo.CommentDTO {
 	)
 }
 
+// groupCommentReactions buckets reactions by comment id. Every comment gets a
+// non-nil slice so the JSON carries [] instead of null.
+func groupCommentReactions(rows []db.CommentReaction) map[string][]sdo.CommentReactionDTO {
+	out := make(map[string][]sdo.CommentReactionDTO, len(rows))
+	for _, r := range rows {
+		out[r.CommentID] = append(out[r.CommentID], sdo.CommentReactionDTO{
+			ID:        r.ID,
+			CommentID: r.CommentID,
+			ActorType: r.ActorType,
+			ActorID:   r.ActorID,
+			Emoji:     r.Emoji,
+			CreatedAt: r.CreatedAt.Time.Format(time.RFC3339),
+		})
+	}
+	return out
+}
+
 func commentDTOFromTaskComment(c db.TaskComment, displayName, avatarURL string) sdo.CommentDTO {
 	return commentDTO(
 		c.ID, c.TaskID, c.AuthorID, c.AuthorKind, c.Body, c.CommentType, c.Revision,
