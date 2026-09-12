@@ -944,7 +944,8 @@
       "comment_unresolve": "Unresolve",
       "comment_resolved": "Resolved",
       "comment_edit": "Edit",
-      "activity_stub_reason": "Activity history is not available yet — comments still show below.",
+      "activity_changed_fields": "Changed {{fields}}",
+      "activity_generic": "Updated the task",
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",
       "agentRun": {

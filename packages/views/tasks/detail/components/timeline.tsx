@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useResourceHistory } from "@uniwork/core/audit";
+import type { AuditEvent } from "@uniwork/core/types";
 import {
   useAddCommentReaction,
   useComments,
@@ -18,6 +20,7 @@ import {
 } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../../../toast-api-error";
+import { TaskActivityRow } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
 
@@ -31,15 +34,22 @@ function commentHashId(): string | null {
 }
 
 /**
- * Task detail timeline: comments from the comments endpoint and an activity
- * stub (GetTaskTimeline is still capability_unavailable). AgentRun/PR chrome
- * was removed at web cutover.
+ * Task detail timeline: comments from the comments endpoint merged with
+ * activity read from the audit log, sorted by time. AgentRun/PR chrome was
+ * removed at web cutover.
  */
-export function TaskDetailTimeline({ taskId }: { taskId: string }) {
+export function TaskDetailTimeline({
+  workspaceId,
+  taskId,
+}: {
+  workspaceId: string;
+  taskId: string;
+}) {
   const { t } = useTranslation();
   const errFallback = t("common.error");
   const currentUserId = useAuthStore((s) => s.user?.id);
   const { data: comments, isLoading } = useComments(taskId);
+  const history = useResourceHistory(workspaceId, "task", taskId);
   const createComment = useCreateCommentSuite(taskId);
   const updateComment = useUpdateComment(taskId);
   const deleteComment = useDeleteComment(taskId);
@@ -63,6 +73,22 @@ export function TaskDetailTimeline({ taskId }: { taskId: string }) {
         return ta.localeCompare(tb);
       });
   }, [comments]);
+
+  const entries = useMemo(() => {
+    const commentRows = roots.map((c) => ({
+      kind: "comment" as const,
+      at: c.created_at ?? "",
+      comment: c,
+    }));
+    const activityRows = (history.data ?? []).map((e: AuditEvent) => ({
+      kind: "activity" as const,
+      at: e.occurred_at,
+      event: e,
+    }));
+    return [...commentRows, ...activityRows].sort((a, b) =>
+      a.at.localeCompare(b.at),
+    );
+  }, [roots, history.data]);
 
   const watching = useMemo(() => {
     if (!currentUserId) return false;
@@ -126,64 +152,69 @@ export function TaskDetailTimeline({ taskId }: { taskId: string }) {
         </Button>
       </div>
 
-      <p className="mt-3 text-caption text-muted-foreground">
-        {t("tasks.detail.activity_stub_reason")}
-      </p>
-
       <div className="mt-4 space-y-3">
         {isLoading ? (
           <p className="text-caption text-muted-foreground">
             {t("common.loading")}
           </p>
-        ) : roots.length === 0 ? (
+        ) : entries.length === 0 ? (
           <p className="text-caption text-muted-foreground">
             {t("tasks.detail.comments_empty")}
           </p>
         ) : (
-          roots.map((c) => (
-            <TaskCommentCard
-              key={c.id}
-              comment={c}
-              highlighted={highlightedId === c.id}
-              onToggleReaction={(emoji) => {
-                addReaction.mutate(
-                  { commentId: c.id, emoji },
-                  {
-                    onError: () => {
-                      removeReaction.mutate(
-                        { commentId: c.id, emoji },
-                        {
-                          onError: (err) => toastApiError(err, errFallback),
+          entries.map((entry) =>
+            entry.kind === "activity" ? (
+              <TaskActivityRow key={entry.event.id} event={entry.event} />
+            ) : (
+              <div
+                key={entry.comment.id}
+                data-testid={`task-timeline-comment-${entry.comment.id}`}
+              >
+                <TaskCommentCard
+                  comment={entry.comment}
+                  highlighted={highlightedId === entry.comment.id}
+                  onToggleReaction={(emoji) => {
+                    addReaction.mutate(
+                      { commentId: entry.comment.id, emoji },
+                      {
+                        onError: () => {
+                          removeReaction.mutate(
+                            { commentId: entry.comment.id, emoji },
+                            {
+                              onError: (err) =>
+                                toastApiError(err, errFallback),
+                            },
+                          );
                         },
-                      );
-                    },
-                  },
-                );
-              }}
-              onEdit={(body) => {
-                updateComment.mutate(
-                  { commentId: c.id, body: { body } },
-                  { onError: (err) => toastApiError(err, errFallback) },
-                );
-              }}
-              onResolveToggle={(resolved) => {
-                if (resolved) {
-                  resolveComment.mutate(c.id, {
-                    onError: (err) => toastApiError(err, errFallback),
-                  });
-                } else {
-                  unresolveComment.mutate(c.id, {
-                    onError: (err) => toastApiError(err, errFallback),
-                  });
-                }
-              }}
-              onDelete={() => {
-                deleteComment.mutate(c.id, {
-                  onError: (err) => toastApiError(err, errFallback),
-                });
-              }}
-            />
-          ))
+                      },
+                    );
+                  }}
+                  onEdit={(body) => {
+                    updateComment.mutate(
+                      { commentId: entry.comment.id, body: { body } },
+                      { onError: (err) => toastApiError(err, errFallback) },
+                    );
+                  }}
+                  onResolveToggle={(resolved) => {
+                    if (resolved) {
+                      resolveComment.mutate(entry.comment.id, {
+                        onError: (err) => toastApiError(err, errFallback),
+                      });
+                    } else {
+                      unresolveComment.mutate(entry.comment.id, {
+                        onError: (err) => toastApiError(err, errFallback),
+                      });
+                    }
+                  }}
+                  onDelete={() => {
+                    deleteComment.mutate(entry.comment.id, {
+                      onError: (err) => toastApiError(err, errFallback),
+                    });
+                  }}
+                />
+              </div>
+            ),
+          )
         )}
       </div>
 

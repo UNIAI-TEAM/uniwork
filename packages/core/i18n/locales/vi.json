@@ -943,7 +943,8 @@
       "comment_unresolve": "Mở lại",
       "comment_resolved": "Đã xử lý",
       "comment_edit": "Sửa",
-      "activity_stub_reason": "Lịch sử hoạt động chưa khả dụng — bình luận vẫn hiện bên dưới.",
+      "activity_changed_fields": "Đã đổi {{fields}}",
+      "activity_generic": "Đã cập nhật công việc",
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
       "agentRun": {

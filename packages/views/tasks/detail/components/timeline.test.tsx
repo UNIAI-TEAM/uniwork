@@ -8,7 +8,7 @@ import {
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import type { User, Workspace } from "@uniwork/core/types";
+import type { AuditEvent, TaskComment, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
 import { TaskDetailTimeline } from "./timeline";
@@ -27,25 +27,32 @@ const createMutateAsync = vi.hoisted(() =>
   }),
 );
 
+const mockUseComments = vi.hoisted(() =>
+  vi.fn(() => ({
+    data: [
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        display_name: "Me",
+        body: "Existing note",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-01T00:00:00Z",
+        reactions: [],
+      },
+    ] as TaskComment[],
+    isLoading: false,
+    isError: false,
+  })),
+);
+
 vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/tasks")>();
   return {
     ...actual,
-    useComments: () => ({
-      data: [
-        {
-          id: "c1",
-          task_id: "t1",
-          author_id: "u1",
-          author_kind: "human",
-          display_name: "Me",
-          body: "Existing note",
-          created_at: "2026-09-01T00:00:00Z",
-        },
-      ],
-      isLoading: false,
-      isError: false,
-    }),
+    useComments: mockUseComments,
     useCreateCommentSuite: () => ({
       mutateAsync: createMutateAsync,
       isPending: false,
@@ -59,6 +66,18 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
     useTaskSubscribers: () => ({ data: [], isLoading: false }),
     useSubscribeTask: () => ({ mutate: vi.fn(), isPending: false }),
     useUnsubscribeTask: () => ({ mutate: vi.fn(), isPending: false }),
+  };
+});
+
+const useResourceHistoryMock = vi.hoisted(() =>
+  vi.fn(() => ({ data: [] as AuditEvent[] })),
+);
+
+vi.mock("@uniwork/core/audit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/audit")>();
+  return {
+    ...actual,
+    useResourceHistory: useResourceHistoryMock,
   };
 });
 
@@ -206,6 +225,30 @@ function shell(ui: ReactNode) {
   );
 }
 
+function mockComments(comments: TaskComment[]) {
+  mockUseComments.mockReturnValue({
+    data: comments,
+    isLoading: false,
+    isError: false,
+  });
+}
+
+function mockResourceHistory(events: AuditEvent[]) {
+  useResourceHistoryMock.mockReturnValue({ data: events });
+}
+
+function renderTimeline({
+  workspaceId,
+  taskId,
+}: {
+  workspaceId: string;
+  taskId: string;
+}) {
+  return render(
+    shell(<TaskDetailTimeline workspaceId={workspaceId} taskId={taskId} />),
+  );
+}
+
 beforeAll(() => {
   initI18n();
 });
@@ -215,11 +258,26 @@ beforeEach(() => {
   setSessionUser(me);
   createMutateAsync.mockClear();
   window.history.replaceState(null, "", "/");
+  mockComments([
+    {
+      id: "c1",
+      task_id: "t1",
+      author_id: "u1",
+      author_kind: "human",
+      display_name: "Me",
+      body: "Existing note",
+      type: "comment",
+      revision: 0,
+      created_at: "2026-09-01T00:00:00Z",
+      reactions: [],
+    },
+  ]);
+  mockResourceHistory([]);
 });
 
 describe("TaskDetailTimeline", () => {
   it("compose comment calls create suite mutation", async () => {
-    render(shell(<TaskDetailTimeline taskId="t1" />));
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
 
     expect(screen.getByText("Existing note")).toBeInTheDocument();
 
@@ -246,10 +304,58 @@ describe("TaskDetailTimeline", () => {
   });
 
   it("does not mount AgentRun or pull-request chrome on the timeline", () => {
-    render(shell(<TaskDetailTimeline taskId="t1" />));
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
 
     expect(screen.queryByTestId("task-detail-runtime-stubs")).toBeNull();
     expect(screen.queryByTestId("task-detail-agent-run-panel")).toBeNull();
     expect(screen.queryByTestId("task-detail-pull-requests")).toBeNull();
+  });
+
+  it("trộn hoạt động từ nhật ký với bình luận theo thứ tự thời gian", async () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "bình luận sau",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([
+      {
+        id: "a1",
+        organization_id: "o1",
+        actor_kind: "human",
+        actor_id: "u1",
+        action: "task.updated",
+        resource_type: "task",
+        resource_id: "t1",
+        changes: { status: { from: "todo", to: "in_progress" } },
+        metadata: {},
+        correlation_id: "x",
+        occurred_at: "2026-09-12T09:00:00Z",
+      },
+    ]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    const rows = await screen.findAllByTestId(
+      /^task-timeline-(comment|activity)-/,
+    );
+    expect(rows.map((r) => r.dataset.testid)).toEqual([
+      "task-timeline-activity-a1",
+      "task-timeline-comment-c1",
+    ]);
+  });
+
+  it("không hiện dòng giải thích hoạt động chưa khả dụng nữa", () => {
+    mockComments([]);
+    mockResourceHistory([]);
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+    expect(screen.queryByText(/chưa khả dụng/i)).not.toBeInTheDocument();
   });
 });
