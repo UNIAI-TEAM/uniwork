@@ -4,4 +4,5 @@
 export { LOCALE_COOKIE } from "./browser-cookie-adapter";
 export { matchLocale, parseAcceptLanguage } from "./pick-locale";
 export { DEFAULT_LOCALE, SUPPORTED_LOCALES } from "./types";
+export { BUNDLED_LOCALES, bundledDictionary, loadDictionary } from "./dictionaries";
 export type { SupportedLocale } from "./types";

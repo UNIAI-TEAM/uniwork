@@ -5,7 +5,7 @@ import "./globals.css";
 // config, and this module is the only place that config is populated.
 import "../platform/runtime-config";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { resolveRequestLocale } from "../platform/locale-server";
+import { resolveRequestLocale, resolveRequestMessages } from "../platform/locale-server";
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-inter", display: "swap" });
@@ -79,10 +79,15 @@ export const metadata: Metadata = {
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await resolveRequestLocale();
+  // Read on the server so the browser renders the same strings on its first
+  // frame; null whenever the JS bundle already carries them.
+  const messages = await resolveRequestMessages(locale);
   return (
     <html lang={locale} suppressHydrationWarning className={inter.variable}>
       <body className="font-sans">
-        <Providers initialLocale={locale}>{children}</Providers>
+        <Providers initialLocale={locale} initialMessages={messages}>
+          {children}
+        </Providers>
       </body>
     </html>
   );

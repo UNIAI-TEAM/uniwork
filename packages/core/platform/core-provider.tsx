@@ -18,6 +18,9 @@ function AuthInitializer() {
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient);
   const [ready] = useState(() => {
+    // The default instance, for a host that resolves no locale of its own.
+    // i18next initialises once, so a host that DOES have one — the web app
+    // reads it from a cookie — must mount its locale provider above this.
     initI18n();
     setSchemaLogger(createLogger("api"));
     return true;

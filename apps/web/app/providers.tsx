@@ -13,22 +13,36 @@ import { WebLocaleProvider } from "../platform/locale";
 import { WebNavigationProvider } from "../platform/navigation";
 
 /**
- * Host composition for the web app: the shared headless boot (query cache,
- * session, i18n) from CoreProvider, the flag source (GET /config, which also
- * starts web-vitals reporting), then the two things only this host
- * provides — a router adapter and a toast outlet.
+ * Host composition for the web app: the request's locale first (see the note
+ * on the ordering below), then the shared headless boot (query cache, session)
+ * from CoreProvider, the flag source (GET /config, which also starts
+ * web-vitals reporting), then the two things only this host provides — a
+ * router adapter and a toast outlet.
  */
-export function Providers({ initialLocale, children }: { initialLocale: SupportedLocale; children: React.ReactNode }) {
+export function Providers({
+  initialLocale,
+  initialMessages,
+  children,
+}: {
+  initialLocale: SupportedLocale;
+  initialMessages: Record<string, unknown> | null;
+  children: React.ReactNode;
+}) {
   return (
     <ThemeProvider>
-      <CoreProvider>
-        <WebFeatureFlagsProvider>
-          <WebLocaleProvider initialLocale={initialLocale}>
+      {/* Above CoreProvider, not below it. CoreProvider boots a default i18next
+          for hosts that have no locale of their own, and i18next initialises
+          once: whichever provider renders first decides the language. The
+          locale lives in this request's cookie, so this host has to get there
+          first or every page renders the default. */}
+      <WebLocaleProvider initialLocale={initialLocale} initialMessages={initialMessages}>
+        <CoreProvider>
+          <WebFeatureFlagsProvider>
             <WebNavigationProvider>{children}</WebNavigationProvider>
-          </WebLocaleProvider>
-        </WebFeatureFlagsProvider>
-        <Toaster />
-      </CoreProvider>
+          </WebFeatureFlagsProvider>
+          <Toaster />
+        </CoreProvider>
+      </WebLocaleProvider>
     </ThemeProvider>
   );
 }
