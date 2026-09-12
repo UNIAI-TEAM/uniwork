@@ -17,10 +17,12 @@
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
     "brand:build": "bash scripts/brand/build.sh",
     "landing:gen": "python3 scripts/landing/gen-images.py",
+    "landing:marks": "node scripts/landing/build-provider-marks.mjs",
     "ui:add": "cd packages/ui && npx shadcn@latest add",
     "knip": "knip"
   },
   "devDependencies": {
+    "@lobehub/icons-static-svg": "^1.95.0",
     "knip": "^6.33.0",
     "turbo": "^2.5.0"
   }
