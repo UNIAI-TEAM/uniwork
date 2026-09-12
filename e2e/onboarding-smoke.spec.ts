@@ -43,10 +43,10 @@ test("register → onboarding 4 bước → 🎉 → task hướng dẫn", async
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/to-chuc-${stamp}/doi-alpha/tasks$`), { timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Đã hiểu" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Mở task hướng dẫn" })).toBeVisible({ timeout: 15_000 });
   await Promise.all([
     page.waitForURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 30_000 }),
-    page.getByRole("button", { name: "Đã hiểu" }).click(),
+    page.getByRole("button", { name: "Mở task hướng dẫn" }).click(),
   ]);
   // Suite detail: title starts as a readonly control; sub-task input is also a textbox.
   await expect(page.getByRole("button", { name: "Bắt đầu với UniWork" })).toBeVisible({
