@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   forwardRef,
   useImperativeHandle,
@@ -8,6 +8,7 @@ import {
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
 import type { AuditEvent, TaskComment, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
@@ -185,10 +186,12 @@ vi.mock("../../../editor", () => {
           setSubmitting(true);
           try {
             const ok = await onSubmit(md);
-            if (ok) {
-              editorRef.current?.clearContent?.();
-              onAccepted?.();
-            }
+            // The real `useComposerSubmit` never touches the editor —
+            // clearing is the caller's job, done inside `onAccepted` and only
+            // on the branch where nothing new was typed during the send. A
+            // mock that clears here fires two clear echoes where production
+            // fires one and pins a shape production does not have.
+            if (ok) onAccepted?.();
           } finally {
             setSubmitting(false);
           }
@@ -269,10 +272,17 @@ beforeAll(() => {
   initI18n();
 });
 
+const scrollIntoView = vi.fn();
+
 beforeEach(() => {
+  scrollIntoView.mockClear();
+  Element.prototype.scrollIntoView = scrollIntoView;
   resetAuthStoreForTests();
   setSessionUser(me);
   createMutateAsync.mockClear();
+  // Drafts are a module singleton: a leftover draft from another case would
+  // now auto-activate a composer (initialActive) and change what renders.
+  useCommentDraftStore.setState({ drafts: {} });
   window.history.replaceState(null, "", "/");
   mockComments([
     {
@@ -621,6 +631,207 @@ describe("TaskDetailTimeline", () => {
     fireEvent.click(screen.getByTestId("thread-nav-c2"));
 
     expect(screen.getByText("trả lời trong luồng hai")).toBeInTheDocument();
+  });
+
+  it("trả lời từ giao diện gửi kèm parent_id của bình luận gốc", async () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        display_name: "Me",
+        body: "bình luận gốc",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    fireEvent.click(screen.getByTestId("comment-reply-c1"));
+
+    const replyBox = await screen.findByTestId("reply-composer-c1");
+    fireEvent.click(
+      within(replyBox).getByRole("button", {
+        name: /viết bình luận|write a comment/i,
+      }),
+    );
+    const replyEditor = await within(replyBox).findByRole("textbox", {
+      name: /viết bình luận|write a comment/i,
+    });
+    fireEvent.change(replyEditor, { target: { value: "trả lời của tôi" } });
+    fireEvent.click(
+      within(replyBox).getByRole("button", { name: /gửi|send/i }),
+    );
+
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalled());
+    // The whole point of the slice: the reply must reach the server as a
+    // reply, not as another root comment.
+    expect(createMutateAsync.mock.calls[0]?.[0]).toMatchObject({
+      body: { body: "trả lời của tôi", parent_id: "c1" },
+    });
+  });
+
+  it("một trả lời hiện lồng dưới bình luận gốc của nó", () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "bình luận gốc",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+      {
+        id: "c2",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        parent_id: "c1",
+        body: "trả lời lồng bên trong",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:01:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    // One timeline row, not two: the reply is inside its root's row.
+    const rows = screen.getAllByTestId(/^task-timeline-comment-/);
+    expect(rows.map((r) => r.dataset.testid)).toEqual([
+      "task-timeline-comment-c1",
+    ]);
+    const row = screen.getByTestId("task-timeline-comment-c1");
+    expect(
+      within(row).getByTestId("task-comment-c2"),
+    ).toBeInTheDocument();
+    // ...and the reply has no reply affordance of its own (one level deep).
+    expect(screen.queryByTestId("comment-reply-c2")).toBeNull();
+  });
+
+  it("gấp lại luồng vừa nhảy tới thì nó ở yên, không bật mở lại", () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng một",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+      {
+        id: "c2",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng hai đã giải quyết",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:01:00Z",
+        resolved_at: "2026-09-12T10:05:00Z",
+        reactions: [],
+      },
+      {
+        id: "c3",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        parent_id: "c2",
+        body: "trả lời trong luồng hai",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:02:00Z",
+        reactions: [],
+      },
+      {
+        id: "c4",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng ba",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:03:00Z",
+        reactions: [],
+      },
+      {
+        id: "c5",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng bốn",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:04:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    fireEvent.click(screen.getByTestId("thread-nav-c2"));
+    expect(screen.getByText("trả lời trong luồng hai")).toBeInTheDocument();
+
+    // Closing the bar must stick. While the scroll request was still
+    // "active", the expandedResolved change re-ran the scroll effect, which
+    // found the thread resolved-and-collapsed and re-expanded it.
+    fireEvent.click(screen.getByTestId("resolved-thread-bar"));
+
+    expect(screen.queryByText("trả lời trong luồng hai")).not.toBeInTheDocument();
+    // The root card too, not just the reply — only the collapsed bar remains.
+    // (The thread-nav chip still carries the root's preview text, so assert on
+    // the card's testid rather than on the words.)
+    expect(screen.queryByTestId("task-comment-c2")).toBeNull();
+  });
+
+  it("một lần tải lại bình luận không cuộn và tô sáng lại mục cũ trong hash", async () => {
+    const comments: TaskComment[] = [
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "mục được liên kết",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+    ];
+    mockComments(comments);
+    mockResourceHistory([]);
+    window.history.replaceState(null, "", "/#comment-c1");
+
+    const { rerender } = renderTimeline({ workspaceId: "w1", taskId: "t1" });
+    await waitFor(() =>
+      expect(screen.getByTestId("task-comment-c1")).toBeInTheDocument(),
+    );
+
+    // A refetch gives `threads` a new identity — posting a comment or
+    // toggling a reaction does exactly this. The honoured scroll request must
+    // already be retired, or every refetch re-fires the jump.
+    mockComments([...comments]);
+    rerender(
+      shell(<TaskDetailTimeline workspaceId="w1" taskId="t1" />),
+    );
+
+    await waitFor(() =>
+      expect(scrollIntoView).toHaveBeenCalledTimes(1),
+    );
   });
 
   it("không hiện bảng điều hướng luồng khi có ba luồng trở xuống", () => {
