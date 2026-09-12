@@ -32,6 +32,7 @@
 | File | Trách nhiệm |
 | --- | --- |
 | `packages/views/tasks/detail/components/comment-thread.tsx` (mới) | Một luồng: bình luận gốc, danh sách trả lời, chỗ đặt ô trả lời |
+| `packages/views/tasks/detail/components/comment-preview-text.ts` (mới) | Rút một dòng chữ thuần từ body Markdown, dùng cho trích dẫn và chip luồng |
 | `packages/views/tasks/detail/components/comment-reply-quote.tsx` (mới) | Dòng trích dẫn bình luận đang trả lời, mượn khuôn `chat-reply-quote.tsx` |
 | `packages/views/tasks/detail/components/reply-composer.tsx` (mới) | Ô trả lời, bọc `TaskCommentComposer` và gắn `parent_id` |
 | `packages/views/tasks/detail/components/resolved-thread-bar.tsx` (mới) | Thanh gấp/mở luồng đã giải quyết |
@@ -289,7 +290,49 @@ cd packages/views && NODE_OPTIONS="--no-experimental-webstorage" npx vitest run 
 
 Kỳ vọng: FAIL, không resolve được `./reply-composer`.
 
-- [ ] **Step 3: Viết dòng trích dẫn**
+- [ ] **Step 3: Viết hàm rút chữ thuần cho preview**
+
+`comment.body` là **Markdown**: thẻ bình luận render nó qua `ReadonlyContent`, vốn bọc
+`RichContent` với parse, sanitize, mention, link và code fence. Cắt thẳng chuỗi đó vào một
+dòng trích dẫn sẽ hiện cú pháp thô — người dùng đọc `**gấp**` và `[tài liệu](https://…)`
+thay vì chữ.
+
+Chat làm khác được vì tin nhắn chat là chữ thuần, không đi qua `RichContent`. Đừng bê
+`replyPreviewLabel` của chat sang: mượn phần nhìn của nó, không mượn giả định về dữ liệu.
+
+Tạo `packages/views/tasks/detail/components/comment-preview-text.ts`:
+
+```ts
+/**
+ * A one-line, plain-text gist of a comment for quotes and thread chips.
+ *
+ * Deliberately a small stripper, not a Markdown parser: it removes the syntax a
+ * person actually types in a comment and collapses the rest to one line. It is
+ * never used for rendering the comment itself — that stays with RichContent.
+ */
+export function commentPreviewText(body: string, max = 120): string {
+  const plain = body
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}[-*+]\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
+}
+```
+
+Viết test cho nó ở `comment-preview-text.test.ts`, phủ: đậm, nghiêng, liên kết giữ nhãn bỏ
+URL, code span giữ chữ, khối code biến mất, tiêu đề và dấu đầu dòng bị bỏ, nhiều dòng gộp
+thành một, và chuỗi dài bị cắt kèm dấu ba chấm. Một ca nữa đáng có: chuỗi chỉ gồm một khối
+code trả về chuỗi rỗng, để nơi gọi biết mà hiện nhãn thay thế thay vì một dòng trống.
+
+- [ ] **Step 4: Viết dòng trích dẫn**
 
 Tạo `packages/views/tasks/detail/components/comment-reply-quote.tsx`. Mượn khuôn của `packages/views/chat/chat-reply-quote.tsx` — viền trái, chữ nhạt, cắt một dòng — nhưng bỏ hết phần ảnh và tệp, vì bình luận task chỉ có chữ:
 
@@ -298,6 +341,7 @@ Tạo `packages/views/tasks/detail/components/comment-reply-quote.tsx`. Mượn 
 
 import type { TaskComment } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
+import { commentPreviewText } from "./comment-preview-text";
 
 /**
  * Mirrors the chat reply quote so a reply reads the same way everywhere in the
@@ -320,13 +364,13 @@ export function TaskCommentReplyQuote({
       )}
     >
       <span className="shrink-0 font-medium">{author}</span>
-      <span className="min-w-0 flex-1 truncate">{comment.body}</span>
+      <span className="min-w-0 flex-1 truncate">{commentPreviewText(comment.body)}</span>
     </div>
   );
 }
 ```
 
-- [ ] **Step 4: Viết ô trả lời**
+- [ ] **Step 5: Viết ô trả lời**
 
 Tạo `packages/views/tasks/detail/components/reply-composer.tsx`:
 
@@ -396,7 +440,7 @@ export function TaskCommentComposer({
 rồi thay `taskId` bằng `key` ở `resetKey` và ở `key` của `ContentEditor`. Ô gốc không
 truyền `composerKey` nên hành vi cũ giữ nguyên.
 
-- [ ] **Step 5: Thêm nút trả lời vào thẻ bình luận**
+- [ ] **Step 6: Thêm nút trả lời vào thẻ bình luận**
 
 Trong `comment-card.tsx`, thêm `onReply?: () => void;` vào cả khối tham số lẫn khối kiểu, rồi thêm nút vào hàng nút cạnh nút sửa:
 
@@ -416,7 +460,7 @@ Trong `comment-card.tsx`, thêm `onReply?: () => void;` vào cả khối tham s�
 
 Nút trả lời hiện cho mọi người, không chỉ chủ bình luận — khác với nút sửa và xóa.
 
-- [ ] **Step 6: Nối vào timeline**
+- [ ] **Step 7: Nối vào timeline**
 
 Trong `timeline.tsx`, thêm trạng thái `const [replyingTo, setReplyingTo] = useState<string | null>(null);`, truyền `onReply={() => setReplyingTo(thread.root.id)}` cho thẻ gốc, và khi `replyingTo === thread.root.id` thì render `TaskReplyComposer` ngay dưới danh sách trả lời của luồng đó.
 
@@ -437,7 +481,7 @@ Hàm gửi:
 
 Giữ nguyên khuôn của `onCompose` đang có: đợi server, trả `false` khi hỏng để composer giữ lại chữ người dùng đã gõ.
 
-- [ ] **Step 7: Thêm khóa i18n**
+- [ ] **Step 8: Thêm khóa i18n**
 
 Vào nhánh `tasks.detail` của cả hai file locale:
 
@@ -455,7 +499,7 @@ Vào nhánh `tasks.detail` của cả hai file locale:
 
 Nếu bạn không dùng tới `reply_placeholder` thì đừng thêm nó — `knip` và test parity đều không thích khóa thừa.
 
-- [ ] **Step 8: Chạy test**
+- [ ] **Step 9: Chạy test**
 
 ```bash
 cd packages/views && NODE_OPTIONS="--no-experimental-webstorage" npx vitest run --coverage=false tasks/detail/components/
@@ -464,7 +508,7 @@ cd ../core && NODE_OPTIONS="--no-experimental-webstorage" npx vitest run --cover
 
 Kỳ vọng: xanh cả hai.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add packages/views/tasks/detail/components packages/core/i18n/locales
@@ -892,7 +936,7 @@ export function ThreadNavPanel({
 
 - [ ] **Step 5: Nối vào timeline**
 
-Dựng `ThreadNavItem[]` từ `threads` của task 1, `preview` cắt từ `root.body`. `onJump` cuộn tới `#comment-<id>` bằng đúng cơ chế mà `useEffect` xử lý hash đang dùng, để hai đường cuộn không đá nhau.
+Dựng `ThreadNavItem[]` từ `threads` của task 1. `preview` phải đi qua `commentPreviewText` của task 2, KHÔNG cắt thẳng `root.body`: body là Markdown và chip sẽ hiện cú pháp thô nếu cắt sống. `onJump` cuộn tới `#comment-<id>` bằng đúng cơ chế mà `useEffect` xử lý hash đang dùng, để hai đường cuộn không đá nhau.
 
 - [ ] **Step 6: Chạy test và commit**
 
@@ -945,6 +989,8 @@ git commit -m "chore(tasks): nâng sàn coverage và cập nhật trạng thái 
 
 ## Ghi chú cho người thực thi
 
-- Thứ tự phụ thuộc: task 1 là nền của 2, 4 và 6. Task 3 và 5 độc lập, làm lúc nào cũng được. Task 7 cuối cùng.
+- Thứ tự phụ thuộc: task 1 là nền của 2, 4 và 6. **Task 3 phụ thuộc task 2**, vì nó dùng
+  prop `composerKey` mà task 2 thêm vào composer — đừng đảo hai task này. Task 5 độc lập.
+  Task 7 cuối cùng.
 - Lát A vừa sửa `timeline.tsx` khá nhiều: nó giờ trộn hoạt động từ nhật ký kiểm toán, có trạng thái lỗi riêng, và dùng presenter audit dùng chung. Luôn đọc bản hiện tại trên đĩa, đừng tin mô tả cũ ở đâu đó.
 - Không lát nào được đụng `server/` hay `server/internal/workcapability/`.
