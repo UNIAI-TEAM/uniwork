@@ -64,6 +64,20 @@ export function StepAboutYou({
   const useCaseAnswered =
     useCaseSlugs.length > 0 && (useCaseSlugs.some((s) => s !== "other") || answers.use_case_other.trim().length > 0);
   const canContinue = roleAnswered || useCaseAnswered;
+  // A group whose ONLY answer is "Khác" with an empty text field is the one
+  // dead end of this flow: the chip is visibly checked, yet Continue stays
+  // blocked. The binary hint answered that with "Chọn một mục để tiếp tục" —
+  // pick one — contradicting what the user had just done and never naming the
+  // real blocker. Same sentence reaches the screen reader through the live
+  // region, so the third branch has to live here, not in the visual layer.
+  const roleNeedsOtherText = answers.role === "other" && answers.role_other.trim().length === 0;
+  const useCaseNeedsOtherText =
+    useCaseSlugs.length === 1 && useCaseSlugs[0] === "other" && answers.use_case_other.trim().length === 0;
+  const hint = canContinue
+    ? t("onboarding.step_question.hint_continue")
+    : roleNeedsOtherText || useCaseNeedsOtherText
+      ? t("onboarding.step_question.hint_other_needs_text")
+      : t("onboarding.step_question.hint_pick");
 
   const pickRole = (slug: string) => {
     if (slug === "other") {
@@ -127,7 +141,7 @@ export function StepAboutYou({
           multiSelect
         />
       </div>
-      <StepFooter hint={canContinue ? t("onboarding.step_question.hint_continue") : t("onboarding.step_question.hint_pick")}>
+      <StepFooter hint={hint}>
         {/* `aria-disabled` chứ không phải `disabled`: nút `disabled` rời khỏi thứ
             tự Tab, nên người dùng bàn phím không bao giờ tới được nó để nghe
             dòng hint giải thích còn thiếu gì. `confirmAdvance` vẫn tự chặn. */}
