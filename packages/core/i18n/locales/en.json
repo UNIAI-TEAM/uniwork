@@ -961,6 +961,7 @@
       "reply_cancel": "Cancel reply",
       "comment_preview_empty": "This comment has no text",
       "activity_error": "Could not load activity. Try again later.",
+      "thread_resolved": "Resolved thread · {{count}} replies",
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",
       "agentRun": {

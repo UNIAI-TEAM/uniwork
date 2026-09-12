@@ -24,8 +24,13 @@ import { toastApiError } from "../../../toast-api-error";
 import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
-import { buildCommentThreads } from "./comment-thread";
+import { buildCommentThreads, type CommentThread } from "./comment-thread";
 import { TaskReplyComposer } from "./reply-composer";
+import { ResolvedThreadBar } from "./resolved-thread-bar";
+
+function isThreadResolved(thread: CommentThread): boolean {
+  return !!thread.root.resolved_at;
+}
 
 function commentHashId(): string | null {
   if (typeof document === "undefined") return null;
@@ -67,6 +72,9 @@ export function TaskDetailTimeline({
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [expandedResolved, setExpandedResolved] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const threads = useMemo(() => buildCommentThreads(comments ?? []), [comments]);
 
@@ -106,13 +114,27 @@ export function TaskDetailTimeline({
   useEffect(() => {
     const target = commentHashId();
     if (!target || threads.length === 0) return;
+    // A link into a resolved thread must not hit a dead end: expand it first
+    // so the target renders, then a later run of this effect (triggered by
+    // the expandedResolved change) finds the element and scrolls to it.
+    const thread = threads.find(
+      (th) => th.root.id === target || th.replies.some((r) => r.id === target),
+    );
+    if (
+      thread &&
+      isThreadResolved(thread) &&
+      !expandedResolved.has(thread.root.id)
+    ) {
+      setExpandedResolved((prev) => new Set(prev).add(thread.root.id));
+      return;
+    }
     const el = document.getElementById(`comment-${target}`);
     if (!el) return;
     el.scrollIntoView({ block: "nearest" });
     setHighlightedId(target);
     const fade = window.setTimeout(() => setHighlightedId(null), 2500);
     return () => window.clearTimeout(fade);
-  }, [threads, taskId]);
+  }, [threads, taskId, expandedResolved]);
 
   const onCompose = async (body: string): Promise<boolean> => {
     try {
@@ -247,25 +269,49 @@ export function TaskDetailTimeline({
                 key={entry.thread.root.id}
                 data-testid={`task-timeline-comment-${entry.thread.root.id}`}
               >
-                {renderCommentCard(entry.thread.root, () =>
-                  setReplyingTo(entry.thread.root.id),
-                )}
-                {entry.thread.replies.length > 0 ? (
-                  <div className="ml-6 border-l border-border pl-3">
-                    {entry.thread.replies.map((reply) =>
-                      renderCommentCard(reply),
-                    )}
-                  </div>
+                {isThreadResolved(entry.thread) ? (
+                  <ResolvedThreadBar
+                    replyCount={entry.thread.replies.length}
+                    expanded={expandedResolved.has(entry.thread.root.id)}
+                    onToggle={() =>
+                      setExpandedResolved((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(entry.thread.root.id)) {
+                          next.delete(entry.thread.root.id);
+                        } else {
+                          next.add(entry.thread.root.id);
+                        }
+                        return next;
+                      })
+                    }
+                  />
                 ) : null}
-                {replyingTo === entry.thread.root.id ? (
-                  <div className="ml-6 border-l border-border pl-3">
-                    <TaskReplyComposer
-                      taskId={taskId}
-                      parent={entry.thread.root}
-                      onSubmit={(body) => onReplySubmit(entry.thread.root.id, body)}
-                      onCancel={() => setReplyingTo(null)}
-                    />
-                  </div>
+                {!isThreadResolved(entry.thread) ||
+                expandedResolved.has(entry.thread.root.id) ? (
+                  <>
+                    {renderCommentCard(entry.thread.root, () =>
+                      setReplyingTo(entry.thread.root.id),
+                    )}
+                    {entry.thread.replies.length > 0 ? (
+                      <div className="ml-6 border-l border-border pl-3">
+                        {entry.thread.replies.map((reply) =>
+                          renderCommentCard(reply),
+                        )}
+                      </div>
+                    ) : null}
+                    {replyingTo === entry.thread.root.id ? (
+                      <div className="ml-6 border-l border-border pl-3">
+                        <TaskReplyComposer
+                          taskId={taskId}
+                          parent={entry.thread.root}
+                          onSubmit={(body) =>
+                            onReplySubmit(entry.thread.root.id, body)
+                          }
+                          onCancel={() => setReplyingTo(null)}
+                        />
+                      </div>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             ),

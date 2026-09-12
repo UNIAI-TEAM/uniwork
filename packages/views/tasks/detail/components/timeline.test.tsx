@@ -444,4 +444,102 @@ describe("TaskDetailTimeline", () => {
     renderTimeline({ workspaceId: "w1", taskId: "t1" });
     expect(screen.queryByText(/chưa khả dụng/i)).not.toBeInTheDocument();
   });
+
+  it("gấp luồng đã giải quyết thành một dòng, ẩn nội dung bên trong", () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "bình luận gốc",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        resolved_at: "2026-09-12T10:05:00Z",
+        reactions: [],
+      },
+      {
+        id: "c2",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        parent_id: "c1",
+        body: "trả lời trong luồng đã giải quyết",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:01:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    expect(screen.getByTestId("resolved-thread-bar")).toBeInTheDocument();
+    expect(screen.queryByText("bình luận gốc")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("trả lời trong luồng đã giải quyết"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("bấm vào thanh gấp mở luồng đã giải quyết ra", () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "bình luận gốc",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        resolved_at: "2026-09-12T10:05:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    fireEvent.click(screen.getByTestId("resolved-thread-bar"));
+    expect(screen.getByText("bình luận gốc")).toBeInTheDocument();
+  });
+
+  it("mở link đến một bình luận trong luồng đã giải quyết thì tự mở luồng ra", async () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "bình luận gốc",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        resolved_at: "2026-09-12T10:05:00Z",
+        reactions: [],
+      },
+      {
+        id: "c2",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        parent_id: "c1",
+        body: "trả lời được liên kết tới",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:01:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+    window.history.replaceState(null, "", "/#comment-c2");
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    expect(
+      await screen.findByText("trả lời được liên kết tới"),
+    ).toBeInTheDocument();
+  });
 });
