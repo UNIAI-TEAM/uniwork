@@ -25,8 +25,10 @@ import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
 import { buildCommentThreads, type CommentThread } from "./comment-thread";
+import { commentPreviewText } from "./comment-preview-text";
 import { TaskReplyComposer } from "./reply-composer";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
+import { ThreadNavPanel, type ThreadNavItem } from "./thread-nav-panel";
 
 function isThreadResolved(thread: CommentThread): boolean {
   return !!thread.root.resolved_at;
@@ -75,8 +77,36 @@ export function TaskDetailTimeline({
   const [expandedResolved, setExpandedResolved] = useState<Set<string>>(
     () => new Set(),
   );
+  // The single source of truth for "which comment should the page scroll to
+  // and highlight". Seeded from the URL hash on mount, and re-pointed by the
+  // thread-nav chips (via jumpToComment) — one mechanism, two triggers. The
+  // nonce forces the effect below to rerun even when a chip is clicked twice
+  // in a row for the same thread.
+  const [scrollRequest, setScrollRequest] = useState<{
+    target: string;
+    nonce: number;
+  } | null>(() => {
+    const id = commentHashId();
+    return id ? { target: id, nonce: 0 } : null;
+  });
 
   const threads = useMemo(() => buildCommentThreads(comments ?? []), [comments]);
+
+  const navThreads = useMemo<ThreadNavItem[]>(
+    () =>
+      threads.map((thread) => ({
+        id: thread.root.id,
+        preview:
+          commentPreviewText(thread.root.body) ||
+          t("tasks.detail.comment_preview_empty"),
+        replyCount: thread.replies.length,
+        resolved: isThreadResolved(thread),
+      })),
+    [threads, t],
+  );
+
+  const jumpToComment = (id: string) =>
+    setScrollRequest((prev) => ({ target: id, nonce: (prev?.nonce ?? 0) + 1 }));
 
   const entries = useMemo(() => {
     const commentRows = threads.map((thread) => ({
@@ -112,11 +142,13 @@ export function TaskDetailTimeline({
   }, [subscribers.data, currentUserId]);
 
   useEffect(() => {
-    const target = commentHashId();
+    const target = scrollRequest?.target ?? null;
     if (!target || threads.length === 0) return;
     // A link into a resolved thread must not hit a dead end: expand it first
     // so the target renders, then a later run of this effect (triggered by
-    // the expandedResolved change) finds the element and scrolls to it.
+    // the expandedResolved change) finds the element and scrolls to it. The
+    // thread-nav chips point at this same target/effect pair instead of
+    // scrolling on their own, so the two triggers never fight each other.
     const thread = threads.find(
       (th) => th.root.id === target || th.replies.some((r) => r.id === target),
     );
@@ -134,7 +166,7 @@ export function TaskDetailTimeline({
     setHighlightedId(target);
     const fade = window.setTimeout(() => setHighlightedId(null), 2500);
     return () => window.clearTimeout(fade);
-  }, [threads, taskId, expandedResolved]);
+  }, [scrollRequest, threads, taskId, expandedResolved]);
 
   const onCompose = async (body: string): Promise<boolean> => {
     try {
@@ -236,6 +268,8 @@ export function TaskDetailTimeline({
             : t("tasks.detail.subscribe")}
         </Button>
       </div>
+
+      <ThreadNavPanel threads={navThreads} onJump={jumpToComment} />
 
       <div className="mt-4 space-y-3">
         {history.isError ? (

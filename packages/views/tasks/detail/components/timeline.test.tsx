@@ -551,4 +551,74 @@ describe("TaskDetailTimeline", () => {
       "sticky",
     );
   });
+
+  it("bấm chip điều hướng luồng thì cuộn tới và mở luồng đã giải quyết đó", () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng một",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+      {
+        id: "c2",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng hai đã giải quyết",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:01:00Z",
+        resolved_at: "2026-09-12T10:05:00Z",
+        reactions: [],
+      },
+      {
+        id: "c3",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        parent_id: "c2",
+        body: "trả lời trong luồng hai",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:02:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    expect(screen.queryByText("trả lời trong luồng hai")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("thread-nav-c2"));
+
+    expect(screen.getByText("trả lời trong luồng hai")).toBeInTheDocument();
+  });
+
+  it("không hiện bảng điều hướng luồng khi chỉ có một luồng", () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng duy nhất",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
 });

@@ -962,6 +962,9 @@
       "activity_error": "Không tải được hoạt động. Thử lại sau.",
       "thread_resolved_one": "Luồng đã giải quyết · {{count}} trả lời",
       "thread_resolved_other": "Luồng đã giải quyết · {{count}} trả lời",
+      "thread_nav": "Điều hướng luồng",
+      "thread_nav_replies_one": "· {{count}} trả lời",
+      "thread_nav_replies_other": "· {{count}} trả lời",
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
       "agentRun": {

@@ -963,6 +963,9 @@
       "activity_error": "Could not load activity. Try again later.",
       "thread_resolved_one": "Resolved thread · {{count}} reply",
       "thread_resolved_other": "Resolved thread · {{count}} replies",
+      "thread_nav": "Thread navigation",
+      "thread_nav_replies_one": "· {{count}} reply",
+      "thread_nav_replies_other": "· {{count}} replies",
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",
       "agentRun": {
