@@ -589,6 +589,28 @@ describe("TaskDetailTimeline", () => {
         created_at: "2026-09-12T10:02:00Z",
         reactions: [],
       },
+      {
+        id: "c4",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng ba",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:03:00Z",
+        reactions: [],
+      },
+      {
+        id: "c5",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng bốn",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:04:00Z",
+        reactions: [],
+      },
     ]);
     mockResourceHistory([]);
 
@@ -601,17 +623,39 @@ describe("TaskDetailTimeline", () => {
     expect(screen.getByText("trả lời trong luồng hai")).toBeInTheDocument();
   });
 
-  it("không hiện bảng điều hướng luồng khi chỉ có một luồng", () => {
+  it("không hiện bảng điều hướng luồng khi có ba luồng trở xuống", () => {
     mockComments([
       {
         id: "c1",
         task_id: "t1",
         author_id: "u1",
         author_kind: "human",
-        body: "luồng duy nhất",
+        body: "luồng một",
         type: "comment",
         revision: 0,
         created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+      {
+        id: "c2",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng hai",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:01:00Z",
+        reactions: [],
+      },
+      {
+        id: "c3",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "luồng ba",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:02:00Z",
         reactions: [],
       },
     ]);

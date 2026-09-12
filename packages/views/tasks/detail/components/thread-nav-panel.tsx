@@ -11,9 +11,12 @@ export type ThreadNavItem = {
 };
 
 /**
- * A row of chips for jumping between threads on a task. Only earns its space
- * once there is more than one thread to move between — with a single thread
- * there is nothing to navigate, so it renders nothing.
+ * A row of chips for jumping between threads on a task. Below four threads,
+ * scrolling the timeline by eye beats scanning a row of similar-looking
+ * previews, and the row is pure cost — vertical space paid on every task
+ * with a couple of threads, which is the common case, not the rare one. It
+ * only starts earning its space once there are enough threads that they no
+ * longer fit on one screen at a glance.
  */
 export function ThreadNavPanel({
   threads,
@@ -23,7 +26,7 @@ export function ThreadNavPanel({
   onJump: (id: string) => void;
 }) {
   const { t } = useTranslation();
-  if (threads.length < 2) return null;
+  if (threads.length < 4) return null;
   return (
     <nav
       aria-label={t("tasks.detail.thread_nav")}
