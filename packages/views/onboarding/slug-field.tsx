@@ -7,26 +7,50 @@ import { useCoarsePointer } from "@uniwork/ui/hooks/use-pointer";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldTitle } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { nameToSlug, randomWorkspaceIdentity, SLUG_REGEX } from "../workspace/slug";
+import { isSlugLengthValid, nameToSlug, randomWorkspaceIdentity, SLUG_MAX_LENGTH, SLUG_REGEX } from "../workspace/slug";
 
 /** Enter khi đang gõ IME (tiếng Việt/CJK) không được submit. */
 export function isImeComposing(e: KeyboardEvent<HTMLElement>): boolean {
   return e.nativeEvent.isComposing || e.keyCode === 229;
 }
 
+/**
+ * Where the current slug came from. A plain "touched" boolean cannot tell a
+ * slug the user typed apart from one a machine produced, and that difference is
+ * the whole bug: `randomize` latched the boolean, so pressing "Ngẫu nhiên" once
+ * and then typing the real workspace name over the generated one left the
+ * workspace called "Đội Alpha" living at `/mars-k3d9` forever — the pair is
+ * baked into the URL and into the WebSocket handshake, and nobody chose it.
+ * Only `typed` — the user actually editing the slug field — may freeze the
+ * slug; a `random` slug is still a machine's guess and must yield to a real
+ * name the same way a `derived` one does.
+ */
+type SlugProvenance = "derived" | "random" | "typed";
+
 export function useSlugForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
-  const slugTouched = useRef(false); // ref: chỉ là cờ, không cần re-render
+  const slugSource = useRef<SlugProvenance>("derived"); // ref: chỉ là cờ, không cần re-render
 
+  // Order matters: the message the user acts on has to be the one that is
+  // actually final. A 1-character uppercase slug breaks both the format rule
+  // and the length rule, and fixing only the case still leaves it rejected, so
+  // length is reported first. Reserved never collides with either — every
+  // reserved slug is format-valid and inside the range. An empty slug reports
+  // nothing at all: the footer hint already covers that state, and the field
+  // must not shout at a user who has simply not typed yet.
   const clientError =
-    slug.length > 0 && !SLUG_REGEX.test(slug)
-      ? t("onboarding.step_workspace.slug_format_error")
-      : slug.length > 0 && isReservedSlug(slug)
-        ? t("onboarding.step_workspace.slug_reserved_error")
-        : null;
+    slug.length === 0
+      ? null
+      : !isSlugLengthValid(slug)
+        ? t("onboarding.step_workspace.slug_length_error")
+        : isReservedSlug(slug)
+          ? t("onboarding.step_workspace.slug_reserved_error")
+          : !SLUG_REGEX.test(slug)
+            ? t("onboarding.step_workspace.slug_format_error")
+            : null;
   const slugError = clientError ?? serverError;
 
   return {
@@ -37,25 +61,27 @@ export function useSlugForm() {
     canSubmit: name.trim().length > 0 && slug.trim().length > 0 && !slugError,
     setNameValue: (v: string) => {
       setName(v);
-      if (!slugTouched.current) {
+      // Re-derive for both `derived` and `random`: the only provenance that
+      // earns the right to survive a rename is a slug the user typed.
+      if (slugSource.current !== "typed") {
         setSlug(nameToSlug(v));
         setServerError(null);
       }
     },
     setSlugValue: (v: string) => {
-      slugTouched.current = true;
+      slugSource.current = "typed";
       setSlug(v);
       setServerError(null);
     },
     randomize: () => {
       const id = randomWorkspaceIdentity();
-      slugTouched.current = true;
+      slugSource.current = "random";
       setName(id.name);
       setSlug(id.slug);
       setServerError(null);
     },
     reset: () => {
-      slugTouched.current = false;
+      slugSource.current = "derived";
       setName("");
       setSlug("");
       setServerError(null);
@@ -102,6 +128,10 @@ export function SlugFields({
     if (isImeComposing(e)) return;
     if (e.key === "Enter") {
       e.preventDefault();
+      // The inputs stay focusable while pending (see below), so Enter still
+      // reaches this handler — the guard is what keeps a second Enter from
+      // firing the mutation twice.
+      if (disabled) return;
       onEnter();
     }
   };
@@ -113,6 +143,7 @@ export function SlugFields({
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
+        if (disabled) return;
         onEnter();
       }}
     >
@@ -120,21 +151,47 @@ export function SlugFields({
       <Field>
         <FieldLabel htmlFor={`${idPrefix}-name`}>{nameLabel}</FieldLabel>
         <div className="flex items-center gap-2">
+          {/* `readOnly` + `aria-disabled`, never the native `disabled`: the
+              submit runs while one of these inputs holds focus (Enter inside
+              the field is the documented way to advance), and natively
+              disabling the focused element makes the browser drop focus to
+              <body> — the next Tab restarts at the top of the document and a
+              screen-reader user loses their place mid-flow. Read-only keeps the
+              element focusable and keeps its value announced while still
+              blocking edits. Same contract the step CTAs honour, written out in
+              packages/views/test/inactive.ts. */}
           <Input
             id={`${idPrefix}-name`}
             autoFocus={autoFocus && !coarsePointer}
             value={form.name}
             placeholder={namePlaceholder}
-            className="h-10 min-w-0 text-body pointer-coarse:h-11"
-            disabled={disabled}
+            className="h-10 min-w-0 text-body pointer-coarse:h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            readOnly={disabled}
+            aria-disabled={disabled || undefined}
             autoComplete="organization"
             enterKeyHint="go"
             spellCheck={false}
             onChange={(e) => form.setNameValue(e.target.value)}
             onKeyDown={onKey}
           />
+          {/* `h-10` (and `h-11` on coarse pointers) rather than whatever the
+              size variant ships: `size="lg"` is h-9/36px, so beside the 40px
+              input it sat 4px short and the two controls' edges did not line up
+              at desktop. Coarse pointers were already fine — the variant's
+              `pointer-coarse:min-h-11` floor matched the input's
+              `pointer-coarse:h-11` — so only the desktop case changes.
+              `aria-disabled` rather than `disabled` for the same
+              focus-preservation reason as the inputs; the Button primitive
+              intercepts onClick when it is set, so no local guard is needed. */}
           {withRandom && (
-            <Button type="button" variant="outline" size="lg" className="shrink-0" onClick={form.randomize} disabled={disabled}>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="h-10 shrink-0 pointer-coarse:h-11"
+              onClick={form.randomize}
+              aria-disabled={disabled || undefined}
+            >
               <Dices className="size-4" />
               {t("onboarding.step_workspace.random_name")}
             </Button>
@@ -171,7 +228,12 @@ export function SlugFields({
             id={`${idPrefix}-slug`}
             value={form.slug}
             placeholder={slugPlaceholder}
-            disabled={disabled}
+            readOnly={disabled}
+            aria-disabled={disabled || undefined}
+            // The server's ceiling, enforced at the keyboard as well as in
+            // `clientError`, so a long paste is trimmed rather than silently
+            // queued up for a 400.
+            maxLength={SLUG_MAX_LENGTH}
             autoComplete="off"
             autoCapitalize="none"
             autoCorrect="off"
@@ -184,7 +246,7 @@ export function SlugFields({
                 .join(" ") || undefined
             }
             aria-invalid={form.slugError ? true : undefined}
-            className="h-full border-0 bg-transparent font-mono text-body shadow-none focus-visible:outline-none"
+            className="h-full border-0 bg-transparent font-mono text-body shadow-none focus-visible:outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             onChange={(e) => form.setSlugValue(e.target.value)}
             onKeyDown={onKey}
           />
@@ -194,7 +256,20 @@ export function SlugFields({
       {preview && (
         <Field>
           <FieldTitle>{preview.title}</FieldTitle>
-          <FieldDescription id={`${idPrefix}-slug-preview`}>{preview.body}</FieldDescription>
+          {/* `wrap-anywhere` on the wrapper, not on the step's own span: the
+              preview body renders `{host}/{slug}` as one unbroken `font-mono`
+              token, and an unhyphenated or pasted slug offers no break
+              opportunity inside a 28rem column. The scroll container is
+              `overflow-y-auto`, so its `overflow-x` computes to `auto` and the
+              overflow turns into a horizontal scrollbar across the whole step.
+              `overflow-wrap: anywhere` is inherited and also shrinks the
+              min-content width (which `break-word` does not), so it fixes the
+              column from here without the step files having to opt in — and
+              unlike `break-all` it leaves the Vietnamese prose around the URL
+              breaking on word boundaries. */}
+          <FieldDescription id={`${idPrefix}-slug-preview`} className="wrap-anywhere">
+            {preview.body}
+          </FieldDescription>
         </Field>
       )}
       </FieldGroup>

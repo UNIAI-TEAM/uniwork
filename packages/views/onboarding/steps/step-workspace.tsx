@@ -6,11 +6,10 @@ import { useCreateWorkspaceInOrg } from "@uniwork/core/organizations";
 import type { Organization, Workspace } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
-import { isSlugConflict } from "../../workspace/slug";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";
 import { RadioCardGroup } from "../components/option-card";
-import { CollapsibleCreateCard, PickerCard } from "./step-organization";
+import { avatarInitial, classifyCreateFailure, CollapsibleCreateCard, focusSlugInput, PickerCard } from "./step-organization";
 
 /**
  * Bước 3 — Workspace trong org đã chọn. `existing` = workspace user đã có trong
@@ -48,15 +47,37 @@ export function StepWorkspace({
       { orgId: organization.id, name: form.name.trim(), slug: form.slug.trim() },
       {
         onSuccess: (workspace) => {
-          if (workspace) onCreated(workspace);
-        },
-        onError: (err) => {
-          if (isSlugConflict(err)) {
-            form.setServerError(t("onboarding.step_workspace.slug_taken_error"));
-            toast.error(t("onboarding.step_workspace.slug_conflict_toast"));
+          if (workspace) {
+            onCreated(workspace);
             return;
           }
-          toast.error(err instanceof Error && err.message ? err.message : t("onboarding.step_workspace.create_failed_toast"));
+          // Same shape of trap as the organization step:
+          // `organizations.createWorkspace()` parses with a `null` fallback, so
+          // a drifted payload RESOLVES with nothing. Doing nothing left the
+          // user staring at a CTA that had flipped back from "Đang tạo…" with
+          // no explanation, and the retry answered 409 about the workspace they
+          // had just created. `useCreateWorkspaceInOrg` already invalidates
+          // `workspaceKeys.list()` on the falsy branch, so the recovery path is
+          // the refreshed list.
+          toast.error(t("onboarding.step_workspace.create_failed_toast"));
+        },
+        onError: (err) => {
+          // Branch on `ApiError.code`, never on `err.message` — the message is
+          // the server's own hardcoded Vietnamese sentence and was rendered
+          // verbatim to English-locale users.
+          const failure = classifyCreateFailure(err);
+          if (failure === "unknown") {
+            toast.error(t("onboarding.step_workspace.create_failed_toast"));
+            return;
+          }
+          // Inline only. The toast that used to double this up announced the
+          // same conflict a second time through its own live region.
+          form.setServerError(
+            failure === "slug_taken"
+              ? t("onboarding.step_workspace.slug_taken_error")
+              : t("onboarding.step_workspace.slug_invalid_error"),
+          );
+          focusSlugInput("ws");
         },
       },
     );
@@ -70,6 +91,9 @@ export function StepWorkspace({
   if (picked) {
     hint = t("onboarding.step_workspace.hint_opening", { name: picked.name });
     label = t("onboarding.step_workspace.cta_open", { name: picked.name });
+    // Reachable while a create is in flight (the picker cards stay clickable),
+    // so the Button below refuses to run `onContinue` while `disabled` rather
+    // than being `aria-disabled` and firing anyway.
     disabled = isCreating;
     onContinue = () => onCreated(picked);
   } else if (creatingActive) {
@@ -86,7 +110,11 @@ export function StepWorkspace({
       disabled = false;
       onContinue = handleCreate;
     } else {
-      hint = t("onboarding.step_workspace.hint_name_first");
+      // A name with no [a-z0-9] — a CJK or emoji partner name — slugifies to
+      // "", so the name field is visibly full while the footer asks for a name.
+      hint = form.name.trim()
+        ? t("onboarding.step_workspace.hint_slug_needed")
+        : t("onboarding.step_workspace.hint_name_first");
       label = t("onboarding.step_workspace.cta_create_workspace");
       disabled = true;
       onContinue = () => {};
@@ -131,8 +159,12 @@ export function StepWorkspace({
       <div className="flex flex-col gap-8 pt-2 sm:pt-6">
         <StepHeading
           title={
+            // Only name one workspace when there is exactly one; with three
+            // equal cards below, naming the first is arbitrary.
             resume
-              ? t("onboarding.step_workspace.headline_resume", { name: existing[0]!.name })
+              ? existing.length === 1
+                ? t("onboarding.step_workspace.headline_resume", { name: existing[0]!.name })
+                : t("onboarding.step_workspace.headline_resume_many")
               : t("onboarding.step_workspace.headline_first")
           }
           description={resume ? t("onboarding.step_workspace.lede_resume") : t("onboarding.step_workspace.lede_first")}
@@ -146,7 +178,7 @@ export function StepWorkspace({
                 onSelect={() => setPickedId((p) => (p === w.id ? null : w.id))}
                 title={w.name}
                 subtitle={`${host}/${organization.slug}/${w.slug}`}
-                avatar={w.name.slice(0, 1).toUpperCase()}
+                avatar={avatarInitial(w.name)}
               />
             ))}
             <CollapsibleCreateCard
@@ -164,7 +196,16 @@ export function StepWorkspace({
         )}
       </div>
       <StepFooter hint={hint}>
-        <Button size="lg" className="w-full" aria-disabled={disabled || undefined} aria-describedby={STEP_HINT_ID} onClick={onContinue}>
+        <Button
+          size="lg"
+          className="w-full"
+          aria-disabled={disabled || undefined}
+          aria-describedby={STEP_HINT_ID}
+          onClick={() => {
+            if (disabled) return;
+            onContinue();
+          }}
+        >
           {label}
         </Button>
       </StepFooter>
