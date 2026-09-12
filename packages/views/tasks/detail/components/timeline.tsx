@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useMembers } from "@uniwork/core/workspaces";
 import { useResourceHistory } from "@uniwork/core/audit";
 import type { AuditEvent } from "@uniwork/core/types";
 import {
@@ -20,7 +21,7 @@ import {
 } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../../../toast-api-error";
-import { TaskActivityRow } from "./activity-row";
+import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
 
@@ -58,6 +59,8 @@ export function TaskDetailTimeline({
   const addReaction = useAddCommentReaction(taskId);
   const removeReaction = useRemoveCommentReaction(taskId);
   const subscribers = useTaskSubscribers(taskId);
+  // Best effort: an actor outside this workspace still shows as a short id.
+  const members = useMembers(workspaceId);
   const subscribe = useSubscribeTask(taskId);
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -80,15 +83,25 @@ export function TaskDetailTimeline({
       at: c.created_at ?? "",
       comment: c,
     }));
-    const activityRows = (history.data ?? []).map((e: AuditEvent) => ({
-      kind: "activity" as const,
-      at: e.occurred_at,
-      event: e,
-    }));
+    const activityRows = (history.data ?? [])
+      .filter((e: AuditEvent) => isTimelineActivity(e))
+      .map((e: AuditEvent) => ({
+        kind: "activity" as const,
+        at: e.occurred_at,
+        event: e,
+      }));
     return [...commentRows, ...activityRows].sort((a, b) =>
       a.at.localeCompare(b.at),
     );
   }, [roots, history.data]);
+
+  const actorNames = useMemo(
+    () =>
+      new Map(
+        (members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
+      ),
+    [members.data],
+  );
 
   const watching = useMemo(() => {
     if (!currentUserId) return false;
@@ -153,18 +166,32 @@ export function TaskDetailTimeline({
       </div>
 
       <div className="mt-4 space-y-3">
+        {history.isError ? (
+          <p
+            data-testid="task-timeline-activity-error"
+            className="text-caption text-destructive"
+          >
+            {t("tasks.detail.activity_error")}
+          </p>
+        ) : null}
         {isLoading ? (
           <p className="text-caption text-muted-foreground">
             {t("common.loading")}
           </p>
         ) : entries.length === 0 ? (
-          <p className="text-caption text-muted-foreground">
-            {t("tasks.detail.comments_empty")}
-          </p>
+          history.isError ? null : (
+            <p className="text-caption text-muted-foreground">
+              {t("tasks.detail.comments_empty")}
+            </p>
+          )
         ) : (
           entries.map((entry) =>
             entry.kind === "activity" ? (
-              <TaskActivityRow key={entry.event.id} event={entry.event} />
+              <TaskActivityRow
+                key={entry.event.id}
+                event={entry.event}
+                actorName={actorNames.get(entry.event.actor_id)}
+              />
             ) : (
               <div
                 key={entry.comment.id}

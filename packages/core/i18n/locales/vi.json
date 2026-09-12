@@ -943,8 +943,7 @@
       "comment_unresolve": "Mở lại",
       "comment_resolved": "Đã xử lý",
       "comment_edit": "Sửa",
-      "activity_changed_fields": "Đã đổi {{fields}}",
-      "activity_generic": "Đã cập nhật công việc",
+      "activity_error": "Không tải được hoạt động. Thử lại sau.",
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
       "agentRun": {
@@ -1186,7 +1185,6 @@
     "activity_link_used": "đã dùng liên kết mời",
     "activity_session_created": "đã mở phòng hội nghị",
     "activity_session_ended": "đã đóng phòng hội nghị",
-    "activity_generic": "đã cập nhật cuộc họp",
     "publicInviteJoin": "Vào cuộc họp",
     "publicInviteNameRequired": "Nhập tên hiển thị để tham gia",
     "publicInviteDisplayName": "Tên hiển thị",

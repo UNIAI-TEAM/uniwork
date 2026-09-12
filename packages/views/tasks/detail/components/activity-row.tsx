@@ -1,52 +1,61 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
 import type { AuditEvent } from "@uniwork/core/types";
+import {
+  ActionIcon,
+  ActorIcon,
+  ChangeSummary,
+  EventTime,
+  shortId,
+  useAuditLabels,
+} from "../../../audit/event-presenter";
 
 /**
- * Maps a raw `changes` key (a database column name) to the i18n key that
- * already carries its human label elsewhere in the product, so the
- * Vietnamese sentence never shows a snake_case column name. A key with no
- * mapping falls back to the raw key at render time — audit rows come from a
- * lenient wire contract (ADR 0003) and new columns appear over time; showing
- * the unknown key is ugly but honest, and dropping it would silently lose
- * information.
+ * Actions the task timeline deliberately leaves out, because the thing they
+ * describe is already sitting in the same column: a comment action duplicates
+ * the comment card next to it, a reaction action duplicates the reaction chips
+ * on that card, and subscribe/unsubscribe is a private preference whose state
+ * the header button already shows. Everything else — including an action from
+ * a newer server the UI has never seen — renders, because the wire contract
+ * for `action` is lenient (ADR 0003) and hiding an unknown event would be a
+ * worse lie than labelling it with its raw name.
  */
-const CHANGE_FIELD_LABEL_KEYS: Record<string, string> = {
-  status: "tasks.status",
-  priority: "tasks.priority",
-  assignee_id: "tasks.assignee",
-  due_date: "tasks.dueDate",
-  description: "tasks.description",
-  title: "tasks.taskTitle",
-};
+const DUPLICATED_BY_THE_TIMELINE =
+  /^task\.(comment_|reaction_|subscribed$|unsubscribed$)/;
+
+export function isTimelineActivity(event: AuditEvent): boolean {
+  return !DUPLICATED_BY_THE_TIMELINE.test(event.action);
+}
 
 /**
- * One row of the immutable log rendered inside the task timeline. The action
- * string stays lenient (ADR 0003), so an unknown action falls back to a
- * generic line instead of refusing to render.
+ * One row of the immutable log rendered inside the task timeline, told with
+ * the same words and the same glyphs as the organization-wide audit log: the
+ * shared presenter translates the action, renders the diff and the time.
  */
-export function TaskActivityRow({ event }: { event: AuditEvent }) {
-  const { t } = useTranslation();
-  const fields = Object.keys(event.changes ?? {});
-  const fieldLabels = fields.map((key) => {
-    const i18nKey = CHANGE_FIELD_LABEL_KEYS[key];
-    return i18nKey ? t(i18nKey) : key;
-  });
-  const label =
-    fieldLabels.length > 0
-      ? t("tasks.detail.activity_changed_fields", {
-          fields: fieldLabels.join(", "),
-        })
-      : t("tasks.detail.activity_generic");
-
+export function TaskActivityRow({
+  event,
+  actorName,
+}: {
+  event: AuditEvent;
+  actorName?: string;
+}) {
+  const labels = useAuditLabels();
   return (
     <div
       data-testid={`task-timeline-activity-${event.id}`}
-      className="flex flex-wrap items-baseline gap-2 px-1 text-caption text-muted-foreground"
+      className="flex flex-wrap items-center gap-2 px-1 text-caption text-muted-foreground"
     >
-      <span>{label}</span>
-      <time dateTime={event.occurred_at}>{event.occurred_at}</time>
+      <ActionIcon action={event.action} className="size-5" />
+      <span className="inline-flex items-center gap-1 font-medium text-foreground">
+        <ActorIcon
+          kind={event.actor_kind}
+          className="size-3.5 text-muted-foreground"
+        />
+        {actorName ?? shortId(event.actor_id)}
+      </span>
+      <span>{labels.action(event.action)}</span>
+      <ChangeSummary event={event} empty={null} />
+      <EventTime iso={event.occurred_at} className="ml-auto" />
     </div>
   );
 }

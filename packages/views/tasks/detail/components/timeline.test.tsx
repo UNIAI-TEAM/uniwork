@@ -70,7 +70,7 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
 });
 
 const useResourceHistoryMock = vi.hoisted(() =>
-  vi.fn(() => ({ data: [] as AuditEvent[] })),
+  vi.fn(() => ({ data: [] as AuditEvent[], isError: false })),
 );
 
 vi.mock("@uniwork/core/audit", async (importOriginal) => {
@@ -233,8 +233,24 @@ function mockComments(comments: TaskComment[]) {
   });
 }
 
-function mockResourceHistory(events: AuditEvent[]) {
-  useResourceHistoryMock.mockReturnValue({ data: events });
+function mockResourceHistory(events: AuditEvent[], isError = false) {
+  useResourceHistoryMock.mockReturnValue({ data: events, isError });
+}
+
+function auditEvent(over: Partial<AuditEvent> & { id: string }): AuditEvent {
+  return {
+    organization_id: "o1",
+    actor_kind: "human",
+    actor_id: "u1",
+    action: "task.updated",
+    resource_type: "task",
+    resource_id: "t1",
+    changes: {},
+    metadata: {},
+    correlation_id: "x",
+    occurred_at: "2026-09-12T09:00:00Z",
+    ...over,
+  };
 }
 
 function renderTimeline({
@@ -350,6 +366,76 @@ describe("TaskDetailTimeline", () => {
       "task-timeline-activity-a1",
       "task-timeline-comment-c1",
     ]);
+  });
+
+  it("dòng đầu của một công việc nói là đã tạo, không phải đã đổi một loạt trường", async () => {
+    mockComments([]);
+    mockResourceHistory([
+      auditEvent({
+        id: "a1",
+        action: "task.created",
+        changes: { title: { to: "Viết đặc tả" }, status: { to: "todo" } },
+      }),
+    ]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    const row = await screen.findByTestId("task-timeline-activity-a1");
+    expect(row).toHaveTextContent("Tạo task");
+    expect(row).not.toHaveTextContent("Cập nhật task");
+  });
+
+  it("không thêm dòng hoạt động cho bình luận và reaction vì thẻ bình luận đã kể", () => {
+    mockComments([
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "bình luận",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        reactions: [],
+      },
+    ]);
+    mockResourceHistory([
+      auditEvent({ id: "a1", action: "task.comment_added" }),
+      auditEvent({ id: "a2", action: "task.reaction_added" }),
+      auditEvent({ id: "a3", action: "task.subscribed" }),
+    ]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    expect(screen.queryByTestId("task-timeline-activity-a1")).toBeNull();
+    expect(screen.queryByTestId("task-timeline-activity-a2")).toBeNull();
+    expect(screen.queryByTestId("task-timeline-activity-a3")).toBeNull();
+    expect(screen.getByTestId("task-timeline-comment-c1")).toBeInTheDocument();
+  });
+
+  it("hành động lạ từ server mới vẫn hiện nguyên tên, không biến mất", async () => {
+    mockComments([]);
+    mockResourceHistory([
+      auditEvent({ id: "a9", action: "task.archived_by_a_newer_server" }),
+    ]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    expect(await screen.findByTestId("task-timeline-activity-a9")).toHaveTextContent(
+      "task.archived_by_a_newer_server",
+    );
+  });
+
+  it("hoạt động lỗi hiện dòng lỗi riêng, không giả làm chưa có gì", () => {
+    mockComments([]);
+    mockResourceHistory([], true);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    expect(
+      screen.getByTestId("task-timeline-activity-error"),
+    ).toHaveTextContent(/không tải được hoạt động/i);
+    expect(screen.queryByText("Chưa có bình luận.")).toBeNull();
   });
 
   it("không hiện dòng giải thích hoạt động chưa khả dụng nữa", () => {

@@ -944,8 +944,7 @@
       "comment_unresolve": "Unresolve",
       "comment_resolved": "Resolved",
       "comment_edit": "Edit",
-      "activity_changed_fields": "Changed {{fields}}",
-      "activity_generic": "Updated the task",
+      "activity_error": "Could not load activity. Try again later.",
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",
       "agentRun": {
@@ -1187,7 +1186,6 @@
     "activity_link_used": "used an invite link",
     "activity_session_created": "opened the conference room",
     "activity_session_ended": "closed the conference room",
-    "activity_generic": "updated the meeting",
     "publicInviteJoin": "Join meeting",
     "publicInviteNameRequired": "Enter a display name to join",
     "publicInviteDisplayName": "Display name",
