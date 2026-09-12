@@ -454,6 +454,19 @@ func (s *TaskService) Comments(ctx context.Context, userID, taskID string) ([]db
 	})
 }
 
+// CommentReactionsForTask returns every reaction on every comment of the task
+// in one round trip. Comments stays untouched: six callers depend on its
+// signature, and only the detail screen needs the reactions.
+func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskID string) ([]db.CommentReaction, error) {
+	task, err := s.authorize(ctx, userID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListTaskCommentReactions(ctx, db.ListTaskCommentReactionsParams{
+		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
+}
+
 func parseDate(s *string) (pgtype.Date, error) {
 	if s == nil || *s == "" {
 		return pgtype.Date{}, nil
