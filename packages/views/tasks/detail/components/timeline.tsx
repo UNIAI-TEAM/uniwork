@@ -25,6 +25,7 @@ import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
 import { buildCommentThreads } from "./comment-thread";
+import { TaskReplyComposer } from "./reply-composer";
 
 function commentHashId(): string | null {
   if (typeof document === "undefined") return null;
@@ -65,6 +66,7 @@ export function TaskDetailTimeline({
   const subscribe = useSubscribeTask(taskId);
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   const threads = useMemo(() => buildCommentThreads(comments ?? []), [comments]);
 
@@ -122,11 +124,23 @@ export function TaskDetailTimeline({
     }
   };
 
-  const renderCommentCard = (comment: TaskComment) => (
+  const onReplySubmit = async (parentId: string, body: string): Promise<boolean> => {
+    try {
+      const created = await createComment.mutateAsync({ body: { body, parent_id: parentId } });
+      setReplyingTo(null);
+      return !!created;
+    } catch (err) {
+      toastApiError(err, errFallback);
+      return false;
+    }
+  };
+
+  const renderCommentCard = (comment: TaskComment, onReply?: () => void) => (
     <TaskCommentCard
       key={comment.id}
       comment={comment}
       highlighted={highlightedId === comment.id}
+      onReply={onReply}
       onToggleReaction={(emoji) => {
         addReaction.mutate(
           { commentId: comment.id, emoji },
@@ -233,12 +247,24 @@ export function TaskDetailTimeline({
                 key={entry.thread.root.id}
                 data-testid={`task-timeline-comment-${entry.thread.root.id}`}
               >
-                {renderCommentCard(entry.thread.root)}
+                {renderCommentCard(entry.thread.root, () =>
+                  setReplyingTo(entry.thread.root.id),
+                )}
                 {entry.thread.replies.length > 0 ? (
                   <div className="ml-6 border-l border-border pl-3">
                     {entry.thread.replies.map((reply) =>
                       renderCommentCard(reply),
                     )}
+                  </div>
+                ) : null}
+                {replyingTo === entry.thread.root.id ? (
+                  <div className="ml-6 border-l border-border pl-3">
+                    <TaskReplyComposer
+                      taskId={taskId}
+                      parent={entry.thread.root}
+                      onSubmit={(body) => onReplySubmit(entry.thread.root.id, body)}
+                      onCancel={() => setReplyingTo(null)}
+                    />
                   </div>
                 ) : null}
               </div>

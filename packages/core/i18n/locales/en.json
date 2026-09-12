@@ -957,6 +957,8 @@
       "comment_unresolve": "Unresolve",
       "comment_resolved": "Resolved",
       "comment_edit": "Edit",
+      "reply": "Reply",
+      "reply_cancel": "Cancel reply",
       "activity_error": "Could not load activity. Try again later.",
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",

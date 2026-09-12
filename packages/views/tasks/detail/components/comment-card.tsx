@@ -21,6 +21,7 @@ export function TaskCommentCard({
   onEdit,
   onResolveToggle,
   onDelete,
+  onReply,
 }: {
   comment: TaskComment;
   highlighted?: boolean;
@@ -28,6 +29,7 @@ export function TaskCommentCard({
   onEdit?: (body: string) => void;
   onResolveToggle?: (resolved: boolean) => void;
   onDelete?: () => void;
+  onReply?: () => void;
 }) {
   const { t } = useTranslation();
   const currentUserId = useAuthStore((s) => s.user?.id);
@@ -102,6 +104,17 @@ export function TaskCommentCard({
           onToggle={onToggleReaction}
           getActorName={() => authorLabel}
         />
+        {onReply ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid={`comment-reply-${comment.id}`}
+            onClick={onReply}
+          >
+            {t("tasks.detail.reply")}
+          </Button>
+        ) : null}
         {isOwn && onEdit && !editing ? (
           <Button
             type="button"

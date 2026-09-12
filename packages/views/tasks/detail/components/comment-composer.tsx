@@ -17,19 +17,23 @@ import {
  */
 export function TaskCommentComposer({
   taskId,
+  composerKey,
   onSubmit,
 }: {
   taskId: string;
+  /** Distinguishes composers on the same task: the main box and each reply box. */
+  composerKey?: string;
   onSubmit: (body: string) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
+  const key = composerKey ?? taskId;
   const editorRef = useRef<ContentEditorRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEmpty, setIsEmpty] = useState(true);
   const uploadGate = useUploadGate(editorRef);
   const lazy = useLazyEditor({
     editorRef,
-    resetKey: taskId,
+    resetKey: key,
   });
 
   const { submitting, submit } = useComposerSubmit({
@@ -54,7 +58,7 @@ export function TaskCommentComposer({
       {lazy.active ? (
         <div className={lazy.ready ? undefined : "hidden"}>
           <ContentEditor
-            key={`comment-composer-${taskId}`}
+            key={`comment-composer-${key}`}
             ref={editorRef}
             defaultValue=""
             placeholder={placeholder}
