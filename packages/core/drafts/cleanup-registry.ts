@@ -63,9 +63,21 @@ export function clearRegisteredWorkspaceDrafts(
 }
 
 /**
- * Reset all registered draft stores' in-memory state. Called on logout before
- * auth is cleared, so no draft survives into the next login on the same tab.
+ * Reset all registered draft stores' in-memory state. Called on logout, so no
+ * draft survives into the next login on the same tab.
+ *
+ * This is the memory-layer half of cleanup and is deliberately separate from
+ * `clearRegisteredWorkspaceDrafts`: clearing persisted storage does not touch
+ * the Zustand singleton, which outlives a client-side logout navigation
+ * (`replace(paths.login())` is not a page reload). Without this, user A's
+ * unsent draft is still in module memory when user B signs in on the same tab.
  */
+export function resetRegisteredDraftsInMemory(): void {
+  for (const entry of entries.values()) {
+    entry.resetInMemory();
+  }
+}
+
 /** Test-only: drop all registrations. */
 export function __clearDraftCleanupRegistryForTest(): void {
   entries.clear();

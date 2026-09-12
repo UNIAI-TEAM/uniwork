@@ -8,7 +8,8 @@ vi.mock("../api/endpoints/auth", () => ({
 }));
 
 import * as auth from "../api/endpoints/auth";
-import { resetAuthStoreForTests } from "../auth/store";
+import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
+import { useCommentDraftStore } from "../tasks/stores/comment-draft-store";
 import { CoreProvider } from "./core-provider";
 
 describe("CoreProvider", () => {
@@ -38,5 +39,27 @@ describe("CoreProvider", () => {
       </CoreProvider>,
     );
     expect(getByText("app")).toBeInTheDocument();
+  });
+  it("clears registered draft stores' in-memory state on logout", async () => {
+    // Cross-user leak on a shared device: logout navigates client-side
+    // (`replace(paths.login())`), so the Zustand singleton is never torn down
+    // and the next user on the same tab would otherwise open the same task and
+    // read the previous user's unsent comment. Deliberately routed through the
+    // real seam — render the provider, then call the store's own `logout` —
+    // because invoking the reset callback by hand would still pass if nothing
+    // in production ever registered it, which was the actual bug.
+    render(
+      <CoreProvider>
+        <div>app</div>
+      </CoreProvider>,
+    );
+
+    useCommentDraftStore.getState().setDraft("task-1", "user A's unsent text");
+    expect(useCommentDraftStore.getState().draftFor("task-1")).toBe("user A's unsent text");
+
+    await useAuthStore.getState().logout();
+
+    expect(useCommentDraftStore.getState().drafts).toEqual({});
+    expect(useCommentDraftStore.getState().draftFor("task-1")).toBe("");
   });
 });
