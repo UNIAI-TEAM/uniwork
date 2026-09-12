@@ -376,8 +376,14 @@ export function useTaskSurfaceController({
   );
 
   const retry = useCallback(() => {
+    // Invalidate every root isError can draw on (board/list/table query,
+    // grouped board query, my-tasks scope, statuses catalog). A root with no
+    // active query is a harmless no-op, so invalidating all four
+    // unconditionally is simpler and safer than branching on scope/mode.
     void queryClient.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
     void queryClient.invalidateQueries({ queryKey: taskKeys.groupedRoot(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.myTasks(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.statuses(workspaceId) });
   }, [queryClient, workspaceId]);
 
   const actions = useMemo<TaskSurfaceActions>(

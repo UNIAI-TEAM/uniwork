@@ -352,4 +352,45 @@ describe("TaskSurface", () => {
     });
     expect(screen.queryByTestId("task-surface-empty")).not.toBeInTheDocument();
   });
+
+  it("nút thử lại phát lại đúng truy vấn đã hỏng ở phạm vi my-tasks", async () => {
+    requestMock.mockReset();
+    requestMock.mockImplementation(async (path: string) => {
+      if (typeof path === "string" && path.includes("/my-tasks")) {
+        throw new Error("my-tasks down");
+      }
+      // task-statuses and everything else fall back to a benign default so
+      // only the my-tasks query is the one that failed.
+      return { tasks: queryTasks, total: queryTasks.length, limit: 50, offset: 0 };
+    });
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "my", userId: "u1", relation: "all" }}
+          modes={["board", "list"]}
+          surfaceKey="test-my-error-retry"
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("task-surface-error")).toBeInTheDocument();
+    });
+
+    const myTasksCallsBefore = requestMock.mock.calls.filter(
+      ([path]) => typeof path === "string" && path.includes("/my-tasks"),
+    ).length;
+    expect(myTasksCallsBefore).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+
+    await waitFor(() => {
+      const myTasksCallsAfter = requestMock.mock.calls.filter(
+        ([path]) => typeof path === "string" && path.includes("/my-tasks"),
+      ).length;
+      expect(myTasksCallsAfter).toBeGreaterThan(myTasksCallsBefore);
+    });
+  });
 });
