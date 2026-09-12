@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
@@ -11,6 +11,16 @@ import {
   useLazyEditor,
   useUploadGate,
 } from "../../../editor";
+
+/**
+ * Same interval `task-detail-editors.tsx` uses for the description field's
+ * autosave (`ContentEditor`'s `debounceMs`) — the house delay for "write
+ * this to storage a little after the person stops typing." Applied by hand
+ * here instead of via `ContentEditor`'s own `debounceMs` because that prop
+ * would also delay `onUpdate`, and the Send button's `isEmpty` state must
+ * track the caret exactly, not lag a debounce window behind it.
+ */
+const DRAFT_DEBOUNCE_MS = 1500;
 
 /**
  * Lazy ContentEditor comment composer. Submit awaits the server; draft stays
@@ -40,6 +50,30 @@ export function TaskCommentComposer({
     resetKey: key,
   });
 
+  // Debounced draft write: `pendingDraftRef` holds the latest markdown not
+  // yet persisted. Flushed on unmount (mid-debounce navigation must not
+  // silently drop the last keystrokes) and cancelled on accept (a send that
+  // lands while a write is still pending must not let that stale write
+  // resurrect a draft `clearDraft` just deleted).
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pendingDraftRef = useRef<string | null>(null);
+
+  const cancelPendingDraftWrite = () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = undefined;
+    pendingDraftRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pendingDraftRef.current !== null) {
+        setDraft(key, pendingDraftRef.current);
+      }
+      cancelPendingDraftWrite();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- flush-on-unmount only, not on every key/setDraft identity change
+  }, [key]);
+
   const { submitting, submit } = useComposerSubmit({
     editorRef,
     uploadGate,
@@ -48,6 +82,7 @@ export function TaskCommentComposer({
     onAccepted: () => {
       editorRef.current?.clearContent();
       setIsEmpty(true);
+      cancelPendingDraftWrite();
       clearDraft(key);
     },
   });
@@ -74,8 +109,17 @@ export function TaskCommentComposer({
             onReady={lazy.onReady}
             onUploadingChange={uploadGate.onUploadingChange}
             onUpdate={(md) => {
+              // isEmpty drives the Send button and must never lag the caret.
               setIsEmpty(!md.trim());
-              setDraft(key, md);
+              // The persisted write is debounced: a long comment must not
+              // re-serialise every draft in storage on each keystroke.
+              pendingDraftRef.current = md;
+              if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+              draftTimerRef.current = setTimeout(() => {
+                draftTimerRef.current = undefined;
+                pendingDraftRef.current = null;
+                setDraft(key, md);
+              }, DRAFT_DEBOUNCE_MS);
             }}
             onSubmit={() => {
               void submit();
