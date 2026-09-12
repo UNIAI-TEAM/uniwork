@@ -1,6 +1,6 @@
 # UniWork — Task human-parity với USF (spec ô)
 
-> **Trạng thái:** in-progress — lát A shipped; plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`
+> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`)
 
 **Ngày:** 2026-09-12
 **Issue:** (tạo khi `writing-plans` — 1 issue ô + 5 sub-issue)
@@ -239,6 +239,20 @@ tự nhận nhiều hơn thực tế, và để lát sau biết chỗ cần cầ
    thêm nút tải thêm dưới timeline, kèm một dòng cho biết danh sách đang bị
    cắt. Ai nhận tiếp: bắt đầu ở `packages/core/audit`, đối chiếu tham số phân
    trang mà endpoint nhật ký tổ chức đã dùng.
+
+## 7ter. Giới hạn đã biết của lát B
+
+Lát B biến bình luận trên task thành cuộc trò chuyện có luồng: trả lời, nháp
+bền qua lỗi gửi, gấp luồng đã giải quyết, composer dính đáy, và điều hướng
+luồng. Một điểm dưới đây là quyết định sản phẩm có chủ đích, không phải thiếu
+sót — ghi lại để không ai "sửa" nhầm nó sau này.
+
+1. **Bảng điều hướng luồng chỉ hiện khi task có từ bốn luồng bình luận trở
+   lên.** Dưới ngưỡng đó, cuộn tay đủ nhanh nên bảng chỉ thêm nhiễu thị giác;
+   `packages/views/tasks/detail/components/thread-nav-panel.tsx` đọc số luồng
+   gốc và tự ẩn dưới bốn. Đây là quyết định có chủ đích từ review giữa lát B
+   (commit "nâng ngưỡng bảng điều hướng luồng lên bốn"), không phải một khiếm
+   khuyết cần lát sau sửa.
 
 ## 8. Việc làm tiếp theo
 

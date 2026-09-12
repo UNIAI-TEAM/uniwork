@@ -26,7 +26,7 @@ export default defineConfig({
       // docs/engineering/GATE_LEVELS.md — at GATE_LEVEL=fast a drop below
       // these prints the summary and passes; standard and above fail on it.
       // The numbers themselves only go up (docs/adr/0014-*.md).
-      thresholds: coverageThresholds({ statements: 59, branches: 52, functions: 53, lines: 61 }),
+      thresholds: coverageThresholds({ statements: 60, branches: 53, functions: 53, lines: 62 }),
     },
   },
 });

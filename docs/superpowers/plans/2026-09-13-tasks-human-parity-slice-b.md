@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — lát B của spec ô Task human-parity
+> **Trạng thái:** shipped — lát B của spec ô Task human-parity, qua `make check` (2026-09-13)
 
 **Goal:** Bình luận trên task trở thành cuộc trò chuyện có luồng: trả lời được, gấp được luồng đã giải quyết, nhảy được giữa các luồng, và không mất chữ đang gõ khi rời trang.
 
