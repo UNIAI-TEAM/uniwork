@@ -215,6 +215,31 @@ docs/adr/                # ADR vá cache (lát E)
 | Nội dung task vào bảng outbox | Mở theo từng topic, không đại trà; ADR nói rõ đánh đổi |
 | Phạm vi trôi sang agent | Không lát nào được sửa `workcapability`; test catalogue giữ |
 
+## 7bis. Giới hạn đã biết của lát A
+
+Lát A sửa hai lỗi người dùng thấy được và hai chỗ giao diện nói sai. Hai giới
+hạn dưới đây vẫn còn nguyên sau khi lát A merge; ghi ở đây để changelog không
+tự nhận nhiều hơn thực tế, và để lát sau biết chỗ cần cầm.
+
+1. **Chế độ bảng vẫn nuốt lỗi tải danh sách.**
+   `packages/views/tasks/surface/use-task-surface-controller.ts` trả `isError: false`
+   bất cứ khi nào chế độ bảng bật, đúng theo hình dạng `isLoading` đã có từ
+   trước. Hệ quả: mất mạng khi đang ở chế độ bảng vẫn hiện "chưa có công
+   việc" thay vì khối lỗi mà lát A vừa dựng cho chế độ danh sách. Sửa được
+   bằng cách cho nhánh bảng trả trạng thái lỗi của chính truy vấn bảng, tức
+   thêm đường dây riêng cho bảng — việc này nằm ngoài phạm vi lát A. Ai nhận
+   tiếp: bắt đầu ở controller, rồi kiểm tra `CollectionPageState` của chế độ
+   bảng.
+
+2. **Hoạt động bị cắt bớt trong im lặng.**
+   `AuditService.ResourceHistory` chặn số dòng ở `AuditPageMax` (100), còn client
+   không truyền `limit` và không phân trang. Trên một công việc nhiều hoạt
+   động, các dòng cũ nhất rơi ra ngoài mà giao diện không nói gì và không có
+   nút "tải thêm". Sửa được bằng cách cho `useResourceHistory` nhận cursor và
+   thêm nút tải thêm dưới timeline, kèm một dòng cho biết danh sách đang bị
+   cắt. Ai nhận tiếp: bắt đầu ở `packages/core/audit`, đối chiếu tham số phân
+   trang mà endpoint nhật ký tổ chức đã dùng.
+
 ## 8. Việc làm tiếp theo
 
 1. User duyệt file spec này.
