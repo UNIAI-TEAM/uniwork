@@ -21,6 +21,13 @@
     "hour": "Giờ",
     "minute": "Phút"
   },
+  "errors": {
+    "not_found_title": "Không tìm thấy trang",
+    "not_found_description": "Đường dẫn này không tồn tại hoặc đã bị đổi.",
+    "back_home": "Về trang chủ",
+    "render_title": "Có lỗi khi hiển thị trang",
+    "render_description": "Thử tải lại. Nếu vẫn lỗi, báo cho quản trị workspace."
+  },
   "auth": {
     "login": "Đăng nhập",
     "register": "Đăng ký",

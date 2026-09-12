@@ -21,6 +21,13 @@
     "hour": "Hour",
     "minute": "Minute"
   },
+  "errors": {
+    "not_found_title": "Page not found",
+    "not_found_description": "This address does not exist or has moved.",
+    "back_home": "Back to home",
+    "render_title": "Something went wrong rendering this page",
+    "render_description": "Try again. If it keeps failing, tell your workspace admin."
+  },
   "auth": {
     "login": "Log in",
     "register": "Sign up",
