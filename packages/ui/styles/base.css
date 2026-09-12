@@ -93,14 +93,17 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 @keyframes onboarding-enter { from { opacity: 0; } }
 .animate-onboarding-enter { animation: onboarding-enter 0.4s ease both; }
 
-@keyframes welcome-emoji-pop {
-  0% { transform: scale(0.4); opacity: 0; }
-  35% { transform: scale(1.25); opacity: 1; }
-  55% { transform: scale(0.92); }
-  75% { transform: scale(1.12); }
-  100% { transform: scale(1); }
+/* Dấu UniWork đến sau khi hộp đã yên: một nhịp thứ hai nói "workspace xong
+   rồi", không phải một màn ăn mừng. Bản cũ nảy bốn nhịp trong 0.7s — vừa là
+   bounce (PRODUCT.md: chuyển động chỉ để giải thích thay đổi), vừa dài gấp ba
+   ngân sách 150–250ms. Thời lượng và đường cong lấy đúng của
+   lib/motion.ts (standard 0.2s, UI_EASE_OUT) nên khớp nhịp với mọi
+   chuyển cảnh khác; độ trễ đủ để tách khỏi lúc hộp phóng vào. */
+@keyframes welcome-glyph-pop {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
-.animate-welcome-emoji-pop { animation: welcome-emoji-pop 0.7s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.animate-welcome-glyph-pop { animation: welcome-glyph-pop 0.2s cubic-bezier(0.23, 1, 0.32, 1) 80ms both; }
 
 /* A reaction landing on a meeting tile: quick scale-in, no bounce. */
 @keyframes reaction-pop {
@@ -138,8 +141,8 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
     transition-duration: 0.15s !important;
   }
   html { scroll-behavior: auto !important; }
-  /* Emoji pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
-  .animate-welcome-emoji-pop,
+  /* Glyph pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
+  .animate-welcome-glyph-pop,
   .animate-reaction-pop { animation-name: onboarding-enter; }
 }
 
