@@ -97,9 +97,9 @@ describe("AuditTab", () => {
   it("shows the log to an organization admin in words, not identifiers", async () => {
     mockApi("admin");
     renderTab();
-    // The change summary shows the field and both sides of the move.
+    // The change summary shows the translated field label and both sides of the move.
     expect(await screen.findByText("todo")).toBeInTheDocument();
-    expect(screen.getByText("status")).toBeInTheDocument();
+    expect(screen.getByText("Trạng thái")).toBeInTheDocument();
     expect(screen.getByText("Cập nhật task")).toBeInTheDocument();
     // The actor is a name when the workspace knows them, never a bare ULID.
     expect(await screen.findByTitle("u1")).toHaveTextContent("An");

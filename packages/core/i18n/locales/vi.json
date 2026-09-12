@@ -519,6 +519,19 @@
         "user": "Người dùng",
         "session": "Phiên đăng nhập"
       },
+      "fields": {
+        "title": "Tiêu đề",
+        "description": "Mô tả",
+        "status": "Trạng thái",
+        "priority": "Độ ưu tiên",
+        "assignee_id": "Người phụ trách",
+        "assignee_kind": "Loại người phụ trách",
+        "due_date": "Hạn",
+        "start_date": "Ngày bắt đầu",
+        "project_id": "Dự án",
+        "parent_task_id": "Công việc cha",
+        "position": "Vị trí"
+      },
       "loading": "Đang tải…",
       "empty_fresh_description": "Mọi thao tác đổi dữ liệu sẽ xuất hiện ở đây ngay khi diễn ra."
     },

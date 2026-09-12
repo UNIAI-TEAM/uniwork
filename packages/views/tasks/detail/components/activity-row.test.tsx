@@ -41,7 +41,7 @@ describe("TaskActivityRow", () => {
     expect(el).toHaveTextContent("Tạo task");
     expect(el).not.toHaveTextContent("Cập nhật task");
     // Ba trường, tối đa hai ô hiển thị: phần dư gộp thành "+1".
-    expect(el).toHaveTextContent("title");
+    expect(el).toHaveTextContent("Tiêu đề");
     expect(el).toHaveTextContent("+1");
   });
 

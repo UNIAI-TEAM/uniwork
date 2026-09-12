@@ -520,6 +520,19 @@
         "user": "User",
         "session": "Session"
       },
+      "fields": {
+        "title": "Title",
+        "description": "Description",
+        "status": "Status",
+        "priority": "Priority",
+        "assignee_id": "Assignee",
+        "assignee_kind": "Assignee kind",
+        "due_date": "Due",
+        "start_date": "Start date",
+        "project_id": "Project",
+        "parent_task_id": "Parent task",
+        "position": "Position"
+      },
       "loading": "Loading…",
       "empty_fresh_description": "Every change to data will appear here as soon as it happens."
     },

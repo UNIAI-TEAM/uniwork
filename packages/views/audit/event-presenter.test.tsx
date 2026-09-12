@@ -29,4 +29,15 @@ describe("event presenter", () => {
     expect(shortId("01J8Z0M3K9Q2V4X6Y8A0B2C4D6")).toBe("01J8…C4D6");
     expect(shortId("u1")).toBe("u1");
   });
+
+  it("translates a known changed field instead of showing its raw column name", () => {
+    render(<ChangeSummary event={{ changes: { status: { from: "todo", to: "done" } } }} empty="—" />);
+    expect(screen.getByText("Trạng thái")).toBeInTheDocument();
+    expect(screen.queryByText("status")).toBeNull();
+  });
+
+  it("falls back to the raw key for a field the UI has no translation for", () => {
+    render(<ChangeSummary event={{ changes: { some_future_column: "x" } }} empty="—" />);
+    expect(screen.getByText("some_future_column")).toBeInTheDocument();
+  });
 });
