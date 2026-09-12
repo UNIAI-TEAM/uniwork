@@ -12,6 +12,7 @@ export interface TaskSurfaceData {
   isLoading: boolean;
   isRefreshing: boolean;
   isEmpty: boolean;
+  isError: boolean;
 }
 
 export function useTaskSurfaceData({
@@ -48,7 +49,8 @@ export function useTaskSurfaceData({
 
   const isLoading = !!active && active.isLoading;
   const isRefreshing = !!active && active.isFetching && !active.isLoading;
-  const isEmpty = enabled && !isLoading && surfaceTasks.length === 0;
+  const isError = !!active && active.isError;
+  const isEmpty = enabled && !isLoading && !isError && surfaceTasks.length === 0;
 
-  return { surfaceTasks, isLoading, isRefreshing, isEmpty };
+  return { surfaceTasks, isLoading, isRefreshing, isEmpty, isError };
 }

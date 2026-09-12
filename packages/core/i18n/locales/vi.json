@@ -629,6 +629,8 @@
     "view_mode": "Kiểu hiển thị",
     "empty_title": "Chưa có công việc nào",
     "empty_description": "Tạo việc đầu tiên để bắt đầu theo dõi tiến độ của nhóm.",
+    "error_title": "Không tải được danh sách công việc",
+    "error_description": "Kết nối tới máy chủ đang có vấn đề. Thử lại sau giây lát.",
     "taskTitle": "Tiêu đề",
     "description": "Mô tả",
     "status": "Trạng thái",

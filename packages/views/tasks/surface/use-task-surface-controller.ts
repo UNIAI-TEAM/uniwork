@@ -117,12 +117,14 @@ export interface TaskSurfaceController {
   tableFacetCounts: TableFacetsResult | undefined;
   isLoading: boolean;
   isEmpty: boolean;
+  isError: boolean;
   isRefreshing: boolean;
   actions: TaskSurfaceActions;
   selection: TaskSurfaceSelection;
   openCreateTask: (defaults?: TaskCreateDefaults) => void;
   createOpen: boolean;
   setCreateOpen: (open: boolean) => void;
+  retry: () => void;
 }
 
 function orderBoardCategories(raw: string[]): string[] {
@@ -373,6 +375,11 @@ export function useTaskSurfaceController({
     [queryClient, updateTaskMutation, workspaceId],
   );
 
+  const retry = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.groupedRoot(workspaceId) });
+  }, [queryClient, workspaceId]);
+
   const actions = useMemo<TaskSurfaceActions>(
     () => ({
       isPending:
@@ -421,6 +428,13 @@ export function useTaskSurfaceController({
     : tableEnabled
       ? false
       : data.isLoading;
+  const isError = boardEnabled
+    ? scope.type === "my"
+      ? data.isError || statusesQuery.isError
+      : statusesQuery.isError || groupedQuery.isError
+    : tableEnabled
+      ? false
+      : data.isError;
   const isRefreshing = boardEnabled
     ? scope.type === "my"
       ? data.isRefreshing ||
@@ -458,6 +472,7 @@ export function useTaskSurfaceController({
     !tableEnabled &&
     (boardEnabled || listQueryEnabled) &&
     !isLoading &&
+    !isError &&
     surfaceTasks.length === 0;
 
   return {
@@ -481,11 +496,13 @@ export function useTaskSurfaceController({
         : undefined,
     isLoading,
     isEmpty,
+    isError,
     isRefreshing,
     actions,
     selection,
     openCreateTask,
     createOpen,
     setCreateOpen,
+    retry,
   };
 }

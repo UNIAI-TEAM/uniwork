@@ -630,6 +630,8 @@
     "view_mode": "View mode",
     "empty_title": "No tasks yet",
     "empty_description": "Create the first task to start tracking the team's progress.",
+    "error_title": "Could not load tasks",
+    "error_description": "The connection to the server is having trouble. Try again in a moment.",
     "taskTitle": "Title",
     "description": "Description",
     "status": "Status",

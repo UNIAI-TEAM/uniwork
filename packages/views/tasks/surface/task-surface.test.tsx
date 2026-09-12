@@ -331,4 +331,25 @@ describe("TaskSurface", () => {
       screen.getByTestId("swimlane-lane-assignee:none"),
     ).toBeInTheDocument();
   });
+
+  it("hiển thị khối lỗi kèm nút thử lại khi query hỏng, không hiển thị trạng thái rỗng", async () => {
+    requestMock.mockReset();
+    requestMock.mockRejectedValue(new Error("network down"));
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["list"]}
+          surfaceKey="test-ws-error"
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("task-surface-error")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("task-surface-empty")).not.toBeInTheDocument();
+  });
 });
