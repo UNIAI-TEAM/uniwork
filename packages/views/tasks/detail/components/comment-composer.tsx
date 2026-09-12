@@ -50,20 +50,25 @@ export function TaskCommentComposer({
     resetKey: key,
   });
 
-  // Debounced draft write: `pendingDraftRef` holds the latest markdown not
-  // yet persisted. Flushed on unmount (mid-debounce navigation must not
-  // silently drop the last keystrokes).
+  // Debounced draft write ONLY: `pendingDraftRef` holds the latest markdown
+  // not yet persisted, flushed on unmount so mid-debounce navigation can't
+  // silently drop the last keystrokes. `onAccepted` used to also read this
+  // ref to decide what to keep, but it can lag the live document (see
+  // `onAccepted` below) — that decision now reads the editor directly.
   const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pendingDraftRef = useRef<string | null>(null);
-  // What `submit()` actually sent, captured at submit time so `onAccepted`
-  // can tell a stale pending write (same text, just hasn't flushed yet) from
-  // real new content typed while the send was in flight — the editor is not
-  // locked during that wait.
+  // What `submit()` actually sent (post-normalize), captured at submit time
+  // so `onAccepted` can tell "everything on screen was sent" from "there is
+  // unsent text" — the editor is not locked while the send is in flight.
   const lastSubmittedRef = useRef<string | null>(null);
   // Set right before `clearContent()` in `onAccepted`; suppresses the one
   // resulting `onUpdate("")` echo (TipTap fires `onUpdate` for any
-  // programmatic doc change, including `clearContent`) so it can't re-arm a
-  // write that overwrites a draft `onAccepted` just decided to keep.
+  // programmatic doc change, including `clearContent`). Still needed even
+  // though `onAccepted` no longer reads `pendingDraftRef` to decide what to
+  // keep: left alone, that echo would still reach the debounced-write path
+  // below, re-arm it, and overwrite whatever `onAccepted` just decided to
+  // keep with "" about 1.5s later. This guards the decision's aftermath, not
+  // the decision itself.
   const suppressNextClearEchoRef = useRef(false);
 
   const cancelPendingDraftWrite = () => {
@@ -91,19 +96,30 @@ export function TaskCommentComposer({
       return onSubmit(body);
     },
     onAccepted: () => {
-      // A send in flight doesn't lock the editor, so by the time the server
-      // accepts, `pendingDraftRef` may hold text typed AFTER what was
-      // submitted. Stale (matches what was sent, just hasn't flushed to the
-      // store yet) is dropped; anything else is new content and must survive
-      // as the draft, not vanish with `clearContent()`.
-      const pending = pendingDraftRef.current;
+      // `pendingDraftRef` is only as fresh as ContentEditor's own internal
+      // forward, which it debounces via its own setTimeout even at
+      // debounceMs={0} — so it can lag the live document by a keystroke in
+      // either direction around the server's response. The live editor is
+      // the same source submit() itself reads (`getMarkdown()`) and is
+      // authoritative; read it here, before clearContent() replaces it.
+      const rawLive = editorRef.current?.getMarkdown() ?? "";
+      // Mirrors use-composer-submit.ts's own (private, unexported)
+      // `defaultNormalize`, which submit() applies before calling onSubmit —
+      // comparing un-normalized raw markdown against `lastSubmittedRef`
+      // would flag a trailing-newline-only difference as "new content" and
+      // resurrect a phantom draft after an ordinary clean send. Stays
+      // correct only as long as this composer doesn't pass a custom
+      // `normalize` to useComposerSubmit (it doesn't, today).
+      const liveMarkdown = rawLive.replace(/(\n\s*)+$/, "").trim();
       cancelPendingDraftWrite();
       suppressNextClearEchoRef.current = true;
       editorRef.current?.clearContent();
       setIsEmpty(true);
-      if (pending !== null && pending !== lastSubmittedRef.current) {
-        setDraft(key, pending);
+      if (liveMarkdown !== lastSubmittedRef.current) {
+        // Typed after what was submitted — keep it as the draft.
+        setDraft(key, liveMarkdown);
       } else {
+        // Everything on screen was sent — nothing left to keep.
         clearDraft(key);
       }
     },
