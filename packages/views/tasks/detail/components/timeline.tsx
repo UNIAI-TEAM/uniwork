@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -25,7 +25,7 @@ import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
 import { buildCommentThreads, type CommentThread } from "./comment-thread";
-import { commentPreviewText } from "./comment-preview-text";
+import { commentPreviewOrFallback } from "./comment-preview-text";
 import { TaskReplyComposer } from "./reply-composer";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
 import { ThreadNavPanel, type ThreadNavItem } from "./thread-nav-panel";
@@ -96,13 +96,28 @@ export function TaskDetailTimeline({
     () =>
       threads.map((thread) => ({
         id: thread.root.id,
-        preview:
-          commentPreviewText(thread.root.body) ||
+        preview: commentPreviewOrFallback(
+          thread.root.body,
           t("tasks.detail.comment_preview_empty"),
+        ),
         replyCount: thread.replies.length,
         resolved: isThreadResolved(thread),
       })),
     [threads, t],
+  );
+
+  // The highlight fade lives in a ref, not in the scroll effect's cleanup.
+  // The effect clears `scrollRequest` as its last act, which re-runs it
+  // immediately; a cleanup-owned timer would be cancelled by that very
+  // re-run and the highlight would never fade.
+  const fadeTimerRef = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      if (fadeTimerRef.current !== undefined) {
+        window.clearTimeout(fadeTimerRef.current);
+      }
+    },
+    [],
   );
 
   const jumpToComment = (id: string) =>
@@ -164,8 +179,21 @@ export function TaskDetailTimeline({
     if (!el) return;
     el.scrollIntoView({ block: "nearest" });
     setHighlightedId(target);
-    const fade = window.setTimeout(() => setHighlightedId(null), 2500);
-    return () => window.clearTimeout(fade);
+    if (fadeTimerRef.current !== undefined) {
+      window.clearTimeout(fadeTimerRef.current);
+    }
+    fadeTimerRef.current = window.setTimeout(() => {
+      fadeTimerRef.current = undefined;
+      setHighlightedId(null);
+    }, 2500);
+    // Honoured — retire the request. An un-cleared request stays "active"
+    // against `expandedResolved` and `threads`, both of which this effect
+    // depends on: collapsing the resolved thread you just jumped to would
+    // re-run it and re-expand the thread (the bar springs back open), and
+    // every comments refetch (posting, reacting) gives `threads` a new
+    // identity and re-scrolls to the stale hash target with a fresh
+    // highlight.
+    setScrollRequest(null);
   }, [scrollRequest, threads, taskId, expandedResolved]);
 
   const onCompose = async (body: string): Promise<boolean> => {
