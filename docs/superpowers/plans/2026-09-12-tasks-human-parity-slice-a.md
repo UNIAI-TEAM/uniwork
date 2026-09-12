@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — lát A của spec ô Task human-parity
+> **Trạng thái:** shipped — lát A của spec ô Task human-parity
 
 **Goal:** Sửa hai lỗi đang làm người dùng hiểu sai trạng thái hệ thống (reaction không bao giờ hiện, lỗi tải bị hiển thị thành rỗng), dựng ranh giới lỗi cấp app, và bật lịch sử hoạt động trên trang chi tiết task bằng nguồn dữ liệu đã có.
 
@@ -40,7 +40,7 @@
 
 **Interfaces:**
 - Consumes: `db.ListTaskCommentsRow`, `s.authorize(ctx, userID, taskID)` đã có.
-- Produces: `func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskID string) ([]db.ListTaskCommentReactionsRow, error)` — Task 2 gọi nó từ handler.
+- Produces: `func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskID string) ([]db.CommentReaction, error)` — Task 2 gọi nó từ handler.
 
 Giữ nguyên chữ ký của `Comments`: nó có sáu nơi gọi, gồm `askuni_sources.go`, nên đổi kiểu trả về sẽ lan rộng không cần thiết.
 
@@ -124,7 +124,12 @@ ORDER BY r.created_at;
 make sqlc
 ```
 
-Kỳ vọng: `server/pkg/db/` có thêm `ListTaskCommentReactions` và `ListTaskCommentReactionsParams`.
+Kỳ vọng: `server/pkg/db/` có thêm `ListTaskCommentReactions(ctx, ListTaskCommentReactionsParams) ([]CommentReaction, error)`.
+
+`SELECT r.*` trả đúng hình dạng bảng nên sqlc tái dùng struct `CommentReaction`, không
+sinh Row type riêng — giống hệt `ListCommentReactions` đang có. Nếu sqlc lại sinh một
+Row type (ví dụ vì thêm cột join), dùng đúng tên nó sinh ra và sửa chữ ký ở bước 5 cho
+khớp, đừng ép về `CommentReaction`.
 
 - [ ] **Step 5: Thêm method service**
 
@@ -134,7 +139,7 @@ Thêm vào `server/internal/service/task.go` ngay sau `Comments` (dòng 455):
 // CommentReactionsForTask returns every reaction on every comment of the task
 // in one round trip. Comments stays untouched: six callers depend on its
 // signature, and only the detail screen needs the reactions.
-func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskID string) ([]db.ListTaskCommentReactionsRow, error) {
+func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskID string) ([]db.CommentReaction, error) {
 	task, err := s.authorize(ctx, userID, taskID)
 	if err != nil {
 		return nil, err
@@ -276,7 +281,7 @@ Trong `server/internal/handler/task_collaboration.go`, ngay sau `commentDTOFromL
 ```go
 // groupCommentReactions buckets reactions by comment id. Every comment gets a
 // non-nil slice so the JSON carries [] instead of null.
-func groupCommentReactions(rows []db.ListTaskCommentReactionsRow) map[string][]sdo.CommentReactionDTO {
+func groupCommentReactions(rows []db.CommentReaction) map[string][]sdo.CommentReactionDTO {
 	out := make(map[string][]sdo.CommentReactionDTO, len(rows))
 	for _, r := range rows {
 		out[r.CommentID] = append(out[r.CommentID], sdo.CommentReactionDTO{
@@ -609,7 +614,7 @@ Sửa cây render (dòng 203):
               {controller.isLoading ? (
                 <TaskSurfaceSkeleton mode={controller.viewMode} />
               ) : controller.isError ? (
-                <SurfaceError onRetry={() => controller.actions.refetch()} />
+                <SurfaceError onRetry={controller.retry} />
               ) : controller.isEmpty ? (
 ```
 
@@ -635,7 +640,20 @@ function SurfaceError({ onRetry }: { onRetry: () => void }) {
 
 Thêm `data-testid="task-surface-empty"` vào `DefaultEmpty` để test phân biệt được hai nhánh.
 
-Nếu `controller.actions` chưa có `refetch`, thêm nó vào `actions` trong controller, gọi `queryClient.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) })`. Controller đã import `taskKeys` và có `queryClient` trong tầm.
+`TaskSurfaceActions` **không** có `refetch`, và đừng thêm vào đó: interface ấy được
+mock ở nhiều test của board, table và swimlane, nên mở rộng nó kéo theo sửa lan man cho
+đúng một cái nút. Thay vào đó expose `retry` ở cấp cao nhất của controller, cạnh
+`isError`:
+
+```ts
+  const retry = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.groupedRoot(workspaceId) });
+  }, [queryClient, workspaceId]);
+```
+
+Thêm `retry: () => void;` vào type kết quả của controller và `retry,` vào khối return.
+Controller đã có `queryClient` và `taskKeys` trong tầm (xem quanh dòng 365).
 
 - [ ] **Step 6: Thêm khóa i18n**
 

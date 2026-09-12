@@ -1,6 +1,6 @@
 # UniWork — Task human-parity với USF (spec ô)
 
-> **Trạng thái:** in-progress — spec ô, 5 lát; plan từng lát tạo khi `writing-plans`
+> **Trạng thái:** in-progress — lát A shipped; plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`
 
 **Ngày:** 2026-09-12
 **Issue:** (tạo khi `writing-plans` — 1 issue ô + 5 sub-issue)
