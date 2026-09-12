@@ -1,5 +1,3 @@
-"use client";
-
 import type { TaskComment } from "@uniwork/core/types";
 
 export type CommentThread = {

@@ -43,3 +43,15 @@ export function commentPreviewText(body: string, max = 120): string {
     .trim();
   return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
 }
+
+/**
+ * The gist as it is actually shown. `commentPreviewText` can legitimately
+ * return "" — a comment that is only an image, only a code fence, only a
+ * table divider — and every surface that shows a preview needs the same
+ * stand-in rather than a blank chip. One wrapper so the thread-nav chips and
+ * the reply quote cannot drift apart; the caller passes the translated label
+ * because this module stays pure and i18n-free.
+ */
+export function commentPreviewOrFallback(body: string, emptyLabel: string): string {
+  return commentPreviewText(body) || emptyLabel;
+}

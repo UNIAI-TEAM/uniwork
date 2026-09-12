@@ -3,7 +3,7 @@
 import { useTranslation } from "react-i18next";
 import type { TaskComment } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
-import { commentPreviewText } from "./comment-preview-text";
+import { commentPreviewOrFallback } from "./comment-preview-text";
 
 /**
  * Mirrors the chat reply quote so a reply reads the same way everywhere in the
@@ -20,7 +20,10 @@ export function TaskCommentReplyQuote({
   const author = comment.display_name ?? comment.author_id;
   // A comment that is only a code fence (or other stripped syntax) previews
   // as "" — show a label instead of a blank line rather than nothing.
-  const preview = commentPreviewText(comment.body) || t("tasks.detail.comment_preview_empty");
+  const preview = commentPreviewOrFallback(
+    comment.body,
+    t("tasks.detail.comment_preview_empty"),
+  );
   return (
     <div
       data-testid={`reply-quote-${comment.id}`}
