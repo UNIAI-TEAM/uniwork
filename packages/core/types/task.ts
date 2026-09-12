@@ -86,8 +86,12 @@ export const TaskCommentSchema = z.object({
   resolved_at: z.string().optional(),
   display_name: z.string().optional(),
   avatar_url: z.string().optional(),
+  // A malformed reaction row costs the reactions, never the comment: the list
+  // endpoint parses with a `{ comments: [] }` fallback, so a strict nested
+  // schema would throw the whole thread away over one bad row.
   reactions: z
     .array(CommentReactionSchema)
+    .catch([])
     .nullish()
     .transform((v) => v ?? []),
   created_at: z.string().optional(),

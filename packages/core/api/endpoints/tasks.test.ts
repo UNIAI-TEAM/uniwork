@@ -122,6 +122,26 @@ describe("tasks endpoints", () => {
     expect(got[0]?.reactions).toEqual([]);
   });
 
+  it("listComments giữ bình luận khi một reaction hỏng, chỉ mất reaction", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          {
+            id: "c1",
+            task_id: "t1",
+            author_id: "u1",
+            body: "một",
+            reactions: [{ id: "r1", emoji: 42 }],
+          },
+        ],
+      }),
+    );
+    const got = await listComments("t1");
+    expect(got).toHaveLength(1);
+    expect(got[0]?.body).toBe("một");
+    expect(got[0]?.reactions).toEqual([]);
+  });
+
   it("addComment posts the body and returns the comment", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ comment: { id: "c1", task_id: "t1", author_id: "u1", body: "nice" } }),
