@@ -542,4 +542,13 @@ describe("TaskDetailTimeline", () => {
       await screen.findByText("trả lời được liên kết tới"),
     ).toBeInTheDocument();
   });
+
+  it("giữ ô soạn bình luận dính đáy khi cuộn", () => {
+    mockComments([]);
+    mockResourceHistory([]);
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+    expect(screen.getByTestId("task-comment-composer-dock")).toHaveClass(
+      "sticky",
+    );
+  });
 });

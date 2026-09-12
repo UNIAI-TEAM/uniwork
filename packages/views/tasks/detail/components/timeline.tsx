@@ -319,7 +319,10 @@ export function TaskDetailTimeline({
         )}
       </div>
 
-      <div className="mt-4">
+      <div
+        data-testid="task-comment-composer-dock"
+        className="sticky bottom-0 z-10 mt-4 border-t border-border bg-background pt-3"
+      >
         <TaskCommentComposer taskId={taskId} onSubmit={onCompose} />
       </div>
     </section>
