@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
 import {
   ContentEditor,
   type ContentEditorRef,
@@ -29,7 +30,10 @@ export function TaskCommentComposer({
   const key = composerKey ?? taskId;
   const editorRef = useRef<ContentEditorRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isEmpty, setIsEmpty] = useState(true);
+  const draft = useCommentDraftStore((state) => state.draftFor(key));
+  const setDraft = useCommentDraftStore((state) => state.setDraft);
+  const clearDraft = useCommentDraftStore((state) => state.clearDraft);
+  const [isEmpty, setIsEmpty] = useState(!draft.trim());
   const uploadGate = useUploadGate(editorRef);
   const lazy = useLazyEditor({
     editorRef,
@@ -44,6 +48,7 @@ export function TaskCommentComposer({
     onAccepted: () => {
       editorRef.current?.clearContent();
       setIsEmpty(true);
+      clearDraft(key);
     },
   });
 
@@ -60,7 +65,7 @@ export function TaskCommentComposer({
           <ContentEditor
             key={`comment-composer-${key}`}
             ref={editorRef}
-            defaultValue=""
+            defaultValue={draft}
             placeholder={placeholder}
             className="min-h-16 text-body"
             debounceMs={0}
@@ -68,7 +73,10 @@ export function TaskCommentComposer({
             disableMentions
             onReady={lazy.onReady}
             onUploadingChange={uploadGate.onUploadingChange}
-            onUpdate={(md) => setIsEmpty(!md.trim())}
+            onUpdate={(md) => {
+              setIsEmpty(!md.trim());
+              setDraft(key, md);
+            }}
             onSubmit={() => {
               void submit();
             }}
