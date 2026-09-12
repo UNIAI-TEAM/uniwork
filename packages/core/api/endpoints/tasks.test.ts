@@ -110,6 +110,18 @@ describe("tasks endpoints", () => {
     expect(got[0]?.reactions).toHaveLength(1);
   });
 
+  it("listComments không loại bỏ cả danh sách khi một bình luận có reactions: null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [{ id: "c1", task_id: "t1", author_id: "u1", body: "một", reactions: null }],
+      }),
+    );
+    const got = await listComments("t1");
+    expect(got).toHaveLength(1);
+    expect(got[0]?.id).toBe("c1");
+    expect(got[0]?.reactions).toEqual([]);
+  });
+
   it("addComment posts the body and returns the comment", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ comment: { id: "c1", task_id: "t1", author_id: "u1", body: "nice" } }),

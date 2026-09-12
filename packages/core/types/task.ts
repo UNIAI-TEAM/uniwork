@@ -86,7 +86,10 @@ export const TaskCommentSchema = z.object({
   resolved_at: z.string().optional(),
   display_name: z.string().optional(),
   avatar_url: z.string().optional(),
-  reactions: z.array(CommentReactionSchema).default([]),
+  reactions: z
+    .array(CommentReactionSchema)
+    .nullish()
+    .transform((v) => v ?? []),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });
