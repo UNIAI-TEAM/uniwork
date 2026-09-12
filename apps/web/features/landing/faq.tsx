@@ -65,7 +65,7 @@ export function Faq({ namespace, count, title, eyebrow, className }: FaqProps) {
                 {t(`${namespace}.q${n}`)}
               </AccordionTrigger>
               <AccordionContent>
-                <p className="pb-2 text-body leading-relaxed text-muted-foreground">
+                <p className="max-w-prose pb-2 text-body-lg leading-relaxed text-muted-foreground">
                   {t(`${namespace}.a${n}`)}
                 </p>
               </AccordionContent>

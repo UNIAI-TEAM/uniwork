@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
+import { LocaleMenu, ThemeMenu } from "@uniwork/views/layout/preference-menus";
 import { Logo } from "@uniwork/ui/brand";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -15,17 +16,30 @@ import { Container } from "./layout-primitives";
  * Nav targets resolve to a real route where one exists and to an in-page
  * anchor where it does not. "Giải pháp" is an anchor rather than a route on
  * purpose: the two department pages sit behind it, and sending a visitor to
- * one of them is a choice they have not made yet. "Giới thiệu", "Blog", "Bảo mật" and "Điều khoản"
+ * one of them is a choice they have not made yet. "Giới thiệu", "Blog" and "Điều khoản"
  * are deliberately absent rather than pointed at an unrelated anchor. "Bảng
- * giá" is absent for a stronger reason: there is no pricing, and PRODUCT.md
- * rules out advertising one.
+ * giá" now points at a real section: one plan exists in the database, it is
+ * free, and the section says the tiers are unset rather than inventing them.
+ * "Liên hệ" left the bar when the roadmap and pricing entries arrived; it is
+ * the target of the pricing section's own button and of the footer.
  */
 const NAV = [
   { key: "landing.nav.features", to: href(ANCHORS.platform) },
   { key: "landing.nav.solutions", to: href(ANCHORS.solutions) },
+  { key: "landing.workProducts.eyebrow", to: href(ANCHORS.workProducts) },
+  // A real route rather than an anchor, so it gets next/link below.
+  { key: "landing.nav.why", to: paths.whyUniwork(), route: true },
   { key: "landing.workforce.badge", to: href(ANCHORS.workforce) },
-  { key: "landing.nav.contact", to: href(ANCHORS.contact) },
+  { key: "landing.footer.roadmap", to: href(ANCHORS.roadmap) },
+  { key: "landing.footer.pricing", to: href(ANCHORS.pricing) },
 ] as const;
+
+/**
+ * A route gets next/link so the page does not reload; the anchors stay plain
+ * <a> because same-document scroll is the whole point of them.
+ */
+type NavItem = (typeof NAV)[number];
+const navTag = (item: NavItem) => ("route" in item && item.route ? Link : "a");
 
 /**
  * Written out as a literal so Tailwind's scanner emits the utility; it is only
@@ -76,18 +90,29 @@ export function SiteHeader() {
         </Link>
 
         <nav aria-label={t("landing.nav.features")} className="hidden items-center gap-7 lg:flex">
-          {NAV.map((item) => (
-            <a
-              key={item.key}
-              href={item.to}
-              className="inline-flex items-center text-body font-medium text-muted-foreground transition-colors hover:text-brand pointer-coarse:min-h-11"
-            >
-              {t(item.key)}
-            </a>
-          ))}
+          {NAV.map((item) => {
+            const Tag = navTag(item);
+            return (
+              <Tag
+                key={item.key}
+                href={item.to}
+                className="inline-flex items-center text-body font-medium text-muted-foreground transition-colors hover:text-brand pointer-coarse:min-h-11"
+              >
+                {t(item.key)}
+              </Tag>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/*
+            Both controls sit outside the mobile drawer on purpose: a visitor
+            whose browser guessed the wrong language cannot be asked to find a
+            menu labelled in that language, and the theme is a comfort setting
+            they reach for while reading, not while navigating.
+          */}
+          <ThemeMenu size="icon-lg" />
+          <LocaleMenu size="icon-lg" />
           <Link
             href={paths.login()}
             className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "hidden sm:inline-flex")}
@@ -117,16 +142,19 @@ export function SiteHeader() {
       {open ? (
         <nav aria-label={t("landing.nav.openMenu")} className="border-t border-border bg-surface lg:hidden">
           <Container className="grid gap-1 py-3">
-            {NAV.map((item) => (
-              <a
-                key={item.key}
-                href={item.to}
-                onClick={() => setOpen(false)}
-                className="rounded-lg px-3 py-3 text-body font-medium hover:bg-muted"
-              >
-                {t(item.key)}
-              </a>
-            ))}
+            {NAV.map((item) => {
+              const Tag = navTag(item);
+              return (
+                <Tag
+                  key={item.key}
+                  href={item.to}
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg px-3 py-3 text-body font-medium hover:bg-muted"
+                >
+                  {t(item.key)}
+                </Tag>
+              );
+            })}
             <Link
               href={paths.login()}
               className="rounded-lg px-3 py-3 text-body font-medium hover:bg-muted sm:hidden"

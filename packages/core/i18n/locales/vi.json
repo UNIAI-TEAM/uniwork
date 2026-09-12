@@ -2382,7 +2382,8 @@
       "login": "Đăng nhập",
       "openMenu": "Mở menu",
       "closeMenu": "Đóng menu",
-      "solutions": "Giải pháp"
+      "solutions": "Giải pháp",
+      "why": "Vì sao UniWork"
     },
     "cta": {
       "start": "Bắt đầu ngay",
@@ -2393,10 +2394,7 @@
       "titleA": "Con người",
       "titleB": "Nhân sự AI",
       "sub": "Một nền tảng thống nhất để con người và nhân sự AI cùng trò chuyện, lập kế hoạch, thực thi và biến tri thức thành kết quả.",
-      "imageAlt": "Đội ngũ con người và nhân sự AI của UniWork",
-      "bulletVi": "Tiếng Việt là ngôn ngữ gốc",
-      "bulletPeer": "Nhân sự AI là thành viên, không phải nút bấm",
-      "bulletUndo": "Mọi việc AI làm đều hoàn tác được"
+      "imageAlt": "Đội ngũ con người và nhân sự AI của UniWork"
     },
     "trust": {
       "modelsLabel": "Chạy trên mô hình bạn chọn",
@@ -2406,10 +2404,11 @@
       "auditTitle": "Nhật ký chỉ ghi thêm",
       "auditDesc": "Không ai sửa hay xóa được một dòng lịch sử, kể cả quản trị viên.",
       "undoTitle": "Việc AI làm hoàn tác được",
-      "undoDesc": "Agent đề xuất, người xác nhận, và mọi thay đổi đều lùi lại được."
+      "undoDesc": "Agent đề xuất, người xác nhận, và mọi thay đổi đều lùi lại được.",
+      "peerTitle": "Nhân sự AI là thành viên",
+      "peerDesc": "Agent có tên, có quyền hạn và có nhật ký riêng, chứ không phải một nút bấm trong thanh công cụ."
     },
     "problem": {
-      "eyebrow": "Vấn đề",
       "title": "Công việc của một đội đang nằm ở bốn nơi khác nhau",
       "sub": "Chat một nơi, bảng việc một nơi, biên bản họp một nơi, và email thì ở nơi thứ tư. Con người còn lần ra được ngữ cảnh. AI thì không.",
       "pain1Title": "Quyết định ở trong cuộc họp, việc thì ở chỗ khác",
@@ -2421,6 +2420,12 @@
       "pain3Title": "Không ai dám giao việc thật cho AI",
       "pain3Desc": "Vì khi có sự cố, không truy được ai đã làm gì, và không có cách nào lùi lại.",
       "pain3Answer": "Mọi việc agent làm đều mang tên nó, nằm trong nhật ký, và hoàn tác được."
+    },
+    "marketGap": {
+      "title": "Bạn đã có công cụ. Công việc vẫn phân mảnh.",
+      "sub": "Bốn nền tảng dưới đây đang phục vụ hàng trăm triệu người, và mỗi nền tảng mạnh ở một phía khác nhau.",
+      "body": "Microsoft 365 mạnh về bộ công cụ. Notion mạnh về tri thức. ClickUp mạnh về quản lý công việc. Coda mạnh về cách kết hợp tài liệu với dữ liệu. Không nền tảng nào trong số đó đóng được cả bốn phía cùng lúc, và khoảng trống giữa chúng là chỗ công việc của bạn rơi xuống.",
+      "cta": "Đọc phân tích đầy đủ"
     },
     "platform": {
       "eyebrow": "Một nền tảng. Một dòng công việc.",
@@ -2438,7 +2443,31 @@
       "workspaceTitle": "Tổ chức & không gian làm việc",
       "workspaceDesc": "Hai tầng thành viên, phân quyền theo tổ chức và theo từng không gian.",
       "emailTitle": "Email Hub",
-      "emailDesc": "Gom email công việc về một hộp thư, kèm AI tóm tắt và đề xuất hành động."
+      "emailDesc": "Gom email công việc về một hộp thư, kèm AI tóm tắt và đề xuất hành động.",
+      "searchTitle": "Tìm kiếm",
+      "searchDesc": "Một ô tìm trên thanh trên cùng, chạy qua việc, cuộc họp, kênh và con người.",
+      "notifyTitle": "Thông báo",
+      "notifyDesc": "Hộp thư việc riêng, đánh dấu đã đọc, tùy chọn theo kênh và huy hiệu chưa đọc theo thời gian thực.",
+      "peopleTitle": "Danh bạ & phòng ban",
+      "peopleDesc": "Hồ sơ từng người, phòng ban hai cấp, mời ở cấp tổ chức và xuất danh sách ra CSV.",
+      "auditTitle": "Bảo mật & nhật ký",
+      "auditDesc": "Màn hình đọc nhật ký hoạt động, lọc theo người, theo agent và theo mã tương quan.",
+      "agentsTitle": "Quản lý agent",
+      "agentsDesc": "Khai báo agent, cấp quyền theo workspace và xem agent đó đã làm gì.",
+      "plansTitle": "Gói & hạn mức",
+      "plansDesc": "Tám hạn mức đo được, kiểm ngay trong máy chủ trước khi một thao tác được ghi."
+    },
+    "showcase": {
+      "title": "Ba thứ vừa lên, chưa kịp có mục riêng",
+      "sub": "Cả ba đều đã chạy trong sản phẩm. Chọn cái bạn quan tâm."
+    },
+    "askuni": {
+      "title": "Hỏi UNI, và chỉ nhận về thứ bạn có quyền đọc",
+      "desc": "Một ô lệnh mở bằng ⌘J ở bất cứ màn hình nào. UNI đọc việc, cuộc họp và kênh của chính bạn để trả lời, không đọc thứ bạn chưa được thấy.",
+      "point1": "Ngữ cảnh lấy theo đúng quyền của người đang hỏi",
+      "point2": "Công cụ của UNI chỉ có quyền đọc, không ghi",
+      "point3": "Mỗi lượt gọi được đo theo tổ chức, theo người và theo mô hình",
+      "tab": "Hỏi UNI"
     },
     "meetings": {
       "eyebrow": "Cuộc họp",
@@ -2450,35 +2479,145 @@
       "imageAlt": "Phòng họp video của UniWork"
     },
     "projects": {
-      "eyebrow": "Công việc",
       "title": "Bảng công việc mà cả người và AI cùng đứng tên",
       "desc": "Trạng thái, người phụ trách và bình luận trên một bảng duy nhất. Việc do agent làm hiện đúng như việc do người làm, kèm tên và thời điểm.",
-      "cta": "Bắt đầu quản lý công việc",
+      "cta": "Xem bảng công việc",
       "imageAlt": "Bảng công việc của UniWork",
       "companionAlt": "Chat và công việc trong cùng một nơi"
     },
+    "inbox": {
+      "title": "Việc cần bạn nổi lên trước, phần còn lại nằm yên",
+      "desc": "Thông báo sinh ra từ sự kiện đã ghi vào nhật ký, không phải từ màn hình. Nghĩa là thứ bạn thấy trong hộp thư đúng bằng thứ đã thật sự xảy ra.",
+      "point1": "Huy hiệu chưa đọc cập nhật theo thời gian thực",
+      "point2": "Tùy chọn riêng cho từng loại thông báo",
+      "point3": "Web push và email tóm tắt",
+      "tab": "Thông báo"
+    },
+    "people": {
+      "title": "Ai được thấy gì, trả lời được bằng một màn hình",
+      "desc": "Quyền chia hai tầng, theo tổ chức và theo từng không gian làm việc. Agent nhận quyền theo đúng hai tầng đó, không có đường tắt nào khác.",
+      "point1": "Phòng ban hai cấp và hồ sơ từng người",
+      "point2": "Vô hiệu hóa đóng cả hai cổng nhưng giữ nguyên dữ liệu đã tạo",
+      "point3": "Chuyển quyền sở hữu tổ chức cần gõ tên và mật khẩu",
+      "tab": "Con người & quyền"
+    },
     "email": {
-      "eyebrow": "Email Hub",
       "title": "Email thông minh hơn, làm việc liền mạch hơn",
       "desc": "Gom email công việc về một hộp thư duy nhất, để AI tóm tắt, đề xuất trả lời và biến email thành công việc.",
       "soon": "Đang phát triển",
       "imageAlt": "Hộp thư hợp nhất của UniWork với trợ lý AI"
     },
+    "workProducts": {
+      "eyebrow": "Work Products",
+      "title": "Từ bối cảnh công việc đến kết quả thực tế",
+      "sub": "Trong doanh nghiệp, công việc luôn kết thúc bằng một sản phẩm cụ thể: đề xuất, báo cáo, hợp đồng, file phân tích, slide thuyết trình. UniWork không dừng lại ở việc quản lý quá trình.",
+      "v1Title": "Nối với Work Graph",
+      "v1Desc": "Tài liệu gắn với dự án, công việc, cuộc họp, quyết định và những người đã sinh ra nó.",
+      "v2Title": "AI Team hiểu bối cảnh",
+      "v2Desc": "Trợ lý đọc tài liệu cùng toàn bộ ngữ cảnh quanh nó, chứ không chỉ đọc chữ trong file.",
+      "v3Title": "Tài liệu thành hành động",
+      "v3Desc": "Từ một đoạn văn bản tạo ra công việc, phê duyệt, lời nhắc hạn hoặc một quyết định được ghi lại.",
+      "v4Title": "Định dạng chuẩn",
+      "v4Desc": "Đọc và ghi .docx, .xlsx, .pptx, .pdf, để file rời khỏi UniWork vẫn mở được ở mọi nơi.",
+      "imageAlt": "Thiết kế màn hình Work Products: danh sách tài liệu bên trái, trình soạn thảo ở giữa, bảng trợ lý AI bên phải",
+      "notOfficeTitle": "Chúng ta không làm một Microsoft Office mới",
+      "notOfficeDesc": "UniWork không chạy đua tính năng với Word, Excel hay PowerPoint, và không thay thế bộ công cụ văn phòng bạn đang dùng. Trình soạn thảo ở đây là phương tiện, không phải trọng tâm.",
+      "summaryLabel": "Nói ngắn gọn",
+      "summary": "Cùng một file, Microsoft hiểu file. UniWork hiểu cả câu chuyện phía sau nó.",
+      "timelineTitle": "Bắt đầu nhỏ, tạo giá trị sớm",
+      "timelineNote": "Đây là kế hoạch nội bộ, không phải cam kết phát hành.",
+      "p1Name": "Nền tảng Work Products",
+      "p1When": "Q1 2026",
+      "p1Desc": "Tải lên, xem trước, tìm kiếm. AI đọc nội dung và trích xuất thông tin. Liên kết với dự án, công việc, cuộc họp và quyết định.",
+      "p2Name": "Thực thi trên tài liệu",
+      "p2When": "Q2 2026",
+      "p2Desc": "Chỉnh sửa DOCX. PDF chỉnh sửa, chuyển đổi và OCR. Khối AI trong tài liệu, so sánh phiên bản, bình luận và phê duyệt.",
+      "p3Name": "Dữ liệu có cấu trúc",
+      "p3When": "Q3 2026",
+      "p3Desc": "Bảng tính phân tích và biểu đồ. Trình kết nối dữ liệu từ CRM và ERP.",
+      "p4Name": "Trình chiếu và tự động hóa",
+      "p4When": "Q4 2026",
+      "p4Desc": "Tạo slide từ dữ liệu và cuộc họp. Xuất PPTX và PDF. Quy trình và mẫu theo ngành."
+    },
     "workforce": {
       "badge": "Nhân sự AI",
       "title": "Agent làm việc như một thành viên",
       "sub": "Agent tham gia không gian làm việc với quyền hạn rõ ràng. Mọi việc agent làm đều mang tên nó, nằm trong nhật ký, và hoàn tác được như việc do người làm.",
-      "cta": "Tạo tài khoản",
+      "cta": "Bắt đầu ngay",
       "imageAlt": "Nhân sự AI trong không gian làm việc UniWork"
+    },
+    "security": {
+      "title": "Thứ một đội vận hành sẽ hỏi trước khi ký",
+      "sub": "Sáu điều dưới đây không phải cam kết marketing. Mỗi điều ứng với một bảng, một cổng kiểm tra hoặc một bài test trong mã nguồn.",
+      "i1Title": "Nhật ký không sửa được",
+      "i1Desc": "Cơ sở dữ liệu thu hồi quyền UPDATE và DELETE trên bảng nhật ký, kèm trigger chặn. Ghi sai thì trả lời bằng một dòng khác.",
+      "i2Title": "Mã tương quan đi suốt",
+      "i2Desc": "Mỗi yêu cầu mang một mã duy nhất, xuất hiện trong nhật ký hoạt động, trong sự kiện và trong log hệ thống.",
+      "i3Title": "Agent không ghi thẳng",
+      "i3Desc": "Bộ chạy agent không chạm được bảng nghiệp vụ. Đường duy nhất là đề xuất, người xác nhận, rồi mới thực thi.",
+      "i4Title": "Tách theo tổ chức",
+      "i4Desc": "Mỗi truy vấn lọc theo tổ chức và theo không gian làm việc; tư cách thành viên chỉ được quyết ở một chỗ duy nhất trong mã.",
+      "i5Title": "Hạn mức kiểm ở máy chủ",
+      "i5Desc": "Tám hạn mức được đo và kiểm trước khi một thao tác được ghi, chứ không phải ẩn nút đi ở giao diện.",
+      "i6Title": "Log không mang thông tin cá nhân",
+      "i6Desc": "Log hệ thống nhận diện người bằng mã, không bằng email hay tên. Một bài test quét toàn bộ mã nguồn và làm hỏng bản build nếu có dòng vi phạm."
+    },
+    "gallery": {
+      "title": "Sản phẩm trông như thế nào",
+      "sub": "Đây là ảnh minh họa, không phải ảnh chụp màn hình. UniWork chưa có khách hàng để trích lời, và chúng tôi không dựng lời chứng thực."
+    },
+    "roadmap": {
+      "title": "Cái đang có, cái đang làm, và cái đã nằm trong kế hoạch",
+      "sub": "UniWork chưa phát hành rộng. Bảng dưới là lộ trình thật trong repo, không phải danh sách mong muốn. Không mục nào ở đây được tính là tính năng cho tới khi nó chạy.",
+      "note": "Không mục nào dưới đây có ngày phát hành cam kết.",
+      "nowName": "Đang phát triển",
+      "nowDesc": "Đã duyệt thiết kế và đang viết mã.",
+      "now1": "Tài liệu cộng tác, có phiên bản và nhật ký truy cập — nền của Work Products",
+      "now2": "Lịch cá nhân và lịch nhóm, gộp cuộc họp với hạn công việc",
+      "now3": "Nhận dạng giọng nói phía máy chủ cho cuộc họp",
+      "now4": "Work Graph: quan hệ giữa các đối tượng công việc",
+      "now5": "Bản ghi quyết định, sinh từ tóm tắt cuộc họp",
+      "now6": "Ứng dụng iOS, năm tab, dùng chung ngữ nghĩa với web",
+      "nextName": "Trên lộ trình",
+      "nextDesc": "Đã có thiết kế hoặc đã chốt phạm vi, chưa bắt đầu.",
+      "next1": "Bộ chạy agent: nhận việc, làm, nộp kèm bằng chứng, chờ duyệt",
+      "next2": "Quy trình tự động, có bước do agent đảm nhiệm",
+      "next3": "Kho tri thức và tìm kiếm toàn cục theo quyền",
+      "next4": "Báo cáo: tóm tắt đầu ngày và số liệu nội tuyến",
+      "next5": "Webhook ký HMAC và SDK TypeScript sinh từ OpenAPI",
+      "next6": "Kết nối Gmail và Microsoft Graph, không lưu hộp thư riêng",
+      "entName": "Doanh nghiệp và on-premise",
+      "entDesc": "Dành cho tổ chức tự vận hành toàn bộ.",
+      "ent1": "Cài đặt on-premise bằng Docker Compose hoặc Helm",
+      "ent2": "Đăng nhập qua OIDC bất kỳ, lưu trữ MinIO, mô hình chạy nội bộ",
+      "ent3": "Sao lưu và diễn tập khôi phục",
+      "ent4": "SCIM và chính sách lưu trữ dữ liệu"
+    },
+    "pricing": {
+      "title": "Một gói, miễn phí, chưa đặt giới hạn",
+      "sub": "Gói Starter là gói mặc định của mọi tổ chức. Tám hạn mức dưới đây đã đo được trong máy chủ; hạn mức của gói vẫn để trống cho tới khi bảng giá được chốt.",
+      "planName": "Starter",
+      "planPrice": "Miễn phí",
+      "planDesc": "Gói mặc định cho mọi tổ chức",
+      "quotasLabel": "Tám hạn mức đã đo được",
+      "q1": "Thành viên tổ chức",
+      "q2": "Không gian làm việc",
+      "q3": "Phút tham dự họp",
+      "q4": "Ghi hình cuộc họp",
+      "q5": "Tóm tắt họp bằng AI",
+      "q6": "Token AI",
+      "q7": "Dung lượng lưu trữ",
+      "q8": "Đăng nhập SSO",
+      "status": "Bảng giá nhiều bậc đang được chốt. Không có ngày cam kết, và trang này sẽ không đăng một con số trước khi nó có thật.",
+      "cta": "Liên hệ về gói"
     },
     "final": {
       "title": "Sẵn sàng cho đội của bạn",
       "sub": "Phân quyền hai tầng theo tổ chức và không gian làm việc. Tiếng Việt và tiếng Anh ngang nhau.",
-      "primary": "Tạo tài khoản",
+      "primary": "Bắt đầu ngay",
       "secondary": "Đăng nhập"
     },
     "faq": {
-      "eyebrow": "Câu hỏi thường gặp",
       "title": "Những điều đội của bạn sẽ hỏi",
       "q1": "UniWork khác gì với công cụ đội tôi đang dùng?",
       "a1": "Khác ở chỗ agent là thành viên chứ không phải tính năng. Công việc, cuộc họp và trao đổi nằm cùng một chỗ và cùng một bộ quyền, nên agent thấy đúng những gì một đồng nghiệp mới được thấy, không hơn.",
@@ -2490,8 +2629,16 @@
       "a4": "Trên hạ tầng đặt tại Việt Nam, theo Nghị định 13 về bảo vệ dữ liệu cá nhân. Nhật ký hoạt động chỉ ghi thêm, không ai sửa hay xóa được một dòng đã ghi.",
       "q5": "Dùng mô hình AI nội bộ được không?",
       "a5": "Được. UniWork gọi Anthropic, OpenAI, hoặc một mô hình bạn tự vận hành qua Ollama. Chọn mô hình nội bộ thì nội dung công việc không rời khỏi hạ tầng của bạn.",
-      "q6": "Tiếng Việt tới đâu?",
-      "a6": "Tiếng Việt là ngôn ngữ gốc của sản phẩm, tiếng Anh là bản dịch. Hai ngôn ngữ có đủ khoá như nhau, và một khoá thiếu sẽ làm hỏng bản build chứ không lặng lẽ rơi về tiếng Việt."
+      "q6": "Sản phẩm có những ngôn ngữ nào?",
+      "a6": "Tiếng Việt và tiếng Anh ngang nhau, không ngôn ngữ nào là bản dịch máy của ngôn ngữ kia. Một khoá thiếu ở một trong hai sẽ làm hỏng bản build chứ không lặng lẽ rơi về ngôn ngữ còn lại. Các ngôn ngữ khác nằm trong lộ trình.",
+      "q7": "UniWork đã phát hành chưa?",
+      "a7": "Chưa. Sản phẩm đang được đội UNICOM dùng nội bộ hằng ngày, và chưa có ai ngoài đội phát triển sử dụng. Mọi câu trên trang này nói về thứ đang chạy, không phải thứ sắp có.",
+      "q8": "Bao nhiêu tiền?",
+      "a8": "Hiện có đúng một gói, tên Starter, miễn phí, và chưa đặt giới hạn nào. Bảng giá nhiều bậc đang được chốt, nên trang này chưa đăng con số.",
+      "q9": "Chạy trên hạ tầng của chúng tôi được không?",
+      "a9": "Chưa được hôm nay. Bản cài on-premise bằng Docker Compose hoặc Helm nằm trong lộ trình, cùng với OIDC bất kỳ, lưu trữ MinIO và mô hình chạy nội bộ.",
+      "q10": "Có API không?",
+      "a10": "Có. Máy chủ dựng đặc tả OpenAPI ngay lúc khởi động từ chính bảng định tuyến, nên đặc tả không lệch khỏi mã. Webhook ký HMAC và SDK TypeScript nằm trong lộ trình."
     },
     "solutions": {
       "eyebrow": "Giải pháp",
@@ -2547,11 +2694,103 @@
         "a3": "Chưa có. Hiện tự động hóa đi qua agent với một người xác nhận ở giữa, chứ không phải một luồng chạy ngầm."
       }
     },
+    "why": {
+      "metaTitle": "Vì sao UniWork",
+      "metaDesc": "Microsoft 365, Notion, ClickUp và Coda mạnh ở bốn phía khác nhau. Đây là khoảng trống giữa chúng, và chỗ UniWork đứng.",
+      "eyebrow": "Vì sao UniWork",
+      "title": "Những vấn đề lớn của các nền tảng hiện tại",
+      "sub": "Nhiều công cụ. Nhiều tính năng. Nhưng công việc vẫn bị phân mảnh.",
+      "lead": "Hiểu rõ hạn chế của các nền tảng hàng đầu giúp chúng ta nhìn thấy cơ hội để tạo ra một thế hệ giải pháp tốt hơn.",
+      "disclaimer": "Nhận định dưới đây dựa trên tài liệu công khai của từng nền tảng tại thời điểm viết. Cả bốn đều ra tính năng mới liên tục, nên hãy tự kiểm chứng trước khi ra quyết định.",
+      "issuesLabel": "Vấn đề chính",
+      "summaryLabel": "Nói ngắn gọn",
+      "gapTitle": "Khoảng trống thị trường",
+      "gapSub": "Từ công việc phân mảnh đến một tổ chức thực sự hiệu quả.",
+      "gapBody": "UniWork không chỉ cung cấp công cụ, mà hiểu bối cảnh công việc, kết nối con người, tri thức, dữ liệu và AI để tạo ra kết quả thực sự.",
+      "pillarsTitle": "Chỗ UniWork đứng",
+      "pillar1Title": "Một nền tảng thống nhất",
+      "pillar1Desc": "Email, họp, dự án, công việc, quyết định và tài liệu trong cùng một không gian, dùng chung một bộ quyền.",
+      "pillar2Title": "AI hiểu bối cảnh công việc",
+      "pillar2Desc": "Trợ lý đọc dữ liệu tổ chức theo đúng quyền của người hỏi, chứ không đoán từ một đoạn văn bản dán vào.",
+      "pillar3Title": "Work Products là kết quả thực",
+      "pillar3Desc": "Tạo, chỉnh sửa, phê duyệt tài liệu, phân tích và trình bày ngay tại chỗ công việc sinh ra chúng.",
+      "pillar4Title": "Linh hoạt triển khai",
+      "pillar4Desc": "Cloud, private cloud, on-premise và BYOK, phù hợp doanh nghiệp và cơ quan tại Việt Nam.",
+      "ms365": {
+        "name": "Microsoft 365",
+        "tagline": "The productivity powerhouse",
+        "desc": "Bộ công cụ văn phòng toàn diện được hàng trăm triệu người tin dùng.",
+        "i1Title": "Phức tạp và rời rạc",
+        "i1Desc": "Nhiều ứng dụng riêng biệt như Word, Excel, PowerPoint, Outlook, Teams khó tạo thành một trải nghiệm thống nhất.",
+        "i2Title": "Chi phí cao",
+        "i2Desc": "Tổng chi phí sở hữu lớn, đặc biệt với doanh nghiệp vừa và nhỏ.",
+        "i3Title": "Phụ thuộc cloud",
+        "i3Desc": "Chủ yếu hướng cloud, còn lựa chọn on-premise ngày càng hạn chế.",
+        "i4Title": "AI chưa thực sự theo bối cảnh công việc",
+        "i4Desc": "Copilot mạnh nhưng vẫn hoạt động trong từng ứng dụng, chưa hiểu sâu quy trình và mục tiêu của tổ chức.",
+        "i5Title": "Ít linh hoạt tùy chỉnh",
+        "i5Desc": "Khó điều chỉnh theo đặc thù ngành và quy trình riêng.",
+        "summary": "Rất mạnh về công cụ, nhưng công việc vẫn bị phân mảnh và nặng vận hành."
+      },
+      "notion": {
+        "name": "Notion",
+        "tagline": "The connected workspace",
+        "desc": "Không gian làm việc linh hoạt, kết hợp tài liệu, cơ sở dữ liệu và AI.",
+        "i1Title": "Chưa phù hợp cho vận hành doanh nghiệp phức tạp",
+        "i1Desc": "Tốt cho ghi chép và quản lý thông tin, còn hạn chế với quy trình, phê duyệt và quản trị nhiều phòng ban.",
+        "i2Title": "Thiếu khả năng xử lý file chuẩn doanh nghiệp",
+        "i2Desc": "Hỗ trợ DOCX, XLSX, PPTX hạn chế, và đó không phải thế mạnh của nền tảng.",
+        "i3Title": "Chưa mạnh về dự án và công việc phức tạp",
+        "i3Desc": "Task và project mang tính cơ bản, khó đáp ứng nhu cầu vận hành quy mô lớn.",
+        "i4Title": "Khả năng tích hợp còn giới hạn",
+        "i4Desc": "Cần nhiều công cụ bên ngoài để nối với email, lịch, họp và quy trình.",
+        "i5Title": "AI chủ yếu trong phạm vi workspace",
+        "i5Desc": "Hiểu nội dung nhưng chưa thực sự kết nối được toàn bộ bối cảnh công việc và dữ liệu vận hành.",
+        "summary": "Tuyệt vời cho tri thức và cộng tác, nhưng chưa đủ để vận hành một tổ chức phức tạp."
+      },
+      "clickup": {
+        "name": "ClickUp",
+        "tagline": "The all-in-one work platform",
+        "desc": "Nền tảng quản lý công việc mạnh mẽ với tham vọng trở thành một ứng dụng cho mọi việc.",
+        "i1Title": "Quá nhiều tính năng",
+        "i1Desc": "Giao diện phức tạp, người dùng dễ bị quá tải, đường cong học tập cao.",
+        "i2Title": "Trải nghiệm chưa thực sự liền mạch",
+        "i2Desc": "Nhiều cách làm cùng một việc khiến đội nhóm khó thống nhất cách sử dụng.",
+        "i3Title": "Thiếu chiều sâu về tài liệu và tri thức",
+        "i3Desc": "Docs tốt ở mức cơ bản, nhưng chưa mạnh với tài liệu dài và file chuẩn.",
+        "i4Title": "Chưa tối ưu cho doanh nghiệp lớn và ngành đặc thù",
+        "i4Desc": "Khả năng tùy biến và quản trị đa tổ chức còn hạn chế.",
+        "i5Title": "AI đã tiến bộ nhưng chưa khác biệt",
+        "i5Desc": "ClickUp Brain hữu ích nhưng chưa tạo được lợi thế rõ rệt về hiểu bối cảnh tổ chức và thực thi công việc đa bước.",
+        "summary": "Mạnh về quản lý công việc, nhưng dễ rơi vào quá tải tính năng và chưa đủ chiều sâu cho doanh nghiệp lớn."
+      },
+      "coda": {
+        "name": "Coda",
+        "tagline": "Docs that do more",
+        "desc": "Kết hợp tài liệu, bảng dữ liệu, tự động hóa và AI trong một không gian linh hoạt.",
+        "i1Title": "Độ phức tạp khi mở rộng",
+        "i1Desc": "Tuy mạnh mẽ, cấu trúc document-table trở nên khó quản lý khi quy mô lớn.",
+        "i2Title": "Chưa phải giải pháp toàn diện cho doanh nghiệp",
+        "i2Desc": "Tập trung vào tài liệu và dữ liệu, chưa bao phủ đầy đủ email, họp, quản lý dự án và vận hành tổ chức.",
+        "i3Title": "Hạn chế về file chuẩn doanh nghiệp",
+        "i3Desc": "Hỗ trợ DOCX, XLSX, PPTX còn hạn chế, và đó không phải trọng tâm.",
+        "i4Title": "Hệ sinh thái và tích hợp còn nhỏ",
+        "i4Desc": "So với Microsoft, hệ sinh thái đối tác và tích hợp bên thứ ba còn hạn chế.",
+        "i5Title": "AI mạnh nhưng trong phạm vi hẹp",
+        "i5Desc": "AI hữu ích trên tài liệu và bảng, nhưng chưa thực sự kết nối với toàn bộ bối cảnh công việc của tổ chức.",
+        "summary": "Rất sáng tạo trong cách kết hợp tài liệu và dữ liệu, nhưng chưa đủ rộng và sâu để trở thành nền tảng vận hành toàn diện."
+      }
+    },
     "footer": {
       "sub": "Nền tảng làm việc số nơi con người và nhân sự AI cùng tạo ra kết quả.",
       "product": "Sản phẩm",
       "company": "Công ty",
-      "copyright": "© 2026 Unicom JSC"
+      "copyright": "© 2026 Unicom JSC",
+      "resources": "Tài nguyên",
+      "roadmap": "Lộ trình",
+      "security": "Bảo mật",
+      "pricing": "Bảng giá",
+      "why": "Vì sao UniWork"
     }
   }
 }

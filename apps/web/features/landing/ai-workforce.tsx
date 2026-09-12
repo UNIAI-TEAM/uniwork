@@ -8,12 +8,14 @@ import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ANCHORS } from "./anchors";
+import { useArtwork } from "./artwork";
 import { gsap, useGSAP } from "./animation/register-gsap";
 import { DURATION, EASE, START, STAGGER, withMotionPreference } from "./animation/reveal";
 import { Container, Eyebrow, SectionTitle } from "./layout-primitives";
 
 export function AiWorkforce() {
   const { t } = useTranslation();
+  const artwork = useArtwork();
   const root = useRef<HTMLElement>(null);
   const intro = useRef<HTMLDivElement>(null);
   const art = useRef<HTMLImageElement>(null);
@@ -55,13 +57,13 @@ export function AiWorkforce() {
           <SectionTitle className="mx-auto">
             <span id="ai-workforce-title">{t("landing.workforce.title")}</span>
           </SectionTitle>
-          <p className="mt-4 text-title-sm text-muted-foreground">{t("landing.workforce.sub")}</p>
+          <p className="mt-4 max-w-prose text-title-sm text-pretty text-muted-foreground">{t("landing.workforce.sub")}</p>
         </div>
 
         <figure className="group relative mx-auto mt-14 aspect-[16/9] max-w-5xl overflow-hidden rounded-lg border border-border bg-background">
           <Image
             ref={art}
-            src="/landing/ai-workforce.webp"
+            src={artwork("ai-workforce")}
             alt={t("landing.workforce.imageAlt")}
             fill
             sizes="(min-width: 1024px) 64rem, 100vw"

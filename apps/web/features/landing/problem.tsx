@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { gsap, useGSAP } from "./animation/register-gsap";
 import { revealFrom, withMotionPreference } from "./animation/reveal";
-import { Container, Eyebrow, SectionTitle } from "./layout-primitives";
+import { Container, SectionTitle } from "./layout-primitives";
 
 /**
  * Named pains, not statistics. The page has no research of its own to cite and
@@ -43,22 +43,21 @@ export function Problem() {
     <section ref={root} aria-labelledby="landing-problem-title" className="bg-background py-20 sm:py-28">
       <Container>
         <div ref={intro} className="max-w-3xl">
-          <Eyebrow className="text-brand-accent">{t("landing.problem.eyebrow")}</Eyebrow>
-          <SectionTitle>
+          <SectionTitle className="mt-0">
             <span id="landing-problem-title">{t("landing.problem.title")}</span>
           </SectionTitle>
-          <p className="mt-4 text-title-sm leading-relaxed text-muted-foreground">{t("landing.problem.sub")}</p>
+          <p className="mt-4 max-w-prose text-title-sm leading-relaxed text-pretty text-muted-foreground">{t("landing.problem.sub")}</p>
         </div>
 
         <ul ref={list} className="mt-12 grid gap-8 lg:grid-cols-3 lg:gap-10">
           {PAINS.map((pain) => (
             <li key={pain.title}>
               <h3 className="font-heading text-title font-bold leading-snug">{t(pain.title)}</h3>
-              <p className="mt-3 text-body leading-relaxed text-muted-foreground">{t(pain.desc)}</p>
+              <p className="mt-3 max-w-prose text-body-lg leading-relaxed text-muted-foreground">{t(pain.desc)}</p>
               {/* The answer sits inside the same cell as the pain on purpose:
                   a separate "solution" column would let the two drift apart as
                   the product changes. */}
-              <p className="mt-4 flex gap-2 border-t border-border pt-4 text-body font-medium">
+              <p className="mt-4 flex max-w-prose gap-2 border-t border-border pt-4 text-body-lg font-medium">
                 <CornerDownRight className="mt-0.5 size-4 shrink-0 text-brand" />
                 {t(pain.answer)}
               </p>

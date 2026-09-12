@@ -10,7 +10,11 @@ export const ANCHORS = {
   meetings: "hop",
   projects: "du-an",
   email: "email",
+  /** English because it is the feature's own name, like `platform` above. */
+  workProducts: "work-products",
   workforce: "nhan-su-ai",
+  roadmap: "lo-trinh",
+  pricing: "bang-gia",
   contact: "lien-he",
 } as const;
 

@@ -71,7 +71,7 @@ function SolutionHero({ ns }: { ns: string }) {
           <h1 className="mt-3 font-heading text-display font-bold leading-[1.08] sm:text-hero-sm lg:text-hero">
             <span id="solution-title">{t(`${ns}.title`)}</span>
           </h1>
-          <p className="mt-5 text-title-sm leading-relaxed text-muted-foreground">{t(`${ns}.sub`)}</p>
+          <p className="mt-5 max-w-prose text-title-sm leading-relaxed text-pretty text-muted-foreground">{t(`${ns}.sub`)}</p>
           <div className="mt-8 grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 sm:flex sm:flex-wrap">
             <Link
               href={paths.register()}

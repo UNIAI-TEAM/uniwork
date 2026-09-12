@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { ANCHORS } from "./anchors";
 import { gsap, useGSAP } from "./animation/register-gsap";
 import { revealFrom, withMotionPreference } from "./animation/reveal";
-import { Container, Eyebrow, SectionTitle } from "./layout-primitives";
+import { Container, SectionTitle } from "./layout-primitives";
 import { SOLUTIONS, SOLUTION_KEYS } from "./solutions";
 
 /**
@@ -41,11 +41,10 @@ export function SolutionsTeaser() {
     >
       <Container ref={body}>
         <div className="max-w-3xl">
-          <Eyebrow className="text-brand">{t("landing.solutions.eyebrow")}</Eyebrow>
-          <SectionTitle>
+          <SectionTitle className="mt-0">
             <span id="landing-solutions-title">{t("landing.solutions.teaserTitle")}</span>
           </SectionTitle>
-          <p className="mt-4 text-title-sm text-muted-foreground">{t("landing.solutions.teaserSub")}</p>
+          <p className="mt-4 max-w-prose text-title-sm text-pretty text-muted-foreground">{t("landing.solutions.teaserSub")}</p>
         </div>
 
         <ul className="mt-12 grid gap-6 lg:grid-cols-2">
@@ -56,7 +55,7 @@ export function SolutionsTeaser() {
                 className="group flex h-full flex-col rounded-lg border border-border bg-background p-6 transition-colors hover:border-brand sm:p-8"
               >
                 <h3 className="font-heading text-title font-bold">{t(`${SOLUTIONS[key].ns}.name`)}</h3>
-                <p className="mt-3 flex-1 text-body leading-relaxed text-muted-foreground">
+                <p className="mt-3 max-w-prose flex-1 text-body-lg leading-relaxed text-muted-foreground">
                   {t(`${SOLUTIONS[key].ns}.sub`)}
                 </p>
                 <span className="mt-6 inline-flex items-center gap-1.5 text-body font-medium text-brand">

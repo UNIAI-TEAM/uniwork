@@ -56,6 +56,7 @@ function builderTemplates(): string[] {
     paths.meetingInviteRoom(ID),
     paths.solutions.product(),
     paths.solutions.operations(),
+    paths.whyUniwork(),
     paths.admin.root(),
     paths.admin.organizations(),
     paths.admin.organization(ID),

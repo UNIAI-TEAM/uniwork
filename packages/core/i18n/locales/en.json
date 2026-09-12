@@ -2386,7 +2386,8 @@
       "login": "Sign in",
       "openMenu": "Open menu",
       "closeMenu": "Close menu",
-      "solutions": "Solutions"
+      "solutions": "Solutions",
+      "why": "Why UniWork"
     },
     "cta": {
       "start": "Get started",
@@ -2397,10 +2398,7 @@
       "titleA": "People",
       "titleB": "AI workforce",
       "sub": "One connected platform where people and AI teammates talk, plan, execute, and turn knowledge into results.",
-      "imageAlt": "UniWork's people and AI workforce",
-      "bulletVi": "Vietnamese is the source language",
-      "bulletPeer": "AI teammates are members, not a button",
-      "bulletUndo": "Everything an agent does can be undone"
+      "imageAlt": "UniWork's people and AI workforce"
     },
     "trust": {
       "modelsLabel": "Runs on the model you choose",
@@ -2410,10 +2408,11 @@
       "auditTitle": "An append-only log",
       "auditDesc": "Nobody edits or deletes a line of history, administrators included.",
       "undoTitle": "Agent work can be undone",
-      "undoDesc": "An agent proposes, a person confirms, and every change can be rolled back."
+      "undoDesc": "An agent proposes, a person confirms, and every change can be rolled back.",
+      "peerTitle": "AI staff are members",
+      "peerDesc": "An agent has a name, a set of permissions and its own audit trail, not a button in a toolbar."
     },
     "problem": {
-      "eyebrow": "The problem",
       "title": "A team's work is sitting in four different places",
       "sub": "Chat in one place, the board in another, meeting notes in a third, and email in a fourth. People can still piece the context together. AI cannot.",
       "pain1Title": "The decision is in the meeting, the work is somewhere else",
@@ -2425,6 +2424,12 @@
       "pain3Title": "Nobody trusts an agent with real work",
       "pain3Desc": "Because when something goes wrong, you cannot trace who did what, and there is no way back.",
       "pain3Answer": "Everything an agent does carries its name, lands in the log, and can be undone."
+    },
+    "marketGap": {
+      "title": "You already bought the tools. The work is still scattered.",
+      "sub": "The four platforms below serve hundreds of millions of people, and each one is strong on a different side.",
+      "body": "Microsoft 365 is strong on tooling. Notion is strong on knowledge. ClickUp is strong on work management. Coda is strong on joining documents to data. None of them closes all four sides at once, and the gap between them is where your work falls through.",
+      "cta": "Read the full analysis"
     },
     "platform": {
       "eyebrow": "One platform. One flow of work.",
@@ -2442,7 +2447,31 @@
       "workspaceTitle": "Organizations and workspaces",
       "workspaceDesc": "Two membership tiers, with permissions set per organization and per workspace.",
       "emailTitle": "Email Hub",
-      "emailDesc": "Work email gathered into one inbox, with AI summaries and suggested actions."
+      "emailDesc": "Work email gathered into one inbox, with AI summaries and suggested actions.",
+      "searchTitle": "Search",
+      "searchDesc": "One field in the top bar, across tasks, meetings, channels and people.",
+      "notifyTitle": "Notifications",
+      "notifyDesc": "A work inbox, read state, per-channel preferences and a live unread badge.",
+      "peopleTitle": "Directory and departments",
+      "peopleDesc": "A profile per person, two-level departments, organization-wide invitations and CSV export.",
+      "auditTitle": "Security and audit",
+      "auditDesc": "A screen for reading the activity log, filtered by person, by agent and by correlation id.",
+      "agentsTitle": "Agent management",
+      "agentsDesc": "Declare an agent, grant it workspace permissions, and read back what it did.",
+      "plansTitle": "Plans and quotas",
+      "plansDesc": "Eight measured quotas, checked in the server before a change is written."
+    },
+    "showcase": {
+      "title": "Three things that shipped without a section of their own",
+      "sub": "All three run in the product today. Pick the one you came for."
+    },
+    "askuni": {
+      "title": "Ask UNI, and get back only what you may read",
+      "desc": "A command field on ⌘J from any screen. UNI answers from your own tasks, meetings and channels, and never from something you have not been given.",
+      "point1": "Context is gathered under the asker's own permissions",
+      "point2": "UNI's tools are read-only, with no write path",
+      "point3": "Every call is metered by organization, actor and model",
+      "tab": "Ask UNI"
     },
     "meetings": {
       "eyebrow": "Meetings",
@@ -2454,35 +2483,145 @@
       "imageAlt": "A UniWork video meeting room"
     },
     "projects": {
-      "eyebrow": "Tasks",
       "title": "A board people and agents both sign their name to",
       "desc": "Status, assignee and comments on a single board. Work an agent did appears exactly as work a person did, with the name and the timestamp attached.",
-      "cta": "Start managing work",
+      "cta": "See the task board",
       "imageAlt": "UniWork's task board",
       "companionAlt": "Chat and tasks in one place"
     },
+    "inbox": {
+      "title": "What needs you rises; the rest stays put",
+      "desc": "Notifications are produced from events already written to the log, not from a screen. What reaches your inbox is exactly what actually happened.",
+      "point1": "The unread badge updates in real time",
+      "point2": "Separate preferences per notification type",
+      "point3": "Web push and an email digest",
+      "tab": "Notifications"
+    },
+    "people": {
+      "title": "Who can see what, answered by one screen",
+      "desc": "Permissions come in two tiers, organization and workspace. An agent is granted through those same two tiers, and there is no other route in.",
+      "point1": "Two-level departments and a profile per person",
+      "point2": "Deactivation closes both gates and keeps everything the person created",
+      "point3": "Transferring ownership takes the organization name and a password",
+      "tab": "People and access"
+    },
     "email": {
-      "eyebrow": "Email Hub",
       "title": "Smarter email, uninterrupted work",
       "desc": "Gather work email into a single inbox, so AI can summarise it, suggest replies, and turn a message into a task.",
       "soon": "In development",
       "imageAlt": "UniWork's unified inbox with its AI assistant"
     },
+    "workProducts": {
+      "eyebrow": "Work Products",
+      "title": "From work context to finished output",
+      "sub": "In a company, work always ends in something concrete: a proposal, a report, a contract, an analysis, a deck. UniWork does not stop at managing the process.",
+      "v1Title": "Wired into the Work Graph",
+      "v1Desc": "A document stays attached to the project, task, meeting, decision and people that produced it.",
+      "v2Title": "The AI team has the context",
+      "v2Desc": "The assistant reads the document together with everything around it, not just the words in the file.",
+      "v3Title": "Documents become actions",
+      "v3Desc": "Turn a paragraph into a task, an approval, a due-date reminder, or a decision on the record.",
+      "v4Title": "Standard formats",
+      "v4Desc": "Reads and writes .docx, .xlsx, .pptx and .pdf, so a file still opens anywhere once it leaves UniWork.",
+      "imageAlt": "Work Products screen design: document list on the left, editor in the middle, AI assistant panel on the right",
+      "notOfficeTitle": "We are not building another Microsoft Office",
+      "notOfficeDesc": "UniWork does not race Word, Excel or PowerPoint on features, and it does not replace the office suite you already use. The editor here is a means, not the point.",
+      "summaryLabel": "In short",
+      "summary": "Given the same file, Microsoft understands the file. UniWork understands the story behind it.",
+      "timelineTitle": "Start small, deliver value early",
+      "timelineNote": "This is an internal plan, not a release commitment.",
+      "p1Name": "Work Products foundation",
+      "p1When": "Q1 2026",
+      "p1Desc": "Upload, preview, search. AI reads the content and extracts what matters. Linked to projects, tasks, meetings and decisions.",
+      "p2Name": "Acting on documents",
+      "p2When": "Q2 2026",
+      "p2Desc": "DOCX editing. PDF editing, conversion and OCR. AI blocks inside a document, version comparison, comments and approvals.",
+      "p3Name": "Structured data",
+      "p3When": "Q3 2026",
+      "p3Desc": "Spreadsheets with analysis and charts. Data connectors for CRM and ERP.",
+      "p4Name": "Presentation and automation",
+      "p4When": "Q4 2026",
+      "p4Desc": "Build slides from data and meetings. Export PPTX and PDF. Workflows and templates by industry."
+    },
     "workforce": {
       "badge": "AI teammates",
       "title": "An agent works like a member of the team",
       "sub": "Agents join a workspace with explicit permissions. Everything an agent does carries its name, lands in the activity log, and can be undone the way a person's work can.",
-      "cta": "Create an account",
+      "cta": "Get started",
       "imageAlt": "AI teammates inside a UniWork workspace"
+    },
+    "security": {
+      "title": "What an operations team asks before signing",
+      "sub": "None of the six below is a marketing promise. Each one maps to a table, a gate, or a test in the source.",
+      "i1Title": "The log cannot be edited",
+      "i1Desc": "The database revokes UPDATE and DELETE on the audit table and a trigger raises on both. A wrong row is answered with another row.",
+      "i2Title": "One correlation id throughout",
+      "i2Desc": "Every request carries a single id that appears in the audit row, in the events it emits and in the system log.",
+      "i3Title": "Agents never write directly",
+      "i3Desc": "The agent runtime cannot reach a business table. The only route is propose, a person confirms, then execute.",
+      "i4Title": "Separated by organization",
+      "i4Desc": "Every query filters by organization and workspace, and membership is decided in exactly one place in the code.",
+      "i5Title": "Quotas checked in the server",
+      "i5Desc": "Eight quotas are metered and checked before a change is written, rather than a button being hidden in the interface.",
+      "i6Title": "Logs carry no personal data",
+      "i6Desc": "System logs identify a person by id, never by email or name. A test scans the whole source and fails the build on a line that breaks the rule."
+    },
+    "gallery": {
+      "title": "What the product looks like",
+      "sub": "These are illustrations, not screenshots. UniWork has no customers to quote yet, and we do not invent testimonials."
+    },
+    "roadmap": {
+      "title": "What runs, what is being built, and what is already planned",
+      "sub": "UniWork has not launched. The table below is the roadmap as it exists in the repository, not a wish list. Nothing here counts as a feature until it runs.",
+      "note": "None of the items below carries a committed release date.",
+      "nowName": "Being built",
+      "nowDesc": "Design approved, code in progress.",
+      "now1": "Collaborative documents with versions and an access log, the base Work Products is built on",
+      "now2": "Personal and team calendars, merging meetings with task due dates",
+      "now3": "Server-side speech recognition for meetings",
+      "now4": "Work Graph: relationships between work objects",
+      "now5": "Decision records, produced from meeting summaries",
+      "now6": "An iOS app, five tabs, sharing semantics with the web",
+      "nextName": "On the roadmap",
+      "nextDesc": "Designed or scoped, not started.",
+      "next1": "Agent runtime: take a task, run it, deliver with evidence, await review",
+      "next2": "Workflow automation with steps an agent can own",
+      "next3": "A knowledge base and permission-aware global search",
+      "next4": "Reporting: a morning brief and inline numbers",
+      "next5": "HMAC-signed webhooks and a TypeScript SDK generated from OpenAPI",
+      "next6": "Gmail and Microsoft Graph, with no separate mailbox stored",
+      "entName": "Enterprise and on-premise",
+      "entDesc": "For organizations that run the whole thing themselves.",
+      "ent1": "On-premise install through Docker Compose or Helm",
+      "ent2": "Any OIDC provider, MinIO storage, models running in house",
+      "ent3": "Backups and rehearsed restores",
+      "ent4": "SCIM and data retention policy"
+    },
+    "pricing": {
+      "title": "One plan, free, no limits set yet",
+      "sub": "Starter is the default plan for every organization. The eight quotas below are already metered in the server; the plan's limits stay open until the pricing is fixed.",
+      "planName": "Starter",
+      "planPrice": "Free",
+      "planDesc": "The default plan for every organization",
+      "quotasLabel": "Eight metered quotas",
+      "q1": "Organization members",
+      "q2": "Workspaces",
+      "q3": "Meeting participant minutes",
+      "q4": "Meeting recording",
+      "q5": "AI meeting summary",
+      "q6": "AI tokens",
+      "q7": "Storage",
+      "q8": "SSO sign-in",
+      "status": "Tiered pricing is being finalised. There is no committed date, and this page will not print a number before that number is real.",
+      "cta": "Talk to us about plans"
     },
     "final": {
       "title": "Ready for your team",
       "sub": "Two membership tiers, with permissions per organization and per workspace. Vietnamese and English at parity.",
-      "primary": "Create an account",
+      "primary": "Get started",
       "secondary": "Sign in"
     },
     "faq": {
-      "eyebrow": "Frequently asked",
       "title": "What your team will ask",
       "q1": "How is this different from the tools we already use?",
       "a1": "Agents are members here, not a feature. Tasks, meetings and conversation sit in one place under one set of permissions, so an agent sees exactly what a new colleague would see, and nothing more.",
@@ -2494,8 +2633,16 @@
       "a4": "On infrastructure in Vietnam, under Decree 13 on personal data protection. The activity log is append-only, so nobody edits or deletes a line once written.",
       "q5": "Can we use our own AI model?",
       "a5": "Yes. UniWork calls Anthropic, OpenAI, or a model you host yourself through Ollama. Choose the self-hosted route and your work content never leaves your infrastructure.",
-      "q6": "How good is the Vietnamese?",
-      "a6": "Vietnamese is the source language and English is the translation. Both carry the same set of keys, and a missing key fails the build rather than quietly falling back."
+      "q6": "Which languages does the product ship in?",
+      "a6": "Vietnamese and English at parity, and neither is a machine translation of the other. A key missing from either one fails the build rather than quietly falling back to the other. Further languages are on the roadmap.",
+      "q7": "Has UniWork launched?",
+      "a7": "No. The UNICOM team uses it internally every day, and nobody outside the development team uses it yet. Everything on this page describes what runs, not what is coming.",
+      "q8": "What does it cost?",
+      "a8": "There is exactly one plan today, called Starter. It is free and no limit is set on it. Tiered pricing is being finalised, so this page does not print a number.",
+      "q9": "Can it run on our own infrastructure?",
+      "a9": "Not today. An on-premise install through Docker Compose or Helm is on the roadmap, along with any OIDC provider, MinIO storage and models running in house.",
+      "q10": "Is there an API?",
+      "a10": "Yes. The server builds its OpenAPI specification at start-up from the routing table itself, so the specification cannot drift from the code. HMAC-signed webhooks and a TypeScript SDK are on the roadmap."
     },
     "solutions": {
       "eyebrow": "Solutions",
@@ -2551,11 +2698,103 @@
         "a3": "Not yet. Automation runs through agents with a person confirming in the middle, rather than as a background flow."
       }
     },
+    "why": {
+      "metaTitle": "Why UniWork",
+      "metaDesc": "Microsoft 365, Notion, ClickUp and Coda are each strong on a different side. This is the gap between them, and where UniWork stands.",
+      "eyebrow": "Why UniWork",
+      "title": "The big problems with today's platforms",
+      "sub": "More tools. More features. And the work is still fragmented.",
+      "lead": "Understanding where the leading platforms stop is how we can see the opening for a better generation of solutions.",
+      "disclaimer": "The assessments below are based on each platform's public documentation at the time of writing. All four ship new features constantly, so verify for yourself before deciding.",
+      "issuesLabel": "Main problems",
+      "summaryLabel": "In short",
+      "gapTitle": "The gap in the market",
+      "gapSub": "From fragmented work to an organisation that actually performs.",
+      "gapBody": "UniWork does not just hand you tools. It understands the context of the work and connects people, knowledge, data and AI to produce real results.",
+      "pillarsTitle": "Where UniWork stands",
+      "pillar1Title": "One unified platform",
+      "pillar1Desc": "Email, meetings, projects, tasks, decisions and documents in one space, under one set of permissions.",
+      "pillar2Title": "AI that knows the work",
+      "pillar2Desc": "The assistant reads organisational data under the asker's own permissions, instead of guessing from a pasted excerpt.",
+      "pillar3Title": "Work Products are the real output",
+      "pillar3Desc": "Create, edit, approve, analyse and present right where the work that produced them lives.",
+      "pillar4Title": "Deploy it your way",
+      "pillar4Desc": "Cloud, private cloud, on-premise and BYOK, built for companies and public bodies in Vietnam.",
+      "ms365": {
+        "name": "Microsoft 365",
+        "tagline": "The productivity powerhouse",
+        "desc": "A complete office suite trusted by hundreds of millions of people.",
+        "i1Title": "Complex and fragmented",
+        "i1Desc": "Separate applications such as Word, Excel, PowerPoint, Outlook and Teams rarely add up to one coherent experience.",
+        "i2Title": "Expensive",
+        "i2Desc": "Total cost of ownership is high, especially for small and mid-sized companies.",
+        "i3Title": "Cloud-bound",
+        "i3Desc": "Mostly cloud-first, with on-premise options narrowing over time.",
+        "i4Title": "AI without real work context",
+        "i4Desc": "Copilot is strong, but it works inside one application at a time and does not grasp the organisation's processes or goals.",
+        "i5Title": "Hard to tailor",
+        "i5Desc": "Difficult to adapt to an industry's specifics or a company's own process.",
+        "summary": "Very strong on tooling, but the work stays fragmented and the operational load is heavy."
+      },
+      "notion": {
+        "name": "Notion",
+        "tagline": "The connected workspace",
+        "desc": "A flexible workspace that combines documents, databases and AI.",
+        "i1Title": "Not built for complex operations",
+        "i1Desc": "Good for notes and information, weaker on process, approvals and governance across departments.",
+        "i2Title": "Limited handling of standard files",
+        "i2Desc": "DOCX, XLSX and PPTX support is limited, and is not what the platform is for.",
+        "i3Title": "Thin on complex projects and tasks",
+        "i3Desc": "Tasks and projects stay basic, and struggle with operations at scale.",
+        "i4Title": "Integration only goes so far",
+        "i4Desc": "You need several outside tools to connect email, calendar, meetings and process.",
+        "i5Title": "AI stays inside the workspace",
+        "i5Desc": "It understands the content but never really reaches the full context of the work or the operational data.",
+        "summary": "Excellent for knowledge and collaboration, but not enough to run a complex organisation."
+      },
+      "clickup": {
+        "name": "ClickUp",
+        "tagline": "The all-in-one work platform",
+        "desc": "A powerful work management platform with ambitions to be the everything app.",
+        "i1Title": "Too many features",
+        "i1Desc": "A crowded interface, an easily overwhelmed user, and a steep learning curve.",
+        "i2Title": "Not quite seamless",
+        "i2Desc": "Several ways to do the same thing make it hard for a team to settle on one.",
+        "i3Title": "Shallow on documents and knowledge",
+        "i3Desc": "Docs are fine at a basic level but weak for long documents and standard files.",
+        "i4Title": "Not tuned for large or specialised organisations",
+        "i4Desc": "Customisation and multi-organisation governance remain limited.",
+        "i5Title": "AI has improved but does not differentiate",
+        "i5Desc": "ClickUp Brain is useful, but it has not produced a clear edge in understanding an organisation or executing multi-step work.",
+        "summary": "Strong on work management, but prone to feature overload and short on depth for larger companies."
+      },
+      "coda": {
+        "name": "Coda",
+        "tagline": "Docs that do more",
+        "desc": "Documents, data tables, automation and AI combined in one flexible space.",
+        "i1Title": "Complexity at scale",
+        "i1Desc": "Powerful as it is, the document-table structure gets hard to manage as things grow.",
+        "i2Title": "Not a complete answer for a company",
+        "i2Desc": "Focused on documents and data, without full coverage of email, meetings, project management and operations.",
+        "i3Title": "Limited on standard files",
+        "i3Desc": "DOCX, XLSX and PPTX support is limited, and is not the focus.",
+        "i4Title": "A small ecosystem",
+        "i4Desc": "Compared with Microsoft, the partner ecosystem and third-party integrations are thin.",
+        "i5Title": "Strong AI in a narrow range",
+        "i5Desc": "The AI helps with documents and tables, but never really connects to the organisation's whole working context.",
+        "summary": "Genuinely inventive in joining documents to data, but not broad or deep enough to run an organisation."
+      }
+    },
     "footer": {
       "sub": "The digital workplace where people and AI teammates produce results together.",
       "product": "Product",
       "company": "Company",
-      "copyright": "© 2026 Unicom JSC"
+      "copyright": "© 2026 Unicom JSC",
+      "resources": "Resources",
+      "roadmap": "Roadmap",
+      "security": "Security",
+      "pricing": "Pricing",
+      "why": "Why UniWork"
     }
   }
 }

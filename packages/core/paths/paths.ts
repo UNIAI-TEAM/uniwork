@@ -32,6 +32,13 @@ export const paths = {
     product: () => "/solutions/product",
     operations: () => "/solutions/operations",
   },
+  /**
+   * Positioning page: what the platforms a buyer already owns do not cover.
+   * Hyphenated root, the third after forgot-password and reset-password; the
+   * slug is reserved so an organization can never take it
+   * (docs/conventions.md §Routes).
+   */
+  whyUniwork: () => "/why-uniwork",
   /** Platform-admin console: outside every organization, guarded by GET /admin/me. */
   admin: {
     root: () => "/admin",

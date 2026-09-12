@@ -20,7 +20,7 @@ export function SiteFooter() {
 
   return (
     <footer className="border-t border-border bg-surface py-12">
-      <Container className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <Container className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
         <div>
           <Link
             href={paths.root()}
@@ -63,6 +63,27 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
+          </ul>
+        </nav>
+
+        <nav aria-label={t("landing.footer.resources")}>
+          <h2 className="text-body font-semibold">{t("landing.footer.resources")}</h2>
+          <ul className="mt-3 grid gap-2">
+            <li>
+              <Link className={LINK} href={paths.whyUniwork()}>
+                {t("landing.footer.why")}
+              </Link>
+            </li>
+            <li>
+              <a className={LINK} href={href(ANCHORS.roadmap)}>
+                {t("landing.footer.roadmap")}
+              </a>
+            </li>
+            <li>
+              <a className={LINK} href={href(ANCHORS.pricing)}>
+                {t("landing.footer.pricing")}
+              </a>
+            </li>
           </ul>
         </nav>
 

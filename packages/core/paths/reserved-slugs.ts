@@ -26,6 +26,7 @@ export const RESERVED_SLUGS = [
   "static",
   "tasks",
   "verify",
+  "why-uniwork",
   "workspaces",
   "ws"
 ] as const;
