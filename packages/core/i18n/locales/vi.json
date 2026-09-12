@@ -958,6 +958,7 @@
       "comment_edit": "Sửa",
       "reply": "Trả lời",
       "reply_cancel": "Huỷ trả lời",
+      "comment_preview_empty": "Bình luận không có chữ",
       "activity_error": "Không tải được hoạt động. Thử lại sau.",
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",

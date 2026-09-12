@@ -54,4 +54,24 @@ describe("commentPreviewText", () => {
   it("chuỗi chỉ gồm một khối code trả về chuỗi rỗng", () => {
     expect(commentPreviewText("```js\nconst a = 1;\n```")).toBe("");
   });
+
+  it("bảng: bỏ hàng kẻ ngang, nối ô bằng dấu ·", () => {
+    expect(
+      commentPreviewText("| Col1 | Col2 |\n| --- | --- |\n| a | b |"),
+    ).toBe("Col1 · Col2 a · b");
+  });
+
+  it("tệp đính kèm giữ tên tệp, bỏ cú pháp !file[...](...)", () => {
+    expect(
+      commentPreviewText("xem !file[report.pdf](https://cdn.example.com/report.pdf) nhé"),
+    ).toBe("xem report.pdf nhé");
+  });
+
+  it("danh sách có số bị bỏ dấu thứ tự", () => {
+    expect(commentPreviewText("1. một\n2. hai")).toBe("một hai");
+  });
+
+  it("bỏ dấu tô sáng ==...==", () => {
+    expect(commentPreviewText("việc này ==gấp== lắm")).toBe("việc này gấp lắm");
+  });
 });
