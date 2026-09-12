@@ -32,6 +32,9 @@ func commentDTO(
 		UpdatedAt:   updatedAt.Time.Format(time.RFC3339),
 		DisplayName: displayName, AvatarURL: avatarURL,
 		Author: sdo.ActorDTO{ID: authorID, Kind: authorKind, DisplayName: displayName, AvatarURL: avatarURL},
+		// Never nil: callers that don't set reactions (create/update/resolve)
+		// must still serialize "reactions":[], not null.
+		Reactions: []sdo.CommentReactionDTO{},
 	}
 	if parentID.Valid {
 		p := parentID.String

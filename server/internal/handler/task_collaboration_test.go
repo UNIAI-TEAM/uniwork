@@ -208,3 +208,27 @@ func TestListCommentsWithoutReactionsReturnsEmptyArrayNotNull(t *testing.T) {
 		t.Fatalf("reactions = %v, want rỗng", reactions)
 	}
 }
+
+func TestCreateCommentReactionsIsEmptyArrayNotNull(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	_, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Create path reactions",
+	})
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+
+	res, body := doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{
+		"body": "một",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, body)
+	}
+	comment, _ := body["comment"].(map[string]any)
+	reactions, ok := comment["reactions"].([]any)
+	if !ok {
+		t.Fatalf("reactions phải là mảng rỗng, không phải null: %v", comment)
+	}
+	if len(reactions) != 0 {
+		t.Fatalf("reactions = %v, want rỗng", reactions)
+	}
+}
