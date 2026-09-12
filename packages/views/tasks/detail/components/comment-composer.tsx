@@ -46,6 +46,14 @@ export function TaskCommentComposer({
   const [isEmpty, setIsEmpty] = useState(!draft.trim());
   const uploadGate = useUploadGate(editorRef);
   const lazy = useLazyEditor({
+    // An unsent draft is proof of edit intent, which is exactly the case
+    // `initialActive` documents. Without it the composer renders the static
+    // stand-in — showing the placeholder, not the draft — while `isEmpty` is
+    // already seeded false from that draft: Send looks enabled over what
+    // looks like an empty box, and clicking it runs submit() against a null
+    // editor ref, so the hook reads "", the empty guard returns, and nothing
+    // happens at all.
+    initialActive: draft.trim().length > 0,
     editorRef,
     resetKey: key,
   });
@@ -61,15 +69,6 @@ export function TaskCommentComposer({
   // so `onAccepted` can tell "everything on screen was sent" from "there is
   // unsent text" — the editor is not locked while the send is in flight.
   const lastSubmittedRef = useRef<string | null>(null);
-  // Set right before `clearContent()` in `onAccepted`; suppresses the one
-  // resulting `onUpdate("")` echo (TipTap fires `onUpdate` for any
-  // programmatic doc change, including `clearContent`). Still needed even
-  // though `onAccepted` no longer reads `pendingDraftRef` to decide what to
-  // keep: left alone, that echo would still reach the debounced-write path
-  // below, re-arm it, and overwrite whatever `onAccepted` just decided to
-  // keep with "" about 1.5s later. This guards the decision's aftermath, not
-  // the decision itself.
-  const suppressNextClearEchoRef = useRef(false);
 
   const cancelPendingDraftWrite = () => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -112,16 +111,24 @@ export function TaskCommentComposer({
       // `normalize` to useComposerSubmit (it doesn't, today).
       const liveMarkdown = rawLive.replace(/(\n\s*)+$/, "").trim();
       cancelPendingDraftWrite();
-      suppressNextClearEchoRef.current = true;
+      if (liveMarkdown !== lastSubmittedRef.current) {
+        // Typed while the send was in flight — keep it, on screen as well as
+        // in the draft store. Clearing here would wipe text this very branch
+        // decided to keep, and `defaultValue` is mount-only, so nothing
+        // would ever put it back. This is also what useComposerSubmit's own
+        // contract promises: success clears only the draft it submitted.
+        setDraft(key, liveMarkdown);
+        return;
+      }
+      // Everything on screen was sent — nothing left to keep.
+      clearDraft(key);
+      // The resulting `onUpdate("")` echo (TipTap forwards any programmatic
+      // doc change) needs no suppression: it can only ever write "" for a
+      // draft that was just cleared, and ContentEditor forwards every doc
+      // change through ONE shared debounce timer, so text typed before the
+      // echo lands supersedes it rather than being overwritten by it.
       editorRef.current?.clearContent();
       setIsEmpty(true);
-      if (liveMarkdown !== lastSubmittedRef.current) {
-        // Typed after what was submitted — keep it as the draft.
-        setDraft(key, liveMarkdown);
-      } else {
-        // Everything on screen was sent — nothing left to keep.
-        clearDraft(key);
-      }
     },
   });
 
@@ -147,17 +154,6 @@ export function TaskCommentComposer({
             onReady={lazy.onReady}
             onUploadingChange={uploadGate.onUploadingChange}
             onUpdate={(md) => {
-              if (suppressNextClearEchoRef.current) {
-                suppressNextClearEchoRef.current = false;
-                // Echo of onAccepted's own clearContent(): nothing to
-                // persist, the keep/clear decision was already made.
-                if (md === "") {
-                  setIsEmpty(true);
-                  return;
-                }
-                // The doc changed again before the echo fired (the person
-                // kept typing) — it's real content, fall through as usual.
-              }
               // isEmpty drives the Send button and must never lag the caret.
               setIsEmpty(!md.trim());
               // The persisted write is debounced: a long comment must not

@@ -122,10 +122,12 @@ vi.mock("../../../editor", () => {
           setSubmitting(true);
           try {
             const ok = await onSubmit(md);
-            if (ok) {
-              editorRef.current?.clearContent?.();
-              onAccepted?.();
-            }
+            // The real `useComposerSubmit` never touches the editor —
+            // clearing is the caller's job, done inside `onAccepted` and only
+            // on the branch where nothing new was typed during the send. A
+            // mock that clears here fires two clear echoes where production
+            // fires one and pins a shape production does not have.
+            if (ok) onAccepted?.();
           } finally {
             setSubmitting(false);
           }
@@ -293,6 +295,39 @@ describe("TaskCommentComposer draft persistence", () => {
       } finally {
         vi.useRealTimers();
       }
+    },
+  );
+
+  it(
+    "quay lại công việc: nháp được khôi phục vào trong ô soạn, không chỉ nằm trong store",
+    { timeout: 10_000 },
+    async () => {
+      const onSubmit = vi.fn().mockResolvedValue(true);
+      // A draft already on disk from a previous visit — exactly what the
+      // persisted store hands back on remount.
+      useCommentDraftStore.setState({ drafts: { t1: "nháp từ lần trước" } });
+
+      renderComposer(onSubmit);
+
+      // The real editor must be mounted with the draft in it, WITHOUT anyone
+      // clicking the stand-in first. Every other draft test activates the
+      // editor by hand, which is why this hole stayed open: the composer used
+      // to render the static stand-in showing the placeholder, so the feature
+      // showed no evidence of itself at all.
+      const editor = await screen.findByRole("textbox", {
+        name: /viết bình luận|write a comment/i,
+      });
+      expect(editor).toHaveValue("nháp từ lần trước");
+
+      // ...and Send must actually send it. `isEmpty` was already seeded from
+      // the draft, so the button looked enabled; with no editor mounted,
+      // submit() read "" from the null ref, the empty guard returned, and the
+      // click did nothing at all — no error, no feedback.
+      fireEvent.click(screen.getByRole("button", { name: /gửi|send/i }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledWith("nháp từ lần trước"));
+      await waitFor(() =>
+        expect(useCommentDraftStore.getState().draftFor("t1")).toBe(""),
+      );
     },
   );
 
