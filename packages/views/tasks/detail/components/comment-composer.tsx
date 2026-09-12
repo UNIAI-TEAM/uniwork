@@ -52,11 +52,19 @@ export function TaskCommentComposer({
 
   // Debounced draft write: `pendingDraftRef` holds the latest markdown not
   // yet persisted. Flushed on unmount (mid-debounce navigation must not
-  // silently drop the last keystrokes) and cancelled on accept (a send that
-  // lands while a write is still pending must not let that stale write
-  // resurrect a draft `clearDraft` just deleted).
+  // silently drop the last keystrokes).
   const draftTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pendingDraftRef = useRef<string | null>(null);
+  // What `submit()` actually sent, captured at submit time so `onAccepted`
+  // can tell a stale pending write (same text, just hasn't flushed yet) from
+  // real new content typed while the send was in flight — the editor is not
+  // locked during that wait.
+  const lastSubmittedRef = useRef<string | null>(null);
+  // Set right before `clearContent()` in `onAccepted`; suppresses the one
+  // resulting `onUpdate("")` echo (TipTap fires `onUpdate` for any
+  // programmatic doc change, including `clearContent`) so it can't re-arm a
+  // write that overwrites a draft `onAccepted` just decided to keep.
+  const suppressNextClearEchoRef = useRef(false);
 
   const cancelPendingDraftWrite = () => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -78,12 +86,26 @@ export function TaskCommentComposer({
     editorRef,
     uploadGate,
     afterAccepted: "blur",
-    onSubmit,
+    onSubmit: (body) => {
+      lastSubmittedRef.current = body;
+      return onSubmit(body);
+    },
     onAccepted: () => {
+      // A send in flight doesn't lock the editor, so by the time the server
+      // accepts, `pendingDraftRef` may hold text typed AFTER what was
+      // submitted. Stale (matches what was sent, just hasn't flushed to the
+      // store yet) is dropped; anything else is new content and must survive
+      // as the draft, not vanish with `clearContent()`.
+      const pending = pendingDraftRef.current;
+      cancelPendingDraftWrite();
+      suppressNextClearEchoRef.current = true;
       editorRef.current?.clearContent();
       setIsEmpty(true);
-      cancelPendingDraftWrite();
-      clearDraft(key);
+      if (pending !== null && pending !== lastSubmittedRef.current) {
+        setDraft(key, pending);
+      } else {
+        clearDraft(key);
+      }
     },
   });
 
@@ -109,6 +131,17 @@ export function TaskCommentComposer({
             onReady={lazy.onReady}
             onUploadingChange={uploadGate.onUploadingChange}
             onUpdate={(md) => {
+              if (suppressNextClearEchoRef.current) {
+                suppressNextClearEchoRef.current = false;
+                // Echo of onAccepted's own clearContent(): nothing to
+                // persist, the keep/clear decision was already made.
+                if (md === "") {
+                  setIsEmpty(true);
+                  return;
+                }
+                // The doc changed again before the echo fired (the person
+                // kept typing) — it's real content, fall through as usual.
+              }
               // isEmpty drives the Send button and must never lag the caret.
               setIsEmpty(!md.trim());
               // The persisted write is debounced: a long comment must not

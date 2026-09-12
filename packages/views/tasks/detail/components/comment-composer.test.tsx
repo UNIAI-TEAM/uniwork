@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
@@ -111,20 +111,35 @@ function renderComposer(onSubmit: (body: string) => Promise<boolean>) {
   );
 }
 
-async function activateAndType(text: string) {
+async function activate() {
   const standIn = screen.getByRole("button", {
     name: /viết bình luận|write a comment/i,
   });
   fireEvent.click(standIn);
-  const editor = await screen.findByRole("textbox", {
+  return screen.findByRole("textbox", {
     name: /viết bình luận|write a comment/i,
   });
+}
+
+async function activateAndType(text: string) {
+  const editor = await activate();
   fireEvent.change(editor, { target: { value: text } });
   // Let the composer's own debounce commit the draft to the store.
   await waitFor(
     () => expect(useCommentDraftStore.getState().draftFor("t1")).toBe(text),
     { timeout: DRAFT_DEBOUNCE_MS + 2000 },
   );
+}
+
+/** Flush pending microtasks (e.g. a resolved `onSubmit` promise's
+ * continuation) inside an `act()` boundary, without advancing fake timers —
+ * the whole point of the two tests below is that the draft debounce timer
+ * must still be pending when this settles. */
+async function flushMicrotasks() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 }
 
 beforeAll(() => {
@@ -171,6 +186,77 @@ describe("TaskCommentComposer draft persistence", () => {
       await waitFor(() => expect(onSubmit).toHaveBeenCalled());
 
       expect(useCommentDraftStore.getState().draftFor("t1")).toBe("");
+    },
+  );
+
+  it(
+    "chấp nhận khi nháp còn đang debounce: nháp bị xoá và không quay lại",
+    { timeout: 10_000 },
+    async () => {
+      const onSubmit = vi.fn().mockResolvedValue(true);
+      renderComposer(onSubmit);
+      const editor = await activate();
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.change(editor, { target: { value: "đang gõ dở" } });
+        // Debounce (1500ms) hasn't fired — nothing persisted yet.
+        expect(useCommentDraftStore.getState().draftFor("t1")).toBe("");
+
+        fireEvent.click(screen.getByRole("button", { name: /gửi|send/i }));
+        await flushMicrotasks();
+
+        expect(onSubmit).toHaveBeenCalledWith("đang gõ dở");
+        expect(useCommentDraftStore.getState().draftFor("t1")).toBe("");
+
+        // The pending write's timer must have been cancelled by accept, not
+        // merely outrun — advancing past its original delay must not
+        // resurrect the draft.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(DRAFT_DEBOUNCE_MS + 100);
+        });
+        expect(useCommentDraftStore.getState().draftFor("t1")).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it(
+    "gõ thêm trong lúc chờ máy chủ xác nhận: chữ mới sống sót thành nháp",
+    { timeout: 10_000 },
+    async () => {
+      let resolveSubmit: (ok: boolean) => void = () => {};
+      const onSubmit = vi.fn(
+        () => new Promise<boolean>((resolve) => {
+          resolveSubmit = resolve;
+        }),
+      );
+      renderComposer(onSubmit);
+      const editor = await activate();
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.change(editor, { target: { value: "đang gõ dở" } });
+        fireEvent.click(screen.getByRole("button", { name: /gửi|send/i }));
+        await flushMicrotasks();
+        expect(onSubmit).toHaveBeenCalledWith("đang gõ dở");
+
+        // New content typed while the send is still in flight, before its
+        // own debounce timer has a chance to fire.
+        fireEvent.change(editor, {
+          target: { value: "đang gõ dở thêm nữa" },
+        });
+
+        resolveSubmit(true);
+        await flushMicrotasks();
+
+        expect(useCommentDraftStore.getState().draftFor("t1")).toBe(
+          "đang gõ dở thêm nữa",
+        );
+      } finally {
+        vi.useRealTimers();
+      }
     },
   );
 });
