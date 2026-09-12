@@ -94,7 +94,7 @@ có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability �
 | A-06 | SSO SAML, SCIM chuẩn bị | Identity | `(cần viết)` | P1 |
 | A-07 | Webhook ký HMAC + SDK TypeScript sinh từ OpenAPI | API | `(cần viết)` | P1 |
 | A-08 | Self-serve: đăng ký, chọn gói, thanh toán, nâng cấp | Tenant & Subscription | spec F-02 | P0 |
-| A-09 | Work Products (bán công việc hoàn thành) — chỉ khi cohort PROVEN; lớp mỏng trên `work_contracts` đã có từ A-01 | AI Platform | `(cần viết)`; kế thừa SWP-1 bản cũ | P2 |
+| A-09 | Sell Work (bán công việc hoàn thành) — chỉ khi cohort PROVEN; lớp mỏng trên `work_contracts` đã có từ A-01 | AI Platform | `(cần viết)`; kế thừa SWP-1 bản cũ | P2 |
 | A-10 | Email integration: Gmail / Microsoft Graph đọc + gửi, thread gắn Work Graph, không lưu hộp thư riêng | Email integration | `(cần viết)` email-integration-design; phụ thuộc C-11 | P1 |
 
 **Tiêu chí thoát**: ≥ 200 lượt agent thật, chấp nhận ≥ 60%, 0 sự cố agent ghi không qua

@@ -13,9 +13,12 @@ one that no longer matches, the page is wrong, fix the page.
 
 - Global routes (before the user is inside a workspace) are a single word or
   `/{noun}/{verb}`: `/login`, `/register`, `/onboarding`, `/invitations`,
-  `/workspaces/new`, `/invite/{token}`. Never a hyphenated root
-  (`/new-workspace`): it collides with organization slugs and forces endless
-  reserved-slug audits. Reserving the noun protects the whole subtree.
+  `/workspaces/new`, `/invite/{token}`. A hyphenated root (`/new-workspace`)
+  is normally wrong: it collides with organization slugs and forces endless
+  reserved-slug audits. Reserving the noun protects the whole subtree. Three
+  exceptions exist and every one of them is in `reserved_slugs.json`:
+  `/forgot-password`, `/reset-password` and `/why-uniwork` — a public page
+  whose URL is read by people, where the hyphenated phrase is the name.
 - Workspace routes live under `/{orgSlug}/{workspaceSlug}/{section}`:
   `/acme/team/tasks`, `/acme/team/meetings/{id}/room`, `/acme/team/members`.
   Workspaces nest inside organizations; a workspace slug is unique only within

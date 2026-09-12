@@ -371,20 +371,31 @@ là hạ tầng của một sản phẩm khác.
 - `packages/ui/brand/assets.lock.json` ghi sha của từng nguồn.
 - `scripts/brand-assets.test.mjs` fail khi một nguồn đổi mà chưa chạy lại build.
 
-Ảnh landing là ảnh chụp, không có nguồn SVG, nên dùng lại **mẫu** chứ không
-dùng lại script:
+> **Đã thay (2026-09-09).** Mục này mô tả đợt lấy ảnh từ CDN của bản Lovable.
+> Ảnh đó vẽ giao diện của một sản phẩm khác, có chữ tiếng Anh nướng cứng vào
+> pixel, và nằm trên hạ tầng của dự án cũ. Nay ảnh được sinh từ prompt nằm
+> trong repo. Phần dưới giữ lại để hiểu vì sao khuôn lock có hình dạng như vậy.
 
-1. `scripts/landing/build-images.py` — đọc PNG gốc, xuất WebP hai bề rộng
-   (1600 và 800) vào `apps/web/public/landing/`, chất lượng 82, `method=6`.
-2. `apps/web/public/landing/images.lock.json` — mỗi ảnh ghi URL gốc, sha256 của
-   PNG gốc, bề rộng và kích thước tệp đã xuất.
-3. `scripts/landing-images.test.mjs` — fail khi lock và tệp trên đĩa lệch nhau,
-   đúng cách `brand-assets.test.mjs` đang làm.
-4. `pnpm landing:images` trong `package.json` gốc, cạnh `brand:build`.
+Ảnh landing không có nguồn SVG, nên dùng lại **mẫu** của brand chứ không dùng
+lại script:
 
-**Chỉ commit tệp WebP đã xuất**, không commit 11,2 MB PNG gốc. Lock file giữ
-URL nguồn và sha256 nên vẫn dựng lại được, mà repo không phải mang khối nặng đó
-mãi mãi.
+1. `scripts/landing/gen-images.py` — dựng ảnh qua OpenAI Images API rồi xuất
+   WebP bề rộng 1600 vào `apps/web/public/landing/`, chất lượng 82, `method=6`.
+2. `scripts/landing/prompts.json` — prompt của từng ảnh, cỡ khung, và cờ
+   `localized` quyết định ảnh đó có bản riêng cho mỗi ngôn ngữ hay không.
+3. `scripts/landing/artwork.lock.json` — mỗi tệp ghi sha256 của prompt và của
+   WebP đã xuất, nên một ảnh sửa tay hoặc thiếu lock đều lộ ra.
+4. `scripts/landing-artwork.test.mjs` — fail khi lock, tệp trên đĩa và
+   `apps/web/features/landing/artwork.ts` lệch nhau.
+5. `pnpm landing:gen` trong `package.json` gốc, cạnh `brand:build`.
+
+**Chỉ commit tệp WebP đã xuất.** Prompt là nguồn, và nó nằm trong repo, nên
+dựng lại được mà không cần giữ PNG gốc.
+
+Năm trong sáu ảnh vẽ giao diện, tức là có chữ. Chữ trong ảnh không dịch được,
+không đo tương phản được và screen reader không đọc được, nên mỗi ảnh loại này
+dựng một bản cho mỗi ngôn ngữ và `artwork.ts` chọn bản đúng. Ảnh hero không có
+chữ nên chỉ có một tệp.
 
 Hiển thị qua `next/image` để có `srcset`, `sizes` và lazy loading. Ảnh hero đặt
 `priority`; bảy ảnh còn lại giữ `loading="lazy"` như bản gốc.
@@ -431,7 +442,7 @@ Ba thay đổi ngoài thư mục landing:
   hoàn tất mà không tạo được workspace. `/` giờ là trang tiếp thị, không còn là
   cửa chuyển hướng sang đăng nhập.
 
-Ảnh: 7 tệp WebP, tổng 920 KB, dựng từ 11,2 MB PNG bằng `pnpm landing:images`.
+Ảnh: 11 tệp WebP dựng bằng `pnpm landing:gen` (một hero, năm ảnh giao diện nhân hai ngôn ngữ).
 Hiển thị qua `next/image`; hero là `priority`, còn lại lazy.
 
 Font body vẫn là Inter. DM Sans của unidigiwork **chưa** mang sang — đổi mặt

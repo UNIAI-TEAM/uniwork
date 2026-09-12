@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Small-to-medium Vietnamese teams (10–1,000 people) running daily operations — tasks, projects, meetings, documents, communications. Team leads, PMs, operators, developers, HR/ops admins, in the workspace many hours a day. Web, tablet, mobile. UI in Vietnamese or English (full parity both; Myanmar/Khmer/Lao are roadmap-only, flag as beta).
+Small-to-medium teams (10–1,000 people) running daily operations — tasks, projects, meetings, documents, communications. Team leads, PMs, operators, developers, HR/ops admins, in the workspace many hours a day. Web, tablet, mobile. Vietnam is the first market, not the boundary: it is where the product is sold and hardened first, and the things a market decides for itself — data residency, payment rails, the compliance regime named in the contract — belong in deployment configuration rather than in the model. UI in Vietnamese or English (full parity both; Myanmar/Khmer/Lao are roadmap-only, flag as beta).
 
 ## Product Purpose
 
@@ -23,6 +23,14 @@ permission model are built for an agent to own a task, attend a meeting and run
 a workflow as a peer — which is why every agent action carries visible
 attribution, its own undo, and a real state, rather than a chat transcript
 beside the real record.
+
+The market is sequenced, not scoped. UniWork is built to be sold anywhere and
+is being taken to Vietnam first, because that is where the team can reach
+customers, close a support loop and be held to a real compliance regime before
+the product is asked to survive a market nobody in the room knows. What that
+sequence must never become is an assumption baked into the product: a country
+in the data model, a currency the schema cannot change, or a claim on a public
+surface that reads UniWork as software for one country.
 
 Nothing else in the product is claimed as unique. Tasks, meetings and workspaces
 are table stakes; they are the ground the positioning stands on, not the claim.
@@ -107,8 +115,12 @@ data to cite and none may be estimated.
 2. **The tool disappears into the work.** Success is a team coordinating people
    and agents without switching context — not time spent in UniWork, not
    features discovered.
-3. **Vietnamese is the first language, not a translation layer.** Copy is
-   written natively; parity with English is a floor, not the goal.
+3. **Neither language is a translation layer.** Vietnamese and English are
+   both written rather than generated from each other, and the parity test
+   fails the build on a key missing from either. Vietnamese copy is written
+   first because Vietnam is the first market; that is a sequence, not a rank,
+   and no surface may present one language as the original and the other as
+   its translation.
 4. **Never advertise what does not exist.** No surface lists a capability, a
    customer, or a number the product cannot back today. Empty states explain
    the next step instead of showing mock rows.
@@ -117,4 +129,4 @@ data to cite and none may be estimated.
 
 ## Accessibility & Inclusion
 
-WCAG AA (4.5:1 body text, 3:1 large text/UI components), verified in both modes. Full keyboard navigation for menus, dialogs, command palettes, task lists; focus indicators always visible. Errors inline and explicit, never color-only. Vietnamese + English copy parity; Vietnamese written natively, not translated word-by-word. Reduced-motion respected — all motion gates on `useReducedMotion` (sidebar is the reference pattern); motion 150–250ms, only to explain change, never decorative.
+WCAG AA (4.5:1 body text, 3:1 large text/UI components), verified in both modes. Full keyboard navigation for menus, dialogs, command palettes, task lists; focus indicators always visible. Errors inline and explicit, never color-only. Vietnamese and English copy parity; neither language is machine-translated from the other. Reduced-motion respected — all motion gates on `useReducedMotion` (sidebar is the reference pattern); motion 150–250ms, only to explain change, never decorative.
