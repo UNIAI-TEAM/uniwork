@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
+import { CommentReactionSchema } from "./task-collaboration";
 
 // The closed vocabularies the UI reasons about. Used to type requests and
 // UI state; response schemas below deliberately do NOT use them.
@@ -85,6 +86,7 @@ export const TaskCommentSchema = z.object({
   resolved_at: z.string().optional(),
   display_name: z.string().optional(),
   avatar_url: z.string().optional(),
+  reactions: z.array(CommentReactionSchema).default([]),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

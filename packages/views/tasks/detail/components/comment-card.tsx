@@ -11,8 +11,8 @@ import { AgentBadge } from "../../../agents/agent-badge";
 import { ReadonlyContent } from "../../../editor";
 
 /**
- * One comment row. Reactions are add/remove only — listComments does not
- * embed reaction rows yet, so the bar starts empty and refreshes after mutate.
+ * One comment row. Reactions come embedded in listComments; the bar renders
+ * them directly and refreshes after a toggle mutation.
  */
 export function TaskCommentCard({
   comment,
@@ -97,7 +97,7 @@ export function TaskCommentCard({
       )}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <ReactionBar
-          reactions={[]}
+          reactions={comment.reactions ?? []}
           currentUserId={currentUserId}
           onToggle={onToggleReaction}
           getActorName={() => authorLabel}
