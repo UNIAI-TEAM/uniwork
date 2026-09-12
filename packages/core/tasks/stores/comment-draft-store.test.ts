@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearWorkspaceStorage } from "../../platform/storage-cleanup";
 import { useCommentDraftStore } from "./comment-draft-store";
 
 describe("comment draft store", () => {
@@ -27,5 +28,26 @@ describe("comment draft store", () => {
     useCommentDraftStore.getState().setDraft("t1", "x");
     useCommentDraftStore.getState().setDraft("t1", "   ");
     expect(Object.keys(useCommentDraftStore.getState().drafts)).toEqual([]);
+  });
+
+  it("tự đăng ký vào sổ dọn nháp, nên đăng xuất/xoá workspace là xoá được", () => {
+    const adapter = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+
+    clearWorkspaceStorage(adapter, "ws_123");
+
+    // Bare key, no `:slug` suffix — the store persists through
+    // `defaultStorage`, not `createWorkspaceAwareStorage`, so registering it
+    // as workspace-scoped would remove a key that never existed and leave the
+    // real one behind.
+    expect(adapter.removeItem).toHaveBeenCalledWith(
+      "uniwork_task_comment_drafts",
+    );
+    expect(adapter.removeItem).not.toHaveBeenCalledWith(
+      "uniwork_task_comment_drafts:ws_123",
+    );
   });
 });

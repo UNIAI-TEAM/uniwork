@@ -2,7 +2,15 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { registerDraftCleanup } from "../../drafts/cleanup-registry";
 import { defaultStorage } from "../../platform/storage";
+
+/**
+ * Persist key, shared between the store and its cleanup registration so the
+ * two can never drift — a drifted key is exactly the leak the registry exists
+ * to prevent.
+ */
+const COMMENT_DRAFT_STORAGE_KEY = "uniwork_task_comment_drafts";
 
 type CommentDraftState = {
   drafts: Record<string, string>;
@@ -40,8 +48,27 @@ export const useCommentDraftStore = create<CommentDraftState>()(
         }),
     }),
     {
-      name: "uniwork_task_comment_drafts",
+      name: COMMENT_DRAFT_STORAGE_KEY,
       storage: createJSONStorage(() => defaultStorage),
     },
   ),
 );
+
+/**
+ * Logout / workspace-delete cleanup. Registered at module load, which is the
+ * registry's contract — `drafts/register-all-drafts` imports this module so
+ * the registration has run before any cleanup path executes.
+ *
+ * `workspaceScoped: false`: this store persists through `defaultStorage`, not
+ * `createWorkspaceAwareStorage`, so the real localStorage key is the bare
+ * `uniwork_task_comment_drafts` with no `:slug` suffix. Claiming true would
+ * make cleanup remove a `...:slug` key that never existed and leave the real
+ * one behind. The keys inside the map are `taskId` or `taskId:parentId` and
+ * task ids are globally unique ULIDs, so there is no cross-workspace
+ * collision that scoping would have to resolve.
+ */
+registerDraftCleanup({
+  storageKey: COMMENT_DRAFT_STORAGE_KEY,
+  workspaceScoped: false,
+  resetInMemory: () => useCommentDraftStore.setState({ drafts: {} }),
+});
