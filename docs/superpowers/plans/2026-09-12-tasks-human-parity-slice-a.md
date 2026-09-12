@@ -462,21 +462,40 @@ Kỳ vọng: PASS cả hai.
 Trong `packages/core/api/endpoints/tasks.test.ts`, thêm:
 
 ```ts
-it("listComments trả [] khi response méo", async () => {
-  requestMock.mockResolvedValueOnce({ comments: "không phải mảng" });
-  await expect(listComments("t1")).resolves.toEqual([]);
-});
-
 it("listComments mặc định reactions về [] khi server cũ không trả trường đó", async () => {
-  requestMock.mockResolvedValueOnce({
-    comments: [{ id: "c1", task_id: "t1", author_id: "u1", body: "một" }],
-  });
+  vi.mocked(fetch).mockResolvedValueOnce(
+    json({ comments: [{ id: "c1", task_id: "t1", author_id: "u1", body: "một" }] }),
+  );
   const got = await listComments("t1");
   expect(got[0].reactions).toEqual([]);
 });
+
+it("listComments giữ reactions server trả về", async () => {
+  vi.mocked(fetch).mockResolvedValueOnce(
+    json({
+      comments: [
+        {
+          id: "c1",
+          task_id: "t1",
+          author_id: "u1",
+          body: "một",
+          reactions: [
+            { id: "r1", comment_id: "c1", actor_type: "member", actor_id: "u1", emoji: "👍", created_at: "2026-09-12T00:00:00Z" },
+          ],
+        },
+      ],
+    }),
+  );
+  const got = await listComments("t1");
+  expect(got[0].reactions).toHaveLength(1);
+});
 ```
 
-Đọc đầu `tasks.test.ts` để lấy đúng tên mock transport của file; các test hiện có trong đó đã mock `request` và tên biến ở trên bám khuôn `requestMock` mà `packages/views/test/api-mock` dùng.
+File này mock `fetch` toàn cục bằng `vi.stubGlobal` và dựng response qua helper `json`
+khai báo ở đầu file; dùng đúng khuôn `vi.mocked(fetch).mockResolvedValueOnce(json(...))`.
+
+Không thêm ca "response méo" cho `listComments`: nó đã có sẵn ở dòng 73 với tên
+`listComments returns [] on drift`. Hai test trên là phần thật sự mới.
 
 - [ ] **Step 7: Chạy test core**
 
