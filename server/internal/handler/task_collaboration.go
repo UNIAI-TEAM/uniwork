@@ -246,10 +246,6 @@ func (h *handlers) unsubscribeTaskSubtree(w http.ResponseWriter, r *http.Request
 	respondJSON(w, 200, map[string]string{"status": "ok"})
 }
 
-func (h *handlers) getTaskTimeline(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.GetTaskTimeline(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
-}
-
 func (h *handlers) commentSubTaskPreview(w http.ResponseWriter, r *http.Request) {
 	h.mapServiceError(w, h.Tasks.CommentSubTaskPreview(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID")))
 }

@@ -96,15 +96,6 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 		t.Fatalf("subscribers = %v", body)
 	}
 
-	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/timeline", token, nil)
-	if res.StatusCode != 422 {
-		t.Fatalf("timeline stub status = %d %v", res.StatusCode, body)
-	}
-	errObj, _ := body["error"].(map[string]any)
-	if errObj["code"] != "capability_unavailable" {
-		t.Fatalf("timeline code = %v", body)
-	}
-
 	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/attachments", token, nil)
 	if res.StatusCode != 200 {
 		t.Fatalf("attachments list status = %d %v", res.StatusCode, body)
@@ -134,7 +125,7 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 		if res.StatusCode != 422 {
 			t.Fatalf("%s %s status = %d %v", p.method, p.path, res.StatusCode, body)
 		}
-		errObj, _ = body["error"].(map[string]any)
+		errObj, _ := body["error"].(map[string]any)
 		if errObj["code"] != "capability_unavailable" {
 			t.Fatalf("%s %s code = %v", p.method, p.path, body)
 		}

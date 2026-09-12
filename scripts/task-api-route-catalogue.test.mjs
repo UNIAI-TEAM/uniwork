@@ -16,7 +16,7 @@ test("slice-2 route catalogue pins Work Management API surface", async () => {
     assert.equal(r.target_path.toLowerCase().includes("multica"), false);
     assert.equal(r.target_path.toLowerCase().includes("/issues"), false);
     assert.ok(["tasks", "my_tasks", "table", "catalog", "views", "projects", "collaboration", "stub"].includes(r.group));
-    assert.ok(["ported", "adapted", "stubbed"].includes(r.disposition));
+    assert.ok(["ported", "adapted", "stubbed", "dropped"].includes(r.disposition));
   }
   const groups = new Set(cat.routes.map((r) => r.group));
   for (const g of ["tasks", "table", "catalog", "views", "projects", "collaboration"]) {
