@@ -5,3 +5,5 @@ export {
   type AssigneeOption,
   type AssigneeRef,
 } from "./assignee-picker";
+export { LabelPicker, labelChipClass } from "./label-picker";
+export { useTaskLabelToggle } from "./use-task-label-toggle";
