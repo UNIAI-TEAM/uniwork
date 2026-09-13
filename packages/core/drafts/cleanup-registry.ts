@@ -70,7 +70,7 @@ export interface DraftCleanupEntry {
 
 const entries = new Map<string, DraftCleanupEntry>();
 
-/** Register a draft store for workspace/logout cleanup. Idempotent per key. */
+/** Register a draft store with every cleanup path below. Idempotent per key. */
 export function registerDraftCleanup(entry: DraftCleanupEntry): void {
   entries.set(entry.storageKey, entry);
 }
@@ -111,9 +111,15 @@ useAuthStore.subscribe((state) => {
 
 /**
  * Remove every registered draft's persisted storage for one workspace slug.
- * Called on workspace delete/leave (per slug) and logout (per workspace the
- * user belonged to). Globally-namespaced draft keys are removed regardless of
- * slug — passing any slug clears them once.
+ * Globally-namespaced draft keys are removed regardless of slug — passing any
+ * slug clears them once.
+ *
+ * Nothing in the app runs this yet. Its only caller is `clearWorkspaceStorage`
+ * (`platform/storage-cleanup.ts`), and only tests call that: neither workspace
+ * delete/leave nor logout reaches it. Logout removes the global keys alone,
+ * through `clearRegisteredGlobalDrafts`, and a different user signing in does
+ * the same through `releaseDraftsNotOwnedBy`. No path clears a workspace-scoped
+ * key (`${storageKey}:${slug}`) today.
  */
 export function clearRegisteredWorkspaceDrafts(
   adapter: StorageAdapter,
@@ -148,11 +154,12 @@ export function clearRegisteredGlobalDrafts(adapter: StorageAdapter): void {
  * Reset all registered draft stores' in-memory state. Called on logout, so no
  * draft survives into the next login on the same tab.
  *
- * This is the memory-layer half of cleanup and is deliberately separate from
- * `clearRegisteredWorkspaceDrafts`: clearing persisted storage does not touch
- * the Zustand singleton, which outlives a client-side logout navigation
- * (`replace(paths.login())` is not a page reload). Without this, user A's
- * unsent draft is still in module memory when user B signs in on the same tab.
+ * This is the memory-layer half of logout cleanup and is deliberately separate
+ * from `clearRegisteredGlobalDrafts`, the storage half: clearing persisted
+ * storage does not touch the Zustand singleton, which outlives a client-side
+ * logout navigation (`replace(paths.login())` is not a page reload). Without
+ * this, user A's unsent draft is still in module memory when user B signs in
+ * on the same tab.
  */
 export function resetRegisteredDraftsInMemory(): void {
   for (const entry of entries.values()) {

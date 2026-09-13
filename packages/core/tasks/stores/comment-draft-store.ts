@@ -66,9 +66,10 @@ export const useCommentDraftStore = create<CommentDraftState>()(
 );
 
 /**
- * Logout / workspace-delete cleanup. Registered at module load, which is the
- * registry's contract — `drafts/register-all-drafts` imports this module so
- * the registration has run before any cleanup path executes.
+ * Cleanup on logout and when a different user signs in. Registered at module
+ * load, which is the registry's contract — `drafts/register-all-drafts`
+ * imports this module so the registration has run before any cleanup path
+ * executes.
  *
  * `workspaceScoped: false`: this store persists through `defaultStorage`, not
  * `createWorkspaceAwareStorage`, so the real localStorage key is the bare
