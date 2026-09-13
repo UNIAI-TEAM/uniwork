@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SyntheticEvent } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -98,6 +98,37 @@ describe("LabelPicker", () => {
       "/api/v1/tasks/t1/labels/l1",
       { method: "DELETE" },
     ]);
+  });
+
+  it("disabled thì pointerdown, mousedown rồi click trên trigger không mở menu", async () => {
+    // Base UI's MenuTrigger opens on mousedown and only honours its own
+    // `disabled` prop, not `aria-disabled` on the rendered button.
+    const onToggle = vi.fn();
+    render(
+      <LabelPicker
+        labels={catalog}
+        selectedIds={new Set()}
+        onToggle={onToggle}
+        disabled
+        ariaLabel="Nhãn"
+        emptyLabel="Workspace chưa có nhãn"
+      >
+        Nhãn
+      </LabelPicker>,
+    );
+    const trigger = screen.getByRole("button", { name: "Nhãn" });
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    // useClick opens a mousedown press one animation frame later.
+    await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(trigger).not.toBeDisabled();
   });
 
   it("danh mục rỗng hiện trạng thái rỗng thay vì popup trắng", () => {

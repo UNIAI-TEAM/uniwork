@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { renderInTableRow } from "../../test/table-row";
@@ -33,6 +33,30 @@ describe("EnumFieldPicker", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Trạng thái" }));
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("disabled thì pointerdown, mousedown rồi click trên trigger không mở menu", async () => {
+    // Base UI's MenuTrigger opens on mousedown and only honours its own
+    // `disabled` prop, not `aria-disabled` on the rendered button.
+    const onChange = vi.fn();
+    render(
+      <EnumFieldPicker value="todo" options={options} onChange={onChange} disabled ariaLabel="Trạng thái">
+        Trạng thái
+      </EnumFieldPicker>,
+    );
+    const trigger = screen.getByRole("button", { name: "Trạng thái" });
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(trigger, { button: 0 });
+    // useClick opens a mousedown press one animation frame later.
+    await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemradio")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(trigger).not.toBeDisabled();
   });
 
   it("chuyển tiếp sự kiện con trỏ trên trigger cho nơi gọi", () => {

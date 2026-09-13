@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, SyntheticEvent } from "react";
+import { useState, type ReactNode, type SyntheticEvent } from "react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -69,8 +69,20 @@ export function EnumFieldPicker({
   align?: "start" | "center" | "end";
   children: ReactNode;
 }) {
+  // `disabled` stays off the trigger's own `disabled` prop: Base UI would put
+  // a native `disabled` on the button and drop it from the tab order. But
+  // MenuTrigger opens on mousedown and ignores `aria-disabled`
+  // (@base-ui/react 1.7.0 menu/trigger/MenuTrigger.js:161-163), so `open` is
+  // held closed here, as AssigneePicker does for its combobox.
+  const [open, setOpen] = useState(false);
+
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      open={disabled ? false : open}
+      onOpenChange={(next) => {
+        if (!disabled) setOpen(next);
+      }}
+    >
       <DropdownMenuTrigger
         onPointerDown={onTriggerNavigationGuard}
         onClick={onTriggerNavigationGuard}
