@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { initI18n } from "@uniwork/core/i18n";
 import type { TaskLabel } from "@uniwork/core/types";
 import { requestMock, wrap } from "../../test/api-mock";
+import { renderInTableRow } from "../../test/table-row";
 import { LabelPicker } from "./label-picker";
 import { useTaskLabelToggle } from "./use-task-label-toggle";
 
@@ -183,6 +184,21 @@ describe("LabelPicker", () => {
       fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Bug" }));
       await waitFor(() => expect(writeCalls()).toHaveLength(1));
       expect(onRowClick).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("trong hàng bảng thật (renderInTableRow)", () => {
+    const stopRowNavigation = (event: SyntheticEvent) => event.stopPropagation();
+
+    it("bấm trigger rồi bấm một checkbox item không mở task", async () => {
+      const { onOpenRow } = renderInTableRow(
+        <Harness onTriggerNavigationGuard={stopRowNavigation} />,
+        { wrapper: wrap },
+      );
+      openMenu();
+      fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Bug" }));
+      await waitFor(() => expect(writeCalls()).toHaveLength(1));
+      expect(onOpenRow).not.toHaveBeenCalled();
     });
   });
 });

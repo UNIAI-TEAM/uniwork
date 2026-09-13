@@ -28,6 +28,7 @@ import {
   useTableColumnDefs,
   type TableViewMeta,
 } from "./table-view-columns";
+import { isRowControlTarget } from "./row-navigation";
 import { TableViewToolbar } from "./table-view-toolbar";
 import {
   getTaskTableSelectionRange,
@@ -313,13 +314,7 @@ export function TableView({
               return;
             }
             if (row.original.kind !== "task" || !onOpenTask) return;
-            if (
-              (event.target as HTMLElement).closest(
-                "button, input, a, [role='menuitem']",
-              )
-            ) {
-              return;
-            }
+            if (isRowControlTarget(event.target)) return;
             onOpenTask(row.original.task.id);
           }}
           renderRow={(row) => {

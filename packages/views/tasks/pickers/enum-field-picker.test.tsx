@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { renderInTableRow } from "../../test/table-row";
 import { EnumFieldPicker } from "./enum-field-picker";
 
 initI18n();
@@ -119,5 +120,41 @@ describe("EnumFieldPicker", () => {
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );
     expect(onRowAuxClick).not.toHaveBeenCalled();
+  });
+
+  describe("trong hàng bảng thật (renderInTableRow)", () => {
+    function renderInRow() {
+      const onChange = vi.fn();
+      const row = renderInTableRow(
+        <EnumFieldPicker
+          value="todo"
+          options={options}
+          onChange={onChange}
+          ariaLabel="Trạng thái"
+          onTriggerNavigationGuard={(event) => event.stopPropagation()}
+        >
+          Trạng thái
+        </EnumFieldPicker>,
+      );
+      return { onChange, onOpenRow: row.onOpenRow };
+    }
+
+    it("mở menu rồi chọn một mục chỉ đổi giá trị, không mở task", () => {
+      const { onChange, onOpenRow } = renderInRow();
+      fireEvent.click(screen.getByRole("button", { name: "Trạng thái" }));
+      fireEvent.click(screen.getByRole("menuitemradio", { name: "Đang làm" }));
+      expect(onChange).toHaveBeenCalledWith("doing");
+      expect(onOpenRow).not.toHaveBeenCalled();
+    });
+
+    it("middle-click trên một mục không mở task", () => {
+      const { onOpenRow } = renderInRow();
+      fireEvent.click(screen.getByRole("button", { name: "Trạng thái" }));
+      fireEvent(
+        screen.getByRole("menuitemradio", { name: "Đang làm" }),
+        new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+      );
+      expect(onOpenRow).not.toHaveBeenCalled();
+    });
   });
 });

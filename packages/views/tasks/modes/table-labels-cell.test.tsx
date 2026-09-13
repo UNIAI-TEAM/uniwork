@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { TaskLabel } from "@uniwork/core/types";
 import { requestMock, wrap } from "../../test/api-mock";
+import { renderInTableRow } from "../../test/table-row";
 import { TableLabelsCell } from "./table-cell-editors";
 
 vi.mock("sonner", () => ({
@@ -80,5 +81,24 @@ describe("TableLabelsCell", () => {
       }),
     );
     expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("trong hàng bảng thật: bấm trigger, bấm hay middle-click một nhãn đều không mở task", async () => {
+    serveAttached([]);
+    const { onOpenRow } = renderInTableRow(
+      <TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} />,
+      { wrapper: wrap },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /nhãn|labels/i }));
+    const bug = screen.getByRole("menuitemcheckbox", { name: "Bug" });
+    fireEvent(bug, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+    fireEvent.click(bug);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1/labels", {
+        method: "POST",
+        body: { label_id: "l1" },
+      }),
+    );
+    expect(onOpenRow).not.toHaveBeenCalled();
   });
 });
