@@ -51,6 +51,40 @@ describe("EnumFieldPicker", () => {
     expect(onTriggerPointerDown).toHaveBeenCalled();
   });
 
+  it("không để click mở trigger lọt tới bộ xử lý click của hàng bảng", () => {
+    // Mirrors DataTable's actual row-click bail condition exactly
+    // (packages/ui/components/ui/data-table.tsx): the row only skips
+    // navigating when the click event arrives with defaultPrevented already
+    // set. stopPropagation on pointerdown does NOT stop the click event that
+    // follows — they are separate events — so this only holds if the guard
+    // is also wired to the trigger's onClick.
+    const onRowClick = vi.fn();
+    const stopRowNavigation = vi.fn((event: { stopPropagation: () => void }) =>
+      event.stopPropagation(),
+    );
+    render(
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stands in for DataTable's row wrapper; child control is interactive
+      <div
+        onClick={(e) => {
+          if (e.defaultPrevented) return;
+          onRowClick();
+        }}
+      >
+        <EnumFieldPicker
+          value="todo"
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Trạng thái"
+          onTriggerPointerDown={stopRowNavigation}
+        >
+          Trạng thái
+        </EnumFieldPicker>
+      </div>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Trạng thái" }));
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it("không để middle-click trên một mục trong menu lọt tới bộ xử lý của hàng bảng", () => {
     // Regression for the row-navigation bug: DataTable's row handler reacts
     // to onAuxClick (middle-click), and DropdownMenuContent only stops

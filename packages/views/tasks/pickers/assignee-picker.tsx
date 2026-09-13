@@ -93,8 +93,15 @@ function AssigneeRow({ entry }: { entry: AssigneeEntry }) {
  * task's call to make (see the assignee-picker report).
  *
  * `onTriggerPointerDown` mirrors `EnumFieldPicker`'s stop-row-navigation
- * forwarding (same two event/element combinations, not a new one): the
- * trigger's `onPointerDown`/`onAuxClick`, and the popup's `onAuxClick`.
+ * forwarding: the trigger's `onPointerDown`/`onClick`/`onAuxClick`, and the
+ * popup's `onAuxClick`. `onClick` is required alongside `onPointerDown`
+ * because they are separate events — `stopPropagation` on one does not stop
+ * the other — and nothing else here calls `preventDefault()` on a plain
+ * click, so a row's `onClick` handler (DataTable's checks
+ * `e.defaultPrevented`) would otherwise still fire. Same naming smell as
+ * `EnumFieldPicker`: this prop now covers four event/element combinations
+ * under a name that only describes one of them. See the slice-C task-2
+ * report for the rename left to the next task rather than done here.
  */
 export function AssigneePicker({
   value,
@@ -167,6 +174,7 @@ export function AssigneePicker({
     >
       <ComboboxTrigger
         onPointerDown={onTriggerPointerDown}
+        onClick={onTriggerPointerDown}
         onAuxClick={onTriggerPointerDown}
         render={
           <Button

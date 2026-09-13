@@ -63,6 +63,43 @@ describe("AssigneePicker", () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
+  it("không để click mở trigger lọt tới bộ xử lý click của hàng bảng", () => {
+    // Mirrors DataTable's actual row-click bail condition exactly
+    // (packages/ui/components/ui/data-table.tsx): the row only skips
+    // navigating when the click event arrives with defaultPrevented already
+    // set. stopPropagation on pointerdown does NOT stop the click event that
+    // follows — they are separate events — so this only holds if the guard
+    // is also wired to the trigger's onClick.
+    const onRowClick = vi.fn();
+    const stopRowNavigation = vi.fn((event: { stopPropagation: () => void }) =>
+      event.stopPropagation(),
+    );
+    render(
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stands in for DataTable's row wrapper; child control is interactive
+      <div
+        onClick={(e) => {
+          if (e.defaultPrevented) return;
+          onRowClick();
+        }}
+      >
+        <AssigneePicker
+          value={null}
+          options={fewOptions}
+          onChange={vi.fn()}
+          ariaLabel="Người phụ trách"
+          unassignedLabel="Chưa giao"
+          searchPlaceholder="Tìm thành viên"
+          noResultsLabel="Không tìm thấy"
+          onTriggerPointerDown={stopRowNavigation}
+        >
+          Chưa giao
+        </AssigneePicker>
+      </div>,
+    );
+    fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it("không mở danh sách khi disabled", () => {
     const { onChange } = renderPicker({ disabled: true });
     fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));

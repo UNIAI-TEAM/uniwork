@@ -27,13 +27,24 @@ export type EnumOption = { value: string; label: string; icon?: ReactNode };
  *    so a middle-click on an open menu ITEM can still reach a row handler
  *    that reacts to aux-click. We forward the same callback to the content
  *    popup's `onAuxClick` to close that path.
- *  - The trigger button itself needs the same two events covered for a
+ *  - The trigger button itself needs three events covered for a
  *    click/aux-click that lands on it directly, before the menu is even
  *    open — `onPointerDown` covers press-based row handlers, `onAuxClick`
  *    covers the middle-click case `DropdownMenuContent` doesn't apply to
- *    (it isn't inside the popup).
+ *    (it isn't inside the popup), and `onClick` covers plain left-click:
+ *    `stopPropagation` on `pointerdown` does NOT stop the `click` event
+ *    that follows it (they are separate events), and nothing else in this
+ *    tree calls `preventDefault()` on that click, so a row's `onClick`
+ *    handler that checks `e.defaultPrevented` (DataTable's does) still
+ *    fires on a plain click of the trigger without this.
  * Losing any one of these makes clicking (or middle-clicking) a cell
  * picker navigate to the row instead of just opening/using the menu.
+ *
+ * This is now four event/element combinations under one callback name that
+ * only mentions one of them ("pointer down"). That is a real naming smell,
+ * flagged for whoever routes the next change here rather than fixed by
+ * renaming quietly: see the slice-C task-2 report for the concrete rename
+ * suggestion and why it wasn't done in the same change as this fix.
  */
 export function EnumFieldPicker({
   value,
@@ -65,6 +76,7 @@ export function EnumFieldPicker({
     <DropdownMenu>
       <DropdownMenuTrigger
         onPointerDown={onTriggerPointerDown}
+        onClick={onTriggerPointerDown}
         onAuxClick={onTriggerPointerDown}
         render={
           <Button
