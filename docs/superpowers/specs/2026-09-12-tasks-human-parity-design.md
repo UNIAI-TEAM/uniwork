@@ -350,11 +350,13 @@ sau, và cần gì để đóng.
     §6 đã hẹn.
 
 11. **Flake "Group _r_2_ not found"** ở
-    `packages/views/layout/animated-right-sidebar.tsx` thỉnh thoảng làm lần chạy
-    coverage đầy đủ của `views` thoát 1 dù mọi test xanh. Có từ trước lát C,
-    không do lát C gây ra; ghi lại để lần chạy cổng sau không nhận nhầm. Cùng
-    loại với nó, cổng lát C gặp thêm ba lỗi thoáng qua có từ trước, không lỗi
-    nào tái hiện khi chạy riêng:
+    `packages/views/layout/animated-right-sidebar.tsx`: đã sửa ở lát D1
+    (1a0cfc2). Trước đó nó thỉnh thoảng làm lần chạy coverage đầy đủ của `views`
+    thoát 1 dù mọi test xanh. Có từ trước lát C, không do lát C gây ra: một
+    animation frame còn chờ gọi vào panel group đã gỡ; nay callback đọc lại ref
+    của panel khi frame chạy và bỏ qua nếu panel đã gỡ. Cùng loại với nó, cổng
+    lát C gặp thêm ba lỗi thoáng qua có từ trước, vẫn còn, không lỗi nào tái
+    hiện khi chạy riêng:
     `projects/project-detail-page.test.tsx` và
     `editor/extensions/markdown-paste.test.ts` đỏ khi turbo chạy song song ba
     package (lát B đã gặp y hệt); riêng `markdown-paste` còn hết giờ 30s dưới
@@ -399,9 +401,9 @@ từ chối khi không còn phiên (9176654). Hai store đó còn ghi lại ngư
 liệu: khi một người khác đăng nhập trên cùng trình duyệt, kể cả sau khi phiên
 trước hết hạn mà không qua đăng xuất hay sau khi tải lại trang, dữ liệu bị xoá
 khỏi bộ nhớ và storage; chính người đó đăng nhập lại thì còn nguyên. Các điểm
-dưới đây còn đúng ở mã khi lát
-D1 merge. Mỗi điểm nói rõ đó là quyết định có chủ đích hay khoảng trống, và cần
-gì để đóng.
+dưới đây còn đúng ở mã khi lát D1 merge; riêng dòng mở đầu bằng "Đã sửa" ghi
+lại một lỗi đã đóng trong lát, kèm commit sửa. Mỗi điểm nói rõ đó là quyết định
+có chủ đích hay khoảng trống, và cần gì để đóng.
 
 1. **Điều hướng luồng (`openThreadNav`) không có phím mặc định.** Quyết định có
    chủ đích. Chưa kiểm được chord nào không bị trình duyệt hay hệ điều hành giữ
@@ -415,8 +417,12 @@ gì để đóng.
    `window`, nên `toggleSidebar` không được khai báo; tab Settings hiện nó là
    một dòng phím cố định. Để primitive và action không cùng chạy, core giữ chỗ
    primary+B và cả Control+B trên macOS: không action nào gán được chord đó
-   (6bcadde). Để đóng: primitive nhận chord từ ngoài thay vì tự nghe, rồi khai
-   báo action.
+   (6bcadde). Cùng lý do, primary+F và Control+F trên macOS chỉ gán được cho
+   `findInTask` (e5e6663): trang chat mở tìm tin nhắn bằng một listener trên
+   `window` bỏ qua `defaultPrevented`
+   (`packages/views/chat/chat-page-content.tsx`), nên action khác giữ chord đó
+   sẽ chạy cùng lúc với tìm tin nhắn. Để đóng: primitive nhận chord từ ngoài
+   thay vì tự nghe, rồi khai báo action.
 
 3. **Tìm trong trang chỉ khớp trong một nút chữ.** Quyết định có chủ đích, đánh
    đổi của tìm nhẹ. `collectTextMatches` trong
@@ -446,26 +452,41 @@ gì để đóng.
    đó. Focus ở một nút trong sidebar thì ⌘F vẫn mở thanh tìm của task. Để đóng:
    coi sidebar thuộc tính là một phần của trang chi tiết.
 
-7. **Phím C vẫn mở hộp tạo task khi đang xem trước tệp đính kèm, nếu focus không
-   nằm trong modal.** Khoảng trống. Modal xem trước
+7. **Đang xem trước tệp đính kèm mà focus không nằm trong modal thì phím tắt của
+   trang vẫn chạy dưới modal.** Khoảng trống. Modal xem trước
    (`packages/views/editor/attachment-preview-modal.tsx`) là portal
-   `role="dialog"` tự dựng, không phải Dialog của Base UI, nên không đặt
-   `data-base-ui-inert`, và không chuyển focus vào trong khi mở. Hàm chặn lớp
-   popup `isPortalLayerShortcutTarget` chỉ nhận ra lớp modal qua dấu đó hoặc khi
-   đích phím nằm trong `[role="dialog"]`. Mở xem trước từ một nút rồi nhấn C thì
-   hộp tạo task mở đè lên. Chỉ kiểm trên mã, chưa tái hiện trên trình duyệt. Để
-   đóng: modal xem trước chuyển focus vào trong khi mở, hoặc dùng Dialog của
+   `role="dialog"` `aria-modal="true"` tự dựng, không phải Dialog của Base UI,
+   nên không đặt `data-base-ui-inert`, và không chuyển focus vào trong khi mở.
+   Hàm chặn lớp popup `isPortalLayerShortcutTarget` chỉ nhận ra lớp modal qua
+   dấu đó hoặc khi đích phím nằm trong `[role="dialog"]`. Mở xem trước từ một
+   nút rồi nhấn phím thì:
+   - C mở hộp tạo task đè lên.
+   - Trên trang chi tiết task, ⌘F mở thanh tìm của task nằm dưới modal và chặn
+     tìm của trình duyệt.
+   - ⌘[ và ⌘] điều hướng lùi, tới; mọi action `go*` đã gán phím cũng điều
+     hướng.
+
+   Chỉ kiểm trên mã, chưa tái hiện trên trình duyệt. Mã cố ý giữ nguyên: chặn
+   mọi phím tắt toàn cục khi có bất kỳ `[aria-modal="true"]` nào sẽ đổi luật đã
+   chốt cho ⌘K và ⌘J, hai phím được quyết định mở cả trên dialog modal (mục 18).
+   Để đóng: modal xem trước chuyển focus vào trong khi mở, hoặc dùng Dialog của
    Base UI.
 
-8. **⌘Enter trong editor mô tả task chèn ngắt dòng.** Cần người quyết, không
-   phải lỗi của D1. HardBreak của TipTap bind `Mod-Enter`
+8. **⌘/Ctrl+Enter trong editor mô tả task chèn ngắt dòng.** Cần người quyết,
+   không phải lỗi của D1. HardBreak của TipTap bind `Mod-Enter`
    (`@tiptap/extension-hard-break` `src/hard-break.ts:117`), và editor mô tả
-   không truyền `onSubmit` nên extension phím gửi nhường cho nó. Ngắt dòng đổi
-   markdown, nên autosave mô tả sau 1,5 giây
-   (`packages/views/tasks/detail/components/task-detail-editors.tsx`) có thể gửi
-   PATCH. Hành vi có từ trước lát; test ghim nó lại để thay đổi phải có chủ ý.
-   Để đóng: quyết định ⌘Enter trong mô tả nên làm gì (không làm gì, hay lưu
-   ngay), rồi tắt HardBreak cho chord đó.
+   không truyền `onSubmit` nên extension phím gửi nhường cho nó. Kết quả tuỳ vị
+   trí con trỏ:
+   - Giữa đoạn: ngắt dòng đổi markdown, nên sau 1,5 giây autosave mô tả
+     (`packages/views/tasks/detail/components/task-detail-editors.tsx`) gửi PUT
+     `/api/v1/tasks/{id}` kèm `If-Match` (`use-task-field-save.ts` →
+     `usePutTask`).
+   - Đầu đoạn, chỗ test ghim đặt con trỏ: ngắt dòng serialize ra đúng markdown
+     cũ, nên không có gì để lưu và không có request nào.
+
+   Hành vi có từ trước lát; test ghim nó lại để thay đổi phải có chủ ý. Để đóng:
+   quyết định ⌘Enter trong mô tả nên làm gì (không làm gì, hay lưu ngay), rồi
+   tắt HardBreak cho chord đó.
 
 9. **Mục "Gần đây" của task đã bị xoá hoặc chuyển đi vẫn hiện trong palette tới
    khi được mở.** Khoảng trống. Palette chỉ đọc store
@@ -493,11 +514,16 @@ gì để đóng.
     tới khi refetch. Để đóng: sidebar dùng `useLogout().mutateAsync()`, giữ điều
     hướng về trang đăng nhập trong `finally`.
 
-12. **`auth.logout()` ném lỗi thì không dọn nháp, nhưng sidebar vẫn chuyển sang
-    trang đăng nhập.** Có từ trước nhánh, định tuyến cho người.
-    `logout` trong `packages/core/auth/store.ts` chờ `auth.logout()` trước khi đặt
-    `anon` và gọi callback dọn; sidebar điều hướng trong `finally`. Để đóng:
-    quyết định đăng xuất lỗi mạng thì dọn cục bộ hay giữ phiên.
+12. **Đăng xuất gặp lỗi mạng chỉ dọn cục bộ; phiên ở server không bị thu hồi.**
+    Có từ trước nhánh, định tuyến cho người. `logout` trong
+    `packages/core/api/endpoints/auth.ts` nuốt lỗi của request đăng xuất rồi vẫn
+    xoá access token, nên `logout` của auth store
+    (`packages/core/auth/store.ts`) vẫn đặt `anon` và gọi callback dọn nháp, và
+    sidebar chuyển sang trang đăng nhập. Server không nhận được lệnh, nên phiên
+    chưa bị thu hồi và cookie refresh vẫn nằm trong trình duyệt: lần tải trang
+    sau, `initialize` làm mới phiên từ cookie đó và người vừa đăng xuất có thể
+    được đăng nhập lại. Để đóng: quyết định đăng xuất lỗi mạng thì chấp nhận
+    phiên server còn sống, hay báo lỗi và cho thử lại thay vì chuyển trang.
 
 13. **Phiên hết hạn mà không qua đăng xuất làm mất tối đa 1,5 giây chữ gõ cuối
     trong ô bình luận.** Quyết định có chủ đích. Refresh lỗi đặt phiên về `anon`,
@@ -518,8 +544,20 @@ gì để đóng.
     mở composer sau hiện lại chữ đã đăng làm nháp. Thêm chốt riêng ở đó sẽ trùng
     chốt đã tập trung. Không cần đóng.
 
-15. **Hành vi phím chỉ được kiểm trên jsdom, trừ ⌘J.** Khoảng trống kiểm chứng.
-    Mọi test phím của D1 chạy trên jsdom. Riêng ⌘J mở hộp Hỏi UNI, gửi câu hỏi
+15. **Phím, tìm trong trang, lưu trữ và luồng đăng xuất chỉ được kiểm trên
+    jsdom, trừ ⌘J.** Khoảng trống kiểm chứng. Chỉ có bằng chứng jsdom cho:
+    - mọi đường phím của D1: bộ điều phối toàn cục, ⌘F, điều hướng luồng, phím
+      gửi, ghi phím trong Settings;
+    - hình học và tô sáng của tìm trong trang: jsdom không dàn trang và không có
+      CSS Custom Highlight API, nên test thay `getClientRects` bằng stub và chỉ
+      chạy nhánh không tô; luật `::highlight(task-find)` và
+      `::highlight(task-find-active)` trong `packages/ui/styles/base.css` chỉ
+      được kiểm là có mặt, chưa từng được render;
+    - lưu trữ của store nháp, store gần đây và store nhớ gấp mở, cùng các luồng
+      đăng xuất và phiên hết hạn;
+    - sửa khung hình trễ của sidebar (1a0cfc2).
+
+    Riêng ⌘J mở hộp Hỏi UNI, gửi câu hỏi
     và nhận câu trả lời có nguồn đã được kiểm trên Chromium thật, với
     `AI_PROVIDER=fake`, bằng một bản chẩn đoán tạm của `e2e/ask-uni.spec.ts` bỏ
     phần tạo task. Bản chẩn đoán không được commit. Chính spec đó đang đỏ trước
@@ -531,8 +569,8 @@ gì để đóng.
       nhận câu trả lời trích task đó của chính mình thay vì "Chưa đủ dữ liệu".
       Không có dữ liệu nào lọt sang tổ chức khác.
 
-    Để đóng: sửa hai kỳ vọng của spec, rồi thêm kịch bản e2e cho C, ⌘F và phím
-    gửi.
+    Để đóng: sửa hai kỳ vọng của spec, rồi thêm kịch bản e2e cho C, ⌘F có tô
+    sáng, phím gửi, và đăng xuất rồi đăng nhập người khác trên cùng trình duyệt.
 
 16. **Trang chi tiết task và route Settings vượt ngân sách bundle, D1 làm tăng
     thêm.** Khoảng trống, có từ trước D1. Đo bằng
@@ -551,7 +589,8 @@ gì để đóng.
     Để đóng: tách phần shell chỉ cần khi tương tác (tab Phím tắt, palette) ra
     khỏi chunk ban đầu, rồi hạ trần theo số mới.
 
-17. **Lỗi gặp khi chạy cổng D1, có từ trước lát.**
+17. **Lỗi gặp khi chạy cổng D1.** Hai dòng đầu có từ trước lát và còn mở; hai
+    dòng sau đã sửa trong lát.
     - Ba test Go so ngày "hôm qua" theo giờ máy với "hôm nay" theo UTC, nên đỏ
       tất định khi chạy local từ 00:00 đến 07:00 giờ +07:
       `TestUsageWindowSurvivesADatabaseClockAhead`,
@@ -564,13 +603,87 @@ gì để đóng.
     - Cũng vì những test đó dừng sớm, sàn coverage Go đọc dưới 59% khi chạy
       ban đêm. `scripts/test-go.sh` thoát trước bước đọc sàn mỗi khi có test Go
       đỏ, nên máy local chưa từng báo điều này.
-    - Flake "Group _r_2_ not found" (§7quater mục 11) nay được gây ra trong
-      test D1 "does not submit on primary+Enter in the description editor" của
-      `packages/views/tasks/detail/task-detail-suite-page.test.tsx`. Mọi test
-      vẫn xanh, nhưng lần chạy coverage `views` thoát 1.
+    - Đã sửa: flake "Group _r_2_ not found" (§7quater mục 11) từng rơi vào test
+      D1 "does not submit on primary+Enter in the description editor" của
+      `packages/views/tasks/detail/task-detail-suite-page.test.tsx` và làm lần
+      chạy coverage `views` thoát 1. Gốc không nằm ở test đó mà ở frame trễ của
+      sidebar do một test trước bấm mở (1a0cfc2). Test mô tả cũng không còn để
+      treo timer autosave 1,5 giây: nó tự unmount rồi khẳng định không có lần
+      ghi nào (b5e1d32).
+    - Đã sửa: flake do chính D1 viết ở
+      `packages/views/tasks/detail/find/task-find-bar.test.tsx`, test "bình luận
+      lưu dạng NFD khớp truy vấn gõ dạng NFC", đỏ thoáng qua khi máy tải nặng
+      với `range.getClientRects is not a function`. Vitest 4 chạy `afterEach`
+      ngược thứ tự đăng ký, nên hook của file gỡ stub hình học `Range` trước khi
+      cleanup của RTL unmount trang, và effect cuộn tới kết quả đang chọn còn
+      chờ chạy lúc unmount. Test gõ ba ký tự cùng file kết thúc theo cùng cách.
+      Hook nay gọi `cleanup()` trước (ee943a3).
 
-    Để đóng: các test Go tính ngày bằng UTC; test mô tả chờ hết timer autosave
-    trước khi kết thúc.
+    Để đóng: các test Go tính ngày bằng UTC.
+
+18. **⌘K và ⌘J mở được trên dialog modal và từ trong editor.** Quyết định có
+    chủ đích, trước đây chưa ghi. `openSearch` và `ai.askUni` khai báo
+    `allowInEditable: true` (`packages/core/shortcuts/definitions.ts`), và bộ
+    điều phối (`packages/views/layout/global-shortcuts.tsx`) chỉ kiểm đích soạn
+    thảo và lớp popup cho action không có cờ đó. Vì vậy hai phím chạy cả khi
+    focus ở ô nhập, trong editor hay trong một dialog modal đang mở: palette tìm
+    kiếm và hộp Hỏi UNI mở ra trong khi dialog vẫn mở. ⌘J chỉ bị bỏ qua khi
+    workspace không bật AI. Không cần đóng.
+
+19. **Store nhớ gấp mở của trang chi tiết không được dọn khi đăng xuất hay đổi
+    người dùng.** Quyết định có chủ đích, hoãn để không nới phạm vi PR.
+    `packages/core/tasks/stores/task-detail-ui-store.ts` persist
+    `uniwork_task_detail_ui` nhưng không đăng ký với `registerDraftCleanup`
+    (`packages/core/drafts/cleanup-registry.ts`), nên người đăng nhập sau trên
+    cùng trình duyệt thấy lại luồng đã giải quyết đang mở và sub-task đang gấp
+    mà người trước để lại, nếu mở cùng task. Store chỉ giữ ULID của task và của
+    bình luận gốc, không có nội dung. Để đóng: ghi id người sở hữu cạnh dữ liệu
+    như store nháp và store gần đây, rồi đăng ký với sổ dọn kèm `isOwnedBy`;
+    khoảng 10 dòng.
+
+20. **Hai test phím chạy trên bản sao listener thật, và ⌘Enter của composer
+    không có test với editor thật.** Khoảng trống kiểm chứng. Nếu mã thật đổi
+    điều kiện, các test dưới đây vẫn xanh:
+    - Test "trang chat giữ ⌘F" trong
+      `packages/views/tasks/detail/find/task-find-bar.test.tsx` chép điều kiện
+      listener của `packages/views/chat/chat-page-content.tsx` vào một component
+      thử thay vì mount trang chat.
+    - Test "stops the recorded key reaching window listeners that ignore
+      defaultPrevented" trong
+      `packages/views/settings/components/keyboard-shortcuts-tab.test.tsx` dùng
+      một listener trên `window` giống primitive sidebar, không phải chính
+      primitive.
+    - ⌘Enter của composer bình luận chỉ được chứng minh qua
+      `packages/views/editor/extensions/submit-shortcut.test.ts` (hàm quyết định
+      chord có gửi không) và `packages/views/editor/use-composer-submit.test.tsx`
+      (gọi `submit()` trực tiếp), vì
+      `packages/views/tasks/detail/components/comment-composer.test.tsx` mock
+      editor.
+
+    Để đóng: test mount trang chat và primitive sidebar thật, và một test
+    composer với editor thật nhấn ⌘Enter.
+
+21. **Khi thanh tìm đang mở, mọi thay đổi DOM trong trang làm tìm đi lại cả
+    trang, không debounce.** Khoảng trống hiệu năng, chưa đo.
+    `MutationObserver` trong `packages/views/tasks/detail/find/use-task-find.ts`
+    lên lịch một lượt đi với độ trễ 0 cho mỗi thay đổi trong container. Thay đổi
+    cùng tick gộp thành một lượt, nhưng mỗi tick có thay đổi (editor render lại,
+    bình luận mới tới, nội dung rich hiện xong) là một lượt `TreeWalker` qua mọi
+    text node của trang và dựng lại mọi `Range`. Debounce 150 ms chỉ áp cho lúc
+    gõ truy vấn. Để đóng: đo trên task nhiều bình luận; nếu tốn, thêm debounce
+    cho nhánh mutation.
+
+22. **Dư lượng của chốt phiên hết hạn: tab thứ hai có thể ghi dữ liệu của người
+    trước trở lại storage.** Khoảng trống nhỏ. `isOwnedBy` của store nháp và
+    store gần đây chỉ đọc state trong bộ nhớ của tab đang chạy
+    (`packages/core/tasks/stores/comment-draft-store.ts`,
+    `packages/core/tasks/stores/recent-tasks-store.ts`). Khi B đăng nhập ở một
+    tab, sổ dọn xoá dữ liệu của A khỏi bộ nhớ và storage của tab đó. Một tab
+    khác còn phiên A vẫn giữ dữ liệu A trong bộ nhớ, và lần ghi kế tiếp của tab
+    đó (`persist` ghi cả state) đưa dữ liệu A trở lại storage. Tab của B không
+    đọc lại storage nên không hiện; lần tải lại kế tiếp của tab B bỏ dữ liệu đó,
+    vì chủ ghi trong storage là A. Để đóng: nghe sự kiện `storage`, hoặc so chủ
+    với người đăng nhập mỗi lần hydrate.
 
 ## 8. Việc làm tiếp theo
 
