@@ -943,7 +943,7 @@
       "prop_stage_none": "Chưa có giai đoạn",
       "prop_custom": "Thuộc tính tùy chỉnh",
       "add_label": "Thêm nhãn…",
-      "attach_label": "Gắn",
+      "remove_label": "Gỡ nhãn {{name}}",
       "custom_properties_count": "{{count}} thuộc tính",
       "subtasks_progress": "{{done}}/{{total}}",
       "subtasks_empty": "Chưa có sub-task.",

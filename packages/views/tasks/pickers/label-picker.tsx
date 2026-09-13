@@ -2,7 +2,7 @@
 
 import type { ReactNode, SyntheticEvent } from "react";
 import type { TaskLabel } from "@uniwork/core/types";
-import { tintClass } from "@uniwork/ui/components/common/icon-tile";
+import { tintClass, tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -101,7 +101,10 @@ export function LabelPicker({
             >
               <span
                 aria-hidden
-                className={cn("size-2 shrink-0 rounded-full", labelChipClass(label.color))}
+                className={cn(
+                  "size-2 shrink-0 rounded-full",
+                  tintSolidClass[tintFromColor(label.color)],
+                )}
               />
               <span className="truncate">{label.name}</span>
             </DropdownMenuCheckboxItem>

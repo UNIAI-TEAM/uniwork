@@ -944,7 +944,7 @@
       "prop_stage_none": "No stage",
       "prop_custom": "Custom properties",
       "add_label": "Add a label…",
-      "attach_label": "Attach",
+      "remove_label": "Remove label {{name}}",
       "custom_properties_count": "{{count}} properties",
       "subtasks_progress": "{{done}}/{{total}}",
       "subtasks_empty": "No sub-tasks yet.",

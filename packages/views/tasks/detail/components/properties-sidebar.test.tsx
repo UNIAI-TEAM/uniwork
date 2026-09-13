@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import type { Task, User, Workspace } from "@uniwork/core/types";
+import type { Task, TaskLabel, User, Workspace } from "@uniwork/core/types";
+import { toast } from "sonner";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
 import { TaskDetailPropertiesSidebar } from "./properties-sidebar";
@@ -12,6 +13,26 @@ vi.mock("sonner", () => ({
 }));
 
 const putMutate = vi.hoisted(() => vi.fn());
+const attachMutateAsync = vi.hoisted(() => vi.fn());
+const detachMutateAsync = vi.hoisted(() => vi.fn());
+const labelState = vi.hoisted(() => ({
+  catalog: [] as TaskLabel[],
+  attached: [] as TaskLabel[],
+}));
+
+function makeLabel(id: string, name: string, color: string): TaskLabel {
+  return {
+    id,
+    organization_id: "o1",
+    workspace_id: "w1",
+    name,
+    description: "",
+    color,
+    usage_count: 0,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+}
 
 vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/tasks")>();
@@ -25,15 +46,15 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
       isError: false,
     }),
     useTaskLabels: () => ({
-      data: { labels: [], total: 0 },
+      data: { labels: labelState.catalog, total: labelState.catalog.length },
       isLoading: false,
     }),
     useLabelsOnTask: () => ({
-      data: { labels: [], total: 0 },
+      data: { labels: labelState.attached, total: labelState.attached.length },
       isLoading: false,
     }),
-    useAttachTaskLabel: () => ({ mutate: vi.fn(), isPending: false }),
-    useDetachTaskLabel: () => ({ mutate: vi.fn(), isPending: false }),
+    useAttachTaskLabel: () => ({ mutateAsync: attachMutateAsync, isPending: false }),
+    useDetachTaskLabel: () => ({ mutateAsync: detachMutateAsync, isPending: false }),
     useTaskStatuses: () => ({
       data: { statuses: [], categories: [], total: 0 },
       isLoading: false,
@@ -121,7 +142,20 @@ beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(me);
   putMutate.mockReset();
+  attachMutateAsync.mockReset().mockResolvedValue(undefined);
+  detachMutateAsync.mockReset().mockResolvedValue(undefined);
+  vi.mocked(toast.error).mockReset();
+  labelState.catalog = [];
+  labelState.attached = [];
 });
+
+function renderSidebar() {
+  render(
+    shell(
+      <TaskDetailPropertiesSidebar workspaceId="w1" task={task} onRefetch={() => {}} />,
+    ),
+  );
+}
 
 describe("TaskDetailPropertiesSidebar", () => {
   it("changing status calls putTask mutation with revision", async () => {
@@ -171,5 +205,38 @@ describe("TaskDetailPropertiesSidebar", () => {
       "title",
       expect.stringMatching(/chưa sẵn sàng|not available|surface/i),
     );
+  });
+
+  describe("nhãn", () => {
+    const bug = makeLabel("l1", "Bug", "#ef4444");
+    const frontend = makeLabel("l2", "Frontend", "#3b82f6");
+
+    it("chip nhãn có màu và nút gỡ nói rõ là gỡ nhãn nào", async () => {
+      labelState.catalog = [bug, frontend];
+      labelState.attached = [bug];
+      renderSidebar();
+      expect(screen.getByText("Bug").closest("li")?.className).toMatch(/bg-tint-red/);
+      fireEvent.click(screen.getByRole("button", { name: /gỡ nhãn bug|remove label bug/i }));
+      await waitFor(() => expect(detachMutateAsync).toHaveBeenCalledWith("l1"));
+    });
+
+    it("gắn nhãn bằng một cú bấm trong menu, không còn bước chọn rồi bấm Gắn", async () => {
+      labelState.catalog = [bug, frontend];
+      labelState.attached = [bug];
+      renderSidebar();
+      expect(screen.queryByRole("button", { name: /^(gắn|attach)$/i })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /thêm nhãn|add a label/i }));
+      fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Frontend" }));
+      await waitFor(() => expect(attachMutateAsync).toHaveBeenCalledWith("l2"));
+    });
+
+    it("gỡ bằng chip thất bại thì hiện toast lỗi", async () => {
+      labelState.catalog = [bug];
+      labelState.attached = [bug];
+      detachMutateAsync.mockRejectedValue(new Error("boom"));
+      renderSidebar();
+      fireEvent.click(screen.getByRole("button", { name: /gỡ nhãn bug|remove label bug/i }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    });
   });
 });

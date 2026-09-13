@@ -8,30 +8,22 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@uniwork/core/types";
-import {
-  useAttachTaskLabel,
-  useDetachTaskLabel,
-  useLabelsOnTask,
-} from "@uniwork/core/tasks";
+import { useLabelsOnTask } from "@uniwork/core/tasks";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@uniwork/ui/components/ui/avatar";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../common/date-field";
 import { AgentBadge } from "../../agents/agent-badge";
 import {
   AssigneePicker,
+  LabelPicker,
   PriorityPicker,
   StatusPicker,
+  labelChipClass,
+  useTaskLabelToggle,
   type AssigneeOption,
   type AssigneeRef,
 } from "../pickers";
@@ -238,75 +230,49 @@ export function TableLabelsCell({
   labels: TaskLabel[];
 }) {
   const { t } = useTranslation();
+  // One per-row query, unchanged from before this picker existed; the
+  // workspace catalog still arrives through `labels` (see task-4 brief).
   const attached = useLabelsOnTask(taskId);
-  const attach = useAttachTaskLabel(workspaceId, taskId);
-  const detach = useDetachTaskLabel(workspaceId, taskId);
+  const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId);
   const selected = attached.data?.labels ?? [];
   const selectedIds = new Set(selected.map((label) => label.id));
-  const pending = attach.isPending || detach.isPending;
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"
-              aria-label={t("tasks.detail.prop_labels")}
-            />
-          }
-        >
-          {selected.length === 0 ? (
-            <span className="text-muted-foreground">
-              {t("tasks.table.empty_value")}
-            </span>
-          ) : (
-            <>
-              {selected.slice(0, 2).map((label) => (
-                <span
-                  key={label.id}
-                  className="max-w-24 truncate rounded bg-secondary px-1.5 py-0.5 text-caption"
-                >
-                  {label.name}
-                </span>
-              ))}
-              {selected.length > 2 ? (
-                <span className="tabular-nums text-muted-foreground">
-                  +{selected.length - 2}
-                </span>
-              ) : null}
-            </>
-          )}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="max-h-72 w-56 overflow-y-auto"
-        >
-          {labels.map((label) => (
-            <DropdownMenuCheckboxItem
+    <LabelPicker
+      labels={labels}
+      selectedIds={selectedIds}
+      pendingIds={pendingIds}
+      onToggle={toggle}
+      ariaLabel={t("tasks.detail.prop_labels")}
+      emptyLabel={t("tasks.table.labels_empty")}
+      onTriggerNavigationGuard={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"
+    >
+      {selected.length === 0 ? (
+        <span className="text-muted-foreground">
+          {t("tasks.table.empty_value")}
+        </span>
+      ) : (
+        <>
+          {selected.slice(0, 2).map((label) => (
+            <span
               key={label.id}
-              checked={selectedIds.has(label.id)}
-              disabled={pending}
-              onCheckedChange={(checked) => {
-                if (checked) attach.mutate(label.id);
-                else detach.mutate(label.id);
-              }}
+              className={cn(
+                "max-w-24 truncate rounded px-1.5 py-0.5 text-caption",
+                labelChipClass(label.color),
+              )}
             >
-              <span className="truncate">{label.name}</span>
-            </DropdownMenuCheckboxItem>
+              {label.name}
+            </span>
           ))}
-          {labels.length === 0 ? (
-            <p className="px-2 py-4 text-center text-caption text-muted-foreground">
-              {t("tasks.table.labels_empty")}
-            </p>
+          {selected.length > 2 ? (
+            <span className="tabular-nums text-muted-foreground">
+              +{selected.length - 2}
+            </span>
           ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </>
+      )}
+    </LabelPicker>
   );
 }
 

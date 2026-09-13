@@ -1,14 +1,13 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { paths } from "@uniwork/core/paths";
 import {
-  useAttachTaskLabel,
-  useDetachTaskLabel,
   useLabelsOnTask,
   usePutTask,
   useTask,
@@ -20,7 +19,6 @@ import { type Task } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { Select } from "@uniwork/ui/components/ui/select";
 import { AgentBadge } from "../../../agents/agent-badge";
 import { DateField } from "../../../common/date-field";
 import { PAGE_GUTTER } from "../../../layout/page-header";
@@ -28,12 +26,13 @@ import { useWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
 import { cn } from "@uniwork/ui/lib/utils";
-import { tintClass } from "@uniwork/ui/components/common/icon-tile";
-import { tintFromColor } from "@uniwork/ui/lib/tint-from-color";
 import {
   AssigneePicker,
+  LabelPicker,
   PriorityPicker,
   StatusPicker,
+  labelChipClass,
+  useTaskLabelToggle,
   type AssigneeOption,
   type AssigneeRef,
 } from "../../pickers";
@@ -78,11 +77,9 @@ export function TaskDetailPropertiesSidebar({
   const catalog = propertiesQuery.data?.properties ?? [];
   const labelsQuery = useTaskLabels(workspaceId);
   const onTaskLabels = useLabelsOnTask(task.id);
-  const attachLabel = useAttachTaskLabel(workspaceId, task.id);
-  const detachLabel = useDetachTaskLabel(workspaceId, task.id);
+  const labelToggle = useTaskLabelToggle(workspaceId, task.id);
   const parentId = task.parent_task_id ?? null;
   const { data: parentTask } = useTask(parentId ?? "");
-  const [labelId, setLabelId] = useState("");
 
   const projectsCap = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
@@ -95,9 +92,13 @@ export function TaskDetailPropertiesSidebar({
   const surfaceNotReady = t("capabilities.surface_not_ready");
   const catalogEmpty = !propertiesQuery.isLoading && catalog.length === 0;
 
-  const attachedIds = useMemo(
-    () => new Set((onTaskLabels.data?.labels ?? []).map((l) => l.id)),
+  const attachedLabels = useMemo(
+    () => onTaskLabels.data?.labels ?? [],
     [onTaskLabels.data?.labels],
+  );
+  const attachedIds = useMemo(
+    () => new Set(attachedLabels.map((l) => l.id)),
+    [attachedLabels],
   );
 
   // Only the sidebar offers agents as assignees today (ADR 0007 pair: id +
@@ -275,48 +276,46 @@ export function TaskDetailPropertiesSidebar({
 
         <PropRow label={<Label>{t("tasks.detail.prop_labels")}</Label>}>
           <div className="space-y-1.5">
-            <ul className="flex flex-wrap gap-1">
-              {(onTaskLabels.data?.labels ?? []).map((l) => (
-                <li key={l.id}>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className={cn("h-7 px-2 text-caption hover:opacity-80", tintClass[tintFromColor(l.color)])}
-                    onClick={() => detachLabel.mutate(l.id)}
+            {attachedLabels.length > 0 ? (
+              <ul className="flex flex-wrap gap-1">
+                {attachedLabels.map((l) => (
+                  <li
+                    key={l.id}
+                    className={cn(
+                      "inline-flex h-7 items-center gap-0.5 rounded-md pr-0.5 pl-2 text-caption",
+                      labelChipClass(l.color),
+                    )}
                   >
-                    {l.name}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            <div className="flex gap-1">
-              <Select
-                aria-label={t("tasks.detail.prop_labels")}
-                items={[
-                  { value: "", label: t("tasks.detail.add_label") },
-                  ...(labelsQuery.data?.labels ?? [])
-                    .filter((l) => !attachedIds.has(l.id))
-                    .map((l) => ({ value: l.id, label: l.name })),
-                ]}
-                value={labelId}
-                onValueChange={(v) => setLabelId(v ?? "")}
-              />
-              <Button
-                type="button"
-                size="sm"
-                disabled={!labelId || attachLabel.isPending}
-                onClick={() => {
-                  if (!labelId) return;
-                  attachLabel.mutate(labelId, {
-                    onSuccess: () => setLabelId(""),
-                    onError: (err) => toastApiError(err, t("common.error")),
-                  });
-                }}
-              >
-                {t("tasks.detail.attach_label")}
-              </Button>
-            </div>
+                    <span className="max-w-32 truncate">{l.name}</span>
+                    {/* Removal is an explicit × with its own name, not a click
+                        on the chip: a screen reader announced the old chip as
+                        just "Bug, button" with nothing saying it would detach. */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-current hover:bg-foreground/10"
+                      aria-label={t("tasks.detail.remove_label", { name: l.name })}
+                      aria-disabled={labelToggle.pendingIds.has(l.id) || undefined}
+                      onClick={() => labelToggle.toggle(l.id, false)}
+                    >
+                      <X aria-hidden />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <LabelPicker
+              labels={labelsQuery.data?.labels ?? []}
+              selectedIds={attachedIds}
+              pendingIds={labelToggle.pendingIds}
+              onToggle={labelToggle.toggle}
+              ariaLabel={t("tasks.detail.add_label")}
+              emptyLabel={t("tasks.table.labels_empty")}
+              triggerClassName="h-8 w-full justify-start px-2 text-muted-foreground"
+            >
+              {t("tasks.detail.add_label")}
+            </LabelPicker>
           </div>
         </PropRow>
 
