@@ -90,7 +90,7 @@ describe("AssigneePicker", () => {
           unassignedLabel="Chưa giao"
           searchPlaceholder="Tìm thành viên"
           noResultsLabel="Không tìm thấy"
-          onTriggerPointerDown={stopRowNavigation}
+          onTriggerNavigationGuard={stopRowNavigation}
         >
           Chưa giao
         </AssigneePicker>

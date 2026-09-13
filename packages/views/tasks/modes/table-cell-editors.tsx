@@ -71,7 +71,7 @@ export function TableStatusCell({
       value={value}
       onChange={onChange}
       ariaLabel={t("tasks.status")}
-      onTriggerPointerDown={stopRowNavigation}
+      onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
       icon={(status) => (
         <span
@@ -108,7 +108,7 @@ export function TablePriorityCell({
       value={value}
       onChange={onChange}
       ariaLabel={t("tasks.priority")}
-      onTriggerPointerDown={stopRowNavigation}
+      onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
       icon={(priority) => (
         <Flag className={cn("size-3.5", PRIORITY_COLOR[priority])} aria-hidden />
@@ -172,7 +172,7 @@ export function TableAssigneeCell({
       unassignedLabel={t("tasks.unassigned")}
       searchPlaceholder={t("tasks.assignee_search_placeholder")}
       noResultsLabel={t("tasks.assignee_no_results")}
-      onTriggerPointerDown={stopRowNavigation}
+      onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
     >
       {selected ? (

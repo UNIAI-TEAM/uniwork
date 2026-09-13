@@ -19,9 +19,9 @@ export type EnumOption = { value: string; label: string; icon?: ReactNode };
  * itself closes on selection (Base UI's Menu.Root default) so no call site
  * needs to manage `open` state.
  *
- * `onTriggerPointerDown` exists so a table cell can stop a row-level
- * navigation handler before it fires. It is wired to more than its name
- * says, on purpose, because the row-nav bug has two independent paths:
+ * `onTriggerNavigationGuard` exists so a table cell can stop a row-level
+ * navigation handler before it fires. It is named for the job, not the
+ * mechanism, because that job needs two independent paths covered:
  *  - `DropdownMenuContent` already stops left-click (`onClick`) from
  *    bubbling out of the portalled menu, but NOT aux-click (middle click),
  *    so a middle-click on an open menu ITEM can still reach a row handler
@@ -40,11 +40,8 @@ export type EnumOption = { value: string; label: string; icon?: ReactNode };
  * Losing any one of these makes clicking (or middle-clicking) a cell
  * picker navigate to the row instead of just opening/using the menu.
  *
- * This is now four event/element combinations under one callback name that
- * only mentions one of them ("pointer down"). That is a real naming smell,
- * flagged for whoever routes the next change here rather than fixed by
- * renaming quietly: see the slice-C task-2 report for the concrete rename
- * suggestion and why it wasn't done in the same change as this fix.
+ * One callback, four event/element combinations. Do not narrow it back down
+ * to a single event: each one was added for a reproduced navigation escape.
  */
 export function EnumFieldPicker({
   value,
@@ -52,7 +49,7 @@ export function EnumFieldPicker({
   onChange,
   disabled,
   ariaLabel,
-  onTriggerPointerDown,
+  onTriggerNavigationGuard,
   triggerClassName,
   align = "start",
   children,
@@ -62,7 +59,7 @@ export function EnumFieldPicker({
   onChange: (value: string) => void;
   disabled?: boolean;
   ariaLabel: string;
-  onTriggerPointerDown?: (event: SyntheticEvent) => void;
+  onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   /** Additive: lets a call site match its own layout (table cell density,
    * sidebar row width, ...) without every consumer sharing one trigger size. */
   triggerClassName?: string;
@@ -75,9 +72,9 @@ export function EnumFieldPicker({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        onPointerDown={onTriggerPointerDown}
-        onClick={onTriggerPointerDown}
-        onAuxClick={onTriggerPointerDown}
+        onPointerDown={onTriggerNavigationGuard}
+        onClick={onTriggerNavigationGuard}
+        onAuxClick={onTriggerNavigationGuard}
         render={
           <Button
             type="button"
@@ -91,7 +88,7 @@ export function EnumFieldPicker({
       >
         {children}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} onAuxClick={onTriggerPointerDown}>
+      <DropdownMenuContent align={align} onAuxClick={onTriggerNavigationGuard}>
         <DropdownMenuRadioGroup
           value={value ?? undefined}
           onValueChange={(next) => {

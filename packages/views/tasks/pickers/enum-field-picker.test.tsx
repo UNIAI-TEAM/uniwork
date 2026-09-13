@@ -35,20 +35,20 @@ describe("EnumFieldPicker", () => {
   });
 
   it("chuyển tiếp sự kiện con trỏ trên trigger cho nơi gọi", () => {
-    const onTriggerPointerDown = vi.fn();
+    const onTriggerNavigationGuard = vi.fn();
     render(
       <EnumFieldPicker
         value="todo"
         options={options}
         onChange={vi.fn()}
         ariaLabel="Trạng thái"
-        onTriggerPointerDown={onTriggerPointerDown}
+        onTriggerNavigationGuard={onTriggerNavigationGuard}
       >
         Trạng thái
       </EnumFieldPicker>,
     );
     fireEvent.pointerDown(screen.getByRole("button", { name: "Trạng thái" }));
-    expect(onTriggerPointerDown).toHaveBeenCalled();
+    expect(onTriggerNavigationGuard).toHaveBeenCalled();
   });
 
   it("không để click mở trigger lọt tới bộ xử lý click của hàng bảng", () => {
@@ -75,7 +75,7 @@ describe("EnumFieldPicker", () => {
           options={options}
           onChange={vi.fn()}
           ariaLabel="Trạng thái"
-          onTriggerPointerDown={stopRowNavigation}
+          onTriggerNavigationGuard={stopRowNavigation}
         >
           Trạng thái
         </EnumFieldPicker>
@@ -89,14 +89,14 @@ describe("EnumFieldPicker", () => {
     // Regression for the row-navigation bug: DataTable's row handler reacts
     // to onAuxClick (middle-click), and DropdownMenuContent only stops
     // onClick from bubbling out of the portalled menu — not onAuxClick.
-    // Without forwarding onTriggerPointerDown to the content's onAuxClick
+    // Without forwarding onTriggerNavigationGuard to the content's onAuxClick
     // too, a middle-click on an open menu item still reaches this row
     // handler and would navigate.
     const onRowAuxClick = vi.fn();
     // Mirrors the real `stopRowNavigation` callback (table-cell-editors.tsx),
     // which actually calls stopPropagation — a bare `vi.fn()` spy wouldn't,
     // so it wouldn't exercise the bug this test guards against.
-    const onTriggerPointerDown = vi.fn((event: { stopPropagation: () => void }) =>
+    const onTriggerNavigationGuard = vi.fn((event: { stopPropagation: () => void }) =>
       event.stopPropagation(),
     );
     render(
@@ -106,7 +106,7 @@ describe("EnumFieldPicker", () => {
           options={options}
           onChange={vi.fn()}
           ariaLabel="Trạng thái"
-          onTriggerPointerDown={onTriggerPointerDown}
+          onTriggerNavigationGuard={onTriggerNavigationGuard}
         >
           Trạng thái
         </EnumFieldPicker>

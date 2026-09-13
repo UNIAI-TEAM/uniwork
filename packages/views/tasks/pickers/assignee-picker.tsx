@@ -92,16 +92,15 @@ function AssigneeRow({ entry }: { entry: AssigneeEntry }) {
  * agents. Widening this component to *offer* agents everywhere is not this
  * task's call to make (see the assignee-picker report).
  *
- * `onTriggerPointerDown` mirrors `EnumFieldPicker`'s stop-row-navigation
+ * `onTriggerNavigationGuard` mirrors `EnumFieldPicker`'s stop-row-navigation
  * forwarding: the trigger's `onPointerDown`/`onClick`/`onAuxClick`, and the
  * popup's `onAuxClick`. `onClick` is required alongside `onPointerDown`
  * because they are separate events — `stopPropagation` on one does not stop
  * the other — and nothing else here calls `preventDefault()` on a plain
  * click, so a row's `onClick` handler (DataTable's checks
- * `e.defaultPrevented`) would otherwise still fire. Same naming smell as
- * `EnumFieldPicker`: this prop now covers four event/element combinations
- * under a name that only describes one of them. See the slice-C task-2
- * report for the rename left to the next task rather than done here.
+ * `e.defaultPrevented`) would otherwise still fire. Like `EnumFieldPicker`'s,
+ * this prop is named for the job it does rather than any one of the four
+ * event/element combinations it covers; do not narrow it back down.
  */
 export function AssigneePicker({
   value,
@@ -112,7 +111,7 @@ export function AssigneePicker({
   unassignedLabel,
   searchPlaceholder,
   noResultsLabel,
-  onTriggerPointerDown,
+  onTriggerNavigationGuard,
   triggerClassName,
   align = "start",
   children,
@@ -125,7 +124,7 @@ export function AssigneePicker({
   unassignedLabel: string;
   searchPlaceholder: string;
   noResultsLabel: string;
-  onTriggerPointerDown?: (event: SyntheticEvent) => void;
+  onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
   align?: "start" | "center" | "end";
   children: ReactNode;
@@ -173,9 +172,9 @@ export function AssigneePicker({
       }}
     >
       <ComboboxTrigger
-        onPointerDown={onTriggerPointerDown}
-        onClick={onTriggerPointerDown}
-        onAuxClick={onTriggerPointerDown}
+        onPointerDown={onTriggerNavigationGuard}
+        onClick={onTriggerNavigationGuard}
+        onAuxClick={onTriggerNavigationGuard}
         render={
           <Button
             type="button"
@@ -189,7 +188,7 @@ export function AssigneePicker({
       >
         {children}
       </ComboboxTrigger>
-      <ComboboxContent align={align} onAuxClick={onTriggerPointerDown} className="w-64">
+      <ComboboxContent align={align} onAuxClick={onTriggerNavigationGuard} className="w-64">
         {showSearch ? (
           <ComboboxInput
             placeholder={searchPlaceholder}
