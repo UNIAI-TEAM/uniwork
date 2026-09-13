@@ -22,6 +22,8 @@ import { PriorityFlag } from "./status-pill";
 import {
   RowActionsContextMenu,
   RowActionsDropdown,
+  RowDeleteDialog,
+  useRowActionModel,
 } from "../row-actions-menu";
 
 export interface BoardCardMeta {
@@ -185,11 +187,11 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
   const handleOpen = useCallback(() => {
     onOpen?.(task.id);
   }, [onOpen, task.id]);
+  const rowActions = useRowActionModel(task, onOpen);
 
   return (
     <RowActionsContextMenu
-      task={task}
-      onOpenTask={onOpen}
+      model={rowActions}
       ref={setNodeRef}
       style={style}
       data-board-card=""
@@ -211,12 +213,12 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
       </div>
       {isDragging ? null : (
         <RowActionsDropdown
-          task={task}
-          onOpenTask={onOpen}
+          model={rowActions}
           className="absolute top-1.5 right-1.5"
           triggerClassName="bg-surface group-hover/card:opacity-100 group-focus-within/card:opacity-100"
         />
       )}
+      <RowDeleteDialog model={rowActions} />
     </RowActionsContextMenu>
   );
 });

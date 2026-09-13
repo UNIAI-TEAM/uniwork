@@ -19,6 +19,8 @@ import { useTaskSurfaceSelectionOptional } from "../surface/selection-context";
 import {
   RowActionsContextMenu,
   RowActionsDropdown,
+  RowDeleteDialog,
+  useRowActionModel,
 } from "../row-actions-menu";
 
 function actorInitial(name: string): string {
@@ -60,11 +62,11 @@ function TaskListRowContent({
   const progress = cardProperties.childProgress
     ? meta?.childProgress
     : undefined;
+  const rowActions = useRowActionModel(task, onOpenTask);
 
   return (
     <RowActionsContextMenu
-      task={task}
-      onOpenTask={onOpenTask}
+      model={rowActions}
       ref={containerRef}
       style={containerStyle}
       data-task-list-row=""
@@ -161,10 +163,10 @@ function TaskListRowContent({
         </button>
       </div>
       <RowActionsDropdown
-        task={task}
-        onOpenTask={onOpenTask}
+        model={rowActions}
         triggerClassName="group-hover/row:opacity-100 group-focus-within/row:opacity-100"
       />
+      <RowDeleteDialog model={rowActions} />
     </RowActionsContextMenu>
   );
 }

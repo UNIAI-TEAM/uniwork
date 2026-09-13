@@ -48,7 +48,13 @@ import {
 } from "./row-actions-items";
 import { useTaskSurfaceActionsOptional } from "./surface/actions-context";
 
-function useRowActionModel(
+/**
+ * One model per row. The context menu, the "more" dropdown and the delete
+ * dialog all read the same instance, so there is one in-flight delete guard
+ * per row: a delete confirmed from one entry point blocks a second confirm
+ * from the other while the first request is still pending.
+ */
+export function useRowActionModel(
   task: Task,
   onOpenTask?: (id: string) => void,
 ): RowActionModel {
@@ -57,6 +63,15 @@ function useRowActionModel(
   const workspaceContext = useOptionalWorkspace();
   const navigation = useOptionalNavigation();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Keeps the dialog mounted through its close transition; cleared by
+  // `deleteDialogClosed` once Base UI reports the close finished.
+  const [deleteDialogClosing, setDeleteDialogClosing] = useState(false);
+  const deleteOpenRef = useRef(false);
+  const changeDeleteOpen = (next: boolean) => {
+    if (deleteOpenRef.current && !next) setDeleteDialogClosing(true);
+    deleteOpenRef.current = next;
+    setDeleteOpen(next);
+  };
 
   const open = onOpenTask ? () => onOpenTask(task.id) : undefined;
 
@@ -102,7 +117,7 @@ function useRowActionModel(
       .finally(() => {
         deletingRef.current = false;
         setDeleting(false);
-        setDeleteOpen(false);
+        changeDeleteOpen(false);
       });
   };
 
@@ -111,12 +126,14 @@ function useRowActionModel(
     open,
     copyLink,
     update,
-    requestDelete: actions ? () => setDeleteOpen(true) : undefined,
+    requestDelete: actions ? () => changeDeleteOpen(true) : undefined,
     hasAny: Boolean(open || copyLink || actions),
     deleteOpen,
-    setDeleteOpen,
+    setDeleteOpen: changeDeleteOpen,
     deleting,
     confirmDelete,
+    deleteDialogMounted: deleteOpen || deleting || deleteDialogClosing,
+    deleteDialogClosed: () => setDeleteDialogClosing(false),
   };
 }
 
@@ -152,11 +169,30 @@ function RowEventBoundary({
   );
 }
 
+/**
+ * The row's one delete dialog. Render it once per row, next to whichever
+ * entry points the row has. It mounts only while open, closing, or while a
+ * confirmed delete is in flight, so an idle row carries no dialog tree.
+ */
+export function RowDeleteDialog({ model }: { model: RowActionModel }) {
+  if (!model.requestDelete || !model.deleteDialogMounted) return null;
+  return (
+    <RowEventBoundary className="contents">
+      <DeleteTaskDialog model={model} />
+    </RowEventBoundary>
+  );
+}
+
 function DeleteTaskDialog({ model }: { model: RowActionModel }) {
   const { t } = useTranslation();
-  if (!model.requestDelete) return null;
   return (
-    <AlertDialog open={model.deleteOpen} onOpenChange={model.setDeleteOpen}>
+    <AlertDialog
+      open={model.deleteOpen}
+      onOpenChange={model.setDeleteOpen}
+      onOpenChangeComplete={(open) => {
+        if (!open) model.deleteDialogClosed();
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
@@ -188,27 +224,25 @@ function DeleteTaskDialog({ model }: { model: RowActionModel }) {
 type DataAttributes = { [key: `data-${string}`]: string | undefined };
 
 /**
- * Wraps a row or card so a right click opens the row actions. The wrapper is
+ * Wraps a row or card so a right click opens the row actions. Pass the row's
+ * `useRowActionModel` and render `RowDeleteDialog` once inside it. The wrapper is
  * the row's own outer element (it takes the ref and style a sortable needs);
  * put drag listeners on a child, not here, so the menu is never inside them.
  */
 export function RowActionsContextMenu({
-  task,
-  onOpenTask,
+  model,
   ref,
   style,
   className,
   children,
   ...dataAttributes
 }: {
-  task: Task;
-  onOpenTask?: (id: string) => void;
+  model: RowActionModel;
   ref?: Ref<HTMLDivElement>;
   style?: CSSProperties;
   className?: string;
   children: ReactNode;
 } & DataAttributes) {
-  const model = useRowActionModel(task, onOpenTask);
   if (!model.hasAny) {
     return (
       <div ref={ref} style={style} className={className} {...dataAttributes}>
@@ -229,7 +263,6 @@ export function RowActionsContextMenu({
           <ContextMenuContent className="min-w-48">
             <RowActionItems parts={CONTEXT_PARTS} model={model} />
           </ContextMenuContent>
-          <DeleteTaskDialog model={model} />
         </RowEventBoundary>
       </ContextMenuTrigger>
     </ContextMenu>
@@ -242,19 +275,16 @@ export function RowActionsContextMenu({
  * hidden, shows on hover or focus, and always shows on coarse pointers.
  */
 export function RowActionsDropdown({
-  task,
-  onOpenTask,
+  model,
   className,
   triggerClassName,
 }: {
-  task: Task;
-  onOpenTask?: (id: string) => void;
+  model: RowActionModel;
   className?: string;
   /** Hover/focus reveal classes bound to the host's group name. */
   triggerClassName?: string;
 }) {
   const { t } = useTranslation();
-  const model = useRowActionModel(task, onOpenTask);
   if (!model.hasAny) return null;
   return (
     <RowEventBoundary className={cn("flex shrink-0 items-center", className)}>
@@ -279,7 +309,6 @@ export function RowActionsDropdown({
           <RowActionItems parts={DROPDOWN_PARTS} model={model} />
         </DropdownMenuContent>
       </DropdownMenu>
-      <DeleteTaskDialog model={model} />
     </RowEventBoundary>
   );
 }

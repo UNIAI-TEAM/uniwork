@@ -14,7 +14,7 @@ import type {
   TableColumnKey,
   TableSystemColumnKey,
 } from "@uniwork/core/tasks/stores/view-store";
-import type { TaskLabel } from "@uniwork/core/types";
+import type { Task, TaskLabel } from "@uniwork/core/types";
 import { propertyIdFromViewKey } from "@uniwork/core/tasks/stores/view-store";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import {
@@ -38,7 +38,11 @@ import {
 } from "./table-cell-editors";
 import type { TaskTableDisplayRow } from "./table-view-model";
 import { TableColumnPicker } from "./table-column-picker";
-import { RowActionsDropdown } from "../row-actions-menu";
+import {
+  RowActionsDropdown,
+  RowDeleteDialog,
+  useRowActionModel,
+} from "../row-actions-menu";
 
 export type TableViewMeta = {
   visibleTaskIds: string[];
@@ -395,11 +399,9 @@ export function useTableColumnDefs(
       cell: ({ row, table }) => {
         if (row.original.kind !== "task") return null;
         return (
-          <RowActionsDropdown
+          <TableRowActions
             task={row.original.task}
             onOpenTask={getTableViewMeta(table).openTask}
-            className="-mx-4 justify-center"
-            triggerClassName="group-hover:opacity-100 group-focus-within:opacity-100"
           />
         );
       },
@@ -407,4 +409,25 @@ export function useTableColumnDefs(
 
     return [selectCol, ...dataCols, addColumn];
   }, [columnKeys]);
+}
+
+/** The table row's actions cell: one model, its dropdown and its one dialog. */
+function TableRowActions({
+  task,
+  onOpenTask,
+}: {
+  task: Task;
+  onOpenTask?: (id: string) => void;
+}) {
+  const rowActions = useRowActionModel(task, onOpenTask);
+  return (
+    <>
+      <RowActionsDropdown
+        model={rowActions}
+        className="-mx-4 justify-center"
+        triggerClassName="group-hover:opacity-100 group-focus-within:opacity-100"
+      />
+      <RowDeleteDialog model={rowActions} />
+    </>
+  );
 }

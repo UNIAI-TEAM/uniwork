@@ -23,6 +23,23 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 vi.mock("@uniwork/ui/lib/clipboard", () => ({ copyText: vi.fn() }));
+// Counts mounted AlertDialog roots. A closed Base UI dialog renders no DOM,
+// so markup alone cannot show whether a row keeps idle dialogs mounted.
+const alertDialogs = vi.hoisted(() => ({ mounted: 0 }));
+vi.mock("@uniwork/ui/components/ui/alert-dialog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/ui/components/ui/alert-dialog")>();
+  const { useEffect } = await import("react");
+  function CountedAlertDialog(props: React.ComponentProps<typeof actual.AlertDialog>) {
+    useEffect(() => {
+      alertDialogs.mounted += 1;
+      return () => {
+        alertDialogs.mounted -= 1;
+      };
+    }, []);
+    return <actual.AlertDialog {...props} />;
+  }
+  return { ...actual, AlertDialog: CountedAlertDialog };
+});
 vi.mock("@uniwork/core/feature-flags", () => ({
   usePublicConfig: () => ({ data: undefined }),
 }));
@@ -429,6 +446,55 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(actions.batchDelete).toHaveBeenCalledTimes(1);
   });
+
+  it("xóa qua menu chuột phải, Escape, rồi xóa lại qua nút ba chấm khi request đầu còn treo chỉ gọi batchDelete một lần", async () => {
+    const actions = makeActions();
+    let resolveDelete!: () => void;
+    actions.batchDelete.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveDelete = resolve; }),
+    );
+    renderSurface({ actions });
+
+    const contextMenu = await openContextMenu();
+    await chooseItem(contextMenu, "Xóa", "mouse");
+    const first = await screen.findByRole("alertdialog");
+    fireEvent.click(within(first).getByRole("button", { name: "Xóa task" }));
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+
+    // Escape stays live while deleting, so the user can leave the dialog.
+    fireEvent.keyDown(first, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+
+    const dropdown = await openKebab();
+    await chooseItem(dropdown, "Xóa", "mouse");
+    const second = await screen.findByRole("alertdialog");
+    fireEvent.click(within(second).getByRole("button", { name: "Xóa task" }));
+
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+    await act(async () => resolveDelete());
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+    // Once the request settles and the dialog has closed, the row drops it.
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    await waitFor(() => expect(alertDialogs.mounted).toBe(0));
+  });
+
+  it("hàng chưa mở hộp thoại xóa không render markup AlertDialog", () => {
+    renderSurface();
+    expect(document.querySelector("[role='alertdialog']")).toBeNull();
+    expect(document.querySelector("[data-slot^='alert-dialog']")).toBeNull();
+  });
+
+  it.each<Mode>(["list", "board"])(
+    "%s: hàng không mount AlertDialog khi rảnh, và đúng một khi mở xóa",
+    async (mode) => {
+      renderSurface({ mode });
+      expect(alertDialogs.mounted).toBe(0);
+      const menu = await openKebab();
+      await chooseItem(menu, "Xóa", "mouse");
+      await screen.findByRole("alertdialog");
+      expect(alertDialogs.mounted).toBe(1);
+    },
+  );
 
   it("báo lỗi khi xóa thất bại", async () => {
     const actions = makeActions();

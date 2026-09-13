@@ -97,6 +97,10 @@ export type RowActionModel = {
   /** True while a confirmed delete is in flight; the confirm action ignores clicks. */
   deleting: boolean;
   confirmDelete: () => void;
+  /** Open, closing, or deleting: the only times the row mounts its dialog. */
+  deleteDialogMounted: boolean;
+  /** Called when the dialog's close transition has finished. */
+  deleteDialogClosed: () => void;
 };
 
 function StatusRadioItems({
