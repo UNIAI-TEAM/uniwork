@@ -23,13 +23,22 @@ const SCOPES = {
 
 const quoted = (list) => [...(list ?? "").matchAll(/"([^"]+)"/g)].map((p) => p[1]);
 
+/**
+ * `server/internal/outbox/catalogue.go` with its comments removed, so every
+ * reader of the Go table sees what the compiler sees: a commented-out row is
+ * gone and a comment quoting a row is not one. One left-to-right pass, so the
+ * comment that opens first wins, as in Go. The file has no string literal
+ * holding `//` or `/*` (topics and keys are identifiers); if one is added, the
+ * cut takes part of a real row and the Go-vs-Markdown test fails, not passes.
+ */
+const goSource = () => read("server/internal/outbox/catalogue.go").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+
 /** Rows of `server/internal/outbox/catalogue.go`, the machine source of truth. */
 function goCatalogue() {
-  const src = read("server/internal/outbox/catalogue.go");
   const rowPattern =
     /\{Topic: "([^"]+)", Version: (\d+), Payload: \[\]string\{([^}]*)\}(?:, Patch: \[\]string\{([^}]*)\})?, Scope: Scope(\w+), Delivery: Delivery(\w+)\},/g;
   const rows = [];
-  for (const m of src.matchAll(rowPattern)) {
+  for (const m of goSource().matchAll(rowPattern)) {
     const [, topic, version, payload, patch, scope, delivery] = m;
     rows.push({
       topic,
@@ -81,13 +90,14 @@ test("the Go catalogue and the documented table agree", () => {
 test("every catalogue row has the one-line shape this file parses", () => {
   // goCatalogue() reads rows with a one-line regex, so a row in any other shape
   // (fields reordered, gofmt's multi-line form) would be invisible to every rule
-  // in this file. Each row has exactly one Topic key: count them outside
-  // comments, so neither a comment quoting a row nor a commented-out row that
-  // the regex still matches can balance a row the parser missed.
-  const code = read("server/internal/outbox/catalogue.go").replace(/\/\/.*$/gm, "");
+  // in this file. Each row has exactly one Topic key: count them in the same
+  // comment-free source goCatalogue() parses, so a comment can neither add a row
+  // to one side of this count nor hide one from the other, and so cannot
+  // balance a row the parser missed. A row commented out is gone from both, and
+  // the Go-vs-Markdown test reports it.
   assert.equal(
     goCatalogue().length,
-    (code.match(/\bTopic:/g) ?? []).length,
+    (goSource().match(/\bTopic:/g) ?? []).length,
     "a row in server/internal/outbox/catalogue.go is not in the one-line shape goCatalogue() parses",
   );
 });
@@ -120,10 +130,10 @@ test("payload keys are ids or revisions; content travels only through Patch", ()
   // A payload key that is not an id is content, and content in an event is a
   // field somebody may not be allowed to see. ADR 0015 lets exactly one row
   // carry content, and only the fields it names in Patch: task.updated, whose
-  // readers are every member of the workspace it fans out to. Patch is checked
-  // before the infrastructure exemption below, so no row — scoped or not — can
-  // open a second content channel without failing here. The revision pair
-  // exists only to guard a patch, so a row without Patch may not carry it.
+  // readers are every member of the workspace it fans out to. The revision pair
+  // exists only to guard a patch. Both rules are checked before the
+  // infrastructure exemption below, so no row — scoped or not — can open a
+  // second content channel or carry a revision key without Patch.
   for (const { topic, payload, patch, scope } of goCatalogue()) {
     if (patch.length > 0) {
       assert.equal(topic, "task.updated", `${topic} declares Patch; only task.updated may (ADR 0015)`);
@@ -132,17 +142,17 @@ test("payload keys are ids or revisions; content travels only through Patch", ()
         `${topic} declares Patch without revision_before and revision`,
       );
     }
+    for (const key of payload.filter((k) => REVISION_KEYS.has(k))) {
+      assert.ok(
+        patch.length > 0,
+        `${topic} carries payload key "${key}" without Patch; the revision pair only guards a patch (ADR 0015)`,
+      );
+    }
     // Infrastructure topics are exempt from the id rule: provider.* addresses a
     // conference room by the provider's own name for it, which is not our id.
     if (scope === "-") continue;
     for (const key of payload) {
-      if (REVISION_KEYS.has(key)) {
-        assert.ok(
-          patch.length > 0,
-          `${topic} carries payload key "${key}" without Patch; the revision pair only guards a patch (ADR 0015)`,
-        );
-        continue;
-      }
+      if (REVISION_KEYS.has(key)) continue;
       assert.match(key, /(_id|^version$)$/, `${topic} carries payload key "${key}"; payloads are ids (ADR 0015)`);
     }
   }
