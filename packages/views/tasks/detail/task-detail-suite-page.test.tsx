@@ -110,8 +110,13 @@ describe("TaskDetailSuitePage", () => {
   it("does not submit on primary+Enter in the description editor", async () => {
     configureShortcutPlatform("windows");
     useShortcutStore.getState().resetAll();
+    const writes = () =>
+      requestMock.mock.calls.filter(([, opts]) => {
+        const method = (opts as { method?: string } | undefined)?.method;
+        return method !== undefined && method !== "GET";
+      });
     try {
-      const { container } = render(
+      const { container, unmount } = render(
         shell(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />),
       );
       const surface = await waitFor(() => {
@@ -131,11 +136,19 @@ describe("TaskDetailSuitePage", () => {
         surface.querySelector("br:not(.ProseMirror-trailingBreak)"),
       ).not.toBeNull();
       expect(surface.textContent).toBe("TipTap title and body");
-      const writes = requestMock.mock.calls.filter(([, opts]) => {
-        const method = (opts as { method?: string } | undefined)?.method;
-        return method !== undefined && method !== "GET";
-      });
-      expect(writes).toEqual([]);
+      expect(writes()).toEqual([]);
+
+      // The break is an edit, so it armed the description's 1500ms autosave,
+      // and this test used to end with that timer pending. Unmount here rather
+      // than in the shared cleanup: unmounting clears the timer and flushes
+      // what it held (`flushPendingOnUnmount`), and the settle lets any save
+      // that flush starts reach the transport. The break sits at the start of
+      // the paragraph and serializes to the same markdown, so there is nothing
+      // to save; were there, it would fail here instead of landing as a stray
+      // request inside a later test.
+      unmount();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(writes()).toEqual([]);
     } finally {
       configureShortcutPlatform(null);
     }
