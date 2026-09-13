@@ -11,11 +11,22 @@ export const taskKeys = {
   comments: (taskId: string) => ["comments", taskId] as const,
   queryRoot: (wsId: string) => ["tasks-query", wsId] as const,
   query: (wsId: string, filterHash: string) => ["tasks-query", wsId, filterHash] as const,
+  /**
+   * Infinite variant under `queryRoot`. The "infinite" segment keeps it off the
+   * plain `query` entry for the same hash: an infinite query caches
+   * `{ pages, pageParams }`, a plain one a single page, and one shared entry
+   * would hand both hooks the wrong shape.
+   */
+  queryInfinite: (wsId: string, filterHash: string) =>
+    ["tasks-query", wsId, "infinite", filterHash] as const,
   groupedRoot: (wsId: string) => ["tasks-grouped", wsId] as const,
   grouped: (wsId: string, filterHash: string) => ["tasks-grouped", wsId, filterHash] as const,
   /** 2-segment root — invalidate all my-tasks variants for the workspace. */
   myTasks: (wsId: string) => ["my-tasks", wsId] as const,
   myTasksFiltered: (wsId: string, filterHash: string) => ["my-tasks", wsId, filterHash] as const,
+  /** Infinite variant under `myTasks`; separate segment for the same reason as `queryInfinite`. */
+  myTasksInfinite: (wsId: string, filterHash: string) =>
+    ["my-tasks", wsId, "infinite", filterHash] as const,
   children: (taskId: string) => ["task-children", taskId] as const,
   childrenByParents: (wsId: string, parentHash: string) =>
     ["task-children-by-parents", wsId, parentHash] as const,

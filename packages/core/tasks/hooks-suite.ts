@@ -1,8 +1,10 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as suite from "../api/endpoints/tasks-suite";
 import * as table from "../api/endpoints/tasks-table";
+import type { TaskQueryPage } from "../types/task";
 import { taskKeys } from "./keys";
+import type { MyTasksRelation } from "./surface/scope";
 
 function stableHash(value: unknown): string {
   return JSON.stringify(value ?? null);
@@ -41,6 +43,44 @@ export function useMyTasks(
   return useQuery({
     queryKey: taskKeys.myTasksFiltered(workspaceId, hash),
     queryFn: () => suite.listMyTasks(workspaceId, opts),
+    enabled: !!workspaceId,
+  });
+}
+
+/** Page size sent explicitly by the infinite task queries (server default 50, cap 200). */
+export const TASK_PAGE_SIZE = 50;
+
+function nextOffset(page: TaskQueryPage, pages: TaskQueryPage[]): number | undefined {
+  // A short page means the server has nothing more, whatever `total` claims.
+  // Without this a drifted count would re-request the same offset forever.
+  if (page.tasks.length < TASK_PAGE_SIZE) return undefined;
+  const loaded = pages.reduce((sum, p) => sum + p.tasks.length, 0);
+  return loaded < page.total ? loaded : undefined;
+}
+
+export function useInfiniteQueryTasks(
+  workspaceId: string,
+  body: { status?: string; project_id?: string },
+) {
+  const hash = stableHash(body);
+  return useInfiniteQuery({
+    queryKey: taskKeys.queryInfinite(workspaceId, hash),
+    queryFn: ({ pageParam }) =>
+      suite.queryTasks(workspaceId, { ...body, limit: TASK_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => nextOffset(last, pages),
+    enabled: !!workspaceId,
+  });
+}
+
+export function useInfiniteMyTasks(workspaceId: string, opts: { relation?: MyTasksRelation }) {
+  const hash = stableHash(opts);
+  return useInfiniteQuery({
+    queryKey: taskKeys.myTasksInfinite(workspaceId, hash),
+    queryFn: ({ pageParam }) =>
+      suite.listMyTasks(workspaceId, { ...opts, limit: TASK_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => nextOffset(last, pages),
     enabled: !!workspaceId,
   });
 }
