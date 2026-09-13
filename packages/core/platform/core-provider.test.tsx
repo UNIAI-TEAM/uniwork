@@ -11,6 +11,7 @@ import * as auth from "../api/endpoints/auth";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
 import { useCommentDraftStore } from "../tasks/stores/comment-draft-store";
 import { CoreProvider } from "./core-provider";
+import { defaultStorage } from "./storage";
 
 describe("CoreProvider", () => {
   beforeEach(() => {
@@ -61,5 +62,26 @@ describe("CoreProvider", () => {
 
     expect(useCommentDraftStore.getState().drafts).toEqual({});
     expect(useCommentDraftStore.getState().draftFor("task-1")).toBe("");
+  });
+
+  it("removes registered global draft keys from storage on logout, not only from memory", async () => {
+    // Memory alone is half the leak: the persisted key survives logout, so the
+    // next user on the same browser reloads the page, zustand rehydrates it
+    // and the previous user's unsent comment is back. Same real seam as above.
+    render(
+      <CoreProvider>
+        <div>app</div>
+      </CoreProvider>,
+    );
+
+    useCommentDraftStore.getState().setDraft("task-1", "user A's unsent text");
+    expect(defaultStorage.getItem("uniwork_task_comment_drafts")).toContain("user A's unsent text");
+
+    await useAuthStore.getState().logout();
+
+    expect(useCommentDraftStore.getState().drafts).toEqual({});
+    // Null, not an empty persisted state: resetting memory writes through
+    // `persist`, so storage must be cleared after the reset, not before it.
+    expect(defaultStorage.getItem("uniwork_task_comment_drafts")).toBeNull();
   });
 });

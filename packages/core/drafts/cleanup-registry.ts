@@ -63,6 +63,22 @@ export function clearRegisteredWorkspaceDrafts(
 }
 
 /**
+ * Remove the persisted storage of every registered store whose key is global
+ * (`workspaceScoped: false`). Called on logout, where no slug is at hand.
+ *
+ * Workspace-scoped keys are deliberately skipped: their real key is
+ * `${storageKey}:${slug}` and there is no slug here to build it from.
+ *
+ * Call it AFTER `resetRegisteredDraftsInMemory`: a reset goes through zustand
+ * `persist`, which writes the emptied state straight back under the same key.
+ */
+export function clearRegisteredGlobalDrafts(adapter: StorageAdapter): void {
+  for (const entry of entries.values()) {
+    if (!entry.workspaceScoped) adapter.removeItem(entry.storageKey);
+  }
+}
+
+/**
  * Reset all registered draft stores' in-memory state. Called on logout, so no
  * draft survives into the next login on the same tab.
  *
