@@ -1,6 +1,6 @@
 # UniWork — Task human-parity với USF (spec ô)
 
-> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`); lát C shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-c.md`)
+> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`); lát C shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-c.md`); lát D1 shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-d1.md`)
 
 **Ngày:** 2026-09-12
 **Issue:** (tạo khi `writing-plans` — 1 issue ô + 5 sub-issue)
@@ -102,6 +102,14 @@ cần làm để đóng nằm ở §7quater.
 - Tìm trong trang cho task detail.
 - Store: task xem gần đây, ghi nhớ gấp mở sub-task và luồng đã giải quyết.
 - Cuộn vô hạn cho list và board, ngang mức bảng đang có.
+
+Lát D được tách thành hai lát khi viết plan. D1 (bàn phím và tiện nghi: ba gạch
+đầu dòng đầu) đã ship, giới hạn nằm ở §7quinquies. D2 (cuộn tải thêm cho list,
+board và My Tasks) có plan riêng `../plans/2026-09-13-tasks-human-parity-slice-d2.md`.
+Lý do tách: list, board và My Tasks đang cắt câm ở 50 task, tức là task biến
+khỏi tay người dùng mà giao diện không nói gì. Đó là lỗi đúng đắn, không phải
+tiện nghi, và việc sửa chạm `use-task-surface-controller.ts` cùng cache lạc
+quan ở `packages/core/tasks/hooks.ts`, hai file D1 không chạm.
 
 **Lát E — ADR vá cache realtime.** Tách được, hoãn được.
 
@@ -376,6 +384,188 @@ sau, và cần gì để đóng.
     có 11 module import, sửa nó là thay đổi chung cho mọi màn hình đó chứ không
     phải của lát C. Để đóng: `DateField` nhận `aria-disabled` và tự chặn mở
     popover, kèm test ở `common/`.
+
+## 7quinquies. Giới hạn đã biết của lát D1
+
+Lát D1 thay các listener phím rời bằng một bộ điều phối toàn cục trong shell
+workspace (`packages/views/layout/global-shortcuts.tsx`), đọc chord từ store
+phím tắt ở `packages/core/shortcuts/`. Lát thêm tab đổi phím tắt trong Settings,
+khai báo phím gửi cho composer bình luận và trả lời, thêm tìm trong trang chi
+tiết task (⌘F), thêm nhóm task xem gần đây trong palette ⌘K, và ghi nhớ luồng đã
+giải quyết đang mở cùng sub-task đang gấp. Lát còn sửa một rò rỉ nội dung giữa
+người dùng mà lát B đưa vào: nháp bình luận nay bị xoá khỏi bộ nhớ và storage
+khi đăng xuất (6d6b36f), và mọi lần ghi vào store nháp hay store xem gần đây bị
+từ chối khi không còn phiên (9176654). Các điểm dưới đây còn đúng ở mã khi lát
+D1 merge. Mỗi điểm nói rõ đó là quyết định có chủ đích hay khoảng trống, và cần
+gì để đóng.
+
+1. **Điều hướng luồng (`openThreadNav`) không có phím mặc định.** Quyết định có
+   chủ đích. Chưa kiểm được chord nào không bị trình duyệt hay hệ điều hành giữ
+   trên mọi nền tảng, nên `packages/core/shortcuts/definitions.ts` khai báo
+   `defaultShortcut: null`; người dùng tự gán trong tab Phím tắt của Settings.
+   Để đóng: kiểm một chord trên macOS, Windows, Linux ở cả web lẫn desktop rồi
+   đặt làm mặc định.
+
+2. **Thu gọn sidebar không phải một action đổi phím được.** Quyết định có chủ
+   đích. Primitive `packages/ui/components/ui/sidebar.tsx` tự nghe ⌘/Ctrl+B trên
+   `window`, nên `toggleSidebar` không được khai báo; tab Settings hiện nó là
+   một dòng phím cố định. Để primitive và action không cùng chạy, core giữ chỗ
+   primary+B và cả Control+B trên macOS: không action nào gán được chord đó
+   (6bcadde). Để đóng: primitive nhận chord từ ngoài thay vì tự nghe, rồi khai
+   báo action.
+
+3. **Tìm trong trang chỉ khớp trong một nút chữ.** Quyết định có chủ đích, đánh
+   đổi của tìm nhẹ. `collectTextMatches` trong
+   `packages/views/tasks/detail/find/use-task-find.ts` so từng text node, nên
+   truy vấn vắt qua ranh giới phần tử (một cụm chữ đậm giữa câu, một link) không
+   được tìm thấy. Để đóng: nối chữ của một khối trước khi so, rồi ánh xạ vị trí
+   về từng nút.
+
+4. **Trình duyệt không có CSS Custom Highlight API thì không tô sáng.**
+   Quyết định có chủ đích. Hook dò `CSS.highlights` và `Highlight` trước khi
+   dùng; không có thì thanh tìm vẫn đếm, vẫn nhảy tới kết quả kế và cuộn tới nó,
+   chỉ không tô màu. Không cần đóng trừ khi phải hỗ trợ trình duyệt thiếu API
+   này.
+
+5. **Tìm mở luồng đã giải quyết theo markdown thô.** Khoảng trống nhỏ.
+   `packages/views/tasks/detail/find/find-expanded-threads.ts` so truy vấn với
+   `comment.body` thô, nên truy vấn chỉ khớp cú pháp markdown hay đích của link
+   vẫn mở luồng, trong khi chữ hiển thị không có kết quả nào. Luồng mở vì tìm là
+   tạm: đóng thanh tìm thì gấp lại, và không ghi vào store nhớ gấp mở. Để đóng:
+   so trên chữ đã render của bình luận thay vì markdown.
+
+6. **⌘F khi focus ở ô nhập của sidebar thuộc tính mở tìm của trình duyệt.**
+   Quyết định có chủ đích. "Trong trang" nghĩa là trong container cuộn của trang
+   chi tiết: `packages/views/tasks/detail/hooks/use-task-detail-shortcuts.ts` bỏ
+   qua đích soạn thảo nằm ngoài container và ngoài thanh tìm, để ⌘F không lấn ô
+   tìm của palette hay ô nhập ở chỗ khác. Sidebar thuộc tính nằm ngoài container
+   đó. Focus ở một nút trong sidebar thì ⌘F vẫn mở thanh tìm của task. Để đóng:
+   coi sidebar thuộc tính là một phần của trang chi tiết.
+
+7. **Phím C vẫn mở hộp tạo task khi đang xem trước tệp đính kèm, nếu focus không
+   nằm trong modal.** Khoảng trống. Modal xem trước
+   (`packages/views/editor/attachment-preview-modal.tsx`) là portal
+   `role="dialog"` tự dựng, không phải Dialog của Base UI, nên không đặt
+   `data-base-ui-inert`, và không chuyển focus vào trong khi mở. Hàm chặn lớp
+   popup `isPortalLayerShortcutTarget` chỉ nhận ra lớp modal qua dấu đó hoặc khi
+   đích phím nằm trong `[role="dialog"]`. Mở xem trước từ một nút rồi nhấn C thì
+   hộp tạo task mở đè lên. Chỉ kiểm trên mã, chưa tái hiện trên trình duyệt. Để
+   đóng: modal xem trước chuyển focus vào trong khi mở, hoặc dùng Dialog của
+   Base UI.
+
+8. **⌘Enter trong editor mô tả task chèn ngắt dòng.** Cần người quyết, không
+   phải lỗi của D1. HardBreak của TipTap bind `Mod-Enter`
+   (`@tiptap/extension-hard-break` `src/hard-break.ts:117`), và editor mô tả
+   không truyền `onSubmit` nên extension phím gửi nhường cho nó. Ngắt dòng đổi
+   markdown, nên autosave mô tả sau 1,5 giây
+   (`packages/views/tasks/detail/components/task-detail-editors.tsx`) có thể gửi
+   PATCH. Hành vi có từ trước lát; test ghim nó lại để thay đổi phải có chủ ý.
+   Để đóng: quyết định ⌘Enter trong mô tả nên làm gì (không làm gì, hay lưu
+   ngay), rồi tắt HardBreak cho chord đó.
+
+9. **Mục "Gần đây" của task đã bị xoá hoặc chuyển đi vẫn hiện trong palette tới
+   khi được mở.** Khoảng trống. Palette chỉ đọc store
+   (`packages/views/search/search-command.tsx`), không hỏi server. Mục chỉ bị gỡ
+   khi trang chi tiết nhận đúng lỗi 404
+   (`packages/views/tasks/detail/hooks/use-record-task-visit.ts`). Lỗi 403 giữ
+   mục, vì có thể tạm thời (tổ chức bị treo, thành viên bị vô hiệu). Phản hồi hỏng
+   thì `getTask` trả `null` qua `parseWithFallback` mà không ném lỗi: trang hiện
+   "không tìm thấy" nhưng không gỡ mục. Để đóng: gỡ mục khi nhận sự kiện xoá
+   task, hoặc kiểm lại danh sách gần đây khi mở palette.
+
+10. **Khoá lưu trữ theo workspace không được xoá khi đăng xuất hay xoá workspace.**
+    Có từ trước nhánh, định tuyến cho người. Đăng xuất nay xoá mọi khoá nháp toàn
+    cục (6d6b36f), nhưng `clearWorkspaceStorage`
+    (`packages/core/platform/storage-cleanup.ts`) không có nơi gọi nào ngoài
+    test, nên `uniwork_navigation:<slug>` và mọi store `workspaceScoped: true`
+    sống qua cả hai sự kiện. Để đóng: gọi nó khi xoá workspace, và khi đăng xuất
+    với danh sách slug của người dùng.
+
+11. **Đăng xuất từ sidebar workspace không xoá cache TanStack Query.** Có từ
+    trước nhánh, ngoài phạm vi, định tuyến cho người.
+    `packages/views/layout/app-sidebar.tsx` gọi thẳng `logout` của auth store rồi
+    điều hướng phía client, không qua `useLogout` (hook có `qc.clear()`). Trên
+    cùng một tab, người đăng nhập sau có thể thấy dữ liệu cache của người trước
+    tới khi refetch. Để đóng: sidebar dùng `useLogout().mutateAsync()`, giữ điều
+    hướng về trang đăng nhập trong `finally`.
+
+12. **`auth.logout()` ném lỗi thì không dọn nháp, nhưng sidebar vẫn chuyển sang
+    trang đăng nhập.** Có từ trước nhánh, định tuyến cho người.
+    `logout` trong `packages/core/auth/store.ts` chờ `auth.logout()` trước khi đặt
+    `anon` và gọi callback dọn; sidebar điều hướng trong `finally`. Để đóng:
+    quyết định đăng xuất lỗi mạng thì dọn cục bộ hay giữ phiên.
+
+13. **Phiên hết hạn mà không qua đăng xuất làm mất tối đa 1,5 giây chữ gõ cuối
+    trong ô bình luận.** Quyết định có chủ đích. Refresh lỗi đặt phiên về `anon`,
+    và `draftWritesAllowed` (`packages/core/drafts/cleanup-registry.ts`) từ chối
+    mọi lần ghi vào store nháp khi không còn `authed`. Lần ghi nháp debounce 1,5
+    giây còn đang chờ lúc đó bị bỏ; nháp đã lưu trước đó còn nguyên. Chốt chặn
+    tập trung ở store vì nó phủ mọi đường ghi (flush khi unmount, timer debounce,
+    gửi xong sau khi đã đăng xuất). Không cần đóng.
+
+14. **Token chết đúng giữa lúc bình luận được chấp nhận và `onAccepted` chạy thì
+    có thể còn một nháp của chữ đã đăng.** Quyết định có chủ đích, không mất dữ
+    liệu. `useComposerSubmit` gọi `onAccepted` ngay sau khi gửi được chấp nhận
+    (`packages/views/editor/use-composer-submit.ts`), và `clearDraft` trong
+    `packages/views/tasks/detail/components/comment-composer.tsx` bị chốt ở mục
+    13 từ chối. Chỉ còn nháp khi debounce đã kịp lưu chữ đó trước lúc gửi; gửi
+    trong 1,5 giây sau phím cuối thì lần ghi đang chờ bị huỷ và không còn gì. Lần
+    mở composer sau hiện lại chữ đã đăng làm nháp. Thêm chốt riêng ở đó sẽ trùng
+    chốt đã tập trung. Không cần đóng.
+
+15. **Hành vi phím chỉ được kiểm trên jsdom, trừ ⌘J.** Khoảng trống kiểm chứng.
+    Mọi test phím của D1 chạy trên jsdom. Riêng ⌘J mở hộp Hỏi UNI, gửi câu hỏi
+    và nhận câu trả lời có nguồn đã được kiểm trên Chromium thật, với
+    `AI_PROVIDER=fake`, bằng một bản chẩn đoán tạm của `e2e/ask-uni.spec.ts` bỏ
+    phần tạo task. Bản chẩn đoán không được commit. Chính spec đó đang đỏ trước
+    khi tới ⌘J, vì hai lý do có từ trước D1:
+    - `getByLabel("Tiêu đề")` khớp cả ô tiêu đề của hộp "Việc mới" lẫn vùng
+      `aria-label` tiêu đề của trang chi tiết (886184c).
+    - Workspace mới đã có sẵn task chào mừng "Bắt đầu với UniWork"
+      (`server/internal/service/templates/welcome_task.go`), nên người thứ hai
+      nhận câu trả lời trích task đó của chính mình thay vì "Chưa đủ dữ liệu".
+      Không có dữ liệu nào lọt sang tổ chức khác.
+
+    Để đóng: sửa hai kỳ vọng của spec, rồi thêm kịch bản e2e cho C, ⌘F và phím
+    gửi.
+
+16. **Trang chi tiết task và route Settings vượt ngân sách bundle, D1 làm tăng
+    thêm.** Khoảng trống, có từ trước D1. Đo bằng
+    `node scripts/bundle-budget.mjs --print` trên bản build production, so với
+    bản build ở gốc D1 (f26e621):
+
+    | Route | Gốc D1 | Sau D1 | Trần |
+    | --- | --- | --- | --- |
+    | Initial JS | 261.0 KB | 262.6 KB | 250 KB |
+    | Trang chi tiết task | 171.5 KB | 173.4 KB | 150 KB (§6) |
+    | Settings | 182.4 KB | 184.6 KB | 154 KB (`scripts/bundle-budget.json`) |
+
+    Mọi route trong workspace tăng đều 1,9–2,2 KB gzip, dấu hiệu của chunk shell
+    dùng chung (bộ điều phối phím, store phím tắt, nhóm gần đây của palette). Mọi
+    route vượt trần hôm nay đều đã vượt từ trước D1, và không trần nào bị nâng.
+    Để đóng: tách phần shell chỉ cần khi tương tác (tab Phím tắt, palette) ra
+    khỏi chunk ban đầu, rồi hạ trần theo số mới.
+
+17. **Lỗi gặp khi chạy cổng D1, có từ trước lát.**
+    - Ba test Go so ngày "hôm qua" theo giờ máy với "hôm nay" theo UTC, nên đỏ
+      tất định khi chạy local từ 00:00 đến 07:00 giờ +07:
+      `TestUsageWindowSurvivesADatabaseClockAhead`,
+      `TestSearchScoringOverdueAndMembers`, `TestAskCitesOnlyPermittedSources`
+      (`server/internal/service/askuni_test.go`). Cùng khuôn với chúng là
+      `TestAIEndpoints` (`server/internal/handler/ai_test.go`), trong khi service
+      tính hôm nay bằng `s.now().UTC()`
+      (`server/internal/service/askuni_sources.go`). Với `TZ=UTC` cả bốn xanh.
+      CI chạy ở UTC nên không gặp.
+    - Cũng vì những test đó dừng sớm, sàn coverage Go đọc dưới 59% khi chạy
+      ban đêm. `scripts/test-go.sh` thoát trước bước đọc sàn mỗi khi có test Go
+      đỏ, nên máy local chưa từng báo điều này.
+    - Flake "Group _r_2_ not found" (§7quater mục 11) nay được gây ra trong
+      test D1 "does not submit on primary+Enter in the description editor" của
+      `packages/views/tasks/detail/task-detail-suite-page.test.tsx`. Mọi test
+      vẫn xanh, nhưng lần chạy coverage `views` thoát 1.
+
+    Để đóng: các test Go tính ngày bằng UTC; test mô tả chờ hết timer autosave
+    trước khi kết thúc.
 
 ## 8. Việc làm tiếp theo
 

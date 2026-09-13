@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — lát D1 của spec ô Task human-parity
+> **Trạng thái:** shipped — lát D1 của spec ô Task human-parity (2026-09-14). `make check` không chạy trọn: nó dừng ở `pnpm test`, tại hai test views là flake đã ghi (`project-detail-page`, `markdown-paste`; chạy riêng mỗi file 3/3 xanh), nên không tới Go test. Các bước còn lại được chạy tay theo đúng lệnh trong `scripts/check.sh`: coverage từng package, node contract tests (52/53, chỉ đỏ lỗi governance nền do commit `e88a055`), migrate, và Go `-race` chia bốn lần chạy cho vừa giới hạn thời gian: shard `rest` kèm gofmt, vet, staticcheck; shard `handler`; hai nửa theo tên test của `internal/service`. Cổng chạy lúc 02:00 giờ +07, nên bốn test Go so ngày "hôm qua" theo giờ máy với ngày UTC đã đỏ; chạy riêng với `TZ=UTC` thì cả bốn xanh. Gộp profile của bốn lần chia với hai lần `TZ=UTC` được 59.0%, đúng sàn. Hai test Go còn đỏ là lỗi nền đã biết (`TestChatFollowUpHTTP`, `TestChatThreadFollowMarkReadAndList`). E2E `e2e/ask-uni.spec.ts` đỏ trước khi tới ⌘J, vì lý do có từ trước D1; ⌘J mở hộp Hỏi UNI được kiểm trên Chromium thật bằng một bản chẩn đoán của spec đó. Chi tiết nằm ở spec §7quinquies.
 
 **Goal:** Người dùng làm việc với task bằng bàn phím mà không bao giờ bị phím tắt bắn nhầm khi đang gõ, tìm được chữ trong trang chi tiết task, quay lại task vừa xem, và không phải gấp mở lại những gì đã gấp.
 
@@ -474,6 +474,12 @@ git commit -m "feat(settings): tab đổi phím tắt"
 ---
 
 ## Task 5: Tìm trong trang chi tiết task
+
+> **Đổi hình dạng khi thực thi.** Hai chỗ dưới đây đã bị thay, không làm theo.
+> - Chữ ký `useTaskFind` ở mục Interfaces: hook nay nhận `{ container, contentKey }`, và state tìm nằm trong `TaskFindScope` để gõ không render lại editor (1af5af6).
+> - Câu "Đóng thanh tìm không tự gấp lại các luồng đã mở" ở Step 2: theo addendum cuối của brief Task 5, tìm mở luồng khớp bằng một tập tạm trong timeline (`find/find-expanded-threads.ts`) và không ghi store của Task 7, nên đóng thanh tìm thì luồng chỉ mở vì tìm sẽ gấp lại.
+>
+> Lý do nằm ở ledger `.superpowers/sdd/2026-09-13-tasks-human-parity-slice-d1/progress.md` (Task 7 điểm 4, vòng sửa Task 5). Các bước bên dưới giữ nguyên để đối chiếu.
 
 **Files:**
 - Create: `packages/views/tasks/detail/find/use-task-find.ts`
