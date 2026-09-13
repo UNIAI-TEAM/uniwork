@@ -1,4 +1,4 @@
-// Hàng bảng giả lập đúng bộ xử lý mở task của bảng, dùng chung cho test picker.
+// A stand-in table row that reproduces the table's real open-task handler, shared by the picker tests.
 import { render } from "@testing-library/react";
 import type { MouseEvent, ReactElement } from "react";
 import { vi } from "vitest";
