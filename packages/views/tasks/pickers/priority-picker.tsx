@@ -24,6 +24,7 @@ export function PriorityPicker({
   ariaLabel,
   onTriggerPointerDown,
   triggerClassName,
+  align,
   icon,
   children,
 }: {
@@ -33,6 +34,7 @@ export function PriorityPicker({
   ariaLabel: string;
   onTriggerPointerDown?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
+  align?: "start" | "center" | "end";
   icon?: (priority: TaskPriority) => ReactNode;
   children: ReactNode;
 }) {
@@ -46,6 +48,7 @@ export function PriorityPicker({
       ariaLabel={ariaLabel}
       onTriggerPointerDown={onTriggerPointerDown}
       triggerClassName={triggerClassName}
+      align={align}
     >
       {children}
     </EnumFieldPicker>

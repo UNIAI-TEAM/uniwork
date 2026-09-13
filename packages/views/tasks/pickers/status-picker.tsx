@@ -24,6 +24,7 @@ export function StatusPicker({
   ariaLabel,
   onTriggerPointerDown,
   triggerClassName,
+  align,
   icon,
   children,
 }: {
@@ -33,6 +34,7 @@ export function StatusPicker({
   ariaLabel: string;
   onTriggerPointerDown?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
+  align?: "start" | "center" | "end";
   icon?: (status: TaskStatus) => ReactNode;
   children: ReactNode;
 }) {
@@ -46,6 +48,7 @@ export function StatusPicker({
       ariaLabel={ariaLabel}
       onTriggerPointerDown={onTriggerPointerDown}
       triggerClassName={triggerClassName}
+      align={align}
     >
       {children}
     </EnumFieldPicker>

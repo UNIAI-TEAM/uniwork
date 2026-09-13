@@ -50,4 +50,40 @@ describe("EnumFieldPicker", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "Trạng thái" }));
     expect(onTriggerPointerDown).toHaveBeenCalled();
   });
+
+  it("không để middle-click trên một mục trong menu lọt tới bộ xử lý của hàng bảng", () => {
+    // Regression for the row-navigation bug: DataTable's row handler reacts
+    // to onAuxClick (middle-click), and DropdownMenuContent only stops
+    // onClick from bubbling out of the portalled menu — not onAuxClick.
+    // Without forwarding onTriggerPointerDown to the content's onAuxClick
+    // too, a middle-click on an open menu item still reaches this row
+    // handler and would navigate.
+    const onRowAuxClick = vi.fn();
+    // Mirrors the real `stopRowNavigation` callback (table-cell-editors.tsx),
+    // which actually calls stopPropagation — a bare `vi.fn()` spy wouldn't,
+    // so it wouldn't exercise the bug this test guards against.
+    const onTriggerPointerDown = vi.fn((event: { stopPropagation: () => void }) =>
+      event.stopPropagation(),
+    );
+    render(
+      <div onAuxClick={onRowAuxClick}>
+        <EnumFieldPicker
+          value="todo"
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Trạng thái"
+          onTriggerPointerDown={onTriggerPointerDown}
+        >
+          Trạng thái
+        </EnumFieldPicker>
+      </div>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Trạng thái" }));
+    const option = screen.getByText("Đang làm");
+    fireEvent(
+      option,
+      new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+    );
+    expect(onRowAuxClick).not.toHaveBeenCalled();
+  });
 });

@@ -41,6 +41,7 @@ export function BatchStatusPicker({
         value={status as TaskStatus | null}
         disabled={disabled}
         ariaLabel={label}
+        align="center"
         onChange={(value) => onUpdate({ status: value })}
       >
         {label}
@@ -65,6 +66,7 @@ export function BatchPriorityPicker({
       value={priority as TaskPriority | null}
       disabled={disabled}
       ariaLabel={label}
+      align="center"
       onChange={(value) => onUpdate({ priority: value })}
     >
       {label}
