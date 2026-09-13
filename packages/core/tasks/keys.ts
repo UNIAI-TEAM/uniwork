@@ -18,7 +18,9 @@ export const taskKeys = {
    * would hand both hooks the wrong shape. The `queryRoot` / `myTasks` roots
    * therefore hold both plain entries (`TaskQueryPage`) and infinite ones
    * (`{ pages, pageParams }`), so anything reading or writing across a root
-   * (`getQueriesData` / `setQueriesData`) must branch on `"pages" in data`.
+   * (`getQueriesData` / `setQueriesData`) must branch on
+   * `data && "pages" in data`: `getQueriesData` also returns entries whose data
+   * is `undefined` (a query that has not loaded yet), and `in` throws on those.
    */
   queryInfinite: (wsId: string, filterHash: string) =>
     ["tasks-query", wsId, "infinite", filterHash] as const,

@@ -55,6 +55,9 @@ function nextOffset(page: TaskQueryPage, pages: TaskQueryPage[]): number | undef
   // Without this a drifted count would re-request the same offset forever.
   // "Short" is judged against the limit the server served, since it may clamp
   // below ours; a broken `limit` (0) falls back to ours so it cannot loop.
+  // The cap at ours matters too: the server never serves more rows than we
+  // asked for, so an echoed limit above ours (its own cap, say 200) must not
+  // make a full page of 50 look short and end paging early.
   const served = Math.min(page.limit > 0 ? page.limit : TASK_PAGE_SIZE, TASK_PAGE_SIZE);
   if (page.tasks.length < served) return undefined;
   const loaded = pages.reduce((sum, p) => sum + p.tasks.length, 0);
@@ -68,8 +71,14 @@ export function useInfiniteQueryTasks(
   const hash = stableHash(body);
   return useInfiniteQuery({
     queryKey: taskKeys.queryInfinite(workspaceId, hash),
-    queryFn: ({ pageParam }) =>
-      suite.queryTasks(workspaceId, { ...body, limit: TASK_PAGE_SIZE, offset: pageParam }),
+    // Reading `signal` is what lets TanStack stop a refetch that a newer
+    // invalidate cancelled: unread, the stale wave walks every remaining page.
+    queryFn: ({ pageParam, signal }) =>
+      suite.queryTasks(
+        workspaceId,
+        { ...body, limit: TASK_PAGE_SIZE, offset: pageParam },
+        { signal },
+      ),
     initialPageParam: 0,
     getNextPageParam: (last, pages) => nextOffset(last, pages),
     enabled: !!workspaceId,
@@ -80,8 +89,13 @@ export function useInfiniteMyTasks(workspaceId: string, opts: { relation?: MyTas
   const hash = stableHash(opts);
   return useInfiniteQuery({
     queryKey: taskKeys.myTasksInfinite(workspaceId, hash),
-    queryFn: ({ pageParam }) =>
-      suite.listMyTasks(workspaceId, { ...opts, limit: TASK_PAGE_SIZE, offset: pageParam }),
+    // See useInfiniteQueryTasks: `signal` stops a cancelled refetch.
+    queryFn: ({ pageParam, signal }) =>
+      suite.listMyTasks(
+        workspaceId,
+        { ...opts, limit: TASK_PAGE_SIZE, offset: pageParam },
+        { signal },
+      ),
     initialPageParam: 0,
     getNextPageParam: (last, pages) => nextOffset(last, pages),
     enabled: !!workspaceId,
