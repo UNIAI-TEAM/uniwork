@@ -6,7 +6,7 @@
 
 **Goal:** Khi một người sửa tiêu đề, trạng thái, độ ưu tiên hoặc ngày hạn của task, mọi người khác đang mở task đó thấy thay đổi ngay từ frame realtime, không chờ refetch, mà không bao giờ để cache mang một `revision` mới cùng dữ liệu cũ.
 
-**Architecture:** Spec §2 chỉ chốt một câu: viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue; spec §4.3 đặt ba ràng buộc cho ADR đó. ADR 0015 ghi lại câu và ba ràng buộc ấy; cơ chế dưới đây (cột `Patch` và tập trường, guard hai revision, cách mã hoá giá trị, điều kiện tắt `Patch`) là lựa chọn của plan này và lượt tiền kiểm, chờ quangpd xác nhận ở review PR. Catalogue sự kiện có thêm cột `Patch` liệt kê chính xác trường client được vá. Server gửi các trường đó cùng `revision_before` và `revision` chỉ khi mọi thay đổi của một lời gọi `updateTaskInTx` cho task đó đều thuộc tập vá được. Client vá bản ghi đã có khi `revision` trong cache khớp `revision_before`; list vẫn invalidate để giữ đúng thứ tự và thành viên.
+**Architecture:** Spec §2 chỉ chốt một câu: viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue; spec §4.3 đặt ba ràng buộc cho ADR đó. ADR 0015 ghi lại câu và ba ràng buộc ấy; cơ chế dưới đây (cột `Patch` và tập trường, guard hai revision, cách mã hoá giá trị, điều kiện tắt `Patch`) là lựa chọn của plan này và lượt tiền kiểm, chờ quangpd xác nhận ở review PR. Catalogue sự kiện có thêm cột `Patch` liệt kê chính xác trường client được vá. Server gửi các trường đó cùng `revision_before` và `revision` chỉ khi mọi trường có trong input của một lời gọi `updateTaskInTx` cho task đó đều thuộc tập vá được (có ít nhất một); không thì frame chỉ mang id. Client vá bản ghi đã có khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision` trong cache khớp `revision_before`; list vẫn invalidate để giữ đúng thứ tự và thành viên.
 
 **Tech Stack:** Go (pgx, sqlc, outbox dispatcher), TypeScript strict, TanStack Query, Vitest, `node --test`.
 
@@ -48,7 +48,7 @@ Tiền kiểm cũng xác nhận giả định an toàn của spec §4.3: quyền
 | `server/internal/outbox/catalogue.go` | `EventDef.Patch`; hàng `task.updated` |
 | `docs/events/CATALOGUE.md` | Cột Patch |
 | `scripts/events-catalogue.test.mjs` | Luật mới: payload là id hoặc revision; trường khác chỉ qua `Patch` |
-| `server/internal/service/task.go` | Mỗi lời gọi `updateTaskInTx` (từ `Update` và `BatchUpdateTasks`) phát cho task của nó `revision_before`, `revision` và trường vá khi hợp lệ |
+| `server/internal/service/task.go` | Mỗi lời gọi `updateTaskInTx` (từ `Update` và `BatchUpdateTasks`) phát trường vá kèm `revision_before`, `revision` khi mọi trường có trong input thuộc `Patch`; không thì chỉ id |
 | `server/internal/audit/audit.go` | Comment của `Event` nói đúng luật mới |
 | `packages/core/tasks/cache-coordinator.ts` | Kế hoạch vá cho `task.updated` |
 | `packages/core/tasks/realtime-task-patch.ts` (mới) | Vá bản ghi task trong mọi cache đã có, theo guard revision |
@@ -114,8 +114,8 @@ Tiếng Việt, bốn mục bắt buộc cộng mục "Test giữ luật" như A
 Quyết định phải nêu đủ:
 1. Chỉ hàng catalogue có `Patch` mới mang trường nội dung; `Patch` là nguồn sự thật duy nhất. Hôm nay chỉ `task.updated`, bốn trường `title`, `status`, `priority`, `due_date`.
 2. Không vá `assignee_*` (task mang actor do server phân giải), `position`, `project_id`, `description`.
-3. Server gửi trường vá cùng `revision_before` và `revision` chỉ khi mọi thay đổi của một lời gọi `updateTaskInTx` cho task đó thuộc tập vá được; không thì chỉ id và hai revision. Hai revision tính theo từng lời gọi cho từng task, không theo cả transaction.
-4. Client chỉ vá bản ghi đã có khi `revision` trong cache bằng `revision_before`; trường lạ bị bỏ; frame không tạo bản ghi; list vẫn invalidate.
+3. Server gửi trường vá cùng `revision_before` và `revision` chỉ khi mọi trường có trong input của một lời gọi `updateTaskInTx` cho task đó thuộc tập vá được (có ít nhất một); không thì frame chỉ mang id. Hai revision tính theo từng lời gọi cho từng task, không theo cả transaction.
+4. Client chỉ vá bản ghi đã có khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision` trong cache bằng `revision_before`; trường lạ bị bỏ; frame không tạo bản ghi; list vẫn invalidate.
 5. Đánh đổi viết thẳng: `outbox_events` chuyển từ sổ sự kiện thành kênh mang một phần nội dung; quyền đọc task hôm nay là thành viên workspace (`TaskService.authorizeActor`) nên người nhận frame vốn đọc được; nếu sau này có task hạn chế quyền đọc hẹp hơn workspace thì phải tắt `Patch` hoặc đổi phạm vi phát trước.
 6. Hệ quả: guard lỏng hơn làm mất dữ liệu (giải thích kịch bản ghi đè mô tả); vì sao `revision_before` phải tính trong transaction.
 
@@ -184,7 +184,7 @@ Ca tối thiểu:
 - [ ] **Step 4: Chạy và commit**
 
 ```bash
-cd server && go test -race -count=1 -run 'RealtimePatch|TestTaskCRUD' ./internal/service/
+cd server && go test -race -count=1 -run 'RealtimePatch|TestTaskCRUD|BatchUpdate' ./internal/service/
 cd server && go test -race -count=1 ./internal/outbox/ ./internal/audit/
 node --test scripts/events-catalogue.test.mjs
 ```
@@ -208,7 +208,7 @@ git commit -m "feat(tasks): task.updated mang trường vá kèm revision_before
 - Consumes: payload Task 2.
 - Produces:
   - `export const TASK_PATCH_FIELDS = ["title", "status", "priority", "due_date"] as const`
-  - `export function parseTaskPatchFrame(payload: Record<string, string>): TaskPatchFrame | null` — null khi thiếu `task_id`, thiếu hoặc không phải số nguyên `revision_before`/`revision`, hoặc `revision <= revision_before`; chỉ giữ khoá thuộc `TASK_PATCH_FIELDS`; `due_date: ""` thành `null`.
+  - `export function parseTaskPatchFrame(payload: Record<string, string>): TaskPatchFrame | null` — null khi thiếu `task_id`, thiếu hoặc không phải số nguyên `revision_before`/`revision`, `revision <= revision_before`, hoặc không có khoá nào thuộc `TASK_PATCH_FIELDS`; chỉ giữ khoá thuộc `TASK_PATCH_FIELDS`; `due_date: ""` thành `null`.
   - `export function applyTaskPatch(qc: QueryClient, wsId: string, frame: TaskPatchFrame): { detailPatched: boolean }`
   - `CacheUpdatePlan` thêm `patch?: TaskPatchFrame`.
 
@@ -224,7 +224,7 @@ git commit -m "feat(tasks): task.updated mang trường vá kèm revision_before
 3. Detail cache revision 6, cùng frame: KHÔNG vá, `detailPatched` là false.
 4. Không có detail cache: không tạo entry.
 5. Hàng trong `list`, `query`, `queryInfinite` (mọi trang), `grouped`, `tableRows` có cùng task revision 5: được vá; hàng có revision khác: giữ nguyên; entry không chứa task: không đổi tham chiếu.
-6. Frame không có trường vá nào (chỉ hai revision): không vá gì.
+6. Frame không có trường vá nào (chỉ hai revision, như hàng outbox cũ hoặc lỗi server): `parseTaskPatchFrame` trả null; cache KHÔNG nhận revision mới; detail bị invalidate như cũ.
 
 `use-realtime-sync.test.tsx`:
 7. Sửa test "without writing the frame" cho `task.subscribed`: vẫn không ghi gì (topic không có `Patch`).
@@ -238,7 +238,7 @@ git commit -m "feat(tasks): task.updated mang trường vá kèm revision_before
 - `planCacheUpdate` với `task.updated`: gắn `patch` khi `parseTaskPatchFrame` trả khác null; vẫn trả đủ khoá invalidate như cũ.
 - `use-realtime-sync.ts`: khi có `patch`, gọi `applyTaskPatch` trước; nếu `detailPatched` thì bỏ `taskKeys.detail(id)` khỏi các khoá invalidate của frame đó; list roots giữ nguyên. Cập nhật comment đầu hàm `keysFor` nói đúng luật mới, trỏ ADR 0015.
 - `applyTaskPatch` dùng `qc.setQueriesData` hoặc duyệt `qc.getQueryCache().findAll` theo gốc khoá, trả tham chiếu cũ khi không đổi gì.
-- `CLAUDE.md` § State Rules: sửa gạch đầu dòng "WebSocket events invalidate Query keys… never written into a query or a store" thành: frame invalidate khoá Query; ngoại lệ duy nhất là trường một hàng catalogue khai ở `Patch`, chỉ vá bản ghi đã có khi `revision` khớp `revision_before` (ADR 0015); nêu `packages/core/realtime/use-realtime-sync.test.tsx` và `packages/core/tasks/realtime-task-patch.test.ts` là test giữ luật.
+- `CLAUDE.md` § State Rules: sửa gạch đầu dòng "WebSocket events invalidate Query keys… never written into a query or a store" thành: frame invalidate khoá Query; ngoại lệ duy nhất là trường một hàng catalogue khai ở `Patch`: chỉ vá bản ghi đã có, chỉ khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision` trong cache khớp `revision_before` (ADR 0015); nêu `packages/core/realtime/use-realtime-sync.test.tsx` và `packages/core/tasks/realtime-task-patch.test.ts` là test giữ luật.
 
 - [ ] **Step 4: Chạy và commit**
 

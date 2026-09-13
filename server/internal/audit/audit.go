@@ -64,8 +64,8 @@ type Entry struct {
 	Metadata       map[string]any
 }
 
-// Event is one row on the outbox. Payload carries ids, and on a patchable
-// topic the revision_before/revision pair that guards the patch. The only
+// Event is one row on the outbox. Payload carries ids, and, only on a frame
+// that carries patch fields, the revision_before/revision pair that guards them. The only
 // content it may carry is a field the topic's catalogue row lists in
 // outbox.EventDef.Patch, which ADR 0015 limits to fields every receiver of
 // that topic may already read. Any other content a consumer needs it
