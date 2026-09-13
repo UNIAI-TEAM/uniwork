@@ -186,7 +186,9 @@ export function BatchActionToolbar({
                 type="button"
                 variant="ghost"
                 size="sm"
-                disabled={loading}
+                // aria-disabled keeps the trigger in the tab order; Button
+                // turns the click into a no-op while it is set.
+                aria-disabled={loading || undefined}
                 onClick={() => setDeleteOpen(true)}
                 className="text-destructive hover:text-destructive"
                 data-testid="batch-delete"

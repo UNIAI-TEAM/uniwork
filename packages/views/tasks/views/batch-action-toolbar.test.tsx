@@ -188,6 +188,29 @@ describe("BatchActionToolbar delete", () => {
     expect(batchDelete).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the delete trigger focusable but inert while a batch request is pending", () => {
+    render(
+      wrap(
+        <TaskSurfaceActionsProvider actions={{ ...noopActions, isPending: true }}>
+          <TaskSurfaceSelectionProvider selection={selectionStub(["t1"])}>
+            <BatchActionToolbar workspaceId="w1" tasks={[makeTask()]} />
+          </TaskSurfaceSelectionProvider>
+        </TaskSurfaceActionsProvider>,
+      ),
+    );
+
+    const trigger = screen.getByTestId("batch-delete");
+    // aria-disabled, not disabled: the button stays in the tab order.
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(trigger).not.toBeDisabled();
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+
+    fireEvent.click(trigger);
+    expect(screen.queryByTestId("batch-delete-confirm")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
   it("reflects shared status of the selection", () => {
     render(
       wrap(

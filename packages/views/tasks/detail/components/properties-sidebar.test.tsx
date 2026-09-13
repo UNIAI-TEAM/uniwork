@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -13,6 +13,7 @@ vi.mock("sonner", () => ({
 }));
 
 const putMutate = vi.hoisted(() => vi.fn());
+const updateMutate = vi.hoisted(() => vi.fn());
 const attachMutateAsync = vi.hoisted(() => vi.fn());
 const detachMutateAsync = vi.hoisted(() => vi.fn());
 const labelState = vi.hoisted(() => ({
@@ -39,7 +40,7 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   return {
     ...actual,
     usePutTask: () => ({ mutate: putMutate, isPending: false }),
-    useUpdateTask: () => ({ mutate: vi.fn(), isPending: false }),
+    useUpdateTask: () => ({ mutate: updateMutate, isPending: false }),
     useTaskProperties: () => ({
       data: { properties: [], total: 0 },
       isLoading: false,
@@ -142,6 +143,7 @@ beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(me);
   putMutate.mockReset();
+  updateMutate.mockReset();
   attachMutateAsync.mockReset().mockResolvedValue(undefined);
   detachMutateAsync.mockReset().mockResolvedValue(undefined);
   vi.mocked(toast.error).mockReset();
@@ -198,6 +200,33 @@ describe("TaskDetailPropertiesSidebar", () => {
       expect(visible).not.toBe("");
       expect(trigger).toHaveAccessibleName(`${field}: ${visible}`);
     }
+  });
+
+  it("unassigning sends the id and its kind together (ADR 0007)", async () => {
+    render(
+      shell(
+        <TaskDetailPropertiesSidebar
+          workspaceId="w1"
+          task={{
+            ...task,
+            assignee_id: "u1",
+            assignee_kind: "human",
+            assignee: { kind: "human", id: "u1", display_name: "Me" },
+          }}
+          onRefetch={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách: Me" }));
+    const list = await screen.findByRole("listbox");
+    fireEvent.click(within(list).getByText("Chưa giao"));
+
+    await waitFor(() => expect(updateMutate).toHaveBeenCalledTimes(1));
+    expect(updateMutate.mock.calls[0]?.[0]).toEqual({
+      taskId: "t1",
+      patch: { assignee_id: null, assignee_kind: "human" },
+    });
   });
 
   it("disables custom properties when the catalog is empty", () => {

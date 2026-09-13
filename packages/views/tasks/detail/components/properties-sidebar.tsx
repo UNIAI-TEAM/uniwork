@@ -245,7 +245,9 @@ export function TaskDetailPropertiesSidebar({
             triggerClassName="h-8 w-full justify-start px-2"
             onChange={(next) => {
               if (!next) {
-                patchField({ assignee_id: null });
+                // Id and kind travel together (ADR 0007), as the table and
+                // row menu send them.
+                patchField({ assignee_id: null, assignee_kind: "human" });
               } else {
                 patchField({ assignee_id: next.id, assignee_kind: next.kind });
               }
