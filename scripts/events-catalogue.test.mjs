@@ -28,9 +28,10 @@ const quoted = (list) => [...(list ?? "").matchAll(/"([^"]+)"/g)].map((p) => p[1
  * reader of the Go table sees what the compiler sees: a commented-out row is
  * gone and a comment quoting a row is not one. One left-to-right pass, so the
  * comment that opens first wins, as in Go. The file has no string literal
- * holding `//`, `/*` or `*/` (topics and keys are identifiers). One such string
- * usually cuts a real row and fails the Go-vs-Markdown test, but a crafted pair
- * (`"/*"` in one row, `"*/"` in a later one) can hide the rows between them,
+ * holding a line-comment or block-comment marker (topics and keys are
+ * identifiers). One such string usually cuts a real row and fails the
+ * Go-vs-Markdown test, but a crafted pair (a string opening a block comment in
+ * one row, a string closing it in a later row) can hide the rows between them,
  * so keep catalogue strings to identifiers.
  */
 const goSource = () => read("server/internal/outbox/catalogue.go").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
