@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ComponentProps, type ReactNode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -19,6 +19,24 @@ import { TaskDetailSuitePage } from "../task-detail-suite-page";
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
+
+const editorRenders = vi.hoisted(() => ({ title: 0, content: 0 }));
+
+// Pass-through wrappers: the real TipTap editors still render and behave; each
+// render of a title or content editor is counted, so a test can prove typing
+// in the find bar leaves them alone.
+vi.mock("../../../editor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../editor")>();
+  function CountingTitleEditor(props: ComponentProps<typeof actual.TitleEditor>) {
+    editorRenders.title += 1;
+    return <actual.TitleEditor {...props} />;
+  }
+  function CountingContentEditor(props: ComponentProps<typeof actual.ContentEditor>) {
+    editorRenders.content += 1;
+    return <actual.ContentEditor {...props} />;
+  }
+  return { ...actual, TitleEditor: CountingTitleEditor, ContentEditor: CountingContentEditor };
+});
 
 const me: User = {
   id: "u1",
@@ -297,6 +315,60 @@ describe("tìm trong trang chi tiết task", () => {
     await screen.findByText("Second task");
 
     expect(screen.queryByRole("search")).toBeNull();
+  });
+
+  // Find state used to live in the page and reach the timeline through the
+  // editors' props, so every keystroke re-rendered both TipTap editors.
+  it("gõ ba ký tự vào ô tìm không render lại editor tiêu đề và mô tả", async () => {
+    await renderPage();
+    await screen.findByText(/chưa có bình luận|no comments yet/i);
+    // The title editor mounts lazily, on the first click.
+    fireEvent.click(screen.getByRole("button", { name: "Ship detail shell" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Ship detail shell" })).toBeNull(),
+    );
+    await descriptionSurface();
+    const input = await openFind();
+    // Let mount-time updates (editor ready callbacks, late queries) land first.
+    await act(() => new Promise<void>((done) => setTimeout(done, 300)));
+    const before = { ...editorRenders };
+    expect(before.title).toBeGreaterThan(0);
+    expect(before.content).toBeGreaterThan(0);
+
+    fireEvent.change(input, { target: { value: "b" } });
+    fireEvent.change(input, { target: { value: "bo" } });
+    fireEvent.change(input, { target: { value: "bod" } });
+    await waitFor(() => expect(findCount()).toHaveTextContent("1/1"));
+
+    expect(editorRenders).toEqual(before);
+  });
+
+  it("trong lúc chờ so khớp truy vấn mới, ô đếm không báo nhầm là không có kết quả", async () => {
+    comments = [{ id: "c1", body: "mốc một", at: "00" }];
+    await renderPage();
+    await screen.findByText("mốc một");
+    const input = await openFind();
+
+    fireEvent.change(input, { target: { value: "mốc" } });
+
+    expect(findCount()).not.toHaveTextContent(/không có kết quả|no matches/i);
+    await waitFor(() => expect(findCount()).toHaveTextContent("1/1"));
+  });
+
+  it("Enter ngay sau khi gõ, trước khi so khớp xong, đi trên kết quả của truy vấn mới", async () => {
+    comments = [
+      { id: "c1", body: "mốc một", at: "00" },
+      { id: "c2", body: "mốc hai", at: "01" },
+      { id: "c3", body: "mốc ba", at: "02" },
+    ];
+    await renderPage();
+    await screen.findByText("mốc ba");
+    const input = await openFind();
+
+    fireEvent.change(input, { target: { value: "mốc" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(findCount()).toHaveTextContent("2/3");
   });
 
   describe("luồng đã giải quyết đang gấp", () => {

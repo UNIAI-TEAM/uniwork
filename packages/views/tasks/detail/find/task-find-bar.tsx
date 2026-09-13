@@ -27,6 +27,7 @@ export function TaskFindBar({
     query,
     matchCount,
     activeIndex,
+    pending,
     setQuery,
     closeFind,
     goNext,
@@ -37,11 +38,16 @@ export function TaskFindBar({
 
   const hasQuery = query.trim().length > 0;
   const noMatches = matchCount === 0;
-  const countLabel = !hasQuery
-    ? ""
-    : noMatches
-      ? t("tasks.detail.find.no_matches")
-      : t("tasks.detail.find.position", { current: activeIndex + 1, total: matchCount });
+  // While a new query waits for its walk, say nothing rather than flash
+  // "no matches" for text that is on the page.
+  const countLabel =
+    !hasQuery || (pending && noMatches)
+      ? ""
+      : noMatches
+        ? t("tasks.detail.find.no_matches")
+        : t("tasks.detail.find.position", { current: activeIndex + 1, total: matchCount });
+  // Stepping flushes a pending walk, so it stays available while one waits.
+  const cannotStep = noMatches && !pending;
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     // A Vietnamese IME confirms a syllable with Enter; that is not "next match".
@@ -88,7 +94,7 @@ export function TaskFindBar({
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-disabled={noMatches || undefined}
+          aria-disabled={cannotStep || undefined}
           onClick={goPrev}
           aria-label={t("tasks.detail.find.previous")}
           title={t("tasks.detail.find.previous")}
@@ -99,7 +105,7 @@ export function TaskFindBar({
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-disabled={noMatches || undefined}
+          aria-disabled={cannotStep || undefined}
           onClick={goNext}
           aria-label={t("tasks.detail.find.next")}
           title={t("tasks.detail.find.next")}

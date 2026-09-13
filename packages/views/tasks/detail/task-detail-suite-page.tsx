@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
-import { useComments, useTask } from "@uniwork/core/tasks";
+import { useTask } from "@uniwork/core/tasks";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import {
   RightSidebarToggle,
@@ -13,10 +13,8 @@ import { useWorkspace } from "../../layout/workspace-context";
 import { TaskDetailEditors } from "./components/task-detail-editors";
 import { TaskDetailResizableLayout } from "./components/task-detail-layout";
 import { TaskDetailPropertiesSidebarSlot } from "./components/task-detail-properties-slot";
-import { TaskFindBar } from "./find/task-find-bar";
-import { useTaskFind } from "./find/use-task-find";
+import { TaskFindScope } from "./find/task-find-scope";
 import { useTaskDetailScrollRestore } from "./hooks/use-task-detail-scroll-restore";
-import { useTaskDetailShortcuts } from "./hooks/use-task-detail-shortcuts";
 import { useTaskFieldSave } from "./hooks/use-task-field-save";
 
 /**
@@ -38,24 +36,6 @@ export function TaskDetailSuitePage(props: {
   const attachScroll = useCallback((el: HTMLElement | null) => {
     setScrollEl(el);
   }, []);
-  // Same query key as the timeline, so no second request.
-  const { data: comments } = useComments(taskId);
-
-  const find = useTaskFind({
-    container: scrollEl,
-    contentKey: `${comments?.length ?? 0}:${task?.description ?? ""}`,
-  });
-  const { closeFind, openFind, barRef: findBarRef } = find;
-  useTaskDetailShortcuts({
-    container: scrollEl,
-    enabled: !!task,
-    findBarRef,
-    onFind: openFind,
-  });
-  // The route reuses this component for another task: drop the old search.
-  useEffect(() => {
-    closeFind();
-  }, [taskId, closeFind]);
 
   useTaskDetailScrollRestore({
     restoreKey: taskId,
@@ -115,21 +95,22 @@ export function TaskDetailSuitePage(props: {
         sidebarController={sidebarController}
         sidebarLabel={t("tasks.detail.sidebar_toggle")}
         main={
-          <div className="relative flex h-full min-h-0 flex-col">
-            {find.open ? (
-              // Outside the scroll container, so it stays put while the page
-              // scrolls; z-30 clears the sticky comment composer (z-10).
-              <TaskFindBar find={find} className="absolute right-4 top-3 z-30" />
-            ) : null}
+          // The editors element is created here and handed to the find scope
+          // as children, so find state changing inside the scope (every
+          // keystroke) never re-renders them.
+          <TaskFindScope
+            taskId={taskId}
+            container={scrollEl}
+            description={task.description ?? ""}
+          >
             <TaskDetailEditors
               task={task}
               workspaceId={workspaceId}
               scrollContainerRef={attachScroll}
               onSaveTitle={(title) => saveField({ title })}
               onSaveDescription={(description) => saveField({ description })}
-              findQuery={find.open ? find.query : ""}
             />
-          </div>
+          </TaskFindScope>
         }
         sidebar={
           <TaskDetailPropertiesSidebarSlot

@@ -189,14 +189,70 @@ describe("useTaskFind", () => {
     vi.unstubAllGlobals();
   });
 
-  // Flush the frame-deferred recomputes the open/query/content effects schedule.
-  async function flushFrames(count = 3): Promise<void> {
-    for (let i = 0; i < count; i++) {
-      await act(
-        () => new Promise<void>((done) => requestAnimationFrame(() => done())),
-      );
-    }
+  // Wait out the match recompute the open/query effects schedule. Longer than
+  // the 150ms query debounce, with margin for a loaded machine.
+  async function settle(): Promise<void> {
+    await act(() => new Promise<void>((done) => setTimeout(done, 300)));
   }
+
+  it("gõ liên tiếp chỉ đi DOM một lần, khoảng 150ms sau phím cuối, kể cả khi trang đổi giữa chừng", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result, unmount } = renderHook(() => useTaskFind({ container, contentKey: 0 }));
+      act(() => result.current.openFind());
+      act(() => {
+        vi.advanceTimersByTime(20);
+      });
+      const walks = vi.spyOn(document, "createTreeWalker");
+
+      for (const value of ["f", "fi", "find"]) {
+        act(() => result.current.setQuery(value));
+        // Content churn while typing (the timeline opening a matching thread)
+        // must not cut the debounce short. The observer reports in a microtask.
+        container.append(document.createTextNode(" "));
+        await act(async () => {
+          await Promise.resolve();
+        });
+        act(() => {
+          vi.advanceTimersByTime(100);
+        });
+      }
+      expect(walks).not.toHaveBeenCalled();
+      expect(result.current.pending).toBe(true);
+
+      act(() => {
+        vi.advanceTimersByTime(60);
+      });
+      expect(walks).toHaveBeenCalledTimes(1);
+      expect(result.current.matchCount).toBe(3);
+      expect(result.current.pending).toBe(false);
+      walks.mockRestore();
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Enter hay Shift+Enter trước khi so khớp xong đi trên kết quả của truy vấn mới, không trên kết quả cũ", async () => {
+    const { result, unmount } = renderHook(() => useTaskFind({ container, contentKey: 0 }));
+    act(() => {
+      result.current.openFind();
+      result.current.setQuery("find me");
+    });
+    await settle();
+    expect(result.current.matchCount).toBe(2);
+
+    act(() => result.current.setQuery("find"));
+    act(() => result.current.goNext());
+    expect(result.current.matchCount).toBe(3);
+    expect(result.current.activeIndex).toBe(1);
+
+    act(() => result.current.setQuery("twice"));
+    act(() => result.current.goPrev());
+    expect(result.current.matchCount).toBe(1);
+    expect(result.current.activeIndex).toBe(0);
+    unmount();
+  });
 
   // jsdom implements neither `CSS.highlights` nor `Highlight`, so this is
   // exactly a browser without the CSS Custom Highlight API.
@@ -209,7 +265,7 @@ describe("useTaskFind", () => {
       result.current.openFind();
       result.current.setQuery("find");
     });
-    await flushFrames();
+    await settle();
 
     expect(result.current.matchCount).toBe(3);
     expect(result.current.activeIndex).toBe(0);
@@ -222,7 +278,7 @@ describe("useTaskFind", () => {
     expect(result.current.activeIndex).toBe(2);
 
     act(() => result.current.setQuery("absent"));
-    await flushFrames();
+    await settle();
     expect(result.current.matchCount).toBe(0);
     expect(result.current.activeIndex).toBe(-1);
   });
@@ -240,7 +296,7 @@ describe("useTaskFind", () => {
       result.current.openFind();
       result.current.setQuery("find me");
     });
-    await flushFrames();
+    await settle();
 
     // offset 500 - half the viewport (100) + half the match (10)
     expect(container.scrollTop).toBe(410);
@@ -266,14 +322,14 @@ describe("useTaskFind", () => {
       result.current.openFind();
       result.current.setQuery("find");
     });
-    await flushFrames();
+    await settle();
 
     expect(highlights.get("task-find")?.ranges).toHaveLength(3);
     expect(highlights.get("task-find-active")?.ranges).toHaveLength(1);
     expect(highlights.get("task-find-active")?.priority).toBe(1);
 
     act(() => result.current.closeFind());
-    await flushFrames();
+    await settle();
     expect(highlights.size).toBe(0);
     // Unmount while the fake API is still installed: the unmount cleanup
     // clears highlights, and afterEach restores jsdom's own `CSS` before the
@@ -298,7 +354,7 @@ describe("useTaskFind", () => {
       result.current.openFind();
       result.current.setQuery("biểu".normalize("NFC"));
     });
-    await flushFrames();
+    await settle();
 
     const painted = highlights.get("task-find")?.ranges ?? [];
     expect(painted.map((range) => range.toString())).toEqual([

@@ -166,13 +166,18 @@ function scrollRangeIntoView(container: HTMLElement | null, range: Range): void 
   container.scrollTop = Math.max(0, target);
 }
 
+/** Quiet period after the last keystroke before the page is walked again. */
+const QUERY_DEBOUNCE_MS = 150;
+
 export interface TaskFindState {
   open: boolean;
   query: string;
-  /** Total number of matches for the current query. */
+  /** Total number of matches from the last walk of the page. */
   matchCount: number;
   /** 0-based index of the active match, or -1 when there are none. */
   activeIndex: number;
+  /** The query changed and the page has not been walked for it yet. */
+  pending: boolean;
   /** Whether the CSS Custom Highlight API is available in this browser. */
   supported: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -183,6 +188,11 @@ export interface TaskFindState {
   closeFind: () => void;
   goNext: () => void;
   goPrev: () => void;
+}
+
+interface PendingWalk {
+  timer: ReturnType<typeof setTimeout>;
+  resetActive: boolean;
 }
 
 export function useTaskFind(options: {
@@ -197,6 +207,8 @@ export function useTaskFind(options: {
   const [query, setQueryState] = useState("");
   const [matchCount, setMatchCount] = useState(0);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // The query the current matches were computed for; "" when there are none.
+  const [walkedQuery, setWalkedQuery] = useState("");
   const [focusRequest, setFocusRequest] = useState(0);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -205,6 +217,8 @@ export function useTaskFind(options: {
   // Mirrors `activeIndex` for callbacks that must read it without re-creating.
   const activeIndexRef = useRef(-1);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const pendingRef = useRef<PendingWalk | null>(null);
+  const lastQueryRef = useRef(query);
   const supported = highlightApiSupported();
 
   const setActive = useCallback((index: number) => {
@@ -248,6 +262,7 @@ export function useTaskFind(options: {
         clearHighlights();
         setMatchCount(0);
         setActive(-1);
+        setWalkedQuery("");
         return;
       }
 
@@ -258,6 +273,7 @@ export function useTaskFind(options: {
         return range;
       });
       rangesRef.current = ranges;
+      setWalkedQuery(query);
 
       if (ranges.length === 0) {
         clearHighlights();
@@ -281,35 +297,72 @@ export function useTaskFind(options: {
     [open, container, query, supported, clearHighlights, setActive, applyActive],
   );
 
-  // Open/close or a new query: restart at the first match one frame later,
-  // after the timeline has committed the resolved threads this query opens.
+  // Timers read the newest recompute, whichever render scheduled them.
+  // Declared before the effects that schedule, so it is current when they run.
+  const recomputeRef = useRef(recompute);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => recompute(true));
-    return () => cancelAnimationFrame(frame);
+    recomputeRef.current = recompute;
   }, [recompute]);
 
-  // Searchable content changed: re-walk, keeping the active match.
+  // At most one walk is pending. A content change never cuts short a new
+  // query still waiting out its debounce: that walk sees the newest content.
+  const schedule = useCallback((resetActive: boolean, delayMs: number) => {
+    const previous = pendingRef.current;
+    if (previous?.resetActive && !resetActive) return;
+    if (previous) clearTimeout(previous.timer);
+    const merged = resetActive || !!previous?.resetActive;
+    pendingRef.current = {
+      resetActive: merged,
+      timer: setTimeout(() => {
+        pendingRef.current = null;
+        recomputeRef.current(merged);
+      }, delayMs),
+    };
+  }, []);
+
+  // Run a pending walk now, so stepping never acts on the previous query's matches.
+  const flush = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingRef.current = null;
+    recomputeRef.current(pending.resetActive);
+  }, []);
+
+  // Open/close, a new container or a new query: walk again from the first
+  // match. A new query while the bar is open waits out the debounce, so typing
+  // walks the page once, not once per keystroke. Everything else runs on the
+  // next tick, after the timeline has committed the resolved threads it opens.
+  useEffect(() => {
+    const queryChanged = lastQueryRef.current !== query;
+    lastQueryRef.current = query;
+    schedule(true, open && queryChanged ? QUERY_DEBOUNCE_MS : 0);
+  }, [open, query, container, schedule]);
+
+  // Searchable content changed: walk again, keeping the active match.
   useEffect(() => {
     if (!open) return;
-    const frame = requestAnimationFrame(() => recompute(false));
-    return () => cancelAnimationFrame(frame);
-  }, [contentKey, open, recompute]);
+    schedule(false, 0);
+  }, [contentKey, open, schedule]);
 
   // Async DOM churn (rich content settling, an editor re-rendering) replaces
-  // text nodes and invalidates the ranges; coalesce bursts into one frame.
+  // text nodes and invalidates the ranges; a burst coalesces into one walk.
   useEffect(() => {
     if (!open || !container) return;
-    let frame = 0;
-    const observer = new MutationObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => recompute(false));
-    });
+    const observer = new MutationObserver(() => schedule(false, 0));
     observer.observe(container, { subtree: true, childList: true, characterData: true });
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-    };
-  }, [open, container, recompute]);
+    return () => observer.disconnect();
+  }, [open, container, schedule]);
+
+  // A walk must not land (and paint highlights) after the page has gone.
+  useEffect(
+    () => () => {
+      const pending = pendingRef.current;
+      if (pending) clearTimeout(pending.timer);
+      pendingRef.current = null;
+    },
+    [],
+  );
 
   // Stepping between matches moves the active tint and scrolls to it.
   useEffect(() => {
@@ -355,22 +408,25 @@ export function useTaskFind(options: {
   }, []);
 
   const goNext = useCallback(() => {
+    flush();
     const total = rangesRef.current.length;
     const previous = activeIndexRef.current;
     setActive(total === 0 ? -1 : previous < 0 ? 0 : (previous + 1) % total);
-  }, [setActive]);
+  }, [flush, setActive]);
 
   const goPrev = useCallback(() => {
+    flush();
     const total = rangesRef.current.length;
     const previous = activeIndexRef.current;
     setActive(total === 0 ? -1 : previous < 0 ? total - 1 : (previous - 1 + total) % total);
-  }, [setActive]);
+  }, [flush, setActive]);
 
   return {
     open,
     query,
     matchCount,
     activeIndex,
+    pending: open && query.trim().length > 0 && walkedQuery !== query,
     supported,
     inputRef,
     barRef,

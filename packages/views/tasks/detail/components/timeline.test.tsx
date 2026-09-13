@@ -14,6 +14,7 @@ import { useTaskDetailUiStore } from "@uniwork/core/tasks/stores/task-detail-ui-
 import type { AuditEvent, TaskComment, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
+import { TaskFindQueryContext } from "../find/find-query-context";
 import { TaskDetailTimeline } from "./timeline";
 
 vi.mock("sonner", () => ({
@@ -267,13 +268,17 @@ function renderTimeline({
   taskId: string;
   findQuery?: string;
 }) {
+  const timeline = <TaskDetailTimeline workspaceId={workspaceId} taskId={taskId} />;
+  // Only find cases pass a query. The rest render the exact tree they always
+  // did, so a case that later rerenders the bare timeline keeps the same tree
+  // instead of remounting it.
   return render(
     shell(
-      <TaskDetailTimeline
-        workspaceId={workspaceId}
-        taskId={taskId}
-        findQuery={findQuery}
-      />,
+      findQuery === undefined ? (
+        timeline
+      ) : (
+        <TaskFindQueryContext.Provider value={findQuery}>{timeline}</TaskFindQueryContext.Provider>
+      ),
     ),
   );
 }

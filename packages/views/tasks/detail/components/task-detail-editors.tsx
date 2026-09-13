@@ -20,15 +20,12 @@ export function TaskDetailEditors({
   onSaveTitle,
   onSaveDescription,
   scrollContainerRef,
-  findQuery,
 }: {
   task: Task;
   workspaceId: string;
   onSaveTitle: (title: string) => void;
   onSaveDescription: (markdown: string) => void;
   scrollContainerRef?: (el: HTMLElement | null) => void;
-  /** The open find bar's query; the timeline opens resolved threads it matches. */
-  findQuery?: string;
 }) {
   const { t } = useTranslation();
   const titleEditorRef = useRef<TitleEditorRef>(null);
@@ -108,11 +105,7 @@ export function TaskDetailEditors({
 
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
         <TaskDetailAttachmentsSlot workspaceId={workspaceId} taskId={task.id} />
-        <TaskDetailTimelineSlot
-          workspaceId={workspaceId}
-          taskId={task.id}
-          findQuery={findQuery}
-        />
+        <TaskDetailTimelineSlot workspaceId={workspaceId} taskId={task.id} />
       </div>
     </div>
   );

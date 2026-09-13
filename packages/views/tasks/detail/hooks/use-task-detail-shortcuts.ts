@@ -16,6 +16,7 @@ const PAGE_ACTIONS: readonly ShortcutActionId[] = ["findInTask", "openThreadNav"
 /**
  * The task detail page's one keydown listener, for the two actions that only
  * mean something here: find in the task and move into thread navigation.
+ * Mounted by the find scope, which only exists once the task has loaded.
  *
  * Not in GlobalShortcuts on purpose. The chat page owns Ctrl/Cmd+F for its own
  * message search (chat-page-content.tsx), and a shell-level claim would take
@@ -24,19 +25,17 @@ const PAGE_ACTIONS: readonly ShortcutActionId[] = ["findInTask", "openThreadNav"
  */
 export function useTaskDetailShortcuts({
   container,
-  enabled,
   findBarRef,
   onFind,
 }: {
   /** The page's scroll container: the searched region and the visibility probe. */
   container: HTMLElement | null;
-  enabled: boolean;
   /** The find bar sits outside the container; ⌘F from its input re-selects the query. */
   findBarRef: RefObject<HTMLElement | null>;
   onFind: () => void;
 }): void {
   useEffect(() => {
-    if (!enabled || !container) return;
+    if (!container) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (shouldIgnoreGlobalShortcutEvent(event)) return;
@@ -68,5 +67,5 @@ export function useTaskDetailShortcuts({
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [container, enabled, findBarRef, onFind]);
+  }, [container, findBarRef, onFind]);
 }

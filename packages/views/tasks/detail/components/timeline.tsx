@@ -26,6 +26,7 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../../../toast-api-error";
 import { useFindExpandedThreads } from "../find/find-expanded-threads";
+import { useTaskFindQuery } from "../find/find-query-context";
 import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
@@ -56,14 +57,15 @@ function commentHashId(): string | null {
 export function TaskDetailTimeline({
   workspaceId,
   taskId,
-  findQuery = "",
 }: {
   workspaceId: string;
   taskId: string;
-  /** The open find bar's query; "" while the bar is closed. */
-  findQuery?: string;
 }) {
   const { t } = useTranslation();
+  // The open find bar's query ("" while it is closed), from the page's find
+  // scope. Read here, not passed through the editors, so typing in the bar
+  // re-renders the timeline and not the title and description editors.
+  const findQuery = useTaskFindQuery();
   const errFallback = t("common.error");
   const currentUserId = useAuthStore((s) => s.user?.id);
   const { data: comments, isLoading } = useComments(taskId);
