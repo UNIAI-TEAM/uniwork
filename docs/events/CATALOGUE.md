@@ -39,18 +39,20 @@ trong cache, thay vì chờ refetch (`docs/adr/0015-va-cache-tu-frame-realtime-t
 Chỉ `task.updated` có cột này; `scripts/events-catalogue.test.mjs` đỏ khi một hàng khác
 khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cần ADR mới.
 
-- Server chỉ gửi trường vá khi chúng là toàn bộ thay đổi của một lời gọi
-  `TaskService.updateTaskInTx` cho task đó (một lô `BatchUpdateTasks` là nhiều lời gọi),
-  kèm `revision_before` và `revision` của riêng lời gọi đó. Có trường khác đổi thì frame
-  chỉ mang id và hai revision.
-- Client chỉ vá khi `revision` trong cache bằng `revision_before` của frame; lệch thì
-  invalidate như mọi sự kiện khác. Frame không bao giờ tạo bản ghi, và list vẫn
-  invalidate.
+- Server chỉ gửi trường vá khi mọi trường có trong input của một lời gọi
+  `TaskService.updateTaskInTx` cho task đó (một lô `BatchUpdateTasks` là nhiều lời gọi)
+  đều thuộc `Patch`: frame mang mọi trường vá có trong input, kể cả trường giá trị không
+  đổi, kèm `revision_before` và `revision` của riêng lời gọi đó. Input có trường khác (kể
+  cả `description` không đổi), hoặc input rỗng, thì frame chỉ mang id, không có hai
+  revision.
+- Client chỉ vá khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision`
+  trong cache bằng `revision_before` của frame; thiếu một điều kiện thì invalidate như mọi
+  sự kiện khác. Frame không bao giờ tạo bản ghi, và list vẫn invalidate.
 - Mọi giá trị là chuỗi (payload là `map[string]string`); ngày ở dạng `YYYY-MM-DD`;
   trường bị xoá là chuỗi rỗng.
 - Các nơi khác phát `task.updated` (xoá dự án, nhãn, thuộc tính tuỳ biến, cha và phụ thuộc)
   chỉ gửi `task_id`, `workspace_id`. Cột Payload của hàng này là tập khoá một frame
-  *có thể* mang; thiếu hai revision nghĩa là không vá.
+  *có thể* mang; thiếu hai revision hoặc không có trường vá thì không vá.
 
 ## Bảng
 

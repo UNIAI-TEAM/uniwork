@@ -153,7 +153,7 @@ Nếu hook commit-msg đòi tách, dùng hai commit: `docs` cho ADR, `CLAUDE.md`
 
 **Interfaces:**
 - Consumes: Task 1 (hàng `task.updated` có `Patch`).
-- Produces: payload `task.updated` từ mỗi lời gọi `updateTaskInTx` (`task.go:392`; người gọi: `Update` và `BatchUpdateTasks` ở `task_mutations.go:129-147`): luôn có `task_id`, `workspace_id`, `revision_before`, `revision`; có thêm `title`, `status`, `priority`, `due_date` (chỉ những trường đổi) khi mọi thay đổi của lời gọi đó thuộc tập vá được. Tám nơi phát `task.updated` khác KHÔNG đổi: `project.go:420` (xoá dự án bỏ `project_id` khỏi task), `task_catalog_labels.go:311,343`, `task_catalog_properties.go:288,322`, `task_graph.go:224,300,355`.
+- Produces: payload `task.updated` từ mỗi lời gọi `updateTaskInTx` (`task.go:397`; người gọi: `Update` và `BatchUpdateTasks` ở `task_mutations.go:106-152`): luôn có `task_id`, `workspace_id`; khi mọi trường có trong input của lời gọi đó thuộc tập vá được và có ít nhất một trường, có thêm những trường `title`, `status`, `priority`, `due_date` có trong input cùng `revision_before`, `revision`. Hai revision chỉ đứng cạnh trường vá: input hỗn hợp hoặc rỗng thì frame chỉ mang id. Tám nơi phát `task.updated` khác KHÔNG đổi: `project.go:420` (xoá dự án bỏ `project_id` khỏi task), `task_catalog_labels.go:311,343`, `task_catalog_properties.go:288,322`, `task_graph.go:224,300,355`.
 
 - [ ] **Step 1: Đọc**
 
@@ -167,18 +167,18 @@ Ca tối thiểu:
 1. Đổi riêng `title`: payload có `title` mới, `revision_before` bằng revision trước khi sửa, `revision` bằng revision sau.
 2. Đổi `status` và `due_date` trong một lần: có cả hai trường; `revision − revision_before` bằng đúng số query tăng revision đã chạy.
 3. Xoá `due_date`: `due_date` là chuỗi rỗng.
-4. Đổi `title` và `description`: KHÔNG có trường vá nào; vẫn có hai revision.
-5. Đổi `project_id` hoặc người phụ trách: KHÔNG có trường vá.
-6. Đổi `position`: KHÔNG có trường vá.
+4. Đổi `title` và `description` (input hỗn hợp), hoặc input rỗng: chỉ id, KHÔNG có trường vá và KHÔNG có hai revision.
+5. Đổi `project_id` hoặc người phụ trách: chỉ id.
+6. Đổi `position`: chỉ id.
 7. Ghi đồng thời: một goroutine đổi `priority`, một goroutine đổi `title` cùng task, chạy song song nhiều lần. Với mỗi payload thu được, không có hai frame nào mà khoảng `[revision_before, revision]` chồng nhau, và hợp các khoảng liên tiếp phủ đúng revision cuối. Đây là test chứng minh `revision_before` không lấy từ `before` đọc ngoài transaction.
 8. Mọi giá trị payload là chuỗi (unmarshal được vào `map[string]string`).
 9. `BatchUpdateTasks` với cùng một id hai lần (`[X, X]`): hai frame của X có khoảng `[revision_before, revision]` nối tiếp, không chồng nhau; `revision_before` của frame thứ hai bằng `revision` của frame thứ nhất.
 
 - [ ] **Step 3: Viết mã**
 
-- Trong mỗi lời gọi `updateTaskInTx`, đếm số query tăng revision mà chính lời gọi đó đã chạy cho task; `revision_before = task.Revision − count`. Không đếm theo cả transaction (một lô `BatchUpdateTasks` có thể gọi nhiều lần cho cùng task), không dùng `before.Revision`.
-- Tập đổi = khoá có giá trị khác nhau giữa `taskAuditFields(before)` và `taskAuditFields(task)`, cộng `description` nếu khác.
-- Nếu tập đổi rỗng hoặc là tập con của `{title, status, priority, due_date}`: thêm các trường đổi vào payload dưới dạng chuỗi.
+- Trong mỗi lời gọi `updateTaskInTx`, lấy `revision_before = revision` của hàng `UpdateTask` trả về (RETURNING) trừ một, ngay sau `UpdateTask`: query đó luôn chạy, khoá hàng và tăng revision đúng một (`pkg/db/queries/tasks.sql:43`). `revision` là revision của hàng RETURNING cuối cùng của lời gọi. Không đếm số query (vỡ im lặng nếu một `Set*` sau này tăng có điều kiện), không đếm theo cả transaction (một lô `BatchUpdateTasks` có thể gọi nhiều lần cho cùng task), không dùng `before.Revision`.
+- Tập đổi = mọi trường có trong input, không so với `before`: `before` đọc trước khoá hàng, và so với nó có thể giấu trường chính lời gọi này ghi.
+- Nếu tập đổi khác rỗng và là tập con của `{title, status, priority, due_date}`: thêm các trường đó (giá trị từ hàng dưới khoá) cùng hai revision vào payload dưới dạng chuỗi. Ngược lại frame chỉ mang id.
 - Đọc danh sách trường vá từ `Patch` của `EventDef` mà `outbox.Lookup("task.updated")` trả về (hàm trả `(EventDef, bool)`), không lặp lại danh sách trong service. Đã kiểm: `service` được import `internal/outbox` (đang có ở `service/audit_export.go`, `chat_task_sync.go`, `meeting_provider_consumer.go`, `meeting_webhook.go`); `server/internal/arch_test.go` chỉ cấm ghi thẳng bảng `audit_events`/`outbox_events` ngoài `internal/audit`, không cấm đọc catalogue.
 
 - [ ] **Step 4: Chạy và commit**
