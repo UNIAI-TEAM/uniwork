@@ -36,9 +36,17 @@ function actorInitial(name: string): string {
 export const BoardCardContent = memo(function BoardCardContent({
   task,
   meta,
+  reserveActionSpace = false,
 }: {
   task: Task;
   meta?: BoardCardMeta;
+  /**
+   * Set where the card carries the three-dot button. On coarse pointers the
+   * button is always visible in the top-right corner, so the header row moves
+   * the priority label left instead of letting the button cover it. The drag
+   * overlay has no button and leaves this off.
+   */
+  reserveActionSpace?: boolean;
 }) {
   const { t } = useTranslation();
   const cardProperties = useViewStore((s) => s.cardProperties);
@@ -49,7 +57,15 @@ export const BoardCardContent = memo(function BoardCardContent({
 
   return (
     <div className="rounded-lg border border-border bg-surface px-2.5 py-2.5 shadow-sm transition-[background-color,border-color,box-shadow] group-hover/card:border-foreground/15 group-hover/card:bg-surface-hover group-hover/card:shadow-md">
-      <div className="flex items-center justify-between gap-2">
+      <div
+        data-card-header=""
+        className={cn(
+          "flex items-center justify-between gap-2",
+          // 44px button at right-1.5 covers 50px from the card edge; border
+          // and px-2.5 already give 11px, so the header reserves 40px.
+          reserveActionSpace && "pointer-coarse:pr-10",
+        )}
+      >
         <div className="flex min-w-0 items-center gap-1.5">
           {task.identifier ? (
             <p className="truncate text-caption text-muted-foreground">
@@ -190,7 +206,7 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
             isDragging && "pointer-events-none",
           )}
         >
-          <BoardCardContent task={task} meta={meta} />
+          <BoardCardContent task={task} meta={meta} reserveActionSpace />
         </button>
       </div>
       {isDragging ? null : (

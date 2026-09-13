@@ -6,6 +6,7 @@ import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context
 import type { Task } from "@uniwork/core/types";
 import { wrap } from "../../test/api-mock";
 import { BoardCardContent } from "./board-card";
+import { BoardView } from "./board-view";
 
 initI18n();
 
@@ -87,5 +88,42 @@ describe("BoardCardContent", () => {
     expect(screen.queryByText(task.description)).toBeNull();
     expect(screen.queryByText("Nguyễn An")).toBeNull();
     expect(screen.queryByText(/2026-09-12/)).toBeNull();
+  });
+});
+
+describe("Kanban three-dot button and the priority label", () => {
+  // The button sits absolute in the card's top-right corner and is always
+  // visible on coarse pointers, where it would cover PriorityFlag withLabel.
+  const RESERVE = "pointer-coarse:pr-10";
+
+  it("reserves header space on coarse pointers on the draggable card, which has the button", () => {
+    const store = getTaskSurfaceViewStore("board-card-reserve-draggable");
+    const { container } = render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardView categories={["in_progress"]} tasks={[task]} onOpenTask={vi.fn()} />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(screen.getByRole("button", { name: "Thêm thao tác" })).toBeInTheDocument();
+    const header = container.querySelector("[data-board-card] [data-card-header]");
+    expect(header).not.toBeNull();
+    expect(header!.className).toContain(RESERVE);
+  });
+
+  it("does not reserve space on the drag overlay content, which has no button", () => {
+    const store = getTaskSurfaceViewStore("board-card-reserve-overlay");
+    const { container } = render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardCardContent task={task} />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    const header = container.querySelector("[data-card-header]");
+    expect(header).not.toBeNull();
+    expect(header!.className).not.toContain(RESERVE);
   });
 });
