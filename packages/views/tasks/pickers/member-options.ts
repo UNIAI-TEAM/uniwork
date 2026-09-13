@@ -35,13 +35,26 @@ export function toHumanAssigneeOptions(
   }));
 }
 
-/** Same member list and mapping the table's assignee picker receives. */
+export type WorkspaceAssigneeOptions = {
+  options: AssigneeOption[];
+  /** First load in flight; `options` is empty but the workspace may have members. */
+  isLoading: boolean;
+  /** The load failed and there is no earlier list to fall back on. */
+  isError: boolean;
+};
+
+/**
+ * Same member list and mapping the table's assignee picker receives. Loading
+ * and error are returned beside the options, so an empty list is never read
+ * as a workspace with no members.
+ */
 export function useWorkspaceAssigneeOptions(
   workspaceId: string,
-): AssigneeOption[] {
-  const { data } = useMembers(workspaceId);
-  return useMemo(
+): WorkspaceAssigneeOptions {
+  const { data, isLoading, isError } = useMembers(workspaceId);
+  const options = useMemo(
     () => toHumanAssigneeOptions(toMemberOptions(data ?? [])),
     [data],
   );
+  return { options, isLoading, isError: isError && data === undefined };
 }

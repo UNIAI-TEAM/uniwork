@@ -2,6 +2,7 @@
 
 import type { ComponentType, ReactNode } from "react";
 import {
+  Bot,
   CircleDot,
   ExternalLink,
   Link2,
@@ -39,6 +40,7 @@ type MenuParts = {
   Item: ComponentType<{
     onClick?: () => void;
     variant?: "default" | "destructive";
+    disabled?: boolean;
     children: ReactNode;
   }>;
   Separator: ComponentType;
@@ -53,6 +55,7 @@ type MenuParts = {
   RadioItem: ComponentType<{
     value: string;
     closeOnClick?: boolean;
+    disabled?: boolean;
     children: ReactNode;
   }>;
 };
@@ -132,9 +135,12 @@ function AssigneeRadioItems({
 }) {
   const { t } = useTranslation();
   // Mounted only while the submenu is open, so rows do not each subscribe to members.
-  const options = useWorkspaceAssigneeOptions(task.workspace_id);
+  const { options, isLoading, isError } = useWorkspaceAssigneeOptions(
+    task.workspace_id,
+  );
+  const assignedToAgent = Boolean(task.assignee_id) && task.assignee_kind === "agent";
   const value = task.assignee_id
-    ? `${task.assignee_kind === "agent" ? "agent" : "human"}:${task.assignee_id}`
+    ? `${assignedToAgent ? "agent" : "human"}:${task.assignee_id}`
     : UNASSIGNED;
 
   return (
@@ -156,15 +162,32 @@ function AssigneeRadioItems({
         <UserRound aria-hidden />
         {t("tasks.unassigned")}
       </P.RadioItem>
-      {options.map((option) => (
-        <P.RadioItem
-          key={`${option.kind}:${option.id}`}
-          value={`${option.kind}:${option.id}`}
-          closeOnClick
-        >
-          <span className="min-w-0 truncate">{option.name}</span>
+      {assignedToAgent ? (
+        // Agents are not offered here, but the current one must still be
+        // visible and checked. ADR 0007: the name is the server-resolved actor.
+        <P.RadioItem value={value} disabled>
+          <Bot aria-hidden />
+          <span className="min-w-0 truncate">
+            {task.assignee?.display_name ||
+              t("tasks.row_actions.agent_assignee")}
+          </span>
         </P.RadioItem>
-      ))}
+      ) : null}
+      {isLoading ? (
+        <P.Item disabled>{t("tasks.row_actions.assignees_loading")}</P.Item>
+      ) : isError ? (
+        <P.Item disabled>{t("tasks.row_actions.assignees_failed")}</P.Item>
+      ) : (
+        options.map((option) => (
+          <P.RadioItem
+            key={`${option.kind}:${option.id}`}
+            value={`${option.kind}:${option.id}`}
+            closeOnClick
+          >
+            <span className="min-w-0 truncate">{option.name}</span>
+          </P.RadioItem>
+        ))
+      )}
     </P.RadioGroup>
   );
 }

@@ -767,7 +767,10 @@
       "delete_confirm": "Xóa task",
       "cancel": "Hủy",
       "delete_success": "Đã xóa task",
-      "delete_failed": "Không xóa được task"
+      "delete_failed": "Không xóa được task",
+      "assignees_loading": "Đang tải thành viên…",
+      "assignees_failed": "Không tải được thành viên",
+      "agent_assignee": "Agent"
     },
     "save_view": {
       "title": "Lưu thành chế độ xem",

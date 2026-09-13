@@ -294,6 +294,75 @@ describe("RowActionsMenu: từng hành động", () => {
   });
 });
 
+describe("RowActionsMenu: menu con người phụ trách không nói sai", () => {
+  function membersRespond(respond: () => Promise<unknown>) {
+    requestMock.mockImplementation(async (path: string) => {
+      if (typeof path === "string" && path.includes("/members")) return respond();
+      return {};
+    });
+  }
+
+  async function openAssigneeSubmenu() {
+    const menu = await openContextMenu();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+  }
+
+  it("đang tải thành viên thì hiện một mục bị vô hiệu, không giả như workspace trống", async () => {
+    membersRespond(() => new Promise(() => {}));
+    renderSurface();
+    await openAssigneeSubmenu();
+    const loading = await screen.findByRole("menuitem", { name: "Đang tải thành viên…" });
+    expect(loading).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Không tải được thành viên")).toBeNull();
+  });
+
+  it("tải thành viên lỗi thì hiện một mục lỗi bị vô hiệu", async () => {
+    membersRespond(() => Promise.reject(new Error("boom")));
+    renderSurface();
+    await openAssigneeSubmenu();
+    const failed = await screen.findByRole("menuitem", { name: "Không tải được thành viên" });
+    expect(failed).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Đang tải thành viên…")).toBeNull();
+  });
+
+  it("task giao cho agent hiện tên agent, được đánh dấu và bị vô hiệu", async () => {
+    sample.assignee_id = "a1";
+    sample.assignee_kind = "agent";
+    sample.assignee = { kind: "agent", id: "a1", display_name: "Trợ lý UNI" };
+    try {
+      renderSurface();
+      await openAssigneeSubmenu();
+      await screen.findByRole("menuitemradio", { name: "Bình Trần" });
+      const agent = screen.getByRole("menuitemradio", { name: "Trợ lý UNI" });
+      expect(agent).toHaveAttribute("aria-checked", "true");
+      expect(agent).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("menuitemradio", { name: "Chưa giao" })).toHaveAttribute("aria-checked", "false");
+    } finally {
+      sample.assignee_id = "u1";
+      sample.assignee_kind = "human";
+      sample.assignee = { kind: "human", id: "u1", display_name: "An Nguyễn" };
+    }
+  });
+
+  it("agent không có assignee thì hiện nhãn Agent đã dịch, không phải id thô", async () => {
+    sample.assignee_id = "a1";
+    sample.assignee_kind = "agent";
+    sample.assignee = undefined;
+    try {
+      renderSurface();
+      await openAssigneeSubmenu();
+      await screen.findByRole("menuitemradio", { name: "Bình Trần" });
+      const agent = screen.getByRole("menuitemradio", { name: "Agent" });
+      expect(agent).toHaveAttribute("aria-checked", "true");
+      expect(screen.queryByText("a1")).toBeNull();
+    } finally {
+      sample.assignee_id = "u1";
+      sample.assignee_kind = "human";
+      sample.assignee = { kind: "human", id: "u1", display_name: "An Nguyễn" };
+    }
+  });
+});
+
 describe("RowActionsMenu: xóa phải xác nhận", () => {
   it("bấm Xóa chỉ mở hộp thoại; Hủy không xóa", async () => {
     const { actions } = renderSurface();
