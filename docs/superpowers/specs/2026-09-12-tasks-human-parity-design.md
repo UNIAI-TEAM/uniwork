@@ -466,11 +466,15 @@ có chủ đích hay khoảng trống, và cần gì để đóng.
    - ⌘[ và ⌘] điều hướng lùi, tới; mọi action `go*` đã gán phím cũng điều
      hướng.
 
-   Chỉ kiểm trên mã, chưa tái hiện trên trình duyệt. Mã cố ý giữ nguyên: chặn
-   mọi phím tắt toàn cục khi có bất kỳ `[aria-modal="true"]` nào sẽ đổi luật đã
-   chốt cho ⌘K và ⌘J, hai phím được quyết định mở cả trên dialog modal (mục 18).
-   Để đóng: modal xem trước chuyển focus vào trong khi mở, hoặc dùng Dialog của
-   Base UI.
+   Chỉ kiểm trên mã, chưa tái hiện trên trình duyệt. Mã giữ nguyên trong PR
+   này vì sửa là đổi hành vi, ngoài đợt sửa sau review. Việc sửa không đụng tới
+   ⌘K và ⌘J (mục 18): dispatcher chỉ gọi `isPortalLayerShortcutTarget` cho
+   action không được phép trong editor
+   (`packages/views/layout/global-shortcuts.tsx:75-77`), nên thêm điều kiện "đang
+   có `[aria-modal="true"]` hiện trên trang" vào hàm đó chỉ chặn C, ⌘F, ⌘[, ⌘]
+   và `go*`. Để đóng: thêm điều kiện đó kèm test (modal đã đóng không chặn),
+   hoặc cho modal xem trước chuyển focus vào trong khi mở, hoặc dùng Dialog
+   của Base UI.
 
 8. **⌘/Ctrl+Enter trong editor mô tả task chèn ngắt dòng.** Cần người quyết,
    không phải lỗi của D1. HardBreak của TipTap bind `Mod-Enter`
