@@ -184,6 +184,49 @@ beforeEach(() => {
   useCommentDraftStore.setState({ drafts: {} });
 });
 
+// The editor AND `useComposerSubmit` are mocked in this file, so these only
+// prove the composer routes the send key into `submit()` rather than around
+// it. The real empty / in-flight / upload guards are pinned against the real
+// hook in `editor/use-composer-submit.test.tsx`.
+describe("TaskCommentComposer send key guards", () => {
+  it("does not send when the editor is empty", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    renderComposer(onSubmit);
+    const editor = await activate();
+
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true });
+    await flushMicrotasks();
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("does not send when the editor holds only whitespace", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    renderComposer(onSubmit);
+    const editor = await activate();
+
+    fireEvent.change(editor, { target: { value: "  \n\t " } });
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true });
+    await flushMicrotasks();
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("does not send a second time while the first send is in flight", async () => {
+    const onSubmit = vi.fn(() => new Promise<boolean>(() => {}));
+    renderComposer(onSubmit);
+    const editor = await activate();
+
+    fireEvent.change(editor, { target: { value: "một lần thôi" } });
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true });
+    await flushMicrotasks();
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true });
+    await flushMicrotasks();
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("TaskCommentComposer draft persistence", () => {
   it(
     "gửi thất bại: nháp vẫn còn trong store",
