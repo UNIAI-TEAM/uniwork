@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — lát C của spec ô Task human-parity
+> **Trạng thái:** shipped — lát C của spec ô Task human-parity, qua make check (2026-09-13). `make check` fail-fast không tới được Go test: hai lần chạy dừng ở `pnpm test` vì hai test views nhạy tải có từ trước lát (`project-detail-page`, `markdown-paste`; chạy riêng đều xanh), nên các bước còn lại được chạy tay theo đúng lệnh trong `scripts/check.sh`: coverage từng package, node contract tests (52/53, chỉ đỏ lỗi governance nền do commit `e88a055`), migrate, và `scripts/test-go.sh --race` (chỉ đỏ `TestChatFollowUpHTTP` đã biết và flake song song `TestTaskCRUD`, xem spec §7quater).
 
 **Goal:** Một bộ picker trường công việc duy nhất, dùng chung cho ô bảng, sidebar chi tiết và thanh hành động hàng loạt, thay cho ba bản cài đặt song song hiện nay; cộng picker ngày và menu hành động trên hàng.
 

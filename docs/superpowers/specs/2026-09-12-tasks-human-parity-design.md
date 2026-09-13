@@ -1,6 +1,6 @@
 # UniWork — Task human-parity với USF (spec ô)
 
-> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`)
+> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`); lát C shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-c.md`)
 
 **Ngày:** 2026-09-12
 **Issue:** (tạo khi `writing-plans` — 1 issue ô + 5 sub-issue)
@@ -90,6 +90,9 @@ cần chép.
   ngày bắt đầu, ngày hết hạn, thuộc tính tùy biến. Mỗi picker một file.
 - Menu hành động trên hàng và menu chuột phải, dùng primitive của `packages/ui/`.
 - Picker được dùng lại ở ô bảng, thanh hành động hàng loạt, và sidebar chi tiết.
+
+Ngày bắt đầu và thuộc tính tùy biến không có trong lát C đã ship; lý do và việc
+cần làm để đóng nằm ở §7quater.
 
 **Lát D — Bàn phím và tiện nghi.** Phụ thuộc C.
 
@@ -253,6 +256,96 @@ sót — ghi lại để không ai "sửa" nhầm nó sau này.
    gốc và tự ẩn dưới bốn. Đây là quyết định có chủ đích từ review giữa lát B
    (commit "nâng ngưỡng bảng điều hướng luồng lên bốn"), không phải một khiếm
    khuyết cần lát sau sửa.
+
+## 7quater. Giới hạn đã biết của lát C
+
+Lát C hợp nhất ba bản cài đặt song song thành một bộ picker trong
+`packages/views/tasks/pickers/` (trạng thái, độ ưu tiên, người phụ trách, nhãn)
+dùng chung cho ô bảng, sidebar chi tiết và thanh hàng loạt; thêm đặt ngày hạn
+cho nhiều task cùng lúc; và thêm menu hành động trên hàng (nút ba chấm) cùng
+menu chuột phải cho list và board. Các điểm dưới đây còn đúng ở mã khi lát C
+merge. Mỗi điểm nói rõ đó là quyết định có chủ đích hay khoảng trống cho lát
+sau, và cần gì để đóng.
+
+1. **Ngày bắt đầu chỉ đọc.** Khoảng trống, cần backend. Task không có đường ghi
+   `start_date`: `PatchTaskSDI` trong `server/internal/handler/dto/sdi/task.go`
+   không có trường này, `server/internal/handler/task.go` chỉ đọc `due_date` từ
+   body PATCH, và service chỉ gọi query sqlc `SetTaskDueDate`. Sidebar chi tiết
+   hiện ngày bắt đầu là `DateField` tắt kèm tooltip "chưa sẵn sàng". Để đóng:
+   thêm trường vào SDI, query sqlc, lệnh service có audit, rồi bật picker.
+
+2. **Không có picker thuộc tính tùy biến.** Quyết định có chủ đích. Đây không
+   phải một picker mà là nối dây cả một danh mục thuộc tính;
+   `packages/views/tasks/modes/board-view.tsx` và
+   `packages/views/tasks/modes/table-column-picker.tsx` đều đang ghi chú chờ
+   cùng năng lực "property catalog". Để đóng: một spec riêng cho danh mục thuộc
+   tính, không vá vào bộ picker.
+
+3. **Thanh hàng loạt không gắn được nhãn.** Khoảng trống.
+   `BatchUpdateBody.updates` trong `packages/core/api/endpoints/tasks-suite.ts`
+   không có trường nhãn, nên thanh chỉ có trạng thái, độ ưu tiên, người phụ
+   trách và ngày hạn. Để đóng: endpoint batch nhận nhãn ở server, rồi thêm
+   `LabelPicker` vào thanh.
+
+4. **Bảng không có menu chuột phải, chỉ có nút ba chấm.** Khoảng trống.
+   `ContextMenuTrigger` render một `div` nên không bọc được `<tr>`; còn tự dựng
+   hàng qua `DataTable.renderRow` thì mất `onRowClick` và trạng thái chọn mà
+   `packages/ui/components/ui/data-table.tsx` gắn cho hàng mặc định. Để đóng:
+   thêm một prop kiểu `getRowProps` hoặc `wrapRow` trên `DataTable`.
+
+5. **Mỗi hàng bảng gửi một request nhãn.** Khoảng trống về hiệu năng.
+   `useLabelsOnTask` được gọi trong ô nhãn của từng hàng
+   (`packages/views/tasks/modes/table-cell-editors.tsx`), và cột nhãn nằm trong
+   `DEFAULT_TABLE_COLUMNS` nên hiện mặc định. Để đóng: server nhúng nhãn vào
+   danh sách task, ô đọc từ hàng thay vì tự hỏi.
+
+6. **Menu con "Đổi người phụ trách" chỉ có thành viên người và không có tìm
+   kiếm.** Quyết định có chủ đích, hoãn sau vòng sửa của menu hành động hàng.
+   Task đang giao cho agent hiện một dòng agent đã chọn nhưng bị tắt, nên không
+   gán agent từ menu được; task giao cho người đã rời workspace thì không dòng
+   nào được đánh dấu (`packages/views/tasks/row-actions-items.tsx`,
+   `packages/views/tasks/pickers/member-options.ts`). Để đóng: đưa agent và ô
+   tìm kiếm vào menu con, cùng một dòng cho người phụ trách không còn trong
+   danh sách.
+
+7. **Xoá task từ menu hàng làm focus bàn phím rơi về `body`.** Quyết định có
+   chủ đích, hoãn. Hộp thoại đóng và trả focus về nút mở menu, rồi refetch gỡ
+   hàng nên nút đó biến mất (`packages/views/tasks/row-actions-menu.tsx`).
+   Người dùng bàn phím mất vị trí trong danh sách. Để đóng: sau khi xoá thành
+   công, chuyển focus sang hàng kế tiếp hoặc liền trước.
+
+8. **Vùng bắt đầu kéo của hàng list hẹp hơn trước.** Quyết định có chủ đích.
+   Listener dnd-kit giờ nằm ở div con `flex-1` trong
+   `packages/views/tasks/modes/list-row.tsx`, không còn ở hàng ngoài, nên padding
+   hai bên và vùng nút ba chấm không bắt đầu kéo. Đổi lại, menu và hộp thoại
+   portal không nằm trong listener kéo. Không cần đóng.
+
+9. **Ô ngày hạn ở thanh hàng loạt rộng hơn ba picker kia.** Quyết định có chủ
+   đích. `BatchDueDatePicker` trong `packages/views/tasks/views/batch-pickers.tsx`
+   đặt một `<label>` hiển thị cạnh `DateField` để đặt tên hành động, thay vì
+   thêm prop nhãn trigger vào một component dùng chung. Không cần đóng trừ khi
+   `DateField` có prop đó vì lý do khác.
+
+10. **Chưa kiểm trên trình duyệt thật.** Khoảng trống kiểm chứng. Màu chip nhãn,
+    nút gỡ nhãn, vị trí nút ba chấm và cơ chế chặn nổi bọt sự kiện qua portal
+    lồng nhau của Base UI chỉ được kiểm trên jsdom; `e2e/` chưa có kịch bản nào
+    chạm picker hay menu hàng. Để đóng: kịch bản E2E mà §6 đã hẹn.
+
+11. **Flake "Group _r_2_ not found"** ở
+    `packages/views/layout/animated-right-sidebar.tsx` thỉnh thoảng làm lần chạy
+    coverage đầy đủ của `views` thoát 1 dù mọi test xanh. Có từ trước lát C,
+    không do lát C gây ra; ghi lại để lần chạy cổng sau không nhận nhầm. Cùng
+    loại với nó, cổng lát C gặp thêm ba lỗi thoáng qua có từ trước, không lỗi
+    nào tái hiện khi chạy riêng:
+    `projects/project-detail-page.test.tsx` và
+    `editor/extensions/markdown-paste.test.ts` đỏ khi turbo chạy song song ba
+    package (lát B đã gặp y hệt); riêng `markdown-paste` còn hết giờ 30s dưới
+    v8 coverage vì dán đồng bộ một chuỗi hơn 50.000 ký tự, chưa đổi từ
+    `219130a`. Ở Go, `TestTaskCRUD` (`server/internal/service/task_test.go:186`,
+    "missing event task.created") là flake song song: helper `drain` gọi
+    `Dispatcher.Process` trên cả database dùng chung, nên dispatcher của package
+    test khác chạy cùng lúc có thể nhận mất dòng outbox của test này. Lát C
+    không chạm `server/`. Để đóng: cô lập outbox theo test, không nới timeout.
 
 ## 8. Việc làm tiếp theo
 
