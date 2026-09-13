@@ -236,7 +236,9 @@ Every command that changes business state writes an `audit_events` row and its
   `packages/core/types/events.ts` — and `scripts/events-catalogue.test.mjs`
   fails when the three disagree, when a client-visible row declares a key that
   is neither an id nor a revision key, when any row carries a revision key
-  without `Patch`, or when any row but `task.updated` declares `Patch`.
+  without `Patch`, when a row with `Patch` lacks either revision key, when the
+  patchable field set changes, or when any row but `task.updated` declares
+  `Patch`.
 - Every request carries a `correlation_id` (`middleware.Correlation`), and it
   reaches the audit row, the events and the access log. `docs/ops/RUNBOOK_OUTBOX.md`
   is the runbook.

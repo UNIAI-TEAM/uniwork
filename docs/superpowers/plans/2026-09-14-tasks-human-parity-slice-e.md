@@ -76,6 +76,8 @@ Tiền kiểm cũng xác nhận giả định an toàn của spec §4.3: quyền
 
 - [ ] **Step 2: Viết test thất bại trong `scripts/events-catalogue.test.mjs`**
 
+> **Đã chạy (commit `aae3f8c`, `ac3f52c`, `9ceab13`).** Khối mã và mô tả của bước này là bản gốc và còn hai lỗi đã sửa sau review: kiểm `continue` của hàng hạ tầng chạy trước luật khoá revision, và bộ đọc Go không bỏ comment. Chạy lại task này thì lấy `scripts/events-catalogue.test.mjs` đã commit làm chuẩn, không chép khối mã dưới.
+
 Thay khẳng định "payload keys are ids" bằng ba khẳng định:
 
 ```js
@@ -107,7 +109,7 @@ Sửa `goCatalogue()` để regex chấp nhận `Patch: []string{...}` tuỳ ch�
 
 - [ ] **Step 3: Viết ADR 0015**
 
-Tiếng Việt, bốn mục bắt buộc cộng mục "Test giữ luật" như ADR 0009. Dòng trạng thái: xem dòng 3 của `docs/adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md` đã commit, và giữ nguyên dòng đó, không viết lại theo dạng cũ. Dòng đó chỉ ghi công quangpd câu spec §2 (viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue) cùng ba ràng buộc spec §4.3. Mọi lựa chọn khác trong ADR (tập trường vá và trường không vá, guard hai revision, mã hoá giá trị, trang chi tiết không refetch, điều kiện tắt `Patch`, cần ADR mới để mở thêm, giữ `Version` 1) nó ghi là của plan hoặc tiền kiểm, chờ quangpd xác nhận ở review PR.
+Tiếng Việt, bốn mục bắt buộc cộng mục "Test giữ luật" như ADR 0009. Dòng trạng thái: xem dòng 3 của `docs/adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md` đã commit, và giữ nguyên dòng đó, không viết lại theo dạng cũ. Dòng đó chỉ ghi công quangpd câu spec §2 (viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue), và nêu ba ràng buộc do spec §4.3 đặt. Mọi lựa chọn khác trong ADR (tập trường vá và trường không vá, guard hai revision, mã hoá giá trị, trang chi tiết không refetch, điều kiện tắt `Patch`, cần ADR mới để mở thêm, giữ `Version` 1) nó ghi là của plan, của tiền kiểm mã hoặc suy luận của agent khi viết ADR, chờ quangpd xác nhận ở review PR.
 
 Quyết định phải nêu đủ:
 1. Chỉ hàng catalogue có `Patch` mới mang trường nội dung; `Patch` là nguồn sự thật duy nhất. Hôm nay chỉ `task.updated`, bốn trường `title`, `status`, `priority`, `due_date`.
@@ -124,7 +126,7 @@ Thêm hàng 0015 vào bảng `docs/adr/README.md`.
 - `catalogue.go`: thêm trường `Patch []string` vào `EventDef` với comment tiếng Anh trỏ ADR 0015; hàng `task.updated` như Interfaces. Giữ mỗi hàng trên một dòng.
 - `CATALOGUE.md`: thêm cột Patch cho mọi hàng (`—` khi rỗng) và một đoạn ngắn trỏ ADR 0015.
 - `audit/audit.go`: comment của `Event` nói payload là id, trừ trường một hàng catalogue khai ở `Patch` (ADR 0015).
-- `CLAUDE.md`: CHỈ sửa hai chỗ mà test của task này giữ được. Audit and Events: "payloads carry ids only" thêm ngoại lệ trường một hàng catalogue khai ở `Patch` (ADR 0015), nêu `scripts/events-catalogue.test.mjs`. Domain Reminders: tương tự, một vế. KHÔNG sửa State Rules ở task này: luật "frame không bao giờ ghi vào cache" vẫn đúng cho tới Task 3, và `CLAUDE.md` chỉ ghi luật có test giữ.
+- `CLAUDE.md`: CHỈ sửa § Audit and Events và § Domain Reminders. Lấy câu chữ ĐÃ COMMIT làm chuẩn (commit `42f3c57` và vòng sửa sau), không viết lại theo mô tả cũ: payload phía client chỉ mang id, trừ trường một hàng catalogue khai ở `Patch` cùng cặp `revision_before`/`revision`; hàng hạ tầng nằm ngoài luật; nêu `scripts/events-catalogue.test.mjs`. KHÔNG sửa State Rules ở task này: luật "frame không bao giờ ghi vào cache" vẫn đúng cho tới Task 3, và `CLAUDE.md` chỉ ghi luật có test giữ.
 
 - [ ] **Step 5: Chạy và commit**
 
