@@ -1,6 +1,6 @@
 # 0015 — Vá cache từ frame realtime, chỉ với trường catalogue khai ở `Patch`
 
-**Trạng thái:** accepted (2026-09-14) — ghi lại quyết định quangpd đã chốt trong brainstorm spec ô Task human-parity (2026-09-12, spec §2, hàng "Độ trễ cảm nhận"). Luật vào `CLAUDE.md` cùng commit với test giữ luật.
+**Trạng thái:** accepted (2026-09-14) — ghi lại quyết định quangpd đã chốt trong brainstorm spec ô Task human-parity (2026-09-12, spec §2, hàng "Độ trễ cảm nhận": viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue). Tập trường vá, các trường không vá và guard hai revision không do quangpd chốt: đó là lựa chọn của plan lát E (`docs/superpowers/plans/2026-09-14-tasks-human-parity-slice-e.md`) và lượt tiền kiểm mã, chờ quangpd xác nhận ở review PR trước khi merge. Luật vào `CLAUDE.md` cùng commit với test giữ luật.
 
 ## Bối cảnh
 
@@ -16,8 +16,9 @@ human-parity (`docs/superpowers/specs/2026-09-12-tasks-human-parity-design.md`),
 chốt: viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue (§2, hàng
 "Độ trễ cảm nhận"). Spec §4.3 đặt ba ràng buộc: chỉ topic được liệt kê mới có payload
 giàu và danh sách trường nằm trong catalogue; client chỉ vá đúng những trường đó, trường
-lạ bị bỏ; frame không bao giờ tạo bản ghi mới. ADR này ghi lại quyết định đó, cộng hai
-điều kiện mà lượt tiền kiểm mã ngày 2026-09-14 buộc phải thêm.
+lạ bị bỏ; frame không bao giờ tạo bản ghi mới. Spec không nêu trường nào được vá. ADR này
+ghi lại quyết định đó, cộng tập trường do plan lát E chọn và hai điều kiện mà lượt tiền
+kiểm mã ngày 2026-09-14 buộc phải thêm.
 
 1. **`revision` của task tăng theo từng câu query, không theo từng lần sửa.**
    `TaskService.updateTaskInTx` luôn chạy `UpdateTask`, rồi chạy `SetTaskAssignee`,
@@ -45,7 +46,8 @@ backoff, và sau `MaxAttempts` (10) lần thì đưa hàng vào dead letter
 1. **`Patch` trong catalogue là nguồn sự thật duy nhất cho nội dung trong frame.**
    `outbox.EventDef` có thêm `Patch []string`. Chỉ hàng có `Patch` mới được mang trường
    không phải id, và chỉ đúng những trường nó liệt kê. Hôm nay chỉ `task.updated` có
-   `Patch`, gồm bốn trường: `title`, `status`, `priority`, `due_date`. `Payload` của hàng
+   `Patch`, gồm bốn trường: `title`, `status`, `priority`, `due_date` (tập do plan lát E
+   chọn, spec không nêu; chờ quangpd xác nhận ở review PR). `Payload` của hàng
    đó thêm `revision_before` và `revision`. Mở `Patch` cho trường khác hay topic khác cần
    ADR mới. Quyết định này thu hẹp Quyết định 4 của ADR 0009
    (`docs/adr/0009-audit-va-outbox-cung-transaction.md:25-27`, "payload chỉ mang id và các
@@ -55,8 +57,9 @@ backoff, và sau `MaxAttempts` (10) lần thì đưa hàng vào dead letter
    - `assignee_*`: task mang người phụ trách dưới dạng actor do server phân giải; vá id mà
      không có tên sẽ hiện sai.
    - `position`, `project_id`: đổi thứ tự và thành viên của list, việc chỉ refetch làm đúng.
-   - `description`: *suy luận của agent khi viết ADR; spec chỉ ghi quyết định, không ghi lý
-     do — chờ quangpd xác nhận ở review PR.* Cột là `TEXT` không giới hạn độ dài
+   - `description`: *suy luận của agent khi viết ADR; spec không nêu `description`, plan và
+     research lát E chỉ ghi quyết định không vá mà không ghi lý do — chờ quangpd xác nhận ở
+     review PR.* Cột là `TEXT` không giới hạn độ dài
      (`server/migrations/002_tasks.up.sql:5`); mang nó đưa văn bản dài nhất của task vào mọi
      hàng `outbox_events` và mọi frame workspace, trong khi lợi ích độ trễ nằm ở các trường
      phân loại ngắn.
