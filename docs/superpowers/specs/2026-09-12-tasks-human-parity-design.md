@@ -422,7 +422,11 @@ có chủ đích hay khoảng trống, và cần gì để đóng.
    `window` bỏ qua `defaultPrevented`
    (`packages/views/chat/chat-page-content.tsx`), nên action khác giữ chord đó
    sẽ chạy cùng lúc với tìm tin nhắn. Để đóng: primitive nhận chord từ ngoài
-   thay vì tự nghe, rồi khai báo action.
+   thay vì tự nghe, rồi khai báo action; listener của chat tôn trọng
+   `defaultPrevented` hoặc đi qua dispatcher, rồi bỏ luật F. Chưa có test store
+   cho việc một gán đã lưu nay bị từ chối (ví dụ `createTask` giữ ⌘F) bị bỏ im
+   lặng khi nạp và action về phím mặc định; cơ chế bỏ gán này có từ trước và
+   dùng chung với B.
 
 3. **Tìm trong trang chỉ khớp trong một nút chữ.** Quyết định có chủ đích, đánh
    đổi của tìm nhẹ. `collectTextMatches` trong
@@ -468,11 +472,14 @@ có chủ đích hay khoảng trống, và cần gì để đóng.
 
    Chỉ kiểm trên mã, chưa tái hiện trên trình duyệt. Mã giữ nguyên trong PR
    này vì sửa là đổi hành vi, ngoài đợt sửa sau review. Việc sửa không đụng tới
-   ⌘K và ⌘J (mục 18): dispatcher chỉ gọi `isPortalLayerShortcutTarget` cho
-   action không được phép trong editor
-   (`packages/views/layout/global-shortcuts.tsx:75-77`), nên thêm điều kiện "đang
-   có `[aria-modal="true"]` hiện trên trang" vào hàm đó chỉ chặn C, ⌘F, ⌘[, ⌘]
-   và `go*`. Để đóng: thêm điều kiện đó kèm test (modal đã đóng không chặn),
+   ⌘K và ⌘J (mục 18): `isPortalLayerShortcutTarget` chỉ được gọi cho action
+   không được phép trong editor ở dispatcher
+   (`packages/views/layout/global-shortcuts.tsx:75-77`) và cho mọi action của
+   trang chi tiết
+   (`packages/views/tasks/detail/hooks/use-task-detail-shortcuts.ts:47`), nên
+   thêm điều kiện "đang có `[aria-modal="true"]` hiện trên trang" vào hàm đó chỉ
+   chặn C, ⌘[, ⌘] và `go*` (qua dispatcher), cùng ⌘F và `openThreadNav` đã gán
+   phím (qua hook trang). Để đóng: thêm điều kiện đó kèm test (modal đã đóng không chặn),
    hoặc cho modal xem trước chuyển focus vào trong khi mở, hoặc dùng Dialog
    của Base UI.
 
@@ -485,8 +492,9 @@ có chủ đích hay khoảng trống, và cần gì để đóng.
      (`packages/views/tasks/detail/components/task-detail-editors.tsx`) gửi PUT
      `/api/v1/tasks/{id}` kèm `If-Match` (`use-task-field-save.ts` →
      `usePutTask`).
-   - Đầu đoạn, chỗ test ghim đặt con trỏ: ngắt dòng serialize ra đúng markdown
-     cũ, nên không có gì để lưu và không có request nào.
+   - Đầu đoạn, chỗ test ghim đặt con trỏ: markdown serialize ra, sau khi chuẩn
+     hoá (cắt khoảng trắng hai đầu, `normalizeMarkdown`), trùng markdown cũ, nên
+     không có gì để lưu và không có request nào.
 
    Hành vi có từ trước lát; test ghim nó lại để thay đổi phải có chủ ý. Để đóng:
    quyết định ⌘Enter trong mô tả nên làm gì (không làm gì, hay lưu ngay), rồi
@@ -553,8 +561,9 @@ có chủ đích hay khoảng trống, và cần gì để đóng.
     - mọi đường phím của D1: bộ điều phối toàn cục, ⌘F, điều hướng luồng, phím
       gửi, ghi phím trong Settings;
     - hình học và tô sáng của tìm trong trang: jsdom không dàn trang và không có
-      CSS Custom Highlight API, nên test thay `getClientRects` bằng stub và chỉ
-      chạy nhánh không tô; luật `::highlight(task-find)` và
+      CSS Custom Highlight API, nên test thay `getClientRects` bằng stub, và tô
+      sáng chỉ chạy trên bản giả của `CSS.highlights` và `Highlight`
+      (`packages/views/tasks/detail/find/use-task-find.test.ts`); luật `::highlight(task-find)` và
       `::highlight(task-find-active)` trong `packages/ui/styles/base.css` chỉ
       được kiểm là có mặt, chưa từng được render;
     - lưu trữ của store nháp, store gần đây và store nhớ gấp mở, cùng các luồng
