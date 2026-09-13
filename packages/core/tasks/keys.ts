@@ -15,7 +15,10 @@ export const taskKeys = {
    * Infinite variant under `queryRoot`. The "infinite" segment keeps it off the
    * plain `query` entry for the same hash: an infinite query caches
    * `{ pages, pageParams }`, a plain one a single page, and one shared entry
-   * would hand both hooks the wrong shape.
+   * would hand both hooks the wrong shape. The `queryRoot` / `myTasks` roots
+   * therefore hold both plain entries (`TaskQueryPage`) and infinite ones
+   * (`{ pages, pageParams }`), so anything reading or writing across a root
+   * (`getQueriesData` / `setQueriesData`) must branch on `"pages" in data`.
    */
   queryInfinite: (wsId: string, filterHash: string) =>
     ["tasks-query", wsId, "infinite", filterHash] as const,

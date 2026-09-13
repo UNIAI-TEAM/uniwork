@@ -55,8 +55,18 @@ interface SeenRequest {
  * A fake task-page server behind the real transport. `rows` tasks exist;
  * `total` is what the server claims, which defaults to `rows` and can be set
  * higher to simulate a count that drifted from the rows it can still serve.
+ * `maxLimit` is a page cap: the server serves at most that many rows per page
+ * and echoes the limit it served, as the real server echoes `TaskPage.Limit`.
  */
-function serveTaskPages({ rows, total = rows }: { rows: number; total?: number }): SeenRequest[] {
+function serveTaskPages({
+  rows,
+  total = rows,
+  maxLimit = Infinity,
+}: {
+  rows: number;
+  total?: number;
+  maxLimit?: number;
+}): SeenRequest[] {
   const all = Array.from({ length: rows }, (_, i) => taskRow(i));
   const seen: SeenRequest[] = [];
   vi.mocked(fetch).mockImplementation((input, init) => {
@@ -67,7 +77,7 @@ function serveTaskPages({ rows, total = rows }: { rows: number; total?: number }
         : Object.fromEntries(url.searchParams);
     seen.push({ path: url.pathname, params });
     // Mirrors the server defaults when a caller sends no paging (task_query.go).
-    const limit = params.limit === undefined ? 50 : Number(params.limit);
+    const limit = Math.min(params.limit === undefined ? 50 : Number(params.limit), maxLimit);
     const offset = params.offset === undefined ? 0 : Number(params.offset);
     return Promise.resolve(json({ tasks: all.slice(offset, offset + limit), total, limit, offset }));
   });
@@ -196,6 +206,58 @@ describe("infinite task queries", () => {
       expect(new Set(loadedIds(result.current.data?.pages)).size).toBe(100);
     });
 
+    it("walks every page when the server clamps the limit to 25, instead of stopping after page 1", async () => {
+      // Measured against our 50, every 25-row page would look short.
+      const seen = serveTaskPages({ rows: 60, maxLimit: 25 });
+      const { result } = renderHook(() => useInfiniteQueryTasks(WS, {}), {
+        wrapper: wrapperFor(newClient()),
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await drain(result);
+
+      expect(seen.map((r) => r.params.offset)).toEqual([0, 25, 50]);
+      expect(seen.every((r) => r.params.limit === 50)).toBe(true);
+      await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+      const ids = loadedIds(result.current.data?.pages);
+      expect(ids).toHaveLength(60);
+      expect(new Set(ids).size).toBe(60);
+    });
+
+    it("stops after one request on an empty page whose limit is 0 while total still claims 120", async () => {
+      // The server answers { tasks: [], limit: 0, total: 120 }. Judging the page short against that
+      // echoed 0 would never call it short, and `loaded < total` would re-ask offset 0 forever.
+      const seen = serveTaskPages({ rows: 120, maxLimit: 0 });
+      const { result } = renderHook(() => useInfiniteQueryTasks(WS, {}), {
+        wrapper: wrapperFor(newClient()),
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await drain(result);
+
+      expect(seen).toHaveLength(1);
+      await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+    });
+
+    it("invalidating taskKeys.queryRoot refetches every loaded page from offset 0 and keeps all three", async () => {
+      // Pins the TanStack behaviour the realtime path relies on: an invalidate re-asks each loaded
+      // page in order (one request per page), so a task event does not collapse the list to page 1.
+      const seen = serveTaskPages({ rows: 120 });
+      const qc = newClient();
+      const { result } = renderHook(() => useInfiniteQueryTasks(WS, {}), { wrapper: wrapperFor(qc) });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await drain(result);
+      expect(seen.map((r) => r.params.offset)).toEqual([0, 50, 100]);
+
+      await act(async () => {
+        await qc.invalidateQueries({ queryKey: taskKeys.queryRoot(WS) });
+      });
+      await waitFor(() => {
+        expect(seen.map((r) => r.params.offset)).toEqual([0, 50, 100, 0, 50, 100]);
+        expect(result.current.isFetching).toBe(false);
+      });
+      expect(result.current.data?.pages).toHaveLength(3);
+      expect(new Set(loadedIds(result.current.data?.pages)).size).toBe(120);
+    });
+
     it("invalidating taskKeys.queryRoot refetches it (the key sits under the root)", async () => {
       const seen = serveTaskPages({ rows: 120 });
       const qc = newClient();
@@ -260,6 +322,22 @@ describe("infinite task queries", () => {
 
       expect(seen.map((r) => r.params.offset)).toEqual(["0", "50"]);
       await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+    });
+
+    it("walks every page when the server clamps the limit to 25, instead of stopping after page 1", async () => {
+      const seen = serveTaskPages({ rows: 60, maxLimit: 25 });
+      const { result } = renderHook(() => useInfiniteMyTasks(WS, { relation: "all" }), {
+        wrapper: wrapperFor(newClient()),
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      await drain(result);
+
+      expect(seen.map((r) => r.params.offset)).toEqual(["0", "25", "50"]);
+      expect(seen.every((r) => r.params.limit === "50")).toBe(true);
+      await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+      const ids = loadedIds(result.current.data?.pages);
+      expect(ids).toHaveLength(60);
+      expect(new Set(ids).size).toBe(60);
     });
 
     it("invalidating taskKeys.myTasks refetches it (the key sits under the root)", async () => {

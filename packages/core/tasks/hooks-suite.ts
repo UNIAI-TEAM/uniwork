@@ -53,7 +53,10 @@ export const TASK_PAGE_SIZE = 50;
 function nextOffset(page: TaskQueryPage, pages: TaskQueryPage[]): number | undefined {
   // A short page means the server has nothing more, whatever `total` claims.
   // Without this a drifted count would re-request the same offset forever.
-  if (page.tasks.length < TASK_PAGE_SIZE) return undefined;
+  // "Short" is judged against the limit the server served, since it may clamp
+  // below ours; a broken `limit` (0) falls back to ours so it cannot loop.
+  const served = Math.min(page.limit > 0 ? page.limit : TASK_PAGE_SIZE, TASK_PAGE_SIZE);
+  if (page.tasks.length < served) return undefined;
   const loaded = pages.reduce((sum, p) => sum + p.tasks.length, 0);
   return loaded < page.total ? loaded : undefined;
 }
