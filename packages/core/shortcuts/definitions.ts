@@ -262,6 +262,10 @@ const PRIMARY_RESERVED_KEYS = new Set([
   "A", "C", "V", "X", "Y", "Z",
   // Zoom accelerators: fixed app shortcuts on desktop, browser zoom on web.
   "Equals", "Plus", "Minus", "Underscore", "0",
+  // The shared sidebar primitive (packages/ui/components/ui/sidebar.tsx) owns
+  // Cmd/Ctrl+B on window and ignores defaultPrevented, so a product action
+  // bound to it would fire alongside the sidebar toggle.
+  "B",
 ]);
 
 // Accelerators owned by the browser UI around a tab: print, address bar,
@@ -295,6 +299,9 @@ export function isReservedShortcut(
   if (platform === "macos") {
     if (modifiers.primary && (key === "Space" || key === "Tab" || key === "M" || key === "H")) return true;
     if (modifiers.control && ["Up", "Down", "Left", "Right"].includes(key)) return true;
+    // The sidebar primitive matches ctrlKey as well as metaKey on every
+    // platform, so literal Control+B toggles it on macOS too.
+    if (modifiers.control && key === "B") return true;
   } else {
     // Windows/Super shortcuts are owned by the shell/window manager and often
     // never reach the browser. Reject all of them instead of pretending a

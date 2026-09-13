@@ -4,6 +4,7 @@ import {
   SHORTCUT_ACTION_BY_ID,
   createShortcutChord,
   isPortalLayerShortcutTarget,
+  isReservedShortcut,
   isShortcutAllowedForAction,
   shouldIgnoreGlobalShortcutEvent,
 } from "./definitions";
@@ -68,6 +69,30 @@ describe("UniWork shortcut actions", () => {
         ).toBe(true);
       }
     }
+  });
+});
+
+describe("isReservedShortcut", () => {
+  it("reserves primary+B for the sidebar primitive on every platform and runtime", () => {
+    for (const platform of ["macos", "windows", "linux"] as const) {
+      for (const runtime of ["web", "desktop"] as const) {
+        expect(
+          isReservedShortcut(createShortcutChord("B", { primary: true }), platform, runtime),
+          `${platform}/${runtime}`,
+        ).toBe(true);
+      }
+    }
+    // Extra modifiers do not escape it: the primitive only checks meta/ctrl.
+    expect(isReservedShortcut(createShortcutChord("B", { primary: true, shift: true }), "windows", "web")).toBe(true);
+  });
+
+  it("reserves literal Control+B on macOS, which the sidebar primitive also matches", () => {
+    expect(isReservedShortcut(createShortcutChord("B", { control: true }), "macos", "web")).toBe(true);
+    expect(isReservedShortcut(createShortcutChord("B", { control: true }), "macos", "desktop")).toBe(true);
+  });
+
+  it("leaves plain B unreserved", () => {
+    expect(isReservedShortcut(createShortcutChord("B"), "macos", "web")).toBe(false);
   });
 });
 
