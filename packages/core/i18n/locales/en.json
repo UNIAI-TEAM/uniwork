@@ -250,7 +250,8 @@
         "ai": "AI",
         "organization": "Organization",
         "departments": "Departments",
-        "security": "Security"
+        "security": "Security",
+        "shortcuts": "Keyboard shortcuts"
       }
     },
     "save": {
@@ -579,6 +580,59 @@
         "system": "System"
       },
       "tokens_by_day": "Tokens by day"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "description": "Change the keys for actions on this device. Click a shortcut, then press the new key combination.",
+      "search_placeholder": "Search actions…",
+      "reset_all": "Restore defaults",
+      "reset_confirm": {
+        "title": "Restore all shortcut defaults?",
+        "description": "Every shortcut you changed on this device goes back to its default.",
+        "cancel": "Cancel",
+        "confirm": "Restore all defaults"
+      },
+      "reset": "Reset",
+      "disable": "Clear",
+      "reset_action": "Reset {{action}}",
+      "disable_action": "Clear {{action}} shortcut",
+      "record_aria": "Change shortcut for {{action}}",
+      "recording": "Press keys",
+      "record_hint": "Esc cancels · Delete clears",
+      "unassigned": "Unassigned",
+      "no_results": "No matching actions.",
+      "conflict_error": "Already used by {{action}}.",
+      "reserved_error": "Reserved by the browser, the operating system or the sidebar.",
+      "send_error": "Send can only use Enter or Ctrl/⌘+Enter.",
+      "unsafe_error": "This key would interfere with typing or basic keyboard navigation.",
+      "categories": {
+        "general": "General",
+        "navigation": "Navigation"
+      },
+      "fixed": {
+        "title": "Fixed shortcuts",
+        "description": "These keys cannot be changed, so they always work.",
+        "toggle_sidebar": "Show or hide the sidebar",
+        "close_dialog": "Close dialog or menu"
+      },
+      "actions": {
+        "ai_ask_uni": { "label": "Ask UNI", "description": "Open the Ask UNI panel, even while typing." },
+        "open_search": { "label": "Open search", "description": "Search and run commands from anywhere." },
+        "create_task": { "label": "Create task", "description": "Open the new task dialog." },
+        "find_in_task": { "label": "Find in task", "description": "Search text on the open task page." },
+        "open_thread_nav": { "label": "Thread navigation", "description": "Move focus to the discussion threads of the open task." },
+        "send": { "label": "Send", "description": "Send comments and replies from the editor." },
+        "go_back": { "label": "Go back", "description": "Navigate back through history, like a browser." },
+        "go_forward": { "label": "Go forward", "description": "Navigate forward through history, like a browser." },
+        "go_inbox": { "label": "Go to Inbox", "description": "Open the workspace inbox." },
+        "go_tasks": { "label": "Go to Tasks", "description": "Open the task list." },
+        "go_my_tasks": { "label": "Go to My tasks", "description": "Open the tasks assigned to you." },
+        "go_projects": { "label": "Go to Projects", "description": "Open the project list." },
+        "go_meetings": { "label": "Go to Meetings", "description": "Open the meeting list." },
+        "go_chat": { "label": "Go to Chat", "description": "Open workspace chat." },
+        "go_people": { "label": "Go to People", "description": "Open the member directory." },
+        "go_settings": { "label": "Go to Settings", "description": "Open settings." }
+      }
     },
     "security": {
       "mfa": {

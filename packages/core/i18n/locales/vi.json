@@ -249,7 +249,8 @@
         "ai": "AI",
         "organization": "Tổ chức",
         "departments": "Phòng ban",
-        "security": "Bảo mật"
+        "security": "Bảo mật",
+        "shortcuts": "Phím tắt"
       }
     },
     "save": {
@@ -578,6 +579,59 @@
         "system": "Hệ thống"
       },
       "tokens_by_day": "Token theo ngày"
+    },
+    "shortcuts": {
+      "title": "Phím tắt",
+      "description": "Đổi phím cho các thao tác trên thiết bị này. Bấm vào một phím tắt rồi nhấn tổ hợp phím mới.",
+      "search_placeholder": "Tìm thao tác…",
+      "reset_all": "Khôi phục mặc định",
+      "reset_confirm": {
+        "title": "Khôi phục mọi phím tắt mặc định?",
+        "description": "Mọi phím tắt bạn đã đổi trên thiết bị này sẽ trở về mặc định.",
+        "cancel": "Hủy",
+        "confirm": "Khôi phục tất cả"
+      },
+      "reset": "Đặt lại",
+      "disable": "Gỡ phím",
+      "reset_action": "Đặt lại {{action}}",
+      "disable_action": "Gỡ phím tắt {{action}}",
+      "record_aria": "Đổi phím tắt cho {{action}}",
+      "recording": "Nhấn phím",
+      "record_hint": "Esc để hủy · Delete để gỡ",
+      "unassigned": "Chưa gán",
+      "no_results": "Không có thao tác nào khớp.",
+      "conflict_error": "Đã dùng cho {{action}}.",
+      "reserved_error": "Phím này thuộc về trình duyệt, hệ điều hành hoặc thanh bên.",
+      "send_error": "Gửi chỉ dùng được Enter hoặc Ctrl/⌘+Enter.",
+      "unsafe_error": "Phím này sẽ cản việc gõ chữ hoặc di chuyển bằng bàn phím.",
+      "categories": {
+        "general": "Chung",
+        "navigation": "Điều hướng"
+      },
+      "fixed": {
+        "title": "Phím cố định",
+        "description": "Những phím này không đổi được, để luôn dùng được.",
+        "toggle_sidebar": "Ẩn hoặc hiện thanh bên",
+        "close_dialog": "Đóng hộp thoại hoặc menu"
+      },
+      "actions": {
+        "ai_ask_uni": { "label": "Hỏi UNI", "description": "Mở bảng Hỏi UNI, kể cả khi đang gõ." },
+        "open_search": { "label": "Mở tìm kiếm", "description": "Tìm và chạy lệnh từ bất cứ đâu." },
+        "create_task": { "label": "Tạo việc", "description": "Mở hộp tạo việc mới." },
+        "find_in_task": { "label": "Tìm trong việc", "description": "Tìm chữ trong trang chi tiết việc đang mở." },
+        "open_thread_nav": { "label": "Điều hướng luồng", "description": "Đưa focus tới danh sách luồng thảo luận của việc đang mở." },
+        "send": { "label": "Gửi", "description": "Gửi bình luận và trả lời trong ô soạn thảo." },
+        "go_back": { "label": "Quay lại", "description": "Lùi lại trong lịch sử, như trình duyệt." },
+        "go_forward": { "label": "Tiến tới", "description": "Tiến tới trong lịch sử, như trình duyệt." },
+        "go_inbox": { "label": "Tới Hộp việc", "description": "Mở hộp việc của workspace." },
+        "go_tasks": { "label": "Tới Công việc", "description": "Mở danh sách công việc." },
+        "go_my_tasks": { "label": "Tới Việc của tôi", "description": "Mở những việc giao cho bạn." },
+        "go_projects": { "label": "Tới Dự án", "description": "Mở danh sách dự án." },
+        "go_meetings": { "label": "Tới Cuộc họp", "description": "Mở danh sách cuộc họp." },
+        "go_chat": { "label": "Tới Trò chuyện", "description": "Mở trò chuyện của workspace." },
+        "go_people": { "label": "Tới Danh bạ", "description": "Mở danh bạ thành viên." },
+        "go_settings": { "label": "Tới Cài đặt", "description": "Mở cài đặt." }
+      }
     },
     "security": {
       "mfa": {
