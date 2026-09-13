@@ -185,6 +185,7 @@
     "description": "Navigate pages and run commands",
     "placeholder": "Type a page or command…",
     "groups": {
+      "recent": "Recent",
       "pages": "Pages",
       "commands": "Commands"
     },

@@ -184,6 +184,7 @@
     "description": "Điều hướng trang và chạy lệnh",
     "placeholder": "Gõ trang hoặc lệnh…",
     "groups": {
+      "recent": "Gần đây",
       "pages": "Trang",
       "commands": "Lệnh"
     },

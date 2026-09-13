@@ -11,5 +11,6 @@
  * here is the rediscovery this module exists to prevent.
  */
 import "../tasks/stores/comment-draft-store";
+import "../tasks/stores/recent-tasks-store";
 
 export {};

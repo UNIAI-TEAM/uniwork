@@ -1,12 +1,14 @@
 "use client";
 
-import { CalendarDays, Monitor, Moon, Settings, SquareCheckBig, Sun } from "lucide-react";
+import { CalendarDays, History, Monitor, Moon, Settings, SquareCheckBig, Sun } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { paths } from "@uniwork/core/paths";
 import { useSearchStore } from "@uniwork/core/search";
+import { useRecentTasks } from "@uniwork/core/tasks/stores/recent-tasks-store";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import {
   Command,
@@ -20,6 +22,9 @@ import {
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 
+/** How many recent tasks the palette lists; the store keeps more. */
+const RECENT_TASKS_SHOWN = 5;
+
 export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
   const { open, setOpen } = useSearchStore();
   const { workspace } = useWorkspace();
@@ -27,8 +32,22 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
   const { setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
   const { t, i18n } = useTranslation();
+  const recentTasks = useRecentTasks(workspace.id);
+
+  // Controlled so the recent group can hide while a query is typed: cmdk would
+  // otherwise filter recent items by title like every other item.
+  const [query, setQuery] = useState("");
+  // Clear the query on every close, including the global ⌘K toggle, which
+  // closes through the store rather than through this dialog. Adjusted during
+  // render, React's pattern for resetting state when a value changes.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) setQuery("");
+  }
 
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
+  const showRecent = query.trim() === "" && recentTasks.length > 0;
 
   const run = (fn: () => void) => {
     setOpen(false);
@@ -50,9 +69,24 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
       description={t("search.description")}
     >
       <Command>
-        <CommandInput placeholder={t("search.placeholder")} />
+        <CommandInput placeholder={t("search.placeholder")} value={query} onValueChange={setQuery} />
         <CommandList>
           <CommandEmpty>{t("search.empty")}</CommandEmpty>
+          {showRecent ? (
+            <CommandGroup heading={t("search.groups.recent")}>
+              {recentTasks.slice(0, RECENT_TASKS_SHOWN).map((task) => (
+                <CommandItem
+                  key={task.id}
+                  value={`recent ${task.id} ${task.identifier} ${task.title}`}
+                  onSelect={() => run(() => push(ws.task(task.id)))}
+                >
+                  <History />
+                  <span className="shrink-0 text-muted-foreground">{task.identifier}</span>
+                  <span className="truncate">{task.title || t("tasks.detail.title_placeholder")}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
           <CommandGroup heading={t("search.groups.pages")}>
             <CommandItem
               value={`${t("search.pages.tasks")} tasks cong viec`}
