@@ -677,6 +677,24 @@ describe("TaskSurface pagination (pages of 50)", () => {
     expect(server.offsets()).toEqual([0, 0, 50]);
   }, 30_000);
 
+  it("a load more still lands when a second realtime refetch cancels the one it waited behind", async () => {
+    // Request 2 for offset 0 is the first refetch, held so the click joins it.
+    // The second refetch (request 3) cancels it, which settles the click's wait
+    // without a page while that second refetch is still running.
+    const server = servePagedTasks({ total: 120, hold: 0, holdNth: 2 });
+    renderWithRealtimeRefetch("test-paged-refetch-twice");
+    await waitFor(() => expect(listRows()).toBe(50));
+
+    fireEvent.click(screen.getByRole("button", { name: "realtime refetch" }));
+    await waitFor(() => expect(server.offsets()).toEqual([0, 0]));
+    fireEvent.click(loadMoreButton());
+    fireEvent.click(screen.getByRole("button", { name: "realtime refetch" }));
+
+    server.release();
+    await waitFor(() => expect(listRows()).toBe(100));
+    expect(server.offsets()).toEqual([0, 0, 0, 50]);
+  }, 30_000);
+
   it("list keeps the loaded rows when the next page fails and retries that page", async () => {
     const server = servePagedTasks({ total: 120, failOnce: [50] });
     renderSurface("test-paged-list-error");

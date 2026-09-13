@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteMyTasks, useInfiniteQueryTasks } from "@uniwork/core/tasks";
 import type { SurfaceQueryPlan } from "@uniwork/core/tasks/surface/query-plan";
 import type { Task, TaskQueryPage } from "@uniwork/core/types";
 
 const EMPTY_TASKS: Task[] = [];
 const NO_FILTER = {};
+/** Re-asks after the first request of one load more; bounds a run of back-to-back refetches. */
+const MAX_REASKS = 4;
 
 /** Where the flat, offset-paged list query stands. */
 export interface TaskSurfacePagination {
@@ -90,9 +92,24 @@ export function useTaskSurfaceData({
     loaded,
   );
   const hasMore = !!active && active.hasNextPage;
+  // What a load-more click was for. The observer behind `fetchNextPage`
+  // follows the hook's current filter, so a click still waiting when the
+  // filter changes must not go on to ask for a page of the new one.
+  const queryIdentity = JSON.stringify([
+    workspaceId,
+    queryPlan.kind,
+    queryPlan.queryBody ?? null,
+    queryPlan.myTasksOpts ?? null,
+  ]);
+  const identityRef = useRef(queryIdentity);
+  useEffect(() => {
+    identityRef.current = queryIdentity;
+  }, [queryIdentity]);
   // Held from a load-more request until the page it asked for settles, so a
   // request waiting behind a refetch reads as loading, like one in flight.
-  const [isAwaitingPage, setAwaitingPage] = useState(false);
+  // Tied to the identity it was clicked for: a new filter is not loading more.
+  const [awaitingFor, setAwaitingFor] = useState<string | null>(null);
+  const isAwaitingPage = awaitingFor === queryIdentity;
   const isLoadingMore = !!active && (active.isFetchingNextPage || isAwaitingPage);
   const isLoadMoreError = !!active && active.isFetchNextPageError;
   const fetchNextPage = active?.fetchNextPage;
@@ -100,22 +117,30 @@ export function useTaskSurfaceData({
 
   const loadMore = useCallback(() => {
     if (!fetchNextPage || !hasMore || isLoadingMore) return;
-    setAwaitingPage(true);
+    const askedFor = queryIdentity;
+    setAwaitingFor(askedFor);
     // cancelRefetch: false joins a fetch already in flight instead of
     // restarting it, so the button and the sentinel can fire for the same
     // page and still send one request. The fetch joined can also be a
     // background refetch of the loaded pages (a realtime event), which
-    // settles without a new page: ask again once it has. Judged from the
-    // settled result rather than this render's fetch flags, which can lag a
-    // refetch that has just finished and would then load two pages.
-    void fetchNextPage({ cancelRefetch: false })
-      .then((result) => {
+    // settles without a new page, or settles early when a newer refetch
+    // cancels it. Either way ask again, joining whatever runs now, until a
+    // page lands, at most MAX_REASKS times. Judged from the settled result
+    // rather than this render's fetch flags, which can lag a refetch that has
+    // just finished and would then load two pages.
+    const ask = (reasks: number): Promise<unknown> =>
+      fetchNextPage({ cancelRefetch: false }).then((result) => {
+        if (identityRef.current !== askedFor) return undefined;
         const joinedRefetch =
-          result.isSuccess && (result.data?.pages.length ?? 0) <= loadedPages;
-        return joinedRefetch ? fetchNextPage({ cancelRefetch: false }) : undefined;
-      })
-      .finally(() => setAwaitingPage(false));
-  }, [fetchNextPage, hasMore, isLoadingMore, loadedPages]);
+          result.isSuccess &&
+          result.hasNextPage &&
+          (result.data?.pages.length ?? 0) <= loadedPages;
+        return joinedRefetch && reasks < MAX_REASKS ? ask(reasks + 1) : undefined;
+      });
+    void ask(0).finally(() =>
+      setAwaitingFor((current) => (current === askedFor ? null : current)),
+    );
+  }, [fetchNextPage, hasMore, isLoadingMore, loadedPages, queryIdentity]);
 
   const pagination = useMemo<TaskSurfacePagination>(
     () => ({ loaded, total, hasMore, isLoadingMore, isLoadMoreError, loadMore }),

@@ -45,14 +45,16 @@ vi.mock("react-virtuoso", async (importOriginal) => {
 
 initI18n();
 
-const row = (index: number) => ({
+// 55 backlog rows, so the backlog group passes the 50-row virtualization
+// threshold as soon as the second page lands; the rest fill todo.
+const backlogFirst = (index: number) => (index < 55 ? "backlog" : "todo");
+
+const row = (index: number, statusOf: (index: number) => string) => ({
   id: `t${index}`,
   workspace_id: "w1",
   title: `Task ${index}`,
   description: "",
-  // 55 backlog rows, so the backlog group passes the 50-row virtualization
-  // threshold as soon as the second page lands; the rest fill todo.
-  status: index < 55 ? "backlog" : "todo",
+  status: statusOf(index),
   priority: "medium",
   position: index,
   created_by: "u1",
@@ -60,8 +62,8 @@ const row = (index: number) => ({
   updated_at: "2026-09-06T00:00:00Z",
 });
 
-/** 300 tasks behind `/tasks/query`, 50 per page; records every requested offset. */
-function serveTasks(total: number) {
+/** `total` tasks behind `/tasks/query`, 50 per page; records every requested offset. */
+function serveTasks(total: number, statusOf: (index: number) => string = backlogFirst) {
   const offsets: number[] = [];
   requestMock.mockReset();
   requestMock.mockImplementation(async (path: string, init?: { body?: unknown }) => {
@@ -74,7 +76,7 @@ function serveTasks(total: number) {
     offsets.push(offset);
     const count = Math.max(0, Math.min(limit, total - offset));
     return {
-      tasks: Array.from({ length: count }, (_, k) => row(offset + k)),
+      tasks: Array.from({ length: count }, (_, k) => row(offset + k, statusOf)),
       total,
       limit,
       offset,
@@ -106,8 +108,8 @@ describe("TaskSurface list with a virtualised group", () => {
     vi.unstubAllGlobals();
   });
 
-  it("one load more asks for exactly one more page, and a realtime refetch asks for none", async () => {
-    const offsets = serveTasks(300);
+  /** One click, then one realtime refetch: exactly one page each way, no auto-loaded pages. */
+  async function expectOnePagePerLoadMore(offsets: number[], surfaceKey: string) {
     render(
       wrap(
         <>
@@ -116,7 +118,7 @@ describe("TaskSurface list with a virtualised group", () => {
             workspaceId="w1"
             scope={{ type: "workspace" }}
             modes={["list"]}
-            surfaceKey="test-virtualised-list"
+            surfaceKey={surfaceKey}
           />
         </>,
       ),
@@ -125,7 +127,7 @@ describe("TaskSurface list with a virtualised group", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
     await waitFor(() => expect(listRows()).toBe(100));
-    // The backlog group is virtualised now and its end is in range.
+    // A group is virtualised now and its end is in range.
     expect(screen.getAllByTestId("fake-virtuoso").length).toBeGreaterThan(0);
     await settle(300);
     expect(offsets).toEqual([0, 50]);
@@ -137,5 +139,17 @@ describe("TaskSurface list with a virtualised group", () => {
     await settle(500);
     expect(offsets).toEqual([0, 50, 0, 50]);
     expect(listRows()).toBe(100);
+  }
+
+  it("one load more asks for exactly one more page, and a realtime refetch asks for none", async () => {
+    await expectOnePagePerLoadMore(serveTasks(300), "test-virtualised-list");
+  }, 30_000);
+
+  it("holds when the virtualised group is the last group on the list", async () => {
+    // 45 backlog rows stay under the threshold; cancelled, the last status
+    // group, passes it once the second page lands. Wiring endReached on the
+    // last group alone would fire here.
+    const offsets = serveTasks(300, (index) => (index < 45 ? "backlog" : "cancelled"));
+    await expectOnePagePerLoadMore(offsets, "test-virtualised-list-last");
   }, 30_000);
 });

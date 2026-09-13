@@ -115,7 +115,8 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  * waits on its first page, as realtime frames arriving close together do.
  * Resolves once nothing under `queryKey` is fetching, plus time for a stale
  * wave that kept going to show up as extra requests. Settling is read from the
- * cache: the rendered hook result can lag it after a cancelled refetch.
+ * cache, where a cancellation lands first, so the wait does not depend on when
+ * the rendered hook result catches up.
  */
 async function invalidateTwiceMidFlight(
   qc: QueryClient,
