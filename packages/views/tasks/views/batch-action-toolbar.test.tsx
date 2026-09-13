@@ -11,7 +11,7 @@ import {
   TaskSurfaceSelectionProvider,
   type TaskSurfaceSelection,
 } from "../surface/selection-context";
-import { wrap } from "../../test/api-mock";
+import { requestMock, wrap } from "../../test/api-mock";
 import { BatchActionToolbar } from "./batch-action-toolbar";
 
 initI18n();
@@ -43,11 +43,9 @@ const clear = vi.hoisted(() => vi.fn());
 vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/tasks")>();
   return {
+    // useBatchUpdateTasks stays real: the no-surface-actions path must reach
+    // the mocked transport so its request body can be asserted.
     ...actual,
-    useBatchUpdateTasks: () => ({
-      mutateAsync: vi.fn().mockResolvedValue(1),
-      isPending: false,
-    }),
     useBatchDeleteTasks: () => ({
       mutateAsync: batchDelete,
       isPending: false,
@@ -339,6 +337,38 @@ describe("BatchActionToolbar due date", () => {
 
     await waitFor(() => {
       expect(batchUpdate).toHaveBeenCalledWith(["a", "b"], { due_date: null });
+    });
+  });
+
+  it("without surface actions, sends the picked due date through the transport to batch-update", async () => {
+    requestMock.mockReset();
+    requestMock.mockResolvedValue({ updated: 2 });
+    render(
+      wrap(
+        <TaskSurfaceSelectionProvider selection={selectionStub(["a", "b"])}>
+          <BatchActionToolbar
+            workspaceId="w1"
+            tasks={[makeTask({ id: "a" }), makeTask({ id: "b" })]}
+          />
+        </TaskSurfaceSelectionProvider>,
+      ),
+    );
+    await openCalendar();
+
+    const now = new Date();
+    const tenth = toDateOnly(new Date(now.getFullYear(), now.getMonth(), 10));
+    fireEvent.click(
+      screen
+        .getAllByRole("gridcell")
+        .map((cell) => cell.querySelector("button"))
+        .find((btn) => btn?.textContent === "10")!,
+    );
+
+    await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/w1/tasks/batch-update", {
+        method: "POST",
+        body: { task_ids: ["a", "b"], updates: { due_date: tenth } },
+      });
     });
   });
 

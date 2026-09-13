@@ -246,6 +246,51 @@ describe("TaskSurface", () => {
     });
   });
 
+  it("sends the batch toolbar's picked due date through surface actions to batch-update", async () => {
+    // react-day-picker sits behind React.lazy in DateField; warm the chunk so
+    // the waits below are on Suspense, not on a compile.
+    await import("@uniwork/ui/components/ui/calendar");
+    const store = getTaskSurfaceViewStore("test-ws-table-batch-due");
+    store.getState().setTableGrouping("status");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["table"]}
+          surfaceKey="test-ws-table-batch-due"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText("Task 1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chọn công việc" }));
+    // The toolbar's <label> names the DateField trigger; a column header
+    // button that also reads "Hạn" is not a labelled control.
+    fireEvent.click(await screen.findByLabelText("Hạn"));
+    await screen.findAllByRole("gridcell", {}, { timeout: 20_000 });
+
+    const now = new Date();
+    const tenth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-10`;
+    fireEvent.click(
+      screen
+        .getAllByRole("gridcell")
+        .map((cell) => cell.querySelector("button"))
+        .find((btn) => btn?.textContent === "10")!,
+    );
+
+    await waitFor(() => {
+      const call = requestMock.mock.calls.find(
+        ([path]) => typeof path === "string" && path.endsWith("/tasks/batch-update"),
+      );
+      expect(call).toEqual([
+        "/api/v1/workspaces/w1/tasks/batch-update",
+        { method: "POST", body: { task_ids: ["t1"], updates: { due_date: tenth } } },
+      ]);
+    });
+  }, 60_000);
+
   it("shows surface empty with create in gantt when zero tasks exist", async () => {
     queryTasks = [];
     const store = getTaskSurfaceViewStore("test-ws-gantt-surface-empty");
