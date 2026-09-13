@@ -404,15 +404,25 @@ describe("board: menu không khởi động kéo thẻ hay kéo-cuộn bảng", 
         .filter((el) => el.style.userSelect === "none")
         .map((el) => `${el.tagName.toLowerCase()}.${el.className}`);
     const before = selectionSuppressed();
+    const grabbing = () =>
+      Array.from(document.querySelectorAll<HTMLElement>("*")).filter(
+        (el) => el.style.cursor === "grabbing",
+      );
 
-    fireEvent.pointerDown(radio, { button: 0, clientX: 0, clientY: 0 });
-    fireEvent.pointerMove(document, { clientX: 40, clientY: 0 });
-    fireEvent.pointerMove(radio, { clientX: 40, clientY: 0 });
+    // Base UI nests portals, so this one pointerdown reaches the board's React
+    // handler twice. Check right after it: a move without `buttons` makes the
+    // pan hook reset and would hide a pan that did start.
+    fireEvent.pointerDown(radio, { button: 0, buttons: 1, clientX: 0, clientY: 0 });
+    expect(selectionSuppressed()).toEqual(before);
+
+    fireEvent.pointerMove(document, { buttons: 1, clientX: 40, clientY: 0 });
+    fireEvent.pointerMove(radio, { buttons: 1, clientX: 40, clientY: 0 });
 
     const card = document.querySelector("[data-board-card]") as HTMLElement;
     expect(card.className).not.toContain("opacity-30");
     expect(document.querySelector("[aria-pressed='true']")).toBeNull();
     expect(selectionSuppressed()).toEqual(before);
+    expect(grabbing()).toEqual([]);
     fireEvent.pointerUp(document, { clientX: 40, clientY: 0 });
   });
 });
