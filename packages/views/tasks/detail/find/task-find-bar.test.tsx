@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -213,6 +213,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Unmount first. Vitest runs afterEach hooks in reverse order, so RTL's
+  // cleanup from test/setup.ts would run after restoreLayout(): a find effect
+  // still queued when a test ends (the scroll to the active match) then
+  // flushes on unmount into the Range geometry just deleted.
+  cleanup();
   restoreLayout();
   useShortcutStore.getState().resetAll();
   configureShortcutPlatform(null);
