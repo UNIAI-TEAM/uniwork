@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -89,7 +89,16 @@ export function BatchActionToolbar({
     }
   };
 
+  // The confirm action is a plain button, not a close, so the dialog stays open
+  // until the request settles. A ref guards it: a second click can land before
+  // the `deleting` state re-renders.
+  const deletingRef = useRef(false);
+  const [deleting, setDeleting] = useState(false);
+
   const handleBatchDelete = async () => {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeleting(true);
     try {
       if (surfaceActions) {
         await surfaceActions.batchDelete(ids);
@@ -105,6 +114,8 @@ export function BatchActionToolbar({
           : t("tasks.batch.delete_failed"),
       );
     } finally {
+      deletingRef.current = false;
+      setDeleting(false);
       setDeleteOpen(false);
     }
   };
@@ -203,8 +214,11 @@ export function BatchActionToolbar({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("tasks.batch.cancel")}</AlertDialogCancel>
+            {/* Cancel and Escape stay live while deleting: the request cannot
+                be aborted, but the user is not held in the dialog by a slow server. */}
             <AlertDialogAction
               onClick={() => void handleBatchDelete()}
+              aria-disabled={deleting || undefined}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="batch-delete-confirm"
             >

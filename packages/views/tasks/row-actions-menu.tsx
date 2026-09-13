@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -79,10 +80,18 @@ function useRowActionModel(
         })
     : undefined;
 
+  // The confirm action is a plain button, not a close, so the dialog stays open
+  // until the request settles. A ref guards it: a second click can land before
+  // the `deleting` state re-renders.
+  const deletingRef = useRef(false);
+  const [deleting, setDeleting] = useState(false);
+
   // Delete goes through batchDelete: its mutation invalidates every list the
   // task can appear in, which the single-task hook does not.
   const confirmDelete = () => {
-    if (!actions) return;
+    if (!actions || deletingRef.current) return;
+    deletingRef.current = true;
+    setDeleting(true);
     void actions
       .batchDelete([task.id])
       .then(
@@ -90,7 +99,11 @@ function useRowActionModel(
         (error: unknown) =>
           toastApiError(error, t("tasks.row_actions.delete_failed")),
       )
-      .finally(() => setDeleteOpen(false));
+      .finally(() => {
+        deletingRef.current = false;
+        setDeleting(false);
+        setDeleteOpen(false);
+      });
   };
 
   return {
@@ -102,6 +115,7 @@ function useRowActionModel(
     hasAny: Boolean(open || copyLink || actions),
     deleteOpen,
     setDeleteOpen,
+    deleting,
     confirmDelete,
   };
 }
@@ -156,8 +170,11 @@ function DeleteTaskDialog({ model }: { model: RowActionModel }) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("tasks.row_actions.cancel")}</AlertDialogCancel>
+          {/* Cancel and Escape stay live while deleting: the request cannot be
+              aborted, but the user is not held in the dialog by a slow server. */}
           <AlertDialogAction
             onClick={model.confirmDelete}
+            aria-disabled={model.deleting || undefined}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {t("tasks.row_actions.delete_confirm")}

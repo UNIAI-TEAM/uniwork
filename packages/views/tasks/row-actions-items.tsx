@@ -91,6 +91,8 @@ export type RowActionModel = {
   hasAny: boolean;
   deleteOpen: boolean;
   setDeleteOpen: (open: boolean) => void;
+  /** True while a confirmed delete is in flight; the confirm action ignores clicks. */
+  deleting: boolean;
   confirmDelete: () => void;
 };
 

@@ -317,6 +317,50 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã xóa task"));
   });
 
+  it("bấm xác nhận hai lần khi đang xóa chỉ gọi batchDelete một lần", async () => {
+    const actions = makeActions();
+    let resolveDelete!: () => void;
+    actions.batchDelete.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveDelete = resolve; }),
+    );
+    renderSurface({ actions });
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Xóa task" });
+
+    // Both clicks inside one act: React has not re-rendered in between, so
+    // aria-disabled is not on the button yet. Only an in-flight ref stops the second.
+    act(() => {
+      confirm.click();
+      confirm.click();
+    });
+    // After the re-render, a further click must still do nothing.
+    fireEvent.click(confirm);
+
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+    // aria-disabled, not disabled: the button stays in the tab order.
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
+    expect(confirm).not.toBeDisabled();
+
+    await act(async () => resolveDelete());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("Hủy vẫn đóng hộp thoại khi đang xóa", async () => {
+    const actions = makeActions();
+    actions.batchDelete.mockImplementation(() => new Promise<void>(() => {}));
+    renderSurface({ actions });
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+  });
+
   it("báo lỗi khi xóa thất bại", async () => {
     const actions = makeActions();
     actions.batchDelete.mockRejectedValue(new Error("boom"));

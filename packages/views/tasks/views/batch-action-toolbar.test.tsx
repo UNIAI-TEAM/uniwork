@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Task } from "@uniwork/core/types";
@@ -143,6 +143,49 @@ describe("BatchActionToolbar delete", () => {
     await waitFor(() => {
       expect(clear).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("sends one delete when confirm is clicked twice while the first is pending", async () => {
+    let resolveDelete!: () => void;
+    batchDelete.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
+    const actions: TaskSurfaceActions = {
+      ...noopActions,
+      batchDelete: (ids) => batchDelete(ids),
+    };
+
+    render(
+      wrap(
+        <TaskSurfaceActionsProvider actions={actions}>
+          <TaskSurfaceSelectionProvider selection={selectionStub(["t1"])}>
+            <BatchActionToolbar workspaceId="w1" tasks={[makeTask()]} />
+          </TaskSurfaceSelectionProvider>
+        </TaskSurfaceActionsProvider>,
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("batch-delete"));
+    const confirm = screen.getByTestId("batch-delete-confirm");
+    // Both clicks inside one act: React has not re-rendered in between, so
+    // aria-disabled is not on the button yet. Only an in-flight ref stops the second.
+    act(() => {
+      confirm.click();
+      confirm.click();
+    });
+    // After the re-render, a further click must still do nothing.
+    fireEvent.click(confirm);
+
+    expect(batchDelete).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
+    expect(confirm).not.toBeDisabled();
+
+    await act(async () => resolveDelete());
+    await waitFor(() => expect(clear).toHaveBeenCalledTimes(1));
+    expect(batchDelete).toHaveBeenCalledTimes(1);
   });
 
   it("reflects shared status of the selection", () => {
