@@ -20,8 +20,9 @@ lạ bị bỏ; frame không bao giờ tạo bản ghi mới. ADR này ghi lại
 điều kiện mà lượt tiền kiểm mã ngày 2026-09-14 buộc phải thêm.
 
 1. **`revision` của task tăng theo từng câu query, không theo từng lần sửa.**
-   `TaskService.Update` chạy `UpdateTask` rồi `SetTaskAssignee`, `SetTaskDueDate`,
-   `SetTaskProjectID` cho từng trường đổi, và mỗi query tăng revision một
+   `TaskService.updateTaskInTx` luôn chạy `UpdateTask`, rồi chạy `SetTaskAssignee`,
+   `SetTaskDueDate`, `SetTaskProjectID` cho mỗi trường có mặt trong input, dù giá trị có
+   đổi hay không (`server/internal/service/task.go:338-385`); mỗi query tăng revision một
    (`server/pkg/db/queries/tasks.sql:43,56,67,78`). Nhiều command khác cũng tăng revision
    task: `SetTaskParent` (`tasks.sql:222`), gắn và gỡ nhãn (`task_labels.sql:81,99`), bỏ dự
    án khỏi task khi xoá dự án (`projects.sql:147`), thuộc tính tuỳ biến tăng có điều kiện
@@ -35,7 +36,9 @@ lạ bị bỏ; frame không bao giờ tạo bản ghi mới. ADR này ghi lại
 
 Một ràng buộc kỹ thuật nữa: payload outbox là `map[string]string`. `audit.Event.Payload`
 có kiểu đó, và `server/internal/outbox/realtime_consumer.go` unmarshal payload vào đúng
-kiểu đó. Một giá trị không phải chuỗi làm `Handle` trả lỗi, và dispatcher thử lại mãi.
+kiểu đó. Một giá trị không phải chuỗi làm `Handle` trả lỗi; dispatcher thử lại theo lịch
+backoff, và sau `MaxAttempts` (10) lần thì đưa hàng vào dead letter
+(`server/internal/outbox/outbox.go:33-35,195-200`), nên frame đó không bao giờ tới client.
 
 ## Quyết định
 
@@ -44,20 +47,37 @@ kiểu đó. Một giá trị không phải chuỗi làm `Handle` trả lỗi, v
    không phải id, và chỉ đúng những trường nó liệt kê. Hôm nay chỉ `task.updated` có
    `Patch`, gồm bốn trường: `title`, `status`, `priority`, `due_date`. `Payload` của hàng
    đó thêm `revision_before` và `revision`. Mở `Patch` cho trường khác hay topic khác cần
-   ADR mới.
-2. **Không vá** `assignee_*`, `position`, `project_id`, `description`. Task mang người phụ
-   trách dưới dạng actor do server phân giải; vá id mà không có tên sẽ hiện sai.
-   `position` và `project_id` đổi thứ tự và thành viên của list, việc chỉ refetch làm
-   đúng. `description` là văn bản dài, giàu định dạng; mang nó là biến outbox thành bản
-   sao nội dung task, trái với "mở theo từng topic, không đại trà" ở spec §7.
-3. **Server chỉ gửi trường vá khi frame mô tả trọn thay đổi của bước đó.**
-   `TaskService.Update` gửi các trường vá đã đổi, kèm `revision_before` và `revision`, chỉ
-   khi mọi trường đổi trong bước đều thuộc `Patch`. Có bất kỳ trường nào khác đổi (kể cả
-   `description`) thì frame chỉ mang id và hai revision. `revision_before` là revision sau
-   cùng trừ số query tăng revision đã chạy trong transaction, không phải revision đọc
-   trước transaction. Mọi giá trị là chuỗi; ngày ở dạng `YYYY-MM-DD`; trường nullable bị
-   xoá gửi chuỗi rỗng. Service đọc danh sách trường từ `outbox.Lookup("task.updated").Patch`,
-   không tự lặp lại danh sách.
+   ADR mới. Quyết định này thu hẹp Quyết định 4 của ADR 0009
+   (`docs/adr/0009-audit-va-outbox-cung-transaction.md:25-27`, "payload chỉ mang id và các
+   trường cần để route"), chỉ ở đúng ngoại lệ là trường một hàng khai ở `Patch`; phần còn
+   lại của ADR 0009 vẫn đứng, và ADR 0015 không thay thế nó.
+2. **Không vá** `assignee_*`, `position`, `project_id`, `description`.
+   - `assignee_*`: task mang người phụ trách dưới dạng actor do server phân giải; vá id mà
+     không có tên sẽ hiện sai.
+   - `position`, `project_id`: đổi thứ tự và thành viên của list, việc chỉ refetch làm đúng.
+   - `description`: *suy luận của agent khi viết ADR; spec chỉ ghi quyết định, không ghi lý
+     do — chờ quangpd xác nhận ở review PR.* Cột là `TEXT` không giới hạn độ dài
+     (`server/migrations/002_tasks.up.sql:5`); mang nó đưa văn bản dài nhất của task vào mọi
+     hàng `outbox_events` và mọi frame workspace, trong khi lợi ích độ trễ nằm ở các trường
+     phân loại ngắn.
+3. **Server chỉ gửi trường vá khi frame mô tả trọn thay đổi của lời gọi phát nó.** Nơi
+   phát là `TaskService.updateTaskInTx` (`server/internal/service/task.go:392`), có hai
+   người gọi: `TaskService.Update` (`task.go:317`, một task trong một transaction) và
+   `TaskService.BatchUpdateTasks` (`server/internal/service/task_mutations.go:129-147`, tới
+   100 id trong một transaction, không khử id trùng). Mỗi lời gọi gửi các trường vá đã đổi,
+   kèm `revision_before` và `revision`, chỉ khi mọi trường đổi trong lời gọi đó đều thuộc
+   `Patch`. Có bất kỳ trường nào khác đổi (kể cả `description`) thì frame chỉ mang id và
+   hai revision. Hai revision thuộc về đúng một lời gọi, cho đúng task của lời gọi đó:
+   `revision` là revision của task ngay sau lời gọi, `revision_before` là revision của task
+   ngay trước lời gọi, tức `revision` trừ số query tăng revision mà chính lời gọi đó đã
+   chạy cho task. Không đếm query của cả transaction: lô `[X, X]` gọi hai lần cho cùng task,
+   và lời gọi thứ hai khi đó sẽ khai `revision_before` bằng revision trước cả lô, tức khoảng
+   của nó trùm lên khoảng của lời gọi thứ nhất, trong khi guard ở Quyết định 4 chỉ an toàn
+   khi mỗi khoảng mô tả trọn thay đổi bên trong nó. Cũng không dùng revision đọc trước
+   transaction (xem Hệ quả). Mọi giá trị là chuỗi; ngày ở dạng `YYYY-MM-DD`; trường
+   nullable bị xoá gửi chuỗi rỗng. Service lấy danh sách trường từ `Patch` của `EventDef`
+   mà `outbox.Lookup("task.updated")` trả về (hàm trả `(EventDef, bool)`,
+   `server/internal/outbox/catalogue.go:246`), không tự lặp lại danh sách.
 4. **Client chỉ vá bản ghi đã có, và chỉ khi revision khớp đầu dưới.** Một bản ghi task
    trong cache được vá khi `revision` của nó bằng `revision_before` của frame; sau khi vá
    nó mang `revision` của frame. Lệch thì không vá và invalidate như trước. Khoá không nằm
@@ -65,7 +85,7 @@ kiểu đó. Một giá trị không phải chuỗi làm `Handle` trả lỗi, v
    vẫn chỉ invalidate. Trang chi tiết đã vá thì không cần refetch. List vẫn invalidate, vì
    trạng thái, độ ưu tiên và ngày hạn đổi thứ tự, cột board và nhóm.
 5. **Frame thiếu một trong hai revision là frame id-only.** Những nơi khác phát
-   `task.updated` (đổi dự án, nhãn, thuộc tính tuỳ biến, cha và phụ thuộc: `project.go`,
+   `task.updated` (xoá dự án, nhãn, thuộc tính tuỳ biến, cha và phụ thuộc: `project.go`,
    `task_catalog_labels.go`, `task_catalog_properties.go`, `task_graph.go` trong
    `server/internal/service/`) giữ payload `task_id`, `workspace_id`. Cột `Payload` của hàng
    `task.updated` vì vậy là tập khoá một frame *có thể* mang, không phải tập khoá mọi frame
@@ -101,8 +121,9 @@ frame tới, không chờ refetch trang chi tiết.
   đề và commit 5→6; B đổi độ ưu tiên, chờ khoá hàng, rồi commit 6→7. Nếu B khai
   `revision_before` bằng `before.Revision` (5), một client còn ở 5 (chưa nhận frame của A)
   sẽ vá độ ưu tiên và nhận revision 7 trong khi tiêu đề vẫn cũ — lại đúng kịch bản mất dữ
-  liệu ở trên. Lấy revision sau cùng trừ số query tăng revision trong transaction thì
-  đúng, vì hàng bị khoá từ câu UPDATE đầu tiên tới lúc commit: B khai 6, client ở 5 không vá.
+  liệu ở trên. Lấy `revision` trừ số query tăng revision mà lời gọi của B đã chạy cho task
+  thì đúng, vì hàng bị khoá từ câu UPDATE đầu tiên của lời gọi tới lúc commit: B khai 6,
+  client ở 5 không vá.
 - **Cache trễ thì quay về refetch, không sai.** Frame của những command tăng revision mà
   không mang trường vá khiến client invalidate. Nếu frame đó mất hoặc tới muộn, bản ghi
   trong cache lệch `revision_before` của frame vá kế tiếp, và frame đó cũng rơi về
@@ -110,8 +131,13 @@ frame tới, không chờ refetch trang chi tiết.
   trước ADR này.
 - **List vẫn refetch.** Hàng trong list đổi ngay, nhưng thứ tự, cột board và nhóm chỉ đúng
   sau refetch. ADR này không cho client tự sắp xếp lại list từ frame.
-- **`Version` của `task.updated` giữ 1.** Thêm khoá là thay đổi cộng thêm: consumer chỉ
-  đọc id vẫn đúng với frame mới.
+- **`Version` của `task.updated` giữ 1.** *(Suy luận của agent khi viết ADR; spec và plan
+  không nói tới `Version` — chờ quangpd xác nhận ở review PR.)* Thêm khoá là thay đổi cộng
+  thêm: hai consumer của topic (`server/internal/outbox/realtime_consumer.go`,
+  `server/internal/notification/consumer.go`) giải mã vào `map[string]string` và chỉ đọc
+  khoá mình cần; client (`packages/core/api/ws-client.ts`) chỉ kiểm `type`; không consumer
+  nào từ chối khoá lạ. Chiều ngược lại — hàng outbox ghi trước deploy, thiếu hai revision —
+  rơi vào Quyết định 5: không vá.
 - **Luật trong `CLAUDE.md` đổi ở hai nhịp.** "payload chỉ mang id" (§ Audit and Events,
   § Domain Reminders) đổi cùng commit với ADR này và test catalogue. "frame không bao giờ
   ghi vào cache" (§ State Rules) vẫn đúng cho tới khi client vá thật, và chỉ đổi cùng
@@ -119,16 +145,19 @@ frame tới, không chờ refetch trang chi tiết.
 
 ## Test giữ luật
 
-- `scripts/events-catalogue.test.mjs` (cùng commit với ADR này): khoá payload là id hoặc
-  revision; chỉ `task.updated` được khai `Patch`, kể cả so với hàng hạ tầng; hàng có
-  `Patch` phải có `revision_before` và `revision`; tập trường vá đúng bốn trường ở Quyết
-  định 1; `server/internal/outbox/catalogue.go` và `docs/events/CATALOGUE.md` khớp nhau cả
-  ở cột `Patch`. Giữ luật ở `CLAUDE.md` § Audit and Events và § Domain Reminders.
-- `server/internal/service/task_realtime_patch_test.go` (mới, lát E Task 2): đổi riêng
+- `scripts/events-catalogue.test.mjs` (cùng commit với ADR này): khoá payload của hàng có
+  người nghe là id, còn `revision_before`/`revision` chỉ được đứng ở hàng có `Patch`; chỉ
+  `task.updated` được khai `Patch`, kể cả so với hàng hạ tầng; hàng có `Patch` phải có
+  `revision_before` và `revision`; tập trường vá đúng bốn trường ở Quyết định 1;
+  `server/internal/outbox/catalogue.go` và `docs/events/CATALOGUE.md` khớp nhau cả ở cột
+  `Patch`; mọi hàng Go ở đúng hình dạng một dòng mà test đọc được, để không hàng nào lọt
+  khỏi các luật trên. Giữ luật ở `CLAUDE.md` § Audit and Events và § Domain Reminders.
+- server/internal/service/task_realtime_patch_test.go (chưa có, lát E Task 2): đổi riêng
   trường vá được thì frame mang trường đó cùng hai revision đúng; có trường khác đổi thì
   không mang trường vá; hai lần sửa đồng thời không sinh hai khoảng
-  `[revision_before, revision]` chồng nhau; mọi giá trị là chuỗi.
-- `packages/core/tasks/realtime-task-patch.test.ts` (mới) và
+  `[revision_before, revision]` chồng nhau; lô `BatchUpdateTasks` lặp cùng một id sinh các
+  khoảng nối tiếp, không chồng nhau; mọi giá trị là chuỗi.
+- packages/core/tasks/realtime-task-patch.test.ts (chưa có) và
   `packages/core/realtime/use-realtime-sync.test.tsx` (lát E Task 3): khoá lạ bị bỏ; lệch
   revision không vá; frame không tạo bản ghi; vá trang chi tiết thì không invalidate khoá
   chi tiết, list vẫn invalidate. Giữ luật ở `CLAUDE.md` § State Rules, đổi cùng commit

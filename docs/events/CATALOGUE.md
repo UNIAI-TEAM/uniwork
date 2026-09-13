@@ -12,10 +12,10 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 - **Không nhúng phiên bản vào tên.** `event_version` là một cột. Đổi payload theo
   cách phá vỡ thì tăng `v`, consumer switch theo cột, giữ cả hai ít nhất một
   release.
-- **Payload chỉ mang id** (và cặp `revision_before`/`revision` giữ guard vá). Không
-  nội dung, không email, không token. Consumer cần nội dung thì đọc lại qua API, nên
-  một sự kiện không lộ trường mà người đọc không được xem. Ngoại lệ duy nhất là cột
-  **Patch** (ADR 0015), xem mục dưới.
+- **Payload chỉ mang id.** Không nội dung, không email, không token. Consumer cần nội
+  dung thì đọc lại qua API, nên một sự kiện không lộ trường mà người đọc không được
+  xem. Ngoại lệ duy nhất là hàng có cột **Patch** (ADR 0015): frame của nó được mang
+  thêm những trường đó và cặp `revision_before`/`revision` giữ guard vá; xem mục dưới.
 - **Phạm vi** quyết định ai nhận: `workspace` (mọi người trong workspace),
   `organization` (mọi kết nối trong tổ chức, dù đang ở workspace nào — danh bạ
   và phòng ban thuộc về công ty, không thuộc một workspace),
@@ -43,7 +43,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
   invalidate.
 - Mọi giá trị là chuỗi (payload là `map[string]string`); ngày ở dạng `YYYY-MM-DD`;
   trường bị xoá là chuỗi rỗng.
-- Các nơi khác phát `task.updated` (dự án, nhãn, thuộc tính tuỳ biến, cha và phụ thuộc)
+- Các nơi khác phát `task.updated` (xoá dự án, nhãn, thuộc tính tuỳ biến, cha và phụ thuộc)
   chỉ gửi `task_id`, `workspace_id`. Cột Payload của hàng này là tập khoá một frame
   *có thể* mang; thiếu hai revision nghĩa là không vá.
 

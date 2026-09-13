@@ -16,7 +16,7 @@
 
 Spec phác lát E là "`planCacheUpdate` sinh `patch` thật". Tiền kiểm tìm ra hai điều khiến phác thảo đó nguy hiểm nếu làm thẳng.
 
-1. **`revision` tăng theo từng câu query, không theo từng lần sửa.** `server/pkg/db/queries/tasks.sql` tăng `revision = revision + 1` ở dòng 43, 56, 67, 78, 222. `TaskService.Update` (`server/internal/service/task.go:303+`) chạy `UpdateTask` rồi `SetTaskAssignee`, `SetTaskDueDate`, `SetTaskProjectID` cho từng trường đổi. Nhãn và cộng tác cũng tăng revision task (`task_labels.sql:81,99`, `task_collaboration.sql:33,51,64`) mà không phát `task.updated`. Guard kiểu "revision frame = cache + 1" gần như không bao giờ đúng.
+1. **`revision` tăng theo từng câu query, không theo từng lần sửa.** `server/pkg/db/queries/tasks.sql` tăng `revision = revision + 1` ở dòng 43, 56, 67, 78, 222. `TaskService.updateTaskInTx` (`server/internal/service/task.go:328`, gọi từ `Update` và `BatchUpdateTasks`) luôn chạy `UpdateTask`, rồi chạy `SetTaskAssignee`, `SetTaskDueDate`, `SetTaskProjectID` cho mỗi trường có mặt trong input, dù giá trị có đổi hay không (`task.go:338-385`). Gắn và gỡ nhãn (`task_labels.sql:81,99`), bỏ dự án khỏi task khi xoá dự án (`projects.sql:147`) và thuộc tính tuỳ biến (`task_properties.sql:52,73`, có điều kiện) cũng tăng revision task; các command đó phát `task.updated` chỉ mang id. `task_collaboration.sql:33,51,64` tăng revision của bình luận, không phải của task. Guard kiểu "revision frame = cache + 1" gần như không bao giờ đúng.
 2. **Guard lỏng làm mất dữ liệu.** Client lưu bằng revision trong cache (`packages/views/tasks/detail/hooks/use-task-field-save.ts` gửi `body.revision` và `If-Match`). Nếu cache nhận revision mới nhưng chỉ vá vài trường, trường khác (ví dụ mô tả) còn cũ mà revision đã khớp server; người dùng sửa mô tả cũ đó sẽ qua kiểm revision và ghi đè bản mới của người khác.
 
 Vì vậy lát này dùng guard hai đầu (`revision_before`, `revision`) và chỉ vá khi frame mô tả **trọn** thay đổi của bước đó.
@@ -28,7 +28,7 @@ Tiền kiểm cũng xác nhận giả định an toàn của spec §4.3: quyền
 - Lát E chạy SAU lát D2. Nó vá các cache task mà D2 để lại; đọc `packages/core/tasks/keys.ts` ở HEAD, không đọc theo plan này.
 - ADR trước, mã sau. Không commit mã server hay client của lát trước khi ADR 0015 đã commit.
 - `audit_events` và `outbox_events` chỉ được ghi qua `server/internal/audit` (`TestAuditAndOutboxWritesGoThroughTheAuditPackage`). Không đổi luật đó.
-- Payload outbox là `map[string]string` và `outbox/realtime_consumer.go` unmarshal vào đúng kiểu đó. Mọi giá trị là chuỗi; ngày ở dạng `YYYY-MM-DD`; trường nullable bị xoá gửi chuỗi rỗng. Giá trị không phải chuỗi làm `Handle` lỗi và dispatcher thử lại mãi.
+- Payload outbox là `map[string]string` và `outbox/realtime_consumer.go` unmarshal vào đúng kiểu đó. Mọi giá trị là chuỗi; ngày ở dạng `YYYY-MM-DD`; trường nullable bị xoá gửi chuỗi rỗng. Giá trị không phải chuỗi làm `Handle` lỗi; dispatcher thử lại, và sau `MaxAttempts` (10) lần thì đưa hàng vào dead letter (`server/internal/outbox/outbox.go:33-35,195-200`), nên frame không bao giờ tới client.
 - Catalogue tồn tại ba bản (`server/internal/outbox/catalogue.go`, `docs/events/CATALOGUE.md`, `packages/core/types/events.ts`); `scripts/events-catalogue.test.mjs` phải xanh ở mọi commit.
 - Frame không bao giờ tạo bản ghi mới trong cache. `task.created` và `task.deleted` vẫn chỉ invalidate.
 - Mỗi file `.ts`/`.tsx` tối đa 500 dòng. Comment tiếng Anh. Không export thừa (`pnpm knip`).
@@ -148,12 +148,12 @@ Nếu hook commit-msg đòi tách, dùng hai commit: `docs` cho ADR, `CLAUDE.md`
 ## Task 2: Server phát trường vá kèm hai revision
 
 **Files:**
-- Modify: `server/internal/service/task.go` (hàm `Update`)
+- Modify: `server/internal/service/task.go` (hàm `updateTaskInTx`, gọi từ `Update` và `BatchUpdateTasks`)
 - Test: `server/internal/service/task_realtime_patch_test.go` (mới)
 
 **Interfaces:**
 - Consumes: Task 1 (hàng `task.updated` có `Patch`).
-- Produces: payload `task.updated` từ `Update`: luôn có `task_id`, `workspace_id`, `revision_before`, `revision`; có thêm `title`, `status`, `priority`, `due_date` (chỉ những trường đổi) khi mọi thay đổi thuộc tập vá được. Sáu nơi phát `task.updated` khác (`project.go:420`, `task_catalog_properties.go:288,322`, `task_graph.go:224,300,355`) KHÔNG đổi.
+- Produces: payload `task.updated` từ mỗi lời gọi `updateTaskInTx` (`task.go:392`; người gọi: `Update` và `BatchUpdateTasks` ở `task_mutations.go:129-147`): luôn có `task_id`, `workspace_id`, `revision_before`, `revision`; có thêm `title`, `status`, `priority`, `due_date` (chỉ những trường đổi) khi mọi thay đổi của lời gọi đó thuộc tập vá được. Tám nơi phát `task.updated` khác KHÔNG đổi: `project.go:420` (xoá dự án bỏ `project_id` khỏi task), `task_catalog_labels.go:311,343`, `task_catalog_properties.go:288,322`, `task_graph.go:224,300,355`.
 
 - [ ] **Step 1: Đọc**
 
@@ -172,13 +172,14 @@ Ca tối thiểu:
 6. Đổi `position`: KHÔNG có trường vá.
 7. Ghi đồng thời: một goroutine đổi `priority`, một goroutine đổi `title` cùng task, chạy song song nhiều lần. Với mỗi payload thu được, không có hai frame nào mà khoảng `[revision_before, revision]` chồng nhau, và hợp các khoảng liên tiếp phủ đúng revision cuối. Đây là test chứng minh `revision_before` không lấy từ `before` đọc ngoài transaction.
 8. Mọi giá trị payload là chuỗi (unmarshal được vào `map[string]string`).
+9. `BatchUpdateTasks` với cùng một id hai lần (`[X, X]`): hai frame của X có khoảng `[revision_before, revision]` nối tiếp, không chồng nhau; `revision_before` của frame thứ hai bằng `revision` của frame thứ nhất.
 
 - [ ] **Step 3: Viết mã**
 
-- Đếm số query tăng revision thực sự chạy trong transaction; `revision_before = task.Revision − count`. Không dùng `before.Revision`.
+- Trong mỗi lời gọi `updateTaskInTx`, đếm số query tăng revision mà chính lời gọi đó đã chạy cho task; `revision_before = task.Revision − count`. Không đếm theo cả transaction (một lô `BatchUpdateTasks` có thể gọi nhiều lần cho cùng task), không dùng `before.Revision`.
 - Tập đổi = khoá có giá trị khác nhau giữa `taskAuditFields(before)` và `taskAuditFields(task)`, cộng `description` nếu khác.
 - Nếu tập đổi rỗng hoặc là tập con của `{title, status, priority, due_date}`: thêm các trường đổi vào payload dưới dạng chuỗi.
-- Đọc danh sách trường vá từ `outbox.Lookup("task.updated").Patch`, không lặp lại danh sách trong service. Đã kiểm: `service` được import `internal/outbox` (đang có ở `service/audit_export.go`, `chat_task_sync.go`, `meeting_provider_consumer.go`, `meeting_webhook.go`); `server/internal/arch_test.go` chỉ cấm ghi thẳng bảng `audit_events`/`outbox_events` ngoài `internal/audit`, không cấm đọc catalogue.
+- Đọc danh sách trường vá từ `Patch` của `EventDef` mà `outbox.Lookup("task.updated")` trả về (hàm trả `(EventDef, bool)`), không lặp lại danh sách trong service. Đã kiểm: `service` được import `internal/outbox` (đang có ở `service/audit_export.go`, `chat_task_sync.go`, `meeting_provider_consumer.go`, `meeting_webhook.go`); `server/internal/arch_test.go` chỉ cấm ghi thẳng bảng `audit_events`/`outbox_events` ngoài `internal/audit`, không cấm đọc catalogue.
 
 - [ ] **Step 4: Chạy và commit**
 
