@@ -100,6 +100,77 @@ describe("AssigneePicker", () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
+  describe("chọn một mục không lọt tới điều hướng hàng bảng", () => {
+    // Exact copy of the real row handler: DataTable's bail
+    // (packages/ui/components/ui/data-table.tsx) followed by table-view.tsx's
+    // `closest` filter. A bare `defaultPrevented` check is not enough — it
+    // missed this bug. The combobox popup is portalled, so the item is not a
+    // DOM descendant of any button in the row and its role is `option`, which
+    // the filter does not match; only stopping React propagation keeps the
+    // click from reaching the row.
+    function renderInRow(props: Partial<React.ComponentProps<typeof AssigneePicker>> = {}) {
+      const onChange = vi.fn();
+      const onOpenTask = vi.fn();
+      const onRowClick = (event: React.MouseEvent) => {
+        if (event.defaultPrevented) return;
+        if ((event.target as HTMLElement).closest("button, input, a, [role='menuitem']")) return;
+        onOpenTask();
+      };
+      render(
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stands in for DataTable's row wrapper; child control is interactive
+        <div onClick={onRowClick}>
+          <AssigneePicker
+            value={null}
+            options={fewOptions}
+            onChange={onChange}
+            ariaLabel="Người phụ trách"
+            unassignedLabel="Chưa giao"
+            searchPlaceholder="Tìm thành viên"
+            noResultsLabel="Không tìm thấy"
+            onTriggerNavigationGuard={(event) => event.stopPropagation()}
+            {...props}
+          >
+            Chưa giao
+          </AssigneePicker>
+        </div>,
+      );
+      return { onChange, onOpenTask };
+    }
+
+    it("chọn một thành viên chỉ gán, không mở task", async () => {
+      const { onChange, onOpenTask } = renderInRow();
+      fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));
+      const option = await screen.findByText("An Nguyễn");
+      fireEvent.click(option);
+      expect(onChange).toHaveBeenCalledWith({ id: "u1", kind: "human" });
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+
+    it("chọn Chưa giao chỉ bỏ gán, không mở task", async () => {
+      const { onChange, onOpenTask } = renderInRow({ value: { id: "u1", kind: "human" } });
+      fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));
+      const list = await screen.findByRole("listbox");
+      fireEvent.click(within(list).getByText("Chưa giao"));
+      expect(onChange).toHaveBeenCalledWith(null);
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+
+    it("gõ tìm và Enter vẫn chọn được, không mở task", async () => {
+      const { onChange, onOpenTask } = renderInRow({ options: manyOptions });
+      fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));
+      const search = await screen.findByPlaceholderText("Tìm thành viên");
+      fireEvent.click(search);
+      fireEvent.change(search, { target: { value: "Khánh Linh" } });
+      await waitFor(() => {
+        expect(screen.queryByText("Thành viên 0")).not.toBeInTheDocument();
+      });
+      fireEvent.keyDown(search, { key: "ArrowDown" });
+      fireEvent.keyDown(search, { key: "Enter" });
+      expect(onChange).toHaveBeenCalledWith({ id: "u4", kind: "human" });
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+  });
+
   it("không mở danh sách khi disabled", () => {
     const { onChange } = renderPicker({ disabled: true });
     fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));

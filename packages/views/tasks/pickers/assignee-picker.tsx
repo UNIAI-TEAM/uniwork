@@ -92,15 +92,32 @@ function AssigneeRow({ entry }: { entry: AssigneeEntry }) {
  * agents. Widening this component to *offer* agents everywhere is not this
  * task's call to make (see the assignee-picker report).
  *
- * `onTriggerNavigationGuard` mirrors `EnumFieldPicker`'s stop-row-navigation
- * forwarding: the trigger's `onPointerDown`/`onClick`/`onAuxClick`, and the
- * popup's `onAuxClick`. `onClick` is required alongside `onPointerDown`
- * because they are separate events — `stopPropagation` on one does not stop
- * the other — and nothing else here calls `preventDefault()` on a plain
- * click, so a row's `onClick` handler (DataTable's checks
- * `e.defaultPrevented`) would otherwise still fire. Like `EnumFieldPicker`'s,
- * this prop is named for the job it does rather than any one of the four
- * event/element combinations it covers; do not narrow it back down.
+ * `onTriggerNavigationGuard` keeps every interaction with the picker from
+ * reaching an enclosing row's navigation handler. It is forwarded to exactly
+ * these event paths:
+ *
+ * 1. Trigger `onPointerDown`.
+ * 2. Trigger `onClick` — a separate event from pointerdown; stopping one does
+ *    not stop the other, and nothing here calls `preventDefault()` on a plain
+ *    click, so DataTable's `e.defaultPrevented` bail would not catch it.
+ * 3. Trigger `onAuxClick` — middle click, which DataTable also forwards.
+ * 4. Popup `onClick` — clicking any list item ("Unassigned" included), and
+ *    Enter in the search box, which Base UI turns into `listItem.click()` on
+ *    the highlighted item (`clickHighlightedItem`). The popup is portalled, so
+ *    the item is not a DOM descendant of any row button and its role is
+ *    `option`: table-view's `closest(...)` filter cannot see it, and React
+ *    still bubbles the click through the component tree to the row. Base UI's
+ *    `FloatingPortal` nests two `createPortal` roots (portal div inside
+ *    `body`), so React dispatches that one native click twice — once per root
+ *    listener; `stopPropagation` in the first dispatch also stops the native
+ *    event, so the second never happens. Unlike `DropdownMenuContent`, the
+ *    shared `ComboboxContent` does not stop clicks itself, so this picker has
+ *    to.
+ * 5. Popup `onAuxClick` — middle click inside the list.
+ *
+ * Like `EnumFieldPicker`'s, this prop is named for the job it does rather than
+ * any one of the event/element combinations it covers; do not narrow it back
+ * down.
  */
 export function AssigneePicker({
   value,
@@ -188,7 +205,12 @@ export function AssigneePicker({
       >
         {children}
       </ComboboxTrigger>
-      <ComboboxContent align={align} onAuxClick={onTriggerNavigationGuard} className="w-64">
+      <ComboboxContent
+        align={align}
+        onClick={onTriggerNavigationGuard}
+        onAuxClick={onTriggerNavigationGuard}
+        className="w-64"
+      >
         {showSearch ? (
           <ComboboxInput
             placeholder={searchPlaceholder}
