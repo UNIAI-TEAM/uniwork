@@ -398,12 +398,7 @@ export function useTaskSurfaceController({
       batchUpdate: async (taskIds, updates) => {
         await batchUpdateTasks.mutateAsync({
           task_ids: taskIds,
-          updates: updates as {
-            status?: string;
-            priority?: string;
-            assignee_id?: string | null;
-            assignee_kind?: string;
-          },
+          updates,
         });
       },
       batchDelete: async (taskIds) => {
