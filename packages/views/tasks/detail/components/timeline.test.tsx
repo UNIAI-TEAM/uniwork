@@ -975,6 +975,20 @@ describe("TaskDetailTimeline", () => {
       expect(screen.getByTestId("resolved-thread-bar")).toHaveAttribute("aria-expanded", "false");
       expect(screen.queryByText("trả lời bên trong")).not.toBeInTheDocument();
     });
+
+    // A body stored decomposed (NFD) must match a query typed composed (NFC).
+    it("truy vấn gõ dạng NFC mở luồng có bình luận lưu dạng NFD", () => {
+      const decomposed = "Biểu mẫu đã duyệt".normalize("NFD");
+      mockComments(
+        resolvedThread.map((comment) =>
+          comment.id === "c2" ? { ...comment, body: decomposed } : comment,
+        ),
+      );
+      renderTimeline({ workspaceId: "w1", taskId: "t1", findQuery: "biểu mẫu".normalize("NFC") });
+
+      expect(screen.getByTestId("resolved-thread-bar")).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText(decomposed)).toBeInTheDocument();
+    });
   });
 
   it("không hiện bảng điều hướng luồng khi có ba luồng trở xuống", () => {

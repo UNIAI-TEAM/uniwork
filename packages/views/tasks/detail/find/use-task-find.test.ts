@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { collectTextMatches, useTaskFind } from "./use-task-find";
 
@@ -57,6 +57,97 @@ describe("collectTextMatches", () => {
   });
 });
 
+// Vietnamese text reaches the page in either Unicode form: composed (NFC, what
+// a keyboard types) or decomposed (NFD, a base letter followed by combining
+// marks, common in text pasted from macOS files). Every sample goes through
+// normalize() so the premise survives an editor that normalizes this file.
+const BIEU_NFC = "Biểu".normalize("NFC");
+const BIEU_NFD = "Biểu".normalize("NFD");
+
+type Match = ReturnType<typeof collectTextMatches>[number];
+
+function rangeText(match: Match): string {
+  const range = document.createRange();
+  range.setStart(match.node, match.start);
+  range.setEnd(match.node, match.end);
+  return range.toString();
+}
+
+function installFakeHighlightApi() {
+  class FakeHighlight {
+    priority = 0;
+    readonly ranges: Range[];
+    constructor(...ranges: Range[]) {
+      this.ranges = ranges;
+    }
+  }
+  const highlights = new Map<string, FakeHighlight>();
+  vi.stubGlobal("CSS", { highlights });
+  vi.stubGlobal("Highlight", FakeHighlight);
+  return highlights;
+}
+
+describe("collectTextMatches với chữ tiếng Việt ở hai dạng Unicode", () => {
+  it("tiền đề: hai dạng khác nhau từng code unit", () => {
+    expect(BIEU_NFD).not.toBe(BIEU_NFC);
+    expect(BIEU_NFC).toHaveLength(4);
+    expect(BIEU_NFD).toHaveLength(6);
+  });
+
+  it("truy vấn NFC khớp chữ NFD, và vị trí trỏ đúng đoạn gốc trong nút chữ", () => {
+    const text = "Mẫu Biểu năm".normalize("NFD");
+    const [match, ...rest] = collectTextMatches(makeRoot(`<p>${text}</p>`), "biểu".normalize("NFC"));
+
+    expect(rest).toEqual([]);
+    expect(match!.node.nodeValue).toBe(text);
+    const prefix = "Mẫu ".normalize("NFD");
+    expect([match!.start, match!.end]).toEqual([prefix.length, prefix.length + BIEU_NFD.length]);
+    expect(rangeText(match!)).toBe(BIEU_NFD);
+  });
+
+  it("truy vấn một chữ có dấu phủ trọn chữ cái gốc cùng các dấu kết hợp của nó", () => {
+    const [match] = collectTextMatches(makeRoot(`<p>${BIEU_NFD}</p>`), "ể".normalize("NFC"));
+
+    expect(rangeText(match!)).toBe("ể".normalize("NFD"));
+  });
+
+  it("truy vấn NFD khớp chữ NFC, NFC khớp NFC, NFD khớp NFD", () => {
+    const nfcRoot = makeRoot(`<p>${BIEU_NFC} và ${BIEU_NFC}</p>`);
+    const nfdRoot = makeRoot(`<p>${BIEU_NFD}</p>`);
+
+    expect(collectTextMatches(nfcRoot, BIEU_NFD).map(rangeText)).toEqual([BIEU_NFC, BIEU_NFC]);
+    expect(collectTextMatches(nfcRoot, BIEU_NFC)).toHaveLength(2);
+    expect(collectTextMatches(nfdRoot, BIEU_NFD).map(rangeText)).toEqual([BIEU_NFD]);
+  });
+
+  it("cùng một truy vấn cho cùng số kết quả dù chữ trên trang ở dạng nào", () => {
+    const sentence = "Biểu mẫu nghiệm thu, biểu đồ và Ể";
+    for (const query of ["biểu", "ể", "e", "u", "mẫu", "BIỂU"]) {
+      const nfc = collectTextMatches(makeRoot(`<p>${sentence.normalize("NFC")}</p>`), query).length;
+      const nfd = collectTextMatches(makeRoot(`<p>${sentence.normalize("NFD")}</p>`), query).length;
+      expect({ query, nfd }).toEqual({ query, nfd: nfc });
+    }
+  });
+
+  it("chữ ASCII thuần giữ nguyên vị trí", () => {
+    const matches = collectTextMatches(makeRoot("<p>Plain ASCII text, plain again</p>"), "PLAIN");
+
+    expect(matches.map((m) => [m.start, m.end])).toEqual([
+      [0, 5],
+      [18, 23],
+    ]);
+    expect(matches.map(rangeText)).toEqual(["Plain", "plain"]);
+  });
+
+  // U+0130 lowercases to two code units ("i" + U+0307); indexing the lowered
+  // string directly would shift every later offset by one.
+  it("chữ đổi độ dài khi viết thường không làm lệch vị trí phía sau", () => {
+    const [match] = collectTextMatches(makeRoot("<p>İstanbul</p>"), "stanbul");
+
+    expect(rangeText(match!)).toBe("stanbul");
+  });
+});
+
 type RectInit = { top: number; height: number; width?: number };
 
 function rect({ top, height, width = 0 }: RectInit): DOMRect {
@@ -88,6 +179,10 @@ describe("useTaskFind", () => {
   });
 
   afterEach(() => {
+    // Unmount first: the hook's unmount cleanup clears highlights through
+    // whichever `CSS` is installed, and a test that failed midway never
+    // reached its own unmount.
+    cleanup();
     delete (Range.prototype as { getClientRects?: unknown }).getClientRects;
     delete (Range.prototype as { getBoundingClientRect?: unknown }).getBoundingClientRect;
     container.remove();
@@ -192,5 +287,26 @@ describe("useTaskFind", () => {
     const css = readFileSync(resolve(process.cwd(), "../ui/styles/base.css"), "utf8");
     expect(css).toMatch(/::highlight\(task-find\)\s*\{/);
     expect(css).toMatch(/::highlight\(task-find-active\)\s*\{/);
+  });
+
+  it("kết quả trên chữ NFD được tô bằng Range trỏ đúng đoạn gốc, và số đếm khớp số Range", async () => {
+    container.innerHTML = `<p>${"Mẫu Biểu năm, biểu đồ".normalize("NFD")}</p>`;
+    const highlights = installFakeHighlightApi();
+
+    const { result, unmount } = renderHook(() => useTaskFind({ container, contentKey: 0 }));
+    act(() => {
+      result.current.openFind();
+      result.current.setQuery("biểu".normalize("NFC"));
+    });
+    await flushFrames();
+
+    const painted = highlights.get("task-find")?.ranges ?? [];
+    expect(painted.map((range) => range.toString())).toEqual([
+      BIEU_NFD,
+      "biểu".normalize("NFD"),
+    ]);
+    expect(result.current.matchCount).toBe(painted.length);
+    expect(highlights.get("task-find-active")?.ranges[0]?.toString()).toBe(BIEU_NFD);
+    unmount();
   });
 });

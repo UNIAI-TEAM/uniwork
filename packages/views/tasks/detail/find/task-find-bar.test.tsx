@@ -358,6 +358,25 @@ describe("tìm trong trang chi tiết task", () => {
       expect(screen.getByTestId("resolved-thread-bar")).toHaveAttribute("aria-expanded", "true");
       expect(useTaskDetailUiStore.getState().tasks.t1?.resolvedExpanded).toEqual(["c1"]);
     });
+
+    // Text pasted from macOS files is often stored decomposed (NFD); keyboards
+    // type composed (NFC). Both matchers must agree, or the thread opens with
+    // "no matches" or the count finds text the thread matcher missed.
+    it("bình luận lưu dạng NFD khớp truy vấn gõ dạng NFC: mở luồng và đếm được kết quả", async () => {
+      const reply = "Biểu mẫu đã duyệt".normalize("NFD");
+      comments = [
+        { id: "c1", body: "Chốt biểu mẫu".normalize("NFD"), at: "00", resolved: true },
+        { id: "c2", body: reply, at: "01", parent_id: "c1" },
+      ];
+      await renderPage();
+      await screen.findByTestId("resolved-thread-bar");
+
+      const input = await openFind();
+      fireEvent.change(input, { target: { value: "biểu mẫu".normalize("NFC") } });
+
+      expect(await screen.findByText(reply)).toBeInTheDocument();
+      await waitFor(() => expect(findCount()).toHaveTextContent("1/2"));
+    });
   });
 
   describe("đích của ⌘F", () => {

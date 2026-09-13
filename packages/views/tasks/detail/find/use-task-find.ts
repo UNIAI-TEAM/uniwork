@@ -32,6 +32,68 @@ const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT"]);
 // collapsed sub-task list stays mounted) is text nobody can see.
 const SKIP_SUBTREE_SELECTOR = "[data-find-ignore], [hidden]";
 
+/**
+ * The form both sides of a find comparison are brought to: canonical
+ * composition (NFC), then lowercase. Vietnamese text reaches the page either
+ * composed or decomposed (a base letter followed by combining marks, common in
+ * text pasted from macOS files); without folding, a query typed on a keyboard
+ * misses decomposed text that looks identical.
+ */
+export function foldForFind(value: string): string {
+  return value.normalize("NFC").toLowerCase();
+}
+
+// One base character with the combining marks that follow it, or a run of
+// marks with no base. Canonical composition only joins a base with its own
+// marks, so folding unit by unit keeps a map back to the original offsets.
+// (Conjoining Hangul jamo compose without marks and stay unfolded.)
+const COMBINING_UNIT = /\P{M}\p{M}*|\p{M}+/gu;
+
+interface FoldedText {
+  text: string;
+  /**
+   * For each code unit of `text`, the original start and end offsets of the
+   * unit it came from. `null` when folding kept every offset.
+   */
+  starts: number[] | null;
+  ends: number[] | null;
+}
+
+function foldByUnit(raw: string, lowerEachUnit: boolean): FoldedText {
+  let text = "";
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let offset = 0;
+  // The units tile the string: every code point is a mark or it is not.
+  for (const [unit] of raw.matchAll(COMBINING_UNIT)) {
+    const start = offset;
+    offset += unit.length;
+    const composed = unit.normalize("NFC");
+    const piece = lowerEachUnit ? composed.toLowerCase() : composed;
+    text += piece;
+    for (let i = 0; i < piece.length; i += 1) {
+      starts.push(start);
+      ends.push(offset);
+    }
+  }
+  return { text, starts, ends };
+}
+
+function foldTextNode(raw: string): FoldedText {
+  // Already composed and lowercasing keeps the length: offsets are unchanged.
+  // (The only length-changing lowercase mapping expands, never shrinks.)
+  if (raw.normalize("NFC") === raw) {
+    const text = raw.toLowerCase();
+    if (text.length === raw.length) return { text, starts: null, ends: null };
+  }
+  const composed = foldByUnit(raw, false);
+  const text = composed.text.toLowerCase();
+  if (text.length === composed.text.length) return { ...composed, text };
+  // A lowercase mapping that changes length (U+0130): lowercase each unit so
+  // the offset map stays exact.
+  return foldByUnit(raw, true);
+}
+
 export interface TextMatch {
   node: Text;
   start: number;
@@ -39,13 +101,16 @@ export interface TextMatch {
 }
 
 /**
- * Every case-insensitive occurrence of `query` in the text nodes under `root`,
- * in document order. A match never straddles an element boundary (a query
- * across a bold run is not found), the usual trade-off for lightweight find.
+ * Every occurrence of `query` in the text nodes under `root`, in document
+ * order, compared after `foldForFind` on both sides. Offsets point into the
+ * original node text: a match that starts or ends inside a base-plus-marks
+ * unit widens to the whole unit, so a highlight never splits a letter from its
+ * accents. A match never straddles an element boundary (a query across a bold
+ * run is not found), the usual trade-off for lightweight find.
  */
 export function collectTextMatches(root: HTMLElement, query: string): TextMatch[] {
   const matches: TextMatch[] = [];
-  const needle = query.toLowerCase();
+  const needle = foldForFind(query);
   if (!needle) return matches;
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -62,11 +127,16 @@ export function collectTextMatches(root: HTMLElement, query: string): TextMatch[
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const textNode = node as Text;
-    const haystack = (textNode.nodeValue ?? "").toLowerCase();
-    let index = haystack.indexOf(needle);
+    const folded = foldTextNode(textNode.nodeValue ?? "");
+    let index = folded.text.indexOf(needle);
     while (index !== -1) {
-      matches.push({ node: textNode, start: index, end: index + needle.length });
-      index = haystack.indexOf(needle, index + needle.length);
+      const last = index + needle.length - 1;
+      matches.push({
+        node: textNode,
+        start: folded.starts ? folded.starts[index]! : index,
+        end: folded.ends ? folded.ends[last]! : index + needle.length,
+      });
+      index = folded.text.indexOf(needle, index + needle.length);
     }
   }
 

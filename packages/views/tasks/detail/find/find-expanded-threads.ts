@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import type { CommentThread } from "../components/comment-thread";
+import { foldForFind } from "./use-task-find";
 
 const NO_IDS: readonly string[] = [];
 
@@ -16,9 +17,10 @@ const NO_IDS: readonly string[] = [];
  * reaches the persisted task-detail UI store, which remembers what the person
  * opened; a search is not that.
  *
- * Matching reads the raw comment body, case-insensitively. A query that only
- * hits markdown syntax or a link target can therefore open a thread whose
- * rendered text shows no match.
+ * Matching reads the raw comment body with the same folding as the page walk
+ * (`foldForFind`: NFC, then lowercase), so a decomposed body and a composed
+ * query agree. A query that only hits markdown syntax or a link target can
+ * still open a thread whose rendered text shows no match.
  */
 export function useFindExpandedThreads(
   threads: readonly CommentThread[],
@@ -35,7 +37,7 @@ export function useFindExpandedThreads(
   }
 
   const ids = useMemo(() => {
-    const needle = query.toLowerCase();
+    const needle = foldForFind(query);
     if (needle.trim().length === 0) return NO_IDS;
     const matched = threads
       .filter(
@@ -43,7 +45,7 @@ export function useFindExpandedThreads(
           !!thread.root.resolved_at &&
           !dismissed.includes(thread.root.id) &&
           [thread.root, ...thread.replies].some((comment) =>
-            comment.body.toLowerCase().includes(needle),
+            foldForFind(comment.body).includes(needle),
           ),
       )
       .map((thread) => thread.root.id);
