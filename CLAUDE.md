@@ -228,10 +228,13 @@ Every command that changes business state writes an `audit_events` row and its
   losing it costs nobody anything (typing, voice signalling, a transcript line
   the next one supersedes). `docs/events/CATALOGUE.md` marks each one.
 - Event names are `<entity>.<verb>`; the version is the `event_version` column,
-  never part of the name; payloads carry ids only. The catalogue exists three
-  times — that file, `server/internal/outbox/catalogue.go`,
-  `packages/core/types/events.ts` — and `scripts/events-catalogue.test.mjs`
-  fails when they disagree.
+  never part of the name; payloads carry ids, plus the `revision_before` /
+  `revision` pair that guards a patch. The only content a payload may carry is
+  a field its catalogue row lists in `Patch`, and only `task.updated` has one
+  (ADR 0015). The catalogue exists three times — that file,
+  `server/internal/outbox/catalogue.go`, `packages/core/types/events.ts` — and
+  `scripts/events-catalogue.test.mjs` fails when they disagree, when a payload
+  key is neither an id nor a revision, or when any other row declares `Patch`.
 - Every request carries a `correlation_id` (`middleware.Correlation`), and it
   reaches the audit row, the events and the access log. `docs/ops/RUNBOOK_OUTBOX.md`
   is the runbook.
@@ -530,5 +533,6 @@ the same way it accepts Merge and Revert.
   WebSocket handshake carry the pair (`/{orgSlug}/{wsSlug}`, `workspace_slug=org/ws`).
 - `onboarded_at` on the user is the single source of truth for "may enter a
   workspace"; never infer it from the workspace count.
-- Realtime event names are `<entity>.<verb>` with id-only payloads
-  (`packages/core/types/events.ts`, published from `server/internal/service`).
+- Realtime event names are `<entity>.<verb>` with id-only payloads, save the
+  fields a catalogue row lists in `Patch` (ADR 0015, `scripts/events-catalogue.test.mjs`);
+  names live in `packages/core/types/events.ts`, published from `server/internal/service`.

@@ -21,18 +21,21 @@ const SCOPES = {
   None: "-",
 };
 
+const quoted = (list) => [...(list ?? "").matchAll(/"([^"]+)"/g)].map((p) => p[1]);
+
 /** Rows of `server/internal/outbox/catalogue.go`, the machine source of truth. */
 function goCatalogue() {
   const src = read("server/internal/outbox/catalogue.go");
   const rowPattern =
-    /\{Topic: "([^"]+)", Version: (\d+), Payload: \[\]string\{([^}]*)\}, Scope: Scope(\w+), Delivery: Delivery(\w+)\},/g;
+    /\{Topic: "([^"]+)", Version: (\d+), Payload: \[\]string\{([^}]*)\}(?:, Patch: \[\]string\{([^}]*)\})?, Scope: Scope(\w+), Delivery: Delivery(\w+)\},/g;
   const rows = [];
   for (const m of src.matchAll(rowPattern)) {
-    const [, topic, version, payload, scope, delivery] = m;
+    const [, topic, version, payload, patch, scope, delivery] = m;
     rows.push({
       topic,
       version: Number(version),
-      payload: [...payload.matchAll(/"([^"]+)"/g)].map((p) => p[1]),
+      payload: quoted(payload),
+      patch: quoted(patch),
       scope: SCOPES[scope],
       delivery: delivery.toLowerCase(),
     });
@@ -43,6 +46,7 @@ function goCatalogue() {
 /** Rows of the table in `docs/events/CATALOGUE.md`. */
 function docCatalogue() {
   const lines = read("docs/events/CATALOGUE.md").split("\n");
+  const keys = (cell) => (cell === "—" ? [] : cell.split(",").map((k) => k.trim().replaceAll("`", "")));
   return lines
     .filter((l) => l.startsWith("| `"))
     .map((l) => {
@@ -50,9 +54,10 @@ function docCatalogue() {
       return {
         topic: cells[1].replaceAll("`", ""),
         version: Number(cells[2]),
-        payload: cells[3] === "—" ? [] : cells[3].split(",").map((k) => k.trim().replaceAll("`", "")),
-        scope: cells[4],
-        delivery: cells[5],
+        payload: keys(cells[3]),
+        patch: keys(cells[4]),
+        scope: cells[5],
+        delivery: cells[6],
       };
     })
     .sort((a, b) => a.topic.localeCompare(b.topic));
@@ -89,22 +94,45 @@ test("the client knows every event that has a realtime audience", () => {
 });
 
 test("event names follow <entity>.<verb> and carry no version", () => {
-  for (const { topic, payload, scope } of goCatalogue()) {
+  for (const { topic } of goCatalogue()) {
     assert.match(topic, /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/, `${topic} is not <entity>.<verb>`);
     assert.doesNotMatch(topic, /\.v\d+$/, `${topic} carries a version in its name; use the event_version column`);
-    // Payload keys are ids, for events a client can receive. A key that is not
-    // an id is content, and content in an event is a field somebody was not
-    // supposed to see. Infrastructure topics are exempt: provider.* addresses a
+  }
+});
+
+const REVISION_KEYS = new Set(["revision", "revision_before"]);
+
+test("payload keys are ids or revisions; content travels only through Patch", () => {
+  // A payload key that is not an id is content, and content in an event is a
+  // field somebody may not be allowed to see. ADR 0015 lets exactly one row
+  // carry content, and only the fields it names in Patch: task.updated, whose
+  // readers are every member of the workspace it fans out to. Patch is checked
+  // before the infrastructure exemption below, so no row — scoped or not — can
+  // open a second content channel without failing here.
+  for (const { topic, payload, patch, scope } of goCatalogue()) {
+    if (patch.length > 0) {
+      assert.equal(topic, "task.updated", `${topic} declares Patch; only task.updated may (ADR 0015)`);
+      assert.ok(
+        payload.includes("revision_before") && payload.includes("revision"),
+        `${topic} declares Patch without revision_before and revision`,
+      );
+    }
+    // Infrastructure topics are exempt from the id rule: provider.* addresses a
     // conference room by the provider's own name for it, which is not our id.
     if (scope === "-") continue;
     for (const key of payload) {
-      assert.match(
-        key,
-        /(_id|^version$)$/,
-        `${topic} carries payload key "${key}"; payloads are ids only, consumers refetch`,
+      assert.ok(
+        /(_id|^version$)$/.test(key) || REVISION_KEYS.has(key),
+        `${topic} carries payload key "${key}"; payloads are ids or revisions (ADR 0015)`,
       );
     }
   }
+});
+
+test("the patchable task fields are exactly the ones ADR 0015 accepted", () => {
+  const row = goCatalogue().find((r) => r.topic === "task.updated");
+  assert.ok(row, "task.updated is missing from server/internal/outbox/catalogue.go");
+  assert.deepEqual([...row.patch].sort(), ["due_date", "priority", "status", "title"]);
 });
 
 test("every event has a scope or is explicitly infrastructure", () => {
