@@ -10,9 +10,10 @@ export function hasUnloadedTasks(pagination: TaskSurfacePagination): boolean {
 }
 
 /**
- * "Showing N of M" above a surface fed by the flat paged query. Group and
+ * "Loaded N of M" above a surface fed by the flat paged query. Group and
  * lane counts only cover loaded rows, so this is where the real total is
- * stated. `withAction` adds the load-more controls for modes with no list end
+ * stated. It counts loaded tasks, not rows on screen: with sub-tasks hidden
+ * the surface can show fewer rows, even none. `withAction` adds the load-more controls for modes with no list end
  * to scroll to (gantt, swimlane); the list keeps its button at the end.
  */
 export function LoadedCountNotice({

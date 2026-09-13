@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { taskKeys } from "@uniwork/core/tasks";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { requestMock, wrap } from "../../test/api-mock";
 import { TaskSurface } from "./task-surface";
@@ -468,6 +470,8 @@ interface PagedServerOptions {
   malformed?: number[];
   /** Offset held until `release()` is called. */
   hold?: number;
+  /** Hold only this request of the `hold` offset, counting from 1; by default every one waits. */
+  holdNth?: number;
   row?: (index: number, params: Record<string, unknown>) => Record<string, unknown>;
 }
 
@@ -479,6 +483,7 @@ interface PagedServerOptions {
 function servePagedTasks(options: PagedServerOptions) {
   const seen: Array<{ path: string; params: Record<string, unknown> }> = [];
   const failed = new Set<number>();
+  const requestsPerOffset = new Map<number, number>();
   let release = () => {};
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -494,7 +499,11 @@ function servePagedTasks(options: PagedServerOptions) {
     seen.push({ path, params });
     const offset = Number(params.offset ?? 0);
     const limit = Number(params.limit ?? 50);
-    if (options.hold === offset) await held;
+    const nth = (requestsPerOffset.get(offset) ?? 0) + 1;
+    requestsPerOffset.set(offset, nth);
+    if (options.hold === offset && (options.holdNth === undefined || options.holdNth === nth)) {
+      await held;
+    }
     if (options.failOnce?.includes(offset) && !failed.has(offset)) {
       failed.add(offset);
       throw new Error("page failed");
@@ -542,6 +551,34 @@ function renderSurface(
   );
 }
 
+/** Stands in for the realtime sync: a task event invalidates the query root. */
+function RealtimeRefetch() {
+  const qc = useQueryClient();
+  return (
+    <button
+      type="button"
+      aria-label="realtime refetch"
+      onClick={() => void qc.invalidateQueries({ queryKey: taskKeys.queryRoot("w1") })}
+    />
+  );
+}
+
+function renderWithRealtimeRefetch(surfaceKey: string) {
+  return render(
+    wrap(
+      <>
+        <RealtimeRefetch />
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["list"]}
+          surfaceKey={surfaceKey}
+        />
+      </>,
+    ),
+  );
+}
+
 describe("TaskSurface pagination (pages of 50)", () => {
   beforeEach(() => {
     // The load-more row is the tested path. The shared setup's observer reports
@@ -558,15 +595,15 @@ describe("TaskSurface pagination (pages of 50)", () => {
     renderSurface("test-paged-list");
 
     await waitFor(() => expect(listRows()).toBe(50));
-    expect(screen.getByText("Đang hiện 50 / 120 công việc")).toBeInTheDocument();
+    expect(screen.getByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
 
     await clickLoadMore();
     await waitFor(() => expect(listRows()).toBe(100));
-    expect(await screen.findByText("Đang hiện 100 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("Đã tải 100 / 120 công việc")).toBeInTheDocument();
 
     await clickLoadMore();
     await waitFor(() => expect(listRows()).toBe(120));
-    await waitFor(() => expect(screen.queryByText(/Đang hiện/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Đã tải/)).toBeNull());
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
     expect(screen.getByText("Không còn công việc để tải")).toBeInTheDocument();
     expect(server.offsets()).toEqual([0, 50, 100]);
@@ -596,6 +633,48 @@ describe("TaskSurface pagination (pages of 50)", () => {
       ).toBeEmptyDOMElement(),
     );
     expect(server.offsets()).toEqual([0, 50]);
+  }, 30_000);
+
+  it("a load more clicked while a realtime refetch runs asks for the next page once the refetch lands", async () => {
+    // The second request for offset 0 is the refetch; hold it so the click lands mid-refetch.
+    const server = servePagedTasks({ total: 120, hold: 0, holdNth: 2 });
+    renderWithRealtimeRefetch("test-paged-refetch-click");
+    await waitFor(() => expect(listRows()).toBe(50));
+
+    fireEvent.click(screen.getByRole("button", { name: "realtime refetch" }));
+    await waitFor(() => expect(server.offsets()).toEqual([0, 0]));
+    expect(loadMoreButton()).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(loadMoreButton());
+
+    server.release();
+    await waitFor(() => expect(listRows()).toBe(100));
+    expect(server.offsets()).toEqual([0, 0, 50]);
+  }, 30_000);
+
+  it("a load more waiting behind a realtime refetch shows the page as loading until it lands", async () => {
+    const server = servePagedTasks({ total: 120, hold: 0, holdNth: 2 });
+    renderWithRealtimeRefetch("test-paged-refetch-busy");
+    await waitFor(() => expect(listRows()).toBe(50));
+
+    fireEvent.click(screen.getByRole("button", { name: "realtime refetch" }));
+    await waitFor(() => expect(server.offsets()).toEqual([0, 0]));
+    fireEvent.click(loadMoreButton());
+
+    expect(loadMoreButton()).toHaveAttribute("aria-disabled", "true");
+    expect(
+      within(screen.getByTestId("load-more-footer")).getByRole("status"),
+    ).toHaveTextContent("Đang tải thêm công việc…");
+    // Inert while it waits: a second click does not queue a second page.
+    fireEvent.click(loadMoreButton());
+
+    server.release();
+    await waitFor(() => expect(listRows()).toBe(100));
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("load-more-footer")).getByRole("status"),
+      ).toBeEmptyDOMElement(),
+    );
+    expect(server.offsets()).toEqual([0, 0, 50]);
   }, 30_000);
 
   it("list keeps the loaded rows when the next page fails and retries that page", async () => {
@@ -643,12 +722,12 @@ describe("TaskSurface pagination (pages of 50)", () => {
     renderSurface("test-paged-gantt", { type: "workspace" }, ["gantt", "list"]);
 
     expect(await screen.findByTestId("gantt-view")).toBeInTheDocument();
-    expect(await screen.findByText("Đang hiện 50 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
     await clickLoadMore();
-    expect(await screen.findByText("Đang hiện 100 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("Đã tải 100 / 120 công việc")).toBeInTheDocument();
     await clickLoadMore();
 
-    await waitFor(() => expect(screen.queryByText(/Đang hiện/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Đã tải/)).toBeNull());
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
   }, 30_000);
 
@@ -658,10 +737,10 @@ describe("TaskSurface pagination (pages of 50)", () => {
     renderSurface("test-paged-swimlane", { type: "workspace" }, ["swimlane", "list"]);
 
     expect(await screen.findByTestId("swimlane-view")).toBeInTheDocument();
-    expect(await screen.findByText("Đang hiện 50 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
     await clickLoadMore();
 
-    expect(await screen.findByText("Đang hiện 100 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("Đã tải 100 / 120 công việc")).toBeInTheDocument();
   }, 30_000);
 
   it("changing the project starts again from the first page without the old project's rows", async () => {
@@ -703,7 +782,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
         .filter((request) => request.params.project_id === "p2")
         .map((request) => request.params.offset),
     ).toEqual([0]);
-    expect(screen.getByText("Đang hiện 50 / 120 công việc")).toBeInTheDocument();
+    expect(screen.getByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
   }, 30_000);
 
   it("is not empty while the first page loads, nor while later pages remain behind hidden rows", async () => {
@@ -734,7 +813,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
     await waitFor(() => expect(listRows()).toBe(50));
     await clickLoadMore();
 
-    expect(await screen.findByText("Đang hiện 99 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("Đã tải 99 / 120 công việc")).toBeInTheDocument();
     expect(listRows()).toBe(99);
     expect(screen.getAllByText("Task 49")).toHaveLength(1);
   }, 30_000);
@@ -751,7 +830,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
       expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull(),
     );
     expect(listRows()).toBe(50);
-    expect(screen.getByText("Đang hiện 50 / 120 công việc")).toBeInTheDocument();
+    expect(screen.getByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
     expect(screen.queryByText(/\/ 0 /)).toBeNull();
   }, 30_000);
 });

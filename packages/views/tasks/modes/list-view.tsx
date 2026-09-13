@@ -75,7 +75,6 @@ function ListStatusSection({
   isExpanded,
   onExpandedChange,
   countIsPartial,
-  onEndReached,
 }: {
   status: string;
   taskIds: string[];
@@ -90,7 +89,6 @@ function ListStatusSection({
   onExpandedChange: (open: boolean) => void;
   /** Pages remain, so the group count covers loaded rows only. */
   countIsPartial: boolean;
-  onEndReached?: () => void;
 }) {
   const { t } = useTranslation();
   const selection = useTaskSurfaceSelectionOptional();
@@ -205,7 +203,6 @@ function ListStatusSection({
                 defaultItemHeight={LIST_ROW_HEIGHT}
                 increaseViewportBy={{ top: 360, bottom: 360 }}
                 itemContent={renderRow}
-                endReached={onEndReached}
               />
             ) : (
               tasks.map((task, index) => (
@@ -439,9 +436,13 @@ function ListViewImpl({
             }
           }}
           countIsPartial={countIsPartial}
-          onEndReached={pagination?.hasMore ? pagination.loadMore : undefined}
         />
       ))}
+      {/* The footer's sentinel, after every group, is the only auto-load path.
+          Virtuoso's endReached is left unwired on purpose: it fires again each
+          time a group's data array is rebuilt, which every page landing and
+          every realtime refetch does, so a group end on screen would load
+          every remaining page by itself. */}
       {pagination ? (
         <LoadMoreFooter
           hasMore={pagination.hasMore}

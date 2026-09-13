@@ -76,14 +76,14 @@ function AutoLoadSentinel({ onVisible }: { onVisible: () => void }) {
     const node = nodeRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
     let wasVisible = false;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const visible = entry?.isIntersecting ?? false;
-        if (visible && !wasVisible) onVisibleRef.current();
-        wasVisible = visible;
-      },
-      { rootMargin: "200px" },
-    );
+    // No rootMargin: the root is the viewport while the sentinel sits inside
+    // the list's own scroll container, which clips it first, so a margin on
+    // the viewport would never widen what counts as visible.
+    const observer = new IntersectionObserver(([entry]) => {
+      const visible = entry?.isIntersecting ?? false;
+      if (visible && !wasVisible) onVisibleRef.current();
+      wasVisible = visible;
+    });
     observer.observe(node);
     return () => observer.disconnect();
   }, []);

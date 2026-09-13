@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useInfiniteMyTasks, useInfiniteQueryTasks } from "@uniwork/core/tasks";
 import type { SurfaceQueryPlan } from "@uniwork/core/tasks/surface/query-plan";
 import type { Task, TaskQueryPage } from "@uniwork/core/types";
@@ -15,10 +15,14 @@ export interface TaskSurfacePagination {
   /** Tasks the server says match the query; never below `loaded`. */
   total: number;
   hasMore: boolean;
+  /** A next page is in flight, or a load-more request waits for a refetch to finish first. */
   isLoadingMore: boolean;
   /** The last next-page request failed; the pages already loaded stay. */
   isLoadMoreError: boolean;
-  /** Asks for the next page; does nothing while one is in flight or none is left. */
+  /**
+   * Asks for the next page; does nothing while one is loading or none is left.
+   * During a background refetch it waits for that refetch, then asks.
+   */
   loadMore: () => void;
 }
 
@@ -86,17 +90,32 @@ export function useTaskSurfaceData({
     loaded,
   );
   const hasMore = !!active && active.hasNextPage;
-  const isLoadingMore = !!active && active.isFetchingNextPage;
+  // Held from a load-more request until the page it asked for settles, so a
+  // request waiting behind a refetch reads as loading, like one in flight.
+  const [isAwaitingPage, setAwaitingPage] = useState(false);
+  const isLoadingMore = !!active && (active.isFetchingNextPage || isAwaitingPage);
   const isLoadMoreError = !!active && active.isFetchNextPageError;
   const fetchNextPage = active?.fetchNextPage;
+  const loadedPages = pages?.length ?? 0;
 
   const loadMore = useCallback(() => {
     if (!fetchNextPage || !hasMore || isLoadingMore) return;
-    // cancelRefetch: false joins a page already in flight instead of
-    // restarting it, so the button, the sentinel and Virtuoso's endReached
-    // can all fire for the same page and still send one request.
-    void fetchNextPage({ cancelRefetch: false });
-  }, [fetchNextPage, hasMore, isLoadingMore]);
+    setAwaitingPage(true);
+    // cancelRefetch: false joins a fetch already in flight instead of
+    // restarting it, so the button and the sentinel can fire for the same
+    // page and still send one request. The fetch joined can also be a
+    // background refetch of the loaded pages (a realtime event), which
+    // settles without a new page: ask again once it has. Judged from the
+    // settled result rather than this render's fetch flags, which can lag a
+    // refetch that has just finished and would then load two pages.
+    void fetchNextPage({ cancelRefetch: false })
+      .then((result) => {
+        const joinedRefetch =
+          result.isSuccess && (result.data?.pages.length ?? 0) <= loadedPages;
+        return joinedRefetch ? fetchNextPage({ cancelRefetch: false }) : undefined;
+      })
+      .finally(() => setAwaitingPage(false));
+  }, [fetchNextPage, hasMore, isLoadingMore, loadedPages]);
 
   const pagination = useMemo<TaskSurfacePagination>(
     () => ({ loaded, total, hasMore, isLoadingMore, isLoadMoreError, loadMore }),

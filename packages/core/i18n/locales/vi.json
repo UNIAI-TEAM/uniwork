@@ -927,8 +927,8 @@
       "group_loaded_count_other": "{{status}}, đã tải {{count}}"
     },
     "pagination": {
-      "loaded_count_one": "Đang hiện {{count}} / {{total}} công việc",
-      "loaded_count_other": "Đang hiện {{count}} / {{total}} công việc",
+      "loaded_count_one": "Đã tải {{count}} / {{total}} công việc",
+      "loaded_count_other": "Đã tải {{count}} / {{total}} công việc",
       "load_more": "Tải thêm",
       "loading_more": "Đang tải thêm công việc…",
       "load_more_failed": "Không tải thêm được công việc.",

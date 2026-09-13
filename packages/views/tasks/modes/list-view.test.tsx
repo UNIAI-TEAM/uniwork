@@ -191,7 +191,7 @@ describe("modes/ListView pagination", () => {
   it("puts the loaded / total notice above the list and never names a group count as a total", () => {
     renderPagedList(pages());
 
-    const notice = screen.getByText("Đang hiện 1 / 120 công việc");
+    const notice = screen.getByText("Đã tải 1 / 120 công việc");
     expect(
       notice.compareDocumentPosition(screen.getByTestId("list-group-backlog")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -205,7 +205,7 @@ describe("modes/ListView pagination", () => {
     renderPagedList(pages({ total: 1, hasMore: false }));
 
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
-    expect(screen.queryByText(/Đang hiện/)).toBeNull();
+    expect(screen.queryByText(/Đã tải/)).toBeNull();
     expect(screen.getByRole("button", { name: "Cần làm, 1" })).toBeInTheDocument();
   });
 });

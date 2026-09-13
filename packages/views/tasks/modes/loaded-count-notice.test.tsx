@@ -20,10 +20,10 @@ const pagination = (
 });
 
 describe("modes/LoadedCountNotice", () => {
-  it("says how many matching tasks are on screen, in a polite live region", () => {
+  it("says how many matching tasks are loaded, in a polite live region", () => {
     render(<LoadedCountNotice pagination={pagination()} />);
 
-    const text = screen.getByText("Đang hiện 50 / 120 công việc");
+    const text = screen.getByText("Đã tải 50 / 120 công việc");
     expect(text.closest('[aria-live="polite"]')).not.toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
   });
@@ -77,7 +77,7 @@ describe("modes/LoadedCountNotice", () => {
       <LoadedCountNotice pagination={pagination({ hasMore: false })} withAction />,
     );
 
-    expect(screen.getByText("Đang hiện 50 / 120 công việc")).toBeInTheDocument();
+    expect(screen.getByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
   });
 
@@ -92,10 +92,10 @@ describe("modes/LoadedCountNotice", () => {
     i18n.addResourceBundle("en", "translation", en, true, true);
     const tEn = i18n.getFixedT("en");
     expect(tEn("tasks.pagination.loaded_count", { count: 1, total: 2 })).toBe(
-      "Showing 1 task of 2",
+      "Loaded 1 task of 2",
     );
     expect(tEn("tasks.pagination.loaded_count", { count: 50, total: 120 })).toBe(
-      "Showing 50 tasks of 120",
+      "Loaded 50 tasks of 120",
     );
   });
 });
