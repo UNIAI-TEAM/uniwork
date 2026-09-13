@@ -449,6 +449,34 @@ describe("tìm trong trang chi tiết task", () => {
       expect(await screen.findByText(reply)).toBeInTheDocument();
       await waitFor(() => expect(findCount()).toHaveTextContent("1/2"));
     });
+
+    // A chip jump is the person going to a thread, which the store remembers.
+    // While find had the thread open, the jump read the merged set, skipped the
+    // store write, and closing the bar folded the thread again.
+    it("bấm chip tới luồng đang mở vì tìm thì luồng được nhớ: đóng thanh tìm vẫn mở", async () => {
+      comments = [
+        { id: "c1", body: "luồng một", at: "00" },
+        { id: "c2", body: "luồng hai đã giải quyết", at: "01", resolved: true },
+        { id: "c3", body: "trả lời cần tìm", at: "02", parent_id: "c2" },
+        { id: "c4", body: "luồng ba", at: "03" },
+        { id: "c5", body: "luồng bốn", at: "04" },
+      ];
+      await renderPage();
+      await screen.findByRole("navigation", { name: THREAD_NAV });
+      expect(screen.queryByText("trả lời cần tìm")).toBeNull();
+
+      const input = await openFind();
+      fireEvent.change(input, { target: { value: "cần tìm" } });
+      expect(await screen.findByText("trả lời cần tìm")).toBeInTheDocument();
+      expect(useTaskDetailUiStore.getState().tasks).toEqual({});
+
+      fireEvent.click(screen.getByTestId("thread-nav-c2"));
+      fireEvent.keyDown(input, { key: "Escape" });
+
+      expect(screen.queryByRole("search")).toBeNull();
+      expect(screen.getByText("trả lời cần tìm")).toBeInTheDocument();
+      expect(useTaskDetailUiStore.getState().tasks.t1?.resolvedExpanded).toEqual(["c2"]);
+    });
   });
 
   describe("đích của ⌘F", () => {

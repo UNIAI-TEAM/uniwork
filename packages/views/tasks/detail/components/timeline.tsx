@@ -191,15 +191,19 @@ export function TaskDetailTimeline({
     const thread = threads.find(
       (th) => th.root.id === target || th.replies.some((r) => r.id === target),
     );
+    // Whether to remember the thread reads the store's own ids, not the merged
+    // set: a thread open only because find matches it still gets written, so
+    // it stays open after the bar closes. Whether it is on screen yet (and can
+    // be scrolled to now) reads the merged set.
     if (
       thread &&
       isThreadResolved(thread) &&
-      !expandedResolved.has(thread.root.id)
+      !expandedResolvedIds.includes(thread.root.id)
     ) {
       useTaskDetailUiStore
         .getState()
         .setResolvedExpanded(taskId, thread.root.id, true);
-      return;
+      if (!expandedResolved.has(thread.root.id)) return;
     }
     const el = document.getElementById(`comment-${target}`);
     if (!el) return;
@@ -220,7 +224,7 @@ export function TaskDetailTimeline({
     // identity and re-scrolls to the stale hash target with a fresh
     // highlight.
     setScrollRequest(null);
-  }, [scrollRequest, threads, taskId, expandedResolved]);
+  }, [scrollRequest, threads, taskId, expandedResolved, expandedResolvedIds]);
 
   const onCompose = async (body: string): Promise<boolean> => {
     try {
