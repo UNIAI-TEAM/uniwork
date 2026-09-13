@@ -19,7 +19,6 @@ import {
 } from "@uniwork/ui/components/ui/command";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
-import { useSearchHotkey } from "./use-search-hotkey";
 
 export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
   const { open, setOpen } = useSearchStore();
@@ -28,7 +27,6 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
   const { setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
   const { t, i18n } = useTranslation();
-  useSearchHotkey();
 
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
 
