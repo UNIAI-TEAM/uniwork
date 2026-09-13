@@ -661,6 +661,8 @@
     "comments": "Comments",
     "addComment": "Write a comment…",
     "unassigned": "Unassigned",
+    "assignee_search_placeholder": "Search members or agents",
+    "assignee_no_results": "No one matches your search.",
     "status_backlog": "Backlog",
     "status_todo": "To do",
     "status_in_progress": "In progress",

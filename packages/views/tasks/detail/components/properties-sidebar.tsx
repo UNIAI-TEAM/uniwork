@@ -16,7 +16,7 @@ import {
   useTaskProperties,
   useUpdateTask,
 } from "@uniwork/core/tasks";
-import { type ActorKind, type Task } from "@uniwork/core/types";
+import { type Task } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -30,27 +30,19 @@ import { toastApiError } from "../../../toast-api-error";
 import { cn } from "@uniwork/ui/lib/utils";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { tintFromColor } from "@uniwork/ui/lib/tint-from-color";
-import { PriorityPicker, StatusPicker } from "../../pickers";
+import {
+  AssigneePicker,
+  PriorityPicker,
+  StatusPicker,
+  type AssigneeOption,
+  type AssigneeRef,
+} from "../../pickers";
 
 const EMPTY_CONFIG = {
   flags: {},
   rum_sample_rate: 0,
   work_management_capabilities: {},
 } as const;
-
-const assigneeValue = (kind: string, id: string) => `${kind}:${id}`;
-
-function parseAssignee(v: string): {
-  assignee_id: string | null;
-  assignee_kind?: ActorKind;
-} {
-  const i = v.indexOf(":");
-  if (i < 0) return { assignee_id: null };
-  return {
-    assignee_id: v.slice(i + 1),
-    assignee_kind: v.slice(0, i) === "agent" ? "agent" : "human",
-  };
-}
 
 function PropRow({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
@@ -107,6 +99,31 @@ export function TaskDetailPropertiesSidebar({
     () => new Set((onTaskLabels.data?.labels ?? []).map((l) => l.id)),
     [onTaskLabels.data?.labels],
   );
+
+  // Only the sidebar offers agents as assignees today (ADR 0007 pair: id +
+  // kind travel together). The table cell and batch toolbar deliberately
+  // keep offering human members only — see the task-2 report.
+  const assigneeOptions: AssigneeOption[] = useMemo(
+    () => [
+      ...(members ?? []).map((m) => ({
+        id: m.user_id,
+        kind: "human" as const,
+        name: m.display_name || m.email,
+        secondaryLabel: m.email,
+        ...(typeof m.avatar_url === "string" ? { avatarUrl: m.avatar_url } : {}),
+      })),
+      ...(agents ?? []).map((a) => ({
+        id: a.id,
+        kind: "agent" as const,
+        name: a.name,
+        ...(a.avatar_url ? { avatarUrl: a.avatar_url } : {}),
+      })),
+    ],
+    [members, agents],
+  );
+  const assigneeValue: AssigneeRef | null = task.assignee_id
+    ? { id: task.assignee_id, kind: task.assignee_kind === "agent" ? "agent" : "human" }
+    : null;
 
   const putField = (patch: { status?: string; priority?: string }) => {
     put.mutate(
@@ -214,26 +231,30 @@ export function TaskDetailPropertiesSidebar({
             </Label>
           }
         >
-          <Select
-            aria-label={t("tasks.assignee")}
-            items={[
-              { value: "", label: t("tasks.unassigned") },
-              ...(members ?? []).map((m) => ({
-                value: assigneeValue("human", m.user_id),
-                label: m.display_name,
-              })),
-              ...(agents ?? []).map((a) => ({
-                value: assigneeValue("agent", a.id),
-                label: `${a.name} · ${t("agents.badge")}`,
-              })),
-            ]}
-            value={
-              task.assignee_id
-                ? assigneeValue(task.assignee_kind, task.assignee_id)
-                : ""
-            }
-            onValueChange={(v) => patchField(parseAssignee(v ?? ""))}
-          />
+          <AssigneePicker
+            value={assigneeValue}
+            options={assigneeOptions}
+            ariaLabel={t("tasks.assignee")}
+            unassignedLabel={t("tasks.unassigned")}
+            searchPlaceholder={t("tasks.assignee_search_placeholder")}
+            noResultsLabel={t("tasks.assignee_no_results")}
+            triggerClassName="h-8 w-full justify-start px-2"
+            onChange={(next) => {
+              if (!next) {
+                patchField({ assignee_id: null });
+              } else {
+                patchField({ assignee_id: next.id, assignee_kind: next.kind });
+              }
+            }}
+          >
+            {task.assignee ? (
+              <span className="truncate">{task.assignee.display_name}</span>
+            ) : (
+              <span className="truncate text-muted-foreground">
+                {t("tasks.unassigned")}
+              </span>
+            )}
+          </AssigneePicker>
         </PropRow>
 
         <PropRow label={<Label>{t("tasks.detail.prop_project")}</Label>}>

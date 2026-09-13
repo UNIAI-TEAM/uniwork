@@ -1,17 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
-import { Button } from "@uniwork/ui/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
-import { PriorityPicker, StatusPicker } from "../pickers";
+  AssigneePicker,
+  PriorityPicker,
+  StatusPicker,
+  type AssigneeOption,
+} from "../pickers";
 
 type BatchUpdates = {
   status?: string;
@@ -88,45 +85,35 @@ export function BatchAssigneePicker({
   onUpdate: (updates: BatchUpdates) => void;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const label = useMemo(() => {
     if (mixed) return t("tasks.batch.assignee_mixed");
     if (!assigneeId) return t("tasks.unassigned");
     return members.find((m) => m.id === assigneeId)?.name ?? t("tasks.batch.assignee");
   }, [assigneeId, members, mixed, t]);
+  // Batch only ever offers human members (no agent assignment here — see
+  // assignee-picker.tsx and the task-2 report for why that stays as-is).
+  const options: AssigneeOption[] = members.map((m) => ({
+    id: m.id,
+    kind: "human",
+    name: m.name,
+  }));
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger
-        render={
-          <Button type="button" variant="ghost" size="sm" disabled={disabled} />
-        }
-      >
-        {label}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="center">
-        <DropdownMenuRadioGroup
-          value={assigneeId ?? "__none__"}
-          onValueChange={(value) => {
-            if (value === "__none__") {
-              onUpdate({ assignee_id: null, assignee_kind: "human" });
-            } else {
-              onUpdate({ assignee_id: value, assignee_kind: "human" });
-            }
-            setOpen(false);
-          }}
-        >
-          <DropdownMenuRadioItem value="__none__">
-            {t("tasks.unassigned")}
-          </DropdownMenuRadioItem>
-          {members.map((m) => (
-            <DropdownMenuRadioItem key={m.id} value={m.id}>
-              {m.name}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <AssigneePicker
+      value={assigneeId ? { id: assigneeId, kind: "human" } : null}
+      options={options}
+      disabled={disabled}
+      ariaLabel={t("tasks.batch.assignee")}
+      unassignedLabel={t("tasks.unassigned")}
+      searchPlaceholder={t("tasks.assignee_search_placeholder")}
+      noResultsLabel={t("tasks.assignee_no_results")}
+      align="center"
+      onChange={(next) => {
+        onUpdate({ assignee_id: next?.id ?? null, assignee_kind: "human" });
+      }}
+    >
+      {label}
+    </AssigneePicker>
   );
 }
 

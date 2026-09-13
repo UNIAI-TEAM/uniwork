@@ -660,6 +660,8 @@
     "comments": "Bình luận",
     "addComment": "Viết bình luận…",
     "unassigned": "Chưa giao",
+    "assignee_search_placeholder": "Tìm thành viên hoặc agent",
+    "assignee_no_results": "Không có ai khớp với tìm kiếm.",
     "status_backlog": "Backlog",
     "status_todo": "Cần làm",
     "status_in_progress": "Đang làm",

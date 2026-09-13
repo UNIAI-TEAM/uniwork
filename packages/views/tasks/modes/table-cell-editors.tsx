@@ -23,14 +23,18 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../common/date-field";
 import { AgentBadge } from "../../agents/agent-badge";
-import { PriorityPicker, StatusPicker } from "../pickers";
+import {
+  AssigneePicker,
+  PriorityPicker,
+  StatusPicker,
+  type AssigneeOption,
+  type AssigneeRef,
+} from "../pickers";
 import { STATUS_CONFIG } from "./status-config";
 
 export type TableMember = {
@@ -148,56 +152,45 @@ export function TableAssigneeCell({
 }) {
   const { t } = useTranslation();
   const selected = members.find((member) => member.id === assigneeId);
+  // Table only ever offers human members (no agent assignment here — see
+  // assignee-picker.tsx and the task-2 report for why that stays as-is).
+  const options: AssigneeOption[] = members.map((member) => ({
+    id: member.id,
+    kind: "human",
+    name: member.name,
+    avatarUrl: member.avatarUrl,
+  }));
+  const value: AssigneeRef | null = assigneeId
+    ? { id: assigneeId, kind: assigneeKind === "agent" ? "agent" : "human" }
+    : null;
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-              aria-label={t("tasks.assignee")}
-            />
-          }
-        >
-          {selected ? (
-            <MemberIdentity member={selected} />
-          ) : (
-            <>
-              <Avatar size="sm" className="size-5">
-                <AvatarFallback>
-                  <UserRound className="size-3" aria-hidden />
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate">
-                {assigneeName ?? t("tasks.unassigned")}
-              </span>
-            </>
-          )}
-          {assigneeKind === "agent" ? <AgentBadge /> : null}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-          <DropdownMenuRadioGroup
-            value={assigneeId ?? "__none__"}
-            onValueChange={(next) =>
-              onChange(next === "__none__" ? null : next)
-            }
-          >
-            <DropdownMenuRadioItem value="__none__">
-              {t("tasks.unassigned")}
-            </DropdownMenuRadioItem>
-            {members.map((member) => (
-              <DropdownMenuRadioItem key={member.id} value={member.id}>
-                <MemberIdentity member={member} />
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <AssigneePicker
+      value={value}
+      options={options}
+      onChange={(next) => onChange(next?.id ?? null)}
+      ariaLabel={t("tasks.assignee")}
+      unassignedLabel={t("tasks.unassigned")}
+      searchPlaceholder={t("tasks.assignee_search_placeholder")}
+      noResultsLabel={t("tasks.assignee_no_results")}
+      onTriggerPointerDown={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+    >
+      {selected ? (
+        <MemberIdentity member={selected} />
+      ) : (
+        <>
+          <Avatar size="sm" className="size-5">
+            <AvatarFallback>
+              <UserRound className="size-3" aria-hidden />
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate">
+            {assigneeName ?? t("tasks.unassigned")}
+          </span>
+        </>
+      )}
+      {assigneeKind === "agent" ? <AgentBadge /> : null}
+    </AssigneePicker>
   );
 }
 
