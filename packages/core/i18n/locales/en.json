@@ -755,6 +755,21 @@
       "delete_dialog_desc": "These tasks will be permanently deleted.",
       "delete_dialog_warning": "This cannot be undone."
     },
+    "row_actions": {
+      "open": "Open",
+      "copy_link": "Copy link",
+      "link_copied": "Link copied",
+      "copy_link_failed": "Could not copy link",
+      "change_status": "Change status",
+      "change_assignee": "Change assignee",
+      "delete": "Delete",
+      "delete_dialog_title": "Delete this task?",
+      "delete_dialog_desc": "“{{title}}” will be permanently deleted. This cannot be undone.",
+      "delete_confirm": "Delete task",
+      "cancel": "Cancel",
+      "delete_success": "Task deleted",
+      "delete_failed": "Could not delete task"
+    },
     "save_view": {
       "title": "Save as view",
       "edit_title": "Edit view",

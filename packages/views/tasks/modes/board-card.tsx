@@ -19,6 +19,10 @@ import type { ChildProgress, Task } from "@uniwork/core/types";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PriorityFlag } from "./status-pill";
+import {
+  RowActionsContextMenu,
+  RowActionsDropdown,
+} from "../row-actions-menu";
 
 export interface BoardCardMeta {
   projectName?: string;
@@ -167,24 +171,36 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
   }, [onOpen, task.id]);
 
   return (
-    <div
+    <RowActionsContextMenu
+      task={task}
+      onOpenTask={onOpen}
       ref={setNodeRef}
       style={style}
       data-board-card=""
-      {...attributes}
-      {...listeners}
-      className={cn("group/card space-y-1", isDragging && "opacity-30")}
+      className={cn("group/card relative", isDragging && "opacity-30")}
     >
-      <button
-        type="button"
-        onClick={handleOpen}
-        className={cn(
-          "block w-full text-left transition-colors",
-          isDragging && "pointer-events-none",
-        )}
-      >
-        <BoardCardContent task={task} meta={meta} />
-      </button>
-    </div>
+      {/* Drag listeners sit on this child so the portalled menus and dialog,
+          which render as children of the outer card, never reach them. */}
+      <div {...attributes} {...listeners}>
+        <button
+          type="button"
+          onClick={handleOpen}
+          className={cn(
+            "block w-full text-left transition-colors",
+            isDragging && "pointer-events-none",
+          )}
+        >
+          <BoardCardContent task={task} meta={meta} />
+        </button>
+      </div>
+      {isDragging ? null : (
+        <RowActionsDropdown
+          task={task}
+          onOpenTask={onOpen}
+          className="absolute top-1.5 right-1.5"
+          triggerClassName="bg-surface group-hover/card:opacity-100 group-focus-within/card:opacity-100"
+        />
+      )}
+    </RowActionsContextMenu>
   );
 });

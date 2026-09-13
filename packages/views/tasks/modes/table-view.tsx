@@ -221,6 +221,7 @@ export function TableView({
           onError: (error) => toastApiError(error, t("common.error")),
         });
       },
+      openTask: onOpenTask,
       toggleTableParentCollapsed,
       toggleTableColumn,
       propertiesDisabled,
@@ -237,6 +238,7 @@ export function TableView({
       handleTaskSelection,
       labelsQuery.data?.labels,
       members,
+      onOpenTask,
       onSort,
       projectNames,
       propertiesDisabled,

@@ -16,6 +16,10 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { BoardCardMeta } from "./board-card";
 import { PriorityFlag, StatusIcon } from "./status-pill";
 import { useTaskSurfaceSelectionOptional } from "../surface/selection-context";
+import {
+  RowActionsContextMenu,
+  RowActionsDropdown,
+} from "../row-actions-menu";
 
 function actorInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase() || "?";
@@ -58,97 +62,110 @@ function TaskListRowContent({
     : undefined;
 
   return (
-    <div
+    <RowActionsContextMenu
+      task={task}
+      onOpenTask={onOpenTask}
       ref={containerRef}
       style={containerStyle}
-      {...containerProps}
       data-task-list-row=""
       className={cn(
-        "group/row flex h-9 min-w-0 items-center gap-2 rounded-md px-3 text-body transition-colors",
+        "group/row flex h-9 min-w-0 items-center gap-1 rounded-md pr-1 pl-3 text-body transition-colors",
         selected
           ? "bg-accent"
           : "hover:bg-muted focus-within:bg-muted",
         isDragging && "opacity-30",
       )}
     >
-      <div className="relative flex size-4 shrink-0 items-center justify-center">
-        {cardProperties.priority ? (
-          <PriorityFlag
-            priority={task.priority}
-            className={cn("group-hover/row:hidden", selected && "hidden")}
-          />
-        ) : null}
-        <input
-          type="checkbox"
-          checked={selected}
-          aria-label={t("tasks.list.select_task", { title: task.title })}
-          onChange={() => selection?.toggle(task.id)}
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          className={cn(
-            "absolute inset-0 cursor-pointer accent-primary",
-            selected ? "block" : "hidden group-hover/row:block",
-          )}
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onOpenTask?.(task.id)}
-        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+      {/* Drag listeners live here, not on the outer row, so the portalled
+          menus and dialog (children of the outer row) never reach them. */}
+      <div
+        {...containerProps}
+        className="flex min-w-0 flex-1 items-center gap-2 self-stretch"
       >
-        <span
-          className="w-16 shrink-0 truncate text-caption tabular-nums text-muted-foreground"
-          translate="no"
-        >
-          {task.identifier}
-        </span>
-        <StatusIcon status={task.status} />
-        <span className="min-w-0 flex-1 truncate text-foreground">
-          {task.title}
-        </span>
-
-        {projectName ? (
-          <span className="hidden max-w-36 shrink-0 items-center gap-1 text-caption text-muted-foreground md:inline-flex">
-            <FolderKanban className="size-3 shrink-0" aria-hidden />
-            <span className="truncate">{projectName}</span>
-          </span>
-        ) : null}
-        {cardProperties.startDate && task.start_date ? (
-          <span className="hidden shrink-0 items-center gap-1 text-caption tabular-nums text-muted-foreground lg:inline-flex">
-            <CalendarDays className="size-3" aria-hidden />
-            {formatDate(task.start_date, i18n.language)}
-          </span>
-        ) : null}
-        {cardProperties.dueDate && task.due_date ? (
-          <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
-            {formatDate(task.due_date, i18n.language)}
-          </span>
-        ) : null}
-        {progress ? (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-micro tabular-nums text-muted-foreground"
-            aria-label={t("tasks.card.child_progress")}
-          >
-            <ListChecks className="size-3" aria-hidden />
-            {progress.done}/{progress.total}
-          </span>
-        ) : null}
-        {assignee ? (
-          <span className="hidden max-w-32 shrink-0 items-center gap-1.5 text-caption text-muted-foreground sm:inline-flex">
-            <ActorAvatar
-              name={assignee.display_name}
-              initials={actorInitial(assignee.display_name)}
-              avatarUrl={assignee.avatar_url}
-              isAgent={assignee.kind === "agent"}
-              isSystem={assignee.kind === "system"}
-              size="xs"
+        <div className="relative flex size-4 shrink-0 items-center justify-center">
+          {cardProperties.priority ? (
+            <PriorityFlag
+              priority={task.priority}
+              className={cn("group-hover/row:hidden", selected && "hidden")}
             />
-            <span className="truncate">{assignee.display_name}</span>
+          ) : null}
+          <input
+            type="checkbox"
+            checked={selected}
+            aria-label={t("tasks.list.select_task", { title: task.title })}
+            onChange={() => selection?.toggle(task.id)}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            className={cn(
+              "absolute inset-0 cursor-pointer accent-primary",
+              selected ? "block" : "hidden group-hover/row:block",
+            )}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onOpenTask?.(task.id)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <span
+            className="w-16 shrink-0 truncate text-caption tabular-nums text-muted-foreground"
+            translate="no"
+          >
+            {task.identifier}
           </span>
-        ) : null}
-      </button>
-    </div>
+          <StatusIcon status={task.status} />
+          <span className="min-w-0 flex-1 truncate text-foreground">
+            {task.title}
+          </span>
+
+          {projectName ? (
+            <span className="hidden max-w-36 shrink-0 items-center gap-1 text-caption text-muted-foreground md:inline-flex">
+              <FolderKanban className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{projectName}</span>
+            </span>
+          ) : null}
+          {cardProperties.startDate && task.start_date ? (
+            <span className="hidden shrink-0 items-center gap-1 text-caption tabular-nums text-muted-foreground lg:inline-flex">
+              <CalendarDays className="size-3" aria-hidden />
+              {formatDate(task.start_date, i18n.language)}
+            </span>
+          ) : null}
+          {cardProperties.dueDate && task.due_date ? (
+            <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+              {formatDate(task.due_date, i18n.language)}
+            </span>
+          ) : null}
+          {progress ? (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-micro tabular-nums text-muted-foreground"
+              aria-label={t("tasks.card.child_progress")}
+            >
+              <ListChecks className="size-3" aria-hidden />
+              {progress.done}/{progress.total}
+            </span>
+          ) : null}
+          {assignee ? (
+            <span className="hidden max-w-32 shrink-0 items-center gap-1.5 text-caption text-muted-foreground sm:inline-flex">
+              <ActorAvatar
+                name={assignee.display_name}
+                initials={actorInitial(assignee.display_name)}
+                avatarUrl={assignee.avatar_url}
+                isAgent={assignee.kind === "agent"}
+                isSystem={assignee.kind === "system"}
+                size="xs"
+              />
+              <span className="truncate">{assignee.display_name}</span>
+            </span>
+          ) : null}
+        </button>
+      </div>
+      <RowActionsDropdown
+        task={task}
+        onOpenTask={onOpenTask}
+        triggerClassName="group-hover/row:opacity-100 group-focus-within/row:opacity-100"
+      />
+    </RowActionsContextMenu>
   );
 }
 

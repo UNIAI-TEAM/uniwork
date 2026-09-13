@@ -754,6 +754,21 @@
       "delete_dialog_desc": "Các task này sẽ bị xóa vĩnh viễn.",
       "delete_dialog_warning": "Không hoàn tác được."
     },
+    "row_actions": {
+      "open": "Mở",
+      "copy_link": "Sao chép liên kết",
+      "link_copied": "Đã sao chép liên kết",
+      "copy_link_failed": "Không sao chép được liên kết",
+      "change_status": "Đổi trạng thái",
+      "change_assignee": "Đổi người phụ trách",
+      "delete": "Xóa",
+      "delete_dialog_title": "Xóa task này?",
+      "delete_dialog_desc": "“{{title}}” sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
+      "delete_confirm": "Xóa task",
+      "cancel": "Hủy",
+      "delete_success": "Đã xóa task",
+      "delete_failed": "Không xóa được task"
+    },
     "save_view": {
       "title": "Lưu thành chế độ xem",
       "edit_title": "Sửa chế độ xem",
