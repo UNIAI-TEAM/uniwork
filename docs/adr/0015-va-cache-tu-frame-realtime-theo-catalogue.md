@@ -1,6 +1,6 @@
 # 0015 — Vá cache từ frame realtime, chỉ với trường catalogue khai ở `Patch`
 
-**Trạng thái:** accepted (2026-09-14) — ghi lại quyết định quangpd đã chốt trong brainstorm spec ô Task human-parity (2026-09-12, spec §2, hàng "Độ trễ cảm nhận": viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue). Tập trường vá, các trường không vá và guard hai revision không do quangpd chốt: đó là lựa chọn của plan lát E (`docs/superpowers/plans/2026-09-14-tasks-human-parity-slice-e.md`) và lượt tiền kiểm mã, chờ quangpd xác nhận ở review PR trước khi merge. Luật vào `CLAUDE.md` cùng commit với test giữ luật.
+**Trạng thái:** accepted (2026-09-14) — ghi lại quyết định quangpd đã chốt trong brainstorm spec ô Task human-parity (2026-09-12, spec §2, hàng "Độ trễ cảm nhận": viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue), cùng ba ràng buộc spec §4.3 đặt cho ADR này (chỉ topic được liệt kê mang payload giàu, danh sách trường nằm trong catalogue; client chỉ vá đúng những trường đó, trường lạ bị bỏ; frame không bao giờ tạo bản ghi mới). Mọi lựa chọn khác trong ADR này không do quangpd chốt: đó là lựa chọn của plan lát E (`docs/superpowers/plans/2026-09-14-tasks-human-parity-slice-e.md`) hoặc của lượt tiền kiểm mã, chờ quangpd xác nhận ở review PR trước khi merge. Trong đó có: tập trường vá và các trường không vá; guard hai revision tính theo từng lời gọi; cách mã hoá giá trị (`YYYY-MM-DD`, chuỗi rỗng khi xoá); trang chi tiết đã vá không refetch; điều kiện phải tắt `Patch` trước khi ship quyền đọc task hẹp hơn workspace; việc mở thêm trường hay topic phải cần ADR mới; và giữ `Version` của `task.updated` ở 1. Luật vào `CLAUDE.md` cùng commit với test giữ luật.
 
 ## Bối cảnh
 
@@ -149,12 +149,14 @@ frame tới, không chờ refetch trang chi tiết.
 ## Test giữ luật
 
 - `scripts/events-catalogue.test.mjs` (cùng commit với ADR này): khoá payload của hàng có
-  người nghe là id, còn `revision_before`/`revision` chỉ được đứng ở hàng có `Patch`; chỉ
-  `task.updated` được khai `Patch`, kể cả so với hàng hạ tầng; hàng có `Patch` phải có
-  `revision_before` và `revision`; tập trường vá đúng bốn trường ở Quyết định 1;
+  người nghe là id hoặc khoá revision; ở mọi hàng, kể cả hàng hạ tầng,
+  `revision_before`/`revision` chỉ được đứng ở hàng có `Patch`; chỉ `task.updated` được
+  khai `Patch`, kể cả so với hàng hạ tầng; hàng có `Patch` phải có `revision_before` và
+  `revision`; tập trường vá đúng bốn trường ở Quyết định 1;
   `server/internal/outbox/catalogue.go` và `docs/events/CATALOGUE.md` khớp nhau cả ở cột
-  `Patch`; mọi hàng Go ở đúng hình dạng một dòng mà test đọc được, để không hàng nào lọt
-  khỏi các luật trên. Giữ luật ở `CLAUDE.md` § Audit and Events và § Domain Reminders.
+  `Patch`; sau khi bỏ comment `//` và `/* */`, mọi hàng Go ở đúng hình dạng một dòng mà
+  test đọc được, để không hàng nào lọt khỏi các luật trên và không comment nào đứng thay
+  một hàng. Giữ luật ở `CLAUDE.md` § Audit and Events và § Domain Reminders.
 - server/internal/service/task_realtime_patch_test.go (chưa có, lát E Task 2): đổi riêng
   trường vá được thì frame mang trường đó cùng hai revision đúng; có trường khác đổi thì
   không mang trường vá; hai lần sửa đồng thời không sinh hai khoảng

@@ -6,7 +6,7 @@
 
 **Goal:** Khi một người sửa tiêu đề, trạng thái, độ ưu tiên hoặc ngày hạn của task, mọi người khác đang mở task đó thấy thay đổi ngay từ frame realtime, không chờ refetch, mà không bao giờ để cache mang một `revision` mới cùng dữ liệu cũ.
 
-**Architecture:** ADR 0015 ghi lại quyết định đã chốt ở spec §2. Catalogue sự kiện có thêm cột `Patch` liệt kê chính xác trường client được vá. Server gửi các trường đó cùng `revision_before` và `revision` chỉ khi mọi thay đổi trong bước đều thuộc tập vá được. Client vá bản ghi đã có khi `revision` trong cache khớp `revision_before`; list vẫn invalidate để giữ đúng thứ tự và thành viên.
+**Architecture:** Spec §2 chỉ chốt một câu: viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue; spec §4.3 đặt ba ràng buộc cho ADR đó. ADR 0015 ghi lại câu và ba ràng buộc ấy; cơ chế dưới đây (cột `Patch` và tập trường, guard hai revision, cách mã hoá giá trị, điều kiện tắt `Patch`) là lựa chọn của plan này và lượt tiền kiểm, chờ quangpd xác nhận ở review PR. Catalogue sự kiện có thêm cột `Patch` liệt kê chính xác trường client được vá. Server gửi các trường đó cùng `revision_before` và `revision` chỉ khi mọi thay đổi của một lời gọi `updateTaskInTx` cho task đó đều thuộc tập vá được. Client vá bản ghi đã có khi `revision` trong cache khớp `revision_before`; list vẫn invalidate để giữ đúng thứ tự và thành viên.
 
 **Tech Stack:** Go (pgx, sqlc, outbox dispatcher), TypeScript strict, TanStack Query, Vitest, `node --test`.
 
@@ -19,7 +19,7 @@ Spec phác lát E là "`planCacheUpdate` sinh `patch` thật". Tiền kiểm tì
 1. **`revision` tăng theo từng câu query, không theo từng lần sửa.** `server/pkg/db/queries/tasks.sql` tăng `revision = revision + 1` ở dòng 43, 56, 67, 78, 222. `TaskService.updateTaskInTx` (`server/internal/service/task.go:328`, gọi từ `Update` và `BatchUpdateTasks`) luôn chạy `UpdateTask`, rồi chạy `SetTaskAssignee`, `SetTaskDueDate`, `SetTaskProjectID` cho mỗi trường có mặt trong input, dù giá trị có đổi hay không (`task.go:338-385`). Gắn và gỡ nhãn (`task_labels.sql:81,99`), bỏ dự án khỏi task khi xoá dự án (`projects.sql:147`) và thuộc tính tuỳ biến (`task_properties.sql:52,73`, có điều kiện) cũng tăng revision task; các command đó phát `task.updated` chỉ mang id. `task_collaboration.sql:33,51,64` tăng revision của bình luận, không phải của task. Guard kiểu "revision frame = cache + 1" gần như không bao giờ đúng.
 2. **Guard lỏng làm mất dữ liệu.** Client lưu bằng revision trong cache (`packages/views/tasks/detail/hooks/use-task-field-save.ts` gửi `body.revision` và `If-Match`). Nếu cache nhận revision mới nhưng chỉ vá vài trường, trường khác (ví dụ mô tả) còn cũ mà revision đã khớp server; người dùng sửa mô tả cũ đó sẽ qua kiểm revision và ghi đè bản mới của người khác.
 
-Vì vậy lát này dùng guard hai đầu (`revision_before`, `revision`) và chỉ vá khi frame mô tả **trọn** thay đổi của bước đó.
+Vì vậy lát này dùng guard hai đầu (`revision_before`, `revision`) và chỉ vá khi frame mô tả **trọn** thay đổi của một lời gọi `updateTaskInTx` cho task đó (hai revision tính theo từng lời gọi, không theo transaction).
 
 Tiền kiểm cũng xác nhận giả định an toàn của spec §4.3: quyền đọc task chỉ là thành viên workspace (`TaskService.authorizeActor`, `task.go:285-297`), nên frame workspace mang tiêu đề không lộ gì ngoài những gì người nhận vốn đọc được.
 
@@ -48,7 +48,7 @@ Tiền kiểm cũng xác nhận giả định an toàn của spec §4.3: quyền
 | `server/internal/outbox/catalogue.go` | `EventDef.Patch`; hàng `task.updated` |
 | `docs/events/CATALOGUE.md` | Cột Patch |
 | `scripts/events-catalogue.test.mjs` | Luật mới: payload là id hoặc revision; trường khác chỉ qua `Patch` |
-| `server/internal/service/task.go` | Update phát `revision_before`, `revision` và trường vá khi hợp lệ |
+| `server/internal/service/task.go` | Mỗi lời gọi `updateTaskInTx` (từ `Update` và `BatchUpdateTasks`) phát cho task của nó `revision_before`, `revision` và trường vá khi hợp lệ |
 | `server/internal/audit/audit.go` | Comment của `Event` nói đúng luật mới |
 | `packages/core/tasks/cache-coordinator.ts` | Kế hoạch vá cho `task.updated` |
 | `packages/core/tasks/realtime-task-patch.ts` (mới) | Vá bản ghi task trong mọi cache đã có, theo guard revision |
@@ -107,14 +107,12 @@ Sửa `goCatalogue()` để regex chấp nhận `Patch: []string{...}` tuỳ ch�
 
 - [ ] **Step 3: Viết ADR 0015**
 
-Tiếng Việt, bốn mục bắt buộc cộng mục "Test giữ luật" như ADR 0009. Dòng trạng thái:
-
-`**Trạng thái:** accepted (<ngày>) — ghi lại quyết định quangpd đã chốt trong brainstorm spec ô Task human-parity (2026-09-12, spec §2, hàng "Độ trễ cảm nhận"). Luật vào \`CLAUDE.md\` cùng commit với test giữ luật.`
+Tiếng Việt, bốn mục bắt buộc cộng mục "Test giữ luật" như ADR 0009. Dòng trạng thái: xem dòng 3 của `docs/adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md` đã commit, và giữ nguyên dòng đó, không viết lại theo dạng cũ. Dòng đó chỉ ghi công quangpd câu spec §2 (viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue) cùng ba ràng buộc spec §4.3. Mọi lựa chọn khác trong ADR (tập trường vá và trường không vá, guard hai revision, mã hoá giá trị, trang chi tiết không refetch, điều kiện tắt `Patch`, cần ADR mới để mở thêm, giữ `Version` 1) nó ghi là của plan hoặc tiền kiểm, chờ quangpd xác nhận ở review PR.
 
 Quyết định phải nêu đủ:
 1. Chỉ hàng catalogue có `Patch` mới mang trường nội dung; `Patch` là nguồn sự thật duy nhất. Hôm nay chỉ `task.updated`, bốn trường `title`, `status`, `priority`, `due_date`.
 2. Không vá `assignee_*` (task mang actor do server phân giải), `position`, `project_id`, `description`.
-3. Server gửi trường vá cùng `revision_before` và `revision` chỉ khi mọi thay đổi trong bước thuộc tập vá được; không thì chỉ id và hai revision.
+3. Server gửi trường vá cùng `revision_before` và `revision` chỉ khi mọi thay đổi của một lời gọi `updateTaskInTx` cho task đó thuộc tập vá được; không thì chỉ id và hai revision. Hai revision tính theo từng lời gọi cho từng task, không theo cả transaction.
 4. Client chỉ vá bản ghi đã có khi `revision` trong cache bằng `revision_before`; trường lạ bị bỏ; frame không tạo bản ghi; list vẫn invalidate.
 5. Đánh đổi viết thẳng: `outbox_events` chuyển từ sổ sự kiện thành kênh mang một phần nội dung; quyền đọc task hôm nay là thành viên workspace (`TaskService.authorizeActor`) nên người nhận frame vốn đọc được; nếu sau này có task hạn chế quyền đọc hẹp hơn workspace thì phải tắt `Patch` hoặc đổi phạm vi phát trước.
 6. Hệ quả: guard lỏng hơn làm mất dữ liệu (giải thích kịch bản ghi đè mô tả); vì sao `revision_before` phải tính trong transaction.

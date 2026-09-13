@@ -12,10 +12,14 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 - **Không nhúng phiên bản vào tên.** `event_version` là một cột. Đổi payload theo
   cách phá vỡ thì tăng `v`, consumer switch theo cột, giữ cả hai ít nhất một
   release.
-- **Payload chỉ mang id.** Không nội dung, không email, không token. Consumer cần nội
-  dung thì đọc lại qua API, nên một sự kiện không lộ trường mà người đọc không được
-  xem. Ngoại lệ duy nhất là hàng có cột **Patch** (ADR 0015): frame của nó được mang
-  thêm những trường đó và cặp `revision_before`/`revision` giữ guard vá; xem mục dưới.
+- **Payload của sự kiện có client nghe chỉ mang id.** Không nội dung, không email,
+  không token. Consumer cần nội dung thì đọc lại qua API, nên một sự kiện không lộ
+  trường mà người đọc không được xem. Ngoại lệ là hàng có cột **Patch** (ADR 0015):
+  frame của nó được mang thêm những trường đó và cặp `revision_before`/`revision` giữ
+  guard vá; xem mục dưới. Hàng hạ tầng (phạm vi `-`) không có client nào nghe nên không
+  bị luật id: `provider.*` gọi phòng và người tham gia bằng tên phía nhà cung cấp
+  (`room_name`, `identity`). Ở mọi hàng, kể cả hàng hạ tầng, cặp revision chỉ đứng cạnh
+  **Patch**.
 - **Phạm vi** quyết định ai nhận: `workspace` (mọi người trong workspace),
   `organization` (mọi kết nối trong tổ chức, dù đang ở workspace nào — danh bạ
   và phòng ban thuộc về công ty, không thuộc một workspace),
@@ -35,9 +39,10 @@ trong cache, thay vì chờ refetch (`docs/adr/0015-va-cache-tu-frame-realtime-t
 Chỉ `task.updated` có cột này; `scripts/events-catalogue.test.mjs` đỏ khi một hàng khác
 khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cần ADR mới.
 
-- Server chỉ gửi trường vá khi chúng là toàn bộ thay đổi của lần sửa đó, kèm
-  `revision_before` và `revision`. Có trường khác đổi thì frame chỉ mang id và hai
-  revision.
+- Server chỉ gửi trường vá khi chúng là toàn bộ thay đổi của một lời gọi
+  `TaskService.updateTaskInTx` cho task đó (một lô `BatchUpdateTasks` là nhiều lời gọi),
+  kèm `revision_before` và `revision` của riêng lời gọi đó. Có trường khác đổi thì frame
+  chỉ mang id và hai revision.
 - Client chỉ vá khi `revision` trong cache bằng `revision_before` của frame; lệch thì
   invalidate như mọi sự kiện khác. Frame không bao giờ tạo bản ghi, và list vẫn
   invalidate.

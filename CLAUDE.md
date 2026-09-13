@@ -228,15 +228,15 @@ Every command that changes business state writes an `audit_events` row and its
   losing it costs nobody anything (typing, voice signalling, a transcript line
   the next one supersedes). `docs/events/CATALOGUE.md` marks each one.
 - Event names are `<entity>.<verb>`; the version is the `event_version` column,
-  never part of the name; payloads carry ids only. The one exception is a
+  never part of the name. Client-visible payloads carry ids only, except on a
   catalogue row that lists fields in `Patch` — today only `task.updated`
   (ADR 0015) — whose frame may also carry those fields and the
   `revision_before` / `revision` pair that guards them. The catalogue exists
   three times — that file, `server/internal/outbox/catalogue.go`,
   `packages/core/types/events.ts` — and `scripts/events-catalogue.test.mjs`
   fails when the three disagree, when a client-visible row declares a key that
-  is not an id (a revision key only beside `Patch`), or when any row but
-  `task.updated` declares `Patch`.
+  is neither an id nor a revision key, when any row carries a revision key
+  without `Patch`, or when any row but `task.updated` declares `Patch`.
 - Every request carries a `correlation_id` (`middleware.Correlation`), and it
   reaches the audit row, the events and the access log. `docs/ops/RUNBOOK_OUTBOX.md`
   is the runbook.
@@ -537,5 +537,6 @@ the same way it accepts Merge and Revert.
   workspace"; never infer it from the workspace count.
 - Realtime event names are `<entity>.<verb>`, listed in
   `packages/core/types/events.ts` and published from `server/internal/service`;
-  payloads carry ids only, except the fields a catalogue row lists in `Patch`
+  client-visible payloads carry ids only, except the fields a catalogue row
+  lists in `Patch` and the `revision_before` / `revision` pair that guards them
   (ADR 0015, held by `scripts/events-catalogue.test.mjs`).
