@@ -595,15 +595,15 @@ describe("TaskSurface pagination (pages of 50)", () => {
     renderSurface("test-paged-list");
 
     await waitFor(() => expect(listRows()).toBe(50));
-    expect(screen.getByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
+    expect(screen.getByText("50 / 120 công việc đã tải")).toBeInTheDocument();
 
     await clickLoadMore();
     await waitFor(() => expect(listRows()).toBe(100));
-    expect(await screen.findByText("Đã tải 100 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("100 / 120 công việc đã tải")).toBeInTheDocument();
 
     await clickLoadMore();
     await waitFor(() => expect(listRows()).toBe(120));
-    await waitFor(() => expect(screen.queryByText(/Đã tải/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/công việc đã tải/)).toBeNull());
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
     expect(screen.getByText("Không còn công việc để tải")).toBeInTheDocument();
     expect(server.offsets()).toEqual([0, 50, 100]);
@@ -740,12 +740,12 @@ describe("TaskSurface pagination (pages of 50)", () => {
     renderSurface("test-paged-gantt", { type: "workspace" }, ["gantt", "list"]);
 
     expect(await screen.findByTestId("gantt-view")).toBeInTheDocument();
-    expect(await screen.findByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("50 / 120 công việc đã tải")).toBeInTheDocument();
     await clickLoadMore();
-    expect(await screen.findByText("Đã tải 100 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("100 / 120 công việc đã tải")).toBeInTheDocument();
     await clickLoadMore();
 
-    await waitFor(() => expect(screen.queryByText(/Đã tải/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/công việc đã tải/)).toBeNull());
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
   }, 30_000);
 
@@ -755,10 +755,10 @@ describe("TaskSurface pagination (pages of 50)", () => {
     renderSurface("test-paged-swimlane", { type: "workspace" }, ["swimlane", "list"]);
 
     expect(await screen.findByTestId("swimlane-view")).toBeInTheDocument();
-    expect(await screen.findByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("50 / 120 công việc đã tải")).toBeInTheDocument();
     await clickLoadMore();
 
-    expect(await screen.findByText("Đã tải 100 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("100 / 120 công việc đã tải")).toBeInTheDocument();
   }, 30_000);
 
   it("changing the project starts again from the first page without the old project's rows", async () => {
@@ -800,7 +800,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
         .filter((request) => request.params.project_id === "p2")
         .map((request) => request.params.offset),
     ).toEqual([0]);
-    expect(screen.getByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
+    expect(screen.getByText("50 / 120 công việc đã tải")).toBeInTheDocument();
   }, 30_000);
 
   it("is not empty while the first page loads, nor while later pages remain behind hidden rows", async () => {
@@ -831,7 +831,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
     await waitFor(() => expect(listRows()).toBe(50));
     await clickLoadMore();
 
-    expect(await screen.findByText("Đã tải 99 / 120 công việc")).toBeInTheDocument();
+    expect(await screen.findByText("99 / 120 công việc đã tải")).toBeInTheDocument();
     expect(listRows()).toBe(99);
     expect(screen.getAllByText("Task 49")).toHaveLength(1);
   }, 30_000);
@@ -848,7 +848,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
       expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull(),
     );
     expect(listRows()).toBe(50);
-    expect(screen.getByText("Đã tải 50 / 120 công việc")).toBeInTheDocument();
+    expect(screen.getByText("50 / 120 công việc đã tải")).toBeInTheDocument();
     expect(screen.queryByText(/\/ 0 /)).toBeNull();
   }, 30_000);
 });

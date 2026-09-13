@@ -148,7 +148,7 @@ describe("modes/SwimLaneView pagination", () => {
     });
 
     expect(
-      await screen.findByText("Đã tải 50 / 120 công việc"),
+      await screen.findByText("50 / 120 công việc đã tải"),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
 
@@ -166,7 +166,7 @@ describe("modes/SwimLaneView pagination", () => {
     });
 
     expect(await screen.findByTestId("swimlane-view")).toBeInTheDocument();
-    expect(screen.queryByText(/Đã tải/)).toBeNull();
+    expect(screen.queryByText(/công việc đã tải/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
   });
 });

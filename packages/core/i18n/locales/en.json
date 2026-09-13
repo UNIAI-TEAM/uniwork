@@ -928,8 +928,8 @@
       "group_loaded_count_other": "{{status}}, {{count}} loaded"
     },
     "pagination": {
-      "loaded_count_one": "Loaded {{count}} task of {{total}}",
-      "loaded_count_other": "Loaded {{count}} tasks of {{total}}",
+      "loaded_count_one": "{{count}} task of {{total}} loaded",
+      "loaded_count_other": "{{count}} tasks of {{total}} loaded",
       "load_more": "Load more",
       "loading_more": "Loading more tasks…",
       "load_more_failed": "Could not load more tasks.",
