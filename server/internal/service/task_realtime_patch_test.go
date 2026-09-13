@@ -99,7 +99,7 @@ func TestRealtimePatchCarriesOnlyAWholeChange(t *testing.T) {
 		create   CreateTaskInput
 		update   UpdateTaskInput
 		bumps    int64
-		patchKey map[string]string // nil: the frame must carry ids and revisions only
+		patchKey map[string]string // nil: the frame must carry ids only
 	}{
 		{
 			name:     "title alone",
@@ -141,6 +141,11 @@ func TestRealtimePatchCarriesOnlyAWholeChange(t *testing.T) {
 			update: UpdateTaskInput{Status: str("done"), AssigneeID: nullable(&assignee)},
 			bumps:  2,
 		},
+		{
+			name:   "empty input",
+			update: UpdateTaskInput{},
+			bumps:  1,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -158,13 +163,14 @@ func TestRealtimePatchCarriesOnlyAWholeChange(t *testing.T) {
 			if len(frames) != 1 {
 				t.Fatalf("want one task.updated frame, got %v", frames)
 			}
-			want := map[string]string{
-				"task_id":         task.ID,
-				"workspace_id":    w.ID,
-				"revision_before": strconv.FormatInt(task.Revision, 10),
-				"revision":        strconv.FormatInt(up.Revision, 10),
+			// A revision pair without a patch field would let a client take the
+			// new revision while a field it cannot patch stays stale.
+			want := map[string]string{"task_id": task.ID, "workspace_id": w.ID}
+			if tc.patchKey != nil {
+				want["revision_before"] = strconv.FormatInt(task.Revision, 10)
+				want["revision"] = strconv.FormatInt(up.Revision, 10)
+				maps.Copy(want, tc.patchKey)
 			}
-			maps.Copy(want, tc.patchKey)
 			if !maps.Equal(frames[0], want) {
 				t.Fatalf("frame:\n got %v\nwant %v", frames[0], want)
 			}
@@ -371,13 +377,63 @@ func TestRealtimePatchStaleReadCannotHideAChange(t *testing.T) {
 	if len(frames) != 1 {
 		t.Fatalf("want one frame, got %v", frames)
 	}
+	want := map[string]string{"task_id": task.ID, "workspace_id": w.ID}
+	if !maps.Equal(frames[0], want) {
+		t.Fatalf("description went back to %q inside this call, so the frame must carry ids only:\n got %v\nwant %v",
+			original, frames[0], want)
+	}
+}
+
+// The same stale read on a patch field: another writer changes the title, and
+// this call writes the original title back beside a priority change. Measured
+// against before the title looks unchanged, but the row it replaces does not
+// hold it, so a frame without title would leave a client at the other
+// writer's revision showing that writer's title at this call's revision.
+func TestRealtimePatchStaleReadCannotHideAPatchField(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	original := "Tiêu đề gốc"
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: original, Priority: "low"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another writer holds the row with a different title.
+	other, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.Rollback(ctx) }()
+	if _, err := other.Exec(ctx,
+		`UPDATE tasks SET title = 'other', revision = revision + 1 WHERE id = $1`, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	priority := "high"
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{Title: &original, Priority: &priority})
+		done <- err
+	}()
+	waitForRowLockWaiters(t, other, 1, done)
+	if err := other.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	frames := taskUpdatedFrames(t, s.pool, task.ID)
+	if len(frames) != 1 {
+		t.Fatalf("want one frame, got %v", frames)
+	}
 	want := map[string]string{
 		"task_id": task.ID, "workspace_id": w.ID,
 		"revision_before": strconv.FormatInt(task.Revision+1, 10),
 		"revision":        strconv.FormatInt(task.Revision+2, 10),
+		"title":           original,
+		"priority":        priority,
 	}
 	if !maps.Equal(frames[0], want) {
-		t.Fatalf("description went back to %q inside this call, so the frame must not patch:\n got %v\nwant %v",
+		t.Fatalf("title went back to %q inside this call, so the frame must carry it:\n got %v\nwant %v",
 			original, frames[0], want)
 	}
 }

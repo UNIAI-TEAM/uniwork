@@ -70,8 +70,9 @@ var catalogue = []EventDef{
 	// Tasks
 	{Topic: "task.created", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// task.updated is the one row that may carry content (ADR 0015): the Patch
-	// fields ride along only when they are the whole change, guarded by the
-	// revision pair. Every other task.updated emitter sends ids only.
+	// fields ride along only when they are the whole change, and the revision
+	// pair that guards them only beside them; a frame without a patch field
+	// carries ids only. Every other task.updated emitter sends ids only.
 	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id", "revision_before", "revision"}, Patch: []string{"title", "status", "priority", "due_date"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

@@ -182,25 +182,26 @@ func dateOrNil(d pgtype.Date) any {
 }
 
 // taskUpdatedPayload is the task.updated frame of one updateTaskInTx call
-// (ADR 0015). revision is the task right after the call and revision_before
-// the task right before it: revision minus the revision-bumping queries this
-// call ran. Never a count across the transaction, since a batch may name one
-// task twice, and never before.Revision, which was read before the row lock.
+// (ADR 0015). revision is the task right after the call (the row the last
+// query returned) and revisionBefore the task right before it, as measured
+// inside the call under the row lock; never before.Revision, which was read
+// before the lock.
 //
 // The catalogue's Patch fields ride along only when every field the input
-// carries is one of them. A field in the input counts as changed even when its
-// value matches before: that copy was read before the lock, a concurrent
-// writer may have committed in between, and comparing against it could hide a
-// change this call made. Values come from the row the last query returned
-// under the lock, so each is the task's value at revision.
-func taskUpdatedPayload(task db.Task, in UpdateTaskInput, revisionBumps int64) map[string]string {
+// carries is one of them, and the revision pair rides along only beside them:
+// a pair without a patch field would let a client take the new revision while
+// a field it cannot patch stays stale, so a mixed or empty input sends ids
+// only. A field in the input counts as changed even when its value matches
+// before: that copy was read before the lock, a concurrent writer may have
+// committed in between, and comparing against it could hide a change this
+// call made. Values come from the row the last query returned under the lock,
+// so each is the task's value at revision.
+func taskUpdatedPayload(task db.Task, in UpdateTaskInput, revisionBefore int64) map[string]string {
 	payload := map[string]string{"task_id": task.ID, "workspace_id": task.WorkspaceID}
 	def, ok := outbox.Lookup("task.updated")
 	if !ok || len(def.Patch) == 0 {
 		return payload
 	}
-	payload["revision_before"] = strconv.FormatInt(task.Revision-revisionBumps, 10)
-	payload["revision"] = strconv.FormatInt(task.Revision, 10)
 
 	// Every field UpdateTaskInput can write, by wire name.
 	inInput := map[string]bool{
@@ -214,7 +215,7 @@ func taskUpdatedPayload(task db.Task, in UpdateTaskInput, revisionBumps int64) m
 		"project_id":  in.ProjectID != nil,
 	}
 	// How a field goes on the wire. A Patch field missing here is never sent:
-	// the frame falls back to ids and revisions, and clients refetch.
+	// the frame falls back to ids, and clients refetch.
 	due := ""
 	if task.DueDate.Valid {
 		due = task.DueDate.Time.Format("2006-01-02")
@@ -236,6 +237,11 @@ func taskUpdatedPayload(task db.Task, in UpdateTaskInput, revisionBumps int64) m
 		}
 		patch[field] = value
 	}
+	if len(patch) == 0 {
+		return payload
+	}
+	payload["revision_before"] = strconv.FormatInt(revisionBefore, 10)
+	payload["revision"] = strconv.FormatInt(task.Revision, 10)
 	maps.Copy(payload, patch)
 	return payload
 }
@@ -406,9 +412,11 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
-	// Every query below bumps revision once and holds the row lock the first
-	// one took, so this call owns exactly the last revisionBumps revisions.
-	revisionBumps := int64(1)
+	// UpdateTask always runs, takes the row lock and bumps revision by exactly
+	// one, so the row it returns minus one is where this call started, and the
+	// lock keeps it that way until commit. Counting the queries below instead
+	// would break silently the day one of them bumps conditionally.
+	revisionBefore := task.Revision - 1
 	if in.AssigneeID != nil {
 		kind, kerr := s.assigneeKind(ctx, before.WorkspaceID, *in.AssigneeID, in.AssigneeKind)
 		if kerr != nil {
@@ -422,7 +430,6 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		if err != nil {
 			return db.Task{}, err
 		}
-		revisionBumps++
 	}
 	if in.DueDate != nil {
 		due, derr := parseDate(*in.DueDate)
@@ -436,7 +443,6 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		if err != nil {
 			return db.Task{}, err
 		}
-		revisionBumps++
 	}
 	if in.ProjectID != nil {
 		projectID, perr := s.normalizeProjectID(ctx, before.OrganizationID, before.WorkspaceID, *in.ProjectID)
@@ -450,7 +456,6 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		if err != nil {
 			return db.Task{}, err
 		}
-		revisionBumps++
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
@@ -458,7 +463,7 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Action:       audit.ActionTaskUpdated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(taskAuditFields(before), taskAuditFields(task)),
-	}, audit.Event{Topic: "task.updated", Payload: taskUpdatedPayload(task, in, revisionBumps)}); err != nil {
+	}, audit.Event{Topic: "task.updated", Payload: taskUpdatedPayload(task, in, revisionBefore)}); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
