@@ -10,7 +10,18 @@ vi.mock("../../api/endpoints/auth", () => ({
 import { resetAuthStoreForTests, useAuthStore } from "../../auth/store";
 import { CoreProvider } from "../../platform/core-provider";
 import { defaultStorage } from "../../platform/storage";
+import type { User } from "../../types/user";
 import { useRecentTasks, useRecentTasksStore } from "./recent-tasks-store";
+
+const user: User = {
+  id: "u1",
+  email: "a@b.c",
+  display_name: "A",
+  onboarded_at: null,
+  email_verified_at: "2026-08-25T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
 
 const STORAGE_KEY = "uniwork_recent_tasks";
 const store = () => useRecentTasksStore.getState();
@@ -20,6 +31,7 @@ const ids = (workspaceId: string) => (store().byWorkspace[workspaceId] ?? []).ma
 beforeEach(() => {
   useRecentTasksStore.setState({ byWorkspace: {} });
   resetAuthStoreForTests();
+  useAuthStore.getState().setUser(user);
 });
 
 describe("recent tasks store", () => {
@@ -120,6 +132,20 @@ describe("recent tasks store", () => {
 
     expect(store().byWorkspace).toEqual({});
     expect(defaultStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it("khi không còn phiên đăng nhập, recordVisit và forget không ghi gì", async () => {
+    store().recordVisit("w1", visit("a"));
+    // No CoreProvider here, so logout runs no cleanup: this pins the store's
+    // own refusal.
+    await useAuthStore.getState().logout();
+    const persisted = defaultStorage.getItem(STORAGE_KEY);
+
+    store().recordVisit("w1", visit("b", "Sau khi đăng xuất"));
+    store().forget("w1", "a");
+
+    expect(ids("w1")).toEqual(["a"]);
+    expect(defaultStorage.getItem(STORAGE_KEY)).toBe(persisted);
   });
 });
 

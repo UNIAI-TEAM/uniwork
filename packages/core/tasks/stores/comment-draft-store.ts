@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { registerDraftCleanup } from "../../drafts/cleanup-registry";
+import { draftWritesAllowed, registerDraftCleanup } from "../../drafts/cleanup-registry";
 import { defaultStorage } from "../../platform/storage";
 
 /**
@@ -33,19 +33,24 @@ export const useCommentDraftStore = create<CommentDraftState>()(
     (set, get) => ({
       drafts: {},
       draftFor: (key) => get().drafts[key] ?? "",
-      setDraft: (key, body) =>
+      // Both writes are refused while signed out: see `draftWritesAllowed`.
+      setDraft: (key, body) => {
+        if (!draftWritesAllowed()) return;
         set((state) => {
           const next = { ...state.drafts };
           if (body.trim() === "") delete next[key];
           else next[key] = body;
           return { drafts: next };
-        }),
-      clearDraft: (key) =>
+        });
+      },
+      clearDraft: (key) => {
+        if (!draftWritesAllowed()) return;
         set((state) => {
           const next = { ...state.drafts };
           delete next[key];
           return { drafts: next };
-        }),
+        });
+      },
     }),
     {
       name: COMMENT_DRAFT_STORAGE_KEY,

@@ -1,10 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser, useAuthStore } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { CoreProvider, defaultStorage } from "@uniwork/core/platform";
 import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
-import { wrap } from "../../../test/api-mock";
+import type { TaskComment, User } from "@uniwork/core/types";
+import { requestMock, wrap } from "../../../test/api-mock";
 import { TaskCommentComposer } from "./comment-composer";
+import { TaskReplyComposer } from "./reply-composer";
 
 // Same house-shape mock as timeline.test.tsx (a real textarea standing in
 // for the TipTap editor, and a `useComposerSubmit` that mirrors the real
@@ -180,7 +184,19 @@ beforeAll(() => {
   initI18n();
 });
 
+const me: User = {
+  id: "u1",
+  email: "a@b.c",
+  display_name: "A",
+  onboarded_at: "2026-08-25T00:00:00Z",
+  email_verified_at: "2026-08-25T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
+
 beforeEach(() => {
+  resetAuthStoreForTests();
+  setSessionUser(me);
   useCommentDraftStore.setState({ drafts: {} });
 });
 
@@ -424,6 +440,184 @@ describe("TaskCommentComposer draft persistence", () => {
           await vi.advanceTimersByTimeAsync(DRAFT_DEBOUNCE_MS + 200);
         });
         expect(useCommentDraftStore.getState().draftFor("t1")).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+});
+
+const DRAFTS_KEY = "uniwork_task_comment_drafts";
+
+/** The real seam: `CoreProvider` assigns the logout cleanup callback. */
+function wireLogoutCleanup() {
+  render(
+    <CoreProvider>
+      <div />
+    </CoreProvider>,
+  );
+}
+
+async function logOut() {
+  await act(async () => {
+    await useAuthStore.getState().logout();
+  });
+}
+
+async function advance(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
+function expectNoDraftAnywhere(key: string, text: string) {
+  expect(useCommentDraftStore.getState().draftFor(key)).toBe("");
+  expect(defaultStorage.getItem(DRAFTS_KEY) ?? "").not.toContain(text);
+}
+
+// The sidebar logs out with `await logout()` and only then `replace(login)`.
+// Cleanup runs inside `logout`, so every write that lands after it — the
+// unmount flush, the debounce timer, a send the server accepts late — would
+// put the previous person's text back for the next person on this browser.
+describe("TaskCommentComposer after logout", () => {
+  beforeEach(() => {
+    requestMock.mockReset();
+    requestMock.mockResolvedValue(undefined);
+  });
+
+  it(
+    "rời trang sau khi đăng xuất lúc nháp còn đang debounce: nháp không quay lại bộ nhớ hay storage",
+    { timeout: 10_000 },
+    async () => {
+      wireLogoutCleanup();
+      const view = renderComposer(vi.fn().mockResolvedValue(true));
+      const editor = await activate();
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.change(editor, { target: { value: "nháp của người A" } });
+        await advance(0);
+        // Forwarded to the composer; the 1500ms write is still pending.
+        expect(useCommentDraftStore.getState().draftFor("t1")).toBe("");
+
+        await logOut();
+        expect(defaultStorage.getItem(DRAFTS_KEY)).toBeNull();
+
+        view.unmount();
+        expectNoDraftAnywhere("t1", "nháp của người A");
+
+        await advance(DRAFT_DEBOUNCE_MS + 100);
+        expectNoDraftAnywhere("t1", "nháp của người A");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  // Leaving is a route transition: the task page can stay mounted past the
+  // debounce while the login route loads.
+  it(
+    "trang còn mở khi hết debounce sau đăng xuất: nháp không được ghi lại",
+    { timeout: 10_000 },
+    async () => {
+      wireLogoutCleanup();
+      const view = renderComposer(vi.fn().mockResolvedValue(true));
+      const editor = await activate();
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.change(editor, { target: { value: "nháp của người A" } });
+        await advance(0);
+
+        await logOut();
+        await advance(DRAFT_DEBOUNCE_MS + 100);
+        expectNoDraftAnywhere("t1", "nháp của người A");
+
+        view.unmount();
+        expectNoDraftAnywhere("t1", "nháp của người A");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it(
+    "gửi còn chờ máy chủ lúc đăng xuất rồi được nhận: chữ gõ thêm không thành nháp",
+    { timeout: 10_000 },
+    async () => {
+      let resolveSubmit: (ok: boolean) => void = () => {};
+      const onSubmit = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveSubmit = resolve;
+          }),
+      );
+      wireLogoutCleanup();
+      renderComposer(onSubmit);
+      const editor = await activate();
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.change(editor, { target: { value: "đã gửi" } });
+        fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+        await flushMicrotasks();
+        expect(onSubmit).toHaveBeenCalledWith("đã gửi");
+        fireEvent.change(editor, { target: { value: "đã gửi và gõ thêm" } });
+
+        await logOut();
+        resolveSubmit(true);
+        await flushMicrotasks();
+
+        expectNoDraftAnywhere("t1", "gõ thêm");
+        await advance(DRAFT_DEBOUNCE_MS + 100);
+        expectNoDraftAnywhere("t1", "gõ thêm");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  // Lives here rather than in reply-composer.test.tsx because it needs this
+  // file's editor mock; the reply box is this same composer under another key.
+  it(
+    "ô trả lời: rời trang sau khi đăng xuất lúc nháp còn đang debounce không để lại nháp trả lời",
+    { timeout: 10_000 },
+    async () => {
+      const parent: TaskComment = {
+        id: "r1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        display_name: "Ngọc",
+        body: "Câu gốc",
+        type: "comment",
+        revision: 1,
+        reactions: [],
+      };
+      wireLogoutCleanup();
+      const view = render(
+        wrap(
+          <TaskReplyComposer
+            taskId="t1"
+            parent={parent}
+            onSubmit={vi.fn().mockResolvedValue(true)}
+            onCancel={() => {}}
+          />,
+        ),
+      );
+      const editor = await activate();
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.change(editor, { target: { value: "trả lời của người A" } });
+        await advance(0);
+
+        await logOut();
+        view.unmount();
+        expectNoDraftAnywhere("t1:r1", "trả lời của người A");
+
+        await advance(DRAFT_DEBOUNCE_MS + 100);
+        expectNoDraftAnywhere("t1:r1", "trả lời của người A");
       } finally {
         vi.useRealTimers();
       }

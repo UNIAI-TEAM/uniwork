@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
+import { setSessionUser, resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { CoreProvider, defaultStorage } from "@uniwork/core/platform";
 import { configureShortcutPlatform, useShortcutStore } from "@uniwork/core/shortcuts";
 import { useRecentTasksStore } from "@uniwork/core/tasks/stores/recent-tasks-store";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -193,6 +194,40 @@ describe("TaskDetailSuitePage recent tasks", () => {
     await screen.findByText("Không tìm thấy công việc");
 
     expect(recentIds()).toEqual(["t9", "t1"]);
+  });
+
+  // Logout does not unmount the page synchronously, and the task query that
+  // was already in flight still resolves: that visit must not re-persist a
+  // title the logout cleanup just removed.
+  it("task tải xong sau khi đã đăng xuất: không ghi vào danh sách gần đây", async () => {
+    let resolveTask: (value: unknown) => void = () => {};
+    requestMock.mockImplementation((path: unknown) =>
+      String(path) === "/api/v1/tasks/t1"
+        ? new Promise((resolve) => {
+            resolveTask = resolve;
+          })
+        : Promise.resolve({}),
+    );
+    render(
+      <CoreProvider>
+        <div />
+      </CoreProvider>,
+    );
+    render(shell(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />));
+    await waitFor(() =>
+      expect(requestMock.mock.calls.some(([path]) => path === "/api/v1/tasks/t1")).toBe(true),
+    );
+
+    await act(async () => {
+      await useAuthStore.getState().logout();
+    });
+    await act(async () => {
+      resolveTask({ task });
+    });
+    await screen.findByText("Ship detail shell");
+
+    expect(useRecentTasksStore.getState().byWorkspace).toEqual({});
+    expect(defaultStorage.getItem("uniwork_recent_tasks") ?? "").not.toContain("Ship detail shell");
   });
 
   it("lỗi 500 giữ task trong danh sách gần đây", async () => {

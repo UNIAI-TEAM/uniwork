@@ -10,8 +10,20 @@ vi.mock("../api/endpoints/auth", () => ({
 import * as auth from "../api/endpoints/auth";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
 import { useCommentDraftStore } from "../tasks/stores/comment-draft-store";
+import type { User } from "../types/user";
 import { CoreProvider } from "./core-provider";
 import { defaultStorage } from "./storage";
+
+// Drafts are only written while someone is signed in.
+const user: User = {
+  id: "u1",
+  email: "a@b.c",
+  display_name: "A",
+  onboarded_at: null,
+  email_verified_at: "2026-08-25T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
 
 describe("CoreProvider", () => {
   beforeEach(() => {
@@ -49,6 +61,7 @@ describe("CoreProvider", () => {
     // real seam — render the provider, then call the store's own `logout` —
     // because invoking the reset callback by hand would still pass if nothing
     // in production ever registered it, which was the actual bug.
+    useAuthStore.getState().setUser(user);
     render(
       <CoreProvider>
         <div>app</div>
@@ -68,6 +81,7 @@ describe("CoreProvider", () => {
     // Memory alone is half the leak: the persisted key survives logout, so the
     // next user on the same browser reloads the page, zustand rehydrates it
     // and the previous user's unsent comment is back. Same real seam as above.
+    useAuthStore.getState().setUser(user);
     render(
       <CoreProvider>
         <div>app</div>

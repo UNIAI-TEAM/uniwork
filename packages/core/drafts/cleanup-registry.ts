@@ -1,4 +1,25 @@
+import { useAuthStore } from "../auth/store";
 import type { StorageAdapter } from "../types/storage";
+
+/**
+ * Whether a store registered here may accept a write: only while someone is
+ * signed in.
+ *
+ * Logout clears these stores, but their writers outlive the logout call. The
+ * comment composer flushes its debounced draft on unmount, and the sidebar
+ * unmounts the page only after `await logout()`; its debounce timer, a send
+ * the server accepts late, or a task query that resolves can all land while
+ * the route transition keeps the page mounted. Each would put the previous
+ * person's content back for the next person on this browser.
+ * `useAuthStore.logout` sets `anon` before it runs the logout callback, so
+ * every write from the cleanup onward is refused.
+ *
+ * Call it at the top of each write action, before `set`: zustand `persist`
+ * writes storage on every `set`, even one that changes nothing.
+ */
+export function draftWritesAllowed(): boolean {
+  return useAuthStore.getState().status === "authed";
+}
 
 /**
  * Self-registration registry for draft stores, replacing the hand-maintained

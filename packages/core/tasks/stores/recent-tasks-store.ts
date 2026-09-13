@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { registerDraftCleanup } from "../../drafts/cleanup-registry";
+import { draftWritesAllowed, registerDraftCleanup } from "../../drafts/cleanup-registry";
 import { defaultStorage } from "../../platform/storage";
 
 /** Shared by the store and its cleanup registration so the two cannot drift. */
@@ -91,7 +91,9 @@ export const useRecentTasksStore = create<RecentTasksState>()(
   persist(
     (set) => ({
       byWorkspace: {},
-      recordVisit: (workspaceId, entry) =>
+      // Both writes are refused while signed out: see `draftWritesAllowed`.
+      recordVisit: (workspaceId, entry) => {
+        if (!draftWritesAllowed()) return;
         set((state) => {
           let latest = 0;
           for (const bucket of Object.values(state.byWorkspace)) {
@@ -109,8 +111,10 @@ export const useRecentTasksStore = create<RecentTasksState>()(
             MAX_TASKS_PER_WORKSPACE,
           );
           return { byWorkspace: capWorkspaces({ ...state.byWorkspace, [workspaceId]: bucket }) };
-        }),
-      forget: (workspaceId, taskId) =>
+        });
+      },
+      forget: (workspaceId, taskId) => {
+        if (!draftWritesAllowed()) return;
         set((state) => {
           const previous = state.byWorkspace[workspaceId];
           if (!previous?.some((item) => item.id === taskId)) return state;
@@ -119,7 +123,8 @@ export const useRecentTasksStore = create<RecentTasksState>()(
           if (bucket.length === 0) delete byWorkspace[workspaceId];
           else byWorkspace[workspaceId] = bucket;
           return { byWorkspace };
-        }),
+        });
+      },
     }),
     {
       name: RECENT_TASKS_STORAGE_KEY,

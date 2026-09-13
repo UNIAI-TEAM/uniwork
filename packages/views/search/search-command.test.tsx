@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { paths } from "@uniwork/core/paths";
@@ -38,6 +39,9 @@ const localeAdapter = {
 };
 
 beforeEach(() => {
+  resetAuthStoreForTests();
+  // Recent tasks are only recorded while someone is signed in.
+  setSessionUser(user);
   useSearchStore.setState({ open: false });
   useRecentTasksStore.setState({ byWorkspace: {} });
   localeAdapter.persist.mockClear();
