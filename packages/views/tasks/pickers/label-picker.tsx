@@ -74,6 +74,10 @@ export function LabelPicker({
   // (@base-ui/react 1.7.0 menu/trigger/MenuTrigger.js:161-163), so `open` is
   // held closed here, as AssigneePicker does for its combobox.
   const [open, setOpen] = useState(false);
+  // A controlled close never fires onOpenChange, so disabling an open menu
+  // would leave `open` true and the menu would pop back when `disabled`
+  // clears. Reset it during render, before anything commits.
+  if (disabled && open) setOpen(false);
   const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
 
   return (

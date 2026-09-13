@@ -131,6 +131,37 @@ describe("LabelPicker", () => {
     expect(trigger).not.toBeDisabled();
   });
 
+  it("bị disabled khi menu đang mở rồi bật lại thì menu không tự mở lại", async () => {
+    // Base UI never calls onOpenChange for a controlled close, so the
+    // internal `open` stays true unless the picker resets it itself.
+    const nextFrame = () =>
+      act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    const picker = (disabled: boolean) => (
+      <LabelPicker
+        labels={catalog}
+        selectedIds={new Set()}
+        onToggle={vi.fn()}
+        disabled={disabled}
+        ariaLabel="Nhãn"
+        emptyLabel="Workspace chưa có nhãn"
+      >
+        Nhãn
+      </LabelPicker>
+    );
+    const { rerender } = render(picker(false));
+    openMenu();
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+
+    rerender(picker(true));
+    await nextFrame();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    rerender(picker(false));
+    await nextFrame();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
+  });
+
   it("tên truy cập của trigger chứa cả trường và các nhãn đang hiển thị", () => {
     render(
       <LabelPicker

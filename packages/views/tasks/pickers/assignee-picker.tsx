@@ -180,6 +180,10 @@ export function AssigneePicker({
   // we hold `open` closed ourselves — Combobox opens on pointerdown, earlier
   // than the click-time `aria-disabled` guard on `Button` would run.
   const [open, setOpen] = useState(false);
+  // A controlled close never fires onOpenChange, so disabling an open list
+  // would leave `open` true and it would pop back when `disabled` clears.
+  // Reset it during render, before anything commits.
+  if (disabled && open) setOpen(false);
   const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
 
   return (

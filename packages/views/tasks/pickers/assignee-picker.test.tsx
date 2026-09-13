@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { renderInTableRow } from "../../test/table-row";
@@ -186,6 +186,38 @@ describe("AssigneePicker", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("bị disabled khi danh sách đang mở rồi bật lại thì danh sách không tự mở lại", async () => {
+    // Base UI never calls onOpenChange for a controlled close, so the
+    // internal `open` stays true unless the picker resets it itself.
+    const nextFrame = () =>
+      act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    const picker = (disabled: boolean) => (
+      <AssigneePicker
+        value={null}
+        options={fewOptions}
+        onChange={vi.fn()}
+        disabled={disabled}
+        ariaLabel="Người phụ trách"
+        unassignedLabel="Chưa giao"
+        searchPlaceholder="Tìm thành viên"
+        noResultsLabel="Không tìm thấy"
+      >
+        Chưa giao
+      </AssigneePicker>
+    );
+    const { rerender } = render(picker(false));
+    fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
+
+    rerender(picker(true));
+    await waitFor(() => expect(screen.queryByRole("listbox")).not.toBeInTheDocument());
+
+    rerender(picker(false));
+    await nextFrame();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("An Nguyễn")).not.toBeInTheDocument();
   });
 
   it("ẩn ô tìm kiếm khi danh sách ngắn", async () => {

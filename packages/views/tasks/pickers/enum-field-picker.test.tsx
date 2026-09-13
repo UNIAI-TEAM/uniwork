@@ -75,6 +75,37 @@ describe("EnumFieldPicker", () => {
     expect(trigger).not.toBeDisabled();
   });
 
+  it("bị disabled khi menu đang mở rồi bật lại thì menu không tự mở lại", async () => {
+    // `open={disabled ? false : open}` hides the menu while disabled, but
+    // Base UI never calls onOpenChange for a controlled close, so the
+    // internal `open` stays true unless the picker resets it itself.
+    const nextFrame = () =>
+      act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    const picker = (disabled: boolean) => (
+      <EnumFieldPicker
+        value="todo"
+        options={options}
+        onChange={vi.fn()}
+        disabled={disabled}
+        ariaLabel="Trạng thái"
+      >
+        Trạng thái
+      </EnumFieldPicker>
+    );
+    const { rerender } = render(picker(false));
+    fireEvent.click(screen.getByRole("button", { name: "Trạng thái" }));
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+
+    rerender(picker(true));
+    await nextFrame();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    rerender(picker(false));
+    await nextFrame();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemradio")).not.toBeInTheDocument();
+  });
+
   it("chuyển tiếp sự kiện con trỏ trên trigger cho nơi gọi", () => {
     const onTriggerNavigationGuard = vi.fn();
     render(
