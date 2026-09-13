@@ -2,24 +2,16 @@
 
 import {
   useState,
-  type ComponentType,
   type CSSProperties,
   type ReactNode,
   type Ref,
   type SyntheticEvent,
 } from "react";
-import {
-  CircleDot,
-  ExternalLink,
-  Link2,
-  MoreHorizontal,
-  Trash2,
-  UserRound,
-} from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { paths } from "@uniwork/core/paths";
-import type { Task, TaskStatus } from "@uniwork/core/types";
+import type { Task } from "@uniwork/core/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,25 +26,11 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuRadioGroup,
-  ContextMenuRadioItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@uniwork/ui/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { copyText } from "@uniwork/ui/lib/clipboard";
@@ -60,72 +38,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
-import { StatusIcon } from "./modes/status-pill";
-import { useStatusOptions, useWorkspaceAssigneeOptions } from "./pickers";
+import {
+  CONTEXT_PARTS,
+  DROPDOWN_PARTS,
+  RowActionItems,
+  type RowActionModel,
+  type TaskUpdates,
+} from "./row-actions-items";
 import { useTaskSurfaceActionsOptional } from "./surface/actions-context";
-
-/**
- * The context menu and the dropdown are two Base UI namespaces with the same
- * shape. Items are written once against this map and rendered through either.
- */
-type MenuParts = {
-  Item: ComponentType<{
-    onClick?: () => void;
-    variant?: "default" | "destructive";
-    children: ReactNode;
-  }>;
-  Separator: ComponentType;
-  Sub: ComponentType<{ children: ReactNode }>;
-  SubTrigger: ComponentType<{ children: ReactNode }>;
-  SubContent: ComponentType<{ className?: string; children: ReactNode }>;
-  RadioGroup: ComponentType<{
-    value: string;
-    onValueChange: (value: string) => void;
-    children: ReactNode;
-  }>;
-  RadioItem: ComponentType<{
-    value: string;
-    closeOnClick?: boolean;
-    children: ReactNode;
-  }>;
-};
-
-const CONTEXT_PARTS: MenuParts = {
-  Item: ContextMenuItem,
-  Separator: ContextMenuSeparator,
-  Sub: ContextMenuSub,
-  SubTrigger: ContextMenuSubTrigger,
-  SubContent: ContextMenuSubContent,
-  RadioGroup: ContextMenuRadioGroup,
-  RadioItem: ContextMenuRadioItem,
-};
-
-const DROPDOWN_PARTS: MenuParts = {
-  Item: DropdownMenuItem,
-  Separator: DropdownMenuSeparator,
-  Sub: DropdownMenuSub,
-  SubTrigger: DropdownMenuSubTrigger,
-  SubContent: DropdownMenuSubContent,
-  RadioGroup: DropdownMenuRadioGroup,
-  RadioItem: DropdownMenuRadioItem,
-};
-
-const UNASSIGNED = "__unassigned__";
-
-type TaskUpdates = Record<string, unknown>;
-
-type RowActionModel = {
-  task: Task;
-  /** Each action is undefined when there is nothing to run it with; it is then hidden. */
-  open?: () => void;
-  copyLink?: () => void;
-  update?: (updates: TaskUpdates) => void;
-  requestDelete?: () => void;
-  hasAny: boolean;
-  deleteOpen: boolean;
-  setDeleteOpen: (open: boolean) => void;
-  confirmDelete: () => void;
-};
 
 function useRowActionModel(
   task: Task,
@@ -215,145 +135,6 @@ function RowEventBoundary({
     >
       {children}
     </div>
-  );
-}
-
-function StatusRadioItems({
-  parts: P,
-  value,
-  onSelect,
-}: {
-  parts: MenuParts;
-  value: TaskStatus;
-  onSelect: (status: TaskStatus) => void;
-}) {
-  const options = useStatusOptions((status) => <StatusIcon status={status} />);
-  return (
-    <P.RadioGroup
-      value={value}
-      onValueChange={(next) => onSelect(next as TaskStatus)}
-    >
-      {options.map((option) => (
-        <P.RadioItem key={option.value} value={option.value} closeOnClick>
-          {option.icon}
-          {option.label}
-        </P.RadioItem>
-      ))}
-    </P.RadioGroup>
-  );
-}
-
-function AssigneeRadioItems({
-  parts: P,
-  task,
-  onSelect,
-}: {
-  parts: MenuParts;
-  task: Task;
-  onSelect: (updates: TaskUpdates) => void;
-}) {
-  const { t } = useTranslation();
-  // Mounted only while the submenu is open, so rows do not each subscribe to members.
-  const options = useWorkspaceAssigneeOptions(task.workspace_id);
-  const value = task.assignee_id
-    ? `${task.assignee_kind === "agent" ? "agent" : "human"}:${task.assignee_id}`
-    : UNASSIGNED;
-
-  return (
-    <P.RadioGroup
-      value={value}
-      onValueChange={(key) => {
-        // ADR 0007: id and kind always travel together, unassign included.
-        if (key === UNASSIGNED) {
-          onSelect({ assignee_id: null, assignee_kind: "human" });
-          return;
-        }
-        const option = options.find((o) => `${o.kind}:${o.id}` === key);
-        if (option) {
-          onSelect({ assignee_id: option.id, assignee_kind: option.kind });
-        }
-      }}
-    >
-      <P.RadioItem value={UNASSIGNED} closeOnClick>
-        <UserRound aria-hidden />
-        {t("tasks.unassigned")}
-      </P.RadioItem>
-      {options.map((option) => (
-        <P.RadioItem
-          key={`${option.kind}:${option.id}`}
-          value={`${option.kind}:${option.id}`}
-          closeOnClick
-        >
-          <span className="min-w-0 truncate">{option.name}</span>
-        </P.RadioItem>
-      ))}
-    </P.RadioGroup>
-  );
-}
-
-function RowActionItems({
-  parts: P,
-  model,
-}: {
-  parts: MenuParts;
-  model: RowActionModel;
-}) {
-  const { t } = useTranslation();
-  const { task, update } = model;
-  const hasNavigationItems = Boolean(model.open || model.copyLink);
-
-  return (
-    <>
-      {model.open ? (
-        <P.Item onClick={model.open}>
-          <ExternalLink aria-hidden />
-          {t("tasks.row_actions.open")}
-        </P.Item>
-      ) : null}
-      {model.copyLink ? (
-        <P.Item onClick={model.copyLink}>
-          <Link2 aria-hidden />
-          {t("tasks.row_actions.copy_link")}
-        </P.Item>
-      ) : null}
-      {update ? (
-        <>
-          {hasNavigationItems ? <P.Separator /> : null}
-          <P.Sub>
-            <P.SubTrigger>
-              <CircleDot aria-hidden />
-              {t("tasks.row_actions.change_status")}
-            </P.SubTrigger>
-            <P.SubContent>
-              <StatusRadioItems
-                parts={P}
-                value={task.status}
-                onSelect={(status) => update({ status })}
-              />
-            </P.SubContent>
-          </P.Sub>
-          <P.Sub>
-            <P.SubTrigger>
-              <UserRound aria-hidden />
-              {t("tasks.row_actions.change_assignee")}
-            </P.SubTrigger>
-            {/* Long member lists scroll; search in this submenu is later work. */}
-            <P.SubContent className="max-h-72 w-56">
-              <AssigneeRadioItems parts={P} task={task} onSelect={update} />
-            </P.SubContent>
-          </P.Sub>
-        </>
-      ) : null}
-      {model.requestDelete ? (
-        <>
-          <P.Separator />
-          <P.Item variant="destructive" onClick={model.requestDelete}>
-            <Trash2 aria-hidden />
-            {t("tasks.row_actions.delete")}
-          </P.Item>
-        </>
-      ) : null}
-    </>
   );
 }
 
