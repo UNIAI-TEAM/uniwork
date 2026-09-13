@@ -1043,6 +1043,15 @@
       "thread_nav": "Thread navigation",
       "thread_nav_replies_one": "· {{count}} reply",
       "thread_nav_replies_other": "· {{count}} replies",
+      "find": {
+        "label": "Find in task",
+        "placeholder": "Find in task…",
+        "position": "{{current}}/{{total}}",
+        "no_matches": "No matches",
+        "previous": "Previous match",
+        "next": "Next match",
+        "close": "Close find"
+      },
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",
       "agentRun": {

@@ -6,9 +6,13 @@ import { TaskDetailTimeline } from "./timeline";
 export function TaskDetailTimelineSlot({
   workspaceId,
   taskId,
+  findQuery,
 }: {
   workspaceId: string;
   taskId: string;
+  findQuery?: string;
 }) {
-  return <TaskDetailTimeline workspaceId={workspaceId} taskId={taskId} />;
+  return (
+    <TaskDetailTimeline workspaceId={workspaceId} taskId={taskId} findQuery={findQuery} />
+  );
 }

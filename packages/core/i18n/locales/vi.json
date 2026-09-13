@@ -1042,6 +1042,15 @@
       "thread_nav": "Điều hướng luồng",
       "thread_nav_replies_one": "· {{count}} trả lời",
       "thread_nav_replies_other": "· {{count}} trả lời",
+      "find": {
+        "label": "Tìm trong công việc",
+        "placeholder": "Tìm trong công việc…",
+        "position": "{{current}}/{{total}}",
+        "no_matches": "Không có kết quả",
+        "previous": "Kết quả trước",
+        "next": "Kết quả tiếp theo",
+        "close": "Đóng thanh tìm"
+      },
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
       "agentRun": {

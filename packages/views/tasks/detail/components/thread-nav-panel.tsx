@@ -30,6 +30,9 @@ export function ThreadNavPanel({
   return (
     <nav
       aria-label={t("tasks.detail.thread_nav")}
+      // The page's openThreadNav shortcut focuses the first chip through this
+      // marker (hooks/use-task-detail-shortcuts.ts).
+      data-thread-nav
       className="mb-3 flex flex-wrap gap-1.5"
     >
       {threads.map((thread) => (

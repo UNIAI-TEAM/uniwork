@@ -261,12 +261,20 @@ function auditEvent(over: Partial<AuditEvent> & { id: string }): AuditEvent {
 function renderTimeline({
   workspaceId,
   taskId,
+  findQuery,
 }: {
   workspaceId: string;
   taskId: string;
+  findQuery?: string;
 }) {
   return render(
-    shell(<TaskDetailTimeline workspaceId={workspaceId} taskId={taskId} />),
+    shell(
+      <TaskDetailTimeline
+        workspaceId={workspaceId}
+        taskId={taskId}
+        findQuery={findQuery}
+      />,
+    ),
   );
 }
 
@@ -936,6 +944,36 @@ describe("TaskDetailTimeline", () => {
 
       expect(commits).toBe(settled);
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    });
+
+    // In-page find opens matching resolved threads through a temporary set,
+    // not the store. Collapsing one of those must still work, and must not
+    // be remembered either way.
+    it("gấp một luồng đang mở vì tìm thì nó gấp lại mà không ghi vào bộ nhớ; mở lại bằng tay thì được nhớ", () => {
+      mockComments(resolvedThread);
+      renderTimeline({ workspaceId: "w1", taskId: "t1", findQuery: "BÊN TRONG" });
+      const bar = screen.getByTestId("resolved-thread-bar");
+      expect(bar).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("trả lời bên trong")).toBeInTheDocument();
+
+      fireEvent.click(bar);
+
+      expect(bar).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText("trả lời bên trong")).not.toBeInTheDocument();
+      expect(useTaskDetailUiStore.getState().tasks).toEqual({});
+
+      fireEvent.click(bar);
+
+      expect(screen.getByText("trả lời bên trong")).toBeInTheDocument();
+      expect(useTaskDetailUiStore.getState().tasks.t1?.resolvedExpanded).toEqual(["c1"]);
+    });
+
+    it("tìm chỉ mở luồng đã giải quyết có bình luận khớp, không đụng luồng không khớp", () => {
+      mockComments(resolvedThread);
+      renderTimeline({ workspaceId: "w1", taskId: "t1", findQuery: "không có ở đây" });
+
+      expect(screen.getByTestId("resolved-thread-bar")).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText("trả lời bên trong")).not.toBeInTheDocument();
     });
   });
 

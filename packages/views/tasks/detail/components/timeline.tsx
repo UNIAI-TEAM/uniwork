@@ -25,6 +25,7 @@ import {
 } from "@uniwork/core/tasks/stores/task-detail-ui-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../../../toast-api-error";
+import { useFindExpandedThreads } from "../find/find-expanded-threads";
 import { TaskActivityRow, isTimelineActivity } from "./activity-row";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
@@ -55,9 +56,12 @@ function commentHashId(): string | null {
 export function TaskDetailTimeline({
   workspaceId,
   taskId,
+  findQuery = "",
 }: {
   workspaceId: string;
   taskId: string;
+  /** The open find bar's query; "" while the bar is closed. */
+  findQuery?: string;
 }) {
   const { t } = useTranslation();
   const errFallback = t("common.error");
@@ -80,14 +84,10 @@ export function TaskDetailTimeline({
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   // Remembered per task, so an opened resolved thread is still open when the
   // person comes back. The store hands back a stable array (a shared empty
-  // one when nothing is open); the Set is derived here, never in the
+  // one when nothing is open); the Set is derived below, never in the
   // selector, or every render would produce a new identity and re-run the
   // scroll effect below.
   const expandedResolvedIds = useResolvedExpandedThreads(taskId);
-  const expandedResolved = useMemo(
-    () => new Set(expandedResolvedIds),
-    [expandedResolvedIds],
-  );
   // The single source of truth for "which comment should the page scroll to
   // and highlight". Seeded from the URL hash on mount, and re-pointed by the
   // thread-nav chips (via jumpToComment) — one mechanism, two triggers. The
@@ -102,6 +102,15 @@ export function TaskDetailTimeline({
   });
 
   const threads = useMemo(() => buildCommentThreads(comments ?? []), [comments]);
+
+  // In-page find opens the resolved threads its query matches through a
+  // temporary set that is never written to the store: a search is not the
+  // person asking to keep a thread open (find/find-expanded-threads.ts).
+  const findExpanded = useFindExpandedThreads(threads, findQuery);
+  const expandedResolved = useMemo(
+    () => new Set([...expandedResolvedIds, ...findExpanded.ids]),
+    [expandedResolvedIds, findExpanded.ids],
+  );
 
   const navThreads = useMemo<ThreadNavItem[]>(
     () =>
@@ -350,15 +359,16 @@ export function TaskDetailTimeline({
                   <ResolvedThreadBar
                     replyCount={entry.thread.replies.length}
                     expanded={expandedResolved.has(entry.thread.root.id)}
-                    onToggle={() =>
+                    onToggle={() => {
+                      const rootId = entry.thread.root.id;
+                      const open = expandedResolved.has(rootId);
+                      // Collapsing also closes a thread only find opened;
+                      // only a person's own open is remembered.
+                      if (open) findExpanded.dismiss(rootId);
                       useTaskDetailUiStore
                         .getState()
-                        .setResolvedExpanded(
-                          taskId,
-                          entry.thread.root.id,
-                          !expandedResolved.has(entry.thread.root.id),
-                        )
-                    }
+                        .setResolvedExpanded(taskId, rootId, !open);
+                    }}
                   />
                 ) : null}
                 {!isThreadResolved(entry.thread) ||
