@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
+  Profiler,
   forwardRef,
   useImperativeHandle,
   useState,
@@ -9,6 +10,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
+import { useTaskDetailUiStore } from "@uniwork/core/tasks/stores/task-detail-ui-store";
 import type { AuditEvent, TaskComment, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
@@ -283,6 +285,8 @@ beforeEach(() => {
   // Drafts are a module singleton: a leftover draft from another case would
   // now auto-activate a composer (initialActive) and change what renders.
   useCommentDraftStore.setState({ drafts: {} });
+  // Expanded resolved threads are remembered per task in a module singleton.
+  useTaskDetailUiStore.setState({ tasks: {} });
   window.history.replaceState(null, "", "/");
   mockComments([
     {
@@ -832,6 +836,107 @@ describe("TaskDetailTimeline", () => {
     await waitFor(() =>
       expect(scrollIntoView).toHaveBeenCalledTimes(1),
     );
+  });
+
+  describe("ghi nhớ luồng đã giải quyết đang mở", () => {
+    const resolvedThread: TaskComment[] = [
+      {
+        id: "c1",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        body: "bình luận gốc",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:00:00Z",
+        resolved_at: "2026-09-12T10:05:00Z",
+        reactions: [],
+      },
+      {
+        id: "c2",
+        task_id: "t1",
+        author_id: "u1",
+        author_kind: "human",
+        parent_id: "c1",
+        body: "trả lời bên trong",
+        type: "comment",
+        revision: 0,
+        created_at: "2026-09-12T10:01:00Z",
+        reactions: [],
+      },
+    ];
+
+    it("mở một luồng, rời trang rồi quay lại cùng task thì luồng vẫn mở", () => {
+      mockComments(resolvedThread);
+      const first = renderTimeline({ workspaceId: "w1", taskId: "t1" });
+      fireEvent.click(screen.getByTestId("resolved-thread-bar"));
+      expect(screen.getByText("trả lời bên trong")).toBeInTheDocument();
+      first.unmount();
+
+      renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+      expect(screen.getByTestId("resolved-thread-bar")).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(screen.getByText("trả lời bên trong")).toBeInTheDocument();
+    });
+
+    it("một task khác không thừa hưởng luồng đang mở", () => {
+      mockComments(resolvedThread);
+      const first = renderTimeline({ workspaceId: "w1", taskId: "t1" });
+      fireEvent.click(screen.getByTestId("resolved-thread-bar"));
+      first.unmount();
+
+      // Same comment ids under another task id: only the task id separates them.
+      renderTimeline({ workspaceId: "w1", taskId: "t2" });
+
+      expect(screen.getByTestId("resolved-thread-bar")).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+      expect(screen.queryByText("trả lời bên trong")).not.toBeInTheDocument();
+    });
+
+    it("link tới bình luận vẫn mở luồng mà người dùng đã gấp lại lần trước", async () => {
+      mockComments(resolvedThread);
+      const first = renderTimeline({ workspaceId: "w1", taskId: "t1" });
+      const bar = screen.getByTestId("resolved-thread-bar");
+      fireEvent.click(bar);
+      fireEvent.click(bar);
+      expect(screen.queryByText("trả lời bên trong")).not.toBeInTheDocument();
+      first.unmount();
+
+      window.history.replaceState(null, "", "/#comment-c2");
+      renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+      expect(await screen.findByText("trả lời bên trong")).toBeInTheDocument();
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    });
+
+    it("thay đổi ghi nhớ của task khác không render lại timeline này", async () => {
+      mockComments(resolvedThread);
+      window.history.replaceState(null, "", "/#comment-c2");
+      let commits = 0;
+      render(
+        shell(
+          <Profiler id="timeline" onRender={() => { commits += 1; }}>
+            <TaskDetailTimeline workspaceId="w1" taskId="t1" />
+          </Profiler>,
+        ),
+      );
+      // Hash expands the thread, scrolls, then retires the request.
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+      const settled = commits;
+
+      act(() => {
+        useTaskDetailUiStore.getState().setResolvedExpanded("t2", "other", true);
+        useTaskDetailUiStore.getState().setSubtasksCollapsed("t2", true);
+      });
+
+      expect(commits).toBe(settled);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("không hiện bảng điều hướng luồng khi có ba luồng trở xuống", () => {

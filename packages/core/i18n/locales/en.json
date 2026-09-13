@@ -1024,6 +1024,7 @@
       "add_subtask": "Add sub-task",
       "add_subtask_placeholder": "Sub-task title",
       "add_subtask_action": "Add",
+      "subtasks_toggle": "Show or hide the sub-task list",
       "timeline_section": "Activity",
       "timeline_placeholder": "Comments and activity will appear here.",
       "comment_placeholder": "Write a comment…",

@@ -1023,6 +1023,7 @@
       "add_subtask": "Thêm sub-task",
       "add_subtask_placeholder": "Tiêu đề sub-task",
       "add_subtask_action": "Thêm",
+      "subtasks_toggle": "Hiện hoặc ẩn danh sách sub-task",
       "timeline_section": "Hoạt động",
       "timeline_placeholder": "Bình luận và hoạt động sẽ hiện ở đây.",
       "comment_placeholder": "Viết bình luận…",

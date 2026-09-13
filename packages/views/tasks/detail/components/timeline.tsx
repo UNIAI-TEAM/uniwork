@@ -19,6 +19,10 @@ import {
   useUnsubscribeTask,
   useUpdateComment,
 } from "@uniwork/core/tasks";
+import {
+  useResolvedExpandedThreads,
+  useTaskDetailUiStore,
+} from "@uniwork/core/tasks/stores/task-detail-ui-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../../../toast-api-error";
 import { TaskActivityRow, isTimelineActivity } from "./activity-row";
@@ -74,8 +78,15 @@ export function TaskDetailTimeline({
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [expandedResolved, setExpandedResolved] = useState<Set<string>>(
-    () => new Set(),
+  // Remembered per task, so an opened resolved thread is still open when the
+  // person comes back. The store hands back a stable array (a shared empty
+  // one when nothing is open); the Set is derived here, never in the
+  // selector, or every render would produce a new identity and re-run the
+  // scroll effect below.
+  const expandedResolvedIds = useResolvedExpandedThreads(taskId);
+  const expandedResolved = useMemo(
+    () => new Set(expandedResolvedIds),
+    [expandedResolvedIds],
   );
   // The single source of truth for "which comment should the page scroll to
   // and highlight". Seeded from the URL hash on mount, and re-pointed by the
@@ -161,7 +172,9 @@ export function TaskDetailTimeline({
     if (!target || threads.length === 0) return;
     // A link into a resolved thread must not hit a dead end: expand it first
     // so the target renders, then a later run of this effect (triggered by
-    // the expandedResolved change) finds the element and scrolls to it. The
+    // the expandedResolved change) finds the element and scrolls to it. A
+    // link wins over memory: a thread the person collapsed last visit still
+    // opens for it, and stays remembered as open afterwards. The
     // thread-nav chips point at this same target/effect pair instead of
     // scrolling on their own, so the two triggers never fight each other.
     const thread = threads.find(
@@ -172,7 +185,9 @@ export function TaskDetailTimeline({
       isThreadResolved(thread) &&
       !expandedResolved.has(thread.root.id)
     ) {
-      setExpandedResolved((prev) => new Set(prev).add(thread.root.id));
+      useTaskDetailUiStore
+        .getState()
+        .setResolvedExpanded(taskId, thread.root.id, true);
       return;
     }
     const el = document.getElementById(`comment-${target}`);
@@ -336,15 +351,13 @@ export function TaskDetailTimeline({
                     replyCount={entry.thread.replies.length}
                     expanded={expandedResolved.has(entry.thread.root.id)}
                     onToggle={() =>
-                      setExpandedResolved((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(entry.thread.root.id)) {
-                          next.delete(entry.thread.root.id);
-                        } else {
-                          next.add(entry.thread.root.id);
-                        }
-                        return next;
-                      })
+                      useTaskDetailUiStore
+                        .getState()
+                        .setResolvedExpanded(
+                          taskId,
+                          entry.thread.root.id,
+                          !expandedResolved.has(entry.thread.root.id),
+                        )
                     }
                   />
                 ) : null}
