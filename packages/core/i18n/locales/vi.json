@@ -922,7 +922,17 @@
     "list": {
       "select_status": "Chọn tất cả task trong {{status}}",
       "select_task": "Chọn {{title}}",
-      "add_task": "Thêm task vào {{status}}"
+      "add_task": "Thêm task vào {{status}}",
+      "group_loaded_count_one": "{{status}}, đã tải {{count}}",
+      "group_loaded_count_other": "{{status}}, đã tải {{count}}"
+    },
+    "pagination": {
+      "loaded_count_one": "Đang hiện {{count}} / {{total}} công việc",
+      "loaded_count_other": "Đang hiện {{count}} / {{total}} công việc",
+      "load_more": "Tải thêm",
+      "loading_more": "Đang tải thêm công việc…",
+      "load_more_failed": "Không tải thêm được công việc.",
+      "end": "Không còn công việc để tải"
     },
     "header": {
       "attachments_unavailable": "Đính kèm"

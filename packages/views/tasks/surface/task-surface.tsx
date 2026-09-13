@@ -213,6 +213,7 @@ function TaskSurfaceContent({
                       categories={controller.boardCategories}
                       tasks={controller.surfaceTasks}
                       cardMeta={boardCardMeta}
+                      pagination={controller.pagination}
                       onOpenTask={onOpenTask}
                     />
                   ) : controller.viewMode === "board" ? (
@@ -235,10 +236,14 @@ function TaskSurfaceContent({
                       onOpenTask={onOpenTask}
                     />
                   ) : controller.viewMode === "gantt" ? (
-                    <GanttView tasks={controller.ganttTasks} />
+                    <GanttView
+                      tasks={controller.ganttTasks}
+                      pagination={controller.pagination}
+                    />
                   ) : controller.viewMode === "swimlane" ? (
                     <SwimLaneView
                       tasks={controller.surfaceTasks}
+                      pagination={controller.pagination}
                       categories={controller.boardCategories}
                       projects={projectsData?.projects}
                       cardMeta={boardCardMeta}

@@ -923,7 +923,17 @@
     "list": {
       "select_status": "Select all tasks in {{status}}",
       "select_task": "Select {{title}}",
-      "add_task": "Add task to {{status}}"
+      "add_task": "Add task to {{status}}",
+      "group_loaded_count_one": "{{status}}, {{count}} loaded",
+      "group_loaded_count_other": "{{status}}, {{count}} loaded"
+    },
+    "pagination": {
+      "loaded_count_one": "Showing {{count}} task of {{total}}",
+      "loaded_count_other": "Showing {{count}} tasks of {{total}}",
+      "load_more": "Load more",
+      "loading_more": "Loading more tasks…",
+      "load_more_failed": "Could not load more tasks.",
+      "end": "No more tasks to load"
     },
     "header": {
       "attachments_unavailable": "Attachments"

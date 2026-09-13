@@ -51,9 +51,12 @@ import {
 } from "./board-drag-utils";
 import { STATUS_CONFIG } from "./status-config";
 import { DraggableTaskListRow, TaskListRow } from "./list-row";
+import { LoadMoreFooter } from "./load-more-footer";
+import { hasUnloadedTasks, LoadedCountNotice } from "./loaded-count-notice";
 import { useDragSettle } from "./use-drag-settle";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelectionOptional } from "../surface/selection-context";
+import type { TaskSurfacePagination } from "../surface/use-task-surface-data";
 
 const EMPTY_IDS: string[] = [];
 const LIST_ROW_HEIGHT = 36;
@@ -71,6 +74,8 @@ function ListStatusSection({
   scrollParent,
   isExpanded,
   onExpandedChange,
+  countIsPartial,
+  onEndReached,
 }: {
   status: string;
   taskIds: string[];
@@ -83,6 +88,9 @@ function ListStatusSection({
   scrollParent: HTMLElement | null;
   isExpanded: boolean;
   onExpandedChange: (open: boolean) => void;
+  /** Pages remain, so the group count covers loaded rows only. */
+  countIsPartial: boolean;
+  onEndReached?: () => void;
 }) {
   const { t } = useTranslation();
   const selection = useTaskSurfaceSelectionOptional();
@@ -152,7 +160,14 @@ function ListStatusSection({
         ) : null}
         <CollapsibleTrigger
           className="group/trigger flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left"
-          aria-label={`${label}, ${tasks.length}`}
+          aria-label={
+            countIsPartial
+              ? t("tasks.list.group_loaded_count", {
+                  status: label,
+                  count: tasks.length,
+                })
+              : `${label}, ${tasks.length}`
+          }
         >
           <ChevronRight
             className="size-3.5 shrink-0 text-muted-foreground transition-transform group-aria-expanded/trigger:rotate-90"
@@ -190,6 +205,7 @@ function ListStatusSection({
                 defaultItemHeight={LIST_ROW_HEIGHT}
                 increaseViewportBy={{ top: 360, bottom: 360 }}
                 itemContent={renderRow}
+                endReached={onEndReached}
               />
             ) : (
               tasks.map((task, index) => (
@@ -211,11 +227,14 @@ function ListViewImpl({
   categories,
   tasks,
   cardMeta,
+  pagination,
   onOpenTask,
 }: {
   categories: readonly string[];
   tasks: Task[];
   cardMeta?: ReadonlyMap<string, BoardCardMeta>;
+  /** Paging is global across groups, so the load-more row ends the whole list. */
+  pagination?: TaskSurfacePagination;
   onOpenTask?: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -394,6 +413,7 @@ function ListViewImpl({
     [isDraggingRef, resetColumns],
   );
 
+  const countIsPartial = pagination ? hasUnloadedTasks(pagination) : false;
   const content = (
     <div className="space-y-1">
       {visibleStatuses.map((status) => (
@@ -418,8 +438,19 @@ function ListViewImpl({
               toggleCollapsed(status as TaskStatus);
             }
           }}
+          countIsPartial={countIsPartial}
+          onEndReached={pagination?.hasMore ? pagination.loadMore : undefined}
         />
       ))}
+      {pagination ? (
+        <LoadMoreFooter
+          hasMore={pagination.hasMore}
+          isLoading={pagination.isLoadingMore}
+          isError={pagination.isLoadMoreError}
+          total={pagination.total}
+          onLoadMore={pagination.loadMore}
+        />
+      ) : null}
     </div>
   );
 
@@ -432,6 +463,7 @@ function ListViewImpl({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      {pagination ? <LoadedCountNotice pagination={pagination} /> : null}
       <div
         ref={setScrollParent}
         data-tab-scroll-root="list"

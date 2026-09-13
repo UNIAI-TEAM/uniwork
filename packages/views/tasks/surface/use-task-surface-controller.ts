@@ -100,6 +100,8 @@ export interface TaskSurfaceController {
   viewMode: TaskSurfaceMode;
   setViewMode: (mode: TaskSurfaceMode) => void;
   surfaceTasks: Task[];
+  /** Paging of the flat list / my-tasks query (list, gantt, swimlane, My Tasks board); idle when it is off. */
+  pagination: ReturnType<typeof useTaskSurfaceData>["pagination"];
   /** Gantt canvas projection (dated ± showCompleted). Empty ≠ surface empty. */
   ganttTasks: Task[];
   /** Ordered status-category keys for board columns (catalog / seven built-ins). */
@@ -469,18 +471,21 @@ export function useTaskSurfaceController({
   // not mark the surface empty; GanttView owns that empty copy. Zero tasks in
   // the window still surface-empty even in gantt mode.
   // Table owns its own empty state. Swimlane/list/board use the full window.
+  // Unloaded pages are not empty, even when every loaded row is hidden.
   const isEmpty =
     !tableEnabled &&
     (boardEnabled || listQueryEnabled) &&
     !isLoading &&
     !isError &&
-    surfaceTasks.length === 0;
+    surfaceTasks.length === 0 &&
+    !data.pagination.hasMore;
 
   return {
     scopeKey,
     viewMode: effectiveViewMode,
     setViewMode,
     surfaceTasks,
+    pagination: data.pagination,
     ganttTasks,
     boardCategories,
     tableFilter,
