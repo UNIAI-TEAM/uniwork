@@ -23,17 +23,14 @@ import {
   PriorityPicker,
   StatusPicker,
   labelChipClass,
+  toHumanAssigneeOptions,
   useTaskLabelToggle,
-  type AssigneeOption,
   type AssigneeRef,
+  type MemberOption,
 } from "../pickers";
 import { STATUS_CONFIG } from "./status-config";
 
-export type TableMember = {
-  id: string;
-  name: string;
-  avatarUrl?: string;
-};
+export type TableMember = MemberOption;
 
 function stopRowNavigation(event: SyntheticEvent) {
   event.stopPropagation();
@@ -144,14 +141,7 @@ export function TableAssigneeCell({
 }) {
   const { t } = useTranslation();
   const selected = members.find((member) => member.id === assigneeId);
-  // Table only ever offers human members (no agent assignment here — see
-  // assignee-picker.tsx and the task-2 report for why that stays as-is).
-  const options: AssigneeOption[] = members.map((member) => ({
-    id: member.id,
-    kind: "human",
-    name: member.name,
-    avatarUrl: member.avatarUrl,
-  }));
+  const options = toHumanAssigneeOptions(members);
   const value: AssigneeRef | null = assigneeId
     ? { id: assigneeId, kind: assigneeKind === "agent" ? "agent" : "human" }
     : null;

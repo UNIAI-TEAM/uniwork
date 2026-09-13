@@ -18,6 +18,7 @@ import {
 } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
+import { toMemberOptions } from "../pickers";
 import { BoardView } from "../modes/board-view";
 import type { BoardCardMeta } from "../modes/board-card";
 import { GanttView } from "../modes/gantt-view";
@@ -100,14 +101,7 @@ function TaskSurfaceContent({
     [membersData],
   );
   const tableMembers = useMemo(
-    () =>
-      (membersData ?? []).map((member) => ({
-        id: member.user_id,
-        name: member.display_name || member.email,
-        ...(typeof member.avatar_url === "string"
-          ? { avatarUrl: member.avatar_url }
-          : {}),
-      })),
+    () => toMemberOptions(membersData ?? []),
     [membersData],
   );
   const boardCardMeta = useMemo(() => {

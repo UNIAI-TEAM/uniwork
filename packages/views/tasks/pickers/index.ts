@@ -1,4 +1,10 @@
-export { StatusPicker } from "./status-picker";
+export { StatusPicker, useStatusOptions } from "./status-picker";
+export {
+  toHumanAssigneeOptions,
+  toMemberOptions,
+  useWorkspaceAssigneeOptions,
+  type MemberOption,
+} from "./member-options";
 export { PriorityPicker } from "./priority-picker";
 export {
   AssigneePicker,

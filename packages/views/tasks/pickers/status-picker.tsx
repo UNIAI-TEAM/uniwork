@@ -5,8 +5,11 @@ import { useTranslation } from "react-i18next";
 import { TASK_STATUSES, type TaskStatus } from "@uniwork/core/types";
 import { EnumFieldPicker, type EnumOption } from "./enum-field-picker";
 
-/** Builds the TASK_STATUSES options list, translated via existing `tasks.status_*` keys. */
-function useStatusOptions(
+/**
+ * Builds the TASK_STATUSES options list, translated via existing `tasks.status_*` keys.
+ * The row actions menu reads it too, so the picker and the menu cannot drift.
+ */
+export function useStatusOptions(
   icon?: (status: TaskStatus) => ReactNode,
 ): EnumOption[] {
   const { t } = useTranslation();
