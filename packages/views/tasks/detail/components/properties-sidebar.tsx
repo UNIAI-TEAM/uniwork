@@ -16,23 +16,9 @@ import {
   useTaskProperties,
   useUpdateTask,
 } from "@uniwork/core/tasks";
-import {
-  TASK_PRIORITIES,
-  TASK_STATUSES,
-  type ActorKind,
-  type Task,
-  type TaskPriority,
-  type TaskStatus,
-} from "@uniwork/core/types";
+import { type ActorKind, type Task } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { AgentBadge } from "../../../agents/agent-badge";
@@ -44,6 +30,7 @@ import { toastApiError } from "../../../toast-api-error";
 import { cn } from "@uniwork/ui/lib/utils";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { tintFromColor } from "@uniwork/ui/lib/tint-from-color";
+import { PriorityPicker, StatusPicker } from "../../pickers";
 
 const EMPTY_CONFIG = {
   flags: {},
@@ -104,8 +91,6 @@ export function TaskDetailPropertiesSidebar({
   const parentId = task.parent_task_id ?? null;
   const { data: parentTask } = useTask(parentId ?? "");
   const [labelId, setLabelId] = useState("");
-  const [statusOpen, setStatusOpen] = useState(false);
-  const [priorityOpen, setPriorityOpen] = useState(false);
 
   const projectsCap = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
@@ -189,73 +174,36 @@ export function TaskDetailPropertiesSidebar({
 
       <div className="space-y-0.5">
         <PropRow label={<Label>{t("tasks.status")}</Label>}>
-          <DropdownMenu open={statusOpen} onOpenChange={setStatusOpen}>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-full justify-start px-2"
-                  aria-label={t("tasks.status")}
-                />
+          <StatusPicker
+            value={task.status}
+            ariaLabel={t("tasks.status")}
+            triggerClassName="h-8 w-full justify-start px-2"
+            onChange={(value) => {
+              // Skip the PUT when the picked value matches the current one:
+              // this call is revisioned, so a no-op selection would still
+              // spend a revision bump for nothing.
+              if (value !== task.status) {
+                putField({ status: value });
               }
-            >
-              {t(`tasks.status_${task.status}`)}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuRadioGroup
-                value={task.status}
-                onValueChange={(value) => {
-                  if (value && value !== task.status) {
-                    putField({ status: value as TaskStatus });
-                  }
-                  setStatusOpen(false);
-                }}
-              >
-                {TASK_STATUSES.map((s) => (
-                  <DropdownMenuRadioItem key={s} value={s}>
-                    {t(`tasks.status_${s}`)}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }}
+          >
+            {t(`tasks.status_${task.status}`)}
+          </StatusPicker>
         </PropRow>
 
         <PropRow label={<Label>{t("tasks.priority")}</Label>}>
-          <DropdownMenu open={priorityOpen} onOpenChange={setPriorityOpen}>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-full justify-start px-2"
-                  aria-label={t("tasks.priority")}
-                />
+          <PriorityPicker
+            value={task.priority}
+            ariaLabel={t("tasks.priority")}
+            triggerClassName="h-8 w-full justify-start px-2"
+            onChange={(value) => {
+              if (value !== task.priority) {
+                putField({ priority: value });
               }
-            >
-              {t(`tasks.priority_${task.priority}`)}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuRadioGroup
-                value={task.priority}
-                onValueChange={(value) => {
-                  if (value && value !== task.priority) {
-                    putField({ priority: value as TaskPriority });
-                  }
-                  setPriorityOpen(false);
-                }}
-              >
-                {TASK_PRIORITIES.map((p) => (
-                  <DropdownMenuRadioItem key={p} value={p}>
-                    {t(`tasks.priority_${p}`)}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }}
+          >
+            {t(`tasks.priority_${task.priority}`)}
+          </PriorityPicker>
         </PropRow>
 
         <PropRow

@@ -4,8 +4,6 @@ import type { SyntheticEvent } from "react";
 import { CalendarDays, Flag, FolderKanban, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
-  TASK_PRIORITIES,
-  TASK_STATUSES,
   type TaskLabel,
   type TaskPriority,
   type TaskStatus,
@@ -23,8 +21,8 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuCheckboxItem,
+  DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -32,6 +30,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../common/date-field";
 import { AgentBadge } from "../../agents/agent-badge";
+import { PriorityPicker, StatusPicker } from "../pickers";
 import { STATUS_CONFIG } from "./status-config";
 
 export type TableMember = {
@@ -64,43 +63,24 @@ export function TableStatusCell({
   const color = STATUS_CONFIG[value]?.iconColor ?? "text-muted-foreground";
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-              aria-label={t("tasks.status")}
-            />
-          }
-        >
-          <span className={cn("size-2 shrink-0 rounded-full bg-current", color)} />
-          <span className="truncate">{t(`tasks.status_${value}`)}</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuRadioGroup
-            value={value}
-            onValueChange={(next) => onChange(next as TaskStatus)}
-          >
-            {TASK_STATUSES.map((status) => (
-              <DropdownMenuRadioItem key={status} value={status}>
-                <span
-                  className={cn(
-                    "size-2 rounded-full bg-current",
-                    STATUS_CONFIG[status].iconColor,
-                  )}
-                />
-                {t(`tasks.status_${status}`)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <StatusPicker
+      value={value}
+      onChange={onChange}
+      ariaLabel={t("tasks.status")}
+      onTriggerPointerDown={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+      icon={(status) => (
+        <span
+          className={cn(
+            "size-2 rounded-full bg-current",
+            STATUS_CONFIG[status].iconColor,
+          )}
+        />
+      )}
+    >
+      <span className={cn("size-2 shrink-0 rounded-full bg-current", color)} />
+      <span className="truncate">{t(`tasks.status_${value}`)}</span>
+    </StatusPicker>
   );
 }
 
@@ -120,44 +100,22 @@ export function TablePriorityCell({
 }) {
   const { t } = useTranslation();
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive
-    <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-              aria-label={t("tasks.priority")}
-            />
-          }
-        >
-          <Flag
-            className={cn("size-3.5 shrink-0", PRIORITY_COLOR[value])}
-            aria-hidden
-          />
-          <span className="truncate">{t(`tasks.priority_${value}`)}</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuRadioGroup
-            value={value}
-            onValueChange={(next) => onChange(next as TaskPriority)}
-          >
-            {TASK_PRIORITIES.map((priority) => (
-              <DropdownMenuRadioItem key={priority} value={priority}>
-                <Flag
-                  className={cn("size-3.5", PRIORITY_COLOR[priority])}
-                  aria-hidden
-                />
-                {t(`tasks.priority_${priority}`)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <PriorityPicker
+      value={value}
+      onChange={onChange}
+      ariaLabel={t("tasks.priority")}
+      onTriggerPointerDown={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+      icon={(priority) => (
+        <Flag className={cn("size-3.5", PRIORITY_COLOR[priority])} aria-hidden />
+      )}
+    >
+      <Flag
+        className={cn("size-3.5 shrink-0", PRIORITY_COLOR[value])}
+        aria-hidden
+      />
+      <span className="truncate">{t(`tasks.priority_${value}`)}</span>
+    </PriorityPicker>
   );
 }
 

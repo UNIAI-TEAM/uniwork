@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { TASK_PRIORITIES, TASK_STATUSES, type Task } from "@uniwork/core/types";
+import type { Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { PriorityPicker, StatusPicker } from "../pickers";
 
 type BatchUpdates = {
   status?: string;
@@ -29,34 +30,21 @@ export function BatchStatusPicker({
   onUpdate: (updates: BatchUpdates) => void;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const label = t("tasks.batch.status");
   return (
     <>
+      {/* Trigger shows the fixed action label, not the current value: a
+          multi-task selection may carry mixed statuses, so there is no
+          single value to display. */}
       <span data-testid="batch-status-value" data-status={status ?? "__none__"} hidden />
-      <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger
-          render={
-            <Button type="button" variant="ghost" size="sm" disabled={disabled} />
-          }
-        >
-          {t("tasks.batch.status")}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="center">
-          <DropdownMenuRadioGroup
-            value={status ?? undefined}
-            onValueChange={(value) => {
-              onUpdate({ status: value });
-              setOpen(false);
-            }}
-          >
-            {TASK_STATUSES.map((s) => (
-              <DropdownMenuRadioItem key={s} value={s}>
-                {t(`tasks.status_${s}`)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <StatusPicker
+        value={status as TaskStatus | null}
+        disabled={disabled}
+        ariaLabel={label}
+        onChange={(value) => onUpdate({ status: value })}
+      >
+        {label}
+      </StatusPicker>
     </>
   );
 }
@@ -71,32 +59,16 @@ export function BatchPriorityPicker({
   onUpdate: (updates: BatchUpdates) => void;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const label = t("tasks.batch.priority");
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger
-        render={
-          <Button type="button" variant="ghost" size="sm" disabled={disabled} />
-        }
-      >
-        {t("tasks.batch.priority")}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="center">
-        <DropdownMenuRadioGroup
-          value={priority ?? undefined}
-          onValueChange={(value) => {
-            onUpdate({ priority: value });
-            setOpen(false);
-          }}
-        >
-          {TASK_PRIORITIES.map((p) => (
-            <DropdownMenuRadioItem key={p} value={p}>
-              {t(`tasks.priority_${p}`)}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <PriorityPicker
+      value={priority as TaskPriority | null}
+      disabled={disabled}
+      ariaLabel={label}
+      onChange={(value) => onUpdate({ priority: value })}
+    >
+      {label}
+    </PriorityPicker>
   );
 }
 
