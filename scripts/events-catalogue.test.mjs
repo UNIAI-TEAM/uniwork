@@ -167,6 +167,25 @@ test("the patchable task fields are exactly the ones ADR 0015 accepted", () => {
   assert.deepEqual([...row.patch].sort(), ["due_date", "priority", "status", "title"]);
 });
 
+test("the client decodes exactly the fields task.updated lists in Patch", () => {
+  // packages/core/tasks/realtime-task-patch.ts drops every frame key it does not
+  // list, yet still takes the frame's revision when it patches. A field added to
+  // Patch on the server but unknown to the client would therefore be skipped
+  // while the cache moves to the new revision: the stale-field, current-revision
+  // state ADR 0015 exists to prevent. Comments are stripped first, as for the Go
+  // side, so a commented-out list cannot stand in for the real one.
+  const client = read("packages/core/tasks/realtime-task-patch.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+  const lists = [...client.matchAll(/const TASK_PATCH_FIELDS = \[([^\]]*)\] as const;/g)];
+  assert.equal(lists.length, 1, "packages/core/tasks/realtime-task-patch.ts must declare TASK_PATCH_FIELDS once, on one line");
+  const row = goCatalogue().find((r) => r.topic === "task.updated");
+  assert.ok(row, "task.updated is missing from server/internal/outbox/catalogue.go");
+  assert.deepEqual(
+    quoted(lists[0][1]).sort(),
+    [...row.patch].sort(),
+    "packages/core/tasks/realtime-task-patch.ts TASK_PATCH_FIELDS and the task.updated Patch list disagree",
+  );
+});
+
 test("every event has a scope or is explicitly infrastructure", () => {
   for (const { topic, scope, delivery } of goCatalogue()) {
     assert.ok(

@@ -72,8 +72,20 @@ Keep server state and client state separate.
 - Only the auth store and `api/endpoints/*` talk to the transport. Every
   other server interaction is a query or a mutation.
 - WebSocket events invalidate Query keys (`packages/core/realtime/use-realtime-sync.ts`).
-  The frame payload is never written into a query or a store — the cache is
-  refreshed from the API. `packages/core/realtime/use-realtime-sync.test.tsx` pins this.
+  The frame payload is never written into a store, and into a query only
+  through one exception (ADR 0015): the fields the `task.updated` catalogue row
+  lists in `Patch` patch a cached record of the task, and only when ALL hold —
+  the frame has at least one `Patch` key, both `revision_before` and `revision`
+  are valid, the record already exists (the detail entry, or the task's row in
+  a list, query, my-tasks, grouped or table-rows entry), and its `revision`
+  equals `revision_before`. A patched record takes the frame's `revision`; a
+  patched detail entry skips that frame's refetch, otherwise the detail key
+  invalidates as for any frame. List roots always invalidate, rows never move
+  between groups or pages, and a frame never adds an entry or a row.
+  `packages/core/realtime/use-realtime-sync.test.tsx` and
+  `packages/core/tasks/realtime-task-patch.test.ts` pin this;
+  `scripts/events-catalogue.test.mjs` fails when the client's field list and
+  the catalogue's `Patch` differ.
 - Optimistic updates only when ALL hold: the outcome is locally predictable,
   the user stays on the same screen, failure is rare, rollback is a cache
   restore. Canonical: task status/position on the board
