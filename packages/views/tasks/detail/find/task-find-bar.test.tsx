@@ -368,10 +368,24 @@ describe("tìm trong trang chi tiết task", () => {
     await screen.findByText("mốc một");
     const input = await openFind();
 
-    fireEvent.change(input, { target: { value: "mốc" } });
+    // Fake timers only around the debounce itself: renderPage/openFind above
+    // already settled under real timers, so no pending real setTimeout from
+    // the find hook survives into this block.
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(input, { target: { value: "mốc" } });
 
-    expect(findCount()).not.toHaveTextContent(/không có kết quả|no matches/i);
-    await waitFor(() => expect(findCount()).toHaveTextContent("1/1"));
+      expect(findCount()).not.toHaveTextContent(/không có kết quả|no matches/i);
+
+      // QUERY_DEBOUNCE_MS in use-task-find.ts is not exported; it is 150ms there.
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+
+      expect(findCount()).toHaveTextContent("1/1");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("Enter ngay sau khi gõ, trước khi so khớp xong, đi trên kết quả của truy vấn mới", async () => {
