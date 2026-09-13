@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** shipped — lát C của spec ô Task human-parity, qua make check (2026-09-13). `make check` fail-fast không tới được Go test: hai lần chạy dừng ở `pnpm test` vì hai test views nhạy tải có từ trước lát (`project-detail-page`, `markdown-paste`; chạy riêng đều xanh), nên các bước còn lại được chạy tay theo đúng lệnh trong `scripts/check.sh`: coverage từng package, node contract tests (52/53, chỉ đỏ lỗi governance nền do commit `e88a055`), migrate, và `scripts/test-go.sh --race` (chỉ đỏ `TestChatFollowUpHTTP` đã biết và flake song song `TestTaskCRUD`, xem spec §7quater).
+> **Trạng thái:** shipped — lát C của spec ô Task human-parity (2026-09-13). `make check` không chạy trọn: cả hai lần nó dừng ở `pnpm test`, tại hai test views là flake đã ghi ở spec §7quater mục 11 (`project-detail-page`, `markdown-paste`; chạy riêng đều xanh), nên không tới được Go test. Các bước còn lại được chạy tay theo đúng lệnh trong `scripts/check.sh`: coverage từng package, node contract tests (52/53, chỉ đỏ lỗi governance nền do commit `e88a055`), migrate, và `scripts/test-go.sh --race` (chỉ đỏ `TestChatFollowUpHTTP` đã biết và flake song song `TestTaskCRUD`, xem spec §7quater).
 
 **Goal:** Một bộ picker trường công việc duy nhất, dùng chung cho ô bảng, sidebar chi tiết và thanh hành động hàng loạt, thay cho ba bản cài đặt song song hiện nay; cộng picker ngày và menu hành động trên hàng.
 
@@ -222,6 +222,8 @@ git commit -m "refactor(tasks): một picker người phụ trách cho cả ba n
 ```
 
 ## Task 3: Ngày
+
+> **Đổi hình dạng khi thực thi.** Task này không làm như viết dưới đây. Không có `pickers/date-picker.tsx`: `packages/views/common/date-field.tsx` đã là picker ngày dùng chung (đúng múi giờ, có nút xoá, có test), nên thêm file thứ hai đi ngược mục đích hợp nhất. Ngày bắt đầu vẫn chỉ đọc vì task không có đường ghi `start_date` ở backend (spec §7quater mục 1), và sidebar đã có ngày hạn sửa được. Thay vào đó task 3 đổi tên `onTriggerPointerDown` thành `onTriggerNavigationGuard` (945b93d) và thêm đặt ngày hạn cho nhiều task từ thanh hàng loạt (c70c146). Lý do và bằng chứng file:dòng nằm ở ledger `.superpowers/sdd/2026-09-13-tasks-human-parity-slice-c/progress.md`, mục "Task 3 — PREFLIGHT". Các bước bên dưới giữ nguyên để đối chiếu.
 
 Bảng đã có `TableDueDateCell`. Sidebar và hàng loạt chưa có ngày nào. Ngày bắt đầu chưa có ở đâu cả.
 

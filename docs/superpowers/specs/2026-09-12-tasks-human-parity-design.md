@@ -263,8 +263,14 @@ Lát C hợp nhất ba bản cài đặt song song thành một bộ picker tron
 `packages/views/tasks/pickers/` (trạng thái, độ ưu tiên, người phụ trách, nhãn)
 dùng chung cho ô bảng, sidebar chi tiết và thanh hàng loạt; thêm đặt ngày hạn
 cho nhiều task cùng lúc; và thêm menu hành động trên hàng (nút ba chấm) cùng
-menu chuột phải cho list và board. Các điểm dưới đây còn đúng ở mã khi lát C
-merge. Mỗi điểm nói rõ đó là quyết định có chủ đích hay khoảng trống cho lát
+menu chuột phải cho list và board. Thẻ swimlane cũng có cả hai menu, vì
+`packages/views/tasks/modes/swimlane-cell.tsx` dùng lại `DraggableBoardCard`.
+Lát C còn sửa kéo-cuộn bảng để một lần nhấn trong menu portal không bắt đầu
+kéo-cuộn (`packages/views/tasks/modes/use-board-drag-pan.ts`, d36c132, test
+8b96da8), và chặn gửi xoá hai lần: nút xác nhận bỏ qua cú bấm thứ hai khi
+request còn treo (1cce781), và mỗi hàng chỉ có một model hành động và một hộp
+thoại xoá, nên xoá lại qua lối vào kia cũng bị chặn (ed68ccf). Các điểm dưới
+đây còn đúng ở mã khi lát C merge. Mỗi điểm nói rõ đó là quyết định có chủ đích hay khoảng trống cho lát
 sau, và cần gì để đóng.
 
 1. **Ngày bắt đầu chỉ đọc.** Khoảng trống, cần backend. Task không có đường ghi
@@ -329,7 +335,11 @@ sau, và cần gì để đóng.
 10. **Chưa kiểm trên trình duyệt thật.** Khoảng trống kiểm chứng. Màu chip nhãn,
     nút gỡ nhãn, vị trí nút ba chấm và cơ chế chặn nổi bọt sự kiện qua portal
     lồng nhau của Base UI chỉ được kiểm trên jsdom; `e2e/` chưa có kịch bản nào
-    chạm picker hay menu hàng. Để đóng: kịch bản E2E mà §6 đã hẹn.
+    chạm picker hay menu hàng. Việc picker bị tắt không mở được cũng vậy: bằng
+    chứng là mã nguồn Base UI (`MenuTrigger` mở ở `mousedown` và chỉ nghe prop
+    `disabled` của nó, `@base-ui/react` 1.7.0 `menu/trigger/MenuTrigger.js:161-163`)
+    cộng một test jsdom chờ đúng một animation frame. Để đóng: kịch bản E2E mà
+    §6 đã hẹn.
 
 11. **Flake "Group _r_2_ not found"** ở
     `packages/views/layout/animated-right-sidebar.tsx` thỉnh thoảng làm lần chạy
@@ -346,6 +356,26 @@ sau, và cần gì để đóng.
     `Dispatcher.Process` trên cả database dùng chung, nên dispatcher của package
     test khác chạy cùng lúc có thể nhận mất dòng outbox của test này. Lát C
     không chạm `server/`. Để đóng: cô lập outbox theo test, không nới timeout.
+
+12. **Picker người phụ trách ở bảng và thanh hàng loạt không có trạng thái
+    tải hay lỗi.** Khoảng trống. `TableAssigneeCell` trong
+    `packages/views/tasks/modes/table-cell-editors.tsx` và `BatchAssigneePicker`
+    trong `packages/views/tasks/views/batch-pickers.tsx` chỉ nhận mảng thành
+    viên, nên khi danh sách còn đang tải hoặc tải lỗi, popup chỉ có một dòng
+    "Chưa giao", trông như workspace không có ai. Menu con người phụ trách trên
+    hàng đã báo đang tải và lỗi (8925d50); hai picker này chưa. Để đóng: truyền
+    trạng thái query thành viên vào `AssigneePicker` và hiện dòng tải, dòng lỗi
+    bị tắt như menu con.
+
+13. **Ô ngày hạn hàng loạt dùng `disabled` native.** Quyết định có chủ đích,
+    hoãn. `BatchDueDatePicker` truyền `disabled` xuống `DateField`
+    (`packages/views/tasks/views/batch-pickers.tsx:150`), và `DateField` đặt nó
+    thành `disabled` native trên nút, nên khi đang có request hàng loạt ô này
+    rời tab order, trái hợp đồng `aria-disabled` của repo. Các nút khác trên
+    thanh đã dùng `aria-disabled`. Hoãn vì `packages/views/common/date-field.tsx`
+    có 11 module import, sửa nó là thay đổi chung cho mọi màn hình đó chứ không
+    phải của lát C. Để đóng: `DateField` nhận `aria-disabled` và tự chặn mở
+    popover, kèm test ở `common/`.
 
 ## 8. Việc làm tiếp theo
 
