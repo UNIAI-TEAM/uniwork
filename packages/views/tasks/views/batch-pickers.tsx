@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
+import { DateField } from "../../common/date-field";
 import {
   AssigneePicker,
   PriorityPicker,
@@ -15,6 +16,7 @@ type BatchUpdates = {
   priority?: string;
   assignee_id?: string | null;
   assignee_kind?: string;
+  due_date?: string | null;
 };
 
 export function BatchStatusPicker({
@@ -114,6 +116,40 @@ export function BatchAssigneePicker({
     >
       {label}
     </AssigneePicker>
+  );
+}
+
+export function BatchDueDatePicker({
+  disabled,
+  onUpdate,
+}: {
+  disabled?: boolean;
+  onUpdate: (updates: BatchUpdates) => void;
+}) {
+  const { t } = useTranslation();
+  const id = useId();
+  return (
+    // Same rule as the three pickers above: the action is named by a fixed
+    // label, never by a value, because a multi-task selection can hold
+    // different due dates. DateField renders no custom trigger text, so the
+    // name comes from a real <label> bound through the `id` it already
+    // forwards to its trigger, and `value` stays empty so the trigger never
+    // shows one task's day.
+    //
+    // No row-navigation guard here on purpose: the batch toolbar is not inside
+    // a table row, so there is nothing to stop from bubbling.
+    <div className="flex items-center gap-1 pl-1">
+      <label htmlFor={id} className="text-body text-muted-foreground">
+        {t("tasks.batch.due_date")}
+      </label>
+      <DateField
+        id={id}
+        value=""
+        disabled={disabled}
+        onChange={(next) => onUpdate({ due_date: next || null })}
+        className="h-8 w-auto border-0 bg-transparent px-2.5 shadow-none hover:bg-accent dark:bg-transparent"
+      />
+    </div>
   );
 }
 

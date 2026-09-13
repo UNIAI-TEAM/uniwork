@@ -742,6 +742,7 @@
       "priority": "Priority",
       "assignee": "Assignee",
       "assignee_mixed": "Mixed",
+      "due_date": "Due date",
       "agent_trigger": "Run agent",
       "squad_assign": "Assign squad",
       "delete": "Delete",

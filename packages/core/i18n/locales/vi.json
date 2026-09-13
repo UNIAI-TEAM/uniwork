@@ -741,6 +741,7 @@
       "priority": "Độ ưu tiên",
       "assignee": "Người nhận",
       "assignee_mixed": "Khác nhau",
+      "due_date": "Hạn",
       "agent_trigger": "Chạy agent",
       "squad_assign": "Gán squad",
       "delete": "Xóa",

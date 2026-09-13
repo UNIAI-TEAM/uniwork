@@ -28,6 +28,7 @@ import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
 import {
   BatchAssigneePicker,
+  BatchDueDatePicker,
   BatchPriorityPicker,
   BatchStatusPicker,
   type BatchUpdates,
@@ -163,6 +164,10 @@ export function BatchActionToolbar({
                 mixed={common.assignee === null}
                 disabled={loading}
                 members={members}
+                onUpdate={(updates) => void handleBatchUpdate(updates)}
+              />
+              <BatchDueDatePicker
+                disabled={loading}
                 onUpdate={(updates) => void handleBatchUpdate(updates)}
               />
 

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Task } from "@uniwork/core/types";
+import { toDateOnly } from "../../common/date-field";
 import {
   TaskSurfaceActionsProvider,
   type TaskSurfaceActions,
@@ -180,5 +181,84 @@ describe("BatchActionToolbar delete", () => {
 
     expect(screen.queryByTestId("batch-agent-trigger")).toBeNull();
     expect(screen.queryByTestId("batch-squad-assign")).toBeNull();
+  });
+});
+
+describe("BatchActionToolbar due date", () => {
+  // react-day-picker + date-fns sit behind React.lazy in DateField; warming the
+  // chunk here keeps the assertions waiting on Suspense, not on a compile.
+  beforeAll(async () => {
+    await import("@uniwork/ui/components/ui/calendar");
+  }, 60_000);
+
+  function renderWithDueDates(
+    dueDate: string | undefined,
+    batchUpdate: (ids: string[], updates: Record<string, unknown>) => Promise<void>,
+  ) {
+    render(
+      wrap(
+        <TaskSurfaceActionsProvider
+          actions={{ ...noopActions, batchUpdate }}
+        >
+          <TaskSurfaceSelectionProvider selection={selectionStub(["a", "b"])}>
+            <BatchActionToolbar
+              workspaceId="w1"
+              tasks={[
+                makeTask({ id: "a", due_date: dueDate }),
+                makeTask({ id: "b", due_date: dueDate }),
+              ]}
+            />
+          </TaskSurfaceSelectionProvider>
+        </TaskSurfaceActionsProvider>,
+      ),
+    );
+  }
+
+  async function openCalendar() {
+    fireEvent.click(screen.getByRole("button", { name: "Hạn" }));
+    await screen.findAllByRole("gridcell", {}, { timeout: 20_000 });
+  }
+
+  it("sends the picked day as due_date for every selected task", async () => {
+    const batchUpdate = vi.fn().mockResolvedValue(undefined);
+    renderWithDueDates(undefined, batchUpdate);
+    await openCalendar();
+
+    const now = new Date();
+    const tenth = toDateOnly(new Date(now.getFullYear(), now.getMonth(), 10));
+    fireEvent.click(
+      screen
+        .getAllByRole("gridcell")
+        .map((cell) => cell.querySelector("button"))
+        .find((btn) => btn?.textContent === "10")!,
+    );
+
+    await waitFor(() => {
+      expect(batchUpdate).toHaveBeenCalledWith(["a", "b"], {
+        due_date: tenth,
+      });
+    });
+  });
+
+  it("clears the due date with null, not an empty string", async () => {
+    const batchUpdate = vi.fn().mockResolvedValue(undefined);
+    renderWithDueDates("2026-09-06", batchUpdate);
+    await openCalendar();
+
+    fireEvent.click(screen.getByText("Bỏ chọn ngày"));
+
+    await waitFor(() => {
+      expect(batchUpdate).toHaveBeenCalledWith(["a", "b"], { due_date: null });
+    });
+  });
+
+  it("names the action with a fixed label, never a selected task's date", () => {
+    renderWithDueDates("2026-09-06", vi.fn().mockResolvedValue(undefined));
+
+    // Every selected task shares 2026-09-06, and the trigger still must not
+    // show it: the label names the action, the trigger offers to pick a day.
+    const trigger = screen.getByRole("button", { name: "Hạn" });
+    expect(trigger.textContent).toBe("Chọn ngày");
+    expect(screen.queryByText(/2026/)).toBeNull();
   });
 });
