@@ -195,6 +195,7 @@ export function TaskDetailPropertiesSidebar({
           <StatusPicker
             value={task.status}
             ariaLabel={t("tasks.status")}
+            valueLabel={t(`tasks.status_${task.status}`)}
             triggerClassName="h-8 w-full justify-start px-2"
             onChange={(value) => {
               // Skip the PUT when the picked value matches the current one:
@@ -213,6 +214,7 @@ export function TaskDetailPropertiesSidebar({
           <PriorityPicker
             value={task.priority}
             ariaLabel={t("tasks.priority")}
+            valueLabel={t(`tasks.priority_${task.priority}`)}
             triggerClassName="h-8 w-full justify-start px-2"
             onChange={(value) => {
               if (value !== task.priority) {
@@ -236,6 +238,7 @@ export function TaskDetailPropertiesSidebar({
             value={assigneeValue}
             options={assigneeOptions}
             ariaLabel={t("tasks.assignee")}
+            valueLabel={task.assignee?.display_name ?? t("tasks.unassigned")}
             unassignedLabel={t("tasks.unassigned")}
             searchPlaceholder={t("tasks.assignee_search_placeholder")}
             noResultsLabel={t("tasks.assignee_no_results")}

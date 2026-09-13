@@ -25,6 +25,7 @@ export function StatusPicker({
   onChange,
   disabled,
   ariaLabel,
+  valueLabel,
   onTriggerNavigationGuard,
   triggerClassName,
   align,
@@ -35,6 +36,7 @@ export function StatusPicker({
   onChange: (value: TaskStatus) => void;
   disabled?: boolean;
   ariaLabel: string;
+  valueLabel?: string;
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
   align?: "start" | "center" | "end";
@@ -49,6 +51,7 @@ export function StatusPicker({
       onChange={(next) => onChange(next as TaskStatus)}
       disabled={disabled}
       ariaLabel={ariaLabel}
+      valueLabel={valueLabel}
       onTriggerNavigationGuard={onTriggerNavigationGuard}
       triggerClassName={triggerClassName}
       align={align}

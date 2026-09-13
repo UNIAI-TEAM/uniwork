@@ -131,6 +131,22 @@ describe("LabelPicker", () => {
     expect(trigger).not.toBeDisabled();
   });
 
+  it("tên truy cập của trigger chứa cả trường và các nhãn đang hiển thị", () => {
+    render(
+      <LabelPicker
+        labels={catalog}
+        selectedIds={new Set(["l1", "l2"])}
+        onToggle={vi.fn()}
+        ariaLabel="Nhãn"
+        valueLabel="Bug, Frontend"
+        emptyLabel="Workspace chưa có nhãn"
+      >
+        Bug Frontend
+      </LabelPicker>,
+    );
+    expect(screen.getByRole("button", { name: "Nhãn: Bug, Frontend" })).toBeInTheDocument();
+  });
+
   it("danh mục rỗng hiện trạng thái rỗng thay vì popup trắng", () => {
     render(wrap(<Harness labels={[]} />));
     openMenu();

@@ -53,6 +53,14 @@ describe("TableLabelsCell", () => {
     expect(screen.getByText("Frontend").className).toMatch(/bg-tint-blue/);
     expect(screen.queryByText("Backend")).not.toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nhãn: Bug, Frontend, +1" })).toBeInTheDocument();
+  });
+
+  it("không có nhãn thì tên truy cập nói giá trị Trống đang hiển thị", async () => {
+    serveAttached([]);
+    render(wrap(<TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} />));
+    const trigger = await screen.findByRole("button", { name: "Nhãn: Trống" });
+    expect(trigger).toHaveTextContent("Trống");
   });
 
   it("bấm trigger hay bấm một nhãn trong menu đều không điều hướng hàng", async () => {

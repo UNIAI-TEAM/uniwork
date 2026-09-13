@@ -60,6 +60,7 @@ export function TableStatusCell({
       value={value}
       onChange={onChange}
       ariaLabel={t("tasks.status")}
+      valueLabel={t(`tasks.status_${value}`)}
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
       icon={(status) => (
@@ -97,6 +98,7 @@ export function TablePriorityCell({
       value={value}
       onChange={onChange}
       ariaLabel={t("tasks.priority")}
+      valueLabel={t(`tasks.priority_${value}`)}
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
       icon={(priority) => (
@@ -142,6 +144,7 @@ export function TableAssigneeCell({
   const { t } = useTranslation();
   const selected = members.find((member) => member.id === assigneeId);
   const options = toHumanAssigneeOptions(members);
+  const shownName = selected?.name ?? assigneeName ?? t("tasks.unassigned");
   const value: AssigneeRef | null = assigneeId
     ? { id: assigneeId, kind: assigneeKind === "agent" ? "agent" : "human" }
     : null;
@@ -151,6 +154,9 @@ export function TableAssigneeCell({
       options={options}
       onChange={(next) => onChange(next?.id ?? null)}
       ariaLabel={t("tasks.assignee")}
+      valueLabel={
+        assigneeKind === "agent" ? `${shownName} ${t("agents.badge")}` : shownName
+      }
       unassignedLabel={t("tasks.unassigned")}
       searchPlaceholder={t("tasks.assignee_search_placeholder")}
       noResultsLabel={t("tasks.assignee_no_results")}
@@ -226,6 +232,14 @@ export function TableLabelsCell({
   const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId);
   const selected = attached.data?.labels ?? [];
   const selectedIds = new Set(selected.map((label) => label.id));
+  // Mirrors the chips below: two names, then "+N", or the empty placeholder.
+  const shownLabels =
+    selected.length === 0
+      ? t("tasks.table.empty_value")
+      : [
+          ...selected.slice(0, 2).map((label) => label.name),
+          ...(selected.length > 2 ? [`+${selected.length - 2}`] : []),
+        ].join(", ");
 
   return (
     <LabelPicker
@@ -234,6 +248,7 @@ export function TableLabelsCell({
       pendingIds={pendingIds}
       onToggle={toggle}
       ariaLabel={t("tasks.detail.prop_labels")}
+      valueLabel={shownLabels}
       emptyLabel={t("tasks.table.labels_empty")}
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"

@@ -162,6 +162,25 @@ describe("AssigneePicker", () => {
     });
   });
 
+  it("tên truy cập của trigger chứa cả trường và người đang hiển thị", () => {
+    render(
+      <AssigneePicker
+        value={{ id: "u1", kind: "human" }}
+        options={fewOptions}
+        onChange={vi.fn()}
+        ariaLabel="Người phụ trách"
+        valueLabel="An Nguyễn"
+        unassignedLabel="Chưa giao"
+        searchPlaceholder="Tìm thành viên"
+        noResultsLabel="Không tìm thấy"
+      >
+        An Nguyễn
+      </AssigneePicker>,
+    );
+    const trigger = screen.getByRole("combobox", { name: "Người phụ trách: An Nguyễn" });
+    expect(trigger).toHaveTextContent("An Nguyễn");
+  });
+
   it("không mở danh sách khi disabled", () => {
     const { onChange } = renderPicker({ disabled: true });
     fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách" }));

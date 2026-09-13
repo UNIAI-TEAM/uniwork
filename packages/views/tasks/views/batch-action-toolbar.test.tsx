@@ -211,6 +211,30 @@ describe("BatchActionToolbar delete", () => {
     );
   });
 
+  it.each([
+    ["unassigned", [makeTask({ id: "a" }), makeTask({ id: "b" })], "Người nhận: Chưa giao"],
+    [
+      "mixed",
+      [
+        makeTask({ id: "a", assignee_id: "u1", assignee: { kind: "human", id: "u1", display_name: "An" } }),
+        makeTask({ id: "b" }),
+      ],
+      "Người nhận: Khác nhau",
+    ],
+  ] as const)("names the assignee picker by field and the %s value it shows", (_case, tasks, name) => {
+    render(
+      wrap(
+        <TaskSurfaceActionsProvider actions={noopActions}>
+          <TaskSurfaceSelectionProvider selection={selectionStub(["a", "b"])}>
+            <BatchActionToolbar workspaceId="w1" tasks={[...tasks]} />
+          </TaskSurfaceSelectionProvider>
+        </TaskSurfaceActionsProvider>,
+      ),
+    );
+    const trigger = screen.getByRole("combobox", { name });
+    expect(name).toContain(trigger.textContent?.trim() ?? "__missing__");
+  });
+
   it("does not mount agent trigger or squad assign chrome", () => {
     render(
       wrap(

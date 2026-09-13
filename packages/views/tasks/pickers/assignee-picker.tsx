@@ -19,6 +19,7 @@ import {
   ComboboxList,
   ComboboxTrigger,
 } from "@uniwork/ui/components/ui/combobox";
+import { usePickerTriggerLabel } from "./trigger-label";
 
 export type AssigneeKind = "human" | "agent";
 
@@ -125,6 +126,7 @@ export function AssigneePicker({
   onChange,
   disabled,
   ariaLabel,
+  valueLabel,
   unassignedLabel,
   searchPlaceholder,
   noResultsLabel,
@@ -138,6 +140,10 @@ export function AssigneePicker({
   onChange: (value: AssigneeRef | null) => void;
   disabled?: boolean;
   ariaLabel: string;
+  /** The value the trigger shows, as text. Joined into the accessible name
+   * ("field: value") so the name contains what is visible; omit it only when
+   * the trigger shows a fixed action label. */
+  valueLabel?: string;
   unassignedLabel: string;
   searchPlaceholder: string;
   noResultsLabel: string;
@@ -174,6 +180,7 @@ export function AssigneePicker({
   // we hold `open` closed ourselves — Combobox opens on pointerdown, earlier
   // than the click-time `aria-disabled` guard on `Button` would run.
   const [open, setOpen] = useState(false);
+  const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
 
   return (
     <Combobox
@@ -199,7 +206,7 @@ export function AssigneePicker({
             size="sm"
             className={triggerClassName}
             aria-disabled={disabled || undefined}
-            aria-label={ariaLabel}
+            aria-label={triggerLabel}
           />
         }
       >

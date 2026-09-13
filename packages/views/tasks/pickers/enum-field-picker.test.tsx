@@ -24,6 +24,22 @@ describe("EnumFieldPicker", () => {
     expect(onChange).toHaveBeenCalledWith("doing");
   });
 
+  it("tên truy cập của trigger chứa cả trường và giá trị đang hiển thị", () => {
+    render(
+      <EnumFieldPicker
+        value="doing"
+        options={options}
+        onChange={vi.fn()}
+        ariaLabel="Trạng thái"
+        valueLabel="Đang làm"
+      >
+        Đang làm
+      </EnumFieldPicker>,
+    );
+    const trigger = screen.getByRole("button", { name: "Trạng thái: Đang làm" });
+    expect(trigger).toHaveTextContent("Đang làm");
+  });
+
   it("không gọi onChange khi disabled", () => {
     const onChange = vi.fn();
     render(

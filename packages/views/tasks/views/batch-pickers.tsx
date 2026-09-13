@@ -87,6 +87,7 @@ export function BatchAssigneePicker({
   onUpdate: (updates: BatchUpdates) => void;
 }) {
   const { t } = useTranslation();
+  const field = t("tasks.batch.assignee");
   const label = useMemo(() => {
     if (mixed) return t("tasks.batch.assignee_mixed");
     if (!assigneeId) return t("tasks.unassigned");
@@ -105,7 +106,8 @@ export function BatchAssigneePicker({
       value={assigneeId ? { id: assigneeId, kind: "human" } : null}
       options={options}
       disabled={disabled}
-      ariaLabel={t("tasks.batch.assignee")}
+      ariaLabel={field}
+      valueLabel={label === field ? undefined : label}
       unassignedLabel={t("tasks.unassigned")}
       searchPlaceholder={t("tasks.assignee_search_placeholder")}
       noResultsLabel={t("tasks.assignee_no_results")}

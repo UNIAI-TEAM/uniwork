@@ -12,6 +12,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { tintFromColor } from "@uniwork/ui/lib/tint-from-color";
 import { cn } from "@uniwork/ui/lib/utils";
+import { usePickerTriggerLabel } from "./trigger-label";
 
 /** Token classes for a label chip: the stored hex mapped onto the nearest tint. */
 export function labelChipClass(color: string | null | undefined): string {
@@ -42,6 +43,7 @@ export function LabelPicker({
   onToggle,
   disabled,
   ariaLabel,
+  valueLabel,
   emptyLabel,
   onTriggerNavigationGuard,
   triggerClassName,
@@ -56,6 +58,10 @@ export function LabelPicker({
   onToggle: (labelId: string, checked: boolean) => void;
   disabled?: boolean;
   ariaLabel: string;
+  /** The value the trigger shows, as text. Joined into the accessible name
+   * ("field: value") so the name contains what is visible; omit it only when
+   * the trigger shows a fixed action label. */
+  valueLabel?: string;
   emptyLabel: string;
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
@@ -68,6 +74,7 @@ export function LabelPicker({
   // (@base-ui/react 1.7.0 menu/trigger/MenuTrigger.js:161-163), so `open` is
   // held closed here, as AssigneePicker does for its combobox.
   const [open, setOpen] = useState(false);
+  const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
 
   return (
     <DropdownMenu
@@ -87,7 +94,7 @@ export function LabelPicker({
             size="sm"
             className={triggerClassName}
             aria-disabled={disabled || undefined}
-            aria-label={ariaLabel}
+            aria-label={triggerLabel}
           />
         }
       >

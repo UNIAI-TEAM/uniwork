@@ -660,6 +660,7 @@
     "comments": "Bình luận",
     "addComment": "Viết bình luận…",
     "unassigned": "Chưa giao",
+    "picker_trigger_label": "{{field}}: {{value}}",
     "assignee_search_placeholder": "Tìm thành viên hoặc agent",
     "assignee_no_results": "Không có ai khớp với tìm kiếm.",
     "status_backlog": "Backlog",

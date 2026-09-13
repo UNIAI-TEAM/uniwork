@@ -9,6 +9,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { usePickerTriggerLabel } from "./trigger-label";
 
 export type EnumOption = { value: string; label: string; icon?: ReactNode };
 
@@ -49,6 +50,7 @@ export function EnumFieldPicker({
   onChange,
   disabled,
   ariaLabel,
+  valueLabel,
   onTriggerNavigationGuard,
   triggerClassName,
   align = "start",
@@ -59,6 +61,10 @@ export function EnumFieldPicker({
   onChange: (value: string) => void;
   disabled?: boolean;
   ariaLabel: string;
+  /** The value the trigger shows, as text. Joined into the accessible name
+   * ("field: value") so the name contains what is visible; omit it only when
+   * the trigger shows a fixed action label. */
+  valueLabel?: string;
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   /** Additive: lets a call site match its own layout (table cell density,
    * sidebar row width, ...) without every consumer sharing one trigger size. */
@@ -75,6 +81,7 @@ export function EnumFieldPicker({
   // (@base-ui/react 1.7.0 menu/trigger/MenuTrigger.js:161-163), so `open` is
   // held closed here, as AssigneePicker does for its combobox.
   const [open, setOpen] = useState(false);
+  const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
 
   return (
     <DropdownMenu
@@ -94,7 +101,7 @@ export function EnumFieldPicker({
             size="sm"
             className={triggerClassName}
             aria-disabled={disabled || undefined}
-            aria-label={ariaLabel}
+            aria-label={triggerLabel}
           />
         }
       >

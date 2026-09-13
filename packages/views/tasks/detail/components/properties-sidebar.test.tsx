@@ -188,6 +188,18 @@ describe("TaskDetailPropertiesSidebar", () => {
     });
   });
 
+  it("names each picker by its field and the value it shows", () => {
+    renderSidebar();
+    for (const field of ["Trạng thái", "Độ ưu tiên", "Người phụ trách"]) {
+      const trigger = screen.getByRole(field === "Người phụ trách" ? "combobox" : "button", {
+        name: new RegExp(`^${field}: `),
+      });
+      const visible = trigger.textContent?.trim() ?? "";
+      expect(visible).not.toBe("");
+      expect(trigger).toHaveAccessibleName(`${field}: ${visible}`);
+    }
+  });
+
   it("disables custom properties when the catalog is empty", () => {
     render(
       shell(

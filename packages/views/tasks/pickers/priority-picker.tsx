@@ -22,6 +22,7 @@ export function PriorityPicker({
   onChange,
   disabled,
   ariaLabel,
+  valueLabel,
   onTriggerNavigationGuard,
   triggerClassName,
   align,
@@ -32,6 +33,7 @@ export function PriorityPicker({
   onChange: (value: TaskPriority) => void;
   disabled?: boolean;
   ariaLabel: string;
+  valueLabel?: string;
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
   align?: "start" | "center" | "end";
@@ -46,6 +48,7 @@ export function PriorityPicker({
       onChange={(next) => onChange(next as TaskPriority)}
       disabled={disabled}
       ariaLabel={ariaLabel}
+      valueLabel={valueLabel}
       onTriggerNavigationGuard={onTriggerNavigationGuard}
       triggerClassName={triggerClassName}
       align={align}
