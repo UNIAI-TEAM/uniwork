@@ -2,6 +2,7 @@
 
 import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import type { BatchUpdateBody } from "@uniwork/core/api/endpoints/tasks-suite";
 import type { Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
 import { DateField } from "../../common/date-field";
 import {
@@ -11,13 +12,9 @@ import {
   type AssigneeOption,
 } from "../pickers";
 
-type BatchUpdates = {
-  status?: string;
-  priority?: string;
-  assignee_id?: string | null;
-  assignee_kind?: string;
-  due_date?: string | null;
-};
+// The endpoint body is the one definition: a field added there reaches every
+// picker's `onUpdate` without a second copy to keep in step.
+type BatchUpdates = BatchUpdateBody["updates"];
 
 export function BatchStatusPicker({
   status,
