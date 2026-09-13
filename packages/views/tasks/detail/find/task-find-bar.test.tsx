@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useEffect, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -307,13 +307,32 @@ describe("tìm trong trang chi tiết task", () => {
     expect(screen.getByRole("search")).toBeInTheDocument();
   });
 
-  it("đổi sang task khác thì thanh tìm đóng", async () => {
-    const view = await renderPage();
+  // Switching to a task that is already cached never shows the loading
+  // state, so the find scope stays mounted: only its own effect closes the
+  // bar. (A task that still has to load unmounts the scope, which would hide
+  // a missing effect.)
+  it("đổi sang task khác thì thanh tìm đóng, kể cả khi task đó đã có sẵn trong cache", async () => {
+    function TaskSwitcher() {
+      const [taskId, setTaskId] = useState("t2");
+      return (
+        <>
+          <button type="button" onClick={() => setTaskId((id) => (id === "t1" ? "t2" : "t1"))}>
+            đổi task
+          </button>
+          <TaskDetailSuitePage workspaceId="w1" taskId={taskId} />
+        </>
+      );
+    }
+    render(shell(<TaskSwitcher />));
+    await screen.findByText("Second task");
+    fireEvent.click(screen.getByRole("button", { name: "đổi task" }));
+    await screen.findByText("Ship detail shell");
     await openFind();
 
-    view.rerender(shell(<TaskDetailSuitePage workspaceId="w1" taskId="t2" />));
-    await screen.findByText("Second task");
+    fireEvent.click(screen.getByRole("button", { name: "đổi task" }));
 
+    // Served from cache: the page is already on t2, with no loading state in between.
+    expect(screen.getByText("Second task")).toBeInTheDocument();
     expect(screen.queryByRole("search")).toBeNull();
   });
 
