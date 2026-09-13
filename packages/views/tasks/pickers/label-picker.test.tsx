@@ -200,5 +200,21 @@ describe("LabelPicker", () => {
       await waitFor(() => expect(writeCalls()).toHaveLength(1));
       expect(onOpenRow).not.toHaveBeenCalled();
     });
+
+    it("middle-click trên một checkbox item bị chặn bởi guard của popup, không cần bộ lọc bảng", () => {
+      // No row-control filter here: a `menuitemcheckbox` target would match
+      // it, which would hide a missing popup `onAuxClick` guard. The row still
+      // bails on defaultPrevented and handles button 1, like DataTable.
+      const { onOpenRow } = renderInTableRow(
+        <Harness onTriggerNavigationGuard={stopRowNavigation} />,
+        { wrapper: wrap, rowControlFilter: false },
+      );
+      openMenu();
+      fireEvent(
+        screen.getByRole("menuitemcheckbox", { name: "Bug" }),
+        new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+      );
+      expect(onOpenRow).not.toHaveBeenCalled();
+    });
   });
 });
