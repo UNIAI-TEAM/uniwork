@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { draftWritesAllowed, registerDraftCleanup } from "../../drafts/cleanup-registry";
+import { draftWriteOwner, registerDraftCleanup } from "../../drafts/cleanup-registry";
 import { defaultStorage } from "../../platform/storage";
 
 /** Shared by the store and its cleanup registration so the two cannot drift. */
@@ -28,6 +28,8 @@ const EMPTY_RECENT_TASKS: readonly RecentTaskEntry[] = [];
 interface RecentTasksState {
   /** Newest visit first, per workspace id. */
   byWorkspace: Record<string, RecentTaskEntry[]>;
+  /** Id of the user who recorded `byWorkspace`, persisted with it; see `isOwnedBy`. */
+  ownerId: string | null;
   recordVisit: (workspaceId: string, entry: Omit<RecentTaskEntry, "visitedAt">) => void;
   /** Drop a task that no longer exists. */
   forget: (workspaceId: string, taskId: string) => void;
@@ -91,9 +93,12 @@ export const useRecentTasksStore = create<RecentTasksState>()(
   persist(
     (set) => ({
       byWorkspace: {},
-      // Both writes are refused while signed out: see `draftWritesAllowed`.
+      ownerId: null,
+      // Both writes are refused while signed out, and record the signed-in
+      // user as the owner otherwise: see `draftWriteOwner`.
       recordVisit: (workspaceId, entry) => {
-        if (!draftWritesAllowed()) return;
+        const ownerId = draftWriteOwner();
+        if (ownerId === null) return;
         set((state) => {
           let latest = 0;
           for (const bucket of Object.values(state.byWorkspace)) {
@@ -110,11 +115,15 @@ export const useRecentTasksStore = create<RecentTasksState>()(
             0,
             MAX_TASKS_PER_WORKSPACE,
           );
-          return { byWorkspace: capWorkspaces({ ...state.byWorkspace, [workspaceId]: bucket }) };
+          return {
+            byWorkspace: capWorkspaces({ ...state.byWorkspace, [workspaceId]: bucket }),
+            ownerId,
+          };
         });
       },
       forget: (workspaceId, taskId) => {
-        if (!draftWritesAllowed()) return;
+        const ownerId = draftWriteOwner();
+        if (ownerId === null) return;
         set((state) => {
           const previous = state.byWorkspace[workspaceId];
           if (!previous?.some((item) => item.id === taskId)) return state;
@@ -122,18 +131,22 @@ export const useRecentTasksStore = create<RecentTasksState>()(
           const bucket = previous.filter((item) => item.id !== taskId);
           if (bucket.length === 0) delete byWorkspace[workspaceId];
           else byWorkspace[workspaceId] = bucket;
-          return { byWorkspace };
+          return { byWorkspace, ownerId };
         });
       },
     }),
     {
       name: RECENT_TASKS_STORAGE_KEY,
       storage: createJSONStorage(() => defaultStorage),
-      partialize: (state) => ({ byWorkspace: state.byWorkspace }),
-      // Sanitize on every hydration, not only on a version change.
+      partialize: (state) => ({ byWorkspace: state.byWorkspace, ownerId: state.ownerId }),
+      // Sanitize on every hydration, not only on a version change. A value
+      // saved without an owner hydrates with `ownerId` null, so it belongs to
+      // no one who signs in and is released at the first sign-in.
       merge: (persisted, current) => ({
         ...current,
         byWorkspace: sanitizeByWorkspace(isRecord(persisted) ? persisted.byWorkspace : undefined),
+        ownerId:
+          isRecord(persisted) && typeof persisted.ownerId === "string" ? persisted.ownerId : null,
       }),
     },
   ),
@@ -160,5 +173,9 @@ export function useRecentTasks(workspaceId: string): readonly RecentTaskEntry[] 
 registerDraftCleanup({
   storageKey: RECENT_TASKS_STORAGE_KEY,
   workspaceScoped: false,
-  resetInMemory: () => useRecentTasksStore.setState({ byWorkspace: {} }),
+  resetInMemory: () => useRecentTasksStore.setState({ byWorkspace: {}, ownerId: null }),
+  isOwnedBy: (userId) => {
+    const { byWorkspace, ownerId } = useRecentTasksStore.getState();
+    return ownerId === userId || Object.keys(byWorkspace).length === 0;
+  },
 });

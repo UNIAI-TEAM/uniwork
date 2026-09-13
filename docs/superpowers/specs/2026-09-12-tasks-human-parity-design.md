@@ -395,7 +395,11 @@ tiết task (⌘F), thêm nhóm task xem gần đây trong palette ⌘K, và ghi
 giải quyết đang mở cùng sub-task đang gấp. Lát còn sửa một rò rỉ nội dung giữa
 người dùng mà lát B đưa vào: nháp bình luận nay bị xoá khỏi bộ nhớ và storage
 khi đăng xuất (6d6b36f), và mọi lần ghi vào store nháp hay store xem gần đây bị
-từ chối khi không còn phiên (9176654). Các điểm dưới đây còn đúng ở mã khi lát
+từ chối khi không còn phiên (9176654). Hai store đó còn ghi lại người đã viết dữ
+liệu: khi một người khác đăng nhập trên cùng trình duyệt, kể cả sau khi phiên
+trước hết hạn mà không qua đăng xuất hay sau khi tải lại trang, dữ liệu bị xoá
+khỏi bộ nhớ và storage; chính người đó đăng nhập lại thì còn nguyên. Các điểm
+dưới đây còn đúng ở mã khi lát
 D1 merge. Mỗi điểm nói rõ đó là quyết định có chủ đích hay khoảng trống, và cần
 gì để đóng.
 
@@ -497,9 +501,10 @@ gì để đóng.
 
 13. **Phiên hết hạn mà không qua đăng xuất làm mất tối đa 1,5 giây chữ gõ cuối
     trong ô bình luận.** Quyết định có chủ đích. Refresh lỗi đặt phiên về `anon`,
-    và `draftWritesAllowed` (`packages/core/drafts/cleanup-registry.ts`) từ chối
+    và `draftWriteOwner` (`packages/core/drafts/cleanup-registry.ts`) từ chối
     mọi lần ghi vào store nháp khi không còn `authed`. Lần ghi nháp debounce 1,5
-    giây còn đang chờ lúc đó bị bỏ; nháp đã lưu trước đó còn nguyên. Chốt chặn
+    giây còn đang chờ lúc đó bị bỏ; nháp đã lưu trước đó còn nguyên cho chính
+    người đó đăng nhập lại, còn người khác đăng nhập thì nháp bị xoá. Chốt chặn
     tập trung ở store vì nó phủ mọi đường ghi (flush khi unmount, timer debounce,
     gửi xong sau khi đã đăng xuất). Không cần đóng.
 

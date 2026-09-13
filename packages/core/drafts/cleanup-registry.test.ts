@@ -12,9 +12,10 @@ beforeEach(() => {
 describe("clearRegisteredGlobalDrafts", () => {
   it("removes every registered global key and leaves workspace-scoped keys alone", () => {
     const adapter = { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() };
-    registerDraftCleanup({ storageKey: "uniwork_global_a", workspaceScoped: false, resetInMemory: vi.fn() });
-    registerDraftCleanup({ storageKey: "uniwork_global_b", workspaceScoped: false, resetInMemory: vi.fn() });
-    registerDraftCleanup({ storageKey: "uniwork_scoped", workspaceScoped: true, resetInMemory: vi.fn() });
+    const owned = { resetInMemory: vi.fn(), isOwnedBy: () => true };
+    registerDraftCleanup({ storageKey: "uniwork_global_a", workspaceScoped: false, ...owned });
+    registerDraftCleanup({ storageKey: "uniwork_global_b", workspaceScoped: false, ...owned });
+    registerDraftCleanup({ storageKey: "uniwork_scoped", workspaceScoped: true, ...owned });
 
     clearRegisteredGlobalDrafts(adapter);
 
