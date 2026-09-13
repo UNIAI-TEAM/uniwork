@@ -108,6 +108,35 @@ describe("task detail UI store", () => {
     expect(ids).toContain("task-0");
     expect(ids).not.toContain("task-204");
   });
+
+  // Each id is a ULID, so an uncapped list read from storage is unbounded
+  // memory and an O(n) `includes` on every timeline render.
+  it("cắt danh sách luồng đang mở quá 200 id khi nạp, giữ những luồng mở sau cùng", () => {
+    const { merge } = useTaskDetailUiStore.persist.getOptions();
+    const resolvedExpanded = Array.from({ length: 5000 }, (_, i) => `c${i}`);
+
+    const merged = merge?.(
+      { tasks: { t1: { resolvedExpanded, subtasksCollapsed: false, touchedAt: 1 } } },
+      store(),
+    );
+
+    const ids = merged?.tasks.t1?.resolvedExpanded ?? [];
+    expect(ids).toHaveLength(200);
+    expect(ids[0]).toBe("c4800");
+    expect(ids.at(-1)).toBe("c4999");
+  });
+
+  it("mở quá 200 luồng đã giải quyết trong một task thì bỏ luồng mở sớm nhất", () => {
+    for (let i = 0; i <= 200; i += 1) {
+      store().setResolvedExpanded("t1", `c${i}`, true);
+    }
+
+    const ids = store().tasks.t1?.resolvedExpanded ?? [];
+    expect(ids).toHaveLength(200);
+    expect(store().isResolvedExpanded("t1", "c0")).toBe(false);
+    expect(store().isResolvedExpanded("t1", "c1")).toBe(true);
+    expect(store().isResolvedExpanded("t1", "c200")).toBe(true);
+  });
 });
 
 describe("task detail UI hooks", () => {

@@ -8,6 +8,13 @@ import { defaultStorage } from "../../platform/storage";
 const MAX_TASKS = 200;
 
 /**
+ * How many expanded resolved threads one task remembers; the one expanded
+ * earliest goes. Storage is read back as it was written, so without this a
+ * corrupted or hand-edited entry could carry any number of ids into memory.
+ */
+const MAX_EXPANDED_THREADS = 200;
+
+/**
  * Module-level empty list. Selectors fall back to THIS array, never to a
  * fresh `[]`: a new reference on every read makes zustand report a changed
  * snapshot each render, which re-runs every effect that depends on it (the
@@ -16,7 +23,7 @@ const MAX_TASKS = 200;
 const EMPTY_THREAD_IDS: readonly string[] = [];
 
 interface TaskDetailUiEntry {
-  /** Root comment ids of resolved threads the person expanded. */
+  /** Root comment ids of resolved threads the person expanded, oldest first. */
   resolvedExpanded: string[];
   subtasksCollapsed: boolean;
   /** Monotonic touch stamp; the smallest one is evicted first. */
@@ -83,9 +90,9 @@ function sanitizeTasks(value: unknown): Record<string, TaskDetailUiEntry> {
     if (!isRecord(raw) || !Array.isArray(raw.resolvedExpanded)) continue;
     if (typeof raw.subtasksCollapsed !== "boolean") continue;
     const entry: TaskDetailUiEntry = {
-      resolvedExpanded: raw.resolvedExpanded.filter(
-        (id): id is string => typeof id === "string",
-      ),
+      resolvedExpanded: raw.resolvedExpanded
+        .filter((id): id is string => typeof id === "string")
+        .slice(-MAX_EXPANDED_THREADS),
       subtasksCollapsed: raw.subtasksCollapsed,
       touchedAt:
         typeof raw.touchedAt === "number" && Number.isFinite(raw.touchedAt)
@@ -113,7 +120,7 @@ export const useTaskDetailUiStore = create<TaskDetailUiState>()(
           const current = state.tasks[taskId]?.resolvedExpanded ?? EMPTY_THREAD_IDS;
           if (current.includes(threadRootId) === expanded) return state;
           const resolvedExpanded = expanded
-            ? [...current, threadRootId]
+            ? [...current, threadRootId].slice(-MAX_EXPANDED_THREADS)
             : current.filter((id) => id !== threadRootId);
           return { tasks: writeEntry(state.tasks, taskId, { resolvedExpanded }) };
         }),
