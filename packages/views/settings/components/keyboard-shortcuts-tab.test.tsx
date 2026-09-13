@@ -137,6 +137,24 @@ describe("KeyboardShortcutsTab recording", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Phím này thuộc về trình duyệt, hệ điều hành hoặc thanh bên.");
   });
 
+  it("refuses Ctrl+F for any action but find in task, since chat message search also answers it", () => {
+    render(wrap(<KeyboardShortcutsTab />));
+    // Free the chord first, so the refusal cannot come from the conflict rule.
+    fireEvent.click(screen.getByRole("button", { name: "Gỡ phím tắt Tìm trong việc" }));
+    expect(getShortcut("findInTask")).toBeNull();
+
+    const button = recorder("Tạo việc");
+    fireEvent.click(button);
+    fireEvent.keyDown(button, { key: "f", ctrlKey: true });
+    expect(getShortcut("createTask")).toEqual(createShortcutChord("C"));
+    expect(screen.getByRole("alert")).toHaveTextContent("Ctrl/⌘+F chỉ dùng cho Tìm trong việc và tìm tin nhắn.");
+
+    const find = recorder("Tìm trong việc");
+    fireEvent.click(find);
+    fireEvent.keyDown(find, { key: "f", ctrlKey: true });
+    expect(getShortcut("findInTask")).toEqual(createShortcutChord("F", { primary: true }));
+  });
+
   it("refuses a browser-reserved chord such as Ctrl+W", () => {
     render(wrap(<KeyboardShortcutsTab />));
     const button = recorder("Tạo việc");

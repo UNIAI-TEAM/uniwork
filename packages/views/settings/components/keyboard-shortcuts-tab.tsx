@@ -7,6 +7,7 @@ import {
   SHORTCUT_ACTIONS,
   createShortcutChord,
   findShortcutConflict,
+  isFindShortcut,
   isReservedShortcut,
   isShortcutAllowedForAction,
   resolveShortcut,
@@ -60,9 +61,18 @@ export const SHORTCUT_ACTION_I18N_KEYS: Record<ShortcutActionId, string> = {
 type CaptureError =
   | { kind: "conflict"; actionId: ShortcutActionId }
   | { kind: "reserved" }
+  | { kind: "find" }
   | { kind: "send" }
   | { kind: "unsafe" }
   | null;
+
+/** Why `isShortcutAllowedForAction` refused a chord that is not reserved. */
+function refusalKind(actionId: ShortcutActionId, shortcut: ShortcutChord): "find" | "send" | "unsafe" {
+  if (actionId === "send") return "send";
+  // Cmd/Ctrl+F is refused for every action except findInTask.
+  if (isFindShortcut(shortcut)) return "find";
+  return "unsafe";
+}
 
 const GROUPS: readonly ShortcutCategory[] = ["general", "navigation"];
 
@@ -126,7 +136,7 @@ export function KeyboardShortcutsTab() {
       return;
     }
     if (!isShortcutAllowedForAction(actionId, shortcut)) {
-      setCaptureError({ kind: actionId === "send" ? "send" : "unsafe" });
+      setCaptureError({ kind: refusalKind(actionId, shortcut) });
       return;
     }
     // A chord another action owns is refused, not taken over: the user picks
@@ -271,6 +281,9 @@ function ShortcutRow({
   switch (error?.kind) {
     case "reserved":
       errorText = t("reserved_error");
+      break;
+    case "find":
+      errorText = t("find_error");
       break;
     case "send":
       errorText = t("send_error");

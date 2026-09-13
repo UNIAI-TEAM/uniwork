@@ -96,6 +96,41 @@ describe("isReservedShortcut", () => {
   });
 });
 
+describe("Cmd/Ctrl+F reservation", () => {
+  // The chat page opens message search on Cmd/Ctrl+F from a window listener
+  // that ignores defaultPrevented, so only findInTask may hold the chord.
+  it("refuses primary+F for every action except findInTask, extra modifiers included", () => {
+    const chords = [
+      createShortcutChord("F", { primary: true }),
+      createShortcutChord("F", { primary: true, shift: true }),
+    ];
+    for (const platform of ["macos", "windows", "linux"] as const) {
+      for (const runtime of ["web", "desktop"] as const) {
+        for (const chord of chords) {
+          for (const action of SHORTCUT_ACTIONS) {
+            expect(
+              isShortcutAllowedForAction(action.id, chord, platform, runtime),
+              `${action.id} ${JSON.stringify(chord.modifiers)} ${platform}/${runtime}`,
+            ).toBe(action.id === "findInTask");
+          }
+        }
+      }
+    }
+  });
+
+  it("refuses literal Control+F on macOS for other actions, which the chat listener also matches", () => {
+    const chord = createShortcutChord("F", { control: true });
+    expect(isShortcutAllowedForAction("createTask", chord, "macos", "web")).toBe(false);
+    expect(isShortcutAllowedForAction("goInbox", chord, "macos", "desktop")).toBe(false);
+    expect(isShortcutAllowedForAction("findInTask", chord, "macos", "web")).toBe(true);
+  });
+
+  it("leaves F without Cmd/Ctrl bindable for other actions", () => {
+    expect(isShortcutAllowedForAction("createTask", createShortcutChord("F"), "macos", "web")).toBe(true);
+    expect(isShortcutAllowedForAction("createTask", createShortcutChord("F", { alt: true }), "windows", "web")).toBe(true);
+  });
+});
+
 describe("isPortalLayerShortcutTarget", () => {
   it("is true inside an open menu", () => {
     const menu = document.createElement("div");

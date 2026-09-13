@@ -330,6 +330,23 @@ function hasCommandModifier(shortcut: ShortcutChord): boolean {
 }
 
 /**
+ * Cmd/Ctrl+F, with any extra modifier. It belongs to find: the task detail
+ * page answers `findInTask`, and the chat page (chat-page-content.tsx) opens
+ * message search from a window listener that ignores defaultPrevented, so any
+ * other action bound to it would fire alongside that search. The listener
+ * matches ctrlKey as well as metaKey, so literal Control+F counts on macOS,
+ * as literal Control+B does for the sidebar primitive.
+ */
+export function isFindShortcut(
+  shortcut: ShortcutChord,
+  platform: ShortcutPlatform = getShortcutPlatform(),
+): boolean {
+  const { modifiers, key } = shortcut;
+  if (key !== "F") return false;
+  return modifiers.primary || (platform === "macos" && modifiers.control);
+}
+
+/**
  * Product-level safety policy layered on top of OS/browser reservations.
  * Plain text keys are useful for non-editable navigation (for example `C`),
  * but an action allowed inside editors must not fire while the user types.
@@ -346,6 +363,7 @@ export function isShortcutAllowedForAction(
   // Tab is focus navigation (and Ctrl+Tab is browser tab navigation) on every
   // supported platform. It is never a dependable product-level binding.
   if (shortcut.key === "Tab") return false;
+  if (actionId !== "findInTask" && isFindShortcut(shortcut, platform)) return false;
   const hasModifier = hasShortcutModifier(shortcut);
   const hasCommand = hasCommandModifier(shortcut);
 

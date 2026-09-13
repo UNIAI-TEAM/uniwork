@@ -605,6 +605,7 @@
       "conflict_error": "Already used by {{action}}.",
       "reserved_error": "Reserved by the browser, the operating system or the sidebar.",
       "send_error": "Send can only use Enter or Ctrl/⌘+Enter.",
+      "find_error": "Ctrl/⌘+F is only for Find in task and message search.",
       "unsafe_error": "This key would interfere with typing or basic keyboard navigation.",
       "categories": {
         "general": "General",

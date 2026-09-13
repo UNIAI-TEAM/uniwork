@@ -604,6 +604,7 @@
       "conflict_error": "Đã dùng cho {{action}}.",
       "reserved_error": "Phím này thuộc về trình duyệt, hệ điều hành hoặc thanh bên.",
       "send_error": "Gửi chỉ dùng được Enter hoặc Ctrl/⌘+Enter.",
+      "find_error": "Ctrl/⌘+F chỉ dùng cho Tìm trong việc và tìm tin nhắn.",
       "unsafe_error": "Phím này sẽ cản việc gõ chữ hoặc di chuyển bằng bàn phím.",
       "categories": {
         "general": "Chung",
