@@ -79,8 +79,15 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
     const nextOpen = panel.isCollapsed();
     beginDesktopToggle(nextOpen);
     window.requestAnimationFrame(() => {
-      if (nextOpen) panel.expand();
-      else panel.collapse();
+      // Read the ref again: the panel group can unmount before this frame
+      // (the page unmounts, or swaps the layout for its loading/not-found
+      // branch while this hook stays mounted). React nulls the ref then, but
+      // the handle captured above still looks its group up and throws
+      // "Group … not found".
+      const mounted = panelRef.current;
+      if (!mounted) return;
+      if (nextOpen) mounted.expand();
+      else mounted.collapse();
     });
   }, [beginDesktopToggle, isMobile, panelRef]);
 
