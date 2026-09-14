@@ -176,7 +176,7 @@ test("the client decodes exactly the fields task.updated lists in Patch", () => 
   // side, so a commented-out list cannot stand in for the real one.
   const client = read("packages/core/tasks/realtime-task-patch.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
   const lists = [...client.matchAll(/const TASK_PATCH_FIELDS = \[([^\]]*)\] as const;/g)];
-  assert.equal(lists.length, 1, "packages/core/tasks/realtime-task-patch.ts must declare TASK_PATCH_FIELDS once, on one line");
+  assert.equal(lists.length, 1, "packages/core/tasks/realtime-task-patch.ts must declare `const TASK_PATCH_FIELDS = [...] as const;` exactly once");
   const row = goCatalogue().find((r) => r.topic === "task.updated");
   assert.ok(row, "task.updated is missing from server/internal/outbox/catalogue.go");
   assert.deepEqual(

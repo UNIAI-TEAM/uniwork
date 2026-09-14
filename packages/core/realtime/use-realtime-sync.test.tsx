@@ -380,18 +380,20 @@ describe("useRealtimeSync", () => {
       expect(keysCalled(invalidate)).toContain(JSON.stringify(["task", "t1"]));
     });
 
-    it("in the author's own tab, a detail entry the mutation response already wrote is invalidated, not patched", () => {
-      // usePutTask/useUpdateTask settle before the outbox frame arrives; the
-      // entry then sits at (or past) the frame's revision, so the guard skips.
+    it("invalidates, not patches, a detail entry whose settle refetch already landed at the frame's revision", () => {
+      // usePutTask and useUpdateTask never write the server's response into the
+      // cache; they invalidate on settle. When that refetch lands before the
+      // outbox frame, the entry already sits at (or past) the frame's revision,
+      // so the guard skips it.
       vi.useFakeTimers();
       const { qc, invalidate, client } = setup();
-      const fromResponse = detail({ title: "Tiêu đề mới", revision: 7 });
-      qc.setQueryData(["task", "t1"], fromResponse);
+      const fromRefetch = detail({ title: "Tiêu đề mới", revision: 7 });
+      qc.setQueryData(["task", "t1"], fromRefetch);
       client.emit({ type: "task.updated", payload: patchFrame() });
       act(() => {
         vi.advanceTimersByTime(250);
       });
-      expect(qc.getQueryData(["task", "t1"])).toBe(fromResponse);
+      expect(qc.getQueryData(["task", "t1"])).toBe(fromRefetch);
       expect(keysCalled(invalidate)).toEqual(
         expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
       );

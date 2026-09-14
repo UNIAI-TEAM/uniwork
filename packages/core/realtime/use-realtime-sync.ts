@@ -35,7 +35,7 @@ import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./inva
  * — the detail entry and the task's rows in list-style caches
  * (`applyTaskPatchFrame`, applied here before the keys are returned). When the
  * detail entry was patched the frame skips the detail key; list roots and
- * every other key still invalidate, so order and grouping come from the API.
+ * every other key still invalidate, so row order and placement come from the API.
  */
 function keysFor(
   wsId: string,

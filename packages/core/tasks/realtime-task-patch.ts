@@ -4,19 +4,17 @@ import { taskKeys } from "./keys";
 
 /**
  * Client copy of the `Patch` list on the `task.updated` row of
- * server/internal/outbox/catalogue.go (ADR 0015). Kept on one line:
- * scripts/events-catalogue.test.mjs reads it and fails when the two differ,
- * because a server field missing here would be skipped while the cache still
- * takes the frame's revision.
+ * server/internal/outbox/catalogue.go (ADR 0015), and the only list of Patch
+ * fields in this module: the decoder iterates it and `TaskPatchFields` is
+ * derived from it. scripts/events-catalogue.test.mjs reads this declaration
+ * and fails when the two lists differ, because a server field missing here
+ * would be skipped while the cache still takes the frame's revision.
  */
 const TASK_PATCH_FIELDS = ["title", "status", "priority", "due_date"] as const;
 
+/** One optional key per `TASK_PATCH_FIELDS` entry; `due_date` is `null` when the frame cleared the date (the server sends ""). */
 type TaskPatchFields = {
-  title?: string;
-  status?: string;
-  priority?: string;
-  /** `null` when the frame cleared the date (the server sends ""). */
-  due_date?: string | null;
+  [Field in (typeof TASK_PATCH_FIELDS)[number]]?: Field extends "due_date" ? string | null : string;
 };
 
 /** A `task.updated` frame that describes one whole update call (ADR 0015 Decision 3). */
@@ -98,7 +96,7 @@ type HasTasks = { tasks: Task[] };
 const hasTasks = (value: unknown): value is HasTasks =>
   typeof value === "object" && value !== null && Array.isArray((value as HasTasks).tasks);
 
-/** A `TaskQueryPage` or a `TaskGroup`: only the page holding the task is copied. */
+/** A `TaskQueryPage`: only the page holding the task is copied. */
 function patchTasksHolder<T extends HasTasks>(holder: T, frame: TaskPatchFrame): T {
   const tasks = patchRows(holder.tasks, frame);
   return tasks === holder.tasks ? holder : { ...holder, tasks };
@@ -147,14 +145,26 @@ function patchTableRowsEntry(data: unknown, frame: TaskPatchFrame): unknown {
   return changed ? { ...entry, rows } : data;
 }
 
-/** Rewrite every entry under `root` whose patch changed it; leave the rest untouched. */
+/**
+ * Rewrite every entry under `root` whose patch changed it; leave the rest
+ * untouched. An idle entry that an earlier wave already invalidated is skipped:
+ * `setQueryData` would clear its `isInvalidated` and restamp it, so if this
+ * frame's own wave were then lost (the scheduler disposed inside its debounce)
+ * the entry would read as fresh for the whole `staleTime`. Left alone, it
+ * refetches on mount. A fetching entry is still patched: whatever that fetch
+ * lands replaces the patch, and this frame's wave invalidates the root anyway.
+ */
 function patchEntries(
   qc: QueryClient,
   root: QueryKey,
   patchEntry: (data: unknown, frame: TaskPatchFrame) => unknown,
   frame: TaskPatchFrame,
 ) {
-  for (const [key, data] of qc.getQueriesData<unknown>({ queryKey: root })) {
+  const entries = qc.getQueriesData<unknown>({
+    queryKey: root,
+    predicate: ({ state }) => !(state.fetchStatus === "idle" && state.isInvalidated),
+  });
+  for (const [key, data] of entries) {
     const next = patchEntry(data, frame);
     if (next !== data) qc.setQueryData<unknown>(key, next);
   }
@@ -185,11 +195,12 @@ function patchDetail(qc: QueryClient, frame: TaskPatchFrame): boolean {
  * Patch every cached record of the task that sits at the frame's
  * `revision_before`: the detail entry (`taskKeys.detail`) and the task's rows
  * in `list`, the `queryRoot` and `myTasks` entries (plain pages and infinite
- * `{ pages }`), `grouped` and `tableRows`. A record at any other revision is
- * left alone; no entry or row is ever added, and rows never move between
- * groups, columns or pages — order and grouping come back with the list
- * refetch the caller still schedules. Returns whether the detail entry was
- * patched: only then may the caller skip this frame's detail invalidation.
+ * `{ pages }`) and `tableRows`. A record at any other revision is left alone,
+ * and so is an entry already due a refetch (`patchDetail`, `patchEntries`); no
+ * entry or row is ever added, and rows never move between groups, columns or
+ * pages — order comes back with the list refetch the caller still schedules.
+ * Returns whether the detail entry was patched: only then may the caller skip
+ * this frame's detail invalidation.
  */
 export function applyTaskPatchFrame(
   qc: QueryClient,
@@ -199,7 +210,6 @@ export function applyTaskPatchFrame(
   patchEntries(qc, taskKeys.list(wsId), (data, f) => (Array.isArray(data) ? patchRows(data, f) : data), frame);
   patchEntries(qc, taskKeys.queryRoot(wsId), patchQueryEntry, frame);
   patchEntries(qc, taskKeys.myTasks(wsId), patchQueryEntry, frame);
-  patchEntries(qc, taskKeys.groupedRoot(wsId), (data, f) => (Array.isArray(data) ? patchHolders(data, f) : data), frame);
   // Row entries only (`tableRows` minus its hash): groups and facets hold no task records.
   patchEntries(qc, taskKeys.tableRows(wsId, "").slice(0, -1), patchTableRowsEntry, frame);
   return { detailPatched: patchDetail(qc, frame) };

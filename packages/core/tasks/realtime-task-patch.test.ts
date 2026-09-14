@@ -172,8 +172,11 @@ describe("applyTaskPatchFrame", () => {
     expect(qc.getQueryData(taskKeys.detail("t1"))).toBe(cached);
   });
 
+  // usePutTask and useUpdateTask never write the server's response into the
+  // cache; they invalidate on settle. This is the entry once that refetch has
+  // landed ahead of the frame.
   it.each([7, 9])(
-    "leaves alone an entry the author's own mutation response already moved to revision %i",
+    "leaves alone an entry a settle refetch already moved to revision %i",
     (revision) => {
       const cached = task({ revision, title: "Tiêu đề mới" });
       const qc = seeded(cached);
@@ -222,6 +225,9 @@ describe("applyTaskPatchFrame on list-style caches", () => {
   const page = (tasks: Task[], offset = 0) => ({ tasks, total: 3, limit: 50, offset });
   const patched = task({ title: "Tiêu đề mới", status: "done", revision: 7 });
   const statusFrame = () => decoded({ status: "done" });
+  // Any write stamps dataUpdatedAt from the clock, even a write of equal data,
+  // so an entry seeded at this stamp that still carries it was never written.
+  const SEEDED_AT = 1;
 
   it("patches the task's row at revision_before in every list-style cache, in place, copying only what holds it", () => {
     const qc = new QueryClient();
@@ -232,8 +238,6 @@ describe("applyTaskPatchFrame on list-style caches", () => {
     const infinite = { pages: [firstPage, page([row], 50)], pageParams: [0, 50] };
     const myPlain = page([other, row]);
     const myInfinite = { pages: [page([row]), firstPage], pageParams: [0, 50] };
-    const doneGroup = { key: "done", tasks: [other] };
-    const grouped = [{ key: "todo", tasks: [third, row] }, doneGroup];
     const otherTableRow = { task: other, direct_child_count: 0 };
     const table = {
       query_fingerprint: "f",
@@ -246,7 +250,6 @@ describe("applyTaskPatchFrame on list-style caches", () => {
     qc.setQueryData(taskKeys.queryInfinite("ws1", "h"), infinite);
     qc.setQueryData(taskKeys.myTasksFiltered("ws1", "h"), myPlain);
     qc.setQueryData(taskKeys.myTasksInfinite("ws1", "h"), myInfinite);
-    qc.setQueryData(taskKeys.grouped("ws1", "h"), grouped);
     qc.setQueryData(taskKeys.tableRows("ws1", "h"), table);
 
     expect(applyTaskPatchFrame(qc, "ws1", statusFrame())).toEqual({ detailPatched: false });
@@ -268,16 +271,6 @@ describe("applyTaskPatchFrame on list-style caches", () => {
     expect(nextMyInfinite?.pages[0]).toEqual(page([patched]));
     expect(nextMyInfinite?.pages[1]).toBe(firstPage);
 
-    // The status changed to "done", yet the row stays in the "todo" group, in
-    // its place: grouping and order come back with the list refetch.
-    const nextGrouped = qc.getQueryData<typeof grouped>(taskKeys.grouped("ws1", "h"));
-    expect(nextGrouped?.map((g) => [g.key, g.tasks.map((t) => t.id)])).toEqual([
-      ["todo", ["t3", "t1"]],
-      ["done", ["t2"]],
-    ]);
-    expect(nextGrouped?.[0]?.tasks[1]).toEqual(patched);
-    expect(nextGrouped?.[1]).toBe(doneGroup);
-
     const nextTable = qc.getQueryData<typeof table>(taskKeys.tableRows("ws1", "h"));
     expect(nextTable?.rows[1]).toEqual({ task: patched, direct_child_count: 2 });
     expect(nextTable?.rows[0]).toBe(otherTableRow);
@@ -292,16 +285,53 @@ describe("applyTaskPatchFrame on list-style caches", () => {
       [taskKeys.queryInfinite("ws1", "h"), { pages: [page([other]), page([third], 50)], pageParams: [0, 50] }],
       [taskKeys.myTasksFiltered("ws1", "h"), page([other])],
       [taskKeys.myTasksInfinite("ws1", "h"), { pages: [page([task({ revision: 4 })])], pageParams: [0] }],
-      [taskKeys.grouped("ws1", "h"), [{ key: "todo", tasks: [other] }]],
       [taskKeys.tableRows("ws1", "h"), { query_fingerprint: "f", total: 1, branch_total: 1, rows: [{ task: other, direct_child_count: 0 }] }],
       [taskKeys.tableGroups("ws1", "h"), { groups: [{ key: "todo", count: 1 }] }],
       [taskKeys.list("ws2"), [task()]],
       [taskKeys.children("t0"), [task()]],
     ];
+    // Fresh entries, not invalidated ones: an idle invalidated entry is skipped
+    // before its rows are read, so it could not show the row guard at work.
+    for (const [key, data] of entries) qc.setQueryData(key, data, { updatedAt: SEEDED_AT });
+    expect(applyTaskPatchFrame(qc, "ws1", statusFrame())).toEqual({ detailPatched: false });
+    for (const [key, data] of entries) {
+      expect(qc.getQueryData(key)).toBe(data);
+      expect(qc.getQueryState(key)?.dataUpdatedAt).toBe(SEEDED_AT);
+    }
+  });
+
+  it("leaves a grouped entry alone, even one holding the task at revision_before: no query reads it", () => {
+    // Nothing reads taskKeys.grouped since useGroupedTasks was deleted, and
+    // task.updated never invalidates groupedRoot, so a patched row there would
+    // keep its old group with no refetch to move it.
+    const qc = new QueryClient();
+    const grouped = [{ key: "todo", tasks: [other, task()] }];
+    qc.setQueryData(taskKeys.grouped("ws1", "h"), grouped, { updatedAt: SEEDED_AT });
+    expect(applyTaskPatchFrame(qc, "ws1", statusFrame())).toEqual({ detailPatched: false });
+    expect(qc.getQueryData(taskKeys.grouped("ws1", "h"))).toBe(grouped);
+    expect(qc.getQueryState(taskKeys.grouped("ws1", "h"))?.dataUpdatedAt).toBe(SEEDED_AT);
+  });
+
+  it("leaves an idle list-style entry that an earlier wave invalidated unpatched and still invalidated", () => {
+    // Writing it would clear isInvalidated and restamp dataUpdatedAt. If this
+    // frame's own wave were then lost (the scheduler disposed inside its
+    // debounce, as on a workspace switch), the entry would read as fresh for
+    // the whole staleTime. Left invalidated, it refetches on mount.
+    const qc = new QueryClient();
+    const entries: [readonly unknown[], unknown][] = [
+      [taskKeys.list("ws1"), [other, task()]],
+      [taskKeys.query("ws1", "h"), page([task()])],
+      [taskKeys.queryInfinite("ws1", "h"), { pages: [page([other]), page([task()], 50)], pageParams: [0, 50] }],
+      [taskKeys.myTasksFiltered("ws1", "h"), page([task()])],
+      [taskKeys.myTasksInfinite("ws1", "h"), { pages: [page([task()])], pageParams: [0] }],
+      [taskKeys.tableRows("ws1", "h"), { query_fingerprint: "f", total: 1, branch_total: 1, rows: [{ task: task(), direct_child_count: 0 }] }],
+    ];
     for (const [key, data] of entries) qc.setQueryData(key, data);
-    // Marked invalidated first: a rewrite of any entry, even with the same
-    // data, would clear the flag, so the flag proves nothing was written.
+    // No observer, so invalidation only marks the entries; none starts a fetch.
     void qc.invalidateQueries();
+    for (const [key] of entries) {
+      expect(qc.getQueryState(key)).toMatchObject({ fetchStatus: "idle", isInvalidated: true });
+    }
     expect(applyTaskPatchFrame(qc, "ws1", statusFrame())).toEqual({ detailPatched: false });
     for (const [key, data] of entries) {
       expect(qc.getQueryData(key)).toBe(data);
@@ -327,7 +357,7 @@ describe("applyTaskPatchFrame on list-style caches", () => {
       [taskKeys.queryInfinite("ws1", "bad"), { pages: "nope" }],
       [taskKeys.myTasksFiltered("ws1", "bad"), { tasks: "nope" }],
       [taskKeys.list("ws1"), { tasks: [task()] }],
-      [taskKeys.grouped("ws1", "bad"), [null, { key: "todo" }]],
+      [taskKeys.myTasksInfinite("ws1", "bad"), { pages: [null, { offset: 50 }], pageParams: [0, 50] }],
       [taskKeys.tableRows("ws1", "bad"), { rows: [null, { direct_child_count: 1 }] }],
     ];
     for (const [key, data] of odd) qc.setQueryData(key, data);
