@@ -243,7 +243,7 @@ export function InboxView() {
 
 function GroupLabel({ children }: { children: string }) {
   return (
-    <li role="presentation" className="sticky top-0 z-10 bg-background/95 px-3 pt-3 pb-1 text-caption font-medium text-muted-foreground backdrop-blur">
+    <li role="presentation" className="sticky top-0 z-10 bg-background/95 px-3 pt-3 pb-1 text-overline text-muted-foreground backdrop-blur">
       {children}
     </li>
   );

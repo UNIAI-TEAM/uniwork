@@ -49,7 +49,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
 import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
-import { IconTile, tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
@@ -63,8 +63,9 @@ interface NavItem {
   exact?: boolean;
 }
 
-/* Active row: pale-violet fill with brand text, the ClickUp selected state.
-   The glyph keeps its module tint on every row; the label alone changes. */
+/* Active row: the brand wash with brand text. The glyph keeps its module
+   tint on every row; the label alone changes. The unread count is the brand
+   fill — one colour for "attention", the same one the bell wears. */
 const navButtonClass =
   "text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-surface-selected data-active:text-brand data-active:hover:bg-surface-selected";
 
@@ -149,7 +150,7 @@ export function AppSidebar() {
                         {badge ? (
                           <SidebarMenuBadge
                             aria-label={t("notifications.bell_unread", { count: badge })}
-                            className={cn("rounded-full", tintSolidClass.pink)}
+                            className="rounded-full bg-primary text-primary-foreground"
                           >
                             {badge > 99 ? "99+" : badge}
                           </SidebarMenuBadge>

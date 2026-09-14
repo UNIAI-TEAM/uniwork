@@ -64,19 +64,31 @@ const iconTileVariants = cva(
         violet: "", blue: "", pink: "", orange: "", green: "",
         yellow: "", teal: "", gray: "", red: "",
         muted: "bg-muted text-muted-foreground",
-        destructive: "bg-destructive/10 text-destructive",
-        warning: "bg-warning/10 text-warning",
+        // Signal tones read the measured soft pairs, not an alpha of the
+        // text colour: an error tile on the muted band and one on a card
+        // now measure the same.
+        destructive: "bg-destructive-soft text-destructive-soft-foreground",
+        warning: "bg-warning-soft text-warning-soft-foreground",
+        success: "bg-success-soft text-success-soft-foreground",
+        info: "bg-info-soft text-info-soft-foreground",
+        brand: "bg-brand-subtle text-brand-subtle-foreground",
       },
       variant: {
         soft: "",
         solid: "",
+      },
+      /* A circle is the actor / event mark (a notification, a person's
+         action); the square stays the module / category mark. */
+      shape: {
+        square: "",
+        circle: "rounded-full",
       },
     },
     compoundVariants: [
       ...TINTS.map((tint) => ({ tone: tint, variant: "soft" as const, className: tintClass[tint] })),
       ...TINTS.map((tint) => ({ tone: tint, variant: "solid" as const, className: tintSolidClass[tint] })),
     ],
-    defaultVariants: { size: "md", tone: "muted", variant: "soft" },
+    defaultVariants: { size: "md", tone: "muted", variant: "soft", shape: "square" },
   },
 );
 
@@ -94,14 +106,15 @@ interface IconTileProps
  * Decorative by default: the label lives in the adjacent text, so the tile
  * is `aria-hidden`.
  */
-export function IconTile({ icon: Icon, size, tone, variant, className, ...props }: IconTileProps) {
+export function IconTile({ icon: Icon, size, tone, variant, shape, className, ...props }: IconTileProps) {
   return (
     <span
       aria-hidden="true"
       data-slot="icon-tile"
       data-tone={tone ?? "muted"}
       data-variant={variant ?? "soft"}
-      className={cn(iconTileVariants({ size, tone, variant }), className)}
+      data-shape={shape ?? "square"}
+      className={cn(iconTileVariants({ size, tone, variant, shape }), className)}
       {...props}
     >
       <Icon />
