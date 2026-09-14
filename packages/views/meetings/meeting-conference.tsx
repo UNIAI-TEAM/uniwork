@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RoomAudioRenderer,
   StartMediaButton,
@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
-import { useMeetingCapabilities, useRecordings } from "@uniwork/core/meetings";
+import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
@@ -40,6 +40,7 @@ import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { MeetingStageHeader } from "./meeting-stage-header";
 import { MeetingRoomSidebar, type MeetingSidebarTab } from "./meeting-room-sidebar";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
+import { muteRequesterIdentities } from "./meeting-signals";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
@@ -75,8 +76,14 @@ export function MeetingConference(props: {
   guestMode?: boolean;
   onLeave: () => void;
 }) {
+  const { canHost } = useMeetingPermissions(props.meeting ?? null, props.workspaceId ?? "");
+  const { data: apiParticipants } = useParticipants(props.meetingId ?? props.meeting?.id ?? "");
+  const hostIdentities = useMemo(
+    () => muteRequesterIdentities(props.meeting?.host_user_id, apiParticipants ?? []),
+    [apiParticipants, props.meeting?.host_user_id],
+  );
   return (
-    <MeetingSignalsProvider>
+    <MeetingSignalsProvider canHost={canHost.allowed} hostIdentities={hostIdentities}>
       <ConferenceStage {...props} />
     </MeetingSignalsProvider>
   );

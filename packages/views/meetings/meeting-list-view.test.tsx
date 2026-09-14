@@ -109,7 +109,7 @@ describe("MeetingList", () => {
     render(shell(<MeetingList workspaceId="w1" meetings={[overtime]} onOpenRoom={() => {}} />));
     expect(await screen.findAllByText("Overtime standup")).not.toHaveLength(0);
     expect(screen.queryByRole("button", { name: "Vào ngay" })).not.toBeInTheDocument();
-    expect(screen.getAllByText("Đã kết thúc").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Quá giờ").length).toBeGreaterThan(0);
   });
 
   it("marks today's meetings in the day heading", async () => {

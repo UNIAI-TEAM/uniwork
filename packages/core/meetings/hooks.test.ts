@@ -6,6 +6,7 @@ import {
   meetingKeys,
   splitMeetings,
   upsertMeetingChatMessage,
+  upsertMeetingTranscriptSegment,
 } from "./hooks";
 import type { Meeting, MeetingInviteLink } from "../types";
 
@@ -95,5 +96,16 @@ describe("upsertMeetingChatMessage", () => {
     expect(merged.map((m) => m.id)).toEqual(["1", "2"]);
     expect(upsertMeetingChatMessage(merged, saved)).toEqual(merged);
     expect(upsertMeetingChatMessage(undefined, saved).map((m) => m.id)).toEqual(["2"]);
+  });
+});
+
+describe("upsertMeetingTranscriptSegment", () => {
+  it("appends in spoken_at order without duplicates", () => {
+    const existing = [{ id: "1", meeting_id: "m1", text: "a", spoken_at: "2026-08-29T02:00:00Z" }];
+    const saved = { id: "2", meeting_id: "m1", text: "b", spoken_at: "2026-08-29T02:00:01Z" };
+    const merged = upsertMeetingTranscriptSegment(existing, saved);
+    expect(merged.map((s) => s.id)).toEqual(["1", "2"]);
+    expect(upsertMeetingTranscriptSegment(merged, saved)).toEqual(merged);
+    expect(upsertMeetingTranscriptSegment(undefined, saved).map((s) => s.id)).toEqual(["2"]);
   });
 });

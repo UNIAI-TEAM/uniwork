@@ -20,9 +20,8 @@ import { toastApiError } from "../toast-api-error";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingParticipantRow } from "./meeting-participant-row";
+import { PARTICIPANT_IDENTITY_PREFIX } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
-
-const PARTICIPANT_IDENTITY_PREFIX = "uw_participant_";
 
 function participantIdFromIdentity(identity: string): string | null {
   return identity.startsWith(PARTICIPANT_IDENTITY_PREFIX)

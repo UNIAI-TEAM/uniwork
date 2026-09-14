@@ -19,7 +19,11 @@ import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
-import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./invalidate-scheduler";
+import {
+  createInvalidateScheduler,
+  shouldInvalidateMeetingDetail,
+  TRANSCRIPT_INVALIDATE_MS,
+} from "./invalidate-scheduler";
 
 /**
  * Central WS → cache sync for one workspace.
@@ -322,6 +326,10 @@ function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting" && typeof queryKey[1] === "string";
 }
 
+function isTranscriptKey(queryKey: readonly unknown[]): boolean {
+  return Array.isArray(queryKey) && queryKey[0] === "meeting-transcript";
+}
+
 export function useRealtimeSync(client: WSClient | null, wsId: string): void {
   const qc = useQueryClient();
 
@@ -329,6 +337,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     if (!client || !wsId) return;
 
     const scheduler = createInvalidateScheduler(qc);
+    const transcriptScheduler = createInvalidateScheduler(qc, TRANSCRIPT_INVALIDATE_MS);
     const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
@@ -345,6 +354,10 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         ) {
           continue;
         }
+        if (isTranscriptKey(queryKey)) {
+          transcriptScheduler.schedule(queryKey);
+          continue;
+        }
         scheduler.schedule(queryKey);
       }
     });
@@ -355,6 +368,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       offAny();
       offReconnect();
       scheduler.dispose();
+      transcriptScheduler.dispose();
       void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);

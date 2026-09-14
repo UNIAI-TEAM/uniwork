@@ -5,8 +5,19 @@ import { useTranslation } from "react-i18next";
 import {
   msUntilScheduledEnd,
   SCHEDULE_WARN_1_MIN_MS,
+  useEndMeeting,
   useExtendMeeting,
 } from "@uniwork/core/meetings";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toast } from "sonner";
@@ -14,6 +25,9 @@ import { toastApiError } from "../toast-api-error";
 import { formatRemaining } from "./meeting-datetime";
 
 const BANNER_ANIM_MS = 280;
+
+const hostBtn =
+  "h-8 border-background/40 bg-background/10 text-background hover:bg-background/20";
 
 /** In-room banner: last minute of the scheduled window, then overtime until the host ends. */
 export function MeetingScheduleBanner({
@@ -29,7 +43,9 @@ export function MeetingScheduleBanner({
 }) {
   const { t } = useTranslation();
   const [now, setNow] = useState(() => Date.now());
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
   const extend = useExtendMeeting(workspaceId ?? "");
+  const end = useEndMeeting(workspaceId ?? "");
 
   const ms = endsAt ? msUntilScheduledEnd(endsAt, now) : null;
   const overtime = ms != null && ms <= 0;
@@ -68,7 +84,7 @@ export function MeetingScheduleBanner({
   if (!rendered || !endsAt) return null;
 
   const remaining = formatRemaining(endsAt, now);
-  const showExtend = overtime && canHost && Boolean(meetingId && workspaceId);
+  const showHostActions = overtime && canHost && Boolean(meetingId && workspaceId);
 
   const extendWindow = () => {
     if (!meetingId) return;
@@ -104,17 +120,29 @@ export function MeetingScheduleBanner({
               ? t("meetings.scheduleOvertimeBanner")
               : t("meetings.scheduleEndingBanner", { time: remaining ?? "00:00:00" })}
           </span>
-          {showExtend ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 border-background/40 bg-background/10 text-background hover:bg-background/20"
-              disabled={extend.isPending}
-              onClick={extendWindow}
-            >
-              {t("meetings.extendFifteen")}
-            </Button>
+          {showHostActions ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={hostBtn}
+                disabled={extend.isPending}
+                onClick={extendWindow}
+              >
+                {t("meetings.extendFifteen")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={hostBtn}
+                disabled={end.isPending}
+                onClick={() => setEndConfirmOpen(true)}
+              >
+                {t("meetings.end")}
+              </Button>
+            </>
           ) : null}
         </div>
         {shouldShow ? (
@@ -125,6 +153,28 @@ export function MeetingScheduleBanner({
           </p>
         ) : null}
       </div>
+
+      <AlertDialog open={endConfirmOpen} onOpenChange={setEndConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("meetings.endConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("meetings.endConfirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.back")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={end.isPending}
+              onClick={() => {
+                if (!meetingId) return;
+                end.mutate(meetingId, { onError: (err) => toastApiError(err, t("common.error")) });
+                setEndConfirmOpen(false);
+              }}
+            >
+              {t("meetings.confirmEnd")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -73,6 +73,11 @@ func TestAutoEndOverdueAtScheduledEnd(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
+		ID: sess.ID, Status: strText("ACTIVE"),
+	}); err != nil {
+		t.Fatal(err)
+	}
 	p, _ := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
 	_, err = s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
 		ID: "att-schedule", MeetingID: m.ID, ConferenceSessionID: sess.ID, ParticipantID: p.ID,

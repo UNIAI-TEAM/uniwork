@@ -1,5 +1,7 @@
 # Meeting — nâng cấp lên đẳng cấp thế giới (D08b)
 
+> **Trạng thái:** shipped
+
 Ngày: 2026-08-29. Nền: D08a (control plane + LiveKit) đã xong. Tài liệu này chốt
 những gì D08b làm, làm ở đâu, và những gì cố ý để lại.
 
@@ -12,21 +14,22 @@ duy nhất phù hợp `PRODUCT.md`: **AI ghi biên bản → việc cần làm t
 
 ### 1. Trong phòng họp — lớp cộng tác (data channel, không cần server)
 
-Tất cả đi qua LiveKit data channel, topic `uw.signal`, payload JSON
-`{ kind, from, target?, value? }`:
+Tất cả đi qua LiveKit data channel, topic `uw.signal`. Payload JSON
+`{ kind, target?, value? }`; `from` lấy từ envelope LiveKit (`msg.from.identity`),
+không nhét vào JSON.
 
 | kind | Ai gửi | Hiệu ứng |
 | --- | --- | --- |
 | `hand` | ai cũng được | `value: true/false`; tile hiện ✋, sidebar sắp người giơ tay lên đầu |
 | `reaction` | ai cũng được | emoji nổi lên trên tile 3s (👍 ❤️ 😂 🎉 👏) |
-| `mute_request` | host/admin | client đích tự tắt mic (giống Meet: người bị tắt vẫn tự bật lại được) |
+| `mute_request` | host (`canHost` lúc gửi; receiver chỉ honours identity host) | client đích tự tắt mic (giống Meet: người bị tắt vẫn tự bật lại được) |
 
-Hooks: `packages/views/meetings/use-meeting-signals.ts` (state `hands`,
+Hooks: `packages/views/meetings/use-meeting-signals.tsx` (state `hands`,
 `reactions`, gửi qua `useDataChannel("uw.signal")`). Không lưu DB. Không
 metadata participant (tránh round-trip server).
 
-Layout: `meeting-conference.tsx` ưu tiên **share screen → người đang nói →
-còn lại**, tối đa 9 tile/trang, phân trang bằng nút ‹ › (`useSpeakingParticipants`
+Layout: `conference-layout.ts` — share screen → đang nói → còn lại; grid /
+spotlight / sidebar, pin, ẩn camera tắt. Phân trang ‹ › (`useSpeakingParticipants`
 + `useTracks`). Hàm thuần `orderTracks()` có test.
 
 ### 2. Transcript trực tiếp + tóm tắt AI + tạo task
@@ -35,53 +38,61 @@ còn lại**, tối đa 9 tile/trang, phân trang bằng nút ‹ › (`useSpeak
   `vi-VN`/`en-US`). Mỗi câu final → `POST /meetings/{id}/transcript`
   `{ text, spoken_at }`. Overlay caption dưới stage; toggle trong control bar.
   Chrome/Edge/Safari hỗ trợ; trình duyệt không hỗ trợ ẩn nút.
-  *Lý do:* không cần STT server, không cần Egress/S3, chạy được ngay.
-  Nâng cấp sau: LiveKit Agents + STT server-side khi cần độ chính xác cao.
+  Khi `server_stt` bật (capability), UI ẩn Web Speech để tránh trùng.
+  *Lý do Web Speech:* không cần STT server, không cần Egress/S3, chạy được ngay.
+  Nâng cấp: LiveKit Agents + STT server-side — ingestion đã land; worker
+  production xem `2026-09-08-meeting-stt-agents-evaluation.md`.
 - Bảng `meeting_transcript_segments(id, meeting_id, participant_id, speaker_name,
   text, spoken_at, created_at)`; index CONCURRENTLY `(meeting_id, spoken_at)`.
 - `GET /meetings/{id}/transcript` — mọi thành viên workspace.
 - `POST /meetings/{id}/summary` — host/admin, meeting IN_PROGRESS hoặc ENDED.
-  Server gom transcript + notes + chat (nếu client gửi) → Claude
-  (`claude-opus-5`, Go SDK `anthropic-sdk-go`, tool `record_meeting_summary`
-  ép JSON) → lưu `meeting_summaries(id, meeting_id, summary, decisions JSON,
-  action_items JSON, model, created_by, created_at)`. Trả bản mới nhất.
-  `GET /meetings/{id}/summary` đọc bản mới nhất.
-- `POST /meetings/{id}/summary/tasks` `{ items: [{title, assignee_id?}] }` →
-  `TaskService.Create` từng item, description `"Từ cuộc họp: <title>"`.
-  Trả danh sách task id.
-- Không có `ANTHROPIC_API_KEY` → 503 `ai_not_configured`; UI ẩn nút.
-- Sự kiện realtime: `transcript.appended` (id-only) → invalidate
-  `meetingKeys.transcript`; `summary.created` → `meetingKeys.summary`.
+  Server gom transcript + notes + chat persist → `ai.Gateway`
+  (`CapMeetingSummarization`). Không có provider → 503 `ai_not_configured`;
+  entitlement `meeting.ai_summary`; UI ẩn nút qua
+  `GET /workspaces/{id}/meeting-capabilities`.
+  Lưu `meeting_summaries` (summary, decisions JSON, action_items JSON, model,
+  created_by, created_at, `usage_event_id`). `GET` bản mới nhất.
+- `POST /meetings/{id}/summary/tasks` `{ items: [{title, assignee_id?, owner?,
+  due_spoken?, …}] }` → `TaskService.Create`, description có
+  `"Từ cuộc họp: <title>"`, origin `meeting`. Trả danh sách task id.
+- Sự kiện realtime (ephemeral, id-only): `transcript.appended` → debounce
+  invalidate `meetingKeys.transcript` (~1.5s); POST upsert cache local.
+  `summary.created` → `meetingKeys.summary`.
 
 ### 3. Ghi hình (LiveKit Egress)
 
 - Provider port thêm `StartRecording(room) (egressID)` / `StopRecording(egressID)`.
   LiveKit adapter dùng `EgressClient.StartRoomCompositeEgress` ghi file MP4 vào
-  S3 (`AWS_*` đã có trong `.env.example`). Fake provider đếm gọi.
+  S3 (`LIVEKIT_RECORDING_BUCKET` + `AWS_*`). Fake provider đếm gọi.
 - Bảng `meeting_recordings(id, meeting_id, egress_id, status, file_url,
   started_by, started_at, ended_at)`.
 - `POST /meetings/{id}/recording/start|stop` — host/admin. `End` meeting tự
   stop mọi recording ACTIVE. Webhook `egress_ended` cập nhật `file_url`, status.
 - Control bar: nút ghi (host), badge 🔴 REC cho mọi người.
-- Egress chưa cấu hình (`LIVEKIT_EGRESS_S3_BUCKET` trống) → 503, UI ẩn nút.
+- Egress chưa cấu hình (`LIVEKIT_RECORDING_BUCKET` trống) → 503, UI ẩn nút.
+  Entitlement `meeting.recording`.
 
 ### 4. Vòng đời & lịch
 
-- Worker `RunAutoEnd` (cùng goroutine outbox, mỗi 60s): meeting IN_PROGRESS
-  có `ends_at + 2h < now` và không có attendance mở → `End` với actor
-  `system`. Audit `MEETING_AUTO_ENDED`.
+- Worker `RunAutoEnd` (goroutine riêng, mỗi 60s) và `room_finished`:
+  `IN_PROGRESS` quá `ends_at` với session không `ACTIVE` (IDLE / PENDING /
+  không session) → `ENDED` ngay. Session `ACTIVE` (còn người) giữ overtime
+  để host gia hạn hoặc kết thúc; trần 2h (`ends_at + 2h`) là cầu chì.
+  Actor `system`. Audit `MEETING_AUTO_ENDED`. Một SQL, không N+1 session.
 - `GET /meetings/{id}/calendar.ics` — file iCalendar chuẩn RFC 5545 (stdlib
   `text/template` không cần lib). Nút "Thêm vào lịch" ở detail.
 
 ### 5. Kiểm chứng & vận hành
 
-- Prometheus: `uniwork_meetings_total{event=started|ended|auto_ended}`,
-  `uniwork_meeting_join_decisions_total{decision}`,
-  `uniwork_meeting_summaries_total{outcome}`.
-- E2E `e2e/meetings.spec.ts`: tạo → mời → RSVP → start → detail hiện
-  IN_PROGRESS → end → ICS tải được. Không cần LiveKit.
-- Go test: transcript append/list, summary với fake AI client, auto-end, ICS.
-- FE test: `orderTracks`, signals reducer, endpoints malformed-response.
+- Prometheus: `uniwork_meetings_total{event=started|ended|auto_ended|summary_ok|summary_error}`,
+  `uniwork_meeting_join_decisions_total{decision}`. (Không tách
+  `uniwork_meeting_summaries_total` — gộp label `event`.)
+- E2E `e2e/meetings.spec.ts`: tạo → ICS → start → panel tóm tắt → end.
+  Không cần LiveKit. (Không cover mời → RSVP.)
+- Go test: transcript append/list, summary với fake AI client, auto-end
+  (phòng trống / overtime / trần 2h), ICS.
+- FE test: `orderTracks`, signals reducer, mute host identities, endpoints
+  malformed-response.
 
 ## Cố ý để lại (ngoài D08b)
 

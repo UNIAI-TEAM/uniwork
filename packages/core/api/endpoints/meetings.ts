@@ -387,11 +387,19 @@ export async function listTranscript(meetingId: string): Promise<MeetingTranscri
   return parseWithFallback(raw, TranscriptResponse, { segments: [] }, { endpoint: "listTranscript" }).segments;
 }
 
-export async function appendTranscript(meetingId: string, text: string, spokenAt?: string): Promise<void> {
-  await request(`/api/v1/meetings/${enc(meetingId)}/transcript`, {
+const TranscriptSegmentResponse = z.object({ segment: TranscriptSegmentSchema.nullable() });
+
+export async function appendTranscript(
+  meetingId: string,
+  text: string,
+  spokenAt?: string,
+): Promise<MeetingTranscriptSegment | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/transcript`, {
     method: "POST",
     body: { text, spoken_at: spokenAt ?? new Date().toISOString() },
   });
+  return parseWithFallback(raw, TranscriptSegmentResponse, { segment: null }, { endpoint: "appendTranscript" })
+    .segment;
 }
 
 const ChatResponse = z.object({ messages: z.array(ChatMessageSchema) });
