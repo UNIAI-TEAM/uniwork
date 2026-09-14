@@ -244,9 +244,10 @@
   --info: #5db4ff;
 
   --border: #2e2e2e;
-  /* 4.45 background / 4.18 surface / 3.56 muted / 3.93 rail. The old #6d6d76
-     fell to 2.95 on the new, lighter `muted`. */
-  --input: #7a7a84;
+  /* Resting controls stay within a 3–4:1 contrast band: 3.85 background / 3.62
+     surface / 3.08 muted / 3.40 rail. This keeps their boundary perceivable
+     without giving every field the visual weight of a focus indicator. */
+  --input: #707078;
   --ring: #b38cff;
 
   --selection: #2a1f4a;
