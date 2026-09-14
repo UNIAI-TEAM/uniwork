@@ -31,6 +31,15 @@ func TestCatchUpExcerptKinds(t *testing.T) {
 	}
 }
 
+func TestCatchUpCursorMode(t *testing.T) {
+	if got := catchUpCursorMode(true); got != "unread" {
+		t.Fatalf("member cursor: %q", got)
+	}
+	if got := catchUpCursorMode(false); got != "recent" {
+		t.Fatalf("public window: %q", got)
+	}
+}
+
 func TestCatchUpInboundAfterFiltersSelfAndOlder(t *testing.T) {
 	since := time.Date(2026, 9, 11, 8, 0, 0, 0, time.UTC)
 	rows := []ChatMessageRow{

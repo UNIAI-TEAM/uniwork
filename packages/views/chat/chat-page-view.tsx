@@ -458,6 +458,7 @@ export function ChatPageView({
         nameContext={nameContext}
         replyTo={replyTo}
         onReplyToChange={setReplyTo}
+        activeThreadRootId={activeThreadRootId}
         onActiveThreadRootIdChange={setActiveThreadRootId}
         draft={draft}
         onDraftChange={setDraft}

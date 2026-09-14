@@ -96,7 +96,7 @@ type ChatCatchUpSDO struct {
 	Highlights   []string                   `json:"highlights"`
 	ActionItems  []ChatCatchUpActionItemDTO `json:"action_items"`
 	MessageCount int                        `json:"message_count" example:"12"`
-	Mode         string                     `json:"mode" description:"unread khi tóm tắt sau last_read" example:"unread"`
+	Mode         string                     `json:"mode" description:"unread sau last_read; recent khi cửa sổ 48h (chưa join)" example:"unread"`
 	Since        string                     `json:"since" example:"2026-09-11T08:00:00Z"`
 	Usage        AiUsageDTO                 `json:"usage"`
 }

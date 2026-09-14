@@ -37,6 +37,7 @@ export type ChatPageContentProps = {
   nameContext: ChatNameContextEntry[];
   replyTo: ChatMessage | null;
   onReplyToChange: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
+  activeThreadRootId?: string | null;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
   draft: string;
   onDraftChange: React.Dispatch<React.SetStateAction<string>>;

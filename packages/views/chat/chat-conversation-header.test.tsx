@@ -91,4 +91,22 @@ describe("ChatConversationHeader", () => {
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("shows CatchUp when onCatchUp is provided", () => {
+    const onCatchUp = vi.fn();
+
+    render(
+      wrap(
+        <ChatConversationHeader
+          avatar={<span>A</span>}
+          title="General"
+          catchUpAriaLabel="Bắt kịp"
+          onCatchUp={onCatchUp}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByLabelText("Bắt kịp"));
+    expect(onCatchUp).toHaveBeenCalledTimes(1);
+  });
 });

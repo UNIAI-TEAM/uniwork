@@ -50,6 +50,8 @@ export function NativeChatMessagePanel({
   onClearAnchor,
   canPinMessages = true,
   workHubEnabled = false,
+  /** Thread API is channel/group/workspace only — never DM (work-hub decision 8). */
+  threadsEnabled = false,
   peerLastReadAt = null,
   onFollowUp,
   onActiveThreadRootIdChange,
@@ -69,6 +71,7 @@ export function NativeChatMessagePanel({
   onClearAnchor?: () => void;
   canPinMessages?: boolean;
   workHubEnabled?: boolean;
+  threadsEnabled?: boolean;
   peerLastReadAt?: string | null;
   onFollowUp?: (message: ChatMessage) => void;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
@@ -90,7 +93,7 @@ export function NativeChatMessagePanel({
     workspaceId,
     roomId,
     threadRoot?.id ?? "",
-    workHubEnabled && !!threadRoot,
+    threadsEnabled && !!threadRoot,
   );
   const markThreadRead = useMarkChatThreadRead(workspaceId);
   useClearDeliveredChatSends(latestRows);
@@ -125,14 +128,13 @@ export function NativeChatMessagePanel({
 
   const handleThread = useCallback(
     (message: ChatMessage) => {
+      if (!threadsEnabled) return;
       setThreadRoot(message);
       onReplyToChange(message);
       onActiveThreadRootIdChange?.(message.id);
-      if (workHubEnabled) {
-        void markThreadRead.mutateAsync(message.id).catch(() => undefined);
-      }
+      void markThreadRead.mutateAsync(message.id).catch(() => undefined);
     },
-    [markThreadRead, onActiveThreadRootIdChange, onReplyToChange, workHubEnabled],
+    [markThreadRead, onActiveThreadRootIdChange, onReplyToChange, threadsEnabled],
   );
 
   const handleEdit = useCallback((message: ChatMessage) => {
@@ -191,7 +193,7 @@ export function NativeChatMessagePanel({
         pendingEntries,
         outboxEntries,
         currentUserId,
-        workHubEnabled,
+        workHubEnabled: threadsEnabled,
       }),
     [
       anchorMessages,
@@ -200,21 +202,35 @@ export function NativeChatMessagePanel({
       olderMessages,
       outboxEntries,
       pendingEntries,
-      workHubEnabled,
+      threadsEnabled,
     ],
   );
 
   const messages = useMemo(() => {
-    if (!threadRoot) return allMessages;
+    if (!threadRoot || !threadsEnabled) return allMessages;
     return buildThreadViewMessages({
       allMessages,
       threadRoot,
       threadRows: threadQuery.data,
       pendingEntries,
       currentUserId,
-      workHubEnabled,
+      workHubEnabled: threadsEnabled,
     });
-  }, [allMessages, currentUserId, pendingEntries, threadQuery.data, threadRoot, workHubEnabled]);
+  }, [
+    allMessages,
+    currentUserId,
+    pendingEntries,
+    threadQuery.data,
+    threadRoot,
+    threadsEnabled,
+  ]);
+
+  useEffect(() => {
+    if (!threadsEnabled && threadRoot) {
+      setThreadRoot(null);
+      onActiveThreadRootIdChange?.(null);
+    }
+  }, [threadsEnabled, threadRoot, onActiveThreadRootIdChange]);
 
   useEffect(() => {
     onActiveThreadRootIdChange?.(threadRoot?.id ?? null);
@@ -357,7 +373,7 @@ export function NativeChatMessagePanel({
         actions: {
           onReply: onReplyToChange,
           onReact: handleReact,
-          onThread: handleThread,
+          onThread: threadsEnabled ? handleThread : undefined,
           onEdit: handleEdit,
           onPin: handlePin,
           onCopy: handleCopy,
@@ -386,6 +402,7 @@ export function NativeChatMessagePanel({
       roomId,
       showSenderName,
       taskLinkActions,
+      threadsEnabled,
       workHubEnabled,
       workspaceId,
       youLabel,

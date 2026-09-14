@@ -1955,7 +1955,7 @@
       "catch_up": "Bắt kịp",
       "catch_up_title": "Bắt kịp hội thoại",
       "catch_up_description": "Tóm tắt tin bạn chưa đọc trong phòng này.",
-      "catch_up_description_recent": "Bạn vừa mở phòng nên đã đánh dấu đã đọc — tóm tắt tin gần đây từ người khác.",
+      "catch_up_description_recent": "Bạn chưa tham gia phòng — tóm tắt tin gần đây trong 48 giờ.",
       "catch_up_loading": "UNI đang đọc tin chưa đọc…",
       "catch_up_empty_title": "Bạn đã bắt kịp",
       "catch_up_empty": "Không có tin mới kể từ lần đọc trước.",
@@ -1963,7 +1963,7 @@
       "ask_room": "Hỏi về phòng này",
       "highlights": "Điểm nổi bật",
       "action_items": "Việc gợi ý",
-      "action_items_hint": "Tạo task bằng menu trên tin nhắn — UNI không tự ghi.",
+      "action_items_hint": "Bấm việc gợi ý để mở tạo task — UNI không tự ghi.",
       "message_count": "{{count}} tin trong bản tóm tắt"
     },
     "link": {

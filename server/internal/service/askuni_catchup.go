@@ -41,7 +41,8 @@ type CatchUpResult struct {
 	Highlights   []string
 	ActionItems  []CatchUpActionItemDTO
 	MessageCount int
-	// Mode is always "unread" — CatchUp only summarises after last_read.
+	// Mode is "unread" when last_read (or join) drove the window, or
+	// "recent" when falling back to the public 48h window (no membership).
 	Mode         string
 	Since        time.Time
 	InputTokens  int
@@ -171,7 +172,9 @@ func (s *AskUNIService) catchUpMessages(
 	}
 	since := s.now().UTC().Add(-catchUpPublicWindow)
 	scope := "room"
+	usedCursor := false
 	if mem, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: roomID, UserID: userID}); err == nil {
+		usedCursor = true
 		if mem.LastReadAt.Valid {
 			since = mem.LastReadAt.Time.UTC()
 		} else if mem.JoinedAt.Valid {
@@ -187,6 +190,7 @@ func (s *AskUNIService) catchUpMessages(
 			ThreadRootID: threadRootID, UserID: userID,
 		}); err == nil && fol.LastReadAt.Valid {
 			since = fol.LastReadAt.Time.UTC()
+			usedCursor = true
 		} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, time.Time{}, "", "", err
 		}
@@ -195,7 +199,7 @@ func (s *AskUNIService) catchUpMessages(
 			return nil, time.Time{}, "", "", err
 		}
 		out := catchUpInboundAfter(rows, userID, since)
-		return out, since, scope, "unread", nil
+		return out, since, scope, catchUpCursorMode(usedCursor), nil
 	}
 
 	anchorWS := roomAnchorWorkspaceID(room)
@@ -215,7 +219,16 @@ func (s *AskUNIService) catchUpMessages(
 		}
 		out = append(out, msg)
 	}
-	return out, since, scope, "unread", nil
+	return out, since, scope, catchUpCursorMode(usedCursor), nil
+}
+
+// catchUpCursorMode is "unread" when membership/follower last_read drove the
+// window; "recent" when CatchUp falls back to the public 48h window.
+func catchUpCursorMode(usedMembershipCursor bool) string {
+	if usedMembershipCursor {
+		return "unread"
+	}
+	return "recent"
 }
 
 func catchUpInboundAfter(rows []ChatMessageRow, userID string, since time.Time) []ChatMessageRow {

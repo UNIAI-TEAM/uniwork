@@ -1956,7 +1956,7 @@
       "catch_up": "Catch up",
       "catch_up_title": "Catch up on this chat",
       "catch_up_description": "A summary of messages you have not read in this room.",
-      "catch_up_description_recent": "Opening the room marked messages read — summarizing recent messages from others.",
+      "catch_up_description_recent": "You're not a member of this room — summarizing recent messages from the last 48 hours.",
       "catch_up_loading": "UNI is reading your unread messages…",
       "catch_up_empty_title": "You're caught up",
       "catch_up_empty": "Nothing new since you last read.",
@@ -1964,7 +1964,7 @@
       "ask_room": "Ask about this room",
       "highlights": "Highlights",
       "action_items": "Suggested actions",
-      "action_items_hint": "Create a task from a message menu — UNI never writes by itself.",
+      "action_items_hint": "Tap a suggested action to create a task — UNI never writes by itself.",
       "message_count": "{{count}} messages in this brief"
     },
     "link": {
