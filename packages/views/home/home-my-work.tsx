@@ -139,10 +139,12 @@ export function HomeMyWork({
       title={t("home.section.mywork")}
       icon={ListTodo}
       flush
-      className="h-full"
+      // The card is a size container: its width depends on the chosen density,
+      // not on the viewport, so what fits in its header is decided per card.
+      className="@container h-full"
       action={
         <>
-          <span className="hidden items-center gap-2 text-caption text-muted-foreground lg:flex">
+          <span className="hidden items-center gap-2 text-caption text-muted-foreground @2xl:flex">
             {KEY_HINTS.map(([key, label]) => (
               <span key={key} className="flex items-center gap-1">
                 <Kbd>{key}</Kbd>

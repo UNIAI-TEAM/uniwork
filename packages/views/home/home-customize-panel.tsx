@@ -57,7 +57,7 @@ export function HomeCustomizePanel({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div>
           <h3 className="text-caption font-medium text-muted-foreground">{t("home.customize.sections")}</h3>
           <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
@@ -105,12 +105,12 @@ export function HomeCustomizePanel({
         <div className="space-y-5">
           <div>
             <h3 className="text-caption font-medium text-muted-foreground">{t("home.customize.layout")}</h3>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               {HOME_LAYOUTS.map((layout) => (
                 <Button
                   key={layout}
                   type="button"
-                  variant={prefs.layout === layout ? "secondary" : "outline"}
+                  variant={prefs.layout === layout ? "brandSubtle" : "outline"}
                   aria-pressed={prefs.layout === layout}
                   onClick={() => onChange({ ...prefs, layout })}
                   className={OPTION_CLASS}
@@ -123,7 +123,7 @@ export function HomeCustomizePanel({
           </div>
           <div>
             <h3 className="text-caption font-medium text-muted-foreground">{t("home.customize.presets")}</h3>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               {HOME_PRESETS.map((preset) => (
                 <Button key={preset.key} type="button" variant="outline" onClick={() => onChange(preset.prefs)} className={OPTION_CLASS}>
                   <span className="text-body font-medium">{t(`home.preset.${preset.key}`)}</span>

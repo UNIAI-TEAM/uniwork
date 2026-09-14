@@ -86,7 +86,7 @@ export function HomeMyWorkRow({ task, today, href, checked, completing, onChecke
         aria-label={done ? t("home.mywork.completed") : t("home.mywork.complete_task", { title: task.title })}
       >
         <CircleCheck aria-hidden />
-        <span className="hidden sm:inline">{done ? t("home.mywork.completed") : t("home.mywork.complete")}</span>
+        <span className="hidden @md:inline">{done ? t("home.mywork.completed") : t("home.mywork.complete")}</span>
       </Button>
     </li>
   );
