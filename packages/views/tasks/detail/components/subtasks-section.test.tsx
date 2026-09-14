@@ -40,6 +40,9 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
           position: 1,
           workspace_id: "w1",
           identifier: "TEAM-2",
+          stage: 1,
+          due_date: "2026-09-11",
+          assignee: { id: "u1", kind: "human", display_name: "Me" },
           created_by: "u1",
           created_at: "2026-09-01T00:00:00Z",
           updated_at: "2026-09-01T00:00:00Z",
@@ -109,6 +112,9 @@ describe("TaskDetailSubtasksSection", () => {
     );
 
     expect(screen.getByText("Existing child")).toBeInTheDocument();
+    expect(screen.getByText("Giai đoạn 1")).toBeInTheDocument();
+    expect(screen.getByText(/11.*9|Sep 11/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Me")).toBeInTheDocument();
     expect(screen.getByTestId("subtasks-progress")).toHaveTextContent("1/1");
 
     const input = screen.getByLabelText(/thêm sub-task|add sub-task/i);

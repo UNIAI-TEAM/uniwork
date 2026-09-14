@@ -1,7 +1,7 @@
 "use client";
 
-import { useId, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import {
@@ -19,6 +19,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { useWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
+import { StatusIcon } from "../../modes/status-pill";
 
 /**
  * Sub-task list under a parent: children + progress, create awaits server
@@ -48,6 +49,24 @@ export function TaskDetailSubtasksSection({
   const progress = progressRows.find((row) => row.parent_task_id === taskId);
   const done = progress?.done ?? children.filter((c) => c.status === "done").length;
   const total = progress?.total ?? children.length;
+  const groups = useMemo(() => {
+    const byStage = new Map<number | null, typeof children>();
+    for (const child of children) {
+      const stage = child.stage ?? null;
+      const current = byStage.get(stage) ?? [];
+      current.push(child);
+      byStage.set(stage, current);
+    }
+    return [...byStage.entries()].sort(([a], [b]) => {
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return a - b;
+    });
+  }, [children]);
+  const formatDueDate = (value: string) =>
+    new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
+      new Date(`${value}T00:00:00`),
+    );
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,30 +132,61 @@ export function TaskDetailSubtasksSection({
             {t("tasks.detail.subtasks_empty")}
           </p>
         ) : (
-          <ul className="space-y-1">
-            {children.map((child) => {
-              const href = paths
-                .workspace(workspace.organization_slug, workspace.slug)
-                .task(child.id);
-              return (
-                <li key={child.id}>
-                  <AppLink
-                    href={href}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent/60"
-                  >
-                    <span className="shrink-0 text-caption text-muted-foreground">
-                      {child.identifier || child.id.slice(0, 8)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{child.title}</span>
-                    <span className="shrink-0 text-caption text-muted-foreground">
-                      {t(`tasks.status_${child.status}`, {
-                        defaultValue: child.status,
-                      })}
-                    </span>
-                  </AppLink>
-                </li>
-              );
-            })}
+          <ul className="space-y-2">
+            {groups.map(([stage, stageChildren]) => (
+              <li key={stage ?? "none"}>
+                <h3 className="mb-1 px-2 text-micro font-semibold uppercase tracking-wide text-muted-foreground">
+                  {stage === null
+                    ? t("tasks.detail.stage_none")
+                    : t("tasks.detail.stage_group", { stage })}
+                </h3>
+                <ul className="overflow-hidden rounded-md border border-border/70 bg-muted/20">
+                  {stageChildren.map((child) => {
+                    const href = paths
+                      .workspace(workspace.organization_slug, workspace.slug)
+                      .task(child.id);
+                    const assignee = child.assignee?.display_name;
+                    return (
+                      <li key={child.id}>
+                        <AppLink
+                          href={href}
+                          className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-border/60 px-2 py-2 text-caption last:border-b-0 hover:bg-accent/60 focus-visible:bg-accent/60"
+                        >
+                          <StatusIcon status={child.status} className="size-3.5" />
+                          <span
+                            translate="no"
+                            className="shrink-0 font-medium text-muted-foreground"
+                          >
+                            {child.identifier || t("tasks.detail.identifier_missing")}
+                          </span>
+                          <span className="min-w-0 truncate text-foreground">
+                            {child.title}
+                          </span>
+                          {child.due_date ? (
+                            <time
+                              dateTime={child.due_date}
+                              className="inline-flex shrink-0 items-center gap-1 text-muted-foreground tabular-nums"
+                            >
+                              <CalendarDays aria-hidden className="size-3.5" />
+                              {formatDueDate(child.due_date)}
+                            </time>
+                          ) : null}
+                          {assignee ? (
+                            <span
+                              aria-label={assignee}
+                              title={assignee}
+                              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-micro font-medium text-secondary-foreground"
+                            >
+                              {assignee.trim().charAt(0).toUpperCase()}
+                            </span>
+                          ) : null}
+                        </AppLink>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
           </ul>
         )}
 

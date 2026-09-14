@@ -58,6 +58,7 @@ export const TaskSchema = z.object({
   start_date: z.string().optional(),
   project_id: z.string().nullable().optional(),
   parent_task_id: z.string().nullable().optional(),
+  stage: z.number().nullable().optional(),
   position: z.number(),
   kind: z.string().optional().default("normal"),
   created_by: z.string(),
