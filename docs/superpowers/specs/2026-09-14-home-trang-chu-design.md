@@ -2,7 +2,8 @@
 
 > **Trạng thái:** Đề xuất — chờ duyệt (viết 2026-09-14 trong phiên tự động, chưa có
 > lượt duyệt của chủ sở hữu sản phẩm; các quyết định ở §2 là lựa chọn của người viết
-> spec, câu hỏi cần quangpd quyết nằm ở §11)
+> spec, câu hỏi cần quangpd quyết nằm ở §11). Lát 1 đã triển khai trên nhánh
+> `feature/UNI-451-home-trang-chu` (plan `../plans/2026-09-14-home-trang-chu.md`), chưa merge.
 
 **Ngày:** 2026-09-14
 **Issue:** UNI-451 (A-05 · Insights: home brief, dashboard inline, work economics) — lát 1
@@ -201,9 +202,9 @@ ba nhóm này.
 - `api/endpoints/home.ts` + `home.test.ts` — `getHomeSummary(wsId, limits?)`,
   `getHomePreference(wsId)`, `putHomePreference(wsId, prefs)`; case malformed cho cả ba.
 - `home/keys.ts` — `homeKeys.summary(wsId)`, `homeKeys.prefs(wsId)`.
-- `home/hooks.ts` — `useHomeSummary(wsId)` (staleTime 60 s), `useHomePrefs(wsId)` (đọc +
-  ghi lạc quan, `reset`), `useCompleteHomeTask(wsId)` (bọc `useUpdateTask`, patch
-  `homeKeys.summary` lạc quan), `useBulkCompleteHomeTasks(wsId)`.
+- `home/hooks.ts` — `homeKeys`, `useHomeSummary(wsId)` (staleTime 60 s), `useHomePrefs(wsId)` (đọc + ghi lạc
+  quan, `reset`), `useCompleteHomeTasks(wsId)` (một id → PATCH, nhiều id → batch-update; patch `homeKeys.summary`
+  lạc quan, rollback khi lỗi), `useReadHomeNotification(wsId)` (đánh dấu đã đọc và bỏ dòng khỏi tóm tắt đã cache).
 - `home/prefs.ts` + `prefs.test.ts` — `DEFAULT_HOME_PREFS`, `HOME_PRESETS`,
   `normalizeHomePrefs(unknown)`, `moveSection`, `visibleSections`.
 - `home/brief.ts` + `brief.test.ts` — `buildHomeBrief(summary): HomeBriefLine[]`.
@@ -213,10 +214,9 @@ ba nhóm này.
 - `i18n/locales/vi.json`, `en.json` — nhóm `home.*`, `nav.home`.
 
 **`packages/views`**
-- `home/index.ts` — export `HomeView`.
 - `home/home-view.tsx` — ghép khối theo prefs, lưới theo `layout`, thông báo `partial`.
-- `home/home-header.tsx` — lời chào theo giờ, phụ đề theo `counts`, nút Tuỳ chỉnh /
-  Làm mới / Việc mới / Cuộc họp.
+- `home/home-view.tsx` cũng chứa lời chào theo giờ và phụ đề theo `counts`; header dùng `CollectionPageHeader`
+  với hai hành động Tuỳ chỉnh và Làm mới (không có nút tạo nhanh: tạo việc đã có ở top bar).
 - `home/home-stats.tsx` — dải số inline (link tới `/tasks`, `/my-tasks`, `/meetings`, `/inbox`).
 - `home/home-my-work.tsx`, `home/home-my-work-row.tsx`, `home/use-my-work-keys.ts` —
   danh sách, chọn nhiều, hoàn thành, hàng loạt, phím tắt.
@@ -224,14 +224,14 @@ ba nhóm này.
 - `home/home-inbox.tsx` — `NotificationRow compact` + `resourceHref`, đánh dấu đã đọc.
 - `home/home-brief.tsx` — render `buildHomeBrief`.
 - `home/home-customize-panel.tsx` — bật/tắt, lên/xuống, mật độ, preset, đặt lại.
-- `home/home-section.tsx` — vỏ khối dùng `PanelCard` (`common/panel-card.tsx`) + `PartialNotice`.
+- `home/home-partial-notice.tsx` — nhãn nguồn lỗi + nút thử lại; mỗi khối dùng `PanelCard` (`common/panel-card.tsx`).
 - `home/home-layout.ts` + `home-layout.test.ts` — `homeGridClass(layout)`, `homeSpanClass(key, layout)` (chuỗi class Tailwind phải nằm trong `views` để được quét).
 - Test: `home-view.test.tsx` (loading / lỗi / rỗng / có dữ liệu / partial / prefs ẩn hết),
   `home-my-work.test.tsx` (hoàn thành gọi PATCH, hàng loạt gọi batch-update, phím tắt),
   `home-customize-panel.test.tsx`, `home-brief.test.tsx`, `home-layout.test.ts`.
 - `layout/app-sidebar.tsx` — mục `nav.home` (đầu danh sách) khi `useFlag(HOME_PAGE_FLAG)`;
   `layout/module-tones.ts` thêm `home: "gray"`.
-- `package.json` exports: `"./home": "./home/index.ts"`, `"./home/*": "./home/*.tsx"`.
+- `package.json` exports: `"./home/*": "./home/*.tsx"`.
 
 **`apps/web`**
 - `app/[orgSlug]/[workspaceSlug]/page.tsx` — flag bật: `lazy(HomeView)`; tắt: redirect
@@ -330,3 +330,4 @@ là C-02); `/m/home`; `user_dashboard_prefs` dùng chung với tiền tố `home
 | 4 | Tóm tắt AI (LLM qua `ai.Gateway`, grounding trên dữ liệu Home, quota `ai.tokens`) làm lát 2 của A-05 ngay sau, hay chờ work economics? | Lát 2, spec riêng | Không ảnh hưởng lát 1: khối `brief` đã có chỗ và nhãn nguồn |
 | 5 | "Sắp tới" có thêm deadline task ngày mai không? | Không (tránh trùng "Công việc của tôi") | Thêm query + kiểu dòng `task` trong khối |
 | 6 | Flag `home_page` bật mặc định cho org UNICOM ngay khi merge (override organization) hay chờ 48 giờ staging? | Chờ người bật qua console `/admin/flags` | Không ảnh hưởng mã |
+| 7 | Phát hiện lúc triển khai: `usePublicConfig` gọi `GET /api/v1/config` không kèm `organization_id`, nên override flag cấp **organization** không tới được web (cả `home_page` lẫn `chat_work_hub`); chỉ override `user` hoặc `global` có hiệu lực ở client. Sửa trong lát này hay issue riêng? | Không sửa trong lát này (ngoài phạm vi, chạm mọi flag) | Bật cho org UNICOM hiện phải bật theo từng user hoặc global |
