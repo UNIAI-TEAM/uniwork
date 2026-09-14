@@ -83,6 +83,7 @@ export const BoardColumn = memo(function BoardColumn({
   taskMap,
   cardMeta,
   totalCount,
+  countIsPartial = false,
   paging,
   onCreateTask,
   onOpenTask,
@@ -95,6 +96,8 @@ export const BoardColumn = memo(function BoardColumn({
   cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   /** Tasks in the column on the server; the loaded cards when absent. */
   totalCount?: number;
+  /** The count covers only the tasks loaded so far, so the heading says "N loaded", not a total. */
+  countIsPartial?: boolean;
   /** Server paging of this column, which then ends with the shared load-more footer. */
   paging?: BoardColumnPaging;
   onCreateTask?: (defaults: {
@@ -177,7 +180,11 @@ export const BoardColumn = memo(function BoardColumn({
           className="flex min-w-0 items-center gap-2"
           role="heading"
           aria-level={3}
-          aria-label={`${title}, ${count}`}
+          aria-label={
+            countIsPartial
+              ? `${title}, ${t("tasks.surface.loaded_count", { count })}`
+              : `${title}, ${count}`
+          }
         >
           {status ? (
             <StatusPill status={status} label={title} className="max-w-full" />

@@ -740,6 +740,8 @@
       "hide_column": "Ẩn cột",
       "show_column": "Hiện cột",
       "hidden_columns": "Cột đã ẩn",
+      "loaded_count_one": "{{count}} đã tải",
+      "loaded_count_other": "{{count}} đã tải",
       "column_menu": "Menu cột",
       "add_task": "Thêm task",
       "agent_chip_stub": "Agent",

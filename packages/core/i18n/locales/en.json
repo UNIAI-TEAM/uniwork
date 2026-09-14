@@ -741,6 +741,8 @@
       "hide_column": "Hide column",
       "show_column": "Show column",
       "hidden_columns": "Hidden columns",
+      "loaded_count_one": "{{count}} loaded",
+      "loaded_count_other": "{{count}} loaded",
       "column_menu": "Column menu",
       "add_task": "Add task",
       "agent_chip_stub": "Agent",

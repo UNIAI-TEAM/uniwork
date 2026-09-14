@@ -44,7 +44,7 @@ import {
   taskMatchesGroup,
 } from "./board-drag-utils";
 import { HiddenColumnsPanel } from "./hidden-columns-panel";
-import { LoadedCountNotice } from "./loaded-count-notice";
+import { hasUnloadedTasks, LoadedCountNotice } from "./loaded-count-notice";
 import { useBoardDragPan } from "./use-board-drag-pan";
 import { useDragSettle } from "./use-drag-settle";
 import {
@@ -92,6 +92,9 @@ function BoardViewImpl({
       ? storedGrouping
       : "status";
   const columnsPage = !!columnPaging && grouping === "status";
+  // Without per-column server paging a column counts only the tasks loaded so
+  // far; while some are still unloaded, its count must not read as a total.
+  const countIsPartial = !columnsPage && !!pagination && hasUnloadedTasks(pagination);
 
   const visibleCategories = useMemo(
     () =>
@@ -427,6 +430,7 @@ function BoardViewImpl({
                 taskMap={taskMapRef.current}
                 cardMeta={cardMeta}
                 totalCount={paging?.count ?? group.totalCount}
+                countIsPartial={countIsPartial}
                 paging={paging}
                 onCreateTask={onCreateTask}
                 onOpenTask={onOpenTask}
@@ -439,6 +443,7 @@ function BoardViewImpl({
             <HiddenColumnsPanel
               hiddenStatuses={hiddenStatuses}
               taskCounts={hiddenCounts}
+              countIsPartial={countIsPartial}
             />
           ) : null}
         </div>
