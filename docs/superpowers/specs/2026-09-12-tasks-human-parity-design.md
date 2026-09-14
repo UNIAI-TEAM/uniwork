@@ -1,6 +1,6 @@
 # UniWork — Task human-parity với USF (spec ô)
 
-> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`); lát C shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-c.md`); lát D1 shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-d1.md`); lát E shipped (plan `../plans/2026-09-14-tasks-human-parity-slice-e.md`)
+> **Trạng thái:** shipped — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`); lát C shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-c.md`); lát D1 shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-d1.md`); lát D2 shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-d2.md`); lát E shipped (plan `../plans/2026-09-14-tasks-human-parity-slice-e.md`)
 
 **Ngày:** 2026-09-12
 **Issue:** (tạo khi `writing-plans` — 1 issue ô + 5 sub-issue)
@@ -105,7 +105,8 @@ cần làm để đóng nằm ở §7quater.
 
 Lát D được tách thành hai lát khi viết plan. D1 (bàn phím và tiện nghi: ba gạch
 đầu dòng đầu) đã ship, giới hạn nằm ở §7quinquies. D2 (cuộn tải thêm cho list,
-board và My Tasks) có plan riêng `../plans/2026-09-13-tasks-human-parity-slice-d2.md`.
+board và My Tasks) đã ship, plan
+`../plans/2026-09-13-tasks-human-parity-slice-d2.md`, giới hạn nằm ở §7sexies.
 Lý do tách: list, board và My Tasks đang cắt câm ở 50 task, tức là task biến
 khỏi tay người dùng mà giao diện không nói gì. Đó là lỗi đúng đắn, không phải
 tiện nghi, và việc sửa chạm `use-task-surface-controller.ts` cùng cache lạc
@@ -700,6 +701,44 @@ có chủ đích hay khoảng trống, và cần gì để đóng.
     vì chủ ghi trong storage là A. Để đóng: nghe sự kiện `storage`, hoặc so chủ
     với người đăng nhập mỗi lần hydrate.
 
+## 7sexies. Giới hạn đã biết của lát D2
+
+Lát D2 làm list, My Tasks, Gantt và swimlane tải thêm qua truy vấn vô hạn
+(`useInfiniteQueryTasks` / `useInfiniteMyTasks`), và board workspace tải từng
+cột trạng thái qua API bảng (`useBoardColumnsData` trên `tableGroups` +
+`tableRows`), kèm cập nhật lạc quan kéo thả trên cache `tableRows`. Các điểm
+dưới đây còn đúng trên mã khi lát D2 đóng ô; mỗi điểm nói rõ đó là quyết định
+có chủ đích hay khoảng trống, và cần gì để đóng.
+
+1. **Gantt và swimlane dùng nút tải thêm, không cuộn vô hạn.** Quyết định có
+   chủ đích. Lane và dòng thời gian không có "cuối danh sách" rõ như Virtuoso
+   của list/board, nên `LoadedCountNotice` hiện "Đang hiện N / M" và nút tải
+   thêm (`packages/views/tasks/modes/gantt-view.tsx`,
+   `packages/views/tasks/modes/swimlane-view.tsx`). Để đóng: không cần trừ khi
+   muốn gắn cuộn theo viewport riêng cho từng chế độ.
+
+2. **Board My Tasks không phân trang theo cột.** Quyết định có chủ đích.
+   `query-plan.ts` ghi API bảng chỉ theo workspace; board My Tasks giữ dữ liệu
+   từ `listMyTasks` vô hạn rồi chia cột phía client
+   (`use-task-surface-controller.ts`: `myBoardUsesList`), để cột không hiện
+   việc của người khác. Hệ quả: một lần tải thêm nạp thêm cho cả board, không
+   theo từng cột; tiêu đề cột đếm trên tập đã tải, không phải `branch_total`
+   của server. Để đóng: endpoint bảng (hoặc tương đương) lọc theo quan hệ My
+   Tasks, rồi nối `useBoardColumnsData`.
+
+3. **`use-task-group-branches.ts` vẫn là stub.** Quyết định có chủ đích, giữ từ
+   trước lát. API bảng chưa có nhóm phụ cho swimlane, nên hook tắt
+   (`enabled: false`) và SwimlaneView dựng lane phía client từ
+   `surfaceTasks`. Plan D2 cố ý không đụng stub. Để đóng: nhóm phụ trên API
+   bảng, rồi bật hook.
+
+4. **Chưa kiểm bằng dữ liệu thật trên app chạy.** Khoảng trống kiểm chứng.
+   Task 5 của plan yêu cầu tạo hơn 60 task và xác nhận list, board, My Tasks,
+   Gantt, swimlane tới được task thứ 60. Không chạy: `make start` migrate
+   database dùng chung và dựng app trên máy đang chạy test của agent khác.
+   Phủ bằng vitest (transport giả, đủ trang) và mã trên nhánh. Để đóng: một
+   lần kiểm tay hoặc kịch bản Playwright với seed > 60 task.
+
 ## 7septies. Giới hạn đã biết của lát E
 
 Lát E cho client vá cache task từ frame realtime, theo ADR 0015
@@ -958,7 +997,8 @@ và cần gì để đóng.
 
 ## 8. Việc làm tiếp theo
 
-1. User duyệt file spec này.
-2. Chuyển câu hỏi giấy phép ở §7 lên người có thẩm quyền. Không chặn lát A–D.
-3. `writing-plans` cho lát A; các lát sau viết plan khi lát trước merge.
-4. Tạo issue ô và 5 sub-issue dưới F-05.
+1. Spec ô đã shipped (A–E, gồm D1/D2). Giới hạn còn lại nằm ở §7bis–§7septies;
+   không chặn đóng ô.
+2. F-05 vẫn `MỘT PHẦN` vì lát 7 hosts (desktop/mobile) còn deferred.
+3. PR nhánh `docs/UNI-426-tasks-human-parity-spec` vào `develop` khi người giữ
+   issue mở.

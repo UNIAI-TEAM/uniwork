@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — lát D2 của spec ô Task human-parity
+> **Trạng thái:** shipped — lát D2 của spec ô Task human-parity (2026-09-14). `make check` dừng ở `scripts/governance.test.mjs` ("commit-msg would reject commits already in history", subject `Enhance UI components…`, lỗi nền do commit `e88a055` đã ghi ở plan). Các bước trước đó xanh: typecheck, lint, knip, `pnpm test` (core 127 files / 871 tests, views 259 / 1581, ui 16 / 186; coverage core 62.56/60.52/50.68/63.75 → sàn 62/60/50/63; views 64/56.81/57.37/65.96 → sàn 64/56/57/65), i18n parity. Sau đó chạy tay migrate + `scripts/test-go.sh --race`: mọi package xanh trừ `TestChatFollowUpHTTP` (lỗi nền đã biết, không của lát này); `internal/service` xanh gồm realtime patch. Kiểm tay app với >60 task chưa chạy (xem spec §7sexies mục 4).
 
 **Goal:** Mọi task khớp bộ lọc đều tới được tay người dùng ở list, board, swimlane, Gantt và My Tasks, bằng cuộn tải thêm ở list và board như bảng đang làm, và không chế độ nào im lặng giấu task.
 
@@ -286,25 +286,25 @@ git commit -m "fix(tasks): kéo thả board cập nhật lạc quan trên cache 
 
 ## Task 5: Cổng cuối và tài liệu
 
-- [ ] **Step 1: Cổng**
+- [x] **Step 1: Cổng**
 
 `NODE_OPTIONS="--no-experimental-webstorage" make check` một lần, tiền cảnh. Dừng ở lỗi nền thì chạy tay các bước sau theo `scripts/check.sh`. Lỗi ngoài danh sách thì chạy riêng hai lần; còn đỏ thì dừng và báo.
 
-- [ ] **Step 2: Kiểm bằng dữ liệu thật**
+- [x] **Step 2: Kiểm bằng dữ liệu thật**
 
 Chạy app (`make start`), tạo hơn 60 task trong một workspace thử bằng API, và xác nhận list, board, My Tasks, Gantt, swimlane đều tới được task thứ 60. Ghi kết quả từng chế độ vào báo cáo. Không làm được thì nói rõ và ghi lý do.
 
-- [ ] **Step 3: Coverage và i18n**
+- [x] **Step 3: Coverage và i18n**
 
 Coverage `core` và `views`, mỗi package chạy một mình. Nâng sàn chỉ ở package lát này kiếm được, chứng minh bằng `GATE_LEVEL=standard`. Chạy `packages/core/i18n/parity.test.ts`.
 
-- [ ] **Step 4: Tài liệu**
+- [x] **Step 4: Tài liệu**
 
 - Plan này: `shipped`, ghi trung thực `make check` chạy tới đâu.
 - Spec: dòng trạng thái thêm "lát D2 shipped"; thêm `## 7sexies. Giới hạn đã biết của lát D2`, tối thiểu ghi: swimlane và Gantt dùng nút tải thêm thay vì cuộn; board My Tasks không phân trang theo cột; `use-task-group-branches.ts` vẫn là stub chờ nhóm phụ.
 - Roadmap F-05: giữ `MỘT PHẦN`, nối câu "Lát D2/human-parity (...) shipped <ngày>".
 
-- [ ] **Step 5: Commit. KHÔNG mở pull request.**
+- [x] **Step 5: Commit. KHÔNG mở pull request.**
 
 ```bash
 git commit -m "chore(tasks): nâng sàn coverage và cập nhật trạng thái lát D2"
