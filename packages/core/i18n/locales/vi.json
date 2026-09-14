@@ -1019,7 +1019,8 @@
       "due_today": "đến hạn hôm nay",
       "overdue": "quá hạn",
       "meetings_today": "cuộc họp hôm nay",
-      "unread": "chưa đọc"
+      "unread": "chưa đọc",
+      "item": "{{count}} {{label}}"
     },
     "section": {
       "stats": "Tổng quan hôm nay",

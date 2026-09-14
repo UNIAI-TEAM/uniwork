@@ -92,6 +92,26 @@ describe("HomeView", () => {
     expect(requestMock.mock.calls.filter(([p]) => String(p).endsWith("/home"))).toHaveLength(1);
   });
 
+  it("lands overdue and due today on the first such task, and the others on their screens", async () => {
+    renderHome();
+    await screen.findByText("Chuẩn bị demo");
+    fireEvent.click(screen.getByRole("button", { name: "1 quá hạn" }));
+    expect(screen.getByRole("link", { name: /Viết spec/ })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "1 đến hạn hôm nay" }));
+    expect(screen.getByRole("link", { name: /Chuẩn bị demo/ })).toHaveFocus();
+    expect(screen.getByRole("link", { name: "1 cuộc họp hôm nay" })).toHaveAttribute("href", "/acme/team/meetings");
+    expect(screen.getByRole("link", { name: "1 chưa đọc" })).toHaveAttribute("href", "/acme/team/inbox");
+  });
+
+  it("keeps a work count as plain text when it is zero or My work is hidden", async () => {
+    serve({ prefs: { enabled: { mywork: false } } });
+    renderHome();
+    await screen.findByText("Standup");
+    await waitFor(() => expect(screen.queryByText("Chuẩn bị demo")).toBeNull());
+    expect(screen.queryByRole("button", { name: "1 quá hạn" })).toBeNull();
+    expect(screen.getByTestId("home-stat-overdue")).toHaveTextContent("1");
+  });
+
   it("says what to do next when nothing is waiting, and drops the brief", async () => {
     serve({ home: empty });
     renderHome();

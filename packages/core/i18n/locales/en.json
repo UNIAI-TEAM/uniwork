@@ -1020,7 +1020,8 @@
       "due_today": "due today",
       "overdue": "overdue",
       "meetings_today": "meetings today",
-      "unread": "unread"
+      "unread": "unread",
+      "item": "{{count}} {{label}}"
     },
     "section": {
       "stats": "Today at a glance",

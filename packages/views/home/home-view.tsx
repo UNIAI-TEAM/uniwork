@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { House, RefreshCw, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { overdueDays } from "@uniwork/core/home/brief";
 import { useHomePrefs, useHomeSummary } from "@uniwork/core/home";
 import { visibleSections, type HomeSectionKey } from "@uniwork/core/home/prefs";
 import type { HomeSummary } from "@uniwork/core/types/home";
@@ -16,7 +17,7 @@ import { HomeCustomizePanel } from "./home-customize-panel";
 import { HomeInbox } from "./home-inbox";
 import { homeGridClass, homeSpanClass } from "./home-layout";
 import { HomeMyWork } from "./home-my-work";
-import { HomeStats } from "./home-stats";
+import { HomeStats, type HomeWorkStat } from "./home-stats";
 import { HomeUpcoming } from "./home-upcoming";
 
 function greetingKey(hour: number): "morning" | "noon" | "afternoon" | "evening" {
@@ -66,9 +67,20 @@ export function HomeView() {
   const unusable = summaryQuery.isError || summaryQuery.data === null;
   const visible = visibleSections(prefs);
 
+  // Overdue and due today have no filtered list elsewhere to land on, so they
+  // land on the first such task in My work here.
+  const showWork = (stat: HomeWorkStat) => {
+    const target = summary?.my_work.find((task) =>
+      stat === "overdue" ? overdueDays(summary.today, task.due_date) > 0 : task.due_date === summary.today,
+    );
+    const link = target ? document.querySelector<HTMLElement>(`[data-task-id="${target.id}"] a`) : null;
+    if (link) link.focus();
+    else document.getElementById("home-mywork")?.scrollIntoView({ block: "start" });
+  };
+
   const sectionProps = { summary, loading, retrying, onRetry: retry };
   const sections: Record<HomeSectionKey, ReactNode> = {
-    stats: <HomeStats counts={summary?.counts} loading={loading} />,
+    stats: <HomeStats counts={summary?.counts} loading={loading} onShowWork={visible.includes("mywork") ? showWork : undefined} />,
     mywork: <HomeMyWork {...sectionProps} />,
     upcoming: <HomeUpcoming {...sectionProps} />,
     inbox: <HomeInbox {...sectionProps} />,
@@ -95,7 +107,7 @@ export function HomeView() {
         }
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-5">
+        <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6">
           <HomeGreeting name={user.display_name} summary={summary} />
           {customizing ? (
             <HomeCustomizePanel prefs={prefs} saving={saving} onChange={update} onReset={reset} onClose={() => setCustomizing(false)} />
