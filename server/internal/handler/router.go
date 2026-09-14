@@ -38,6 +38,7 @@ type Deps struct {
 	Workspaces    *service.WorkspaceService
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
+	Home          *service.HomeService
 	Agents        *service.AgentService
 	Actors        *service.ActorService
 	Audit         *service.AuditService
@@ -197,6 +198,9 @@ func New(d Deps) http.Handler {
 		BatchUpdateTasks:      h.batchUpdateTasks,
 		BatchDeleteTasks:      h.batchDeleteTasks,
 		ListMyTasks:           h.listMyTasks,
+		GetHomeSummary:        h.getHomeSummary,
+		GetHomePreference:     h.getHomePreference,
+		PutHomePreference:     h.putHomePreference,
 		ListTaskChildren:      h.listTaskChildren,
 		ListChildrenByParents: h.listChildrenByParents,
 		ChildTaskProgress:     h.childTaskProgress,

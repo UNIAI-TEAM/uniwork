@@ -142,10 +142,14 @@ type Routes struct {
 	DeleteTaskView        http.HandlerFunc
 	GetTaskViewPreference http.HandlerFunc
 	PutTaskViewPreference http.HandlerFunc
-	ListPins              http.HandlerFunc
-	CreatePin             http.HandlerFunc
-	DeletePin             http.HandlerFunc
-	ReorderPins           http.HandlerFunc
+
+	GetHomeSummary    http.HandlerFunc
+	GetHomePreference http.HandlerFunc
+	PutHomePreference http.HandlerFunc
+	ListPins          http.HandlerFunc
+	CreatePin         http.HandlerFunc
+	DeletePin         http.HandlerFunc
+	ReorderPins       http.HandlerFunc
 
 	ListProjects          http.HandlerFunc
 	SearchProjects        http.HandlerFunc
