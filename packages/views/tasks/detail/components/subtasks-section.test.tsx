@@ -114,10 +114,13 @@ describe("TaskDetailSubtasksSection", () => {
     expect(screen.getByText("Existing child")).toBeInTheDocument();
     expect(screen.getByText("Giai đoạn 1")).toBeInTheDocument();
     expect(screen.getByText(/11.*9|Sep 11/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Me")).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: /người phụ trách.*Me/i }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("subtasks-progress")).toHaveTextContent("1/1");
 
-    const input = screen.getByLabelText(/thêm sub-task|add sub-task/i);
+    fireEvent.click(screen.getByRole("button", { name: "Tập trung ô thêm" }));
+    const input = screen.getByRole("textbox", { name: "Thêm sub-task" });
     fireEvent.change(input, { target: { value: "New child" } });
     fireEvent.submit(input.closest("form")!);
 
@@ -148,15 +151,23 @@ describe("TaskDetailSubtasksSection", () => {
     const region = document.getElementById(regionId!);
     expect(region).not.toBeNull();
     expect(region).toContainElement(screen.getByText("Existing child"));
-    expect(region).toContainElement(screen.getByLabelText("Thêm sub-task"));
+    fireEvent.click(screen.getByRole("button", { name: "Tập trung ô thêm" }));
+    const draft = screen.getByRole("textbox", { name: "Thêm sub-task" });
+    fireEvent.change(draft, { target: { value: "Bản nháp" } });
+    expect(region).toContainElement(draft);
 
     fireEvent.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("Existing child")).not.toBeVisible();
-    expect(screen.queryByRole("textbox", { name: "Thêm sub-task" })).toBeNull();
+    expect(
+      screen.getByRole("textbox", { name: "Thêm sub-task", hidden: true }),
+    ).not.toBeVisible();
     expect(screen.getByRole("heading", { name: "Sub-task" })).toBeVisible();
     expect(screen.getByTestId("subtasks-progress")).toBeVisible();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("textbox", { name: "Thêm sub-task" })).toHaveValue("Bản nháp");
+    fireEvent.click(toggle);
     first.unmount();
 
     render(shell(<TaskDetailSubtasksSection workspaceId="w1" taskId="t1" />));
