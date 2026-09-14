@@ -115,7 +115,7 @@ Quyết định phải nêu đủ:
 1. Chỉ hàng catalogue có `Patch` mới mang trường nội dung; `Patch` là nguồn sự thật duy nhất. Hôm nay chỉ `task.updated`, bốn trường `title`, `status`, `priority`, `due_date`.
 2. Không vá `assignee_*` (task mang actor do server phân giải), `position`, `project_id`, `description`.
 3. Server gửi trường vá cùng `revision_before` và `revision` chỉ khi mọi trường có trong input của một lời gọi `updateTaskInTx` cho task đó thuộc tập vá được (có ít nhất một); không thì frame chỉ mang id. Hai revision tính theo từng lời gọi cho từng task, không theo cả transaction.
-4. Client chỉ vá bản ghi đã có khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision` trong cache bằng `revision_before`; trường lạ bị bỏ; frame không tạo bản ghi; list vẫn invalidate.
+4. Client chỉ vá bản ghi đã có khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision` trong cache bằng `revision_before`; frame có khoá nội dung ngoài `Patch` (ngoài `task_id`, `workspace_id` và cặp revision) thì không vá, invalidate như cũ; frame không tạo bản ghi; list vẫn invalidate.
 5. Đánh đổi viết thẳng: `outbox_events` chuyển từ sổ sự kiện thành kênh mang một phần nội dung; quyền đọc task hôm nay là thành viên workspace (`TaskService.authorizeActor`) nên người nhận frame vốn đọc được; nếu sau này có task hạn chế quyền đọc hẹp hơn workspace thì phải tắt `Patch` hoặc đổi phạm vi phát trước.
 6. Hệ quả: guard lỏng hơn làm mất dữ liệu (giải thích kịch bản ghi đè mô tả); vì sao `revision_before` phải tính trong transaction.
 
@@ -219,7 +219,7 @@ git commit -m "feat(tasks): task.updated mang trường vá kèm revision_before
 - [ ] **Step 2: Viết test thất bại**
 
 `realtime-task-patch.test.ts`:
-1. `parseTaskPatchFrame` bỏ khoá lạ (`assignee_id`, `description`, `smuggled`), từ chối revision không hợp lệ, đổi `due_date: ""` thành `null`.
+1. `parseTaskPatchFrame` trả null khi frame có khoá nội dung lạ (`assignee_id`, `description`, `smuggled`, hoặc trường một ADR sau thêm vào `Patch`), từ chối revision không hợp lệ, đổi `due_date: ""` thành `null`.
 2. Detail cache revision 5, frame `revision_before 5, revision 7, title "Mới"`: detail có title mới, revision 7, các trường khác giữ nguyên.
 3. Detail cache revision 6, cùng frame: KHÔNG vá, `detailPatched` là false.
 4. Không có detail cache: không tạo entry.
