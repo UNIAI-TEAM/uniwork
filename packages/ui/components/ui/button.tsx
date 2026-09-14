@@ -48,12 +48,14 @@ const buttonVariants = cva(
         // reads as hover rather than as a colour change.
         brand:
           "border-brand bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground active:bg-brand/85 aria-expanded:bg-brand/90 aria-expanded:text-brand-foreground",
-        // Brand tint for "there is activity here" — present, but not
-        // claiming the loud filled state. Light and dark take their own
-        // opacity notches: the same alpha does not read equally against a
-        // white and a near-black surface, so dark runs one notch hotter.
+        // The brand as a wash — "there is activity here", the AI entry point,
+        // a chip that is ON without claiming the filled state. Reads the
+        // measured --brand-subtle pair (5.62 light / 5.82 dark on the wash)
+        // instead of an alpha of the brand, so the same button measures the
+        // same on a card and on the muted band. Hover deepens the wash one
+        // notch through the brand itself; the text stays the brand colour.
         brandSubtle:
-          "border-brand/28 bg-brand/7 text-foreground hover:bg-brand/12 hover:text-foreground active:bg-brand/16 aria-expanded:bg-brand/12 aria-expanded:text-foreground dark:border-brand/45 dark:bg-brand/12 dark:hover:bg-brand/18 dark:active:bg-brand/24 dark:aria-expanded:bg-brand/18",
+          "border-transparent bg-brand-subtle text-brand-subtle-foreground hover:bg-brand/15 hover:text-brand-subtle-foreground active:bg-brand/20 aria-expanded:bg-brand/15 aria-expanded:text-brand-subtle-foreground dark:hover:bg-brand/25 dark:active:bg-brand/30 dark:aria-expanded:bg-brand/25",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:

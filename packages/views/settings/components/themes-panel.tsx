@@ -21,8 +21,8 @@ const APPEARANCES: ThemeValue[] = ["light", "dark", "system"];
    day the palette moves. The accent squares are the exception: they read
    `--brand`, so the previews recolour live as the accent changes. */
 export const MOCK = {
-  light: { page: "#f8f9fa", rail: "#f1f1f9", card: "#ffffff", line: "#8a8a8a", edge: "#cfcfcf" },
-  dark: { page: "#111111", rail: "#1e1e1e", card: "#181818", line: "#8b8b95", edge: "#2e2e2e" },
+  light: { page: "#ffffff", rail: "#ffffff", card: "#ffffff", line: "#8a8a8a", edge: "#cfcfcf" },
+  dark: { page: "#111111", rail: "#111111", card: "#181818", line: "#8b8b95", edge: "#2e2e2e" },
 } as const;
 
 /** The tokens.css slot each MOCK colour is copied from, per theme block. */

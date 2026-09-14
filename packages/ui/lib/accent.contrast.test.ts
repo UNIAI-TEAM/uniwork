@@ -90,7 +90,7 @@ function contrast(a: Rgb, b: Rgb): number {
 }
 
 // Slot values copied from tokens.css. They are the surfaces the accent lands on.
-const LIGHT = { bg: hex("#f8f9fa"), surface: hex("#ffffff"), muted: hex("#f1f1f9") };
+const LIGHT = { bg: hex("#ffffff"), surface: hex("#ffffff"), muted: hex("#f1f1f9") };
 const DARK = { bg: hex("#111111"), surface: hex("#181818"), muted: hex("#262626") };
 const WHITE = hex("#ffffff");
 
