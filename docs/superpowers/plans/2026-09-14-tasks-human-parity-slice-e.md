@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — lát E của spec ô Task human-parity
+> **Trạng thái:** shipped — lát E của spec ô Task human-parity (2026-09-14). Cổng toàn phần chưa chạy cho lát này: `make check`, coverage và sàn từng package, Go `-race` toàn phần và sàn Go (`scripts/go-cover-floor.sh`) được hoãn sang cổng gộp chạy một lần cùng lát D2 trước PR, và lát này không nâng sàn coverage nào. Task 4 chỉ chạy các kiểm có mục tiêu, trên mã ở `e3e6adb`: vitest core `tasks realtime` (222/222), vitest views `tasks/detail` (140/140), Go `-race` `RealtimePatch|TestTaskCRUD|BatchUpdate` trong `bash -c` với `TZ=UTC` (17 PASS, 0 SKIP, 0 FAIL), `node --test` catalogue và governance (22/23, chỉ đỏ lỗi nền do commit `e88a055`), `pnpm typecheck`, `pnpm knip`, i18n parity. Views `tasks/surface` và `tasks/modes` không chạy vì lát D2 đang sửa hai thư mục đó; kiểm bằng hai trình duyệt thật chưa chạy. Chi tiết nằm ở spec §7septies.
 
 **Goal:** Khi một người sửa tiêu đề, trạng thái, độ ưu tiên hoặc ngày hạn của task, mọi người khác đang mở task đó thấy thay đổi ngay từ frame realtime, không chờ refetch, mà không bao giờ để cache mang một `revision` mới cùng dữ liệu cũ.
 

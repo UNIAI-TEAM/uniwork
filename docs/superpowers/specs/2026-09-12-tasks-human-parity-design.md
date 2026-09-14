@@ -1,6 +1,6 @@
 # UniWork — Task human-parity với USF (spec ô)
 
-> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`); lát C shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-c.md`); lát D1 shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-d1.md`)
+> **Trạng thái:** in-progress — lát A shipped (plan `../plans/2026-09-12-tasks-human-parity-slice-a.md`); lát B shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-b.md`); lát C shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-c.md`); lát D1 shipped (plan `../plans/2026-09-13-tasks-human-parity-slice-d1.md`); lát E shipped (plan `../plans/2026-09-14-tasks-human-parity-slice-e.md`)
 
 **Ngày:** 2026-09-12
 **Issue:** (tạo khi `writing-plans` — 1 issue ô + 5 sub-issue)
@@ -697,6 +697,262 @@ có chủ đích hay khoảng trống, và cần gì để đóng.
     đọc lại storage nên không hiện; lần tải lại kế tiếp của tab B bỏ dữ liệu đó,
     vì chủ ghi trong storage là A. Để đóng: nghe sự kiện `storage`, hoặc so chủ
     với người đăng nhập mỗi lần hydrate.
+
+## 7septies. Giới hạn đã biết của lát E
+
+Lát E cho client vá cache task từ frame realtime, theo ADR 0015
+(`docs/adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md`). Hàng
+`task.updated` của catalogue có thêm cột `Patch` gồm bốn trường `title`,
+`status`, `priority`, `due_date` (`server/internal/outbox/catalogue.go:76`).
+Mỗi lời gọi `TaskService.updateTaskInTx` gửi các trường đó cùng
+`revision_before` và `revision` khi mọi trường có trong input đều thuộc
+`Patch`; không thì frame chỉ mang id
+(`server/internal/service/task.go:199-247`). Client vá bản ghi task đã có trong
+cache khi `revision` của bản ghi bằng `revision_before` của frame: trang chi
+tiết đã vá thì bỏ refetch của frame đó, còn hàng trong list, truy vấn, trang vô
+hạn, My Tasks và `tableRows` được vá mà gốc của chúng vẫn invalidate
+(`packages/core/tasks/realtime-task-patch.ts`,
+`packages/core/realtime/use-realtime-sync.ts`). Các điểm dưới đây được kiểm trên
+mã ở `e3e6adb`. Mỗi điểm nói rõ đó là quyết định có chủ đích hay khoảng trống,
+và cần gì để đóng.
+
+1. **Chỉ bốn trường được vá; `assignee_*`, `position`, `project_id` và
+   `description` vẫn refetch.** Quyết định có chủ đích, của plan lát E (xem mục
+   11). Server xét từng trường có trong input
+   (`server/internal/service/task.go:207-239`): một lần sửa có bất kỳ trường nào
+   ngoài bốn trường đó, kể cả khi đi cùng một trường vá được, hoặc input rỗng,
+   gửi frame chỉ mang `task_id`, `workspace_id`, và mọi client refetch như trước
+   lát E. Lý do trong ADR 0015 Quyết định 2: người phụ trách là actor do server
+   phân giải, vá id mà không có tên sẽ hiện sai; `position` và `project_id` đổi
+   thứ tự và thành viên của list; `description` là cột `TEXT` không giới hạn
+   (lý do này là suy luận của agent). Test Go giữ ca mô tả, `position`, người
+   phụ trách và input rỗng
+   (`server/internal/service/task_realtime_patch_test.go:131-146`); `project_id`
+   không có ca riêng, chỉ được giữ bằng mã. Để đóng: mở thêm trường cần ADR mới;
+   người phụ trách cần frame mang được actor đã phân giải.
+
+2. **Hai revision chỉ đứng cạnh trường vá, và trường tính theo "có trong
+   input" chứ không theo "khác giá trị cũ".** Quyết định có chủ đích, của plan
+   lát E (xem mục 11). Server chỉ thêm `revision_before`, `revision` khi đã có ít
+   nhất một trường vá (`task.go:240-244`), để client không bao giờ nhận revision
+   mới trong khi một trường nó không vá được còn cũ. Trường có mặt trong input
+   được tính là đổi dù giá trị trùng bản đọc trước (`task.go:207-216`): bản
+   `before` được đọc trước khoá hàng, và so với nó có thể giấu thay đổi chính
+   lời gọi này ghi (`TestRealtimePatchStaleReadCannotHideAChange`,
+   `TestRealtimePatchStaleReadCannotHideAPatchField`). Cái giá: trường vá gửi lại
+   với giá trị không đổi vẫn sinh frame vá (vô hại, giá trị lấy từ hàng dưới
+   khoá); `description` có trong input mà không đổi vẫn làm frame chỉ mang id,
+   và người khác refetch. Để đóng: không cần; đổi luật cần ADR mới.
+
+3. **Tám nơi phát `task.updated` khác chỉ gửi id.** Quyết định có chủ đích. Bỏ
+   dự án khỏi task khi xoá dự án (`server/internal/service/project.go:420`), gắn
+   và gỡ nhãn (`task_catalog_labels.go:311,343`), thuộc tính tuỳ biến
+   (`task_catalog_properties.go:288,322`), cha và phụ thuộc
+   (`task_graph.go:224,300,355`) đều gửi `task_id`, `workspace_id`. Các command
+   đó tăng revision task (nhãn: `server/pkg/db/queries/task_labels.sql:81,99`;
+   xoá dự án: `projects.sql:147`; cha: `tasks.sql:222`; thuộc tính tuỳ biến tăng
+   có điều kiện: `task_properties.sql:52,73`), nên sau một frame như vậy bản ghi
+   trong cache lệch `revision_before` của frame vá kế tiếp cho tới khi refetch
+   về, và frame vá đó rơi về invalidate. Chỉ hai nơi phát của nhãn có test Go
+   (`TestRealtimePatchOtherEmittersStayIDsOnly`,
+   `server/internal/service/task_realtime_patch_test.go:441`); sáu nơi còn lại
+   chỉ được giữ bằng mã, vì test catalogue kiểm theo hàng chứ không theo nơi
+   phát. Để đóng: nếu cần test, mở rộng test đó cho sáu nơi còn lại.
+
+4. **Hàng trong list được vá nhưng giữ vị trí, cột và nhóm tới khi refetch
+   về.** Quyết định có chủ đích, đánh đổi của ADR 0015 (Hệ quả, "List vẫn
+   refetch"). Vá chỉ thay trường của hàng tại chỗ, không thêm, bỏ hay dời hàng
+   (`packages/core/tasks/realtime-task-patch.ts:83-92`), và mọi frame `task.*`
+   vẫn invalidate `list`, `myTasks`, `queryRoot`, `tableRoot`
+   (`packages/core/tasks/cache-coordinator.ts:41`). Trong khoảng giữa frame và
+   lúc refetch về:
+   - Board: mỗi cột là các trang `tableRows` truy vấn theo trạng thái, và thẻ
+     nằm ở cột của truy vấn chứ không theo `task.status`
+     (`packages/views/tasks/surface/use-board-columns-data.ts:153-166,187-213`),
+     nên thẻ vừa đổi trạng thái mang trạng thái mới mà vẫn đứng ở cột cũ.
+   - Hàng trong truy vấn vô hạn, My Tasks hay bảng đang lọc hoặc sắp theo trạng
+     thái, độ ưu tiên, ngày hạn vẫn ở chỗ cũ, kể cả khi không còn khớp bộ lọc.
+   - Cache `taskKeys.grouped` không được vá: ở mã hiện tại không nơi nào đọc nó
+     (`packages/core/tasks/realtime-task-patch.test.ts:303` giữ).
+
+   Để đóng: không đóng trong ADR 0015; client tự sắp lại, dời cột hay bỏ hàng
+   khỏi bộ lọc từ frame cần ADR mới.
+
+5. **Bản ghi được vá giữ `updated_at` cũ.** Khoảng trống nhỏ. Frame không mang
+   `updated_at` hay `last_activity_at` (`server/internal/service/task.go:223-228`,
+   ADR 0015 Quyết định 3), và vá chỉ ghi trường vá cùng `revision`
+   (`realtime-task-patch.ts:71-81`). Ngày trên thẻ board
+   (`packages/views/tasks/modes/board-card.tsx:138`) và cột `updated_at` của bảng
+   (`packages/views/tasks/modes/table-view-model.ts:166-167`) hiện ngày cũ tới
+   khi list refetch về. Trang chi tiết đã vá không refetch nhưng không hiện
+   `updated_at`. Để đóng: chấp nhận, hoặc đưa `updated_at` vào frame, việc cần
+   ADR mới vì trường đó nằm ngoài `Patch`.
+
+6. **Hàng của task trong danh sách con của task cha, và tiến độ con của cha,
+   không được vá và không bị invalidate.** Có từ trước lát E. `task.updated`
+   chỉ invalidate `children(task_id)`, tức danh sách con của chính task đó
+   (`cache-coordinator.ts:43`); `children` của task cha, `childrenByParents` và
+   `childProgress` (`packages/core/tasks/keys.ts:35-38`) không nằm trong khoá
+   của frame `task.*` nào, và `use-realtime-sync.ts` không chạm tới chúng. Đổi
+   tiêu đề hay trạng thái của sub-task thì danh sách con và tiến độ ở trang task
+   cha đứng yên tới lần refetch kế. Lát E không vá hàng con, vì vá riêng hàng đó
+   làm nó lệch với bộ đếm tiến độ. Để đóng: invalidate `childrenByParents` và
+   `childProgress` theo workspace khi có `task.updated`, và `children` của task
+   cha khi frame mang `parent_id`.
+
+7. **Frame có thể tới lệch thứ tự; guard hai đầu giữ đúng, cái giá là
+   refetch.** Quyết định có chủ đích. Hai revision tính theo từng lời gọi
+   `updateTaskInTx`: `revision_before` là revision của hàng `UpdateTask` trả về
+   trừ một (`task.go:419`). Mọi hàng outbox của một transaction mang cùng
+   `created_at` (`DEFAULT now()`,
+   `server/migrations/008_meeting_control_plane.up.sql:155`; `now()` cố định
+   trong transaction), và `ClaimPendingOutbox` chỉ `ORDER BY created_at` với
+   `FOR UPDATE SKIP LOCKED` (`server/pkg/db/queries/meeting_control.sql:245-247`).
+   Vì vậy hai frame của một lô `BatchUpdateTasks` lặp cùng task, hay hai lần sửa
+   sát nhau, có thể tới client đảo thứ tự. Frame tới sớm có `revision_before`
+   không khớp cache nên không vá mà invalidate (`realtime-task-patch.ts:72`, test
+   `realtime-task-patch.test.ts:168`); frame tới muộn thường gặp entry đã bị
+   invalidate hoặc đã ở revision mới hơn, nên cũng không vá (trừ mục 8). Guard
+   chỉ đúng vì server không bao giờ sinh hai khoảng `[revision_before, revision]`
+   chồng nhau (`TestRealtimePatchConcurrentUpdatesDoNotOverlap`,
+   `TestRealtimePatchBatchRepeatingATaskChainsRanges`). Để đóng: không cần cho
+   tính đúng; muốn bớt refetch thừa thì outbox phải giữ thứ tự phát theo task,
+   ngoài phạm vi lát này.
+
+8. **Entry dạng list đã bị invalidate mà đang fetch vẫn được vá, khác trang chi
+   tiết.** Quyết định có chủ đích, chưa có test. `patchEntries` chỉ bỏ qua entry
+   đang idle mà đã bị invalidate (`realtime-task-patch.ts:148-171`), còn
+   `patchDetail` bỏ qua cả entry đang fetch (`realtime-task-patch.ts:177-186`).
+   Với list, dữ liệu mà lần fetch đang chạy mang về sẽ thay bản vá, và đợt
+   invalidate của chính frame vẫn refetch gốc. Với trang chi tiết, khoá chi tiết
+   bị bỏ khỏi đợt khi vá, nên phải chặn. Không test nào ghim sự khác nhau này:
+   đổi điều kiện của list để bỏ qua cả entry đang fetch thì test vẫn xanh. Để
+   đóng: thêm test cho entry list đang fetch và đã bị invalidate.
+
+9. **Tab của chính người sửa có thể tải lại mọi trang vô hạn đã tải hai lần, và
+   tốn thêm một GET chi tiết.** Khoảng trống hiệu năng, chưa đo. Lần sửa của
+   chính tab đó tự invalidate khi xong: `useUpdateTask` khi settle
+   (`packages/core/tasks/hooks.ts:265-270`) và `usePutTask` khi thành công
+   (`packages/core/tasks/hooks-suite.ts:123-129`) cùng invalidate `list`,
+   `queryRoot`, `myTasks`, `tableRoot` và khoá chi tiết. Frame của chính lần sửa
+   đó dội về tab này và invalidate lại cùng các gốc trong đợt debounce của nó
+   (`cache-coordinator.ts:41`), mà một lần invalidate truy vấn vô hạn tải lại
+   mọi trang đã tải (`hooks.ts:43-48`). Ở trang chi tiết, nếu frame tới sau khi
+   refetch settle đã bắt đầu, entry đang fetch hoặc đã ở revision của frame nên
+   không vá (`realtime-task-patch.ts:72,183-184`), và khoá chi tiết ở lại trong
+   đợt, thành GET thứ hai. Để đóng: đo trên list nhiều trang; nếu tốn, cho frame
+   mang id nhận diện lần ghi để tab tác giả bỏ đợt invalidate trùng.
+
+10. **Nếu sau này có task mà quyền đọc hẹp hơn workspace, phải tắt `Patch` hoặc
+    đổi phạm vi phát trước khi ship.** Quyết định có chủ đích, có điều kiện
+    (ADR 0015, Hệ quả). `task.updated` phát theo phạm vi workspace
+    (`catalogue.go:76`), và consumer realtime gửi nguyên payload cho mọi kết nối
+    của workspace (`server/internal/outbox/realtime_consumer.go:74-92`). An toàn
+    hôm nay chỉ vì quyền đọc task là thành viên workspace
+    (`TaskService.authorizeActor`, `server/internal/service/task.go:354-366`).
+    Tiêu đề và ba trường phân loại cũng nằm trong mọi hàng `outbox_events` đủ
+    điều kiện, nên mọi consumer outbox đọc được. Không test nào đỏ khi một tính
+    năng thu hẹp quyền đọc task; hàng rào duy nhất là ADR và review. Để đóng:
+    trước khi ship task riêng, dự án kín hay khách, tắt `Patch` của
+    `task.updated` hoặc đổi phạm vi phát cho khớp quyền đọc.
+
+11. **Các lựa chọn của plan và của agent trong ADR 0015 chờ quangpd xác nhận.**
+    Cần người quyết. quangpd chỉ chốt câu ở spec §2 (viết ADR cho phép vá cache
+    từ frame realtime, có kiểm soát bằng catalogue), và §4.3 đặt ba ràng buộc.
+    Dòng trạng thái của ADR
+    (`docs/adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md:3`) ghi mọi thứ
+    còn lại là lựa chọn của plan lát E, của lượt tiền kiểm mã, hoặc suy luận của
+    agent:
+    - tập trường vá và các trường không vá;
+    - guard hai revision tính theo từng lời gọi;
+    - "có trong input", và hai revision chỉ cạnh trường vá;
+    - client chỉ vá khi có ít nhất một khoá `Patch` và đủ hai revision;
+    - cách mã hoá giá trị (`YYYY-MM-DD`, chuỗi rỗng khi xoá);
+    - trang chi tiết đã vá không refetch;
+    - điều kiện tắt `Patch` ở mục 10, và việc mở thêm trường hay topic cần ADR
+      mới;
+    - giữ `Version` của `task.updated` ở 1.
+
+    Lý do không vá `description` và lý do giữ `Version` 1 là suy luận của agent,
+    không có nguồn (ADR 0015 Quyết định 2 và Hệ quả). Để đóng: quangpd xác nhận
+    hoặc bác từng lựa chọn ở review PR; bác lựa chọn nào thì sửa bằng ADR mới,
+    vì ADR đã `accepted` không được sửa lại.
+
+12. **Test giữ danh sách trường có điểm mù, ở cả client lẫn server.** Khoảng
+    trống kiểm chứng.
+    - `scripts/events-catalogue.test.mjs:170-187` chỉ so chữ của khai báo
+      `const TASK_PATCH_FIELDS = [...] as const;` với `Patch` của
+      `catalogue.go`, không kiểm decoder dùng hằng đó. Ở mã hiện tại decoder lặp
+      đúng hằng (`realtime-task-patch.ts:55`) và kiểu suy ra từ nó
+      (`realtime-task-patch.ts:16-18`), nhưng decoder viết lại theo một danh sách
+      cứng khác vẫn qua test.
+    - Server lập danh sách trường có trong input bằng tay (`inInput`,
+      `server/internal/service/task.go:207-216`), tách khỏi struct
+      `UpdateTaskInput` (`task.go:58-68`). Không test nào nối hai chỗ: một trường
+      thêm vào struct mà quên thêm ở đây bị coi là vắng mặt, nên một lần sửa gồm
+      tiêu đề và trường mới đó gửi tiêu đề kèm hai revision trong khi trường mới
+      còn cũ ở cache của người khác, đúng kịch bản mất dữ liệu ADR 0015 chặn.
+      `AssigneeKind` vắng mặt có chủ đích: nó chỉ được đọc khi có `AssigneeID`
+      (`task.go:65`).
+
+    Để đóng: một test vitest gửi frame mang từng trường của catalogue và khẳng
+    định trường đó được vá; một test Go duyệt mọi trường của `UpdateTaskInput`
+    bằng `reflect` và đỏ khi một trường không có trong `inInput` mà cũng không
+    được miễn kèm lý do.
+
+13. **Luật "payload chỉ mang id" và khoá `version` lệch câu chữ.** Có từ trước
+    nhánh, định tuyến cho người. Test catalogue cho qua khoá tên đúng `version`
+    (`scripts/events-catalogue.test.mjs:159`), mười hàng của miền meeting mang
+    khoá đó (`server/internal/outbox/catalogue.go:177-186`), và client dùng nó
+    để bỏ invalidate chi tiết meeting khi cache đã mới hơn
+    (`packages/core/realtime/use-realtime-sync.ts:28-29`). Trong khi đó
+    `CLAUDE.md:249`, `CLAUDE.md:560` và `docs/conventions.md:98` viết payload
+    "ids only". Lát E không đổi điều này. Để đóng: ba câu đó nêu ngoại lệ
+    `version`.
+
+14. **If-Match của `PUT /tasks/{id}` được kiểm với revision đọc ngoài
+    transaction.** Có từ trước nhánh, định tuyến cho người. Handler gọi
+    `UpdateTaskSuite` (`server/internal/handler/task_mutations.go:47`). Hàm này so
+    revision client gửi với `before.Revision` do `authorizeActor` đọc trước mọi
+    transaction (`server/internal/service/task_mutations.go:88-94`), rồi mới gọi
+    `Update`. Hai PUT cùng `If-Match` chạy sát nhau có thể cùng qua kiểm tra và
+    cùng commit: lần sau ghi đè lần trước mà không ai nhận `revision_conflict`.
+    Guard mất dữ liệu của ADR 0015 (Hệ quả, "Guard không được nới") giả định
+    server từ chối đúng `If-Match` cũ; lỗ này làm mất dữ liệu mà không cần tới
+    frame nào. Để đóng: kiểm revision dưới khoá hàng, trong cùng transaction với
+    câu UPDATE, kèm test hai PUT đồng thời.
+
+15. **Audit `Changes` của lần sửa task so với bản đọc trước khoá hàng.** Có từ
+    trước nhánh, định tuyến cho người. `updateTaskInTx` ghi
+    `audit.Diff(taskAuditFields(before), taskAuditFields(task))`
+    (`server/internal/service/task.go:465`), với `before` đọc trước khoá hàng. Có
+    người ghi xen giữa thì dòng audit gán cho lời gọi này thay đổi của người
+    kia, hoặc bỏ sót trường lời gọi ghi lại về giá trị cũ. Cùng họ với mục 14;
+    lát E tránh `before` khi dựng frame nhưng không đổi audit. Để đóng: diff với
+    hàng đọc dưới khoá, trong transaction.
+
+16. **Vá cache chỉ được chứng minh bằng test Go trên Postgres và test jsdom;
+    chưa kiểm trên trình duyệt thật.** Khoảng trống kiểm chứng.
+    - Server: `server/internal/service/task_realtime_patch_test.go` đọc payload
+      từ hàng outbox, không từ frame WebSocket.
+    - Client: `packages/core/tasks/realtime-task-patch.test.ts` và
+      `packages/core/realtime/use-realtime-sync.test.tsx` chạy trên `QueryClient`
+      thật với client WebSocket giả, trong jsdom.
+    - Chưa test nào đi hết đường outbox → `RealtimeConsumer` → WebSocket → cache
+      → màn hình. `e2e/` không có kịch bản cho vá cache từ `task.updated`, và
+      test views duy nhất đẩy `task.updated`
+      (`packages/views/tasks/surface/task-surface-board.test.tsx`) chỉ gửi frame
+      mang id.
+    - Tab tác giả được mô phỏng bằng cách gieo kết quả refetch settle
+      (`use-realtime-sync.test.tsx:383`), không chạy hook mutation thật.
+    - Kiểm hai trình duyệt (người A sửa tiêu đề, người B đang mở task thấy tiêu
+      đề mới không cần tải lại) chưa chạy ở Task 4 lát E: app không chạy, và
+      `make start` sẽ migrate database dùng chung và dựng app trên máy đang chạy
+      test của các agent khác trong cùng cây.
+
+    Để đóng: kịch bản Playwright hai context: A đổi tiêu đề và trạng thái; B đang
+    mở trang chi tiết thấy đổi mà không có request GET chi tiết task; board của B
+    thấy thẻ đổi rồi sang cột mới sau refetch.
 
 ## 8. Việc làm tiếp theo
 
