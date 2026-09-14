@@ -55,7 +55,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		workspaces, workspace_members, invitations, refresh_tokens,
 		project_resources, projects, idempotency_keys, feature_flag_overrides,
 		task_source_contexts, attachments, task_reactions, comment_reactions,
-		task_view_preferences, task_views, task_pins, task_subscribers,
+		home_preferences, task_view_preferences, task_views, task_pins, task_subscribers,
 		task_dependencies, task_label_links, task_properties, task_labels, task_statuses,
 		tasks, task_comments,
 		meetings, meeting_attendees, meeting_notes,

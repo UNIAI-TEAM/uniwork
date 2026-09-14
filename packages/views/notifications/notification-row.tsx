@@ -18,6 +18,11 @@ export interface NotificationRowProps {
   onArchive: (n: Notification) => void;
   /** Compact rows for the bell popover: no hover actions. */
   compact?: boolean;
+  /**
+   * Inbox and bell render rows as listbox options. A plain list (the home
+   * screen) passes false so the row's link keeps its own role.
+   */
+  asOption?: boolean;
 }
 
 /**
@@ -26,7 +31,7 @@ export interface NotificationRowProps {
  * time, and the unread dot. A deleted resource is still a row (the person
  * was told something) but is dimmed and not a link.
  */
-export function NotificationRow({ notification: n, href, selected, onOpen, onToggleRead, onArchive, compact }: NotificationRowProps) {
+export function NotificationRow({ notification: n, href, selected, onOpen, onToggleRead, onArchive, compact, asOption = true }: NotificationRowProps) {
   const { t, i18n } = useTranslation();
   const unread = !n.read_at;
   const title = t(n.title_key, { ...n.params, defaultValue: n.kind });
@@ -69,9 +74,9 @@ export function NotificationRow({ notification: n, href, selected, onOpen, onTog
   return (
     <li
       id={n.id}
-      role="option"
+      role={asOption ? "option" : undefined}
       data-notification-id={n.id}
-      aria-selected={!!selected}
+      aria-selected={asOption ? !!selected : undefined}
       className={cn("relative border-b border-border last:border-b-0", compact && "border-b-0")}
     >
       {n.resource_deleted ? (

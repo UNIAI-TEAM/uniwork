@@ -9,6 +9,7 @@ import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
+import { homeKeys } from "../home/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
 import { orgMemberRootKey } from "../organizations/hooks";
@@ -71,6 +72,11 @@ function keysFor(
     ) {
       push(auditKeys.history(wsId, "task", payload.task_id));
     }
+    // The home summary lists open work assigned to the viewer; any task
+    // lifecycle event can change it.
+    if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
+      push(homeKeys.summary(wsId));
+    }
     return keys;
   }
 
@@ -85,6 +91,7 @@ function keysFor(
       // comes back from the API.
       push(notificationKeys.lists());
       push(notificationKeys.unreadCount());
+      push(homeKeys.summary(wsId));
       break;
     }
     case "ai.usage.updated": {
@@ -125,6 +132,7 @@ function keysFor(
     case "meeting.ended":
     case "meeting.canceled":
     case "host.transferred": {
+      push(homeKeys.summary(wsId));
       push(meetingKeys.list(wsId));
       push(meetingKeys.stats(wsId));
       if (payload.meeting_id) {
@@ -136,6 +144,7 @@ function keysFor(
     case "participant.invited":
     case "participant.removed":
     case "invitation.responded": {
+      push(homeKeys.summary(wsId));
       if (payload.meeting_id) {
         push(meetingKeys.participants(payload.meeting_id));
         push(meetingKeys.invitations(payload.meeting_id));

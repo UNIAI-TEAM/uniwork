@@ -301,6 +301,7 @@ func main() {
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,
+		Home:            service.NewHomeService(q, wsSvc),
 		Agents:          agentSvc,
 		Actors:          actorSvc,
 		Audit:           auditSvc,

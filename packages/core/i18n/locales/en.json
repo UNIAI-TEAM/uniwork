@@ -170,6 +170,7 @@
     }
   },
   "nav": {
+    "home": "Home",
     "inbox": "Inbox",
     "tasks": "Tasks",
     "my_tasks": "My tasks",
@@ -1125,6 +1126,147 @@
       "created_description": "Tasks I created",
       "involved_label": "My agents",
       "involved_description": "Tasks involving my agents"
+    }
+  },
+  "home": {
+    "title": "Home",
+    "greeting": {
+      "morning": "Good morning, {{name}}",
+      "noon": "Good afternoon, {{name}}",
+      "afternoon": "Good afternoon, {{name}}",
+      "evening": "Good evening, {{name}}"
+    },
+    "subtitle": {
+      "loading": "Here is your work for today",
+      "attention_one": "{{count}} thing needs your attention today",
+      "attention_other": "{{count}} things need your attention today",
+      "clear": "Nothing urgent today"
+    },
+    "actions": {
+      "customize": "Customize",
+      "refresh": "Refresh"
+    },
+    "stats": {
+      "label": "Today at a glance",
+      "due_today": "due today",
+      "overdue": "overdue",
+      "meetings_today": "meetings today",
+      "unread": "unread",
+      "item": "{{count}} {{label}}"
+    },
+    "section": {
+      "stats": "Today at a glance",
+      "stats_description": "Overdue, due today, meetings and unread counts",
+      "mywork": "My work",
+      "mywork_description": "Open work assigned to you, most urgent first",
+      "upcoming": "Upcoming",
+      "upcoming_description": "Meetings in progress, today and tomorrow",
+      "inbox": "Inbox",
+      "inbox_description": "Unread notifications in this workspace",
+      "brief": "Today's brief",
+      "brief_description": "A few lines drawn from the numbers above"
+    },
+    "mywork": {
+      "view_all": "View all",
+      "keys_move": "move",
+      "keys_select": "select",
+      "keys_complete": "complete",
+      "keys_open": "open",
+      "select_all": "Select all",
+      "selected": "{{count}} of {{total}} selected",
+      "clear_selection": "Clear",
+      "complete": "Complete",
+      "completed": "Done",
+      "complete_task": "Complete: {{title}}",
+      "select_task": "Select: {{title}}",
+      "bulk_complete_one": "Complete {{count}} task",
+      "bulk_complete_other": "Complete {{count}} tasks",
+      "completed_toast_one": "Completed {{count}} task",
+      "completed_toast_other": "Completed {{count}} tasks",
+      "complete_failed": "Couldn't update the task. The change was undone.",
+      "overdue_one": "{{count}} day overdue",
+      "overdue_other": "{{count}} days overdue",
+      "due_today": "Due today",
+      "due_on": "Due {{date}}",
+      "no_due": "No due date",
+      "empty_title": "Nothing to do",
+      "empty_description": "No open work is assigned to you. Assigned work shows here, most urgent first.",
+      "empty_action": "Open tasks"
+    },
+    "upcoming": {
+      "view_all": "View all",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "live": "In progress",
+      "join": "Join",
+      "open": "Open",
+      "empty_title": "No meetings",
+      "empty_description": "You have no meetings today or tomorrow.",
+      "empty_action": "Open meetings"
+    },
+    "inbox": {
+      "view_all": "View all",
+      "empty_title": "Inbox is clear",
+      "empty_description": "Nothing is waiting for you in this workspace.",
+      "empty_action": "Open inbox"
+    },
+    "brief": {
+      "title": "Today's brief",
+      "badge": "From your data",
+      "overdue_one": "{{count}} task is overdue: “{{title}}” ({{days}} days).",
+      "overdue_other": "{{count}} tasks are overdue, the oldest is “{{title}}” ({{days}} days).",
+      "overdue_plain_one": "{{count}} task is overdue.",
+      "overdue_plain_other": "{{count}} tasks are overdue.",
+      "meetings_one": "{{count}} meeting left today: “{{title}}”.",
+      "meetings_other": "{{count}} meetings left today, next is “{{title}}”.",
+      "meetings_plain_one": "{{count}} meeting left today.",
+      "meetings_plain_other": "{{count}} meetings left today.",
+      "due_today_one": "{{count}} task is due today.",
+      "due_today_other": "{{count}} tasks are due today.",
+      "unread_one": "{{count}} unread notification.",
+      "unread_other": "{{count}} unread notifications."
+    },
+    "partial": {
+      "tasks": "Couldn't load your tasks.",
+      "meetings": "Couldn't load your meetings.",
+      "notifications": "Couldn't load your inbox.",
+      "retry": "Retry"
+    },
+    "error": {
+      "title": "Couldn't load home",
+      "description": "The server can't be reached right now. Try again in a moment.",
+      "retry": "Retry"
+    },
+    "customize": {
+      "title": "Customize home",
+      "description": "Show or hide sections, reorder them and pick a density. Saved to your account.",
+      "sections": "Sections",
+      "layout": "Density",
+      "presets": "Presets",
+      "reset": "Reset",
+      "close": "Close",
+      "saving": "Saving…",
+      "save_failed": "Couldn't save. The previous layout is back.",
+      "move_up": "Move {{section}} up",
+      "move_down": "Move {{section}} down",
+      "all_hidden": "Every section on your home is hidden.",
+      "open": "Open customize"
+    },
+    "layout": {
+      "compact": "Compact",
+      "compact_hint": "One column, focused on your work",
+      "balanced": "Balanced",
+      "balanced_hint": "Two columns, the default",
+      "wide": "Wide",
+      "wide_hint": "Three columns on large screens"
+    },
+    "preset": {
+      "executive": "Lead",
+      "executive_description": "Numbers, brief and inbox first",
+      "doer": "Maker",
+      "doer_description": "Your work and upcoming meetings first",
+      "minimal": "Minimal",
+      "minimal_description": "Only my work"
     }
   },
   "capabilities": {

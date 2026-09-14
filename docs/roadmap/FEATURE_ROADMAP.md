@@ -91,7 +91,7 @@ có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability �
 | A-02 | Tool registry + policy rủi ro; hành động tự động chỉ ở mức thấp | AI Platform | spec F-09 | P0 |
 | A-03 | Workflow & Automation: trigger, step, run, agent step | Workflow | `(cần viết)` | P1 |
 | A-04 | Knowledge (wiki) + Search toàn cục + RAG có quyền, đọc Work Graph và Decision record | Knowledge & Memory | `(cần viết)`; tham chiếu Universal Search V2 bản cũ; phụ thuộc C-11, C-12 | P1 |
-| A-05 | Insights: home brief, dashboard inline, work economics (rate có phiên bản, cohort) | Reporting | `(cần viết)`; kế thừa WE-1/2/3 bản cũ | P1 |
+| A-05 | Insights: home brief, dashboard inline, work economics (rate có phiên bản, cohort) | Reporting | Lát 1 Trang chủ: `2026-09-14-home-trang-chu-design.md` (đề xuất, chờ duyệt; UNI-451; sau flag `home_page`, tóm tắt suy ra từ dữ liệu, chưa dùng LLM). Dashboard inline và work economics `(cần viết)`; kế thừa WE-1/2/3 bản cũ | P1 |
 | A-06 | SSO SAML, SCIM chuẩn bị | Identity | `(cần viết)` | P1 |
 | A-07 | Webhook ký HMAC + SDK TypeScript sinh từ OpenAPI | API | `(cần viết)` | P1 |
 | A-08 | Self-serve: đăng ký, chọn gói, thanh toán, nâng cấp | Tenant & Subscription | spec F-02 | P0 |
