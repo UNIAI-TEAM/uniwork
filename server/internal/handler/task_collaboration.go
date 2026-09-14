@@ -32,6 +32,9 @@ func commentDTO(
 		UpdatedAt:   updatedAt.Time.Format(time.RFC3339),
 		DisplayName: displayName, AvatarURL: avatarURL,
 		Author: sdo.ActorDTO{ID: authorID, Kind: authorKind, DisplayName: displayName, AvatarURL: avatarURL},
+		// Never nil: callers that don't set reactions (create/update/resolve)
+		// must still serialize "reactions":[], not null.
+		Reactions: []sdo.CommentReactionDTO{},
 	}
 	if parentID.Valid {
 		p := parentID.String
@@ -53,6 +56,23 @@ func commentDTOFromListRow(c db.ListTaskCommentsRow) sdo.CommentDTO {
 		c.ID, c.TaskID, c.AuthorID, c.AuthorKind, c.Body, c.CommentType, c.Revision,
 		c.ParentCommentID, c.ResolvedAt, c.CreatedAt, c.UpdatedAt, c.DisplayName, avatar,
 	)
+}
+
+// groupCommentReactions buckets reactions by comment id. Every comment gets a
+// non-nil slice so the JSON carries [] instead of null.
+func groupCommentReactions(rows []db.CommentReaction) map[string][]sdo.CommentReactionDTO {
+	out := make(map[string][]sdo.CommentReactionDTO, len(rows))
+	for _, r := range rows {
+		out[r.CommentID] = append(out[r.CommentID], sdo.CommentReactionDTO{
+			ID:        r.ID,
+			CommentID: r.CommentID,
+			ActorType: r.ActorType,
+			ActorID:   r.ActorID,
+			Emoji:     r.Emoji,
+			CreatedAt: r.CreatedAt.Time.Format(time.RFC3339),
+		})
+	}
+	return out
 }
 
 func commentDTOFromTaskComment(c db.TaskComment, displayName, avatarURL string) sdo.CommentDTO {
@@ -224,10 +244,6 @@ func (h *handlers) unsubscribeTaskSubtree(w http.ResponseWriter, r *http.Request
 		return
 	}
 	respondJSON(w, 200, map[string]string{"status": "ok"})
-}
-
-func (h *handlers) getTaskTimeline(w http.ResponseWriter, r *http.Request) {
-	h.mapServiceError(w, h.Tasks.GetTaskTimeline(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID")))
 }
 
 func (h *handlers) commentSubTaskPreview(w http.ResponseWriter, r *http.Request) {

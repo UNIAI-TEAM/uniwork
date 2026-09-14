@@ -97,7 +97,16 @@ function classify(path) {
     return { group: "views", disposition: "adapted" };
   }
   if (/\/projects/.test(p)) return { group: "projects", disposition: "adapted" };
-  if (/\/comments|\/reactions|\/subscribers|\/subscribe|\/unsubscribe|\/attachments|\/timeline/.test(p)) {
+  // Timeline duplicated ResourceHistory (Task 6's activity feed) and was
+  // dropped rather than implemented — see docs/parity catalogue for the reason.
+  if (/\/timeline/.test(p)) {
+    return {
+      group: "collaboration",
+      disposition: "dropped",
+      reason: "Trùng chức năng với ResourceHistory của audit; lát A dùng useResourceHistory",
+    };
+  }
+  if (/\/comments|\/reactions|\/subscribers|\/subscribe|\/unsubscribe|\/attachments/.test(p)) {
     return { group: "collaboration", disposition: "adapted" };
   }
   if (/my-tasks/.test(p)) return { group: "my_tasks", disposition: "adapted" };
@@ -216,8 +225,10 @@ export function buildCatalogue({ baseline, clientSource }) {
     if (seenTargets.has(key)) continue;
     seenTargets.add(key);
 
-    const { group, disposition } = classify(target_path);
-    routes.push({ method, source_path, target_path, group, disposition });
+    const { group, disposition, reason } = classify(target_path);
+    const route = { method, source_path, target_path, group, disposition };
+    if (reason) route.reason = reason;
+    routes.push(route);
   }
 
   // Ensure My Tasks surface exists even when Multica only filters listIssues.

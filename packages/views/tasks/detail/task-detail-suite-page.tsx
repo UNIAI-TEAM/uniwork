@@ -13,6 +13,8 @@ import { useWorkspace } from "../../layout/workspace-context";
 import { TaskDetailEditors } from "./components/task-detail-editors";
 import { TaskDetailResizableLayout } from "./components/task-detail-layout";
 import { TaskDetailPropertiesSidebarSlot } from "./components/task-detail-properties-slot";
+import { TaskFindScope } from "./find/task-find-scope";
+import { useRecordTaskVisit } from "./hooks/use-record-task-visit";
 import { useTaskDetailScrollRestore } from "./hooks/use-task-detail-scroll-restore";
 import { useTaskFieldSave } from "./hooks/use-task-field-save";
 
@@ -29,7 +31,8 @@ export function TaskDetailSuitePage(props: {
   const { workspaceId, taskId } = props;
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
-  const { data: task, isLoading, isError, refetch } = useTask(taskId);
+  const { data: task, isLoading, isError, error, refetch } = useTask(taskId);
+  useRecordTaskVisit({ workspaceId, taskId, task, error });
   const sidebarController = useAnimatedRightSidebar(true);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const attachScroll = useCallback((el: HTMLElement | null) => {
@@ -94,13 +97,22 @@ export function TaskDetailSuitePage(props: {
         sidebarController={sidebarController}
         sidebarLabel={t("tasks.detail.sidebar_toggle")}
         main={
-          <TaskDetailEditors
-            task={task}
-            workspaceId={workspaceId}
-            scrollContainerRef={attachScroll}
-            onSaveTitle={(title) => saveField({ title })}
-            onSaveDescription={(description) => saveField({ description })}
-          />
+          // The editors element is created here and handed to the find scope
+          // as children, so find state changing inside the scope (every
+          // keystroke) never re-renders them.
+          <TaskFindScope
+            taskId={taskId}
+            container={scrollEl}
+            description={task.description ?? ""}
+          >
+            <TaskDetailEditors
+              task={task}
+              workspaceId={workspaceId}
+              scrollContainerRef={attachScroll}
+              onSaveTitle={(title) => saveField({ title })}
+              onSaveDescription={(description) => saveField({ description })}
+            />
+          </TaskFindScope>
         }
         sidebar={
           <TaskDetailPropertiesSidebarSlot

@@ -18,20 +18,63 @@ describe("WelcomeAfterOnboarding", () => {
     const { container } = render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={() => {}} />));
     expect(container).toBeEmptyDOMElement();
   });
-  it("seeds task then shows 🎉 dialog; got it opens task", async () => {
+  it("seeds task then shows welcome dialog; primary button opens task", async () => {
     requestMock.mockResolvedValueOnce({ task });
     setWelcomeSignal("w1");
     const onOpenTask = vi.fn();
     render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={onOpenTask} />));
-    const gotIt = await screen.findByRole("button", { name: "Đã hiểu" });
+    const open = await screen.findByRole("button", { name: "Mở task hướng dẫn" });
     expect(screen.getAllByText("Chào mừng đến UniWork!").length).toBeGreaterThan(0);
-    fireEvent.click(gotIt);
+    fireEvent.click(open);
     expect(onOpenTask).toHaveBeenCalledWith("t1");
+  });
+  /** Thẻ trông như một thẻ task nên phải bấm được — bản cũ trơ, người dùng bấm vào không có gì xảy ra. */
+  it("the guide card is itself a button that opens the task", async () => {
+    requestMock.mockResolvedValueOnce({ task });
+    setWelcomeSignal("w1");
+    const onOpenTask = vi.fn();
+    render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={onOpenTask} />));
+    const card = await screen.findByRole("button", { name: /Bắt đầu với UniWork/ });
+    fireEvent.click(card);
+    expect(onOpenTask).toHaveBeenCalledWith("t1");
+  });
+  /** Hai span khối không tự chèn khoảng trắng khi ghép tên khả truy cập: thiếu
+   *  aria-label, trình đọc màn hình đọc liền thành "UniWorkTạo việc". */
+  it("separates title from description in the card's accessible name", async () => {
+    requestMock.mockResolvedValueOnce({ task });
+    setWelcomeSignal("w1");
+    render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={() => {}} />));
+    const card = await screen.findByRole("button", { name: /Bắt đầu với UniWork/ });
+    const name = card.getAttribute("aria-label") ?? "";
+    expect(name).toMatch(/^Bắt đầu với UniWork\./);
+    expect(name).not.toMatch(/UniWorkTạo/);
+  });
+  /** Seed chạy bao lâu cũng không phải lý do giam người dùng trong hộp. */
+  it("lets the user leave while the guide task is still being seeded", async () => {
+    requestMock.mockReturnValueOnce(new Promise(() => {}));
+    setWelcomeSignal("w1");
+    const onOpenTask = vi.fn();
+    render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={onOpenTask} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Để sau" }));
+    expect(onOpenTask).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+  /** Bản cũ có nút X đóng mà không mở task, khác kết cục với nút chính. Mọi lối thoát giờ đều có nhãn. */
+  it("dismisses without opening the task, and offers no unlabelled exit", async () => {
+    requestMock.mockResolvedValueOnce({ task });
+    setWelcomeSignal("w1");
+    const onOpenTask = vi.fn();
+    render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={onOpenTask} />));
+    const later = await screen.findByRole("button", { name: "Để sau" });
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+    fireEvent.click(later);
+    expect(onOpenTask).not.toHaveBeenCalled();
   });
   it("shows retry dialog on failure", async () => {
     requestMock.mockRejectedValueOnce(new Error("x"));
     setWelcomeSignal("w1");
     render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={() => {}} />));
-    expect(await screen.findByText("Chưa chuẩn bị được workspace")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(screen.getAllByText("Chưa chuẩn bị được workspace").length).toBeGreaterThan(0);
   });
 });

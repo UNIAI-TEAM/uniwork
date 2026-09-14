@@ -21,6 +21,13 @@
     "hour": "Giờ",
     "minute": "Phút"
   },
+  "errors": {
+    "not_found_title": "Không tìm thấy trang",
+    "not_found_description": "Đường dẫn này không tồn tại hoặc đã bị đổi.",
+    "back_home": "Về trang chủ",
+    "render_title": "Có lỗi khi hiển thị trang",
+    "render_description": "Thử tải lại. Nếu vẫn lỗi, báo cho quản trị workspace."
+  },
   "auth": {
     "login": "Đăng nhập",
     "register": "Đăng ký",
@@ -133,8 +140,9 @@
     "orgRole": "Vai trò tổ chức",
     "guideBadge": "Hướng dẫn",
     "invite_invalid_email": "Địa chỉ không hợp lệ",
-    "invite_invalid_summary_one": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
-    "invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
+    "invite_invalid_kept": "Những địa chỉ chưa đúng định dạng vẫn ở lại đây và chưa được gửi.",
+    "invite_invalid_summary_one": "{{count}} địa chỉ chưa đúng định dạng và sẽ không được gửi.",
+    "invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng và sẽ không được gửi.",
     "inviteNotAllowed": "Chỉ chủ sở hữu và quản trị viên workspace mới mời được thành viên.",
     "invite_recipients_empty": "Chưa có người nhận nào",
     "invite_recipient_count_one": "{{count}} người nhận",
@@ -144,7 +152,21 @@
     "removeConfirm": "Xóa {{name}} khỏi workspace?",
     "roleUpdated": "Đã cập nhật vai trò",
     "memberRemoved": "Đã xóa thành viên",
-    "ownerLocked": "Không thể đổi hoặc xóa chủ sở hữu workspace"
+    "ownerLocked": "Không thể đổi hoặc xóa chủ sở hữu workspace",
+    "acceptInviteJoining": {
+      "title": "Đang đưa bạn vào workspace",
+      "body": "Chờ một chút, chúng tôi đang xác nhận lời mời."
+    },
+    "acceptInviteError": {
+      "title": "Không dùng được lời mời này",
+      "gone": "Lời mời đã được dùng, đã bị thu hồi, hoặc link không đúng.",
+      "deactivated": "Tài khoản của bạn trong tổ chức này đang bị ngưng. Liên hệ quản trị viên để được mở lại.",
+      "suspended": "Tổ chức này đang tạm ngưng hoạt động.",
+      "rateLimited": "Bạn thử quá nhiều lần. Chờ một lát rồi mở lại link.",
+      "failed": "Chúng tôi chưa xử lý được lời mời này.",
+      "hint": "Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại một link mới.",
+      "goToWorkspaces": "Xem workspace của tôi"
+    }
   },
   "nav": {
     "inbox": "Hộp việc",
@@ -177,6 +199,7 @@
     "description": "Điều hướng trang và chạy lệnh",
     "placeholder": "Gõ trang hoặc lệnh…",
     "groups": {
+      "recent": "Gần đây",
       "pages": "Trang",
       "commands": "Lệnh"
     },
@@ -242,7 +265,8 @@
         "ai": "AI",
         "organization": "Tổ chức",
         "departments": "Phòng ban",
-        "security": "Bảo mật"
+        "security": "Bảo mật",
+        "shortcuts": "Phím tắt"
       }
     },
     "save": {
@@ -512,6 +536,19 @@
         "user": "Người dùng",
         "session": "Phiên đăng nhập"
       },
+      "fields": {
+        "title": "Tiêu đề",
+        "description": "Mô tả",
+        "status": "Trạng thái",
+        "priority": "Độ ưu tiên",
+        "assignee_id": "Người phụ trách",
+        "assignee_kind": "Loại người phụ trách",
+        "due_date": "Hạn",
+        "start_date": "Ngày bắt đầu",
+        "project_id": "Dự án",
+        "parent_task_id": "Công việc cha",
+        "position": "Vị trí"
+      },
       "loading": "Đang tải…",
       "empty_fresh_description": "Mọi thao tác đổi dữ liệu sẽ xuất hiện ở đây ngay khi diễn ra."
     },
@@ -559,6 +596,60 @@
         "system": "Hệ thống"
       },
       "tokens_by_day": "Token theo ngày"
+    },
+    "shortcuts": {
+      "title": "Phím tắt",
+      "description": "Đổi phím cho các thao tác trên thiết bị này. Bấm vào một phím tắt rồi nhấn tổ hợp phím mới.",
+      "search_placeholder": "Tìm thao tác…",
+      "reset_all": "Khôi phục mặc định",
+      "reset_confirm": {
+        "title": "Khôi phục mọi phím tắt mặc định?",
+        "description": "Mọi phím tắt bạn đã đổi trên thiết bị này sẽ trở về mặc định.",
+        "cancel": "Hủy",
+        "confirm": "Khôi phục tất cả"
+      },
+      "reset": "Đặt lại",
+      "disable": "Gỡ phím",
+      "reset_action": "Đặt lại {{action}}",
+      "disable_action": "Gỡ phím tắt {{action}}",
+      "record_aria": "Đổi phím tắt cho {{action}}",
+      "recording": "Nhấn phím",
+      "record_hint": "Esc để hủy · Delete để gỡ",
+      "unassigned": "Chưa gán",
+      "no_results": "Không có thao tác nào khớp.",
+      "conflict_error": "Đã dùng cho {{action}}.",
+      "reserved_error": "Phím này thuộc về trình duyệt, hệ điều hành hoặc thanh bên.",
+      "send_error": "Gửi chỉ dùng được Enter hoặc Ctrl/⌘+Enter.",
+      "find_error": "Ctrl/⌘+F chỉ dùng cho Tìm trong việc và tìm tin nhắn.",
+      "unsafe_error": "Phím này sẽ cản việc gõ chữ hoặc di chuyển bằng bàn phím.",
+      "categories": {
+        "general": "Chung",
+        "navigation": "Điều hướng"
+      },
+      "fixed": {
+        "title": "Phím cố định",
+        "description": "Những phím này không đổi được, để luôn dùng được.",
+        "toggle_sidebar": "Ẩn hoặc hiện thanh bên",
+        "close_dialog": "Đóng hộp thoại hoặc menu"
+      },
+      "actions": {
+        "ai_ask_uni": { "label": "Hỏi UNI", "description": "Mở bảng Hỏi UNI, kể cả khi đang gõ." },
+        "open_search": { "label": "Mở tìm kiếm", "description": "Tìm và chạy lệnh từ bất cứ đâu." },
+        "create_task": { "label": "Tạo việc", "description": "Mở hộp tạo việc mới." },
+        "find_in_task": { "label": "Tìm trong việc", "description": "Tìm chữ trong trang chi tiết việc đang mở." },
+        "open_thread_nav": { "label": "Điều hướng luồng", "description": "Đưa focus tới danh sách luồng thảo luận của việc đang mở." },
+        "send": { "label": "Gửi", "description": "Gửi bình luận và trả lời trong ô soạn thảo." },
+        "go_back": { "label": "Quay lại", "description": "Lùi lại trong lịch sử, như trình duyệt." },
+        "go_forward": { "label": "Tiến tới", "description": "Tiến tới trong lịch sử, như trình duyệt." },
+        "go_inbox": { "label": "Tới Hộp việc", "description": "Mở hộp việc của workspace." },
+        "go_tasks": { "label": "Tới Công việc", "description": "Mở danh sách công việc." },
+        "go_my_tasks": { "label": "Tới Việc của tôi", "description": "Mở những việc giao cho bạn." },
+        "go_projects": { "label": "Tới Dự án", "description": "Mở danh sách dự án." },
+        "go_meetings": { "label": "Tới Cuộc họp", "description": "Mở danh sách cuộc họp." },
+        "go_chat": { "label": "Tới Trò chuyện", "description": "Mở trò chuyện của workspace." },
+        "go_people": { "label": "Tới Danh bạ", "description": "Mở danh bạ thành viên." },
+        "go_settings": { "label": "Tới Cài đặt", "description": "Mở cài đặt." }
+      }
     },
     "security": {
       "mfa": {
@@ -626,10 +717,11 @@
     "title": "Công việc",
     "new": "Việc mới",
     "board": "Bảng",
-    "list": "Danh sách",
     "view_mode": "Kiểu hiển thị",
     "empty_title": "Chưa có công việc nào",
     "empty_description": "Tạo việc đầu tiên để bắt đầu theo dõi tiến độ của nhóm.",
+    "error_title": "Không tải được danh sách công việc",
+    "error_description": "Kết nối tới máy chủ đang có vấn đề. Thử lại sau giây lát.",
     "taskTitle": "Tiêu đề",
     "description": "Mô tả",
     "status": "Trạng thái",
@@ -639,6 +731,9 @@
     "comments": "Bình luận",
     "addComment": "Viết bình luận…",
     "unassigned": "Chưa giao",
+    "picker_trigger_label": "{{field}}: {{value}}",
+    "assignee_search_placeholder": "Tìm thành viên hoặc agent",
+    "assignee_no_results": "Không có ai khớp với tìm kiếm.",
     "status_backlog": "Backlog",
     "status_todo": "Cần làm",
     "status_in_progress": "Đang làm",
@@ -660,6 +755,8 @@
       "hide_column": "Ẩn cột",
       "show_column": "Hiện cột",
       "hidden_columns": "Cột đã ẩn",
+      "loaded_count_one": "{{count}} đã tải",
+      "loaded_count_other": "{{count}} đã tải",
       "column_menu": "Menu cột",
       "add_task": "Thêm task",
       "agent_chip_stub": "Agent",
@@ -718,6 +815,7 @@
       "priority": "Độ ưu tiên",
       "assignee": "Người nhận",
       "assignee_mixed": "Khác nhau",
+      "due_date": "Hạn",
       "agent_trigger": "Chạy agent",
       "squad_assign": "Gán squad",
       "delete": "Xóa",
@@ -729,6 +827,24 @@
       "delete_dialog_title": "Xóa {{count}} task?",
       "delete_dialog_desc": "Các task này sẽ bị xóa vĩnh viễn.",
       "delete_dialog_warning": "Không hoàn tác được."
+    },
+    "row_actions": {
+      "open": "Mở",
+      "copy_link": "Sao chép liên kết",
+      "link_copied": "Đã sao chép liên kết",
+      "copy_link_failed": "Không sao chép được liên kết",
+      "change_status": "Đổi trạng thái",
+      "change_assignee": "Đổi người phụ trách",
+      "delete": "Xóa",
+      "delete_dialog_title": "Xóa task này?",
+      "delete_dialog_desc": "“{{title}}” sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
+      "delete_confirm": "Xóa task",
+      "cancel": "Hủy",
+      "delete_success": "Đã xóa task",
+      "delete_failed": "Không xóa được task",
+      "assignees_loading": "Đang tải thành viên…",
+      "assignees_failed": "Không tải được thành viên",
+      "agent_assignee": "Agent"
     },
     "save_view": {
       "title": "Lưu thành chế độ xem",
@@ -823,7 +939,17 @@
     "list": {
       "select_status": "Chọn tất cả task trong {{status}}",
       "select_task": "Chọn {{title}}",
-      "add_task": "Thêm task vào {{status}}"
+      "add_task": "Thêm task vào {{status}}",
+      "group_loaded_count_one": "{{status}}, đã tải {{count}}",
+      "group_loaded_count_other": "{{status}}, đã tải {{count}}"
+    },
+    "pagination": {
+      "loaded_count_one": "{{count}} / {{total}} công việc đã tải",
+      "loaded_count_other": "{{count}} / {{total}} công việc đã tải",
+      "load_more": "Tải thêm",
+      "loading_more": "Đang tải thêm công việc…",
+      "load_more_failed": "Không tải thêm được công việc.",
+      "end": "Không còn công việc để tải"
     },
     "header": {
       "attachments_unavailable": "Đính kèm"
@@ -919,13 +1045,14 @@
       "prop_stage_none": "Chưa có giai đoạn",
       "prop_custom": "Thuộc tính tùy chỉnh",
       "add_label": "Thêm nhãn…",
-      "attach_label": "Gắn",
+      "remove_label": "Gỡ nhãn {{name}}",
       "custom_properties_count": "{{count}} thuộc tính",
       "subtasks_progress": "{{done}}/{{total}}",
       "subtasks_empty": "Chưa có sub-task.",
       "add_subtask": "Thêm sub-task",
       "add_subtask_placeholder": "Tiêu đề sub-task",
       "add_subtask_action": "Thêm",
+      "subtasks_toggle": "Hiện hoặc ẩn danh sách sub-task",
       "timeline_section": "Hoạt động",
       "timeline_placeholder": "Bình luận và hoạt động sẽ hiện ở đây.",
       "comment_placeholder": "Viết bình luận…",
@@ -935,7 +1062,24 @@
       "comment_unresolve": "Mở lại",
       "comment_resolved": "Đã xử lý",
       "comment_edit": "Sửa",
-      "activity_stub_reason": "Lịch sử hoạt động chưa khả dụng — bình luận vẫn hiện bên dưới.",
+      "reply": "Trả lời",
+      "reply_cancel": "Huỷ trả lời",
+      "comment_preview_empty": "Bình luận không có chữ",
+      "activity_error": "Không tải được hoạt động. Thử lại sau.",
+      "thread_resolved_one": "Luồng đã giải quyết · {{count}} trả lời",
+      "thread_resolved_other": "Luồng đã giải quyết · {{count}} trả lời",
+      "thread_nav": "Điều hướng luồng",
+      "thread_nav_replies_one": "· {{count}} trả lời",
+      "thread_nav_replies_other": "· {{count}} trả lời",
+      "find": {
+        "label": "Tìm trong công việc",
+        "placeholder": "Tìm trong công việc…",
+        "position": "{{current}}/{{total}}",
+        "no_matches": "Không có kết quả",
+        "previous": "Kết quả trước",
+        "next": "Kết quả tiếp theo",
+        "close": "Đóng thanh tìm"
+      },
       "agent_run_stub": "Chạy agent",
       "pr_stub": "Gắn pull request",
       "agentRun": {
@@ -1177,7 +1321,6 @@
     "activity_link_used": "đã dùng liên kết mời",
     "activity_session_created": "đã mở phòng hội nghị",
     "activity_session_ended": "đã đóng phòng hội nghị",
-    "activity_generic": "đã cập nhật cuộc họp",
     "publicInviteJoin": "Vào cuộc họp",
     "publicInviteNameRequired": "Nhập tên hiển thị để tham gia",
     "publicInviteDisplayName": "Tên hiển thị",
@@ -1547,44 +1690,6 @@
     "workspace_room": "Chung",
     "workspace_section": "Workspace",
     "workspace_room_hint": "Phòng chung — mọi thành viên đều nhắn ở đây.",
-    "channel": {
-      "section_title": "Kênh",
-      "ungrouped": "Không gắn Project",
-      "discover": "Khám phá kênh",
-      "create": "Tạo kênh",
-      "creating": "Đang tạo…",
-      "cancel": "Hủy",
-      "create_title": "Tạo kênh",
-      "create_description": "Kênh công khai ai cũng tham gia được; kênh riêng chỉ người được mời.",
-      "name_label": "Tên kênh",
-      "name_placeholder": "ví dụ marketing",
-      "topic_label": "Mô tả",
-      "topic_placeholder": "Chủ đề ngắn của kênh",
-      "visibility_label": "Hiển thị",
-      "visibility_public": "Công khai",
-      "visibility_private": "Riêng tư",
-      "project_label": "Gắn Project",
-      "project_none": "Không gắn",
-      "members_label": "Thành viên ban đầu",
-      "directory_title": "Khám phá kênh",
-      "directory_description": "Kênh công khai trong workspace mà bạn chưa tham gia.",
-      "directory_search": "Tìm kênh",
-      "directory_loading": "Đang tải…",
-      "directory_empty": "Chưa có kênh công khai nào",
-      "join": "Tham gia",
-      "joining": "Đang tham gia…",
-      "settings_title": "Cài đặt kênh",
-      "settings_description": "Đổi tên, mô tả, hiển thị và Project.",
-      "save": "Lưu",
-      "saving": "Đang lưu…",
-      "archive": "Lưu trữ kênh",
-      "archiving": "Đang lưu trữ…",
-      "default_immutable_hint": "Kênh mặc định không đổi visibility và không lưu trữ được.",
-      "default_visibility_locked": "Không thể đổi hiển thị của kênh mặc định.",
-      "archive_section": "Lưu trữ",
-      "archive_hint": "Kênh đã lưu trữ ẩn khỏi sidebar; có thể khôi phục sau.",
-      "empty_thread": "Chưa có tin nhắn trong #{{name}}. Hãy bắt đầu cuộc trò chuyện."
-    },
     "workspace_room_settings": "Cài đặt phòng workspace",
     "workspace_room_settings_description": "Quản lý thành viên trong phòng chat workspace.",
     "workspace_room_kick_hint": "Chỉ owner hoặc admin workspace mới xóa được thành viên khác. Người bị xóa sẽ rời cả workspace.",
@@ -2166,7 +2271,9 @@
     },
     "step_question": {
       "hint_pick": "Chọn một mục để tiếp tục — hoặc bỏ qua nếu bạn không muốn trả lời.",
-      "hint_continue": "Ổn rồi. Nhấn Tiếp tục khi bạn sẵn sàng."
+      "hint_continue": "Ổn rồi. Nhấn Tiếp tục khi bạn sẵn sàng.",
+      "hint_other_needs_text": "Nhập nội dung cho mục Khác để tiếp tục.",
+      "deselect_option": "Bỏ chọn {{label}}"
     },
     "step_organization": {
       "headline_first": "Đặt tên tổ chức của bạn.",
@@ -2189,7 +2296,10 @@
       "cta_creating": "Đang tạo…",
       "cta_open": "Tiếp tục với {{name}}",
       "slug_taken_error": "Định danh tổ chức này đã có người dùng.",
-      "slug_conflict_toast": "Hãy chọn định danh tổ chức khác",
+      "headline_resume_many": "Chọn tổ chức của bạn, hoặc tạo tổ chức khác.",
+      "slug_invalid_error": "Định danh không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
+      "hint_slug_needed": "Đặt đường dẫn cho tổ chức để tạo.",
+      "create_failed_toast": "Không tạo được tổ chức. Vui lòng thử lại.",
       "picker_label": "Chọn tổ chức",
       "url_preview_label": "Đường dẫn tổ chức",
       "url_preview_prefix": "Mọi thứ của tổ chức này nằm dưới ",
@@ -2222,8 +2332,11 @@
       "cta_open": "Mở {{name}}",
       "slug_format_error": "Chỉ dùng chữ thường, số và dấu gạch ngang",
       "slug_reserved_error": "Định danh này được hệ thống dành riêng",
+      "slug_length_error": "Định danh cần 2 đến 40 ký tự",
+      "hint_slug_needed": "Đặt đường dẫn cho workspace để tạo.",
       "slug_taken_error": "Định danh này đã có người dùng.",
-      "slug_conflict_toast": "Hãy chọn định danh khác",
+      "headline_resume_many": "Chọn workspace của bạn, hoặc tạo cái mới.",
+      "slug_invalid_error": "Định danh không hợp lệ: chữ thường, số và dấu gạch ngang, 2–40 ký tự.",
       "create_failed_toast": "Không tạo được. Vui lòng thử lại.",
       "picker_label": "Chọn workspace"
     },
@@ -2244,16 +2357,20 @@
       "hint_done": "Bạn có thể thêm đợt nữa, hoặc hoàn tất.",
       "finish": "Hoàn tất",
       "skip": "Bỏ qua, mời sau",
+      "preview_title": "Người được mời sẽ thấy gì",
+      "preview_mail": "Nhận email mời từ UniWork, kèm tên workspace của bạn.",
+      "preview_join": "Đăng nhập, hoặc tạo tài khoản nếu chưa có. Bạn không phải duyệt ai.",
+      "preview_board": "Vào workspace này với quyền bạn vừa chọn ở trên.",
       "send_failed": "Không gửi được lời mời"
     },
     "welcome_after_onboarding": {
       "loading": "Đang chuẩn bị workspace của bạn…",
       "title": "Chào mừng đến UniWork!",
-      "subtitle": "Chúng tôi đã thêm một task hướng dẫn để bạn bắt đầu.",
-      "got_it": "Đã hiểu",
-      "status_in_progress": "Đang làm",
+      "subtitle": "Một task hướng dẫn đã sẵn sàng trong workspace của bạn.",
+      "open_task": "Mở task hướng dẫn",
+      "card_duration": "5 phút",
       "card_title": "Bắt đầu với UniWork",
-      "card_subtitle": "Tạo việc, kéo qua bảng, lên lịch họp — trong 5 phút.",
+      "card_subtitle": "Tạo việc, kéo qua bảng, lên lịch họp.",
       "error_title": "Chưa chuẩn bị được workspace",
       "error_body": "Task hướng dẫn chưa được tạo. Bạn có thể thử lại, hoặc để sau.",
       "retry": "Thử lại",

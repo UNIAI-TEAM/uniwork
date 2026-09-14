@@ -53,6 +53,9 @@ type CommentDTO struct {
 	UpdatedAt   string   `json:"updated_at,omitempty" example:"2026-08-27T10:00:00Z"`
 	DisplayName string   `json:"display_name" example:"Nguyễn Văn An"`
 	AvatarURL   string   `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
+	// Reactions is never omitted: the client must be able to tell "nobody
+	// reacted" ([]) apart from "this server does not send the field".
+	Reactions []CommentReactionDTO `json:"reactions"`
 }
 
 // CommentSDO wraps one comment.

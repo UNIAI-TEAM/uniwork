@@ -26,6 +26,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0012](0012-audit-bat-bien-bang-quyen-db-va-trigger.md) | `audit_events` bất biến bằng quyền DB và trigger; ghi qua đúng một package |
 | [0013](0013-man-tong-quan-la-cua-vao-console-admin.md) | Console `/admin` mở bằng màn Tổng quan; trần màn hình lên 7 |
 | [0014](0014-coverage-va-lint-la-canh-bao-o-gate-level-fast.md) | Coverage TypeScript và lint là cảnh báo ở `GATE_LEVEL=fast`; các con số không giảm |
+| [0015](0015-va-cache-tu-frame-realtime-theo-catalogue.md) | Vá cache từ frame realtime chỉ với trường catalogue khai ở `Patch`; guard `revision_before`/`revision` |
 
 ## Bản nháp
 

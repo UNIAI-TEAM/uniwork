@@ -160,14 +160,27 @@ func (h *handlers) deleteTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) listComments(w http.ResponseWriter, r *http.Request) {
-	cs, err := h.Tasks.Comments(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "taskID"))
+	userID := middleware.UserID(r.Context())
+	taskID := chi.URLParam(r, "taskID")
+	cs, err := h.Tasks.Comments(r.Context(), userID, taskID)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
+	reactions, err := h.Tasks.CommentReactionsForTask(r.Context(), userID, taskID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	byComment := groupCommentReactions(reactions)
 	out := make([]sdo.CommentDTO, 0, len(cs))
 	for _, c := range cs {
-		out = append(out, commentDTOFromListRow(c))
+		dto := commentDTOFromListRow(c)
+		dto.Reactions = byComment[c.ID]
+		if dto.Reactions == nil {
+			dto.Reactions = []sdo.CommentReactionDTO{}
+		}
+		out = append(out, dto)
 	}
 	respondJSON(w, 200, sdo.CommentListSDO{Comments: out})
 }

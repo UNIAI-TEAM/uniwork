@@ -89,9 +89,13 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
     toggleRafRef.current = window.requestAnimationFrame(() => {
       toggleRafRef.current = null;
       // Layout may have unmounted between schedule and frame (tests / fast nav).
-      if (!mountedRef.current || panelRef.current !== panel) return;
-      if (nextOpen) panel.expand();
-      else panel.collapse();
+      // React nulls the panel ref then; the handle captured above still looks
+      // its group up and throws "Group … not found".
+      if (!mountedRef.current) return;
+      const mounted = panelRef.current;
+      if (!mounted) return;
+      if (nextOpen) mounted.expand();
+      else mounted.collapse();
     });
   }, [beginDesktopToggle, isMobile, panelRef]);
 

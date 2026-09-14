@@ -14,7 +14,7 @@ import type {
   TableColumnKey,
   TableSystemColumnKey,
 } from "@uniwork/core/tasks/stores/view-store";
-import type { TaskLabel } from "@uniwork/core/types";
+import type { Task, TaskLabel } from "@uniwork/core/types";
 import { propertyIdFromViewKey } from "@uniwork/core/tasks/stores/view-store";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import {
@@ -38,6 +38,11 @@ import {
 } from "./table-cell-editors";
 import type { TaskTableDisplayRow } from "./table-view-model";
 import { TableColumnPicker } from "./table-column-picker";
+import {
+  RowActionsDropdown,
+  RowDeleteDialog,
+  useRowActionModel,
+} from "../row-actions-menu";
 
 export type TableViewMeta = {
   visibleTaskIds: string[];
@@ -57,6 +62,7 @@ export type TableViewMeta = {
   selectAllVisible: () => void;
   clearVisibleSelection: () => void;
   updateTask: (taskId: string, updates: Record<string, unknown>) => void;
+  openTask?: (taskId: string) => void;
   toggleTableParentCollapsed: (taskId: string) => void;
   toggleTableColumn: (key: TableColumnKey) => void;
   propertiesDisabled: boolean;
@@ -387,9 +393,41 @@ export function useTableColumnDefs(
       maxSize: 48,
       enableResizing: false,
       header: ({ table }) => <AddColumnHeader table={table} />,
-      cell: () => null,
+      // Row actions sit in the fixed trailing column: no new column key, and
+      // the cell is already outside every editable cell. The table gets only
+      // the dropdown; see task-5 report for why there is no context menu here.
+      cell: ({ row, table }) => {
+        if (row.original.kind !== "task") return null;
+        return (
+          <TableRowActions
+            task={row.original.task}
+            onOpenTask={getTableViewMeta(table).openTask}
+          />
+        );
+      },
     };
 
     return [selectCol, ...dataCols, addColumn];
   }, [columnKeys]);
+}
+
+/** The table row's actions cell: one model, its dropdown and its one dialog. */
+function TableRowActions({
+  task,
+  onOpenTask,
+}: {
+  task: Task;
+  onOpenTask?: (id: string) => void;
+}) {
+  const rowActions = useRowActionModel(task, onOpenTask);
+  return (
+    <>
+      <RowActionsDropdown
+        model={rowActions}
+        className="-mx-4 justify-center"
+        triggerClassName="group-hover:opacity-100 group-focus-within:opacity-100"
+      />
+      <RowDeleteDialog model={rowActions} />
+    </>
+  );
 }

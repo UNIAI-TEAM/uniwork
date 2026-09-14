@@ -95,6 +95,15 @@ WHERE comment_id = $1
   AND workspace_id = $3
 ORDER BY created_at;
 
+-- name: ListTaskCommentReactions :many
+SELECT r.*
+FROM comment_reactions r
+JOIN task_comments c ON c.id = r.comment_id
+WHERE c.task_id = $1
+  AND r.organization_id = $2
+  AND r.workspace_id = $3
+ORDER BY r.created_at;
+
 -- name: InsertTaskReaction :one
 INSERT INTO task_reactions (
   id, organization_id, workspace_id, task_id, actor_type, actor_id, emoji

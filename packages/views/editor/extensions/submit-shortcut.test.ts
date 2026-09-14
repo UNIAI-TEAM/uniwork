@@ -135,6 +135,68 @@ describe("submit shortcut matching", () => {
   });
 });
 
+describe("default Send (no user override)", () => {
+  beforeEach(() => {
+    useShortcutStore.getState().resetAll();
+  });
+
+  function hasHardBreak(editor: Editor): boolean {
+    let found = false;
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === "hardBreak") found = true;
+    });
+    return found;
+  }
+
+  it("submits exactly once on Ctrl+Enter on Windows", () => {
+    let submitCount = 0;
+    const editor = makeEditor("hello", () => { submitCount += 1; });
+    editors.push(editor);
+    editor.commands.focus("end");
+
+    expect(press(editor, event("Enter", { ctrlKey: true }))).toBe(true);
+    expect(submitCount).toBe(1);
+    expect(editor.state.doc.childCount).toBe(1);
+  });
+
+  it("does not submit on plain Enter and still splits the paragraph", () => {
+    let submitCount = 0;
+    const editor = makeEditor("hello", () => { submitCount += 1; });
+    editors.push(editor);
+    editor.commands.focus("end");
+
+    expect(press(editor, event("Enter"))).toBe(true);
+    expect(submitCount).toBe(0);
+    expect(editor.state.doc.childCount).toBe(2);
+  });
+
+  it("keeps TipTap's own Shift+Enter hard break instead of replaying Enter", () => {
+    let submitCount = 0;
+    const editor = makeEditor("hello", () => { submitCount += 1; });
+    editors.push(editor);
+    editor.commands.focus("end");
+
+    expect(press(editor, event("Enter", { shiftKey: true }))).toBe(true);
+    expect(submitCount).toBe(0);
+    expect(editor.state.doc.childCount).toBe(1);
+    expect(hasHardBreak(editor)).toBe(true);
+  });
+
+  it("submits on Meta+Enter and not on Ctrl+Enter on macOS", () => {
+    configureShortcutPlatform("macos");
+    let submitCount = 0;
+    const editor = makeEditor("hello", () => { submitCount += 1; });
+    editors.push(editor);
+    editor.commands.focus("end");
+
+    press(editor, event("Enter", { ctrlKey: true }));
+    expect(submitCount).toBe(0);
+
+    expect(press(editor, event("Enter", { metaKey: true }))).toBe(true);
+    expect(submitCount).toBe(1);
+  });
+});
+
 describe("Send = Enter editor behavior", () => {
   it("lets an open high-priority suggestion picker consume Enter first", () => {
     useShortcutStore.getState().setShortcut("send", createShortcutChord("Enter"));

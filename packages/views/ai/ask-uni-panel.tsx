@@ -32,7 +32,6 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
-import { useAskUniHotkey } from "./use-ask-uni-hotkey";
 
 const KNOWN_ERRORS = new Set([
   "ai_quota_exceeded",
@@ -99,7 +98,6 @@ export function AskUniPanel() {
   const { workspace } = useWorkspace();
   const caps = useAiCapabilities(workspace.id);
   const enabled = !!caps.data?.enabled;
-  useAskUniHotkey(enabled);
   const { open, setOpen, conversationId, select } = useAiPanelStore();
   const conversations = useAiConversations(workspace.id, open && enabled);
   const messages = useAiMessages(conversationId);

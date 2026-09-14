@@ -19,6 +19,12 @@ import type { ChildProgress, Task } from "@uniwork/core/types";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PriorityFlag } from "./status-pill";
+import {
+  RowActionsContextMenu,
+  RowActionsDropdown,
+  RowDeleteDialog,
+  useRowActionModel,
+} from "../row-actions-menu";
 
 export interface BoardCardMeta {
   projectName?: string;
@@ -32,9 +38,17 @@ function actorInitial(name: string): string {
 export const BoardCardContent = memo(function BoardCardContent({
   task,
   meta,
+  reserveActionSpace = false,
 }: {
   task: Task;
   meta?: BoardCardMeta;
+  /**
+   * Set where the card carries the three-dot button. On coarse pointers the
+   * button is always visible in the top-right corner, so the header row moves
+   * the priority label left instead of letting the button cover it. The drag
+   * overlay has no button and leaves this off.
+   */
+  reserveActionSpace?: boolean;
 }) {
   const { t } = useTranslation();
   const cardProperties = useViewStore((s) => s.cardProperties);
@@ -45,7 +59,15 @@ export const BoardCardContent = memo(function BoardCardContent({
 
   return (
     <div className="rounded-lg border border-border bg-surface px-2.5 py-2.5 shadow-sm transition-[background-color,border-color,box-shadow] group-hover/card:border-foreground/15 group-hover/card:bg-surface-hover group-hover/card:shadow-md">
-      <div className="flex items-center justify-between gap-2">
+      <div
+        data-card-header=""
+        className={cn(
+          "flex items-center justify-between gap-2",
+          // 44px button at right-1.5 covers 50px from the card edge; border
+          // and px-2.5 already give 11px, so the header reserves 40px.
+          reserveActionSpace && "pointer-coarse:pr-10",
+        )}
+      >
         <div className="flex min-w-0 items-center gap-1.5">
           {task.identifier ? (
             <p className="truncate text-caption text-muted-foreground">
@@ -165,26 +187,38 @@ export const DraggableBoardCard = memo(function DraggableBoardCard({
   const handleOpen = useCallback(() => {
     onOpen?.(task.id);
   }, [onOpen, task.id]);
+  const rowActions = useRowActionModel(task, onOpen);
 
   return (
-    <div
+    <RowActionsContextMenu
+      model={rowActions}
       ref={setNodeRef}
       style={style}
       data-board-card=""
-      {...attributes}
-      {...listeners}
-      className={cn("group/card space-y-1", isDragging && "opacity-30")}
+      className={cn("group/card relative", isDragging && "opacity-30")}
     >
-      <button
-        type="button"
-        onClick={handleOpen}
-        className={cn(
-          "block w-full text-left transition-colors",
-          isDragging && "pointer-events-none",
-        )}
-      >
-        <BoardCardContent task={task} meta={meta} />
-      </button>
-    </div>
+      {/* Drag listeners sit on this child so the portalled menus and dialog,
+          which render as children of the outer card, never reach them. */}
+      <div {...attributes} {...listeners}>
+        <button
+          type="button"
+          onClick={handleOpen}
+          className={cn(
+            "block w-full text-left transition-colors",
+            isDragging && "pointer-events-none",
+          )}
+        >
+          <BoardCardContent task={task} meta={meta} reserveActionSpace />
+        </button>
+      </div>
+      {isDragging ? null : (
+        <RowActionsDropdown
+          model={rowActions}
+          className="absolute top-1.5 right-1.5"
+          triggerClassName="bg-surface group-hover/card:opacity-100 group-focus-within/card:opacity-100"
+        />
+      )}
+      <RowDeleteDialog model={rowActions} />
+    </RowActionsContextMenu>
   );
 });

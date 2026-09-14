@@ -28,7 +28,7 @@ func TestCreateFollowUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if fu.MessageID != msg.ID || fu.UserID != ua.ID || fu.Note != "nhắc lại" || fu.DueAt == nil {
+	if fu.MessageID != msg.ID || fu.UserID != ua.ID || fu.Note != "nhắc lại" || fu.DueAt == nil || fu.MessageBody == "" {
 		t.Fatalf("unexpected follow-up: %+v", fu)
 	}
 
@@ -47,7 +47,8 @@ func TestCreateFollowUp(t *testing.T) {
 	if list[0].MessageBody != "Cần follow sau meeting" {
 		t.Fatalf("list message preview: %+v", list[0])
 	}
-	if list[0].RoomKind != "workspace" {
+	// EnsureWorkspaceRoom creates the default room as kind=channel (is_default).
+	if list[0].RoomKind != "channel" {
 		t.Fatalf("list room kind: %+v", list[0])
 	}
 	if list[0].MessageSenderName == "" {

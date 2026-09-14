@@ -468,6 +468,51 @@ func (q *Queries) ListDescendantTaskIDs(ctx context.Context, arg ListDescendantT
 	return items, nil
 }
 
+const listTaskCommentReactions = `-- name: ListTaskCommentReactions :many
+SELECT r.id, r.organization_id, r.workspace_id, r.comment_id, r.actor_type, r.actor_id, r.emoji, r.created_at
+FROM comment_reactions r
+JOIN task_comments c ON c.id = r.comment_id
+WHERE c.task_id = $1
+  AND r.organization_id = $2
+  AND r.workspace_id = $3
+ORDER BY r.created_at
+`
+
+type ListTaskCommentReactionsParams struct {
+	TaskID         string `json:"task_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) ListTaskCommentReactions(ctx context.Context, arg ListTaskCommentReactionsParams) ([]CommentReaction, error) {
+	rows, err := q.db.Query(ctx, listTaskCommentReactions, arg.TaskID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CommentReaction{}
+	for rows.Next() {
+		var i CommentReaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.CommentID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Emoji,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskReactions = `-- name: ListTaskReactions :many
 SELECT id, organization_id, workspace_id, task_id, actor_type, actor_id, emoji, created_at
 FROM task_reactions

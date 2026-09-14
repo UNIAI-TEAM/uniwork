@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import {
-  tableRows,
-  type TableFilter,
-  type TableGroupsResult,
-  type TableRowsResult,
+import type {
+  TableFilter,
+  TableGroupsResult,
+  TableRowsResult,
 } from "@uniwork/core/api/endpoints/tasks-table";
-import { taskKeys, useTableGroups } from "@uniwork/core/tasks";
+import { useTableGroups } from "@uniwork/core/tasks";
+import {
+  tableGroupsBody,
+  tableRowsPageBody,
+  tableRowsPageQuery,
+} from "@uniwork/core/tasks/surface/table-query";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import type { Task } from "@uniwork/core/types";
 import {
@@ -74,13 +78,7 @@ export function useTableViewData({
   );
 
   const groupsBody = useMemo(
-    () => ({
-      filter,
-      group_by: groupBy,
-      columns,
-      limit: TABLE_PAGE_SIZE,
-      offset: 0,
-    }),
+    () => tableGroupsBody({ filter, groupBy, columns, limit: TABLE_PAGE_SIZE }),
     [columns, filter, groupBy],
   );
 
@@ -129,26 +127,18 @@ export function useTableViewData({
 
   const rowQueries = useQueries({
     queries: pageQueries.map(({ groupKey, pageIndex }) => ({
-      queryKey: taskKeys.tableRows(
+      // Shared with the board, so equal parameters land on one cache entry.
+      ...tableRowsPageQuery(
         workspaceId,
-        JSON.stringify({
+        tableRowsPageBody({
           filter,
-          group_by: groupBy,
-          group_key: groupKey,
+          groupBy,
+          groupKey,
           columns,
           limit: TABLE_PAGE_SIZE,
           offset: pageIndex * TABLE_PAGE_SIZE,
         }),
       ),
-      queryFn: () =>
-        tableRows(workspaceId, {
-          filter,
-          group_by: groupBy,
-          group_key: groupKey,
-          columns,
-          limit: TABLE_PAGE_SIZE,
-          offset: pageIndex * TABLE_PAGE_SIZE,
-        }),
       enabled: !!workspaceId,
     })),
   });
