@@ -7,6 +7,7 @@ import { createQueryClient } from "@uniwork/core/query-client";
 import { planCacheUpdate } from "@uniwork/core/tasks";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import type { TaskScope } from "@uniwork/core/tasks/surface/scope";
+import { tableRowsPageBody, tableRowsPageQuery } from "@uniwork/core/tasks/surface/table-query";
 import { localeAdapter, requestMock, wrap } from "../../test/api-mock";
 import { boardTask, serveBoardTable } from "../../test/board-table-server";
 import { TaskSurface, type TaskSurfaceController } from "./task-surface";
@@ -472,6 +473,124 @@ describe("TaskSurface board when a column fills after the first load", () => {
     expect(cardsIn("todo")).toBe(1);
     expect(skeleton.stop()).toBe(false);
     expect(column("todo")).toBe(todoColumn);
+  }, 60_000);
+});
+
+/** Every card count of a column the document shows, from now until `stop()`. */
+function trackCards(status: string) {
+  const counts: number[] = [];
+  const observer = new MutationObserver(() => {
+    const element = document.querySelector(`[data-testid="board-column-${status}"]`);
+    counts.push(element ? element.querySelectorAll("[data-board-card]").length : -1);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  return {
+    stop: () => {
+      observer.disconnect();
+      return counts;
+    },
+  };
+}
+
+describe("TaskSurface board moves before the save lands", () => {
+  beforeEach(() => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("heads both columns with their new counts while the save is out, and with the old ones when it fails", async () => {
+    const server = serveMovableBoard([
+      boardTask("todo", 0),
+      boardTask("todo", 1),
+      boardTask("todo", 2),
+      boardTask("done", 0),
+    ] as StoredTask[]);
+    const board = renderMovableBoard("board-move-counts");
+    await waitFor(() => expect(cardsIn("todo")).toBe(3), LONG);
+    expect(heading("done", 1)).toBeInTheDocument();
+
+    server.hold("PATCH");
+    board.move("todo-0", { status: "done", position: -1 });
+    await waitFor(() => expect(server.requests).toContain("PATCH"), LONG);
+
+    await waitFor(() => expect(heading("todo", 2)).toBeInTheDocument(), LONG);
+    expect(heading("done", 2)).toBeInTheDocument();
+    // The refetch after the failure is held, so the counts come from the rollback alone.
+    for (const name of ["groups", "todo@0", "done@0"]) server.hold(name);
+    server.failNextPatch();
+    server.release("PATCH");
+
+    await waitFor(() => expect(heading("done", 1)).toBeInTheDocument(), LONG);
+    expect(heading("todo", 3)).toBeInTheDocument();
+    expect(cardsIn("todo")).toBe(3);
+    expect(cardsIn("done")).toBe(1);
+    for (const name of ["groups", "todo@0", "done@0"]) server.release(name);
+    await settle(300);
+    expect(heading("todo", 3)).toBeInTheDocument();
+    expect(heading("done", 1)).toBeInTheDocument();
+  }, 60_000);
+
+  it("a drop into an empty column shows the card there at once and keeps it through the save and the refetch", async () => {
+    const server = serveMovableBoard([boardTask("todo", 0), boardTask("todo", 1)] as StoredTask[]);
+    const board = renderMovableBoard("board-move-seeds-column");
+    await waitFor(() => expect(cardsIn("todo")).toBe(2), LONG);
+    const done = trackCards("done");
+
+    server.hold("PATCH");
+    board.move("todo-0", { status: "done", position: 0 });
+    await waitFor(() => expect(cardsIn("done")).toBe(1), LONG);
+    expect(heading("done", 1)).toBeInTheDocument();
+    expect(heading("todo", 1)).toBeInTheDocument();
+    await settle(300);
+    // The seeded page is fresh under the app's staleTime, so the column does not
+    // ask the server (which still has the task in todo) while the save is out.
+    expect(server.requests).not.toContain("done@0");
+    expect(cardsIn("done")).toBe(1);
+
+    server.hold("done@0");
+    server.release("PATCH");
+    await waitFor(() => expect(server.requests).toContain("done@0"), LONG);
+    await settle(300);
+    expect(cardsIn("done")).toBe(1);
+    server.release("done@0");
+    await settle(300);
+
+    expect(cardsIn("done")).toBe(1);
+    expect(cardsIn("todo")).toBe(1);
+    const counts = done.stop();
+    expect(counts).toContain(1);
+    expect(counts.slice(counts.indexOf(1))).not.toContain(0);
+  }, 60_000);
+
+  it("a drop into an empty column whose save fails takes the seeded page away and puts the card back", async () => {
+    const server = serveMovableBoard([boardTask("todo", 0), boardTask("todo", 1)] as StoredTask[]);
+    const client = createQueryClient();
+    const board = renderMovableBoard("board-move-seed-fails", client);
+    await waitFor(() => expect(cardsIn("todo")).toBe(2), LONG);
+    const doneFirstPage = tableRowsPageQuery(
+      "w1",
+      tableRowsPageBody({ groupBy: "status", groupKey: "done", columns: ["title", "status"], limit: 50, offset: 0 }),
+    ).queryKey;
+
+    server.hold("PATCH");
+    board.move("todo-0", { status: "done", position: 0 });
+    await waitFor(() => expect(cardsIn("done")).toBe(1), LONG);
+    expect(client.getQueryState(doneFirstPage)).toBeDefined();
+    for (const name of ["groups", "todo@0"]) server.hold(name);
+    server.failNextPatch();
+    server.release("PATCH");
+
+    await waitFor(() => expect(cardsIn("todo")).toBe(2), LONG);
+    expect(cardsIn("done")).toBe(0);
+    expect(heading("todo", 2)).toBeInTheDocument();
+    expect(client.getQueryState(doneFirstPage)).toBeUndefined();
+    for (const name of ["groups", "todo@0"]) server.release(name);
+    await settle(300);
+    expect(cardsIn("done")).toBe(0);
+    expect(client.getQueryState(doneFirstPage)).toBeUndefined();
+    expect(server.requests).not.toContain("done@0");
   }, 60_000);
 });
 

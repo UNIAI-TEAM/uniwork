@@ -7,10 +7,15 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 import * as tasks from "../api/endpoints/tasks";
-import type { TableFilter, TableRowsResult } from "../api/endpoints/tasks-table";
+import type {
+  TableFilter,
+  TableGroupsBody,
+  TableGroupsResult,
+  TableRowsResult,
+} from "../api/endpoints/tasks-table";
 import type { Task } from "../types/task";
 import { taskKeys } from "./keys";
-import type { tableRowsPageBody } from "./surface/table-query";
+import { tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
 
 export type { CreateTaskBody, TaskPatch } from "../api/endpoints/tasks";
 export { taskKeys } from "./keys";
@@ -77,6 +82,7 @@ function applyTaskPatch(task: Task, patch: tasks.TaskPatch): Task {
 /** The body `tableRowsPageBody` builds; a `taskKeys.tableRows` key hashes it as JSON. */
 type TableRowsKeyBody = ReturnType<typeof tableRowsPageBody>;
 type TableRow = TableRowsResult["rows"][number];
+type TableGroup = TableGroupsResult["groups"][number];
 
 /** Rows per page when a body names no limit (the server default). */
 const DEFAULT_TABLE_PAGE_LIMIT = 50;
@@ -95,13 +101,14 @@ const FILTER_FIELD = {
   project_ids: "project_id",
 } as const;
 
-function tableRowsKeyBody(key: QueryKey): TableRowsKeyBody | null {
+/** The request body a `taskKeys.tableRows` or `taskKeys.tableGroups` key hashes as its last part. */
+function tableKeyBody<Body extends { group_by: string }>(key: QueryKey): Body | null {
   const hash = key[key.length - 1];
   if (typeof hash !== "string") return null;
   try {
     const body: unknown = JSON.parse(hash);
-    return typeof body === "object" && body !== null && typeof (body as TableRowsKeyBody).group_by === "string"
-      ? (body as TableRowsKeyBody)
+    return typeof body === "object" && body !== null && typeof (body as Body).group_by === "string"
+      ? (body as Body)
       : null;
   } catch {
     return null;
@@ -182,7 +189,9 @@ function patchTableRowsPage(
   } else if (held || moves) {
     const others = held ? rows.filter((_, i) => i !== index) : rows;
     const offset = body.offset ?? 0;
-    const full = rows.length >= (body.limit ?? DEFAULT_TABLE_PAGE_LIMIT);
+    // A page of `limit` rows continues on the next page, unless the branch ends with it.
+    const full =
+      rows.length >= (body.limit ?? DEFAULT_TABLE_PAGE_LIMIT) && offset + rows.length < data.total;
     const lands = moves && (!!held || offset === 0) && fallsInPage(others, after, offset, full);
     if (lands) {
       const at = others.findIndex((row) => byPosition(after, row.task) < 0);
@@ -198,17 +207,121 @@ function patchTableRowsPage(
 }
 
 /**
- * Apply a task update to every loaded `taskKeys.tableRows` page — the board's
- * columns and the table's branches. Returns each page it rewrote, as it was
- * before, so a rollback restores those pages only and never a page that
- * refetched meanwhile.
+ * One status `group` of a groups result counting one task more or less. A
+ * group missing from the result joins it in server order (`ORDER BY status`;
+ * status keys are plain lowercase); a group that empties leaves, as the server
+ * leaves out a status with no tasks.
  */
-function patchTableRowsPages(
+function countInGroup(groups: TableGroup[], status: string, delta: 1 | -1): TableGroup[] {
+  const index = groups.findIndex((group) => group.key === status);
+  const group = groups[index];
+  if (!group) {
+    if (delta < 0) return groups;
+    const added: TableGroup = { key: status, value: { kind: "status", status }, count: 1 };
+    const at = groups.findIndex((other) => other.key > status);
+    return at === -1 ? [...groups, added] : groups.toSpliced(at, 0, added);
+  }
+  const count = group.count + delta;
+  return count > 0 ? groups.with(index, { ...group, count }) : groups.toSpliced(index, 1);
+}
+
+/**
+ * Status groups after the task goes from `before` to `after`: the group the
+ * filter counted it in loses it, the group the filter now counts it in gains
+ * it. Returns `data` itself when nothing changed.
+ */
+function patchStatusGroups(
+  data: TableGroupsResult,
+  filter: TableFilter | undefined,
+  before: Task,
+  after: Task,
+): TableGroupsResult {
+  const wasIn = filterAdmits(filter, before);
+  const isIn = filterAdmits(filter, after);
+  if (wasIn === isIn && (!wasIn || before.status === after.status)) return data;
+  let groups = data.groups;
+  if (wasIn) groups = countInGroup(groups, before.status, -1);
+  if (isIn) groups = countInGroup(groups, after.status, 1);
+  return { ...data, groups, total: data.total + Number(isIn) - Number(wasIn) };
+}
+
+/**
+ * The first rows page of the status column the task moves into, when that
+ * column had no tasks: a board asks such a column for no rows, so no page
+ * exists to insert into. The key is built from the groups entry's own body,
+ * byte for byte the one the board and the table view ask for, so the column
+ * shows the task at once. Null when the filter excludes the task, the column
+ * already counted tasks (their rows may simply not be loaded), or an entry
+ * already sits under that key.
+ */
+function seededFirstPage(
+  qc: QueryClient,
+  workspaceId: string,
+  body: TableGroupsBody,
+  groupsBefore: TableGroupsResult,
+  row: TableRow,
+  after: Task,
+): { key: QueryKey; page: TableRowsResult } | null {
+  if (!filterAdmits(body.filter, after) || !Array.isArray(body.columns) || typeof body.limit !== "number") {
+    return null;
+  }
+  if (groupsBefore.groups.some((group) => group.key === after.status && group.count > 0)) return null;
+  const { queryKey } = tableRowsPageQuery(
+    workspaceId,
+    tableRowsPageBody({
+      filter: body.filter,
+      groupBy: body.group_by,
+      groupKey: after.status,
+      columns: body.columns,
+      limit: body.limit,
+      offset: 0,
+    }),
+  );
+  if (qc.getQueryState(queryKey)) return null;
+  return {
+    key: queryKey,
+    page: {
+      query_fingerprint: groupsBefore.query_fingerprint,
+      group_key: after.status,
+      parent_id: null,
+      total: 1,
+      rows: [{ ...row, task: after }],
+      branch_total: 1,
+      next_cursor: null,
+    },
+  };
+}
+
+/**
+ * One table cache entry a task update wrote: what it held before (`undefined`
+ * when the update created it) and what the update left in it.
+ */
+interface TableCacheWrite {
+  key: QueryKey;
+  before: TableRowsResult | TableGroupsResult | undefined;
+  after: TableRowsResult | TableGroupsResult;
+}
+
+/**
+ * Apply a task update to the table API caches the board and the table view
+ * read: every loaded rows page, the counts of every status groups entry, and
+ * a first page for an empty status column the task moves into. The task's
+ * fields come from its newest cached copy (highest `revision`), so a stale
+ * inactive page cached first does not decide where it was. Returns every
+ * write, for a rollback that undoes only entries nothing has rewritten since.
+ */
+function patchTableCaches(
   qc: QueryClient,
   workspaceId: string,
   taskId: string,
   patch: tasks.TaskPatch,
-): Array<[QueryKey, TableRowsResult]> {
+): TableCacheWrite[] {
+  const writes: TableCacheWrite[] = [];
+  const write = (key: QueryKey, before: TableCacheWrite["before"], next: TableCacheWrite["after"]) => {
+    // Structural sharing stores a copy that reuses unchanged parts; the rollback compares against that copy.
+    const after = qc.setQueryData<TableCacheWrite["after"]>(key, next) ?? next;
+    writes.push({ key, before, after });
+  };
   // Row pages only (`tableRows` minus its hash): groups and facets hold no tasks.
   const pages = qc.getQueriesData<TableRowsResult>({
     queryKey: taskKeys.tableRows(workspaceId, "").slice(0, -1),
@@ -216,20 +329,32 @@ function patchTableRowsPages(
   let found: TableRow | undefined;
   for (const [, data] of pages) {
     if (!data || !Array.isArray(data.rows)) continue;
-    found = data.rows.find((row) => row.task.id === taskId);
-    if (found) break;
+    const row = data.rows.find((candidate) => candidate.task.id === taskId);
+    if (row && (!found || row.task.revision > found.task.revision)) found = row;
   }
-  const written: Array<[QueryKey, TableRowsResult]> = [];
-  if (!found) return written;
+  if (!found) return writes;
   for (const [key, data] of pages) {
-    const body = tableRowsKeyBody(key);
+    const body = tableKeyBody<TableRowsKeyBody>(key);
     if (!body || !data || !Array.isArray(data.rows)) continue;
     const next = patchTableRowsPage(data, body, found, patch);
-    if (next === data) continue;
-    written.push([key, data]);
-    qc.setQueryData(key, next);
+    if (next !== data) write(key, data, next);
   }
-  return written;
+
+  const before = found.task;
+  const after = applyTaskPatch(before, patch);
+  const groupsEntries = qc.getQueriesData<TableGroupsResult>({
+    queryKey: taskKeys.tableGroups(workspaceId, "").slice(0, -1),
+  });
+  for (const [key, data] of groupsEntries) {
+    const body = tableKeyBody<TableGroupsBody>(key);
+    // Only status groups: the client can place a task by its status alone.
+    if (body?.group_by !== "status" || !data || !Array.isArray(data.groups)) continue;
+    const next = patchStatusGroups(data, body.filter, before, after);
+    if (next !== data) write(key, data, next);
+    const seed = seededFirstPage(qc, workspaceId, body, data, found, after);
+    if (seed) write(seed.key, undefined, seed.page);
+  }
+  return writes;
 }
 
 export function useUpdateTask(workspaceId: string) {
@@ -240,9 +365,11 @@ export function useUpdateTask(workspaceId: string) {
     // Optimistic on purpose, and only here: a status/position patch is locally
     // predictable, the user stays on the board, failure is rare and the
     // rollback is a cache restore. Create/delete flows stay pessimistic.
-    // The board and the table read `taskKeys.tableRows` pages, so the drop is
-    // applied there too and does not snap back until the refetch lands. The
-    // infinite list pages are refreshed on settle, never patched.
+    // The board and the table read `taskKeys.tableRows` pages and status
+    // `taskKeys.tableGroups` counts, so the drop is applied there too (an empty
+    // target column gets its first page) and does not snap back until the
+    // refetch lands. The infinite list pages are refreshed on settle, never
+    // patched.
     onMutate: async ({ taskId, patch }) => {
       await qc.cancelQueries({ queryKey: taskKeys.list(workspaceId) });
       await qc.cancelQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
@@ -253,13 +380,16 @@ export function useUpdateTask(workspaceId: string) {
           prev.map((t) => (t.id === taskId ? applyTaskPatch(t, patch) : t)),
         );
       }
-      const prevTableRows = patchTableRowsPages(qc, workspaceId, taskId, patch);
-      return { prev, prevTableRows };
+      const tableWrites = patchTableCaches(qc, workspaceId, taskId, patch);
+      return { prev, tableWrites };
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(taskKeys.list(workspaceId), ctx.prev);
-      for (const [key, data] of ctx?.prevTableRows ?? []) {
-        qc.setQueryData(key, data);
+      for (const { key, before, after } of ctx?.tableWrites ?? []) {
+        // Rewritten since (a refetch, another member's event): newer than the snapshot, so it stays.
+        if (qc.getQueryData(key) !== after) continue;
+        if (before === undefined) qc.removeQueries({ queryKey: key, exact: true });
+        else qc.setQueryData(key, before);
       }
     },
     onSettled: (_d, _e, { taskId }) => {
