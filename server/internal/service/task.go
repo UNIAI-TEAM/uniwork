@@ -17,7 +17,6 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-var validStatus = map[string]bool{"todo": true, "in_progress": true, "done": true, "cancelled": true}
 var validPriority = map[string]bool{"low": true, "medium": true, "high": true, "urgent": true}
 
 // TaskService owns task commands. Each one runs in a transaction that also
@@ -326,7 +325,7 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 
 // updateTaskInTx applies fields and audit/outbox using q (caller owns the tx).
 func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor Actor, before db.Task, ws db.Workspace, in UpdateTaskInput) (db.Task, error) {
-	if in.Status != nil && !validStatus[*in.Status] {
+	if in.Status != nil && !isBuiltInStatusKey(*in.Status) {
 		return db.Task{}, Invalid("status không hợp lệ")
 	}
 	if in.Priority != nil && !validPriority[*in.Priority] {
