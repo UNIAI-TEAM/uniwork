@@ -4,9 +4,11 @@ import { Archive, Mail, MailOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Notification } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
-import { KindIcon } from "./kind-icon";
+import { kindIcon } from "./kind-icon";
+import { kindTone } from "./kind-tone";
 import { relativeTime } from "./relative-time";
 
 export interface NotificationRowProps {
@@ -26,10 +28,14 @@ export interface NotificationRowProps {
 }
 
 /**
- * One inbox line: kind glyph, the title rendered from title_key + params in
- * the current locale, "and N more changes" when events merged, relative
- * time, and the unread dot. A deleted resource is still a row (the person
- * was told something) but is dimmed and not a link.
+ * One inbox line: the kind's mark (a circle in the module's tint — tasks
+ * green, meetings violet — so the row says where it came from before the
+ * title is read), the title rendered from title_key + params in the current
+ * locale, "and N more changes" when events merged, relative time, and the
+ * unread dot. Unread rows also carry a brand bar on the leading edge, the
+ * same cue the reference layout uses, so a scan down the list finds them
+ * without reading. A deleted resource is still a row (the person was told
+ * something) but is dimmed and not a link.
  */
 export function NotificationRow({ notification: n, href, selected, onOpen, onToggleRead, onArchive, compact, asOption = true }: NotificationRowProps) {
   const { t, i18n } = useTranslation();
@@ -39,14 +45,13 @@ export function NotificationRow({ notification: n, href, selected, onOpen, onTog
 
   const body = (
     <>
-      <span
-        className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground",
-          unread && "bg-primary/10 text-primary",
-        )}
-      >
-        <KindIcon kind={n.kind} className="size-4" />
-      </span>
+      <IconTile
+        icon={kindIcon(n.kind)}
+        shape="circle"
+        size="sm"
+        tone={kindTone(n.kind)}
+        className={cn("size-8 [&_svg]:size-4", !unread && "opacity-70")}
+      />
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate text-body", unread ? "font-medium text-foreground" : "text-muted-foreground")}>
           {title}
@@ -65,9 +70,14 @@ export function NotificationRow({ notification: n, href, selected, onOpen, onTog
     </>
   );
 
+  // No `block` on the link below: tailwind-merge treats it as a display
+  // conflict with this `flex` and the mark stacked above the title.
   const rowClass = cn(
-    "group flex min-h-11 items-center gap-3 px-3 py-2 text-left outline-none",
+    "group relative flex min-h-11 items-center gap-3 px-3 py-2 text-left outline-none",
     selected ? "bg-surface-selected" : "hover:bg-surface-hover",
+    // The unread bar: 2px of brand on the leading edge, inside the row so
+    // it scrolls with it and never fights the list's own border.
+    unread && "before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-r-full before:bg-primary",
     n.resource_deleted && "opacity-60",
   );
 
@@ -84,7 +94,7 @@ export function NotificationRow({ notification: n, href, selected, onOpen, onTog
       ) : (
         <AppLink
           href={href}
-          className={cn(rowClass, "block")}
+          className={rowClass}
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             onOpen(n);

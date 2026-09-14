@@ -28,7 +28,11 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
 };
 
 /** One glyph per kind; an unknown kind from a newer server gets the bell. */
+export function kindIcon(kind: string): LucideIcon {
+  return (ICONS as Record<string, LucideIcon>)[kind] ?? Bell;
+}
+
 export function KindIcon({ kind, className }: { kind: string; className?: string }) {
-  const Icon = (ICONS as Record<string, LucideIcon>)[kind] ?? Bell;
+  const Icon = kindIcon(kind);
   return <Icon aria-hidden className={className} />;
 }
