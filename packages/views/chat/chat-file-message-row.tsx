@@ -137,10 +137,10 @@ export function ChatFileMessageRow({
       className={cn(
         "flex w-full max-w-full",
         isOwn ? "justify-end" : "justify-start",
-        compactTop ? "pt-0.5" : "pt-3",
+        compactTop ? "mt-2" : "mt-4",
       )}
     >
-      <div className={cn("flex max-w-[min(100%,24rem)] gap-2", isOwn && "flex-row-reverse")}>
+      <div className={cn("flex max-w-[min(100%,22rem)] gap-2", isOwn && "flex-row-reverse")}>
         {showAvatar && !isOwn ? (
           <ActorAvatar
             name={senderLabel}
@@ -171,11 +171,11 @@ export function ChatFileMessageRow({
             canEdit={false}
           />
           {showSenderName && !isOwn ? (
-            <p className="mb-1 px-1 text-caption font-medium text-brand">{senderLabel}</p>
+            <p className="mb-1.5 px-1 text-caption font-medium text-brand">{senderLabel}</p>
           ) : null}
           <div
             className={cn(
-              "overflow-hidden rounded-2xl border shadow-sm",
+              "overflow-hidden rounded-xl border shadow-sm",
               isOwn ? "border-brand/30 bg-brand/10" : "border-border bg-surface",
               !isImage && !isPdf && "px-3 py-2",
             )}
@@ -202,7 +202,7 @@ export function ChatFileMessageRow({
                   <img
                     src={previewUrl}
                     alt={file?.filename || t("chat.file_untitled")}
-                    className="max-h-80 max-w-full object-contain"
+                    className="max-h-56 max-w-full object-contain"
                   />
                 </button>
               ) : (

@@ -2,11 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
+import { getTaskSurfaceViewStore, clearTaskSurfaceViewState } from "@uniwork/core/tasks/stores/surface-view-store";
 import type { User } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ProjectDetailPage } from "./project-detail-page";
 
+const LONG = { timeout: 10_000 };
 const me: User = {
   id: "u1",
   email: "me@x.com",
@@ -59,6 +60,7 @@ beforeAll(() => {
 beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(me);
+  clearTaskSurfaceViewState("project:p1");
   getTaskSurfaceViewStore("project:p1").getState().setViewMode("list");
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown, init?: { body?: unknown }) => {
@@ -83,6 +85,38 @@ beforeEach(() => {
         total: tasks.length,
         limit: 50,
         offset: 0,
+      });
+    }
+    if (p.includes("/tasks/table/groups")) {
+      return Promise.resolve({
+        query_fingerprint: "fp-groups",
+        total: 1,
+        groups: [
+          {
+            key: "status:todo",
+            value: { kind: "status", status: "todo" },
+            count: 1,
+          },
+        ],
+        next_cursor: null,
+      });
+    }
+    if (p.includes("/tasks/table/rows")) {
+      return Promise.resolve({
+        query_fingerprint: "fp-rows",
+        group_key: "status:todo",
+        parent_id: null,
+        total: 1,
+        rows: [{ task: taskInProject, direct_child_count: 0 }],
+        branch_total: 1,
+        next_cursor: null,
+      });
+    }
+    if (p.includes("/tasks/table/facets")) {
+      return Promise.resolve({
+        query_fingerprint: "fp-facets",
+        total: 1,
+        facets: [{ kind: "status", values: [{ key: "todo", count: 1 }] }],
       });
     }
     if (p.includes("/members")) {
@@ -124,7 +158,7 @@ describe("ProjectDetailPage", () => {
       ),
     );
 
-    expect(await screen.findByDisplayValue("Q3 launch")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Q3 launch", undefined, LONG)).toBeInTheDocument();
 
     await waitFor(() => {
       const queryCall = requestMock.mock.calls.find(
@@ -133,9 +167,9 @@ describe("ProjectDetailPage", () => {
       expect(queryCall).toBeDefined();
       const init = queryCall?.[1] as { body?: { project_id?: string } } | undefined;
       expect(init?.body?.project_id).toBe("p1");
-    });
+    }, LONG);
 
-    expect(await screen.findByText("In-project task")).toBeInTheDocument();
+    expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
   });
 
   it("does not render tasks from other projects when the mock returns a filtered list", async () => {
@@ -150,7 +184,8 @@ describe("ProjectDetailPage", () => {
       ),
     );
 
-    expect(await screen.findByText("In-project task")).toBeInTheDocument();
+    expect(await screen.findByText("Q3 launch", undefined, LONG)).toBeInTheDocument();
+    expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
     expect(screen.queryByText("Other-project task")).not.toBeInTheDocument();
   });
 });

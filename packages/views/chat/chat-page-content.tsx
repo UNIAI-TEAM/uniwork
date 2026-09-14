@@ -27,6 +27,8 @@ import {
 import { ChatPageEmptyConversation } from "./chat-page-empty-conversation";
 import { chatComposerPlaceholder } from "./chat-composer-placeholder";
 import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
+import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
+import { ChatCatchUpSheet } from "./chat-catch-up-sheet";
 
 export function ChatPageContent({
   target,
@@ -119,6 +121,7 @@ export function ChatPageContent({
   const [mobileListMode, setMobileListMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const followUpUi = useChatFollowUpUi(workspaceId, workHubEnabled);
+  const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId);
 
   const showMobileList = mobileListMode || !activeRoomId;
   const showMobileChat = Boolean(activeRoomId) && !mobileListMode;
@@ -275,6 +278,7 @@ export function ChatPageContent({
         activeRoomId={activeRoomId}
         canPinMessages={canPinMessages}
         t={t}
+        onMessageSearchOpenChange={onMessageSearchOpenChange}
         createPollOpen={createPollOpen}
         onCreatePollOpenChange={setCreatePollOpen}
         createReminderOpen={createReminderOpen}
@@ -400,7 +404,8 @@ export function ChatPageContent({
                     onOpenGroupSettings={() => onGroupSettingsOpenChange(true)}
                     onOpenChannelSettings={() => onChannelSettingsOpenChange(true)}
                     onOpenDmSettings={() => onDmSettingsOpenChange(true)}
-                    onOpenSearch={() => onMessageSearchOpenChange(true)}
+                    onCatchUp={catchUpUi.onCatchUp}
+                    catchUpDisabled={catchUpUi.loading}
                     onVoiceCall={onVoiceCall}
                     voiceCallDisabled={voiceCallDisabled}
                     onVideoCall={onVideoCall}
@@ -478,6 +483,14 @@ export function ChatPageContent({
         </div>
       </div>
       {followUpUi.sheet}
+      <ChatCatchUpSheet
+        open={catchUpUi.open}
+        onOpenChange={catchUpUi.setOpen}
+        loading={catchUpUi.loading}
+        error={catchUpUi.error}
+        result={catchUpUi.result}
+        onRetry={catchUpUi.onRetry}
+      />
     </>
   );
 }

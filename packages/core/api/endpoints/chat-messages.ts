@@ -7,11 +7,13 @@ import type { ChatMessageRecord } from "./chat-schemas";
 export async function listChatRoomMessages(
   workspaceId: string,
   roomId: string,
-  options?: { before?: string; limit?: number },
+  options?: { before?: string; limit?: number; mark_read?: boolean },
 ): Promise<ChatMessageRecord[]> {
   const params = new URLSearchParams();
   if (options?.before) params.set("before", options.before);
   if (options?.limit) params.set("limit", String(options.limit));
+  // Default true (omit param). mark_read=0 preserves last_read for CatchUp.
+  if (options?.mark_read === false) params.set("mark_read", "0");
   const qs = params.toString();
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages${qs ? `?${qs}` : ""}`,
@@ -20,6 +22,17 @@ export async function listChatRoomMessages(
     endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages",
   });
   return parsed.messages ?? [];
+}
+
+export async function markChatRoomRead(workspaceId: string, roomId: string): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/read`,
+    { method: "POST", body: {} },
+  );
+  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
+    endpoint: "POST .../chat/rooms/{roomID}/read",
+  });
+  return parsed.status === "ok";
 }
 
 export async function getChatRoomMessage(

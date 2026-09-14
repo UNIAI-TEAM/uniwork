@@ -42,17 +42,24 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggleTargetRef = useRef<boolean | null>(null);
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toggleRafRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     if (isMobile) setMobileOpen(false);
   }, [isMobile]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current);
-    },
-    [],
-  );
+      if (toggleRafRef.current != null) {
+        cancelAnimationFrame(toggleRafRef.current);
+        toggleRafRef.current = null;
+      }
+    };
+  }, []);
 
   const beginDesktopToggle = useCallback((nextOpen: boolean) => {
     toggleTargetRef.current = nextOpen;
@@ -78,12 +85,13 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
     if (!panel) return;
     const nextOpen = panel.isCollapsed();
     beginDesktopToggle(nextOpen);
-    window.requestAnimationFrame(() => {
-      // Read the ref again: the panel group can unmount before this frame
-      // (the page unmounts, or swaps the layout for its loading/not-found
-      // branch while this hook stays mounted). React nulls the ref then, but
-      // the handle captured above still looks its group up and throws
-      // "Group … not found".
+    if (toggleRafRef.current != null) cancelAnimationFrame(toggleRafRef.current);
+    toggleRafRef.current = window.requestAnimationFrame(() => {
+      toggleRafRef.current = null;
+      // Layout may have unmounted between schedule and frame (tests / fast nav).
+      // React nulls the panel ref then; the handle captured above still looks
+      // its group up and throws "Group … not found".
+      if (!mountedRef.current) return;
       const mounted = panelRef.current;
       if (!mounted) return;
       if (nextOpen) mounted.expand();

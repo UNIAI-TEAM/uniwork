@@ -173,7 +173,9 @@ func parseChatMessageListQuery(r *http.Request) (service.ListChatMessagesInput, 
 		}
 		before = &t
 	}
-	return service.ListChatMessagesInput{Before: before, Limit: limit}, nil
+	// mark_read=0 keeps last_read_at so CatchUp still sees unread after open.
+	skipMarkRead := strings.TrimSpace(r.URL.Query().Get("mark_read")) == "0"
+	return service.ListChatMessagesInput{Before: before, Limit: limit, SkipMarkRead: skipMarkRead}, nil
 }
 
 func (h *handlers) getWorkspaceChatRoom(w http.ResponseWriter, r *http.Request) {
@@ -333,6 +335,17 @@ func (h *handlers) inviteChatGroupMembers(w http.ResponseWriter, r *http.Request
 
 func (h *handlers) leaveChatRoom(w http.ResponseWriter, r *http.Request) {
 	err := h.Chat.LeaveChatRoom(
+		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+func (h *handlers) markChatRoomRead(w http.ResponseWriter, r *http.Request) {
+	err := h.Chat.MarkRoomRead(
 		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
 	)
 	if err != nil {

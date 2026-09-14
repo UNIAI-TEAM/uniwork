@@ -78,7 +78,7 @@ export function ChatVoiceMessageRow({
       id={`chat-msg-${message.id}`}
       className={cn(
         "flex w-full max-w-full",
-        compactTop ? "mt-1" : "mt-3",
+        compactTop ? "mt-2" : "mt-4",
         isOwn ? "justify-end" : "justify-start gap-2",
       )}
     >
@@ -94,9 +94,9 @@ export function ChatVoiceMessageRow({
           ) : null}
         </div>
       ) : null}
-      <div className={cn("flex max-w-[20rem] flex-col gap-1", isOwn ? "items-end" : "items-start")}>
+      <div className={cn("flex max-w-[min(100%,22rem)] flex-col gap-1.5", isOwn ? "items-end" : "items-start")}>
         {!isOwn && showSenderName && showAvatar ? (
-          <p className="px-1 text-caption font-medium text-foreground">{senderLabel}</p>
+          <p className="px-1 pb-0.5 text-caption font-medium text-foreground">{senderLabel}</p>
         ) : null}
         <div
           className={cn(

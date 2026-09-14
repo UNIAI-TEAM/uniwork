@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, Pin, Tag } from "lucide-react";
+import { Bell, BellOff, Pin, Search, Tag } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -54,6 +54,7 @@ export function DmSettingsSheet({
   onUnblock,
   blocking,
   unblocking,
+  onOpenSearch,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -72,6 +73,7 @@ export function DmSettingsSheet({
   onUnblock: () => void | Promise<void>;
   blocking?: boolean;
   unblocking?: boolean;
+  onOpenSearch?: () => void;
 }) {
   const { t } = useTranslation();
   const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
@@ -128,6 +130,16 @@ export function DmSettingsSheet({
           />
 
           <section className="border-b border-border">
+            {onOpenSearch ? (
+              <ChatSettingsMenuRow
+                icon={Search}
+                label={t("chat.search_messages")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenSearch();
+                }}
+              />
+            ) : null}
             <ChatSettingsMenuRow
               icon={Tag}
               label={t("chat.nickname_action")}
@@ -251,7 +263,8 @@ export function DmChatToolbar({
   sidebarCollapsed,
   onToggleSidebar,
   onOpenSettings,
-  onOpenSearch,
+  onCatchUp,
+  catchUpDisabled,
   onVoiceCall,
   voiceCallDisabled,
   onVideoCall,
@@ -264,7 +277,8 @@ export function DmChatToolbar({
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onOpenSettings: () => void;
-  onOpenSearch?: () => void;
+  onCatchUp?: () => void;
+  catchUpDisabled?: boolean;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
   onVideoCall?: () => void;
@@ -298,7 +312,9 @@ export function DmChatToolbar({
       onToggleSidebar={onToggleSidebar}
       settingsAriaLabel={t("chat.dm_settings")}
       onOpenSettings={onOpenSettings}
-      onOpenSearch={onOpenSearch}
+      catchUpAriaLabel={t("chat.ai.catch_up")}
+      onCatchUp={onCatchUp}
+      catchUpDisabled={catchUpDisabled}
       voiceCallAriaLabel={t("chat.voice_call_start")}
       onVoiceCall={onVoiceCall}
       voiceCallDisabled={voiceCallDisabled}

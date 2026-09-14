@@ -442,7 +442,7 @@ export function NativeChatMessagePanel({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-muted/25 px-4 py-4"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-muted/25 px-3 py-5 sm:px-4"
         aria-label={t("chat.messages_region")}
       >
         <VirtualChatMessageList

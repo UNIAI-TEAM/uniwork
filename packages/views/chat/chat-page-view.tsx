@@ -315,13 +315,12 @@ export function ChatPageView({
   useEffect(() => {
     if (!authReady || syncedRef.current) return;
     syncedRef.current = true;
-    void ensureRoom.mutate();
-  }, [authReady, ensureRoom]);
-
-  useEffect(() => {
-    if (!authReady) return;
-    void refetch();
-  }, [authReady, refetch]);
+    // Ensure syncs default-channel membership before trusting listRooms; a
+    // parallel empty response used to stick in the cache until hard reload.
+    void ensureRoom.mutateAsync().finally(() => {
+      void refetch();
+    });
+  }, [authReady, ensureRoom, refetch]);
 
   const headerTitle = chatHeaderTitle(
     target,

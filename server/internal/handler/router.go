@@ -286,6 +286,7 @@ func New(d Deps) http.Handler {
 
 		AiCapabilities:       h.aiCapabilities,
 		AskUni:               h.askUni,
+		ChatCatchUp:          h.chatCatchUp,
 		ListAiConversations:  h.listAiConversations,
 		ListAiMessages:       h.listAiMessages,
 		DeleteAiConversation: h.deleteAiConversation,
@@ -410,6 +411,7 @@ func New(d Deps) http.Handler {
 		PatchChatRoom:               h.patchChatRoom,
 		RemoveChatRoomMember:        h.removeWorkspaceChatRoomMember,
 		LeaveChatRoom:               h.leaveChatRoom,
+		MarkChatRoomRead:            h.markChatRoomRead,
 		ListWorkspaceChatMessages:   h.listWorkspaceChatMessages,
 		SendWorkspaceChatMessage:    h.sendWorkspaceChatMessage,
 		ListChatRoomMessages:        h.listChatRoomMessages,

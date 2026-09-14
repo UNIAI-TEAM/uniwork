@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from "react";
 
-const DEFAULT_ESTIMATE_PX = 72;
+const DEFAULT_ESTIMATE_PX = 88;
 
 interface VirtualChatMessageListProps {
   messages: { id: string }[];

@@ -39,8 +39,17 @@ func TestOpenAIComplete(t *testing.T) {
 	if len(msgs) != 2 || msgs[0].(map[string]any)["role"] != "system" {
 		t.Fatalf("messages %v", msgs)
 	}
-	if got["response_format"] == nil || got["tools"] == nil {
-		t.Fatalf("schema/tools not sent: %v", got)
+	if got["response_format"] == nil {
+		t.Fatalf("schema not sent: %v", got)
+	}
+	rf := got["response_format"].(map[string]any)
+	js := rf["json_schema"].(map[string]any)
+	if js["strict"] != true {
+		t.Fatalf("expected strict schema, got %v", js)
+	}
+	// Tools must not ship alongside json_schema (OpenAI rejects / returns empty).
+	if got["tools"] != nil {
+		t.Fatalf("tools must be omitted when JSONSchema is set: %v", got["tools"])
 	}
 }
 

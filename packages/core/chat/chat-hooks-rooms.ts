@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
-import { listChatRoomMessages } from "../api/endpoints/chat";
+import { listChatRoomMessages, type ChatRoomRecord } from "../api/endpoints/chat";
 import { workspaceKeys } from "../workspaces/hooks";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
@@ -27,6 +27,8 @@ export function useEnsureWorkspaceChatRoom(workspaceId: string) {
     },
     onSuccess: (room) => {
       qc.setQueryData(chatKeys.room(workspaceId), room);
+      // Membership sync may land after the first listRooms; refresh the sidebar.
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
 }
@@ -60,6 +62,9 @@ export function useChatRooms(workspaceId: string) {
     queryKey: chatKeys.rooms(workspaceId),
     queryFn: () => chat.listChatRooms(workspaceId),
     enabled: !!workspaceId && authReady,
+    // After BE restart the reconnect path invalidates this key; keep the
+    // sidebar honest even if a prior empty response was briefly cached.
+    refetchOnReconnect: "always",
   });
 }
 
@@ -172,13 +177,41 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
   });
 }
 
-export function useChatRoomMessages(workspaceId: string, roomId: string | null, limit = 50) {
+export function useChatRoomMessages(
+  workspaceId: string,
+  roomId: string | null,
+  limit = 50,
+  options?: { markRead?: boolean },
+) {
   const authReady = useAuthStore((s) => s.status === "authed");
+  // Default false: listing must not clear unread before CatchUp. Callers that
+  // intentionally advance the cursor pass markRead: true (or use MarkRoomRead).
+  const markRead = options?.markRead === true;
   return useQuery({
     queryKey: chatKeys.roomMessages(workspaceId, roomId ?? ""),
-    queryFn: () => listChatRoomMessages(workspaceId, roomId!, { limit }),
+    queryFn: () =>
+      listChatRoomMessages(workspaceId, roomId!, {
+        limit,
+        mark_read: markRead,
+      }),
     enabled: !!workspaceId && !!roomId && authReady,
     staleTime: 5_000,
+    refetchOnReconnect: "always",
+  });
+}
+
+export function useMarkChatRoomRead(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roomId: string) => chat.markChatRoomRead(workspaceId, roomId),
+    onSuccess: (_ok, roomId) => {
+      qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) => {
+        if (!old) return old;
+        return old.map((room) =>
+          room.id === roomId ? { ...room, unread_count: 0, mention_unread_count: 0 } : room,
+        );
+      });
+    },
   });
 }
 

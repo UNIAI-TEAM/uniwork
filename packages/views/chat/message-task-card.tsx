@@ -35,7 +35,7 @@ function MessageTaskLinkRow({
     <>
       <div
         className={cn(
-          "flex w-full max-w-full items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 shadow-sm",
+          "flex w-full max-w-full items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 shadow-sm",
         )}
       >
         <ListTodo className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -97,7 +97,7 @@ export function MessageTaskCard({
   if (!enabled || taskLinks.length === 0) return null;
 
   return (
-    <div className={cn("mt-1 flex w-full flex-col gap-1", className)} data-testid="message-task-card">
+    <div className={cn("mt-2 flex w-full flex-col gap-1.5", className)} data-testid="message-task-card">
       {taskLinks.map((link) => (
         <MessageTaskLinkRow
           key={link.id}

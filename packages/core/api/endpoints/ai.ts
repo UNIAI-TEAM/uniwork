@@ -5,12 +5,15 @@ import {
   AiMessageSchema,
   AiUsageSummarySchema,
   AskUniResponseSchema,
+  ChatCatchUpResponseSchema,
   type AiCapabilities,
   type AiConversation,
   type AiMessage,
   type AiUsageSummary,
   type AskUniInput,
   type AskUniResponse,
+  type ChatCatchUpInput,
+  type ChatCatchUpResponse,
 } from "../../types/ai";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -25,6 +28,15 @@ const DISABLED: AiCapabilities = {
   quota: { used_tokens: 0, limit_tokens: null },
 };
 const EMPTY_USAGE: AiUsageSummary = { from: "", to: "", rows: [] };
+const EMPTY_CATCH_UP: ChatCatchUpResponse = {
+  summary: "",
+  highlights: [],
+  action_items: [],
+  message_count: 0,
+  mode: "unread",
+  since: "",
+  usage: { input_tokens: 0, output_tokens: 0 },
+};
 
 export async function getAiCapabilities(wsId: string): Promise<AiCapabilities> {
   const raw = await request(`/api/v1/workspaces/${wsId}/ai/capabilities`);
@@ -43,6 +55,14 @@ export async function askUni(wsId: string, body: AskUniInput): Promise<AskUniRes
   const parsed = AskUniResponseSchema.safeParse(raw);
   if (!parsed.success) throw new Error("ai_output_invalid");
   return parsed.data;
+}
+
+/** CatchUp degrades to empty brief on malformed payloads (UI shows empty state). */
+export async function chatCatchUp(wsId: string, body: ChatCatchUpInput): Promise<ChatCatchUpResponse> {
+  const raw = await request(`/api/v1/workspaces/${wsId}/ai/chat/catch-up`, { method: "POST", body });
+  return parseWithFallback(raw, ChatCatchUpResponseSchema, EMPTY_CATCH_UP, {
+    endpoint: "POST /api/v1/workspaces/{id}/ai/chat/catch-up",
+  });
 }
 
 export async function listAiConversations(wsId: string): Promise<AiConversation[]> {

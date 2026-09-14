@@ -27,7 +27,8 @@ export function ChatPageConversationToolbar({
   onOpenGroupSettings,
   onOpenChannelSettings,
   onOpenDmSettings,
-  onOpenSearch,
+  onCatchUp,
+  catchUpDisabled,
   onVoiceCall,
   voiceCallDisabled,
   onVideoCall,
@@ -49,7 +50,8 @@ export function ChatPageConversationToolbar({
   onOpenGroupSettings: () => void;
   onOpenChannelSettings: () => void;
   onOpenDmSettings: () => void;
-  onOpenSearch: () => void;
+  onCatchUp?: () => void;
+  catchUpDisabled?: boolean;
   onVoiceCall: () => void;
   voiceCallDisabled: boolean;
   onVideoCall: () => void;
@@ -65,7 +67,8 @@ export function ChatPageConversationToolbar({
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={onToggleSidebar}
         onOpenSettings={onOpenWorkspaceSettings}
-        onOpenSearch={onOpenSearch}
+        onCatchUp={onCatchUp}
+        catchUpDisabled={catchUpDisabled}
       />
     );
   }
@@ -79,7 +82,8 @@ export function ChatPageConversationToolbar({
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={onToggleSidebar}
         onOpenSettings={onOpenGroupSettings}
-        onOpenSearch={onOpenSearch}
+        onCatchUp={onCatchUp}
+        catchUpDisabled={catchUpDisabled}
         onVoiceCall={onVoiceCall}
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}
@@ -97,7 +101,8 @@ export function ChatPageConversationToolbar({
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={onToggleSidebar}
         onOpenSettings={onOpenChannelSettings}
-        onOpenSearch={onOpenSearch}
+        onCatchUp={onCatchUp}
+        catchUpDisabled={catchUpDisabled}
         onVoiceCall={onVoiceCall}
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}
@@ -118,7 +123,8 @@ export function ChatPageConversationToolbar({
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={onToggleSidebar}
         onOpenSettings={onOpenDmSettings}
-        onOpenSearch={onOpenSearch}
+        onCatchUp={onCatchUp}
+        catchUpDisabled={catchUpDisabled}
         onVoiceCall={onVoiceCall}
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}

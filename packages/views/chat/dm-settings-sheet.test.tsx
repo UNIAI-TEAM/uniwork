@@ -40,6 +40,33 @@ describe("DmSettingsSheet", () => {
     expect(screen.getByRole("button", { name: "Đặt biệt danh" })).toBeInTheDocument();
   });
 
+  it("opens message search from settings and closes the sheet", () => {
+    const onOpenChange = vi.fn();
+    const onOpenSearch = vi.fn();
+    render(
+      wrap(
+        <DmSettingsSheet
+          open
+          onOpenChange={onOpenChange}
+          workspaceId="ws1"
+          currentUserId="u1"
+          contact={contact}
+          youLabel="Bạn"
+          onLeave={vi.fn()}
+          blockedByMe={false}
+          blockedMe={false}
+          onBlock={vi.fn()}
+          onUnblock={vi.fn()}
+          onOpenSearch={onOpenSearch}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tìm tin nhắn trong cuộc trò chuyện" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenSearch).toHaveBeenCalled();
+  });
+
   it("shows nickname in heading when set", () => {
     render(
       wrap(

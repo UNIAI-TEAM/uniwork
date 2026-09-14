@@ -7,8 +7,12 @@ export const chatKeys = {
     ["chat", "project-channels", wsId, projectId] as const,
   messages: (wsId: string) => ["chat", "messages", wsId] as const,
   roomMessages: (wsId: string, roomId: string) => ["chat", "room-messages", wsId, roomId] as const,
+  /** Prefix — invalidate all open room timelines for a workspace (reconnect). */
+  roomMessagesRoot: (wsId: string) => ["chat", "room-messages", wsId] as const,
   threadMessages: (wsId: string, roomId: string, threadRootId: string) =>
     ["chat", "thread-messages", wsId, roomId, threadRootId] as const,
+  /** Prefix — invalidate all cached thread timelines for a workspace. */
+  threadMessagesRoot: (wsId: string) => ["chat", "thread-messages", wsId] as const,
   followedThreads: (wsId: string, unread = false) =>
     ["chat", "followed-threads", wsId, unread] as const,
   messageLinks: (wsId: string, messageId: string) =>

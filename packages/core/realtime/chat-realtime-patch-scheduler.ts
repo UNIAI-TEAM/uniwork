@@ -21,6 +21,7 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
   const upserts = new Map<string, PendingUpsert>();
   const deletes = new Map<string, PendingDelete>();
   const mentions = new Map<string, PendingMention>();
+  let roomsActivityPending = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let flushInFlight: Promise<void> | null = null;
 
@@ -29,9 +30,11 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     const upsertBatch = [...upserts.values()];
     const deleteBatch = [...deletes.values()];
     const mentionBatch = [...mentions.values()];
+    const refreshRooms = roomsActivityPending;
     upserts.clear();
     deletes.clear();
     mentions.clear();
+    roomsActivityPending = false;
 
     for (const entry of deleteBatch) {
       patchChatMessageDeleted(qc, wsId, entry.roomId, entry.messageId);
@@ -44,6 +47,11 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
         fetchAndPatchChatMessage(qc, wsId, entry.roomId, entry.messageId),
       ),
     );
+    // After preview patches: server unread/mention counts win (avoids +1 then
+    // refetch=1 racing into badge=2 when message.created + room.activity both fire).
+    if (refreshRooms) {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+    }
   };
 
   const scheduleFlush = () => {
@@ -71,7 +79,8 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
       scheduleFlush();
     },
     scheduleRoomActivity() {
-      void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+      roomsActivityPending = true;
+      scheduleFlush();
     },
     scheduleMessageLinked(roomId: string, messageId: string) {
       patchChatMessageLinked(qc, wsId, roomId, messageId);
@@ -86,6 +95,7 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
       upserts.clear();
       deletes.clear();
       mentions.clear();
+      roomsActivityPending = false;
     },
   };
 }

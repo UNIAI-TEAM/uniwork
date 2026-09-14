@@ -196,6 +196,7 @@ type Routes struct {
 
 	AiCapabilities       http.HandlerFunc
 	AskUni               http.HandlerFunc
+	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc
 	ListAiMessages       http.HandlerFunc
 	DeleteAiConversation http.HandlerFunc
@@ -320,6 +321,7 @@ type Routes struct {
 	PatchChatRoom               http.HandlerFunc
 	RemoveChatRoomMember        http.HandlerFunc
 	LeaveChatRoom               http.HandlerFunc
+	MarkChatRoomRead            http.HandlerFunc
 	ListWorkspaceChatMessages   http.HandlerFunc
 	SendWorkspaceChatMessage    http.HandlerFunc
 	ListChatRoomMessages        http.HandlerFunc

@@ -118,6 +118,10 @@ func TestPromptSnapshots(t *testing.T) {
 			"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
 			"sources": RenderSources([]Source{{ID: "S1", Kind: "task", Title: "Viết spec", Excerpt: "quá hạn 2 ngày"}}),
 		},
+		PromptChatCatchUp: {
+			"locale": "vi", "today": "2026-09-11", "scope": "room", "since": "2026-09-11T08:00:00Z",
+			"sources": RenderSources([]Source{{ID: "S1", Kind: "chat", Title: "An · 2026-09-11 09:00", Excerpt: "Nhắc hạn F-09"}}),
+		},
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
