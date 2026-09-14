@@ -44,12 +44,15 @@ import {
   taskMatchesGroup,
 } from "./board-drag-utils";
 import { HiddenColumnsPanel } from "./hidden-columns-panel";
+import { LoadedCountNotice } from "./loaded-count-notice";
 import { useBoardDragPan } from "./use-board-drag-pan";
 import { useDragSettle } from "./use-drag-settle";
 import {
   useTaskSurfaceActionsOptional,
   type TaskCreateDefaults,
 } from "../surface/actions-context";
+import type { BoardColumnPaging } from "../surface/use-board-columns-data";
+import type { TaskSurfacePagination } from "../surface/use-task-surface-data";
 
 const EMPTY_IDS: string[] = [];
 
@@ -65,12 +68,18 @@ function BoardViewImpl({
   tasks,
   cardMeta,
   projects = [],
+  columnPaging,
+  pagination,
   onOpenTask,
 }: {
   categories: readonly string[];
   tasks: Task[];
   cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   projects?: readonly { id: string; title: string }[];
+  /** Server paging per status column; status columns then end with their own load more. */
+  columnPaging?: Readonly<Record<string, BoardColumnPaging>>;
+  /** Loaded / total for the whole board, shown when no column carries its own paging. */
+  pagination?: TaskSurfacePagination;
   onOpenTask?: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -82,6 +91,7 @@ function BoardViewImpl({
     storedGrouping === "assignee" || storedGrouping === "project"
       ? storedGrouping
       : "status";
+  const columnsPage = !!columnPaging && grouping === "status";
 
   const visibleCategories = useMemo(
     () =>
@@ -372,15 +382,21 @@ function BoardViewImpl({
   const hiddenCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const status of hiddenStatuses) {
-      counts[status] = tasks.filter((task) => task.status === status).length;
+      // A hidden server-paged column loads no cards; its server count still stands.
+      counts[status] =
+        columnPaging?.[status]?.count ??
+        tasks.filter((task) => task.status === status).length;
     }
     return counts;
-  }, [hiddenStatuses, tasks]);
+  }, [columnPaging, hiddenStatuses, tasks]);
   const sortLabel =
     sortBy === "position" ? null : t("tasks.display.sorted_drag_hint");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {pagination && !columnsPage ? (
+        <LoadedCountNotice pagination={pagination} withAction />
+      ) : null}
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
@@ -398,20 +414,27 @@ function BoardViewImpl({
           onLostPointerCapture={pan.onLostPointerCapture}
           className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-4 pb-4 pt-2"
         >
-          {groups.map((group) => (
-            <BoardColumn
-              key={group.id}
-              group={group}
-              taskIds={columns[group.id] ?? EMPTY_IDS}
-              taskMap={taskMapRef.current}
-              cardMeta={cardMeta}
-              totalCount={group.totalCount}
-              onCreateTask={onCreateTask}
-              onOpenTask={onOpenTask}
-              sortLabel={sortLabel}
-              disableDragging={grouping === "project"}
-            />
-          ))}
+          {groups.map((group) => {
+            const paging =
+              columnsPage && group.kind === "status"
+                ? columnPaging?.[group.status]
+                : undefined;
+            return (
+              <BoardColumn
+                key={group.id}
+                group={group}
+                taskIds={columns[group.id] ?? EMPTY_IDS}
+                taskMap={taskMapRef.current}
+                cardMeta={cardMeta}
+                totalCount={paging?.count ?? group.totalCount}
+                paging={paging}
+                onCreateTask={onCreateTask}
+                onOpenTask={onOpenTask}
+                sortLabel={sortLabel}
+                disableDragging={grouping === "project"}
+              />
+            );
+          })}
           {hiddenStatuses.length > 0 ? (
             <HiddenColumnsPanel
               hiddenStatuses={hiddenStatuses}

@@ -19,18 +19,6 @@ export function useQueryTasks(workspaceId: string, body: suite.QueryTasksBody = 
   });
 }
 
-export function useGroupedTasks(
-  workspaceId: string,
-  opts: { group_by?: string; status?: string; limit?: number; offset?: number } = {},
-) {
-  const hash = stableHash(opts);
-  return useQuery({
-    queryKey: taskKeys.grouped(workspaceId, hash),
-    queryFn: () => suite.groupedTasks(workspaceId, opts),
-    enabled: !!workspaceId,
-  });
-}
-
 export function useMyTasks(
   workspaceId: string,
   opts: {

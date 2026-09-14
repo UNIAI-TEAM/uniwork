@@ -222,6 +222,8 @@ function TaskSurfaceContent({
                       tasks={controller.surfaceTasks}
                       cardMeta={boardCardMeta}
                       projects={projectsData?.projects}
+                      columnPaging={controller.boardColumns}
+                      pagination={controller.pagination}
                       onOpenTask={onOpenTask}
                     />
                   ) : controller.viewMode === "table" ? (

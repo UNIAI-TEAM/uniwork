@@ -13,7 +13,6 @@ import {
   taskKeys,
   useBatchDeleteTasks,
   useBatchUpdateTasks,
-  useGroupedTasks,
   useTableFacets,
   useTaskStatuses,
   useUpdateTask,
@@ -43,6 +42,7 @@ import {
 } from "./selection-context";
 import type { TaskSurfaceMode } from "./types";
 import { projectSurfaceTasks } from "./task-surface-projection";
+import { useBoardColumnsData } from "./use-board-columns-data";
 import { useTaskSurfaceData } from "./use-task-surface-data";
 import { useTaskGroupBranches } from "./use-task-group-branches";
 import { ganttCanvasRows } from "../modes/gantt-canvas";
@@ -100,8 +100,13 @@ export interface TaskSurfaceController {
   viewMode: TaskSurfaceMode;
   setViewMode: (mode: TaskSurfaceMode) => void;
   surfaceTasks: Task[];
-  /** Paging of the flat list / my-tasks query (list, gantt, swimlane, My Tasks board); idle when it is off. */
+  /**
+   * Paging of what the mode reads: the flat list / my-tasks query (list, gantt,
+   * swimlane, My Tasks board), or the table-fed board as a whole; idle when off.
+   */
   pagination: ReturnType<typeof useTaskSurfaceData>["pagination"];
+  /** Server paging per status column of the table-fed board; undefined on every other surface. */
+  boardColumns: ReturnType<typeof useBoardColumnsData>["columns"] | undefined;
   /** Gantt canvas projection (dated ± showCompleted). Empty ≠ surface empty. */
   ganttTasks: Task[];
   /** Ordered status-category keys for board columns (catalog / seven built-ins). */
@@ -179,9 +184,11 @@ export function useTaskSurfaceController({
   const tableEnabled = effectiveViewMode === "table" && scope.type !== "my";
   const ganttEnabled = effectiveViewMode === "gantt";
   const swimlaneEnabled = effectiveViewMode === "swimlane";
-  // My-scope board has no relation-aware grouped endpoint yet — feed the
+  // My-scope board has no relation-aware table API (query-plan.ts) — feed the
   // board from listMyTasks so columns never show other people's work.
   const myBoardUsesList = boardEnabled && scope.type === "my";
+  // Every other board pages each status column through the table API.
+  const tableBoardEnabled = boardEnabled && scope.type !== "my";
   const listQueryEnabled =
     (effectiveViewMode === "list" ||
       swimlaneEnabled ||
@@ -209,13 +216,6 @@ export function useTaskSurfaceController({
     boardEnabled || swimlaneEnabled || effectiveViewMode === "list"
       ? workspaceId
       : "",
-  );
-  const groupedQuery = useGroupedTasks(
-    boardEnabled && scope.type !== "my" ? workspaceId : "",
-    {
-      group_by: "status",
-      ...(scope.type === "project" ? { project_id: scope.projectId } : {}),
-    },
   );
   const updateTaskMutation = useUpdateTask(workspaceId);
   const batchUpdateTasks = useBatchUpdateTasks(workspaceId);
@@ -258,12 +258,12 @@ export function useTaskSurfaceController({
     );
   }, [statusesQuery.data]);
 
-  const boardTasks = useMemo(() => {
-    if (!boardEnabled) return data.surfaceTasks;
-    if (scope.type === "my") return data.surfaceTasks;
-    const groups = groupedQuery.data ?? [];
-    return groups.flatMap((group) => group.tasks);
-  }, [boardEnabled, data.surfaceTasks, groupedQuery.data, scope.type]);
+  const board = useBoardColumnsData({
+    workspaceId,
+    projectId: scope.type === "project" ? scope.projectId : undefined,
+    categories: boardCategories,
+    enabled: tableBoardEnabled,
+  });
 
   const projectsCapability = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
@@ -378,12 +378,12 @@ export function useTaskSurfaceController({
   );
 
   const retry = useCallback(() => {
-    // Invalidate every root isError can draw on (board/list/table query,
-    // grouped board query, my-tasks scope, statuses catalog). A root with no
+    // Invalidate every root isError can draw on (list/my-tasks queries, the
+    // table API groups behind the board, statuses catalog). A root with no
     // active query is a harmless no-op, so invalidating all four
     // unconditionally is simpler and safer than branching on scope/mode.
     void queryClient.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
-    void queryClient.invalidateQueries({ queryKey: taskKeys.groupedRoot(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
     void queryClient.invalidateQueries({ queryKey: taskKeys.myTasks(workspaceId) });
     void queryClient.invalidateQueries({ queryKey: taskKeys.statuses(workspaceId) });
   }, [queryClient, workspaceId]);
@@ -427,14 +427,14 @@ export function useTaskSurfaceController({
   const isLoading = boardEnabled
     ? scope.type === "my"
       ? data.isLoading || statusesQuery.isLoading
-      : statusesQuery.isLoading || groupedQuery.isLoading
+      : statusesQuery.isLoading || board.isLoading
     : tableEnabled
       ? false
       : data.isLoading;
   const isError = boardEnabled
     ? scope.type === "my"
       ? data.isError || statusesQuery.isError
-      : statusesQuery.isError || groupedQuery.isError
+      : statusesQuery.isError || board.isError
     : tableEnabled
       ? false
       : data.isError;
@@ -443,11 +443,12 @@ export function useTaskSurfaceController({
       ? data.isRefreshing ||
         (statusesQuery.isFetching && !statusesQuery.isLoading)
       : (statusesQuery.isFetching && !statusesQuery.isLoading) ||
-        (groupedQuery.isFetching && !groupedQuery.isLoading)
+        board.isRefreshing
     : tableEnabled
       ? false
       : data.isRefreshing;
-  const rawSurfaceTasks = boardEnabled ? boardTasks : data.surfaceTasks;
+  const rawSurfaceTasks = tableBoardEnabled ? board.tasks : data.surfaceTasks;
+  const pagination = tableBoardEnabled ? board.pagination : data.pagination;
   const surfaceTasks = useMemo(
     () =>
       tableEnabled
@@ -478,14 +479,15 @@ export function useTaskSurfaceController({
     !isLoading &&
     !isError &&
     surfaceTasks.length === 0 &&
-    !data.pagination.hasMore;
+    !pagination.hasMore;
 
   return {
     scopeKey,
     viewMode: effectiveViewMode,
     setViewMode,
     surfaceTasks,
-    pagination: data.pagination,
+    pagination,
+    boardColumns: tableBoardEnabled ? board.columns : undefined,
     ganttTasks,
     boardCategories,
     tableFilter,
