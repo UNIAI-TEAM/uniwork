@@ -9,6 +9,7 @@ import type { HomeSummary } from "@uniwork/core/types/home";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
 import { CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
@@ -42,11 +43,11 @@ function MeetingRow({ meeting, summary, href, roomHref }: { meeting: Meeting; su
         </span>
       </AppLink>
       {live ? (
-        <AppLink href={roomHref} className={buttonVariants({ size: "sm" })}>
+        <AppLink href={roomHref} className={cn(buttonVariants({ size: "sm" }))}>
           {t("home.upcoming.join")}
         </AppLink>
       ) : (
-        <AppLink href={href} className={buttonVariants({ variant: "outline", size: "sm" })}>
+        <AppLink href={href} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
           {t("home.upcoming.open")}
         </AppLink>
       )}
@@ -79,7 +80,7 @@ export function HomeUpcoming({
       flush
       className="h-full"
       action={
-        <AppLink href={ws.meetings()} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+        <AppLink href={ws.meetings()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           {t("home.upcoming.view_all")}
         </AppLink>
       }
@@ -93,13 +94,13 @@ export function HomeUpcoming({
         </div>
       ) : !summary || meetings.length === 0 ? (
         <CollectionPageState
-          className="py-8"
+          className="py-6"
           icon={CalendarDays}
           tone={moduleTone("meetings")}
           title={t("home.upcoming.empty_title")}
           description={t("home.upcoming.empty_description")}
           actions={
-            <AppLink href={ws.meetings()} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <AppLink href={ws.meetings()} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               {t("home.upcoming.empty_action")}
             </AppLink>
           }

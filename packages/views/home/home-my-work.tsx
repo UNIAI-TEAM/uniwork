@@ -12,6 +12,7 @@ import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
 import { CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
@@ -149,7 +150,7 @@ export function HomeMyWork({
               </span>
             ))}
           </span>
-          <AppLink href={ws.myTasks()} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          <AppLink href={ws.myTasks()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
             {t("home.mywork.view_all")}
           </AppLink>
         </>
@@ -187,13 +188,13 @@ export function HomeMyWork({
         </div>
       ) : tasks.length === 0 ? (
         <CollectionPageState
-          className="py-8"
+          className="py-6"
           icon={ListTodo}
           tone={moduleTone("my_tasks")}
           title={t("home.mywork.empty_title")}
           description={t("home.mywork.empty_description")}
           actions={
-            <AppLink href={ws.tasks()} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <AppLink href={ws.tasks()} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               {t("home.mywork.empty_action")}
             </AppLink>
           }

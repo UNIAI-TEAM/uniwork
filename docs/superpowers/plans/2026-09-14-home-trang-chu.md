@@ -120,7 +120,7 @@ HOME_PAGE_FLAG = "home_page"
 
 ## Task 5: E2E, docs, kiểm chứng
 
-- [x] (viết, **chưa chạy** — xem Ghi chú) `e2e/home.spec.ts` + helper `setE2EFlagOverride`, `clearE2EFlagOverride`, `assignWorkspaceTasksDueToday` trong `e2e/db.ts`: bật flag, đăng ký, onboarding, tạo task giao cho mình hạn hôm nay, mở gốc workspace, thấy task trong "Công việc của tôi", bấm Hoàn thành, dòng mờ đi; xoá override.
+- [x] (chạy xanh trên dev stack sau khi khởi động lại server) `e2e/home.spec.ts` + helper `setE2EFlagOverride`, `clearE2EFlagOverride`, `assignWorkspaceTasksDueToday` trong `e2e/db.ts`: bật flag, đăng ký, onboarding, tạo task giao cho mình hạn hôm nay, mở gốc workspace, thấy task trong "Công việc của tôi", bấm Hoàn thành, dòng mờ đi; xoá override.
 - [x] Roadmap A-05 và bản đồ bản cũ trỏ spec.
 - [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm knip`, `bash scripts/test-go.sh` (hoặc gói chạm tới với `-race`), `node --test scripts/*.test.mjs`. *(xem Ghi chú: `pnpm lint` và `pnpm test` chỉ chạy trên package và file chạm tới)*
 - [x] Commit `test(e2e): luồng vàng trang chủ` và `docs: roadmap A-05 lát Trang chủ`.
@@ -147,3 +147,5 @@ Cổng Go đầy đủ (`make test-go`: gofmt, vet, staticcheck, `go test -race`
 - `TestChatThreadFollowMarkReadAndList` ("root still unread after mark read") đỏ trong cổng và ba lần chạy lại liền sau đó, rồi xanh khi chạy trên `origin/develop` (worktree tạm) và xanh lại trên nhánh này ngay sau. Nhánh không chạm mã chat; test này nằm trong danh sách lỗi nền của plan lát E. Coi là lỗi chập chờn có sẵn, chưa tìm ra nguyên nhân.
 
 Vì cổng dừng ở lỗi test, `scripts/go-cover-floor.sh` chưa chạy trên nhánh này.
+
+Cập nhật sau audit (2026-09-14): đã khởi động lại dev stack, `e2e/home.spec.ts` chạy xanh. Audit impeccable dẫn tới bốn sửa: danh sách thường thay listbox với focus thật, số quá hạn và đến hạn hôm nay đưa focus tới việc tương ứng, đường chia dải số đúng trên mobile, `aria-controls` chỉ khi panel mở. Lượt polish trên trình duyệt (1440px sáng và tối, 375px sáng) bắt thêm lỗi link dạng nút mất viền do dùng `buttonVariants()` không qua `cn()`.

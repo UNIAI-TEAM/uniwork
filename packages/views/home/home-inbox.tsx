@@ -8,6 +8,7 @@ import { paths } from "@uniwork/core/paths";
 import type { HomeSummary } from "@uniwork/core/types/home";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
 import { CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
@@ -47,7 +48,7 @@ export function HomeInbox({
       flush
       className="h-full"
       action={
-        <AppLink href={ws.inbox()} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+        <AppLink href={ws.inbox()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           {t("home.inbox.view_all")}
         </AppLink>
       }
@@ -63,13 +64,13 @@ export function HomeInbox({
         </div>
       ) : items.length === 0 ? (
         <CollectionPageState
-          className="py-8"
+          className="py-6"
           icon={Inbox}
           tone={moduleTone("inbox")}
           title={t("home.inbox.empty_title")}
           description={t("home.inbox.empty_description")}
           actions={
-            <AppLink href={ws.inbox()} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <AppLink href={ws.inbox()} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               {t("home.inbox.empty_action")}
             </AppLink>
           }
