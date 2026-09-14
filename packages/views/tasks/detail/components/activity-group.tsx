@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AuditEvent } from "@uniwork/core/types";
@@ -21,8 +21,13 @@ export function TaskActivityGroup({
   const { t } = useTranslation();
   const [open, setOpen] = useState(events.length <= 5);
   const [visible, setVisible] = useState(ACTIVITY_PAGE_SIZE);
+  const userToggled = useRef(false);
   const shown = events.slice(0, visible);
   const Chevron = open ? ChevronDown : ChevronRight;
+
+  useEffect(() => {
+    if (!userToggled.current && events.length > 5) setOpen(false);
+  }, [events.length]);
 
   return (
     <div className="space-y-2" data-testid="task-activity-group">
@@ -32,7 +37,10 @@ export function TaskActivityGroup({
         size="sm"
         className="h-7 gap-1.5 px-1 text-muted-foreground"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          userToggled.current = true;
+          setOpen((current) => !current);
+        }}
       >
         <Chevron aria-hidden />
         {t("tasks.detail.activity_group", { count: events.length })}

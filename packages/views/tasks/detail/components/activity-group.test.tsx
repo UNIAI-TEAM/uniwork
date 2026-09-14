@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { AuditEvent } from "@uniwork/core/types";
@@ -42,5 +42,32 @@ describe("TaskActivityGroup", () => {
       screen.getByRole("button", { name: /xem thêm 10|show 10 more/i }),
     );
     expect(screen.getAllByTestId(/^task-timeline-activity-/)).toHaveLength(60);
+  });
+
+  it("thu gọn khi dữ liệu hydrate từ nhóm ngắn thành nhóm dài", async () => {
+    const view = render(
+      <TaskActivityGroup
+        events={[event(0)]}
+        actorNames={new Map()}
+        valueNames={new Map()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /1 hoạt động|1 activity/i })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    view.rerender(
+      <TaskActivityGroup
+        events={Array.from({ length: 60 }, (_, index) => event(index))}
+        actorNames={new Map()}
+        valueNames={new Map()}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /60 hoạt động|60 activities/i }),
+      ).toHaveAttribute("aria-expanded", "false"),
+    );
   });
 });
