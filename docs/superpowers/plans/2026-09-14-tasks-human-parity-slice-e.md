@@ -259,7 +259,7 @@ git commit -m "feat(tasks): vá cache task từ frame realtime theo guard revisi
 - [ ] Chạy cổng như Task 8 lát D1 (`make check` một lần; dừng ở lỗi nền thì chạy tay phần sau; mọi lệnh tiền cảnh). Go bắt buộc chạy vì lát chạm `server/`; kiểm `server/coverage.floor` qua `scripts/go-cover-floor.sh`.
 - [ ] Chạy `node --test scripts/events-catalogue.test.mjs scripts/governance.test.mjs` và ghi output.
 - [ ] Coverage `core`; nâng sàn chỉ khi kiếm được; không chạm `ui`.
-- [ ] Tài liệu: plan này `shipped`; spec dòng trạng thái thêm "lát E shipped"; thêm `## 7octies. Giới hạn đã biết của lát E` (tối thiểu: chỉ bốn trường; `assignee_*` vẫn refetch; list vẫn refetch sau vá; nếu có task quyền đọc hẹp hơn workspace thì phải xét lại `Patch`); roadmap F-05 giữ `MỘT PHẦN`, nối câu lát E.
+- [ ] Tài liệu: plan này `shipped`; spec dòng trạng thái thêm "lát E shipped"; thêm `## 7septies. Giới hạn đã biết của lát E` (tối thiểu: chỉ bốn trường; `assignee_*` vẫn refetch; list vẫn refetch sau vá; nếu có task quyền đọc hẹp hơn workspace thì phải xét lại `Patch`); roadmap F-05 giữ `MỘT PHẦN`, nối câu lát E.
 - [ ] Commit `chore(tasks): cập nhật trạng thái lát E`. Không push, không PR.
 
 ## Ghi chú cho người thực thi

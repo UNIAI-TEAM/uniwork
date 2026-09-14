@@ -47,7 +47,12 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
   revision.
 - Client chỉ vá khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision`
   trong cache bằng `revision_before` của frame; thiếu một điều kiện thì invalidate như mọi
-  sự kiện khác. Frame không bao giờ tạo bản ghi, và list vẫn invalidate.
+  sự kiện khác. Frame có khoá nội dung ngoài `Patch` (ngoài `task_id`, `workspace_id` và
+  cặp revision) thì không vá, invalidate như cũ. Frame không bao giờ tạo bản ghi, và list
+  vẫn invalidate.
+- Nhờ luật trên, mở thêm một trường `Patch` (bằng ADR mới) an toàn với client đã deploy:
+  frame không mang event version, client cũ gặp khoá nó không biết thì không vá mà
+  refetch, nên không bao giờ nhận revision mới trong khi trường mới còn cũ.
 - Mọi giá trị là chuỗi (payload là `map[string]string`); ngày ở dạng `YYYY-MM-DD`;
   trường bị xoá là chuỗi rỗng.
 - Các nơi khác phát `task.updated` (xoá dự án, nhãn, thuộc tính tuỳ biến, cha và phụ thuộc)

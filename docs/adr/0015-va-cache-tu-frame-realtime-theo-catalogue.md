@@ -1,6 +1,6 @@
 # 0015 — Vá cache từ frame realtime, chỉ với trường catalogue khai ở `Patch`
 
-**Trạng thái:** accepted (2026-09-14) — ghi lại quyết định quangpd đã chốt trong brainstorm spec ô Task human-parity (2026-09-12, spec §2, hàng "Độ trễ cảm nhận": viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue), cùng ba ràng buộc spec §4.3 đặt cho ADR này (chỉ topic được liệt kê mang payload giàu, danh sách trường nằm trong catalogue; client chỉ vá đúng những trường đó, trường lạ bị bỏ; frame không bao giờ tạo bản ghi mới). Mọi lựa chọn khác trong ADR này không do quangpd chốt: đó là lựa chọn của plan lát E (`docs/superpowers/plans/2026-09-14-tasks-human-parity-slice-e.md`), của lượt tiền kiểm mã, hoặc suy luận của agent khi viết ADR, chờ quangpd xác nhận ở review PR trước khi merge. Trong đó có: tập trường vá và các trường không vá; guard hai revision tính theo từng lời gọi; trường vá tính theo "có trong input" chứ không theo "khác bản đọc trước"; hai revision chỉ đứng cạnh trường vá (input hỗn hợp hoặc rỗng thì frame chỉ mang id); client chỉ vá khi frame có ít nhất một khoá `Patch` và đủ hai revision; cách mã hoá giá trị (`YYYY-MM-DD`, chuỗi rỗng khi xoá); trang chi tiết đã vá không refetch; điều kiện phải tắt `Patch` trước khi ship quyền đọc task hẹp hơn workspace; việc mở thêm trường hay topic phải cần ADR mới; và giữ `Version` của `task.updated` ở 1. Luật vào `CLAUDE.md` cùng commit với test giữ luật.
+**Trạng thái:** accepted (2026-09-14) — ghi lại quyết định quangpd đã chốt trong brainstorm spec ô Task human-parity (2026-09-12, spec §2, hàng "Độ trễ cảm nhận": viết ADR cho phép vá cache từ frame realtime, có kiểm soát bằng catalogue), cùng ba ràng buộc spec §4.3 đặt cho ADR này (chỉ topic được liệt kê mang payload giàu, danh sách trường nằm trong catalogue; client chỉ vá đúng những trường đó, trường lạ bị bỏ; frame không bao giờ tạo bản ghi mới). Mọi lựa chọn khác trong ADR này không do quangpd chốt: đó là lựa chọn của plan lát E (`docs/superpowers/plans/2026-09-14-tasks-human-parity-slice-e.md`), của lượt tiền kiểm mã, hoặc suy luận của agent khi viết ADR, chờ quangpd xác nhận ở review PR trước khi merge. Trong đó có: tập trường vá và các trường không vá; guard hai revision tính theo từng lời gọi; trường vá tính theo "có trong input" chứ không theo "khác bản đọc trước"; hai revision chỉ đứng cạnh trường vá (input hỗn hợp hoặc rỗng thì frame chỉ mang id); client chỉ vá khi frame có ít nhất một khoá `Patch` và đủ hai revision; frame có khoá nội dung ngoài `Patch` (ngoài id và cặp revision) thì client không vá mà invalidate như cũ (review cuối lát E chọn, là cách đọc chặt của ràng buộc 2 spec §4.3 "Trường lạ trong frame bị bỏ qua, không vá"; nếu quangpd chọn cách đọc lỏng thì client quay về bỏ khoá lạ và vá khoá biết); cách mã hoá giá trị (`YYYY-MM-DD`, chuỗi rỗng khi xoá); trang chi tiết đã vá không refetch; điều kiện phải tắt `Patch` trước khi ship quyền đọc task hẹp hơn workspace; việc mở thêm trường hay topic phải cần ADR mới; và giữ `Version` của `task.updated` ở 1. Luật vào `CLAUDE.md` cùng commit với test giữ luật.
 
 ## Bối cảnh
 
@@ -93,7 +93,13 @@ backoff, và sau `MaxAttempts` (10) lần thì đưa hàng vào dead letter
    frame có ít nhất một khoá thuộc `Patch` và đủ cả `revision_before` lẫn `revision`. Khi
    đó một bản ghi task trong cache được vá nếu `revision` của nó bằng `revision_before` của
    frame; sau khi vá nó mang `revision` của frame. Thiếu một điều kiện, hoặc lệch revision,
-   thì không vá và invalidate như trước. Khoá không nằm trong `Patch` bị bỏ. Frame không bao giờ tạo bản ghi: `task.created` và `task.deleted`
+   thì không vá và invalidate như trước. Frame có khoá nội dung ngoài `Patch` (ngoài
+   `task_id`, `workspace_id` và cặp revision) thì không vá, invalidate như cũ. Frame không
+   mang event version (`packages/core/api/ws-types.ts`), nên khoá lạ là dấu hiệu duy nhất
+   cho thấy server đã mở `Patch` rộng hơn bản client đang chạy; vá các trường client biết
+   rồi nhận revision mới sẽ để trường mới cũ sau một revision hiện hành. Nhờ luật này, mở
+   thêm một trường `Patch` bằng ADR sau an toàn với client đã deploy (tab web chạy bundle
+   cũ, app mobile dùng chung hàm thuần theo ADR 0011): chúng refetch thay vì vá. Frame không bao giờ tạo bản ghi: `task.created` và `task.deleted`
    vẫn chỉ invalidate. Trang chi tiết đã vá thì không cần refetch. List vẫn invalidate, vì
    trạng thái, độ ưu tiên và ngày hạn đổi thứ tự, cột board và nhóm.
 5. **Frame thiếu một trong hai revision, hoặc không có khoá `Patch` nào, là frame id-only.**
@@ -150,7 +156,8 @@ frame tới, không chờ refetch trang chi tiết.
   thêm: hai consumer của topic (`server/internal/outbox/realtime_consumer.go`,
   `server/internal/notification/consumer.go`) giải mã vào `map[string]string` và chỉ đọc
   khoá mình cần; client (`packages/core/api/ws-client.ts`) chỉ kiểm `type`; không consumer
-  nào từ chối khoá lạ. Chiều ngược lại — hàng outbox ghi trước deploy, thiếu hai revision —
+  nào từ chối sự kiện vì khoá lạ (decoder vá ở client gặp khoá lạ thì chỉ không vá và
+  invalidate như cũ, Quyết định 4). Chiều ngược lại — hàng outbox ghi trước deploy, thiếu hai revision —
   rơi vào Quyết định 5: không vá.
 - **Luật trong `CLAUDE.md` đổi ở hai nhịp.** "payload chỉ mang id" (§ Audit and Events,
   § Domain Reminders) đổi cùng commit với ADR này và test catalogue. "frame không bao giờ
@@ -167,7 +174,10 @@ frame tới, không chờ refetch trang chi tiết.
   `server/internal/outbox/catalogue.go` và `docs/events/CATALOGUE.md` khớp nhau cả ở cột
   `Patch`; sau khi bỏ comment `//` và `/* */`, mọi hàng Go ở đúng hình dạng một dòng mà
   test đọc được, để không hàng nào lọt khỏi các luật trên và không comment nào đứng thay
-  một hàng. Giữ luật ở `CLAUDE.md` § Audit and Events và § Domain Reminders.
+  một hàng. Từ lát E Task 3 (`4911cb7`), test cũng đỏ khi danh sách trường client giải mã
+  (`TASK_PATCH_FIELDS` trong `packages/core/tasks/realtime-task-patch.ts`) khác `Patch` của
+  `task.updated` (`the client decodes exactly the fields task.updated lists in Patch`). Giữ
+  luật ở `CLAUDE.md` § Audit and Events và § Domain Reminders.
 - `server/internal/service/task_realtime_patch_test.go` (lát E Task 2): đổi riêng trường
   vá được thì frame mang trường đó cùng hai revision đúng; input hỗn hợp (có trường ngoài
   `Patch`) hoặc input rỗng thì frame chỉ mang id, không trường vá, không hai revision
@@ -178,9 +188,20 @@ frame tới, không chờ refetch trang chi tiết.
   và khoá hàng không giấu được trường lời gọi ghi lại về giá trị cũ, dù là `description`
   (frame chỉ id, `TestRealtimePatchStaleReadCannotHideAChange`) hay trường vá (frame vẫn mang
   trường đó, `TestRealtimePatchStaleReadCannotHideAPatchField`); frame nhãn vẫn chỉ id
-  (`TestRealtimePatchOtherEmittersStayIDsOnly`); mọi giá trị là chuỗi.
+  (`TestRealtimePatchOtherEmittersStayIDsOnly`); mọi giá trị là chuỗi. Từ đợt sửa sau review
+  cuối lát E, vế "mọi trường có trong input đều thuộc `Patch`" fail closed: trường nào của
+  `UpdateTaskInput` ngoài bốn trường vá cũng làm frame chỉ mang id, không qua danh sách viết
+  tay; hai ca bảng ghim input hỗn hợp mà trước đó không test nào ghim (bỏ `position`,
+  `project_id` khỏi danh sách viết tay mà test vẫn xanh)
+  (`TestRealtimePatchCarriesOnlyAWholeChange/status_beside_position`,
+  `TestRealtimePatchCarriesOnlyAWholeChange/title_beside_project_id`).
 - `packages/core/tasks/realtime-task-patch.test.ts` và
-  `packages/core/realtime/use-realtime-sync.test.tsx` (lát E Task 3): khoá lạ bị bỏ; lệch
+  `packages/core/realtime/use-realtime-sync.test.tsx` (lát E Task 3, và đợt sửa sau review
+  cuối lát E): frame có khoá nội dung ngoài `Patch` (ngoài id và cặp revision) thì không vá,
+  cache không nhận revision mới và khoá chi tiết vẫn invalidate
+  (`is ids-only when the frame also carries %s, a content key outside Patch`, trong đó có
+  `start_date`;
+  `does not patch, keeps the cached revision and invalidates when the frame carries a content key outside Patch`); lệch
   revision không vá; frame không tạo bản ghi; vá trang chi tiết thì không invalidate khoá
   chi tiết, list vẫn invalidate; frame có đủ hai revision mà không có khoá `Patch` nào thì
   không vá, cache giữ revision cũ và khoá chi tiết vẫn invalidate
@@ -189,6 +210,7 @@ frame tới, không chờ refetch trang chi tiết.
   fetch hoặc đã bị đánh invalidated thì không vá và khoá chi tiết vẫn invalidate
   (`leaves an entry that is already refetching to that refetch`,
   `leaves an entry already marked invalidated to its pending refetch`); entry dạng list
-  đang idle mà đã bị invalidate thì không vá và vẫn giữ cờ invalidated
-  (`leaves an idle list-style entry that an earlier wave invalidated unpatched and still invalidated`).
+  đang idle mà đã bị invalidate thì không vá và vẫn giữ cờ invalidated, còn entry dạng list
+  đã bị invalidate mà đang refetch thì vẫn được vá
+  (`leaves an idle list-style entry that an earlier wave invalidated unpatched and still invalidated, yet patches one already refetching`).
   Giữ luật ở `CLAUDE.md` § State Rules, đổi cùng commit với hai test này.

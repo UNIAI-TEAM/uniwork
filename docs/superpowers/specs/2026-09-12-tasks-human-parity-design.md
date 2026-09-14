@@ -117,7 +117,9 @@ quan ở `packages/core/tasks/hooks.ts`, hai file D1 không chạm.
   trường có tên trong `server/internal/outbox/catalogue.go`**; mọi thứ khác vẫn
   invalidate.
 - Mở rộng `Payload` theo từng topic task, không mở đại trà.
-- `planCacheUpdate` sinh `patch` thật thay vì luôn `invalidate`.
+- `planCacheUpdate` gắn frame vá đã giải mã (`patch`) bên cạnh danh sách khoá; `type` vẫn
+  là `invalidate`. Nơi gọi vá trước rồi mới invalidate, và chỉ bỏ khoá chi tiết khỏi đợt
+  invalidate khi đã vá được trang chi tiết.
 - Đổi test ghim `packages/core/realtime/use-realtime-sync.test.tsx` từ "không
   bao giờ vá" sang "chỉ vá đúng trường đã khai báo".
 - Cập nhật mục State Rules trong `CLAUDE.md` trỏ sang ADR mới.
