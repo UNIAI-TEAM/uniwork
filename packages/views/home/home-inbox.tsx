@@ -83,7 +83,6 @@ export function HomeInbox({
               notification={n}
               href={resourceHref(n, workspace)}
               compact
-              asOption={false}
               onOpen={(row) => {
                 if (!row.read_at) read(row.id);
               }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { CheckCheck, Inbox, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -21,8 +21,8 @@ import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-g
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
-import { AppLink, useNavigation } from "../navigation";
-import { NotificationRow } from "./notification-row";
+import { AppLink } from "../navigation";
+import { NotificationRow, ROW_FOCUS_SELECTOR } from "./notification-row";
 import { resourceHref } from "./resource-href";
 
 type Filter = "all" | "unread";
@@ -38,13 +38,15 @@ const KEY_HINTS: [string[], string][] = [
  * The inbox: this workspace's notifications, unread first, then everything
  * earlier. Opening a row marks it read; nothing is marked by merely looking.
  * j/k move, Enter opens, r toggles read, e archives — the same keys as mail.
+ *
+ * "Current" is simply the row that holds focus. The keys move real focus
+ * between the rows' links, so Tab, the mouse and j/k never disagree, and
+ * the row actions stay in the tab order instead of behind a listbox.
  */
 export function InboxView() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
-  const { push } = useNavigation();
   const [filter, setFilter] = useState<Filter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   // ponytail: one page of 50; add cursor paging (next_before) when a real
@@ -64,10 +66,6 @@ export function InboxView() {
   const ordered = useMemo(() => [...groups.unread, ...groups.earlier], [groups]);
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
 
-  useEffect(() => {
-    if (selectedId && !ordered.some((n) => n.id === selectedId)) setSelectedId(null);
-  }, [ordered, selectedId]);
-
   const fail = () => toast.error(t("notifications.error"));
   const open = (n: Notification) => {
     if (!n.read_at) markRead.mutate([n.id], { onError: fail });
@@ -77,46 +75,49 @@ export function InboxView() {
   };
   const doArchive = (n: Notification) => archive.mutate([n.id], { onError: fail });
 
-  const onKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
-    if (ordered.length === 0) return;
-    const idx = ordered.findIndex((n) => n.id === selectedId);
-    const move = (next: number) => {
-      const n = ordered[Math.max(0, Math.min(ordered.length - 1, next))];
-      if (!n) return;
-      setSelectedId(n.id);
-      listRef.current?.querySelector<HTMLElement>(`[data-notification-id="${n.id}"]`)?.scrollIntoView({ block: "nearest" });
-    };
-    const current = idx >= 0 ? ordered[idx] : undefined;
+  // Moves focus to the nearest row with a link from `from` in `dir`; rows
+  // whose resource is gone have none and are stepped over.
+  const focusRow = (from: number, dir: 1 | -1) => {
+    for (let i = from + dir; i >= 0 && i < ordered.length; i += dir) {
+      const n = ordered[i];
+      if (!n || n.resource_deleted) continue;
+      const el = listRef.current?.querySelector<HTMLElement>(`[data-notification-id="${n.id}"] ${ROW_FOCUS_SELECTOR}`);
+      if (!el) continue;
+      el.focus();
+      el.scrollIntoView?.({ block: "nearest" });
+      return;
+    }
+  };
+
+  // Attached to each row's link, so it only ever fires on the row that holds
+  // focus. Enter is left to the link itself.
+  const onRowKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const id = e.currentTarget.closest<HTMLElement>("[data-notification-id]")?.dataset.notificationId;
+    const idx = ordered.findIndex((n) => n.id === id);
+    const current = ordered[idx];
+    if (!current) return;
     switch (e.key) {
       case "j":
       case "ArrowDown":
         e.preventDefault();
-        move(idx + 1);
+        focusRow(idx, 1);
         break;
       case "k":
       case "ArrowUp":
         e.preventDefault();
-        move(idx - 1);
-        break;
-      case "Enter":
-        if (current && !current.resource_deleted) {
-          e.preventDefault();
-          open(current);
-          push(resourceHref(current, workspace));
-        }
+        focusRow(idx, -1);
         break;
       case "r":
-        if (current) {
-          e.preventDefault();
-          toggleRead(current);
-        }
+        e.preventDefault();
+        toggleRead(current);
         break;
       case "e":
-        if (current) {
-          e.preventDefault();
-          doArchive(current);
-          move(idx + 1 < ordered.length ? idx + 1 : idx - 1);
-        }
+        e.preventDefault();
+        doArchive(current);
+        // The next row inherits focus; the last row hands it back up.
+        if (idx + 1 < ordered.length) focusRow(idx, 1);
+        else focusRow(idx, -1);
         break;
       default:
         break;
@@ -144,8 +145,12 @@ export function InboxView() {
               variant="toolbar"
               size="sm"
             >
-              <ToggleGroupItem value="all">{t("notifications.filter_all")}</ToggleGroupItem>
-              <ToggleGroupItem value="unread">{t("notifications.filter_unread")}</ToggleGroupItem>
+              <ToggleGroupItem value="all" className="pointer-coarse:h-11">
+                {t("notifications.filter_all")}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="unread" className="pointer-coarse:h-11">
+                {t("notifications.filter_unread")}
+              </ToggleGroupItem>
             </ToggleGroup>
             <CollectionPageHeaderAction
               icon={CheckCheck}
@@ -191,25 +196,17 @@ export function InboxView() {
         />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <ul
-            ref={listRef}
-            role="listbox"
-            aria-label={t("nav.inbox")}
-            aria-activedescendant={selectedId ?? undefined}
-            tabIndex={0}
-            onKeyDown={onKeyDown}
-            className="outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
+          <ul ref={listRef} aria-label={t("nav.inbox")}>
             {groups.unread.length > 0 ? <GroupLabel>{t("notifications.group_unread")}</GroupLabel> : null}
             {groups.unread.map((n) => (
               <NotificationRow
                 key={n.id}
                 notification={n}
                 href={resourceHref(n, workspace)}
-                selected={n.id === selectedId}
                 onOpen={open}
                 onToggleRead={toggleRead}
                 onArchive={doArchive}
+                onKeyDown={onRowKeyDown}
               />
             ))}
             {groups.earlier.length > 0 ? <GroupLabel>{t("notifications.group_earlier")}</GroupLabel> : null}
@@ -218,10 +215,10 @@ export function InboxView() {
                 key={n.id}
                 notification={n}
                 href={resourceHref(n, workspace)}
-                selected={n.id === selectedId}
                 onOpen={open}
                 onToggleRead={toggleRead}
                 onArchive={doArchive}
+                onKeyDown={onRowKeyDown}
               />
             ))}
           </ul>
