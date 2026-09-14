@@ -182,5 +182,13 @@ frame tới, không chờ refetch trang chi tiết.
 - `packages/core/tasks/realtime-task-patch.test.ts` và
   `packages/core/realtime/use-realtime-sync.test.tsx` (lát E Task 3): khoá lạ bị bỏ; lệch
   revision không vá; frame không tạo bản ghi; vá trang chi tiết thì không invalidate khoá
-  chi tiết, list vẫn invalidate. Giữ luật ở `CLAUDE.md` § State Rules, đổi cùng commit
-  với hai test này.
+  chi tiết, list vẫn invalidate; frame có đủ hai revision mà không có khoá `Patch` nào thì
+  không vá, cache giữ revision cũ và khoá chi tiết vẫn invalidate
+  (`keeps the cached revision and invalidates when the revisions match but no Patch field is present`,
+  `is ids-only when the frame has both revisions but no Patch field`); trang chi tiết đang
+  fetch hoặc đã bị đánh invalidated thì không vá và khoá chi tiết vẫn invalidate
+  (`leaves an entry that is already refetching to that refetch`,
+  `leaves an entry already marked invalidated to its pending refetch`); entry dạng list
+  đang idle mà đã bị invalidate thì không vá và vẫn giữ cờ invalidated
+  (`leaves an idle list-style entry that an earlier wave invalidated unpatched and still invalidated`).
+  Giữ luật ở `CLAUDE.md` § State Rules, đổi cùng commit với hai test này.
