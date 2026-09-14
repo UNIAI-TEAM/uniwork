@@ -19,7 +19,7 @@ import { messageGrouping } from "./native-chat-message-grouping";
 export type NativeChatMessageActions = {
   onReply: (message: ChatMessage | null) => void;
   onReact: (message: ChatMessage) => void;
-  onThread: (message: ChatMessage) => void;
+  onThread?: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage) => void;
   onPin: (message: ChatMessage) => void;
   onCopy: (message: ChatMessage) => void;

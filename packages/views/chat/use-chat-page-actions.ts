@@ -122,13 +122,17 @@ export function useChatPageActions({
       }
       if (!roomId) return;
 
+      const threadsAllowed =
+        target.kind === "channel" || target.kind === "group" || target.kind === "workspace";
+      const sendingInThread = Boolean(
+        workHubEnabled && threadsAllowed && activeThreadRootId && sendThreadMessage,
+      );
+
       const payload: ChatTextSendPayload = {
         roomId,
         body: trimmed,
         client_msg_id: newChatClientMsgId(),
-        ...(replyTo && !(workHubEnabled && activeThreadRootId)
-          ? { reply_to_message_id: replyTo.id }
-          : {}),
+        ...(replyTo && !sendingInThread ? { reply_to_message_id: replyTo.id } : {}),
         ...(composerPriority ? { priority: composerPriority } : {}),
       };
 
@@ -142,15 +146,13 @@ export function useChatPageActions({
       };
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        if (workHubEnabled && activeThreadRootId) {
+        if (sendingInThread) {
           setConnectError(t("chat.send_queued_offline"));
           return;
         }
         queueForLater();
         return;
       }
-
-      const sendingInThread = Boolean(workHubEnabled && activeThreadRootId && sendThreadMessage);
 
       usePendingChatMessagesStore.getState().upsert({
         workspaceId,

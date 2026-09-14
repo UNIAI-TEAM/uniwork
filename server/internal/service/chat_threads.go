@@ -318,14 +318,19 @@ func (s *ChatService) MarkThreadRead(ctx context.Context, userID, workspaceID, t
 	}
 	orgID := roomOrganizationID(room)
 	anchorWS := roomAnchorWorkspaceID(room)
-	now := time.Now().UTC()
-	if err := s.ensureThreadFollowerTx(ctx, s.q, orgID, anchorWS, room.ID, root.ID, userID, chatThreadFollowManual, &now); err != nil {
+	// Prefer at least last_reply_at: Go's clock can lag Postgres, and writing a
+	// stale "now" would move last_read backwards and leave the thread unread.
+	readAt := time.Now().UTC()
+	if root.LastReplyAt.Valid && root.LastReplyAt.Time.After(readAt) {
+		readAt = root.LastReplyAt.Time
+	}
+	if err := s.ensureThreadFollowerTx(ctx, s.q, orgID, anchorWS, room.ID, root.ID, userID, chatThreadFollowManual, &readAt); err != nil {
 		return err
 	}
 	return s.q.MarkChatThreadRead(ctx, db.MarkChatThreadReadParams{
 		ThreadRootID: root.ID,
 		UserID:       userID,
-		LastReadAt:   pgtype.Timestamptz{Time: now, Valid: true},
+		LastReadAt:   pgtype.Timestamptz{Time: readAt, Valid: true},
 	})
 }
 

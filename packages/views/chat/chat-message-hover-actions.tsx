@@ -119,13 +119,14 @@ export function ChatMessageHoverActions({
         <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)}>
           <Reply className="size-4" aria-hidden />
         </MessageActionButton>
-        <MessageActionButton
-          label={t("chat.action_thread")}
-          onClick={() => onThread?.(message)}
-          disabled={!onThread}
-        >
-          <MessageSquareText className="size-4" aria-hidden />
-        </MessageActionButton>
+        {onThread ? (
+          <MessageActionButton
+            label={t("chat.action_thread")}
+            onClick={() => onThread(message)}
+          >
+            <MessageSquareText className="size-4" aria-hidden />
+          </MessageActionButton>
+        ) : null}
         <MessageActionButton
           label={t("chat.action_edit")}
           onClick={() => onEdit?.(message)}

@@ -59,6 +59,7 @@ export function ChatPageContent({
   nameContext,
   replyTo,
   onReplyToChange,
+  activeThreadRootId = null,
   onActiveThreadRootIdChange,
   draft,
   onDraftChange,
@@ -121,7 +122,7 @@ export function ChatPageContent({
   const [mobileListMode, setMobileListMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const followUpUi = useChatFollowUpUi(workspaceId, workHubEnabled);
-  const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId);
+  const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId, activeThreadRootId);
 
   const showMobileList = mobileListMode || !activeRoomId;
   const showMobileChat = Boolean(activeRoomId) && !mobileListMode;
@@ -432,6 +433,12 @@ export function ChatPageContent({
                   replyTo={replyTo}
                   onReplyToChange={onReplyToChange}
                   workHubEnabled={workHubEnabled}
+                  threadsEnabled={
+                    workHubEnabled &&
+                    (target.kind === "channel" ||
+                      target.kind === "group" ||
+                      target.kind === "workspace")
+                  }
                   onFollowUp={followUpUi.onFollowUp}
                   onActiveThreadRootIdChange={onActiveThreadRootIdChange}
                   refreshKey={messageRefreshKey}
@@ -490,6 +497,7 @@ export function ChatPageContent({
         error={catchUpUi.error}
         result={catchUpUi.result}
         onRetry={catchUpUi.onRetry}
+        workspaceId={workspaceId}
       />
     </>
   );
