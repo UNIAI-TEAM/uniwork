@@ -103,7 +103,8 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 		t.Fatalf("prompt missing body:\n%s", prompt)
 	}
 
-	// Self-authored messages are never summarised for the same user.
+	// Send advances the caller's last_read_at past earlier peer mail; CatchUp
+	// then sees an empty unread window (self is also filtered if still in range).
 	if _, err := s.chat.SendWorkspaceMessage(ctx, ua.ID, w.ID, SendChatMessageInput{Body: "chỉ mình tôi"}); err != nil {
 		t.Fatal(err)
 	}
@@ -112,9 +113,8 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Peer's unread still there (CatchUp does not advance last_read).
-	if again.MessageCount != 1 || fake.Calls != calls+1 {
-		t.Fatalf("after self-send: %+v calls=%d", again, fake.Calls)
+	if again.MessageCount != 0 || fake.Calls != calls {
+		t.Fatalf("after self-send: %+v calls=%d want_calls=%d", again, fake.Calls, calls)
 	}
 }
 
