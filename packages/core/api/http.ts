@@ -78,6 +78,8 @@ export interface RequestOpts {
   headers?: Record<string, string>;
   /** Keep the request alive across page unload (presence offline, etc.). */
   keepalive?: boolean;
+  /** Aborts the request, e.g. the `signal` TanStack hands a query function it may cancel. */
+  signal?: AbortSignal;
 }
 
 function baseUrl(): string {
@@ -131,6 +133,7 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     credentials: "include",
     body,
     keepalive: opts.keepalive,
+    signal: opts.signal,
   });
 }
 

@@ -21,6 +21,13 @@
     "hour": "Hour",
     "minute": "Minute"
   },
+  "errors": {
+    "not_found_title": "Page not found",
+    "not_found_description": "This address does not exist or has moved.",
+    "back_home": "Back to home",
+    "render_title": "Something went wrong rendering this page",
+    "render_description": "Try again. If it keeps failing, tell your workspace admin."
+  },
   "auth": {
     "login": "Log in",
     "register": "Sign up",
@@ -193,6 +200,7 @@
     "description": "Navigate pages and run commands",
     "placeholder": "Type a page or command…",
     "groups": {
+      "recent": "Recent",
       "pages": "Pages",
       "commands": "Commands"
     },
@@ -258,7 +266,8 @@
         "ai": "AI",
         "organization": "Organization",
         "departments": "Departments",
-        "security": "Security"
+        "security": "Security",
+        "shortcuts": "Keyboard shortcuts"
       }
     },
     "save": {
@@ -528,6 +537,19 @@
         "user": "User",
         "session": "Session"
       },
+      "fields": {
+        "title": "Title",
+        "description": "Description",
+        "status": "Status",
+        "priority": "Priority",
+        "assignee_id": "Assignee",
+        "assignee_kind": "Assignee kind",
+        "due_date": "Due",
+        "start_date": "Start date",
+        "project_id": "Project",
+        "parent_task_id": "Parent task",
+        "position": "Position"
+      },
       "loading": "Loading…",
       "empty_fresh_description": "Every change to data will appear here as soon as it happens."
     },
@@ -574,6 +596,60 @@
         "system": "System"
       },
       "tokens_by_day": "Tokens by day"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "description": "Change the keys for actions on this device. Click a shortcut, then press the new key combination.",
+      "search_placeholder": "Search actions…",
+      "reset_all": "Restore defaults",
+      "reset_confirm": {
+        "title": "Restore all shortcut defaults?",
+        "description": "Every shortcut you changed on this device goes back to its default.",
+        "cancel": "Cancel",
+        "confirm": "Restore all defaults"
+      },
+      "reset": "Reset",
+      "disable": "Clear",
+      "reset_action": "Reset {{action}}",
+      "disable_action": "Clear {{action}} shortcut",
+      "record_aria": "Change shortcut for {{action}}",
+      "recording": "Press keys",
+      "record_hint": "Esc cancels · Delete clears",
+      "unassigned": "Unassigned",
+      "no_results": "No matching actions.",
+      "conflict_error": "Already used by {{action}}.",
+      "reserved_error": "Reserved by the browser, the operating system or the sidebar.",
+      "send_error": "Send can only use Enter or Ctrl/⌘+Enter.",
+      "find_error": "Ctrl/⌘+F is only for Find in task and message search.",
+      "unsafe_error": "This key would interfere with typing or basic keyboard navigation.",
+      "categories": {
+        "general": "General",
+        "navigation": "Navigation"
+      },
+      "fixed": {
+        "title": "Fixed shortcuts",
+        "description": "These keys cannot be changed, so they always work.",
+        "toggle_sidebar": "Show or hide the sidebar",
+        "close_dialog": "Close dialog or menu"
+      },
+      "actions": {
+        "ai_ask_uni": { "label": "Ask UNI", "description": "Open the Ask UNI panel, even while typing." },
+        "open_search": { "label": "Open search", "description": "Search and run commands from anywhere." },
+        "create_task": { "label": "Create task", "description": "Open the new task dialog." },
+        "find_in_task": { "label": "Find in task", "description": "Search text on the open task page." },
+        "open_thread_nav": { "label": "Thread navigation", "description": "Move focus to the discussion threads of the open task." },
+        "send": { "label": "Send", "description": "Send comments and replies from the editor." },
+        "go_back": { "label": "Go back", "description": "Navigate back through history, like a browser." },
+        "go_forward": { "label": "Go forward", "description": "Navigate forward through history, like a browser." },
+        "go_inbox": { "label": "Go to Inbox", "description": "Open the workspace inbox." },
+        "go_tasks": { "label": "Go to Tasks", "description": "Open the task list." },
+        "go_my_tasks": { "label": "Go to My tasks", "description": "Open the tasks assigned to you." },
+        "go_projects": { "label": "Go to Projects", "description": "Open the project list." },
+        "go_meetings": { "label": "Go to Meetings", "description": "Open the meeting list." },
+        "go_chat": { "label": "Go to Chat", "description": "Open workspace chat." },
+        "go_people": { "label": "Go to People", "description": "Open the member directory." },
+        "go_settings": { "label": "Go to Settings", "description": "Open settings." }
+      }
     },
     "security": {
       "mfa": {
@@ -644,6 +720,8 @@
     "view_mode": "View mode",
     "empty_title": "No tasks yet",
     "empty_description": "Create the first task to start tracking the team's progress.",
+    "error_title": "Could not load tasks",
+    "error_description": "The connection to the server is having trouble. Try again in a moment.",
     "taskTitle": "Title",
     "description": "Description",
     "status": "Status",
@@ -653,6 +731,9 @@
     "comments": "Comments",
     "addComment": "Write a comment…",
     "unassigned": "Unassigned",
+    "picker_trigger_label": "{{field}}: {{value}}",
+    "assignee_search_placeholder": "Search members or agents",
+    "assignee_no_results": "No one matches your search.",
     "status_backlog": "Backlog",
     "status_todo": "To do",
     "status_in_progress": "In progress",
@@ -674,6 +755,8 @@
       "hide_column": "Hide column",
       "show_column": "Show column",
       "hidden_columns": "Hidden columns",
+      "loaded_count_one": "{{count}} loaded",
+      "loaded_count_other": "{{count}} loaded",
       "column_menu": "Column menu",
       "add_task": "Add task",
       "agent_chip_stub": "Agent",
@@ -732,6 +815,7 @@
       "priority": "Priority",
       "assignee": "Assignee",
       "assignee_mixed": "Mixed",
+      "due_date": "Due date",
       "agent_trigger": "Run agent",
       "squad_assign": "Assign squad",
       "delete": "Delete",
@@ -743,6 +827,24 @@
       "delete_dialog_title": "Delete {{count}} tasks?",
       "delete_dialog_desc": "These tasks will be permanently deleted.",
       "delete_dialog_warning": "This cannot be undone."
+    },
+    "row_actions": {
+      "open": "Open",
+      "copy_link": "Copy link",
+      "link_copied": "Link copied",
+      "copy_link_failed": "Could not copy link",
+      "change_status": "Change status",
+      "change_assignee": "Change assignee",
+      "delete": "Delete",
+      "delete_dialog_title": "Delete this task?",
+      "delete_dialog_desc": "“{{title}}” will be permanently deleted. This cannot be undone.",
+      "delete_confirm": "Delete task",
+      "cancel": "Cancel",
+      "delete_success": "Task deleted",
+      "delete_failed": "Could not delete task",
+      "assignees_loading": "Loading members…",
+      "assignees_failed": "Could not load members",
+      "agent_assignee": "Agent"
     },
     "save_view": {
       "title": "Save as view",
@@ -837,7 +939,17 @@
     "list": {
       "select_status": "Select all tasks in {{status}}",
       "select_task": "Select {{title}}",
-      "add_task": "Add task to {{status}}"
+      "add_task": "Add task to {{status}}",
+      "group_loaded_count_one": "{{status}}, {{count}} loaded",
+      "group_loaded_count_other": "{{status}}, {{count}} loaded"
+    },
+    "pagination": {
+      "loaded_count_one": "{{count}} task of {{total}} loaded",
+      "loaded_count_other": "{{count}} tasks of {{total}} loaded",
+      "load_more": "Load more",
+      "loading_more": "Loading more tasks…",
+      "load_more_failed": "Could not load more tasks.",
+      "end": "No more tasks to load"
     },
     "header": {
       "attachments_unavailable": "Attachments"
@@ -933,13 +1045,14 @@
       "prop_stage_none": "No stage",
       "prop_custom": "Custom properties",
       "add_label": "Add a label…",
-      "attach_label": "Attach",
+      "remove_label": "Remove label {{name}}",
       "custom_properties_count": "{{count}} properties",
       "subtasks_progress": "{{done}}/{{total}}",
       "subtasks_empty": "No sub-tasks yet.",
       "add_subtask": "Add sub-task",
       "add_subtask_placeholder": "Sub-task title",
       "add_subtask_action": "Add",
+      "subtasks_toggle": "Show or hide the sub-task list",
       "timeline_section": "Activity",
       "timeline_placeholder": "Comments and activity will appear here.",
       "comment_placeholder": "Write a comment…",
@@ -949,7 +1062,24 @@
       "comment_unresolve": "Unresolve",
       "comment_resolved": "Resolved",
       "comment_edit": "Edit",
-      "activity_stub_reason": "Activity history is not available yet — comments still show below.",
+      "reply": "Reply",
+      "reply_cancel": "Cancel reply",
+      "comment_preview_empty": "This comment has no text",
+      "activity_error": "Could not load activity. Try again later.",
+      "thread_resolved_one": "Resolved thread · {{count}} reply",
+      "thread_resolved_other": "Resolved thread · {{count}} replies",
+      "thread_nav": "Thread navigation",
+      "thread_nav_replies_one": "· {{count}} reply",
+      "thread_nav_replies_other": "· {{count}} replies",
+      "find": {
+        "label": "Find in task",
+        "placeholder": "Find in task…",
+        "position": "{{current}}/{{total}}",
+        "no_matches": "No matches",
+        "previous": "Previous match",
+        "next": "Next match",
+        "close": "Close find"
+      },
       "agent_run_stub": "Start agent run",
       "pr_stub": "Link pull request",
       "agentRun": {
@@ -1191,7 +1321,6 @@
     "activity_link_used": "used an invite link",
     "activity_session_created": "opened the conference room",
     "activity_session_ended": "closed the conference room",
-    "activity_generic": "updated the meeting",
     "publicInviteJoin": "Join meeting",
     "publicInviteNameRequired": "Enter a display name to join",
     "publicInviteDisplayName": "Display name",

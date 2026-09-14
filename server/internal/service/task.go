@@ -3,7 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -174,6 +178,72 @@ func dateOrNil(d pgtype.Date) any {
 		return nil
 	}
 	return d.Time.Format("2006-01-02")
+}
+
+// taskUpdatedPayload is the task.updated frame of one updateTaskInTx call
+// (ADR 0015). revision is the task right after the call (the row the last
+// query returned) and revisionBefore the task right before it, as measured
+// inside the call under the row lock; never before.Revision, which was read
+// before the lock.
+//
+// The catalogue's Patch fields ride along only when every field the input
+// carries is one of them, and the revision pair rides along only beside them:
+// a pair without a patch field would let a client take the new revision while
+// a field it cannot patch stays stale, so a mixed or empty input sends ids
+// only. A field in the input counts as changed even when its value matches
+// before: that copy was read before the lock, a concurrent writer may have
+// committed in between, and comparing against it could hide a change this
+// call made. Values come from the row the last query returned under the lock,
+// so each is the task's value at revision.
+func taskUpdatedPayload(task db.Task, in UpdateTaskInput, revisionBefore int64) map[string]string {
+	payload := map[string]string{"task_id": task.ID, "workspace_id": task.WorkspaceID}
+	def, ok := outbox.Lookup("task.updated")
+	if !ok || len(def.Patch) == 0 {
+		return payload
+	}
+
+	// How a field goes on the wire. A Patch field not encoded here is never
+	// sent: the frame falls back to ids, and clients refetch.
+	due := ""
+	if task.DueDate.Valid {
+		due = task.DueDate.Time.Format("2006-01-02")
+	}
+	// Fail closed. Each field is cleared from rest where it is encoded, so
+	// anything left over, a field UpdateTaskInput has today or gains later,
+	// makes the frame ids-only. A hand-kept list of the other fields could miss
+	// one with every test green, and the frame would then carry the revision
+	// pair while that field stays stale in other caches. A slice or map field
+	// would stop the comparison compiling, which forces that choice.
+	rest := in
+	patch := make(map[string]string, len(def.Patch))
+	if in.Title != nil {
+		patch["title"] = task.Title
+		rest.Title = nil
+	}
+	if in.Status != nil {
+		patch["status"] = task.Status
+		rest.Status = nil
+	}
+	if in.Priority != nil {
+		patch["priority"] = task.Priority
+		rest.Priority = nil
+	}
+	if in.DueDate != nil {
+		patch["due_date"] = due
+		rest.DueDate = nil
+	}
+	if rest != (UpdateTaskInput{}) || len(patch) == 0 {
+		return payload
+	}
+	for field := range patch {
+		if !slices.Contains(def.Patch, field) {
+			return payload
+		}
+	}
+	payload["revision_before"] = strconv.FormatInt(revisionBefore, 10)
+	payload["revision"] = strconv.FormatInt(task.Revision, 10)
+	maps.Copy(payload, patch)
+	return payload
 }
 
 func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID string, in CreateTaskInput) (db.Task, error) {
@@ -342,6 +412,11 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	// UpdateTask always runs, takes the row lock and bumps revision by exactly
+	// one, so the row it returns minus one is where this call started, and the
+	// lock keeps it that way until commit. Counting the queries below instead
+	// would break silently the day one of them bumps conditionally.
+	revisionBefore := task.Revision - 1
 	if in.AssigneeID != nil {
 		kind, kerr := s.assigneeKind(ctx, before.WorkspaceID, *in.AssigneeID, in.AssigneeKind)
 		if kerr != nil {
@@ -388,9 +463,7 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Action:       audit.ActionTaskUpdated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(taskAuditFields(before), taskAuditFields(task)),
-	}, audit.Event{Topic: "task.updated", Payload: map[string]string{
-		"task_id": task.ID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
+	}, audit.Event{Topic: "task.updated", Payload: taskUpdatedPayload(task, in, revisionBefore)}); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
@@ -449,6 +522,19 @@ func (s *TaskService) Comments(ctx context.Context, userID, taskID string) ([]db
 		return nil, err
 	}
 	return s.q.ListTaskComments(ctx, db.ListTaskCommentsParams{
+		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
+}
+
+// CommentReactionsForTask returns every reaction on every comment of the task
+// in one round trip. Comments stays untouched: six callers depend on its
+// signature, and only the detail screen needs the reactions.
+func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskID string) ([]db.CommentReaction, error) {
+	task, err := s.authorize(ctx, userID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListTaskCommentReactions(ctx, db.ListTaskCommentReactionsParams{
 		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 	})
 }

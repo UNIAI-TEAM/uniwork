@@ -11,8 +11,8 @@ import { AgentBadge } from "../../../agents/agent-badge";
 import { ReadonlyContent } from "../../../editor";
 
 /**
- * One comment row. Reactions are add/remove only — listComments does not
- * embed reaction rows yet, so the bar starts empty and refreshes after mutate.
+ * One comment row. Reactions come embedded in listComments; the bar renders
+ * them directly and refreshes after a toggle mutation.
  */
 export function TaskCommentCard({
   comment,
@@ -21,6 +21,7 @@ export function TaskCommentCard({
   onEdit,
   onResolveToggle,
   onDelete,
+  onReply,
 }: {
   comment: TaskComment;
   highlighted?: boolean;
@@ -28,6 +29,7 @@ export function TaskCommentCard({
   onEdit?: (body: string) => void;
   onResolveToggle?: (resolved: boolean) => void;
   onDelete?: () => void;
+  onReply?: () => void;
 }) {
   const { t } = useTranslation();
   const currentUserId = useAuthStore((s) => s.user?.id);
@@ -97,11 +99,22 @@ export function TaskCommentCard({
       )}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <ReactionBar
-          reactions={[]}
+          reactions={comment.reactions ?? []}
           currentUserId={currentUserId}
           onToggle={onToggleReaction}
           getActorName={() => authorLabel}
         />
+        {onReply ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid={`comment-reply-${comment.id}`}
+            onClick={onReply}
+          >
+            {t("tasks.detail.reply")}
+          </Button>
+        ) : null}
         {isOwn && onEdit && !editing ? (
           <Button
             type="button"

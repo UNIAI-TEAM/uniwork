@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { useTaskDetailUiStore } from "@uniwork/core/tasks/stores/task-detail-ui-store";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
@@ -98,6 +99,7 @@ beforeEach(() => {
   setSessionUser(me);
   createMutateAsync.mockClear();
   setParentMutateAsync.mockClear();
+  useTaskDetailUiStore.setState({ tasks: {} });
 });
 
 describe("TaskDetailSubtasksSection", () => {
@@ -124,5 +126,54 @@ describe("TaskDetailSubtasksSection", () => {
         body: { parent_task_id: "t1" },
       });
     });
+  });
+
+  it("gấp danh sách sub-task, giữ tiêu đề và tiến độ, và nhớ khi mở lại task", () => {
+    const first = render(
+      shell(<TaskDetailSubtasksSection workspaceId="w1" taskId="t1" />),
+    );
+
+    const toggle = screen.getByRole("button", {
+      name: "Hiện hoặc ẩn danh sách sub-task",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const regionId = toggle.getAttribute("aria-controls");
+    expect(regionId).toBeTruthy();
+    const region = document.getElementById(regionId!);
+    expect(region).not.toBeNull();
+    expect(region).toContainElement(screen.getByText("Existing child"));
+    expect(region).toContainElement(screen.getByLabelText("Thêm sub-task"));
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Existing child")).not.toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Thêm sub-task" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Sub-task" })).toBeVisible();
+    expect(screen.getByTestId("subtasks-progress")).toBeVisible();
+    first.unmount();
+
+    render(shell(<TaskDetailSubtasksSection workspaceId="w1" taskId="t1" />));
+
+    const again = screen.getByRole("button", {
+      name: "Hiện hoặc ẩn danh sách sub-task",
+    });
+    expect(again).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Existing child")).not.toBeVisible();
+
+    fireEvent.click(again);
+    expect(again).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Existing child")).toBeVisible();
+  });
+
+  it("một task khác không thừa hưởng trạng thái gấp", () => {
+    useTaskDetailUiStore.getState().setSubtasksCollapsed("t-other", true);
+
+    render(shell(<TaskDetailSubtasksSection workspaceId="w1" taskId="t1" />));
+
+    expect(
+      screen.getByRole("button", { name: "Hiện hoặc ẩn danh sách sub-task" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Existing child")).toBeVisible();
   });
 });

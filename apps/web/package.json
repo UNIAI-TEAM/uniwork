@@ -17,6 +17,7 @@
     "next": "^16.3.4",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-i18next": "catalog:",
     "web-vitals": "^6.2.1"
   },
   "devDependencies": {

@@ -45,8 +45,10 @@ import {
 } from "./swimlane-ids";
 import { buildLanesForGrouping, type LaneGroup } from "./swimlane-lanes";
 import { SwimlaneStatusHeader } from "./swimlane-status-header";
+import { LoadedCountNotice } from "./loaded-count-notice";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import type { TaskGroupBranches } from "../surface/use-task-group-branches";
+import type { TaskSurfacePagination } from "../surface/use-task-surface-data";
 
 const EMPTY_CONFIG = {
   flags: {},
@@ -71,10 +73,13 @@ function SwimLaneViewImpl({
   projectGroupingReasonKey,
   parentGroupingDisabled = true,
   parentGroupingReasonKey,
+  pagination,
 }: {
   tasks: Task[];
   categories?: readonly string[];
   groupBranches?: TaskGroupBranches;
+  /** Lanes have no list end, so later pages load from the count notice. */
+  pagination?: TaskSurfacePagination;
   projects?: readonly { id: string; title: string }[];
   cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   onOpenTask?: (id: string) => void;
@@ -426,6 +431,9 @@ function SwimLaneViewImpl({
           <p className="shrink-0 border-b px-3 py-2 text-caption text-muted-foreground">
             {groupingHint}
           </p>
+        ) : null}
+        {pagination ? (
+          <LoadedCountNotice pagination={pagination} withAction />
         ) : null}
         <div
           ref={setScrollEl}

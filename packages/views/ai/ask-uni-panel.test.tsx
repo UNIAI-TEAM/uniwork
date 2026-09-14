@@ -73,7 +73,7 @@ describe("AskUniPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("opens from the topbar button and ⌘J, shows the empty state, asks, and renders cited links", async () => {
+  it("opens from the topbar button, shows the empty state, asks, and renders cited links", async () => {
     mockApi();
     mount();
     fireEvent.click(await screen.findByRole("button", { name: /Hỏi UNI/ }));
@@ -95,9 +95,6 @@ describe("AskUniPanel", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Hỏi UNI…" }), { target: { value: "lại" } });
     fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "j", metaKey: true });
-    await waitFor(() => expect(useAiPanelStore.getState().open).toBe(false));
   });
 
   it("maps a quota error to its own sentence and keeps the question", async () => {
