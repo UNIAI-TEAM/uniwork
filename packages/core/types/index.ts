@@ -11,6 +11,7 @@ export * from "./task-catalog";
 export * from "./task-view";
 export * from "./task-collaboration";
 export * from "./project";
+export * from "./home";
 export * from "./meeting";
 export * from "./events";
 export * from "./audit";
