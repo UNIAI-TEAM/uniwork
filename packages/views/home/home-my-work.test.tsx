@@ -90,15 +90,34 @@ describe("HomeMyWork", () => {
     );
   });
 
-  it("moves, completes and opens from the keyboard on the list", async () => {
-    const nav = renderMyWork();
-    const list = screen.getByRole("listbox", { name: "Công việc của tôi" });
-    fireEvent.keyDown(list, { key: "j" });
-    expect(screen.getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
-    fireEvent.keyDown(list, { key: "c" });
-    await waitFor(() => expect(calls().some(([p]) => p === "/api/v1/tasks/1")).toBe(true));
-    fireEvent.keyDown(list, { key: "ArrowDown" });
-    fireEvent.keyDown(list, { key: "o" });
-    expect(nav.push).toHaveBeenCalledWith("/acme/team/tasks/2");
+  it("keeps the list plain so each row control keeps its role", () => {
+    renderMyWork();
+    const list = screen.getByRole("list", { name: "Công việc của tôi" });
+    expect(list).not.toHaveAttribute("role");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.queryByRole("option")).toBeNull();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
+
+  it("moves real focus between rows and selects, completes and opens from the keyboard", async () => {
+    const nav = renderMyWork();
+    const first = screen.getByRole("link", { name: /Viết spec/ });
+    const second = screen.getByRole("link", { name: /Chuẩn bị demo/ });
+    first.focus();
+    fireEvent.keyDown(first, { key: "j" });
+    expect(second).toHaveFocus();
+    fireEvent.keyDown(second, { key: "ArrowDown" });
+    expect(second).toHaveFocus();
+    fireEvent.keyDown(second, { key: "x" });
+    expect(screen.getByRole("checkbox", { name: "Chọn: Chuẩn bị demo" })).toBeChecked();
+    fireEvent.keyDown(second, { key: "k" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: "c" });
+    await waitFor(() =>
+      expect(calls()).toContainEqual(["/api/v1/tasks/1", expect.objectContaining({ method: "PATCH", body: { status: "done" } })]),
+    );
+    fireEvent.keyDown(first, { key: "o" });
+    expect(nav.push).toHaveBeenCalledWith("/acme/team/tasks/1");
+  });
+
 });

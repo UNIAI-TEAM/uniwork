@@ -27,7 +27,6 @@ export interface HomeMyWorkRowProps {
   task: Task;
   today: string;
   href: string;
-  selected: boolean;
   checked: boolean;
   completing: boolean;
   onCheckedChange: (task: Task, checked: boolean) => void;
@@ -36,10 +35,12 @@ export interface HomeMyWorkRowProps {
 
 /**
  * One open task: select box, title linking to the task, identifier, due state
- * and priority, and a complete button. A row completed here stays, dimmed,
- * until the summary refetch takes it away.
+ * and priority, and a complete button. A plain list item: the keyboard model
+ * lives on the list and moves real focus to this row's link, so every control
+ * here keeps its own role. A row completed here stays, dimmed, until the
+ * summary refetch takes it away.
  */
-export function HomeMyWorkRow({ task, today, href, selected, checked, completing, onCheckedChange, onComplete }: HomeMyWorkRowProps) {
+export function HomeMyWorkRow({ task, today, href, checked, completing, onCheckedChange, onComplete }: HomeMyWorkRowProps) {
   const { t, i18n } = useTranslation();
   const done = task.status === "done";
   const late = overdueDays(today, task.due_date);
@@ -54,13 +55,9 @@ export function HomeMyWorkRow({ task, today, href, selected, checked, completing
 
   return (
     <li
-      id={`home-task-${task.id}`}
-      role="option"
-      aria-selected={selected}
       data-task-id={task.id}
       className={cn(
-        "flex min-h-12 items-center gap-3 border-b border-border px-4 py-2 last:border-b-0",
-        selected ? "bg-surface-selected" : "hover:bg-surface-hover",
+        "flex min-h-12 items-center gap-3 border-b border-border px-4 py-2 last:border-b-0 hover:bg-surface-hover focus-within:bg-surface-selected",
         (done || completing) && "opacity-60",
       )}
     >
@@ -70,7 +67,7 @@ export function HomeMyWorkRow({ task, today, href, selected, checked, completing
         onCheckedChange={(value) => onCheckedChange(task, value === true)}
         aria-label={t("home.mywork.select_task", { title: task.title })}
       />
-      <AppLink href={href} className="min-w-0 flex-1 outline-none">
+      <AppLink href={href} className="min-w-0 flex-1 rounded-sm">
         <span className={cn("block truncate text-body font-medium text-foreground", done && "text-muted-foreground line-through")}>
           {task.title}
         </span>

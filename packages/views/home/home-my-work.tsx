@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ListTodo } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -28,9 +28,12 @@ const KEY_HINTS: [string, string][] = [
 ];
 
 /**
- * Open work assigned to the viewer. The list is a listbox: J/K or the arrows
- * move, X selects, C completes, O or Enter opens — handled on the list, not
- * the window, so the keys never fight a shortcut elsewhere on the page.
+ * Open work assigned to the viewer. With focus anywhere in a row, J/K or the
+ * arrows move focus to the next or previous task, X selects it, C completes it
+ * and O opens it (Enter already follows the focused link). The keys are read on
+ * the list, not the window, so they never fight a shortcut elsewhere; the list
+ * stays a plain list so the checkbox, link and button in each row keep their
+ * own roles for screen readers.
  */
 export function HomeMyWork({
   summary,
@@ -48,17 +51,19 @@ export function HomeMyWork({
   const { push } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const complete = useCompleteHomeTasks(workspace.id);
+  const listRef = useRef<HTMLUListElement>(null);
   const [checked, setChecked] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [completing, setCompleting] = useState<string[]>([]);
 
   const tasks = useMemo(() => summary?.my_work ?? [], [summary]);
   const open = useMemo(() => tasks.filter((task) => task.status !== "done"), [tasks]);
 
   useEffect(() => {
-    setChecked((prev) => prev.filter((id) => open.some((task) => task.id === id)));
-    setSelectedId((prev) => (prev && tasks.some((task) => task.id === prev) ? prev : null));
-  }, [open, tasks]);
+    setChecked((prev) => {
+      const next = prev.filter((id) => open.some((task) => task.id === id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [open]);
 
   const run = (ids: string[]) => {
     if (ids.length === 0) return;
@@ -76,26 +81,31 @@ export function HomeMyWork({
   const toggle = (task: Task, next: boolean) =>
     setChecked((prev) => (next ? [...new Set([...prev, task.id])] : prev.filter((id) => id !== task.id)));
 
+  const rowIndex = (target: EventTarget | null) => {
+    const id = target instanceof HTMLElement ? target.closest<HTMLElement>("[data-task-id]")?.dataset.taskId : undefined;
+    return id ? tasks.findIndex((task) => task.id === id) : -1;
+  };
+
+  const focusRow = (index: number) => {
+    const task = tasks[Math.max(0, Math.min(tasks.length - 1, index))];
+    if (!task) return;
+    listRef.current?.querySelector<HTMLElement>(`[data-task-id="${task.id}"] a`)?.focus();
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
     if (tasks.length === 0 || e.metaKey || e.ctrlKey || e.altKey) return;
-    const idx = tasks.findIndex((task) => task.id === selectedId);
+    const idx = rowIndex(e.target);
     const current = idx >= 0 ? tasks[idx] : undefined;
-    const move = (next: number) => {
-      const task = tasks[Math.max(0, Math.min(tasks.length - 1, next))];
-      if (!task) return;
-      setSelectedId(task.id);
-      document.getElementById(`home-task-${task.id}`)?.scrollIntoView({ block: "nearest" });
-    };
     switch (e.key) {
       case "j":
       case "ArrowDown":
         e.preventDefault();
-        move(idx + 1);
+        focusRow(idx + 1);
         return;
       case "k":
       case "ArrowUp":
         e.preventDefault();
-        move(idx < 0 ? 0 : idx - 1);
+        focusRow(idx <= 0 ? 0 : idx - 1);
         return;
       case "x":
         if (current && current.status !== "done") {
@@ -110,8 +120,7 @@ export function HomeMyWork({
         }
         return;
       case "o":
-      case "Enter":
-        if (current && e.target === e.currentTarget) {
+        if (current) {
           e.preventDefault();
           push(ws.task(current.id));
         }
@@ -190,21 +199,14 @@ export function HomeMyWork({
           }
         />
       ) : (
-        <ul
-          role="listbox"
-          tabIndex={0}
-          aria-label={t("home.section.mywork")}
-          aria-activedescendant={selectedId ? `home-task-${selectedId}` : undefined}
-          onKeyDown={onKeyDown}
-          className="outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        >
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- keys bubble up from the row controls; the list itself takes no focus
+        <ul ref={listRef} aria-label={t("home.section.mywork")} onKeyDown={onKeyDown}>
           {tasks.map((task) => (
             <HomeMyWorkRow
               key={task.id}
               task={task}
               today={summary?.today ?? ""}
               href={ws.task(task.id)}
-              selected={task.id === selectedId}
               checked={checked.includes(task.id)}
               completing={completing.includes(task.id)}
               onCheckedChange={toggle}

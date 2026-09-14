@@ -75,13 +75,14 @@ export function HomeInbox({
           }
         />
       ) : (
-        <ul role="listbox" aria-label={t("home.section.inbox")}>
+        <ul aria-label={t("home.section.inbox")}>
           {items.map((n) => (
             <NotificationRow
               key={n.id}
               notification={n}
               href={resourceHref(n, workspace)}
               compact
+              asOption={false}
               onOpen={(row) => {
                 if (!row.read_at) read(row.id);
               }}
