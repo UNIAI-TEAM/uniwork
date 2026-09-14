@@ -75,7 +75,7 @@ export function TaskDetailSubtasksSection({
   return (
     <section
       aria-label={t("tasks.detail.section_subtasks")}
-      className="mt-8 border-t border-border pt-6"
+      className="mt-6"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">

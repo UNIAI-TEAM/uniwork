@@ -1,10 +1,13 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { AuditEvent } from "@uniwork/core/types";
 import {
   ActionIcon,
   ActorIcon,
-  ChangeSummary,
+  changeEntries,
+  ChangeValue,
   EventTime,
   shortId,
   useAuditLabels,
@@ -35,11 +38,25 @@ export function isTimelineActivity(event: AuditEvent): boolean {
 export function TaskActivityRow({
   event,
   actorName,
+  valueNames = new Map(),
 }: {
   event: AuditEvent;
   actorName?: string;
+  valueNames?: Map<string, string>;
 }) {
+  const { t } = useTranslation();
   const labels = useAuditLabels();
+  const valueLabel = (field: string, value: unknown): unknown => {
+    if (typeof value !== "string") return value;
+    if (field === "status") {
+      return t(`tasks.status_${value}`, { defaultValue: value });
+    }
+    if (field === "priority") {
+      return t(`tasks.priority_${value}`, { defaultValue: value });
+    }
+    return valueNames.get(value) ?? value;
+  };
+  const changes = changeEntries(event).slice(0, 2);
   return (
     <div
       data-testid={`task-timeline-activity-${event.id}`}
@@ -54,7 +71,31 @@ export function TaskActivityRow({
         {actorName ?? shortId(event.actor_id)}
       </span>
       <span>{labels.action(event.action)}</span>
-      <ChangeSummary event={event} empty={null} />
+      {changes.length > 0 ? (
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {changes.map(([field, change]) => (
+            <span
+              key={field}
+              className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 whitespace-nowrap"
+            >
+              <span className="font-medium">{labels.field(field)}</span>
+              {change.from !== null && change.from !== undefined && change.from !== "" ? (
+                <>
+                  <ChangeValue
+                    value={valueLabel(field, change.from)}
+                    className="text-muted-foreground line-through"
+                  />
+                  <ArrowRight aria-hidden className="size-3 shrink-0" />
+                </>
+              ) : null}
+              <ChangeValue value={valueLabel(field, change.to)} />
+            </span>
+          ))}
+          {changeEntries(event).length > changes.length ? (
+            <span>+{changeEntries(event).length - changes.length}</span>
+          ) : null}
+        </span>
+      ) : null}
       <EventTime iso={event.occurred_at} className="ml-auto" />
     </div>
   );

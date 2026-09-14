@@ -138,7 +138,7 @@ export function TaskDetailAttachmentsSection({
   return (
     <section
       aria-label={t("tasks.detail.attachments_section")}
-      className="relative mt-8 border-t border-border pt-6"
+      className="relative mt-6"
       {...dropZoneProps}
     >
       {isDragOver ? <FileDropOverlay /> : null}
