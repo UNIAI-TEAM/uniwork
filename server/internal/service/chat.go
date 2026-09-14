@@ -95,6 +95,10 @@ type ChatMessageRow struct {
 type ListChatMessagesInput struct {
 	Before *time.Time
 	Limit  int
+	// SkipMarkRead leaves last_read_at alone so CatchUp can still summarise
+	// the unread window after the client opens the room. Pagination (Before
+	// set) never marks read either.
+	SkipMarkRead bool
 }
 
 type SendChatMessageInput struct {
@@ -380,7 +384,10 @@ func (s *ChatService) listMessages(
 	for i := len(rows) - 1; i >= 0; i-- {
 		out = append(out, chatMessageRowFromListRow(rows[i], userID))
 	}
-	if len(out) > 0 {
+	// Only the latest page may bump the read cursor — loading older history
+	// must not rewind last_read_at. CatchUp needs the pre-open cursor when
+	// SkipMarkRead is set (unread room open).
+	if !in.SkipMarkRead && in.Before == nil && len(out) > 0 {
 		last := out[len(out)-1]
 		_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
 			RoomID: roomID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: last.CreatedAt, Valid: true},
@@ -388,6 +395,30 @@ func (s *ChatService) listMessages(
 		s.publishChatRoomRead(ctx, room, userID)
 	}
 	return out, nil
+}
+
+// MarkRoomRead advances the caller's last_read_at to the newest message in the room.
+// Used after an unread open that loaded messages with SkipMarkRead so CatchUp still worked.
+func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roomID string) error {
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return err
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	preview, err := s.q.GetLatestChatMessageByRoom(ctx, db.GetLatestChatMessageByRoomParams{
+		RoomID: room.ID, WorkspaceID: anchorWS,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
+		RoomID: room.ID, UserID: userID, LastReadAt: preview.CreatedAt,
+	})
+	s.publishChatRoomRead(ctx, room, userID)
+	return nil
 }
 
 // SendWorkspaceMessage posts a text message to the workspace channel.

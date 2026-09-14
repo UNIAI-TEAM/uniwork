@@ -52,6 +52,7 @@ type ChatPageContentDialogsProps = Pick<
   | "activeRoomId"
   | "canPinMessages"
   | "t"
+  | "onMessageSearchOpenChange"
 > & {
   createPollOpen: boolean;
   onCreatePollOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
@@ -103,6 +104,7 @@ export function ChatPageContentDialogs({
   activeRoomId,
   canPinMessages,
   t,
+  onMessageSearchOpenChange,
   createPollOpen,
   onCreatePollOpenChange,
   createReminderOpen,
@@ -158,6 +160,7 @@ export function ChatPageContentDialogs({
           workspaceMembers={workspaceMembers}
           currentUserId={currentUserId}
           youLabel={t("chat.you")}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
         />
       ) : null}
       {target.kind === "group" && activeGroup ? (
@@ -175,6 +178,7 @@ export function ChatPageContentDialogs({
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
             onLeave={onLeaveGroup}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
           />
           <AddGroupMembersDialog
             open={addMembersOpen}
@@ -209,6 +213,7 @@ export function ChatPageContentDialogs({
           onUnblock={onUnblockContact}
           blocking={blockingContact}
           unblocking={unblockingContact}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
         />
       ) : null}
       {workHubEnabled && activeChannel ? (
@@ -227,6 +232,7 @@ export function ChatPageContentDialogs({
             onLeave={activeChannel.is_default ? undefined : onLeaveChannel}
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
           />
           {!activeChannel.is_default ? (
             <AddGroupMembersDialog

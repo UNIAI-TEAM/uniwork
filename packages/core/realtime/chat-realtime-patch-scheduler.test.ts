@@ -65,10 +65,30 @@ describe("createChatRealtimePatchScheduler", () => {
     await scheduler.dispose();
   });
 
-  it("scheduleRoomActivity invalidates the rooms query", async () => {
+  it("scheduleRoomActivity invalidates rooms after the debounce flush", async () => {
     const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     scheduler.scheduleRoomActivity();
+    expect(invalidate).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+    await scheduler.dispose();
+  });
+
+  it("runs room activity invalidate after upserts in the same flush", async () => {
+    const order: string[] = [];
+    vi.mocked(fetchAndPatchChatMessage).mockImplementation(async () => {
+      order.push("upsert");
+    });
+    const invalidate = vi.spyOn(qc, "invalidateQueries").mockImplementation(() => {
+      order.push("invalidate");
+      return Promise.resolve();
+    });
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    scheduler.scheduleUpsert("room1", "m1");
+    scheduler.scheduleRoomActivity();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(order).toEqual(["upsert", "invalidate"]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
     await scheduler.dispose();
   });

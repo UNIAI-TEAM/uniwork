@@ -80,20 +80,20 @@ describe("AskUniPanel", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Bạn muốn biết gì về công việc của đội?")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Hỏi UNI…" }), { target: { value: "task nào quá hạn?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    fireEvent.change(screen.getByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "task nào quá hạn?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /\[S1\]\s*Viết spec/ });
     expect(link).toHaveAttribute("href", "/acme/team/tasks/t1");
-    expect(screen.getByText("812 token vào · 96 token ra")).toBeInTheDocument();
+    expect(screen.getByText("812 vào · 96 ra")).toBeInTheDocument();
     expect(useAiPanelStore.getState().conversationId).toBe("c1");
     expect(screen.getByRole("button", { name: "Đóng" })).toBeInTheDocument();
 
     // A new conversation drops the token line of the previous answer.
     fireEvent.click(screen.getByRole("button", { name: "Hội thoại mới" }));
-    await waitFor(() => expect(screen.queryByText("812 token vào · 96 token ra")).toBeNull());
-    fireEvent.change(screen.getByRole("textbox", { name: "Hỏi UNI…" }), { target: { value: "lại" } });
-    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    await waitFor(() => expect(screen.queryByText("812 vào · 96 ra")).toBeNull());
+    fireEvent.change(screen.getByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "lại" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "j", metaKey: true });
@@ -104,10 +104,10 @@ describe("AskUniPanel", () => {
     mockApi({ askError: new ApiError("hết", "ai_quota_exceeded", 402) });
     mount();
     useAiPanelStore.getState().setOpen(true);
-    fireEvent.change(await screen.findByRole("textbox", { name: "Hỏi UNI…" }), { target: { value: "x" } });
-    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Tổ chức đã hết hạn mức token AI của tháng.");
-    expect(screen.getByRole("textbox", { name: "Hỏi UNI…" })).toHaveValue("x");
+    expect(screen.getByRole("textbox", { name: /Hỏi UNI/ })).toHaveValue("x");
   });
 
   it("lists my conversations, opens one, and deletes it", async () => {

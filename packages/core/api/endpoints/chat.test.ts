@@ -10,6 +10,7 @@ import {
   listChatRoomMembers,
   patchChatRoomMember,
   listChatRoomMessages,
+  markChatRoomRead,
   searchChatRoomMessages,
   listChatRoomMessagesAround,
   listChatRooms,
@@ -146,6 +147,65 @@ describe("chat endpoints", () => {
   it("createChatGroup degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await createChatGroup("ws1", { name: "G", member_user_ids: ["a", "b"] })).toBeNull();
+  });
+
+  it("listChatRooms keeps valid rooms when one row is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          {
+            id: "room-dm",
+            kind: "dm",
+            name: "Peer",
+            workspace_id: "ws1",
+            member_user_ids: [],
+            peer_user_id: "user-b",
+          },
+          { id: "broken", kind: "not-a-kind", name: "X", workspace_id: "ws1" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]?.id).toBe("room-dm");
+  });
+
+  it("listChatRoomMessages keeps valid messages when one row is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            id: "m1",
+            room_id: "room1",
+            workspace_id: "ws1",
+            sender_id: "u1",
+            sender_display_name: "A",
+            body: "hi",
+            created_at: "2026-09-05T00:00:00Z",
+          },
+          { id: "bad", body: "missing fields" },
+        ],
+      }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.id).toBe("m1");
+  });
+
+  it("listChatRoomMessages sends mark_read=0 when mark_read is false", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [] }));
+    await listChatRoomMessages("ws1", "room1", { mark_read: false, limit: 20 });
+    const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
+    expect(url).toContain("mark_read=0");
+    expect(url).toContain("limit=20");
+  });
+
+  it("markChatRoomRead posts to the room read endpoint", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await markChatRoomRead("ws1", "room1")).toBe(true);
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toEqual(
+      expect.stringContaining("/chat/rooms/room1/read"),
+    );
   });
 
   it("listChatRoomMessages degrades on malformed response", async () => {

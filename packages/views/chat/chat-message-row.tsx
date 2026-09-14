@@ -81,7 +81,7 @@ export function ChatMessageRow({
       id={`chat-msg-${message.id}`}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors",
-        compactTop ? "mt-1" : "mt-3",
+        compactTop ? "mt-2" : "mt-4",
         isOwn ? "justify-end" : "justify-start gap-2",
         highlighted && "bg-brand/10 ring-2 ring-brand/40",
         isPending && "opacity-80",
@@ -102,7 +102,7 @@ export function ChatMessageRow({
 
       <div
         className={cn(
-          "group relative flex min-w-0 max-w-[min(100%,20rem)] flex-col gap-1",
+          "group relative flex min-w-0 max-w-[min(100%,22rem)] flex-col gap-1.5",
           isOwn ? "items-end" : "items-start",
         )}
       >
@@ -125,7 +125,7 @@ export function ChatMessageRow({
         ) : null}
 
         {!isOwn && showSenderName && showAvatar ? (
-          <p className={cn("px-1 text-caption font-medium", nameClass)}>{senderLabel}</p>
+          <p className={cn("px-1 pb-0.5 text-caption font-medium", nameClass)}>{senderLabel}</p>
         ) : null}
 
         {message.priority === "important" || message.priority === "urgent" ? (
@@ -143,7 +143,7 @@ export function ChatMessageRow({
 
         <div
           className={cn(
-            "w-fit max-w-full px-3.5 py-2",
+            "w-fit max-w-full px-3.5 py-2.5",
             isOwn
               ? "rounded-[18px] rounded-br-[4px] bg-brand text-brand-foreground shadow-sm"
               : "rounded-[18px] rounded-bl-[4px] bg-surface shadow-sm ring-1 ring-border/60",

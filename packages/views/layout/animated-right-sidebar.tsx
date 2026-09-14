@@ -42,17 +42,24 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggleTargetRef = useRef<boolean | null>(null);
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toggleRafRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     if (isMobile) setMobileOpen(false);
   }, [isMobile]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current);
-    },
-    [],
-  );
+      if (toggleRafRef.current != null) {
+        cancelAnimationFrame(toggleRafRef.current);
+        toggleRafRef.current = null;
+      }
+    };
+  }, []);
 
   const beginDesktopToggle = useCallback((nextOpen: boolean) => {
     toggleTargetRef.current = nextOpen;
@@ -78,7 +85,11 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
     if (!panel) return;
     const nextOpen = panel.isCollapsed();
     beginDesktopToggle(nextOpen);
-    window.requestAnimationFrame(() => {
+    if (toggleRafRef.current != null) cancelAnimationFrame(toggleRafRef.current);
+    toggleRafRef.current = window.requestAnimationFrame(() => {
+      toggleRafRef.current = null;
+      // Layout may have unmounted between schedule and frame (tests / fast nav).
+      if (!mountedRef.current || panelRef.current !== panel) return;
       if (nextOpen) panel.expand();
       else panel.collapse();
     });

@@ -135,8 +135,13 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 	creq.Messages = append(creq.Messages, req.History...)
 	creq.Messages = append(creq.Messages, provider.Message{Role: "user", Content: prompt.Render(req.Vars)})
-	for _, t := range req.Tools {
-		creq.Tools = append(creq.Tools, provider.ToolSpec{Name: t.Name, Description: t.Description, Schema: t.Schema})
+	// Structured JSON output and tool-calling fight each other on OpenAI-compatible
+	// hosts (400 / empty content → 502 ai_provider_error). When the prompt pins a
+	// schema, context must already be in Vars — do not advertise tools.
+	if len(prompt.OutputSchema) == 0 {
+		for _, t := range req.Tools {
+			creq.Tools = append(creq.Tools, provider.ToolSpec{Name: t.Name, Description: t.Description, Schema: t.Schema})
+		}
 	}
 	cctx, cancel := context.WithTimeout(ctx, g.opts.Timeout)
 	started := g.now()

@@ -283,6 +283,10 @@ function allWorkspaceKeys(wsId: string) {
     taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
+    // Open conversations go stale while the socket is down (BE restart).
+    chatKeys.roomMessagesRoot(wsId),
+    chatKeys.messages(wsId),
+    chatKeys.threadMessagesRoot(wsId),
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),
     meetingKeys.joinRequestsRoot,

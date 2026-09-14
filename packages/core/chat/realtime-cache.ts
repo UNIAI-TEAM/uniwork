@@ -144,6 +144,15 @@ function currentUserId(): string | null {
   return useAuthStore.getState().user?.id ?? null;
 }
 
+/**
+ * DM/group/channel also emit `chat.room.activity`, which refetches rooms with
+ * the server unread count. Local +1 there races into unread=2 for one message.
+ * Only the workspace room skips activity, so it still increments locally.
+ */
+function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean {
+  return room?.kind === "workspace";
+}
+
 export async function fetchAndPatchChatMessage(
   qc: QueryClient,
   wsId: string,
@@ -158,11 +167,12 @@ export async function fetchAndPatchChatMessage(
   const viewerId = currentUserId();
   const isOwn = viewerId != null && message.sender_id === viewerId;
   const viewing = isViewingRoom(wsId, roomId);
-  qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) =>
-    patchRoomSidebarFromMessage(old, roomId, message, {
-      incrementUnread: !isOwn && !viewing,
-    }),
-  );
+  qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => {
+    const room = old?.find((entry) => entry.id === roomId);
+    return patchRoomSidebarFromMessage(old, roomId, message, {
+      incrementUnread: !isOwn && !viewing && shouldIncrementUnreadLocally(room),
+    });
+  });
 }
 
 export function patchChatMessageDeleted(
@@ -198,11 +208,13 @@ export function patchChatMentionCreated(
   if (isViewingRoom(wsId, roomId)) return;
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => {
     if (!old) return old;
-    return old.map((room) =>
-      room.id === roomId
-        ? { ...room, mention_unread_count: (room.mention_unread_count ?? 0) + 1 }
-        : room,
-    );
+    return old.map((room) => {
+      if (room.id !== roomId) return room;
+      // Same race as unread: DM/group/channel unread badges come from
+      // `chat.room.activity` refetch; only workspace bumps locally.
+      if (!shouldIncrementUnreadLocally(room)) return room;
+      return { ...room, mention_unread_count: (room.mention_unread_count ?? 0) + 1 };
+    });
   });
 }
 

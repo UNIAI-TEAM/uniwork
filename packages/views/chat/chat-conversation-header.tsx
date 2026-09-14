@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronLeft, PanelLeft, PanelLeftClose, Phone, Search, Settings, Video } from "lucide-react";
+import { ChevronLeft, History, Info, PanelLeft, PanelLeftClose, Phone, Video } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -16,8 +16,9 @@ export function ChatConversationHeader({
   onToggleSidebar,
   settingsAriaLabel,
   onOpenSettings,
-  searchAriaLabel,
-  onOpenSearch,
+  catchUpAriaLabel,
+  onCatchUp,
+  catchUpDisabled,
   voiceCallAriaLabel,
   onVoiceCall,
   voiceCallDisabled,
@@ -36,8 +37,9 @@ export function ChatConversationHeader({
   onToggleSidebar?: () => void;
   settingsAriaLabel?: string;
   onOpenSettings?: () => void;
-  searchAriaLabel?: string;
-  onOpenSearch?: () => void;
+  catchUpAriaLabel?: string;
+  onCatchUp?: () => void;
+  catchUpDisabled?: boolean;
   voiceCallAriaLabel?: string;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
@@ -92,16 +94,17 @@ export function ChatConversationHeader({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        {onOpenSearch ? (
+        {onCatchUp ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
             className="size-10 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={searchAriaLabel}
-            onClick={onOpenSearch}
+            aria-label={catchUpAriaLabel}
+            disabled={catchUpDisabled}
+            onClick={onCatchUp}
           >
-            <Search className="size-5" aria-hidden />
+            <History className="size-5" aria-hidden />
           </Button>
         ) : null}
         {onVideoCall ? (
@@ -139,7 +142,7 @@ export function ChatConversationHeader({
             aria-label={settingsAriaLabel}
             onClick={onOpenSettings}
           >
-            <Settings className="size-5" aria-hidden />
+            <Info className="size-5" aria-hidden />
           </Button>
         ) : null}
       </div>

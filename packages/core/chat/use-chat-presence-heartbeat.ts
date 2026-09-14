@@ -5,6 +5,15 @@ import { signalChatPresence } from "../api/endpoints/chat";
 
 const HEARTBEAT_MS = 15_000;
 
+function beat(
+  workspaceId: string,
+  state: "online" | "offline",
+  opts?: { keepalive?: boolean },
+): void {
+  // Presence is best-effort — never surface fetch failures as unhandled rejections.
+  void signalChatPresence(workspaceId, state, opts).catch(() => undefined);
+}
+
 /** Keep the caller's online presence fresh while the chat page is mounted. */
 export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): void {
   useEffect(() => {
@@ -13,18 +22,14 @@ export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): v
 
     const beatOnline = () => {
       if (cancelled) return;
-      void signalChatPresence(workspaceId, "online");
-    };
-
-    const beatOffline = (keepalive = false) => {
-      void signalChatPresence(workspaceId, "offline", { keepalive });
+      beat(workspaceId, "online");
     };
 
     beatOnline();
     const timer = window.setInterval(beatOnline, HEARTBEAT_MS);
 
     const onPageHide = () => {
-      beatOffline(true);
+      beat(workspaceId, "offline", { keepalive: true });
     };
     window.addEventListener("pagehide", onPageHide);
 
@@ -32,7 +37,7 @@ export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): v
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("pagehide", onPageHide);
-      beatOffline();
+      beat(workspaceId, "offline");
     };
   }, [workspaceId, enabled]);
 }

@@ -373,14 +373,15 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
-  it("refreshes the room list on chat.room.activity", () => {
+  it("refreshes the room list on chat.room.activity", async () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "chat.room.activity", payload: { room_id: "dm1" } });
-    act(() => {
-      vi.advanceTimersByTime(250);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
     });
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["chat", "rooms", "ws1"]));
+    vi.useRealTimers();
   });
 
   it("invalidates message links on chat.message.linked without dropping message cache", () => {
@@ -418,7 +419,7 @@ describe("useRealtimeSync", () => {
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "dm1"))).toEqual(messages);
   });
 
-  it("invalidates workspace keys after a reconnect without every message list", () => {
+  it("invalidates workspace keys and open chat timelines after a reconnect", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.reconnect();
@@ -435,12 +436,13 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["projects", "ws1"]),
         JSON.stringify(["chat", "rooms", "ws1"]),
         JSON.stringify(["chat", "room", "ws1"]),
+        JSON.stringify(["chat", "room-messages", "ws1"]),
+        JSON.stringify(["chat", "messages", "ws1"]),
+        JSON.stringify(["chat", "thread-messages", "ws1"]),
         JSON.stringify(["meetings", "ws1"]),
         JSON.stringify(["meeting-stats", "ws1"]),
         JSON.stringify(["meeting-join-requests"]),
       ]),
     );
-    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["chat", "messages", "ws1"]));
-    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["chat", "room-messages", "ws1"]));
   });
 });

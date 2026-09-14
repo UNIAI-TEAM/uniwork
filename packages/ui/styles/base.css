@@ -165,7 +165,7 @@ html[data-sidebar-resizing="true"] * {
   background-color: var(--sidebar-border);
 }
 
-/* Button-driven detail sidebar toggles follow the Multica panel contract.
+/* Button-driven detail sidebar toggles follow the animated panel contract.
    Both flex items must transition together: changing only the sidebar makes
    the main panel jump to its final flex-grow on the first frame. */
 [data-right-sidebar-layout][data-right-sidebar-motion="enabled"]

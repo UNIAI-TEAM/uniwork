@@ -32,6 +32,14 @@ func registerAI(r api, h Routes) {
 		sdo:         sdo.AskUniSDO{},
 		auth:        true,
 	})
+	r.Post("/workspaces/{workspaceID}/ai/chat/catch-up", h.ChatCatchUp, apiOp{
+		summary:     "Chat CatchUp",
+		description: "Tóm tắt tin chưa đọc trong phòng hoặc thread (C-13.7). Gợi ý action item; không tự tạo task. 402/429/503 như Ask UNI.",
+		tags:        []string{"ai"},
+		sdi:         sdi.ChatCatchUpSDI{},
+		sdo:         sdo.ChatCatchUpSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/ai/conversations", h.ListAiConversations, apiOp{
 		summary:     "My conversations",
 		description: "20 hội thoại gần nhất của chính người gọi trong workspace.",

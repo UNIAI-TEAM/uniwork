@@ -6,6 +6,8 @@ function isBubbleMessage(message: ChatMessage): boolean {
     message.kind !== "poll" &&
     message.kind !== "reminder" &&
     message.kind !== "note" &&
+    message.kind !== "post" &&
+    message.kind !== "file" &&
     !message.voiceCall
   );
 }

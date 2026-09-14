@@ -166,6 +166,13 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/read", h.MarkChatRoomRead, apiOp{
+		summary:     "Mark chat room read",
+		description: "Đánh dấu đã đọc đến tin mới nhất (sau khi mở phòng unread để CatchUp vẫn chạy).",
+		tags:        []string{"chat"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/members", h.ListChatRoomMembers, apiOp{
 		summary:     "List chat room members",
 		description: "Danh sách thành viên phòng chat kèm role và trạng thái cấm gửi.",
@@ -270,7 +277,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", h.ListChatRoomMessages, apiOp{
 		summary:     "List chat room messages",
-		description: "Danh sách tin nhắn phòng DM/nhóm.",
+		description: "Danh sách tin nhắn phòng DM/nhóm. mark_read=0 giữ last_read_at (CatchUp sau khi mở phòng unread).",
 		tags:        []string{"chat"},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
