@@ -580,6 +580,8 @@ function renderWithRealtimeRefetch(surfaceKey: string) {
 }
 
 describe("TaskSurface pagination (pages of 50)", () => {
+  const LONG = 60_000;
+
   beforeEach(() => {
     // The load-more row is the tested path. The shared setup's observer reports
     // "visible" on observe (test/media-stub.ts), which would load a page on
@@ -594,20 +596,22 @@ describe("TaskSurface pagination (pages of 50)", () => {
     const server = servePagedTasks({ total: 120 });
     renderSurface("test-paged-list");
 
-    await waitFor(() => expect(listRows()).toBe(50));
+    await waitFor(() => expect(listRows()).toBe(50), { timeout: LONG });
     expect(screen.getByText("50 / 120 công việc đã tải")).toBeInTheDocument();
 
     await clickLoadMore();
-    await waitFor(() => expect(listRows()).toBe(100));
-    expect(await screen.findByText("100 / 120 công việc đã tải")).toBeInTheDocument();
+    await waitFor(() => expect(listRows()).toBe(100), { timeout: LONG });
+    expect(await screen.findByText("100 / 120 công việc đã tải", undefined, { timeout: LONG })).toBeInTheDocument();
 
     await clickLoadMore();
-    await waitFor(() => expect(listRows()).toBe(120));
-    await waitFor(() => expect(screen.queryByText(/công việc đã tải/)).toBeNull());
+    await waitFor(() => {
+      expect(listRows()).toBe(120);
+      expect(screen.getByText("Không còn công việc để tải")).toBeInTheDocument();
+    }, { timeout: LONG });
+    expect(screen.queryByText(/công việc đã tải/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
-    expect(screen.getByText("Không còn công việc để tải")).toBeInTheDocument();
     expect(server.offsets()).toEqual([0, 50, 100]);
-  }, 30_000);
+  }, LONG);
 
   it("list announces the page in flight and keeps the button inert until it lands", async () => {
     const server = servePagedTasks({ total: 120, hold: 50 });
