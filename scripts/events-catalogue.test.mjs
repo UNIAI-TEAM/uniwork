@@ -168,12 +168,12 @@ test("the patchable task fields are exactly the ones ADR 0015 accepted", () => {
 });
 
 test("the client decodes exactly the fields task.updated lists in Patch", () => {
-  // packages/core/tasks/realtime-task-patch.ts drops every frame key it does not
-  // list, yet still takes the frame's revision when it patches. A field added to
-  // Patch on the server but unknown to the client would therefore be skipped
-  // while the cache moves to the new revision: the stale-field, current-revision
-  // state ADR 0015 exists to prevent. Comments are stripped first, as for the Go
-  // side, so a commented-out list cannot stand in for the real one.
+  // packages/core/tasks/realtime-task-patch.ts will not patch from a frame with a
+  // key outside this list, the ids and the revision pair, so a field added to
+  // Patch on the server but not here loses no data: every frame carrying it
+  // silently falls back to a refetch instead, and the patch the catalogue
+  // promises never happens. Comments are stripped first, as for the Go side, so
+  // a commented-out list cannot stand in for the real one.
   const client = read("packages/core/tasks/realtime-task-patch.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
   const lists = [...client.matchAll(/const TASK_PATCH_FIELDS = \[([^\]]*)\] as const;/g)];
   assert.equal(lists.length, 1, "packages/core/tasks/realtime-task-patch.ts must declare `const TASK_PATCH_FIELDS = [...] as const;` exactly once");

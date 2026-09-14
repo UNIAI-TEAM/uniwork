@@ -304,10 +304,7 @@ describe("useRealtimeSync", () => {
         pages: [{ tasks: [detail()], total: 1, limit: 50, offset: 0 }],
         pageParams: [0],
       });
-      client.emit({
-        type: "task.updated",
-        payload: patchFrame({ status: "in_progress", assignee_id: "u9", description: "smuggled" }),
-      });
+      client.emit({ type: "task.updated", payload: patchFrame({ status: "in_progress" }) });
       // Before the debounced wave: the patch is not waiting for a refetch.
       const expected = detail({ title: "Tiêu đề mới", status: "in_progress", revision: 7 });
       expect(qc.getQueryData(["task", "t1"])).toEqual(expected);
@@ -319,6 +316,28 @@ describe("useRealtimeSync", () => {
       });
       expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["task", "t1"]));
       expect(keysCalled(invalidate)).toEqual(expect.arrayContaining(listRoots));
+    });
+
+    it("does not patch, keeps the cached revision and invalidates when the frame carries a content key outside Patch", () => {
+      // What a bundle built before a later ADR added start_date to Patch would
+      // see. Patching the title and taking the revision would leave start_date
+      // stale behind a current revision, so the frame falls back to a refetch.
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail();
+      const rows = [detail()];
+      qc.setQueryData(["task", "t1"], cached);
+      qc.setQueryData(["tasks", "ws1"], rows);
+      client.emit({ type: "task.updated", payload: patchFrame({ start_date: "2026-10-01" }) });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(qc.getQueryData<{ revision: number }>(["task", "t1"])?.revision).toBe(5);
+      expect(qc.getQueryData(["tasks", "ws1"])).toBe(rows);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
     });
 
     it("patches list rows but still invalidates the detail key when the detail entry is behind", () => {
@@ -370,7 +389,7 @@ describe("useRealtimeSync", () => {
       const { qc, invalidate, client } = setup();
       const cached = detail();
       qc.setQueryData(["task", "t1"], cached);
-      const { title: _title, ...noPatchField } = patchFrame({ description: "mới", assignee_id: "u9" });
+      const { title: _title, ...noPatchField } = patchFrame();
       client.emit({ type: "task.updated", payload: noPatchField });
       act(() => {
         vi.advanceTimersByTime(250);

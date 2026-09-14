@@ -30,7 +30,6 @@ describe("planCacheUpdate", () => {
         revision_before: "5",
         revision: "7",
         status: "done",
-        description: "smuggled",
       },
     });
     expect(plan.patch).toEqual({

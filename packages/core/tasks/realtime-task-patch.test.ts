@@ -48,12 +48,26 @@ const decoded = (over: Record<string, unknown> = {}): TaskPatchFrame => {
 };
 
 describe("parseTaskPatchFrame", () => {
-  it("keeps only Patch fields and ignores every other key", () => {
-    expect(
-      parseTaskPatchFrame(
-        payload({ assignee_id: "u9", description: "smuggled", position: "0", smuggled: "x" }),
-      ),
-    ).toEqual({ taskId: "t1", revisionBefore: 5, revision: 7, fields: { title: "Tiêu đề mới" } });
+  it("decodes a frame of ids, the revision pair and Patch fields", () => {
+    expect(parseTaskPatchFrame(payload())).toEqual({
+      taskId: "t1",
+      revisionBefore: 5,
+      revision: 7,
+      fields: { title: "Tiêu đề mới" },
+    });
+  });
+
+  it.each([
+    ["assignee_id", "u9"],
+    ["description", "smuggled"],
+    ["position", "0"],
+    ["smuggled", "x"],
+    // A field a later ADR could add to Patch, which this bundle cannot patch.
+    ["start_date", "2026-10-01"],
+  ])("is ids-only when the frame also carries %s, a content key outside Patch", (key, value) => {
+    // Patching the known fields and taking the revision would leave that key's
+    // field stale behind a current revision.
+    expect(parseTaskPatchFrame(payload({ [key]: value }))).toBeNull();
   });
 
   it("decodes all four Patch fields as strings, enum values outside the known set included", () => {
@@ -71,7 +85,7 @@ describe("parseTaskPatchFrame", () => {
 
   it("is ids-only when the frame has both revisions but no Patch field", () => {
     // Outbox rows written before f00f289 sent the pair for mixed and empty input.
-    const { title: _title, ...noTitle } = payload({ description: "mới" });
+    const { title: _title, ...noTitle } = payload();
     expect(parseTaskPatchFrame(noTitle)).toBeNull();
     expect(parseTaskPatchFrame({ task_id: "t1", workspace_id: "ws1" })).toBeNull();
   });
@@ -139,7 +153,7 @@ describe("applyTaskPatchFrame", () => {
     applyTaskPatchFrame(
       qc,
       "ws1",
-      decoded({ status: "in_progress", priority: "urgent", due_date: "2026-10-01", description: "smuggled" }),
+      decoded({ status: "in_progress", priority: "urgent", due_date: "2026-10-01" }),
     );
     expect(qc.getQueryData(taskKeys.detail("t1"))).toEqual(
       task({
@@ -312,12 +326,17 @@ describe("applyTaskPatchFrame on list-style caches", () => {
     expect(qc.getQueryState(taskKeys.grouped("ws1", "h"))?.dataUpdatedAt).toBe(SEEDED_AT);
   });
 
-  it("leaves an idle list-style entry that an earlier wave invalidated unpatched and still invalidated", () => {
-    // Writing it would clear isInvalidated and restamp dataUpdatedAt. If this
-    // frame's own wave were then lost (the scheduler disposed inside its
+  it("leaves an idle list-style entry that an earlier wave invalidated unpatched and still invalidated, yet patches one already refetching", () => {
+    // Writing an idle one would clear isInvalidated and restamp dataUpdatedAt.
+    // If this frame's own wave were then lost (the scheduler disposed inside its
     // debounce, as on a workspace switch), the entry would read as fresh for
-    // the whole staleTime. Left invalidated, it refetches on mount.
+    // the whole staleTime. Left invalidated, it refetches on mount. An entry
+    // whose refetch is already under way is patched: whatever that fetch lands
+    // replaces the patch, unlike the detail entry, whose skipped invalidation
+    // would let an older response overwrite it.
     const qc = new QueryClient();
+    const refetching = taskKeys.query("ws1", "refetching");
+    qc.setQueryData(refetching, page([task()]));
     const entries: [readonly unknown[], unknown][] = [
       [taskKeys.list("ws1"), [other, task()]],
       [taskKeys.query("ws1", "h"), page([task()])],
@@ -332,11 +351,14 @@ describe("applyTaskPatchFrame on list-style caches", () => {
     for (const [key] of entries) {
       expect(qc.getQueryState(key)).toMatchObject({ fetchStatus: "idle", isInvalidated: true });
     }
+    void qc.fetchQuery({ queryKey: refetching, queryFn: () => new Promise(() => {}) });
+    expect(qc.getQueryState(refetching)).toMatchObject({ fetchStatus: "fetching", isInvalidated: true });
     expect(applyTaskPatchFrame(qc, "ws1", statusFrame())).toEqual({ detailPatched: false });
     for (const [key, data] of entries) {
       expect(qc.getQueryData(key)).toBe(data);
       expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
     }
+    expect(qc.getQueryData(refetching)).toEqual(page([patched]));
   });
 
   it("patches list rows while a detail entry at another revision is left to its refetch", () => {

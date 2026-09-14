@@ -7,10 +7,25 @@ import { taskKeys } from "./keys";
  * server/internal/outbox/catalogue.go (ADR 0015), and the only list of Patch
  * fields in this module: the decoder iterates it and `TaskPatchFields` is
  * derived from it. scripts/events-catalogue.test.mjs reads this declaration
- * and fails when the two lists differ, because a server field missing here
- * would be skipped while the cache still takes the frame's revision.
+ * and fails when the two lists differ: a server field missing here would make
+ * every frame carrying it fall back to a refetch (`FRAME_KEYS`).
  */
 const TASK_PATCH_FIELDS = ["title", "status", "priority", "due_date"] as const;
+
+/**
+ * Every key a frame this bundle patches may carry. Frames carry no event
+ * version, so a key outside this set, such as a field a later ADR adds to
+ * Patch, is the only sign the server is ahead of the bundle. Such a frame is
+ * ids-only: patching the fields known here and taking the revision would
+ * leave that field stale behind a current revision.
+ */
+const FRAME_KEYS: ReadonlySet<string> = new Set([
+  "task_id",
+  "workspace_id",
+  "revision_before",
+  "revision",
+  ...TASK_PATCH_FIELDS,
+]);
 
 /** One optional key per `TASK_PATCH_FIELDS` entry; `due_date` is `null` when the frame cleared the date (the server sends ""). */
 type TaskPatchFields = {
@@ -37,11 +52,11 @@ function parseRevision(value: unknown): number | null {
 /**
  * Decode a `task.updated` payload into a patch, or `null` when the frame is
  * ids-only for the client (ADR 0015 Decisions 4 and 5): no `task_id`, a
- * missing or malformed revision, `revision <= revision_before`, or no Patch
- * field at all. Keys outside `TASK_PATCH_FIELDS` are ignored. A Patch field
- * that cannot be applied (not a string, a date not `YYYY-MM-DD`) rejects the
- * whole frame: dropping it and still taking the revision would leave that
- * field stale behind a current revision.
+ * missing or malformed revision, `revision <= revision_before`, a key outside
+ * `FRAME_KEYS`, or no Patch field at all. A Patch field that cannot be applied
+ * (not a string, a date not `YYYY-MM-DD`) rejects the whole frame too:
+ * dropping it and still taking the revision would leave that field stale
+ * behind a current revision.
  */
 export function parseTaskPatchFrame(payload: Readonly<Record<string, unknown>>): TaskPatchFrame | null {
   const taskId = payload.task_id;
@@ -49,6 +64,7 @@ export function parseTaskPatchFrame(payload: Readonly<Record<string, unknown>>):
   const revisionBefore = parseRevision(payload.revision_before);
   const revision = parseRevision(payload.revision);
   if (revisionBefore === null || revision === null || revision <= revisionBefore) return null;
+  if (Object.keys(payload).some((key) => !FRAME_KEYS.has(key))) return null;
 
   const fields: TaskPatchFields = {};
   let present = 0;

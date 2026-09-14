@@ -75,9 +75,13 @@ Keep server state and client state separate.
   The frame payload is never written into a store, and into a query only
   through one exception (ADR 0015): the fields the `task.updated` catalogue row
   lists in `Patch` patch a cached record of the task, and only when ALL hold —
-  the frame has at least one `Patch` key, and every `Patch` value in it
-  decodes (a string, and `due_date` empty or `YYYY-MM-DD`; one value that does
-  not makes the whole frame ids-only); `revision_before` and `revision` are
+  the frame has at least one `Patch` key and no content key outside `Patch`
+  (any key besides `task_id`, `workspace_id`, the revision pair and `Patch`
+  fields, such as a field a later ADR adds to `Patch`, makes the whole frame
+  ids-only, so opening a new field only makes deployed clients refetch); every
+  `Patch` value in it decodes (a string, and `due_date` empty or
+  `YYYY-MM-DD`; one value that does not makes the whole frame ids-only);
+  `revision_before` and `revision` are
   both digit strings that are safe integers, with `revision > revision_before`;
   the record already exists (the detail entry, or the task's row in a list,
   query, my-tasks or table-rows entry) and its `revision` equals

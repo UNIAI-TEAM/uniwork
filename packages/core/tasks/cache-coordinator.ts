@@ -2,7 +2,7 @@ import { taskKeys } from "./keys";
 import { parseTaskPatchFrame, type TaskPatchFrame } from "./realtime-task-patch";
 
 export type CacheUpdatePlan = {
-  type: "patch" | "invalidate";
+  type: "invalidate";
   keys: readonly (readonly unknown[])[];
   /**
    * Set only for a `task.updated` frame that carries Patch fields beside a
