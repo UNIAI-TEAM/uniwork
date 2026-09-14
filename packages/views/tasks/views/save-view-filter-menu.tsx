@@ -245,7 +245,7 @@ export function SaveViewFilterMenu({
           render={
             <Button
               type="button"
-              variant="outline"
+              variant={compact ? "toolbar" : "outline"}
               size="sm"
               className={cn(
                 "justify-start gap-2 border-dashed",

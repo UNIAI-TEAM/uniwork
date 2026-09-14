@@ -16,7 +16,7 @@ describe("SelectTrigger", () => {
     );
 
     expect(screen.getByRole("combobox", { name: "Nhóm" })).toHaveClass(
-      "border-border",
+      "border-transparent",
       "bg-surface-hover/60",
     );
     expect(screen.getByRole("combobox", { name: "Nhóm" })).not.toHaveClass(

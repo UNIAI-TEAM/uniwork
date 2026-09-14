@@ -28,11 +28,11 @@ const buttonVariants = cva(
         outline:
           "border-input bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30 dark:hover:bg-input/50",
         // Dense toolbars already provide the context that identifies an action.
-        // Give those buttons the panel hairline and surface hierarchy so they do
-        // not compete with data-entry fields; the global focus outline remains
-        // the high-contrast keyboard indicator.
+        // Use a soft filled surface without a persistent edge so these actions
+        // do not compete with data-entry fields; the global focus outline
+        // remains the high-contrast keyboard indicator.
         toolbar:
-          "border-border bg-surface hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground",
+          "border-transparent bg-surface-hover/60 hover:bg-surface-hover hover:text-foreground aria-expanded:bg-surface-hover aria-expanded:text-foreground",
         // Brand-filled state for a control that is currently ON (an active
         // filter, a selected toggle). Self-contained on purpose: passing
         // brand classes through `className` on top of `outline` does NOT

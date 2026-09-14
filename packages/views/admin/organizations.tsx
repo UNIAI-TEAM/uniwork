@@ -62,6 +62,7 @@ export function AdminOrganizationsView() {
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            variant="subtle"
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -71,7 +72,7 @@ export function AdminOrganizationsView() {
           />
         </div>
         <Select items={statusItems} value={status} onValueChange={(next) => next && setStatus(next)}>
-          <SelectTrigger size="sm" aria-label={t("status_label")}>
+          <SelectTrigger variant="subtle" size="sm" aria-label={t("status_label")}>
             <SelectValue>{statusItems.find((i) => i.value === status)?.label}</SelectValue>
           </SelectTrigger>
           <SelectContent>
