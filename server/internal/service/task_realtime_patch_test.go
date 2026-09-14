@@ -142,6 +142,17 @@ func TestRealtimePatchCarriesOnlyAWholeChange(t *testing.T) {
 			bumps:  2,
 		},
 		{
+			// A board drag across status columns sends both.
+			name:   "status beside position",
+			update: UpdateTaskInput{Status: str("in_progress"), Position: &pos},
+			bumps:  1,
+		},
+		{
+			name:   "title beside project_id",
+			update: UpdateTaskInput{Title: str("Đổi cả dự án"), ProjectID: nullable(nil)},
+			bumps:  2,
+		},
+		{
 			name:   "empty input",
 			update: UpdateTaskInput{},
 			bumps:  1,

@@ -203,42 +203,43 @@ func taskUpdatedPayload(task db.Task, in UpdateTaskInput, revisionBefore int64) 
 		return payload
 	}
 
-	// Every field UpdateTaskInput can write, by wire name.
-	inInput := map[string]bool{
-		"title":       in.Title != nil,
-		"description": in.Description != nil,
-		"status":      in.Status != nil,
-		"priority":    in.Priority != nil,
-		"position":    in.Position != nil,
-		"assignee_id": in.AssigneeID != nil,
-		"due_date":    in.DueDate != nil,
-		"project_id":  in.ProjectID != nil,
-	}
-	// How a field goes on the wire. A Patch field missing here is never sent:
-	// the frame falls back to ids, and clients refetch.
+	// How a field goes on the wire. A Patch field not encoded here is never
+	// sent: the frame falls back to ids, and clients refetch.
 	due := ""
 	if task.DueDate.Valid {
 		due = task.DueDate.Time.Format("2006-01-02")
 	}
-	wire := map[string]string{
-		"title":    task.Title,
-		"status":   task.Status,
-		"priority": task.Priority,
-		"due_date": due,
-	}
+	// Fail closed. Each field is cleared from rest where it is encoded, so
+	// anything left over, a field UpdateTaskInput has today or gains later,
+	// makes the frame ids-only. A hand-kept list of the other fields could miss
+	// one with every test green, and the frame would then carry the revision
+	// pair while that field stays stale in other caches. A slice or map field
+	// would stop the comparison compiling, which forces that choice.
+	rest := in
 	patch := make(map[string]string, len(def.Patch))
-	for field, present := range inInput {
-		if !present {
-			continue
-		}
-		value, encodable := wire[field]
-		if !encodable || !slices.Contains(def.Patch, field) {
+	if in.Title != nil {
+		patch["title"] = task.Title
+		rest.Title = nil
+	}
+	if in.Status != nil {
+		patch["status"] = task.Status
+		rest.Status = nil
+	}
+	if in.Priority != nil {
+		patch["priority"] = task.Priority
+		rest.Priority = nil
+	}
+	if in.DueDate != nil {
+		patch["due_date"] = due
+		rest.DueDate = nil
+	}
+	if rest != (UpdateTaskInput{}) || len(patch) == 0 {
+		return payload
+	}
+	for field := range patch {
+		if !slices.Contains(def.Patch, field) {
 			return payload
 		}
-		patch[field] = value
-	}
-	if len(patch) == 0 {
-		return payload
 	}
 	payload["revision_before"] = strconv.FormatInt(revisionBefore, 10)
 	payload["revision"] = strconv.FormatInt(task.Revision, 10)
