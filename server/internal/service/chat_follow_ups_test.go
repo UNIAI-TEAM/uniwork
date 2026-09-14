@@ -28,7 +28,7 @@ func TestCreateFollowUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if fu.MessageID != msg.ID || fu.UserID != ua.ID || fu.Note != "nhắc lại" || fu.DueAt == nil {
+	if fu.MessageID != msg.ID || fu.UserID != ua.ID || fu.Note != "nhắc lại" || fu.DueAt == nil || fu.MessageBody == "" {
 		t.Fatalf("unexpected follow-up: %+v", fu)
 	}
 

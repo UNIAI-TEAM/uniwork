@@ -75,6 +75,18 @@ func chatFollowUpRow(row db.ChatMessageFollowUp) ChatFollowUpRow {
 	return out
 }
 
+// withFollowUpAnchor fills the list-shaped preview fields Create/Patch returns
+// without a join — CreateFollowUp already loaded the room and message.
+func withFollowUpAnchor(out ChatFollowUpRow, room db.ChatRoom, msg db.ChatMessage) ChatFollowUpRow {
+	out.RoomKind = room.Kind
+	out.RoomName = room.Name
+	out.RoomVisibility = room.Visibility
+	out.MessageKind = msg.Kind
+	out.MessageSenderID = msg.SenderID
+	out.MessageBody = chatSidebarPreviewBody(msg.Body, msg.Kind)
+	return out
+}
+
 func chatFollowUpListRow(row db.ListChatMessageFollowUpsForUserRow) ChatFollowUpRow {
 	out := ChatFollowUpRow{
 		ID: row.ID, OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID,
@@ -181,9 +193,13 @@ func (s *ChatService) CreateFollowUp(
 			}
 		}
 		if !changed {
-			return chatFollowUpRow(existing), nil
+			return withFollowUpAnchor(chatFollowUpRow(existing), room, msg), nil
 		}
-		return s.patchFollowUpRow(ctx, userID, existing, nextNote, nextDue)
+		patched, patchErr := s.patchFollowUpRow(ctx, userID, existing, nextNote, nextDue)
+		if patchErr != nil {
+			return ChatFollowUpRow{}, patchErr
+		}
+		return withFollowUpAnchor(patched, room, msg), nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return ChatFollowUpRow{}, err
 	}
@@ -212,7 +228,7 @@ func (s *ChatService) CreateFollowUp(
 			if lookupErr != nil {
 				return ChatFollowUpRow{}, lookupErr
 			}
-			return chatFollowUpRow(existing), nil
+			return withFollowUpAnchor(chatFollowUpRow(existing), room, msg), nil
 		}
 		return ChatFollowUpRow{}, err
 	}
@@ -227,7 +243,7 @@ func (s *ChatService) CreateFollowUp(
 	if err := tx.Commit(ctx); err != nil {
 		return ChatFollowUpRow{}, err
 	}
-	return chatFollowUpRow(row), nil
+	return withFollowUpAnchor(chatFollowUpRow(row), room, msg), nil
 }
 
 // ListFollowUps lists the caller's follow-ups in a workspace.
