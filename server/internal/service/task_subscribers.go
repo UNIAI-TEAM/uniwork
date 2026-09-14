@@ -158,14 +158,6 @@ func (s *TaskService) UnsubscribeTaskSubtree(ctx context.Context, actor Actor, t
 	return tx.Commit(ctx)
 }
 
-// GetTaskTimeline is stubbed until activity projection is ported.
-func (s *TaskService) GetTaskTimeline(ctx context.Context, actor Actor, taskID string) error {
-	if _, err := s.authorizeActor(ctx, actor, taskID); err != nil {
-		return err
-	}
-	return collaborationUnavailable("timeline_not_ready", "timeline chưa khả dụng")
-}
-
 // CommentSubTaskPreview is stubbed (source-context / agent surface).
 func (s *TaskService) CommentSubTaskPreview(ctx context.Context, actor Actor, commentID string) error {
 	if _, err := s.loadComment(ctx, actor, commentID); err != nil {

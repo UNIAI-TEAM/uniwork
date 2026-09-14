@@ -1,0 +1,607 @@
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
+import { initI18n } from "@uniwork/core/i18n";
+import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
+import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
+import type { Task, User, Workspace } from "@uniwork/core/types";
+import { copyText } from "@uniwork/ui/lib/clipboard";
+import { requestMock, wrap } from "../test/api-mock";
+import { chooseInSubmenu, chooseItem, type Via } from "../test/menu-interactions";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { NavigationProvider, type NavigationAdapter } from "../navigation";
+import { BoardView } from "./modes/board-view";
+import { ListView } from "./modes/list-view";
+import {
+  TaskSurfaceActionsProvider,
+  type TaskSurfaceActions,
+} from "./surface/actions-context";
+
+initI18n();
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+vi.mock("@uniwork/ui/lib/clipboard", () => ({ copyText: vi.fn() }));
+// Counts mounted AlertDialog roots. A closed Base UI dialog renders no DOM,
+// so markup alone cannot show whether a row keeps idle dialogs mounted.
+const alertDialogs = vi.hoisted(() => ({ mounted: 0 }));
+vi.mock("@uniwork/ui/components/ui/alert-dialog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/ui/components/ui/alert-dialog")>();
+  const { useEffect } = await import("react");
+  function CountedAlertDialog(props: React.ComponentProps<typeof actual.AlertDialog>) {
+    useEffect(() => {
+      alertDialogs.mounted += 1;
+      return () => {
+        alertDialogs.mounted -= 1;
+      };
+    }, []);
+    return <actual.AlertDialog {...props} />;
+  }
+  return { ...actual, AlertDialog: CountedAlertDialog };
+});
+vi.mock("@uniwork/core/feature-flags", () => ({
+  usePublicConfig: () => ({ data: undefined }),
+}));
+
+const sample: Task = {
+  id: "t1",
+  organization_id: "o1",
+  workspace_id: "w1",
+  number: 1,
+  identifier: "SAT-1",
+  revision: 1,
+  title: "Suite row",
+  description: "",
+  status: "todo",
+  priority: "medium",
+  assignee_id: "u1",
+  assignee_kind: "human",
+  assignee: { kind: "human", id: "u1", display_name: "An Nguyễn" },
+  position: 1,
+  kind: "normal",
+  created_by: "u1",
+  created_by_kind: "human",
+  created_at: "2026-09-06T00:00:00Z",
+  updated_at: "2026-09-06T00:00:00Z",
+};
+
+const user: User = {
+  id: "u1",
+  email: "an@example.com",
+  display_name: "An Nguyễn",
+  onboarded_at: "2026-08-25T00:00:00Z",
+  email_verified_at: "2026-08-25T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
+
+const workspace: Workspace = {
+  id: "w1",
+  slug: "team",
+  name: "Team",
+  organization_id: "o1",
+  organization_slug: "acme",
+  organization_name: "Acme",
+};
+
+function makeActions() {
+  return {
+    isPending: false,
+    createTask: vi.fn<TaskSurfaceActions["createTask"]>(),
+    updateTask: vi.fn<TaskSurfaceActions["updateTask"]>(),
+    moveTask: vi.fn<TaskSurfaceActions["moveTask"]>(),
+    batchUpdate: vi.fn<TaskSurfaceActions["batchUpdate"]>(async () => {}),
+    batchDelete: vi.fn<TaskSurfaceActions["batchDelete"]>(async () => {}),
+  } satisfies TaskSurfaceActions;
+}
+
+function makeNav(): NavigationAdapter {
+  return {
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    pathname: "/",
+    searchParams: new URLSearchParams(),
+    getShareableUrl: (path) => `https://uniwork.test${path}`,
+  };
+}
+
+type Mode = "list" | "board";
+
+let renderIndex = 0;
+
+function renderSurface({
+  mode = "list",
+  actions = makeActions(),
+  withWorkspace = true,
+  nav = makeNav(),
+  withOpenTask = true,
+}: {
+  mode?: Mode;
+  actions?: ReturnType<typeof makeActions> | null;
+  withWorkspace?: boolean;
+  nav?: NavigationAdapter | null;
+  withOpenTask?: boolean;
+} = {}) {
+  const onOpenTask = vi.fn<(id: string) => void>();
+  const openHandler = withOpenTask ? onOpenTask : undefined;
+  renderIndex += 1;
+  const store = getTaskSurfaceViewStore(`row-actions-${renderIndex}`);
+  let ui =
+    mode === "list" ? (
+      <ListView categories={["todo"]} tasks={[sample]} onOpenTask={openHandler} />
+    ) : (
+      <BoardView categories={["todo"]} tasks={[sample]} onOpenTask={openHandler} />
+    );
+  ui = <ViewStoreProvider store={store}>{ui}</ViewStoreProvider>;
+  if (actions) {
+    ui = <TaskSurfaceActionsProvider actions={actions}>{ui}</TaskSurfaceActionsProvider>;
+  }
+  if (withWorkspace) {
+    ui = (
+      <WorkspaceProvider workspace={workspace} user={user}>
+        {ui}
+      </WorkspaceProvider>
+    );
+  }
+  if (nav) ui = <NavigationProvider value={nav}>{ui}</NavigationProvider>;
+  const result = render(wrap(ui));
+  return { ...result, actions, onOpenTask };
+}
+
+const rowText = (mode: Mode) => (mode === "list" ? "Suite row" : "Suite row");
+
+async function openContextMenu(mode: Mode = "list") {
+  fireEvent.contextMenu(screen.getByText(rowText(mode)));
+  return screen.findByRole("menu");
+}
+
+async function openKebab() {
+  fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
+  return screen.findByRole("menu");
+}
+
+function itemNames(menu: HTMLElement): string[] {
+  return within(menu)
+    .getAllByRole("menuitem")
+    .map((item) => item.textContent?.trim() ?? "");
+}
+
+beforeEach(() => {
+  vi.mocked(copyText).mockReset();
+  vi.mocked(toast.success).mockReset();
+  vi.mocked(toast.error).mockReset();
+  requestMock.mockReset();
+  requestMock.mockImplementation(async (path: string) => {
+    if (typeof path === "string" && path.includes("/members")) {
+      return {
+        members: [
+          { workspace_id: "w1", user_id: "u1", role: "member", email: "an@example.com", display_name: "An Nguyễn" },
+          { workspace_id: "w1", user_id: "u2", role: "member", email: "binh@example.com", display_name: "Bình Trần" },
+        ],
+      };
+    }
+    return {};
+  });
+});
+
+describe("RowActionsMenu: một danh sách, hai cách mở", () => {
+  it("menu chuột phải và nút ba chấm hiện cùng hành động, đúng thứ tự", async () => {
+    renderSurface();
+    const expected = ["Mở", "Sao chép liên kết", "Đổi trạng thái", "Đổi người phụ trách", "Xóa"];
+
+    const contextMenu = await openContextMenu();
+    expect(itemNames(contextMenu)).toEqual(expected);
+    fireEvent.keyDown(contextMenu, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+
+    const dropdown = await openKebab();
+    expect(itemNames(dropdown)).toEqual(expected);
+  });
+
+  it("nút ba chấm là nút focus được, không bị disabled", () => {
+    renderSurface();
+    const kebab = screen.getByRole("button", { name: "Thêm thao tác" });
+    expect(kebab).not.toBeDisabled();
+    kebab.focus();
+    expect(document.activeElement).toBe(kebab);
+    expect(kebab.className).toContain("pointer-coarse:opacity-100");
+  });
+
+  it("ẩn Sao chép liên kết khi không có workspace", async () => {
+    renderSurface({ withWorkspace: false });
+    const menu = await openContextMenu();
+    expect(itemNames(menu)).toEqual(["Mở", "Đổi trạng thái", "Đổi người phụ trách", "Xóa"]);
+  });
+
+  it("ẩn đổi trạng thái, người phụ trách và xóa khi không có surface actions", async () => {
+    renderSurface({ actions: null });
+    const menu = await openContextMenu();
+    expect(itemNames(menu)).toEqual(["Mở", "Sao chép liên kết"]);
+  });
+
+  it("không có hành động nào thì không có nút ba chấm và chuột phải không mở menu", async () => {
+    renderSurface({ actions: null, withWorkspace: false, withOpenTask: false });
+    expect(screen.queryByRole("button", { name: "Thêm thao tác" })).toBeNull();
+    fireEvent.contextMenu(screen.getByText("Suite row"));
+    await act(async () => {});
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("RowActionsMenu: từng hành động", () => {
+  it.each<Via>(["mouse", "keyboard"])("Mở gọi onOpenTask đúng một lần (%s)", async (via) => {
+    const { onOpenTask } = renderSurface();
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Mở", via);
+    expect(onOpenTask).toHaveBeenCalledTimes(1);
+    expect(onOpenTask).toHaveBeenCalledWith("t1");
+  });
+
+  it("sao chép URL đầy đủ và báo thành công khi copyText trả true", async () => {
+    vi.mocked(copyText).mockResolvedValue(true);
+    renderSurface();
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Sao chép liên kết", "mouse");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã sao chép liên kết"));
+    expect(copyText).toHaveBeenCalledWith("https://uniwork.test/acme/team/tasks/t1");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("báo lỗi khi copyText trả false", async () => {
+    vi.mocked(copyText).mockResolvedValue(false);
+    renderSurface();
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Sao chép liên kết", "mouse");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không sao chép được liên kết"));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("không có navigation thì sao chép đường dẫn tương đối", async () => {
+    vi.mocked(copyText).mockResolvedValue(true);
+    renderSurface({ nav: null });
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Sao chép liên kết", "mouse");
+    await waitFor(() => expect(copyText).toHaveBeenCalledWith("/acme/team/tasks/t1"));
+  });
+
+  it("đánh dấu trạng thái hiện tại và đổi trạng thái qua updateTask", async () => {
+    const { actions } = renderSurface();
+    const menu = await openContextMenu();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi trạng thái" }));
+    const current = await screen.findByRole("menuitemradio", { name: "Cần làm" });
+    expect(current).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("menuitemradio", { name: "Đang làm" })).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Đang làm" }));
+    expect(actions!.updateTask).toHaveBeenCalledWith(
+      "t1",
+      { status: "in_progress" },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("menu con người phụ trách có Chưa giao ở đầu và gửi id cùng kind", async () => {
+    const { actions } = renderSurface();
+    const menu = await openContextMenu();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+    await screen.findByRole("menuitemradio", { name: "Bình Trần" });
+    const names = screen.getAllByRole("menuitemradio").map((el) => el.textContent?.trim());
+    expect(names).toEqual(["Chưa giao", "An Nguyễn", "Bình Trần"]);
+    expect(screen.getByRole("menuitemradio", { name: "An Nguyễn" })).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Bình Trần" }));
+    expect(actions!.updateTask).toHaveBeenCalledWith(
+      "t1",
+      { assignee_id: "u2", assignee_kind: "human" },
+      expect.anything(),
+    );
+  });
+
+  it("chọn Chưa giao gửi assignee_id null kèm kind", async () => {
+    const { actions } = renderSurface();
+    const menu = await openContextMenu();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Chưa giao" }));
+    expect(actions!.updateTask).toHaveBeenCalledWith(
+      "t1",
+      { assignee_id: null, assignee_kind: "human" },
+      expect.anything(),
+    );
+  });
+});
+
+describe("RowActionsMenu: menu con người phụ trách không nói sai", () => {
+  function membersRespond(respond: () => Promise<unknown>) {
+    requestMock.mockImplementation(async (path: string) => {
+      if (typeof path === "string" && path.includes("/members")) return respond();
+      return {};
+    });
+  }
+
+  async function openAssigneeSubmenu() {
+    const menu = await openContextMenu();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+  }
+
+  it("đang tải thành viên thì hiện một mục bị vô hiệu, không giả như workspace trống", async () => {
+    membersRespond(() => new Promise(() => {}));
+    renderSurface();
+    await openAssigneeSubmenu();
+    const loading = await screen.findByRole("menuitem", { name: "Đang tải thành viên…" });
+    expect(loading).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Không tải được thành viên")).toBeNull();
+  });
+
+  it("tải thành viên lỗi thì hiện một mục lỗi bị vô hiệu", async () => {
+    membersRespond(() => Promise.reject(new Error("boom")));
+    renderSurface();
+    await openAssigneeSubmenu();
+    const failed = await screen.findByRole("menuitem", { name: "Không tải được thành viên" });
+    expect(failed).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Đang tải thành viên…")).toBeNull();
+  });
+
+  it("task giao cho agent hiện tên agent, được đánh dấu và bị vô hiệu", async () => {
+    sample.assignee_id = "a1";
+    sample.assignee_kind = "agent";
+    sample.assignee = { kind: "agent", id: "a1", display_name: "Trợ lý UNI" };
+    try {
+      renderSurface();
+      await openAssigneeSubmenu();
+      await screen.findByRole("menuitemradio", { name: "Bình Trần" });
+      const agent = screen.getByRole("menuitemradio", { name: "Trợ lý UNI" });
+      expect(agent).toHaveAttribute("aria-checked", "true");
+      expect(agent).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("menuitemradio", { name: "Chưa giao" })).toHaveAttribute("aria-checked", "false");
+    } finally {
+      sample.assignee_id = "u1";
+      sample.assignee_kind = "human";
+      sample.assignee = { kind: "human", id: "u1", display_name: "An Nguyễn" };
+    }
+  });
+
+  it("agent không có assignee thì hiện nhãn Agent đã dịch, không phải id thô", async () => {
+    sample.assignee_id = "a1";
+    sample.assignee_kind = "agent";
+    sample.assignee = undefined;
+    try {
+      renderSurface();
+      await openAssigneeSubmenu();
+      await screen.findByRole("menuitemradio", { name: "Bình Trần" });
+      const agent = screen.getByRole("menuitemradio", { name: "Agent" });
+      expect(agent).toHaveAttribute("aria-checked", "true");
+      expect(screen.queryByText("a1")).toBeNull();
+    } finally {
+      sample.assignee_id = "u1";
+      sample.assignee_kind = "human";
+      sample.assignee = { kind: "human", id: "u1", display_name: "An Nguyễn" };
+    }
+  });
+});
+
+describe("RowActionsMenu: xóa phải xác nhận", () => {
+  it("bấm Xóa chỉ mở hộp thoại; Hủy không xóa", async () => {
+    const { actions } = renderSurface();
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    expect(actions!.batchDelete).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(actions!.batchDelete).not.toHaveBeenCalled();
+  });
+
+  it("chỉ nút xác nhận mới gọi batchDelete với đúng một id", async () => {
+    const { actions } = renderSurface();
+    const menu = await openKebab();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    await waitFor(() => expect(actions!.batchDelete).toHaveBeenCalledTimes(1));
+    expect(actions!.batchDelete).toHaveBeenCalledWith(["t1"]);
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã xóa task"));
+  });
+
+  it("bấm xác nhận hai lần khi đang xóa chỉ gọi batchDelete một lần", async () => {
+    const actions = makeActions();
+    let resolveDelete!: () => void;
+    actions.batchDelete.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveDelete = resolve; }),
+    );
+    renderSurface({ actions });
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Xóa task" });
+
+    // Both clicks inside one act: React has not re-rendered in between, so
+    // aria-disabled is not on the button yet. Only an in-flight ref stops the second.
+    act(() => {
+      confirm.click();
+      confirm.click();
+    });
+    // After the re-render, a further click must still do nothing.
+    fireEvent.click(confirm);
+
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+    // aria-disabled, not disabled: the button stays in the tab order.
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
+    expect(confirm).not.toBeDisabled();
+
+    await act(async () => resolveDelete());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("Hủy vẫn đóng hộp thoại khi đang xóa", async () => {
+    const actions = makeActions();
+    actions.batchDelete.mockImplementation(() => new Promise<void>(() => {}));
+    renderSurface({ actions });
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("xóa qua menu chuột phải, Escape, rồi xóa lại qua nút ba chấm khi request đầu còn treo chỉ gọi batchDelete một lần", async () => {
+    const actions = makeActions();
+    let resolveDelete!: () => void;
+    actions.batchDelete.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveDelete = resolve; }),
+    );
+    renderSurface({ actions });
+
+    const contextMenu = await openContextMenu();
+    await chooseItem(contextMenu, "Xóa", "mouse");
+    const first = await screen.findByRole("alertdialog");
+    fireEvent.click(within(first).getByRole("button", { name: "Xóa task" }));
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+
+    // Escape stays live while deleting, so the user can leave the dialog.
+    fireEvent.keyDown(first, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+
+    const dropdown = await openKebab();
+    await chooseItem(dropdown, "Xóa", "mouse");
+    const second = await screen.findByRole("alertdialog");
+    fireEvent.click(within(second).getByRole("button", { name: "Xóa task" }));
+
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+    await act(async () => resolveDelete());
+    expect(actions.batchDelete).toHaveBeenCalledTimes(1);
+    // Once the request settles and the dialog has closed, the row drops it.
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    await waitFor(() => expect(alertDialogs.mounted).toBe(0));
+  });
+
+  it("hàng chưa mở hộp thoại xóa không render markup AlertDialog", () => {
+    renderSurface();
+    expect(document.querySelector("[role='alertdialog']")).toBeNull();
+    expect(document.querySelector("[data-slot^='alert-dialog']")).toBeNull();
+  });
+
+  it.each<Mode>(["list", "board"])(
+    "%s: hàng không mount AlertDialog khi rảnh, và đúng một khi mở xóa",
+    async (mode) => {
+      renderSurface({ mode });
+      expect(alertDialogs.mounted).toBe(0);
+      const menu = await openKebab();
+      await chooseItem(menu, "Xóa", "mouse");
+      await screen.findByRole("alertdialog");
+      expect(alertDialogs.mounted).toBe(1);
+    },
+  );
+
+  it("báo lỗi khi xóa thất bại", async () => {
+    const actions = makeActions();
+    actions.batchDelete.mockRejectedValue(new Error("boom"));
+    renderSurface({ actions });
+    const menu = await openContextMenu();
+    await chooseItem(menu, "Xóa", "mouse");
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+});
+
+describe.each<Mode>(["list", "board"])("nổi bọt trên %s: hành động không mở task", (mode) => {
+  it("đối chứng: bấm vào hàng vẫn mở task", () => {
+    const { onOpenTask } = renderSurface({ mode });
+    fireEvent.click(screen.getByText("Suite row"));
+    expect(onOpenTask).toHaveBeenCalledWith("t1");
+  });
+
+  describe.each<[string, "context" | "kebab"]>([
+    ["menu chuột phải", "context"],
+    ["nút ba chấm", "kebab"],
+  ])("%s", (_label, opener) => {
+    const open = () => (opener === "context" ? openContextMenu(mode) : openKebab());
+
+    it("bấm nút ba chấm không mở task", async () => {
+      if (opener !== "kebab") return;
+      const { onOpenTask } = renderSurface({ mode });
+      await openKebab();
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+
+    it.each<Via>(["mouse", "keyboard"])("Sao chép liên kết (%s)", async (via) => {
+      vi.mocked(copyText).mockResolvedValue(true);
+      const { onOpenTask } = renderSurface({ mode });
+      const menu = await open();
+      await chooseItem(menu, "Sao chép liên kết", via);
+      await waitFor(() => expect(copyText).toHaveBeenCalled());
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+
+    it.each<Via>(["mouse", "keyboard"])("đổi trạng thái (%s)", async (via) => {
+      const { onOpenTask, actions } = renderSurface({ mode });
+      const menu = await open();
+      await chooseInSubmenu(menu, "Đổi trạng thái", "Đang làm", via);
+      expect(actions!.updateTask).toHaveBeenCalled();
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+
+    it.each<Via>(["mouse", "keyboard"])("đổi người phụ trách (%s)", async (via) => {
+      const { onOpenTask, actions } = renderSurface({ mode });
+      const menu = await open();
+      await chooseInSubmenu(menu, "Đổi người phụ trách", "Bình Trần", via);
+      expect(actions!.updateTask).toHaveBeenCalled();
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+
+    it.each<Via>(["mouse", "keyboard"])("Xóa rồi xác nhận (%s)", async (via) => {
+      const { onOpenTask, actions } = renderSurface({ mode });
+      const menu = await open();
+      await chooseItem(menu, "Xóa", via);
+      const dialog = await screen.findByRole("alertdialog");
+      expect(onOpenTask).not.toHaveBeenCalled();
+      // Clicking inside the dialog body (not a button) must not reach the row either.
+      fireEvent.click(within(dialog).getByText("Xóa task này?"));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+      await waitFor(() => expect(actions!.batchDelete).toHaveBeenCalledWith(["t1"]));
+      expect(onOpenTask).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("board: menu không khởi động kéo thẻ hay kéo-cuộn bảng", () => {
+  it("nhấn giữ và kéo trên một mục menu con không đưa thẻ vào trạng thái kéo", async () => {
+    renderSurface({ mode: "board" });
+    const menu = await openContextMenu("board");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi trạng thái" }));
+    const radio = await screen.findByRole("menuitemradio", { name: "Đang làm" });
+
+    // useBoardDragPan sets user-select: none inline on its scroll container
+    // when a pan starts. Record which elements already carry it (Base UI and
+    // dnd-kit may set it themselves) so only a change caused by this press counts.
+    const selectionSuppressed = () =>
+      Array.from(document.querySelectorAll<HTMLElement>("*"))
+        .filter((el) => el.style.userSelect === "none")
+        .map((el) => `${el.tagName.toLowerCase()}.${el.className}`);
+    const before = selectionSuppressed();
+    const grabbing = () =>
+      Array.from(document.querySelectorAll<HTMLElement>("*")).filter(
+        (el) => el.style.cursor === "grabbing",
+      );
+
+    // Base UI nests portals, so this one pointerdown reaches the board's React
+    // handler twice. Check right after it: a move without `buttons` makes the
+    // pan hook reset and would hide a pan that did start.
+    fireEvent.pointerDown(radio, { button: 0, buttons: 1, clientX: 0, clientY: 0 });
+    expect(selectionSuppressed()).toEqual(before);
+
+    fireEvent.pointerMove(document, { buttons: 1, clientX: 40, clientY: 0 });
+    fireEvent.pointerMove(radio, { buttons: 1, clientX: 40, clientY: 0 });
+
+    const card = document.querySelector("[data-board-card]") as HTMLElement;
+    expect(card.className).not.toContain("opacity-30");
+    expect(document.querySelector("[aria-pressed='true']")).toBeNull();
+    expect(selectionSuppressed()).toEqual(before);
+    expect(grabbing()).toEqual([]);
+    fireEvent.pointerUp(document, { clientX: 40, clientY: 0 });
+  });
+});

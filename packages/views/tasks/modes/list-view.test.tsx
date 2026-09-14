@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import type { ChildProgress, Task } from "@uniwork/core/types";
 import { wrap } from "../../test/api-mock";
+import type { TaskSurfacePagination } from "../surface/use-task-surface-data";
 import { ListView } from "./list-view";
 
 initI18n();
@@ -129,5 +130,82 @@ describe("modes/ListView", () => {
     renderList();
     expect(screen.queryByTestId("list-agent-trigger")).toBeNull();
     expect(screen.queryByTestId("list-squad-assign")).toBeNull();
+  });
+});
+
+// Behaviour against a real paging transport lives in
+// surface/task-surface.test.tsx; these cases pin the view's wiring.
+describe("modes/ListView pagination", () => {
+  const pages = (
+    over: Partial<TaskSurfacePagination> = {},
+  ): TaskSurfacePagination => ({
+    loaded: 1,
+    total: 120,
+    hasMore: true,
+    isLoadingMore: false,
+    isLoadMoreError: false,
+    loadMore: vi.fn(),
+    ...over,
+  });
+
+  function renderPagedList(pagination: TaskSurfacePagination) {
+    renderIndex += 1;
+    const store = getTaskSurfaceViewStore(`list-paged-${renderIndex}`);
+    return render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <ListView
+            categories={["backlog", "todo", "done"]}
+            tasks={[sample]}
+            pagination={pagination}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+  }
+
+  beforeEach(() => {
+    // The load-more row is the tested path; keep the sentinel out of it.
+    vi.stubGlobal("IntersectionObserver", undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("ends an under-threshold list with a load-more row that asks for the next page", () => {
+    const loadMore = vi.fn();
+    renderPagedList(pages({ loadMore }));
+
+    const button = screen.getByRole("button", { name: "Tải thêm" });
+    // At the end of the whole list, after the last group, not inside one.
+    expect(screen.getByTestId("list-group-done").contains(button)).toBe(false);
+    expect(
+      screen.getByTestId("list-group-done").compareDocumentPosition(button) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(button);
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts the loaded / total notice above the list and never names a group count as a total", () => {
+    renderPagedList(pages());
+
+    const notice = screen.getByText("1 / 120 công việc đã tải");
+    expect(
+      notice.compareDocumentPosition(screen.getByTestId("list-group-backlog")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Cần làm, đã tải 1" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows neither notice nor load-more row once every task is loaded", () => {
+    renderPagedList(pages({ total: 1, hasMore: false }));
+
+    expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
+    expect(screen.queryByText(/công việc đã tải/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Cần làm, 1" })).toBeInTheDocument();
   });
 });

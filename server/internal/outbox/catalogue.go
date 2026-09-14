@@ -51,9 +51,17 @@ const (
 
 // EventDef is one row of the catalogue.
 type EventDef struct {
-	Topic    string
-	Version  int
-	Payload  []string
+	Topic   string
+	Version int
+	// Payload lists the keys a frame of this topic may carry: ids, never
+	// content (an infrastructure row may name a provider's own handle, such as
+	// room_name), plus the revision_before/revision pair on a row with Patch.
+	Payload []string
+	// Patch names the only content fields an event may carry: a client writes
+	// them into a record it already holds, and only while that record's
+	// revision equals the frame's revision_before (ADR 0015). Empty on every
+	// row but task.updated; scripts/events-catalogue.test.mjs holds both.
+	Patch    []string
 	Scope    Scope
 	Delivery Delivery
 }
@@ -61,7 +69,11 @@ type EventDef struct {
 var catalogue = []EventDef{
 	// Tasks
 	{Topic: "task.created", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// task.updated is the one row that may carry content (ADR 0015): the Patch
+	// fields ride along only when every field present in the update's input is
+	// one of them, and the revision pair that guards them only beside them; a frame without a patch field
+	// carries ids only. Every other task.updated emitter sends ids only.
+	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id", "revision_before", "revision"}, Patch: []string{"title", "status", "priority", "due_date"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_updated", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

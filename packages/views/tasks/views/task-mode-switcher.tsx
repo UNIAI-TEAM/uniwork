@@ -70,7 +70,7 @@ export function TaskModeSwitcher({ modes }: { modes: TaskSurfaceMode[] }) {
               render={
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="toolbar"
                   size="sm"
                   className="gap-1.5"
                   aria-haspopup="menu"

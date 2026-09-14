@@ -125,6 +125,7 @@ export function AdminTraceView() {
         }}
       >
         <Input
+          variant="subtle"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t("placeholder")}
@@ -132,7 +133,7 @@ export function AdminTraceView() {
           className="h-8 max-w-md font-mono"
           spellCheck={false}
         />
-        <Button type="submit" size="sm" variant="outline">
+        <Button type="submit" size="sm" variant="toolbar">
           <Search aria-hidden="true" className="size-3.5" />
           {t("lookup")}
         </Button>

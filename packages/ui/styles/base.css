@@ -188,3 +188,20 @@ html[data-sidebar-resizing="true"] * {
     transition: none;
   }
 }
+
+/* In-page find on the task detail page (packages/views/tasks/detail/find).
+   Matches are painted with the CSS Custom Highlight API: ranges only, no DOM
+   mutation, so the tint sits cleanly over rendered markdown and the
+   contenteditable editors. No new tokens: every match takes the selection
+   pair and the current one the brand pair, both already contrast-checked in
+   light, dark and every accent. `task-find-active` is registered with a
+   higher priority, so it paints on top. */
+::highlight(task-find) {
+  background-color: var(--selection);
+  color: var(--selection-foreground);
+}
+
+::highlight(task-find-active) {
+  background-color: var(--brand);
+  color: var(--brand-foreground);
+}

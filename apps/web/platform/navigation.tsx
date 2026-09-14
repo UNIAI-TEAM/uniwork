@@ -19,6 +19,7 @@ function NavigationProviderInner({ children }: { children: React.ReactNode }) {
       push: (path) => router.push(path),
       replace: (path) => router.replace(path),
       back: () => router.back(),
+      forward: () => router.forward(),
       pathname,
       searchParams: new URLSearchParams(searchParams.toString()),
       getShareableUrl: (path) => (typeof window === "undefined" ? path : window.location.origin + path),

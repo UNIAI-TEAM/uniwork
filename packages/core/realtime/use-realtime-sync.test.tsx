@@ -5,6 +5,7 @@ import * as chatApi from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import type { Task } from "../types/task";
 import { useRealtimeSync } from "./use-realtime-sync";
 
 /**
@@ -41,6 +42,39 @@ function setup() {
 
 const keysCalled = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
+
+/** A task detail record as `GET /api/v1/tasks/{id}` caches it under `["task", id]`. */
+const detail = (over: Partial<Task> = {}): Task => ({
+  id: "t1",
+  organization_id: "o1",
+  workspace_id: "ws1",
+  number: 1,
+  identifier: "ALP-1",
+  revision: 5,
+  title: "Tiêu đề cũ",
+  description: "Mô tả của người khác",
+  status: "todo",
+  priority: "medium",
+  assignee_kind: "human",
+  due_date: "2026-09-01",
+  position: 0,
+  kind: "normal",
+  created_by: "u1",
+  created_by_kind: "human",
+  created_at: "2026-09-01T00:00:00Z",
+  updated_at: "2026-09-01T00:00:00Z",
+  ...over,
+});
+
+/** A task.updated frame as the server emits it for a title change (every value a string). */
+const patchFrame = (over: Record<string, string> = {}): Record<string, string> => ({
+  task_id: "t1",
+  workspace_id: "ws1",
+  revision_before: "5",
+  revision: "7",
+  title: "Tiêu đề mới",
+  ...over,
+});
 
 describe("useRealtimeSync", () => {
   afterEach(() => {
@@ -125,12 +159,14 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["task-view-prefs", "ws1"]));
   });
 
-  it("invalidates subscribers on task.subscribed without writing the frame", () => {
+  it("invalidates subscribers on task.subscribed without writing the frame, even a patch-shaped one", () => {
     vi.useFakeTimers();
     const { qc, invalidate, client } = setup();
+    const cached = detail();
+    qc.setQueryData(["task", "t1"], cached);
     client.emit({
       type: "task.subscribed",
-      payload: { task_id: "t1", user_id: "smuggled-user" },
+      payload: { ...patchFrame(), user_id: "smuggled-user" },
     });
     act(() => {
       vi.advanceTimersByTime(250);
@@ -141,7 +177,7 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["task-subscribers", "t1"]),
       ]),
     );
-    expect(qc.getQueryData(["task", "t1"])).toBeUndefined();
+    expect(qc.getQueryData(["task", "t1"])).toBe(cached);
     expect(qc.getQueryData(["task-subscribers", "t1"])).toBeUndefined();
   });
 
@@ -234,14 +270,168 @@ describe("useRealtimeSync", () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it("never writes the payload anywhere — the cache is refreshed from the API", () => {
+  it("writes nothing from a task.updated frame without the revision pair, even one carrying a Patch field", () => {
     vi.useFakeTimers();
-    const { qc, client } = setup();
-    client.emit({ type: "task.updated", payload: { task_id: "t1", title: "smuggled" } });
+    const { qc, invalidate, client } = setup();
+    const cached = detail();
+    qc.setQueryData(["task", "t1"], cached);
+    client.emit({ type: "task.updated", payload: { task_id: "t1", workspace_id: "ws1", title: "smuggled" } });
     act(() => {
       vi.advanceTimersByTime(250);
     });
-    expect(qc.getQueryData(["task", "t1"])).toBeUndefined();
+    expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["task", "t1"]));
+  });
+
+  // ADR 0015: the task.updated row lists title, status, priority and due_date in
+  // Patch. A frame carrying them beside revision_before/revision patches a detail
+  // entry that already sits at revision_before; everything else still refetches.
+  describe("task.updated patch", () => {
+    const listRoots = [
+      JSON.stringify(["tasks", "ws1"]),
+      JSON.stringify(["my-tasks", "ws1"]),
+      JSON.stringify(["tasks-query", "ws1"]),
+      JSON.stringify(["tasks-table", "ws1"]),
+      JSON.stringify(["task-children", "t1"]),
+      JSON.stringify(["audit", "history", "ws1", "task", "t1"]),
+    ];
+
+    it("patches the detail entry and list rows at once, leaves the detail key out of the wave; lists still invalidate", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      qc.setQueryData(["task", "t1"], detail());
+      qc.setQueryData(["tasks-query", "ws1", "infinite", "h"], {
+        pages: [{ tasks: [detail()], total: 1, limit: 50, offset: 0 }],
+        pageParams: [0],
+      });
+      client.emit({ type: "task.updated", payload: patchFrame({ status: "in_progress" }) });
+      // Before the debounced wave: the patch is not waiting for a refetch.
+      const expected = detail({ title: "Tiêu đề mới", status: "in_progress", revision: 7 });
+      expect(qc.getQueryData(["task", "t1"])).toEqual(expected);
+      expect(
+        qc.getQueryData<{ pages: { tasks: Task[] }[] }>(["tasks-query", "ws1", "infinite", "h"])?.pages[0]?.tasks,
+      ).toEqual([expected]);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["task", "t1"]));
+      expect(keysCalled(invalidate)).toEqual(expect.arrayContaining(listRoots));
+    });
+
+    it("does not patch, keeps the cached revision and invalidates when the frame carries a content key outside Patch", () => {
+      // What a bundle built before a later ADR added start_date to Patch would
+      // see. Patching the title and taking the revision would leave start_date
+      // stale behind a current revision, so the frame falls back to a refetch.
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail();
+      const rows = [detail()];
+      qc.setQueryData(["task", "t1"], cached);
+      qc.setQueryData(["tasks", "ws1"], rows);
+      client.emit({ type: "task.updated", payload: patchFrame({ start_date: "2026-10-01" }) });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(qc.getQueryData<{ revision: number }>(["task", "t1"])?.revision).toBe(5);
+      expect(qc.getQueryData(["tasks", "ws1"])).toBe(rows);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it("patches list rows but still invalidates the detail key when the detail entry is behind", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const behind = detail({ revision: 4 });
+      qc.setQueryData(["task", "t1"], behind);
+      qc.setQueryData(["tasks", "ws1"], [detail()]);
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      expect(qc.getQueryData(["tasks", "ws1"])).toEqual([detail({ title: "Tiêu đề mới", revision: 7 })]);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(behind);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it("invalidates the detail entry as before when its revision is not revision_before", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail({ revision: 6 });
+      qc.setQueryData(["task", "t1"], cached);
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it("never creates a detail entry from a frame", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryCache().find({ queryKey: ["task", "t1"] })).toBeUndefined();
+      expect(keysCalled(invalidate)).toContain(JSON.stringify(["task", "t1"]));
+    });
+
+    it("keeps the cached revision and invalidates when the revisions match but no Patch field is present", () => {
+      // What an outbox row written before f00f289 looks like (mixed input).
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail();
+      qc.setQueryData(["task", "t1"], cached);
+      const { title: _title, ...noPatchField } = patchFrame();
+      client.emit({ type: "task.updated", payload: noPatchField });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(qc.getQueryData<{ revision: number }>(["task", "t1"])?.revision).toBe(5);
+      expect(keysCalled(invalidate)).toContain(JSON.stringify(["task", "t1"]));
+    });
+
+    it("invalidates, not patches, a detail entry whose settle refetch already landed at the frame's revision", () => {
+      // usePutTask and useUpdateTask never write the server's response into the
+      // cache; they invalidate on settle. When that refetch lands before the
+      // outbox frame, the entry already sits at (or past) the frame's revision,
+      // so the guard skips it.
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const fromRefetch = detail({ title: "Tiêu đề mới", revision: 7 });
+      qc.setQueryData(["task", "t1"], fromRefetch);
+      client.emit({ type: "task.updated", payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(fromRefetch);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
+
+    it.each(["task.created", "task.deleted"])("only invalidates on %s, even with a patch-shaped payload", (type) => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const cached = detail();
+      qc.setQueryData(["task", "t1"], cached);
+      client.emit({ type, payload: patchFrame() });
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(qc.getQueryData(["task", "t1"])).toBe(cached);
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["task", "t1"]), ...listRoots]),
+      );
+    });
   });
 
   it("patches room messages on chat.message.created without list invalidation", async () => {

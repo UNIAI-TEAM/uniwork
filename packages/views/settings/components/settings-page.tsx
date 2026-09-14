@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
+import { Bell, Building2, CreditCard, Keyboard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
 import { Suspense, lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
@@ -20,6 +20,7 @@ const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })))
 const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
 const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
 const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
+const KeyboardShortcutsTab = lazy(() => import("./keyboard-shortcuts-tab").then((m) => ({ default: m.KeyboardShortcutsTab })));
 const IntegrationsTab = lazy(() => import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })));
 const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
 const NotificationsTab = lazy(() => import("./notifications-tab").then((m) => ({ default: m.NotificationsTab })));
@@ -27,12 +28,13 @@ const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ d
 const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
 const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
 
-const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
+const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications", "shortcuts"] as const;
 const ACCOUNT_TAB_ICONS = {
   profile: User,
   security: ShieldCheck,
   preferences: SlidersHorizontal,
   notifications: Bell,
+  shortcuts: Keyboard,
 } as const;
 
 const WORKSPACE_TAB_KEYS = ["general", "members", "integrations", "billing", "ai", "audit"] as const;
@@ -175,6 +177,11 @@ export function SettingsPage() {
           <TabsContent value="notifications">
             <Suspense fallback={<div className="h-72" aria-hidden />}>
               <NotificationsTab />
+            </Suspense>
+          </TabsContent>
+          <TabsContent value="shortcuts">
+            <Suspense fallback={<div className="h-72" aria-hidden />}>
+              <KeyboardShortcutsTab />
             </Suspense>
           </TabsContent>
           <TabsContent value="organization">

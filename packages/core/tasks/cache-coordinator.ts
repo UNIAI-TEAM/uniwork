@@ -1,8 +1,16 @@
 import { taskKeys } from "./keys";
+import { parseTaskPatchFrame, type TaskPatchFrame } from "./realtime-task-patch";
 
 export type CacheUpdatePlan = {
-  type: "patch" | "invalidate";
+  type: "invalidate";
   keys: readonly (readonly unknown[])[];
+  /**
+   * Set only for a `task.updated` frame that carries Patch fields beside a
+   * valid revision pair (ADR 0015). The caller applies it with
+   * `applyTaskPatchFrame` before invalidating, and drops `taskKeys.detail`
+   * from `keys` only when that call patched the detail entry; list roots stay.
+   */
+  patch?: TaskPatchFrame;
 };
 
 export type CacheUpdateEvent = {
@@ -13,9 +21,10 @@ export type CacheUpdateEvent = {
 /**
  * Map a Work Management realtime event to cache actions.
  *
- * Frames carry ids only, so the safe default is invalidate + refetch from the
- * API. `patch` is reserved for projections that are locally certain without
- * reading the payload body (Task 12 may use it later).
+ * `keys` is always the full invalidation set, so a frame the client cannot
+ * patch refetches exactly as before ADR 0015. The only payload fields read are
+ * ids, plus the Patch fields and revisions of `task.updated` (`patch`). `type`
+ * stays `invalidate`: `patch` is applied beside the keys, never instead of them.
  */
 export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpdatePlan {
   const payload = event.payload ?? {};
@@ -23,6 +32,7 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
   const push = (...items: (readonly unknown[])[]) => {
     for (const k of items) keys.push(k);
   };
+  let patch: TaskPatchFrame | null = null;
 
   switch (event.type) {
     case "task.created":
@@ -32,6 +42,8 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
       if (payload.task_id) {
         push(taskKeys.detail(payload.task_id), taskKeys.children(payload.task_id));
       }
+      // Only task.updated declares Patch in the catalogue.
+      if (event.type === "task.updated") patch = parseTaskPatchFrame(payload);
       break;
     }
     case "task.comment_added":
@@ -119,5 +131,5 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
       break;
   }
 
-  return { type: "invalidate", keys };
+  return patch ? { type: "invalidate", keys, patch } : { type: "invalidate", keys };
 }

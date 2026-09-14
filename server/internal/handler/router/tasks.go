@@ -450,10 +450,6 @@ func registerTasksSuite(r api, h Routes) {
 			summary: "Delete attachment", description: "Xóa đính kèm.",
 			tags: []string{"tasks"}, auth: true, status: 204,
 		})
-		suite.Get("/tasks/{taskID}/timeline", h.GetTaskTimeline, apiOp{
-			summary: "Task timeline", description: "Timeline hoạt động (stub).",
-			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
-		})
 		suite.Post("/tasks/{taskID}/comments/trigger-preview", h.PreviewCommentTriggers, apiOp{
 			summary: "Comment trigger preview", description: "Preview agent mention (stub).",
 			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,

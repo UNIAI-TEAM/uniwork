@@ -161,12 +161,6 @@ func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
 		t.Fatalf("after delete: %v", err)
 	}
 
-	capErr := s.GetTaskTimeline(ctx, Human(ua.ID), task.ID)
-	var coded CodedError
-	if !errors.As(capErr, &coded) || coded.Code != "capability_unavailable" {
-		t.Fatalf("timeline stub: %v", capErr)
-	}
-
 	listedAtts, err := s.ListTaskAttachments(ctx, Human(ua.ID), task.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -213,5 +207,57 @@ func TestAddCommentSuiteIdempotentReplay(t *testing.T) {
 	list, err := s.Comments(ctx, ua.ID, task.ID)
 	if err != nil || len(list) != 1 {
 		t.Fatalf("list = %+v err=%v", list, err)
+	}
+}
+
+func TestCommentReactionsForTaskReturnsEveryReactionOnTheTask(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Reaction root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := s.AddCommentSuite(ctx, Human(ua.ID), task.ID, AddCommentInput{Body: "một"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.AddCommentSuite(ctx, Human(ua.ID), task.ID, AddCommentInput{Body: "hai"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddCommentReaction(ctx, Human(ua.ID), first.ID, "👍"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddCommentReaction(ctx, Human(ua.ID), second.ID, "🎉"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.CommentReactionsForTask(ctx, ua.ID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2", len(got))
+	}
+	byComment := map[string]string{}
+	for _, r := range got {
+		byComment[r.CommentID] = r.Emoji
+	}
+	if byComment[first.ID] != "👍" || byComment[second.ID] != "🎉" {
+		t.Fatalf("reactions = %v", byComment)
+	}
+}
+
+func TestCommentReactionsForTaskRefusesANonMember(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Reaction root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.CommentReactionsForTask(ctx, ub.ID, task.ID); err != ErrForbidden {
+		t.Fatalf("non-member reactions: %v", err)
 	}
 }

@@ -18,6 +18,7 @@ import {
 } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
+import { toMemberOptions } from "../pickers";
 import { BoardView } from "../modes/board-view";
 import type { BoardCardMeta } from "../modes/board-card";
 import { GanttView } from "../modes/gantt-view";
@@ -100,14 +101,7 @@ function TaskSurfaceContent({
     [membersData],
   );
   const tableMembers = useMemo(
-    () =>
-      (membersData ?? []).map((member) => ({
-        id: member.user_id,
-        name: member.display_name || member.email,
-        ...(typeof member.avatar_url === "string"
-          ? { avatarUrl: member.avatar_url }
-          : {}),
-      })),
+    () => toMemberOptions(membersData ?? []),
     [membersData],
   );
   const boardCardMeta = useMemo(() => {
@@ -143,9 +137,11 @@ function TaskSurfaceContent({
     (batchToolbar === "list" && controller.viewMode === "list");
   const surfaceStageKey = controller.isLoading
     ? `loading:${controller.viewMode}`
-    : controller.isEmpty
-      ? "empty"
-      : `mode:${controller.viewMode}`;
+    : controller.isError
+      ? "error"
+      : controller.isEmpty
+        ? "empty"
+        : `mode:${controller.viewMode}`;
 
   const header =
     renderHeader?.(renderContext) ??
@@ -202,6 +198,8 @@ function TaskSurfaceContent({
             >
               {controller.isLoading ? (
                 <TaskSurfaceSkeleton mode={controller.viewMode} />
+              ) : controller.isError ? (
+                <SurfaceError onRetry={controller.retry} />
               ) : controller.isEmpty ? (
                 renderEmpty ? (
                   renderEmpty()
@@ -215,6 +213,7 @@ function TaskSurfaceContent({
                       categories={controller.boardCategories}
                       tasks={controller.surfaceTasks}
                       cardMeta={boardCardMeta}
+                      pagination={controller.pagination}
                       onOpenTask={onOpenTask}
                     />
                   ) : controller.viewMode === "board" ? (
@@ -223,6 +222,8 @@ function TaskSurfaceContent({
                       tasks={controller.surfaceTasks}
                       cardMeta={boardCardMeta}
                       projects={projectsData?.projects}
+                      columnPaging={controller.boardColumns}
+                      pagination={controller.pagination}
                       onOpenTask={onOpenTask}
                     />
                   ) : controller.viewMode === "table" ? (
@@ -237,10 +238,14 @@ function TaskSurfaceContent({
                       onOpenTask={onOpenTask}
                     />
                   ) : controller.viewMode === "gantt" ? (
-                    <GanttView tasks={controller.ganttTasks} />
+                    <GanttView
+                      tasks={controller.ganttTasks}
+                      pagination={controller.pagination}
+                    />
                   ) : controller.viewMode === "swimlane" ? (
                     <SwimLaneView
                       tasks={controller.surfaceTasks}
+                      pagination={controller.pagination}
                       categories={controller.boardCategories}
                       projects={projectsData?.projects}
                       cardMeta={boardCardMeta}
@@ -289,13 +294,32 @@ function ModePlaceholder() {
 function DefaultEmpty({ onCreate }: { onCreate: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+    <div
+      data-testid="task-surface-empty"
+      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground"
+    >
       <ListTodo className="h-10 w-10 text-muted-foreground" aria-hidden />
       <p className="text-body">{t("tasks.empty_title")}</p>
       <p className="text-caption">{t("tasks.empty_description")}</p>
       <Button variant="outline" size="sm" className="mt-1" onClick={onCreate}>
         <Plus className="mr-1.5 size-3.5" aria-hidden />
         {t("tasks.new")}
+      </Button>
+    </div>
+  );
+}
+
+function SurfaceError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="task-surface-error"
+      className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center"
+    >
+      <p className="text-body text-foreground">{t("tasks.error_title")}</p>
+      <p className="text-caption text-muted-foreground">{t("tasks.error_description")}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        {t("common.retry")}
       </Button>
     </div>
   );

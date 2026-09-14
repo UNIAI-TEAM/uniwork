@@ -61,6 +61,9 @@ func TestAllCatalogueRoutesAreRegistered(t *testing.T) {
 
 	var missing []string
 	for _, r := range cat.Routes {
+		if r.Disposition == "dropped" {
+			continue // dropped routes are deliberately not registered
+		}
 		key := r.Method + " " + r.TargetPath
 		if !bound[key] {
 			missing = append(missing, key)
@@ -103,6 +106,9 @@ func TestSuiteCatalogueRoutesAreNotFeatureFlagGated(t *testing.T) {
 	}
 	var gated []string
 	for _, r := range cat.Routes {
+		if r.Disposition == "dropped" {
+			continue // dropped routes are deliberately not registered
+		}
 		key := r.Method + " " + r.TargetPath
 		if mvp[key] {
 			continue
@@ -118,5 +124,24 @@ func TestSuiteCatalogueRoutesAreNotFeatureFlagGated(t *testing.T) {
 	}
 	if len(gated) > 0 {
 		t.Fatalf("suite catalogue routes still carry extra feature-flag middleware (%d):\n  %s", len(gated), strings.Join(gated, "\n  "))
+	}
+}
+
+// TestTimelineRouteIsGone proves the stubbed timeline route was removed
+// rather than left registered: Task 6 moved the activity feed onto
+// AuditService.ResourceHistory, so a duplicate timeline endpoint must not
+// come back on the mux.
+func TestTimelineRouteIsGone(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true, AdminRateLimitPerMin: 60}
+	mux := New(Deps{Cfg: cfg, PlatformRoles: fakeRoles{}}, stubRoutes())
+
+	err := chi.Walk(mux.(chi.Routes), func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if strings.HasSuffix(strings.TrimSuffix(route, "/"), "/timeline") {
+			t.Fatalf("route %s %s still registered; activity history now uses AuditService.ResourceHistory", method, route)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

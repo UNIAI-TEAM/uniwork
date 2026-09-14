@@ -148,6 +148,7 @@ export function TaskDisplaySettings({
           </Label>
           <Select
             id="saved-view-layout"
+            triggerVariant="subtle"
             items={modes.map((mode) => ({
               value: mode,
               label: t(`tasks.view.${mode}`),
@@ -259,6 +260,7 @@ export function TaskDisplaySettings({
           <div className={compact ? "min-w-0 flex-1" : undefined}>
             <Select
               id="saved-view-sort"
+              triggerVariant="subtle"
               items={SORT_OPTIONS.map(({ value }) => ({
                 value,
                 label: t(`tasks.display.sort_${value}`),
@@ -272,7 +274,7 @@ export function TaskDisplaySettings({
           {effectiveSort !== "position" ? (
             <Button
               type="button"
-              variant="outline"
+              variant="toolbar"
               size="icon-sm"
               aria-label={
                 sortDirection === "asc"
@@ -405,7 +407,11 @@ function SettingSelect({
           if (next) onValueChange(next);
         }}
       >
-        <SelectTrigger className={compact ? "w-full" : "w-40"} aria-label={label}>
+        <SelectTrigger
+          variant="subtle"
+          className={compact ? "w-full" : "w-40"}
+          aria-label={label}
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent align="end">

@@ -203,7 +203,8 @@
       "source_path": "/api/issues/{id}/timeline",
       "target_path": "/api/v1/tasks/{taskID}/timeline",
       "group": "collaboration",
-      "disposition": "adapted"
+      "disposition": "dropped",
+      "reason": "Trùng chức năng với ResourceHistory của audit; lát A dùng useResourceHistory"
     },
     {
       "method": "GET",

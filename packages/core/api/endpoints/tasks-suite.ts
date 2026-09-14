@@ -78,10 +78,15 @@ function qs(params: Record<string, string | number | undefined | null>): string 
   return s ? `?${s}` : "";
 }
 
-export async function queryTasks(workspaceId: string, body: QueryTasksBody = {}): Promise<TaskQueryPage> {
+export async function queryTasks(
+  workspaceId: string,
+  body: QueryTasksBody = {},
+  init: { signal?: AbortSignal } = {},
+): Promise<TaskQueryPage> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/tasks/query`, {
     method: "POST",
     body,
+    signal: init.signal,
   });
   return parseWithFallback<TaskQueryPage>(
     raw,
@@ -151,8 +156,11 @@ export async function listMyTasks(
     limit?: number;
     offset?: number;
   } = {},
+  init: { signal?: AbortSignal } = {},
 ): Promise<TaskQueryPage> {
-  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/my-tasks${qs(opts)}`);
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/my-tasks${qs(opts)}`, {
+    signal: init.signal,
+  });
   return parseWithFallback<TaskQueryPage>(
     raw,
     TaskQueryPageSchema,

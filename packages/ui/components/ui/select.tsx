@@ -7,6 +7,8 @@ import { cn } from "@uniwork/ui/lib/utils"
 import { UI_FLOATING_TRANSITION_CLASS } from "@uniwork/ui/lib/motion"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
+type SelectTriggerVariant = "default" | "subtle"
+
 type SelectProps<
   Value,
   Multiple extends boolean | undefined = false,
@@ -15,6 +17,8 @@ type SelectProps<
   /** Accessible name for the default trigger: pair with `<FieldLabel htmlFor>`. */
   id?: string
   "aria-label"?: string
+  /** Visual treatment for the generated trigger when `children` are omitted. */
+  triggerVariant?: SelectTriggerVariant
 }
 
 /**
@@ -25,6 +29,7 @@ function Select<Value, Multiple extends boolean | undefined = false>({
   children,
   id,
   "aria-label": ariaLabel,
+  triggerVariant = "default",
   ...props
 }: SelectProps<Value, Multiple>) {
   // Without children Base UI mounts nothing visible; a bare `<Select items />`
@@ -34,7 +39,12 @@ function Select<Value, Multiple extends boolean | undefined = false>({
     children ??
     (Array.isArray(items) ? (
       <>
-        <SelectTrigger id={id} aria-label={ariaLabel} className="w-full">
+        <SelectTrigger
+          id={id}
+          aria-label={ariaLabel}
+          variant={triggerVariant}
+          className="w-full"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -72,10 +82,12 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 function SelectTrigger({
   className,
   size = "default",
+  variant = "default",
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: "sm" | "default"
+  variant?: SelectTriggerVariant
 }) {
   return (
     <SelectPrimitive.Trigger
@@ -88,7 +100,10 @@ function SelectTrigger({
         // could not lift this off 32px however it tried. `min-height` wins over
         // `height` no matter the specificity, which is also how `Button` holds
         // its own 44px floor.
-        "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-body whitespace-nowrap transition-colors outline-none select-none pointer-coarse:min-h-11 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex w-fit items-center justify-between gap-1.5 rounded-lg border py-2 pr-2 pl-2.5 text-body whitespace-nowrap transition-colors outline-none select-none pointer-coarse:min-h-11 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        variant === "default"
+          ? "border-input bg-transparent dark:bg-input/30 dark:hover:bg-input/50"
+          : "border-transparent bg-surface-hover/60 hover:bg-surface-hover",
         className
       )}
       {...props}

@@ -105,7 +105,7 @@ export function TaskDetailEditors({
 
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
         <TaskDetailAttachmentsSlot workspaceId={workspaceId} taskId={task.id} />
-        <TaskDetailTimelineSlot taskId={task.id} />
+        <TaskDetailTimelineSlot workspaceId={workspaceId} taskId={task.id} />
       </div>
     </div>
   );

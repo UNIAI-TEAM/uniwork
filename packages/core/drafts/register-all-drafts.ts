@@ -7,8 +7,10 @@
  * and skip persisted keys whose store happened not to be loaded — a narrower
  * version of the leak the registry exists to fix.
  *
- * UniWork has no draft stores yet. The module exists so `storage-cleanup` has
- * the single import it needs, and so adding the first draft store is one line
- * here rather than a rediscovery of why cleanup missed it.
+ * ONE LINE PER DRAFT STORE. Adding a draft store without adding its import
+ * here is the rediscovery this module exists to prevent.
  */
+import "../tasks/stores/comment-draft-store";
+import "../tasks/stores/recent-tasks-store";
+
 export {};

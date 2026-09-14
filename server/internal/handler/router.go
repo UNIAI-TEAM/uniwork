@@ -271,7 +271,6 @@ func New(d Deps) http.Handler {
 		GetAttachmentContent:   h.getAttachmentContent,
 		DownloadAttachment:     h.downloadAttachment,
 		DeleteAttachment:       h.deleteAttachment,
-		GetTaskTimeline:        h.getTaskTimeline,
 		CommentSubTaskPreview:  h.commentSubTaskPreview,
 		CreateCommentSubTasks:  h.createCommentSubTasks,
 		PreviewCommentTriggers: h.previewCommentTriggers,

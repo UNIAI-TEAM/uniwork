@@ -180,7 +180,6 @@ type Routes struct {
 	GetAttachmentContent   http.HandlerFunc
 	DownloadAttachment     http.HandlerFunc
 	DeleteAttachment       http.HandlerFunc
-	GetTaskTimeline        http.HandlerFunc
 	CommentSubTaskPreview  http.HandlerFunc
 	CreateCommentSubTasks  http.HandlerFunc
 	PreviewCommentTriggers http.HandlerFunc

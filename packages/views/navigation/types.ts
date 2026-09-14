@@ -8,6 +8,12 @@ export interface NavigationAdapter {
   push(path: string): void;
   replace(path: string): void;
   back(): void;
+  /**
+   * Optional: step forward in the host's history. Web wires this to
+   * router.forward; a host without a forward stack leaves it undefined and
+   * callers invoke it as `forward?.()`.
+   */
+  forward?: () => void;
   pathname: string;
   searchParams: URLSearchParams;
   /** A shareable absolute URL for a path. Web: origin + path. */

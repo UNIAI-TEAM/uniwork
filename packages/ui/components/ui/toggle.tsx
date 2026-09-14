@@ -12,6 +12,8 @@ const toggleVariants = cva(
       variant: {
         default: "bg-transparent",
         outline: "border border-input bg-transparent hover:bg-muted",
+        toolbar:
+          "border border-transparent bg-surface-hover/60 hover:bg-surface-hover aria-pressed:bg-surface-selected data-[state=on]:bg-surface-selected",
       },
       size: {
         default: "h-8 min-w-8 px-2",
