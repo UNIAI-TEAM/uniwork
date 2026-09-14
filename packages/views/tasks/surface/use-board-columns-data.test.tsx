@@ -173,6 +173,78 @@ describe("useBoardColumnsData", () => {
     expect(result.current.columns.todo!.hasMore).toBe(false);
   });
 
+  it("loads as a board until the first column page arrives", async () => {
+    const server = serveBoardTable({ counts: { todo: 3 }, hold: "todo@0" });
+    const { result } = renderColumns(["todo"]);
+    await waitFor(() => expect(server.rowRequests()).toEqual(["todo@0"]));
+    await settle();
+
+    expect(result.current.isLoading).toBe(true);
+    server.release();
+    await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(3));
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("loads a column that fills after the first load inside that column, not as the board", async () => {
+    // Counts are read on each request, so a column can gain tasks between two groups calls.
+    const counts: Record<string, number> = { todo: 3, done: 0 };
+    const server = serveBoardTable({ counts, hold: "done@0" });
+    const { client, result } = renderColumns(["todo", "done"]);
+    await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(3));
+
+    counts.done = 2;
+    act(() => void client.invalidateQueries({ queryKey: taskKeys.tableRoot("w1") }));
+    await waitFor(() => expect(server.rowRequests()).toContain("done@0"));
+    await settle();
+
+    expect(result.current.columns.done).toMatchObject({ isLoading: true, tasks: [] });
+    expect(result.current.isLoading).toBe(false);
+    server.release();
+    await waitFor(() => expect(result.current.columns.done?.tasks).toHaveLength(2));
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("does not load as a board again when the only column with tasks empties into one that has none", async () => {
+    const counts: Record<string, number> = { todo: 1, done: 0 };
+    const server = serveBoardTable({ counts, hold: "done@0" });
+    const { client, result } = renderColumns(["todo", "done"]);
+    await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(1));
+
+    // Every page the board still asks for is new, and none has arrived yet.
+    counts.todo = 0;
+    counts.done = 1;
+    act(() => void client.invalidateQueries({ queryKey: taskKeys.tableRoot("w1") }));
+    await waitFor(() => expect(server.rowRequests()).toContain("done@0"));
+    await settle();
+
+    expect(result.current.columns.done?.isLoading).toBe(true);
+    expect(result.current.isLoading).toBe(false);
+    server.release();
+    await waitFor(() => expect(result.current.columns.done?.tasks).toHaveLength(1));
+  });
+
+  it("loads as a board again after being switched off and on with nothing cached", async () => {
+    const server = serveBoardTable({ counts: { todo: 3 }, hold: "todo@0", holdNth: 2 });
+    const { client, Wrapper } = setup();
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useBoardColumnsData({ workspaceId: "w1", categories: ["todo"], enabled }),
+      { wrapper: Wrapper, initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(3));
+
+    rerender({ enabled: false });
+    client.removeQueries({ queryKey: taskKeys.tableRoot("w1") });
+    rerender({ enabled: true });
+    await waitFor(() => expect(server.rowRequests()).toEqual(["todo@0", "todo@0"]));
+    await settle();
+
+    expect(result.current.isLoading).toBe(true);
+    server.release();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.columns.todo?.tasks).toHaveLength(3);
+  });
+
   it("keeps a failed page to its own column and retries that page through load more", async () => {
     const server = serveBoardTable({
       counts: { todo: 120, in_progress: 3 },

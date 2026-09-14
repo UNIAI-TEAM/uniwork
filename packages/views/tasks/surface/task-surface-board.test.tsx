@@ -1,13 +1,15 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClientProvider, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
+import { createQueryClient } from "@uniwork/core/query-client";
 import { planCacheUpdate } from "@uniwork/core/tasks";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import type { TaskScope } from "@uniwork/core/tasks/surface/scope";
-import { wrap } from "../../test/api-mock";
+import { localeAdapter, requestMock, wrap } from "../../test/api-mock";
 import { boardTask, serveBoardTable } from "../../test/board-table-server";
-import { TaskSurface } from "./task-surface";
+import { TaskSurface, type TaskSurfaceController } from "./task-surface";
 import type { TaskSurfaceMode } from "./types";
 
 // jsdom has no layout, so the real Virtuoso renders an empty window. This one
@@ -279,6 +281,197 @@ describe("TaskSurface board columns on the table API", () => {
     expect(await screen.findByText("100 / 120 công việc đã tải", {}, LONG)).toBeInTheDocument();
     expect(server.paths.some((path) => path.includes("/tasks/table/"))).toBe(false);
     expect(server.paths.some((path) => path.includes("/tasks/grouped"))).toBe(false);
+  }, 60_000);
+});
+
+type StoredTask = Record<string, unknown> & { id: string; status: string; position: number };
+
+/**
+ * A table API over a task list the test can change, for moves: groups and
+ * rows are computed from the list on every request and a PATCH writes it.
+ * `hold(name)` parks every request named `groups`, `status@offset` or `PATCH`
+ * until `release(name)`.
+ */
+function serveMovableBoard(initial: StoredTask[]) {
+  const tasks = initial.map((task) => ({ ...task }));
+  const requests: string[] = [];
+  const gates = new Map<string, { held: Promise<void>; open: () => void }>();
+  let failPatch = false;
+
+  requestMock.mockReset();
+  requestMock.mockImplementation(async (path: string, init?: { method?: string; body?: unknown }) => {
+    const body: Record<string, unknown> = { ...(init?.body as Record<string, unknown> | undefined) };
+    const pass = async (name: string) => {
+      requests.push(name);
+      await gates.get(name)?.held;
+    };
+    if (path.includes("/tasks/table/groups")) {
+      await pass("groups");
+      const statuses = [...new Set(tasks.map((task) => task.status))].sort();
+      return {
+        query_fingerprint: "fp-groups",
+        total: tasks.length,
+        groups: statuses.map((status) => ({
+          key: status,
+          value: { kind: "status", status },
+          count: tasks.filter((task) => task.status === status).length,
+        })),
+        next_cursor: null,
+      };
+    }
+    if (path.includes("/tasks/table/rows")) {
+      await pass(`${String(body.group_key)}@${String(body.offset)}`);
+      const rows = tasks
+        .filter((task) => task.status === body.group_key)
+        .sort((a, b) => a.position - b.position);
+      return {
+        query_fingerprint: "fp-rows",
+        group_key: body.group_key,
+        parent_id: null,
+        total: rows.length,
+        rows: rows.map((task) => ({ task: { ...task }, direct_child_count: 0 })),
+        branch_total: rows.length,
+        next_cursor: null,
+      };
+    }
+    if (init?.method === "PATCH") {
+      await pass("PATCH");
+      if (failPatch) {
+        failPatch = false;
+        throw new Error("patch failed");
+      }
+      const task = tasks.find((row) => path.endsWith(`/${row.id}`))!;
+      Object.assign(task, body);
+      return { task: { ...task } };
+    }
+    return { tasks: [], total: 0, limit: 50, offset: 0 };
+  });
+
+  return {
+    tasks,
+    requests,
+    hold: (name: string) => {
+      let open = () => {};
+      const held = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      gates.set(name, { held, open });
+    },
+    release: (name: string) => {
+      gates.get(name)?.open();
+      gates.delete(name);
+    },
+    failNextPatch: () => {
+      failPatch = true;
+    },
+  };
+}
+
+/** Whether the surface skeleton is put in the document at any moment from now until `stop()`. */
+function watchForSkeleton() {
+  const selector = '[data-testid="task-surface-skeleton"]';
+  let seen = false;
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (node instanceof Element && (node.matches(selector) || node.querySelector(selector))) {
+          seen = true;
+        }
+      }
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  return {
+    stop: () => {
+      observer.disconnect();
+      return seen;
+    },
+  };
+}
+
+/** The board on the app's own query client defaults, with its controller in reach for moves. */
+function renderMovableBoard(surfaceKey: string, client: QueryClient = createQueryClient()) {
+  const view: { controller?: TaskSurfaceController } = {};
+  getTaskSurfaceViewStore(surfaceKey).getState().setViewMode("board");
+  render(
+    <QueryClientProvider client={client}>
+      <LocaleAdapterProvider adapter={localeAdapter}>
+        <RealtimeTaskUpdated />
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["board", "list"]}
+          surfaceKey={surfaceKey}
+          renderHeader={({ controller }) => {
+            view.controller = controller;
+            return null;
+          }}
+        />
+      </LocaleAdapterProvider>
+    </QueryClientProvider>,
+  );
+  return {
+    client,
+    move: (taskId: string, updates: Record<string, unknown>) =>
+      act(() => view.controller!.actions.moveTask(taskId, updates)),
+  };
+}
+
+describe("TaskSurface board when a column fills after the first load", () => {
+  beforeEach(() => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("a local move into an empty column keeps the board on screen instead of its skeleton", async () => {
+    const server = serveMovableBoard([boardTask("todo", 0), boardTask("todo", 1)] as StoredTask[]);
+    const board = renderMovableBoard("board-drop-empty-column");
+    await waitFor(() => expect(cardsIn("todo")).toBe(2), LONG);
+    const todoColumn = column("todo");
+    const skeleton = watchForSkeleton();
+
+    server.hold("PATCH");
+    board.move("todo-0", { status: "done", position: 0 });
+    await waitFor(() => expect(server.requests).toContain("PATCH"), LONG);
+    // The refetch after the save is held, so its loading state is on screen for as long as it lasts.
+    server.hold("done@0");
+    server.release("PATCH");
+    await waitFor(() => expect(server.requests).toContain("done@0"), LONG);
+    await settle(300);
+
+    expect(screen.queryByTestId("task-surface-skeleton")).toBeNull();
+    expect(column("todo")).toBe(todoColumn);
+    server.release("done@0");
+    await waitFor(() => expect(cardsIn("done")).toBe(1), LONG);
+    expect(cardsIn("todo")).toBe(1);
+    expect(skeleton.stop()).toBe(false);
+    expect(column("todo")).toBe(todoColumn);
+  }, 60_000);
+
+  it("a realtime refetch that brings a task into an empty column loads it in that column, not the board", async () => {
+    const server = serveMovableBoard([boardTask("todo", 0), boardTask("todo", 1)] as StoredTask[]);
+    renderMovableBoard("board-realtime-empty-column");
+    await waitFor(() => expect(cardsIn("todo")).toBe(2), LONG);
+    const todoColumn = column("todo");
+    const skeleton = watchForSkeleton();
+
+    // Another member moved todo-0 to done; its event invalidates the table root.
+    server.tasks[0]!.status = "done";
+    server.hold("done@0");
+    fireEvent.click(screen.getByRole("button", { name: "task.updated arrives" }));
+    await waitFor(() => expect(server.requests).toContain("done@0"), LONG);
+    await settle(300);
+
+    expect(screen.queryByTestId("task-surface-skeleton")).toBeNull();
+    expect(within(column("done")).getByText("Đang tải thêm công việc…")).toBeInTheDocument();
+    expect(column("todo")).toBe(todoColumn);
+    server.release("done@0");
+    await waitFor(() => expect(cardsIn("done")).toBe(1), LONG);
+    expect(cardsIn("todo")).toBe(1);
+    expect(skeleton.stop()).toBe(false);
+    expect(column("todo")).toBe(todoColumn);
   }, 60_000);
 });
 

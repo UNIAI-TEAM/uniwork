@@ -261,9 +261,23 @@ export function useBoardColumnsData({
     };
   }, [columns, groupsTotal, tasks.length]);
 
-  const isLoading =
-    enabled &&
-    (groupsQuery.isLoading || Object.values(columns).some((column) => column.isLoading));
+  // The board loads as a whole once: the groups call, then its first pages
+  // until one column has cards. A column that fills later (a drop into an empty
+  // column, a refetch that brings a task in) loads inside that column, so the
+  // surface never swaps a board on screen for its skeleton. That holds even
+  // when every page the board still asks for is new, as when the only column
+  // with tasks empties into one that had none; switched off, it starts over.
+  const [loadedIdentity, setLoadedIdentity] = useState<string | null>(null);
+  const waitsForFirstPages =
+    loadedIdentity !== identity &&
+    pageStates.some((page) => page.isLoading) &&
+    !pageStates.some((page) => page.data !== undefined);
+  const isLoading = enabled && (groupsQuery.isLoading || waitsForFirstPages);
+  if (enabled && !isLoading && groupsQuery.data !== undefined && loadedIdentity !== identity) {
+    setLoadedIdentity(identity);
+  } else if (!enabled && loadedIdentity !== null) {
+    setLoadedIdentity(null);
+  }
   const isRefreshing =
     enabled &&
     !isLoading &&
