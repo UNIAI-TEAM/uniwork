@@ -9,7 +9,7 @@ export function MeetingCopilotFooter() {
   const { t } = useTranslation();
 
   return (
-    <div className="mt-3 shrink-0 rounded-xl border border-border bg-muted/40 p-3 dark:border-input dark:bg-secondary/60">
+    <div className="mt-3 shrink-0 rounded-xl border border-border bg-muted/40 p-3 dark:bg-secondary/60">
       <p className="flex items-center gap-1.5 text-label font-medium text-foreground">
         <Sparkles aria-hidden className="size-3.5 text-brand" />
         {t("meetings.askAiCopilot")}

@@ -128,7 +128,7 @@ export function AdminOverviewView() {
         title={t("title")}
         description={<UpdatedAt at={system.dataUpdatedAt} />}
         actions={
-          <Button size="sm" variant="outline" disabled={system.isFetching} onClick={() => void system.refetch()}>
+          <Button size="sm" variant="toolbar" disabled={system.isFetching} onClick={() => void system.refetch()}>
             <RefreshCw aria-hidden="true" className={cn("size-3.5", system.isFetching && "animate-spin")} />
             {t("refresh")}
           </Button>
