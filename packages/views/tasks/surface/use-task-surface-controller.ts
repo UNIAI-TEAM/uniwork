@@ -365,16 +365,11 @@ export function useTaskSurfaceController({
             if (task) options?.onSuccess?.(task);
           },
           onError: (err) => options?.onError?.(err),
-          onSettled: () => {
-            void queryClient.invalidateQueries({
-              queryKey: taskKeys.groupedRoot(workspaceId),
-            });
-            options?.onSettled?.();
-          },
+          onSettled: () => options?.onSettled?.(),
         },
       );
     },
-    [queryClient, updateTaskMutation, workspaceId],
+    [updateTaskMutation],
   );
 
   const retry = useCallback(() => {
