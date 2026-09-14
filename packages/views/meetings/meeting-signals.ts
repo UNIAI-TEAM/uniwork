@@ -6,6 +6,7 @@
  * tested without a room.
  */
 export const SIGNAL_TOPIC = "uw.signal";
+export const PARTICIPANT_IDENTITY_PREFIX = "uw_participant_";
 
 export const REACTIONS = ["👍", "❤️", "😂", "🎉", "👏"] as const;
 
@@ -74,4 +75,29 @@ export function expireReactions(state: SignalsState, now: number): SignalsState 
 export function forgetIdentity(state: SignalsState, identity: string): SignalsState {
   if (!state.hands.includes(identity)) return state;
   return { ...state, hands: state.hands.filter((h) => h !== identity) };
+}
+
+function liveKitIdentityForParticipant(participantId: string): string {
+  return PARTICIPANT_IDENTITY_PREFIX + participantId;
+}
+
+/** LiveKit identities allowed to send mute_request (meeting host). */
+export function muteRequesterIdentities(
+  hostUserId: string | undefined,
+  participants: readonly { id: string; user_id?: string; role: string }[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const p of participants) {
+    if (p.role !== "HOST" && p.user_id !== hostUserId) continue;
+    const identity = liveKitIdentityForParticipant(p.id);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    out.push(identity);
+  }
+  return out;
+}
+
+export function shouldHonorMuteRequest(from: string, allowedIdentities: readonly string[]): boolean {
+  return allowedIdentities.includes(from);
 }

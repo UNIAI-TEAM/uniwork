@@ -76,9 +76,9 @@ export function MeetingDetailHero({
 
   const relative = scheduled && canEnter
     ? t("meetings.startsRelative", { when: formatRelativeTime(meeting.starts_at, locale) })
-    : live
+    : inProgress
       ? t("meetings.startedRelative", { when: formatRelativeTime(meeting.actual_start_at ?? meeting.starts_at, locale) })
-      : (ended || !canEnter) && !canceled
+      : (ended || (scheduled && !canEnter)) && !canceled
         ? t("meetings.endedRelative", { when: formatRelativeTime(meeting.actual_end_at ?? meeting.ends_at, locale) })
         : null;
 

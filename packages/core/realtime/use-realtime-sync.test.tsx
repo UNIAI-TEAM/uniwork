@@ -635,4 +635,54 @@ describe("useRealtimeSync", () => {
       ]),
     );
   });
+
+  it("coalesces transcript.appended until the longer debounce", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "transcript.appended", payload: { meeting_id: "m1" } });
+    client.emit({ type: "transcript.appended", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["meeting-transcript", "m1"]));
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(keysCalled(invalidate).filter((k) => k === JSON.stringify(["meeting-transcript", "m1"]))).toHaveLength(1);
+  });
+});
+
+describe("useRealtimeSync › home summary", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const home = JSON.stringify(["home", "ws1", "summary"]);
+
+  it.each([
+    { type: "task.created", payload: { task_id: "t1" } },
+    { type: "task.updated", payload: { task_id: "t1" } },
+    { type: "task.deleted", payload: { task_id: "t1" } },
+    { type: "meeting.started", payload: { meeting_id: "m1" } },
+    { type: "participant.invited", payload: { meeting_id: "m1" } },
+    { type: "notification.created", payload: { notification_id: "n1" } },
+  ])("refreshes the home summary on $type", ({ type, payload }) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(home);
+  });
+
+  it("leaves the home summary alone for chat traffic", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.created", payload: { room_id: "r1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(home);
+  });
 });

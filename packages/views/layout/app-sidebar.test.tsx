@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
 import type { User, Workspace } from "@uniwork/core/types";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -122,5 +123,48 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tài khoản" })).toBeInTheDocument();
+  });
+});
+
+describe("AppSidebar › home", () => {
+  function renderWithHome(pathname: string, on: boolean) {
+    const nav = {
+      push: vi.fn(), replace: vi.fn(), back: vi.fn(),
+      pathname, searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
+    };
+    const service = new FeatureFlagService(new StaticProvider({ home_page: { default: on } }));
+    render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <SidebarProvider>
+              <AppSidebar />
+            </SidebarProvider>
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+        nav,
+      ),
+    );
+  }
+
+  it("puts Home first when home_page is on, current only on the workspace root", () => {
+    renderWithHome("/acme/team", true);
+    const links = screen.getAllByRole("link");
+    const home = screen.getByRole("link", { name: "Trang chủ" });
+    expect(home).toHaveAttribute("href", "/acme/team");
+    expect(home).toHaveAttribute("aria-current", "page");
+    expect(links.indexOf(home)).toBeLessThan(links.indexOf(screen.getByRole("link", { name: "Hộp việc" })));
+    expect(screen.getByRole("link", { name: "Công việc" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("does not mark Home current on a page under the workspace root", () => {
+    renderWithHome("/acme/team/tasks", true);
+    expect(screen.getByRole("link", { name: "Trang chủ" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Công việc" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("has no Home while home_page is off", () => {
+    renderWithHome("/acme/team/tasks", false);
+    expect(screen.queryByRole("link", { name: "Trang chủ" })).toBeNull();
   });
 });

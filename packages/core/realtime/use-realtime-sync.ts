@@ -9,6 +9,7 @@ import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
+import { homeKeys } from "../home/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
 import { orgMemberRootKey } from "../organizations/hooks";
@@ -18,7 +19,11 @@ import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
-import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./invalidate-scheduler";
+import {
+  createInvalidateScheduler,
+  shouldInvalidateMeetingDetail,
+  TRANSCRIPT_INVALIDATE_MS,
+} from "./invalidate-scheduler";
 
 /**
  * Central WS → cache sync for one workspace.
@@ -71,6 +76,11 @@ function keysFor(
     ) {
       push(auditKeys.history(wsId, "task", payload.task_id));
     }
+    // The home summary lists open work assigned to the viewer; any task
+    // lifecycle event can change it.
+    if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
+      push(homeKeys.summary(wsId));
+    }
     return keys;
   }
 
@@ -85,6 +95,7 @@ function keysFor(
       // comes back from the API.
       push(notificationKeys.lists());
       push(notificationKeys.unreadCount());
+      push(homeKeys.summary(wsId));
       break;
     }
     case "ai.usage.updated": {
@@ -125,6 +136,7 @@ function keysFor(
     case "meeting.ended":
     case "meeting.canceled":
     case "host.transferred": {
+      push(homeKeys.summary(wsId));
       push(meetingKeys.list(wsId));
       push(meetingKeys.stats(wsId));
       if (payload.meeting_id) {
@@ -136,6 +148,7 @@ function keysFor(
     case "participant.invited":
     case "participant.removed":
     case "invitation.responded": {
+      push(homeKeys.summary(wsId));
       if (payload.meeting_id) {
         push(meetingKeys.participants(payload.meeting_id));
         push(meetingKeys.invitations(payload.meeting_id));
@@ -313,6 +326,10 @@ function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting" && typeof queryKey[1] === "string";
 }
 
+function isTranscriptKey(queryKey: readonly unknown[]): boolean {
+  return Array.isArray(queryKey) && queryKey[0] === "meeting-transcript";
+}
+
 export function useRealtimeSync(client: WSClient | null, wsId: string): void {
   const qc = useQueryClient();
 
@@ -320,6 +337,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     if (!client || !wsId) return;
 
     const scheduler = createInvalidateScheduler(qc);
+    const transcriptScheduler = createInvalidateScheduler(qc, TRANSCRIPT_INVALIDATE_MS);
     const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
@@ -336,6 +354,10 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         ) {
           continue;
         }
+        if (isTranscriptKey(queryKey)) {
+          transcriptScheduler.schedule(queryKey);
+          continue;
+        }
         scheduler.schedule(queryKey);
       }
     });
@@ -346,6 +368,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       offAny();
       offReconnect();
       scheduler.dispose();
+      transcriptScheduler.dispose();
       void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);

@@ -64,6 +64,7 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		_ = s.q.CloseOpenAttendanceForConference(ctx, db.CloseOpenAttendanceForConferenceParams{
 			ConferenceSessionID: sess.ID, LeaveReason: strText("room_finished"),
 		})
+		s.endIfOverdueEmpty(ctx, sess.MeetingID)
 	case "conference.participant_joined":
 		pid := strings.TrimPrefix(ev.Identity, "uw_participant_")
 		if pid == ev.Identity || pid == "" {

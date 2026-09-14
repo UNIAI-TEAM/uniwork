@@ -66,8 +66,27 @@ describe("SaveViewDialog", () => {
     );
 
     expect(screen.getByText(/loại người được giao|assignee type/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /thêm bộ lọc|add filter/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /tên|name/i })).toHaveClass(
+      "border-transparent",
+      "bg-surface-hover/60",
+    );
+    expect(screen.getByRole("combobox", { name: /phạm vi hiển thị|visibility/i })).toHaveClass(
+      "border-transparent",
+      "bg-surface-hover/60",
+    );
+    expect(screen.getByRole("combobox", { name: /loại người được giao|assignee type/i })).toHaveClass(
+      "border-transparent",
+      "bg-surface-hover/60",
+    );
+    expect(screen.getByRole("button", { name: /thêm bộ lọc|add filter/i })).toHaveClass(
+      "border-transparent",
+      "bg-surface-hover/60",
+    );
     expect(screen.getByRole("button", { name: /hiển thị mặc định|default display/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /tạo chế độ xem|create view/i })).toHaveClass(
+      "border-brand",
+      "bg-brand",
+    );
   });
 
   it("shows each active filter as a removable summary chip", async () => {

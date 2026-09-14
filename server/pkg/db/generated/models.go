@@ -369,6 +369,15 @@ type FeatureFlagOverride struct {
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
 }
 
+type HomePreference struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	Prefs          []byte             `json:"prefs"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type IdempotencyKey struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

@@ -15,6 +15,9 @@ describe("MeetingStatusBadge", () => {
     rerender(<MeetingStatusBadge status="IN_PROGRESS" />);
     expect(screen.getByText("Đang diễn ra")).toBeInTheDocument();
 
+    rerender(<MeetingStatusBadge status="OVERTIME" />);
+    expect(screen.getByText("Quá giờ")).toBeInTheDocument();
+
     rerender(<MeetingStatusBadge status="ENDED" />);
     expect(screen.getByText("Đã kết thúc")).toBeInTheDocument();
 

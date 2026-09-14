@@ -198,7 +198,7 @@ export function MyTasksHeader({
             <DropdownMenuTrigger
               render={
                 <Button
-                  variant="outline"
+                  variant="toolbar"
                   size="sm"
                   className="shrink-0 gap-1 text-muted-foreground md:hidden"
                 />

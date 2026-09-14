@@ -107,6 +107,7 @@ export function PeopleToolbar({
             className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
           />
           <Input
+            variant="subtle"
             aria-label={t("people.search")}
             className="h-8 pl-8 text-body"
             placeholder={t("people.search_placeholder")}
@@ -126,7 +127,7 @@ export function PeopleToolbar({
           <DropdownMenuTrigger
             render={
               <Button
-                variant={hasFilters ? "default" : "outline"}
+                variant={hasFilters ? "default" : "toolbar"}
                 size="sm"
                 className={
                   hasFilters
@@ -248,7 +249,7 @@ export function PeopleToolbar({
           <Popover>
             <PopoverTrigger
               render={
-                <Button variant="outline" size="sm" className={TOOLBAR_BUTTON}>
+                <Button variant="toolbar" size="sm" className={TOOLBAR_BUTTON}>
                   <Settings2 aria-hidden="true" className="size-3.5" />
                   <span className="max-md:sr-only">{t("people.display")}</span>
                 </Button>
@@ -279,7 +280,7 @@ export function PeopleToolbar({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="outline" size="sm" className={TOOLBAR_BUTTON}>
+              <Button variant="toolbar" size="sm" className={TOOLBAR_BUTTON}>
                 {isTable ? (
                   <Rows3 aria-hidden="true" className="size-3.5" />
                 ) : (

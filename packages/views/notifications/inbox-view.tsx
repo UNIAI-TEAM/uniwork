@@ -141,7 +141,7 @@ export function InboxView() {
                 if (next) setFilter(next);
               }}
               aria-label={t("notifications.filter")}
-              variant="outline"
+              variant="toolbar"
               size="sm"
             >
               <ToggleGroupItem value="all">{t("notifications.filter_all")}</ToggleGroupItem>

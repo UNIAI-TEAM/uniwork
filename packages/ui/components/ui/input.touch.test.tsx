@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Input } from "./input";
 
@@ -11,5 +11,15 @@ describe("touch targets on a coarse pointer", () => {
   it("Input grows to 44px", () => {
     const { container } = render(<Input />);
     expect(container.querySelector("input")?.className).toContain("pointer-coarse:min-h-11");
+  });
+
+  it("supports a quiet toolbar treatment without weakening focus styles", () => {
+    render(<Input variant="subtle" aria-label="Tìm kiếm" />);
+    expect(screen.getByRole("textbox", { name: "Tìm kiếm" })).toHaveClass(
+      "border-transparent",
+      "bg-surface-hover/60",
+      "focus-visible:border-ring",
+      "focus-visible:ring-2",
+    );
   });
 });

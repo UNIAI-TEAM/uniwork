@@ -276,6 +276,7 @@ export function SaveViewDialog({
                   </Label>
                   <div className="min-w-0">
                     <Input
+                      variant="subtle"
                       id="task-view-name"
                       name="task-view-name"
                       autoComplete="off"
@@ -307,6 +308,7 @@ export function SaveViewDialog({
                       </Label>
                       <Select
                         id="task-view-visibility"
+                        triggerVariant="subtle"
                         value={visibility}
                         onValueChange={(value) => {
                           if (value === "private" || value === "workspace") {
@@ -329,6 +331,7 @@ export function SaveViewDialog({
                       </Label>
                       <Select
                         id="task-view-actor-kind"
+                        triggerVariant="subtle"
                         value={actorKind}
                         onValueChange={(value) => {
                           if (
@@ -402,6 +405,7 @@ export function SaveViewDialog({
                 </Button>
                 <Button
                   type="submit"
+                  variant="brand"
                   disabled={createView.isPending || updateView.isPending}
                 >
                   {createView.isPending || updateView.isPending

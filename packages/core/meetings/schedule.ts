@@ -32,8 +32,9 @@ export function isScheduledMeetingLive(
 }
 
 /**
- * Status the list and detail badge should show. After `ends_at` the room is
- * closed to joiners even if the server row is still IN_PROGRESS.
+ * Status the list and detail badge should show. IN_PROGRESS past ends_at is
+ * overtime (join closed, host may extend or end). A scheduled window that
+ * never started reads as ENDED.
  */
 export function displayMeetingStatus(
   meeting: { ends_at: string; status?: string },
@@ -41,6 +42,6 @@ export function displayMeetingStatus(
 ): string {
   const status = meeting.status || "SCHEDULED";
   if (status === "ENDED" || status === "CANCELED") return status;
-  if (isPastScheduledEnd(meeting.ends_at, nowMs)) return "ENDED";
-  return status;
+  if (!isPastScheduledEnd(meeting.ends_at, nowMs)) return status;
+  return status === "IN_PROGRESS" ? "OVERTIME" : "ENDED";
 }

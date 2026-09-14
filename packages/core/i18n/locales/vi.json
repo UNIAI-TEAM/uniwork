@@ -169,6 +169,7 @@
     }
   },
   "nav": {
+    "home": "Trang chủ",
     "inbox": "Hộp việc",
     "tasks": "Công việc",
     "my_tasks": "Việc của tôi",
@@ -1126,6 +1127,147 @@
       "involved_description": "Công việc liên quan đến agent của tôi"
     }
   },
+  "home": {
+    "title": "Trang chủ",
+    "greeting": {
+      "morning": "Chào buổi sáng, {{name}}",
+      "noon": "Chào buổi trưa, {{name}}",
+      "afternoon": "Chào buổi chiều, {{name}}",
+      "evening": "Chào buổi tối, {{name}}"
+    },
+    "subtitle": {
+      "loading": "Đây là công việc của bạn hôm nay",
+      "attention_one": "Hôm nay có {{count}} việc cần bạn chú ý",
+      "attention_other": "Hôm nay có {{count}} việc cần bạn chú ý",
+      "clear": "Hôm nay bạn không có việc gấp"
+    },
+    "actions": {
+      "customize": "Tuỳ chỉnh",
+      "refresh": "Làm mới"
+    },
+    "stats": {
+      "label": "Tổng quan hôm nay",
+      "due_today": "đến hạn hôm nay",
+      "overdue": "quá hạn",
+      "meetings_today": "cuộc họp hôm nay",
+      "unread": "chưa đọc",
+      "item": "{{count}} {{label}}"
+    },
+    "section": {
+      "stats": "Tổng quan hôm nay",
+      "stats_description": "Số việc quá hạn, đến hạn, cuộc họp và thông báo chưa đọc",
+      "mywork": "Công việc của tôi",
+      "mywork_description": "Việc mở được giao cho bạn, gấp nhất trước",
+      "upcoming": "Sắp tới",
+      "upcoming_description": "Cuộc họp đang diễn ra, hôm nay và ngày mai",
+      "inbox": "Hộp việc",
+      "inbox_description": "Thông báo chưa đọc của workspace này",
+      "brief": "Tóm tắt hôm nay",
+      "brief_description": "Vài câu rút từ chính số liệu trên"
+    },
+    "mywork": {
+      "view_all": "Xem tất cả",
+      "keys_move": "di chuyển",
+      "keys_select": "chọn",
+      "keys_complete": "hoàn thành",
+      "keys_open": "mở",
+      "select_all": "Chọn tất cả",
+      "selected": "Đã chọn {{count}}/{{total}}",
+      "clear_selection": "Bỏ chọn",
+      "complete": "Hoàn thành",
+      "completed": "Đã xong",
+      "complete_task": "Hoàn thành: {{title}}",
+      "select_task": "Chọn: {{title}}",
+      "bulk_complete_one": "Hoàn thành {{count}} việc",
+      "bulk_complete_other": "Hoàn thành {{count}} việc",
+      "completed_toast_one": "Đã hoàn thành {{count}} việc",
+      "completed_toast_other": "Đã hoàn thành {{count}} việc",
+      "complete_failed": "Không cập nhật được công việc. Đã hoàn tác thay đổi.",
+      "overdue_one": "Quá hạn {{count}} ngày",
+      "overdue_other": "Quá hạn {{count}} ngày",
+      "due_today": "Hạn hôm nay",
+      "due_on": "Hạn {{date}}",
+      "no_due": "Chưa đặt hạn",
+      "empty_title": "Không có việc cần xử lý",
+      "empty_description": "Không có việc mở nào được giao cho bạn. Việc được giao sẽ hiện ở đây, gấp nhất trước.",
+      "empty_action": "Mở danh sách công việc"
+    },
+    "upcoming": {
+      "view_all": "Xem tất cả",
+      "today": "Hôm nay",
+      "tomorrow": "Ngày mai",
+      "live": "Đang diễn ra",
+      "join": "Vào họp",
+      "open": "Mở",
+      "empty_title": "Không có cuộc họp",
+      "empty_description": "Bạn không có cuộc họp nào hôm nay và ngày mai.",
+      "empty_action": "Mở cuộc họp"
+    },
+    "inbox": {
+      "view_all": "Xem tất cả",
+      "empty_title": "Hộp việc trống",
+      "empty_description": "Không có thông báo nào đang chờ bạn trong workspace này.",
+      "empty_action": "Mở hộp việc"
+    },
+    "brief": {
+      "title": "Tóm tắt hôm nay",
+      "badge": "Từ dữ liệu thật",
+      "overdue_one": "{{count}} việc đang quá hạn, cũ nhất là “{{title}}” (quá hạn {{days}} ngày).",
+      "overdue_other": "{{count}} việc đang quá hạn, cũ nhất là “{{title}}” (quá hạn {{days}} ngày).",
+      "overdue_plain_one": "{{count}} việc đang quá hạn.",
+      "overdue_plain_other": "{{count}} việc đang quá hạn.",
+      "meetings_one": "{{count}} cuộc họp còn lại hôm nay, gần nhất là “{{title}}”.",
+      "meetings_other": "{{count}} cuộc họp còn lại hôm nay, gần nhất là “{{title}}”.",
+      "meetings_plain_one": "{{count}} cuộc họp còn lại hôm nay.",
+      "meetings_plain_other": "{{count}} cuộc họp còn lại hôm nay.",
+      "due_today_one": "{{count}} việc đến hạn hôm nay.",
+      "due_today_other": "{{count}} việc đến hạn hôm nay.",
+      "unread_one": "{{count}} thông báo chưa đọc.",
+      "unread_other": "{{count}} thông báo chưa đọc."
+    },
+    "partial": {
+      "tasks": "Không tải được danh sách công việc.",
+      "meetings": "Không tải được lịch họp.",
+      "notifications": "Không tải được hộp việc.",
+      "retry": "Thử lại"
+    },
+    "error": {
+      "title": "Không tải được trang chủ",
+      "description": "Kết nối tới máy chủ đang có vấn đề. Thử lại sau giây lát.",
+      "retry": "Thử lại"
+    },
+    "customize": {
+      "title": "Tuỳ chỉnh trang chủ",
+      "description": "Bật hoặc tắt khối, đổi thứ tự và chọn mật độ. Thay đổi được lưu theo tài khoản.",
+      "sections": "Khối hiển thị",
+      "layout": "Mật độ bố cục",
+      "presets": "Preset nhanh",
+      "reset": "Đặt lại",
+      "close": "Đóng",
+      "saving": "Đang lưu…",
+      "save_failed": "Không lưu được tuỳ chỉnh. Đã quay về bản trước.",
+      "move_up": "Đưa {{section}} lên",
+      "move_down": "Đưa {{section}} xuống",
+      "all_hidden": "Bạn đã ẩn mọi khối trên trang chủ.",
+      "open": "Mở tuỳ chỉnh"
+    },
+    "layout": {
+      "compact": "Gọn",
+      "compact_hint": "Một cột, tập trung việc cần làm",
+      "balanced": "Cân bằng",
+      "balanced_hint": "Hai cột, mặc định",
+      "wide": "Rộng",
+      "wide_hint": "Ba cột trên màn hình lớn"
+    },
+    "preset": {
+      "executive": "Điều hành",
+      "executive_description": "Số liệu, tóm tắt và hộp việc lên trước",
+      "doer": "Người thực thi",
+      "doer_description": "Ưu tiên việc cần làm và lịch sắp tới",
+      "minimal": "Tối giản",
+      "minimal_description": "Chỉ việc của tôi"
+    }
+  },
   "capabilities": {
     "unknown": "Tính năng này chưa khả dụng.",
     "surface_not_ready": "Bề mặt này chưa sẵn sàng.",
@@ -1159,6 +1301,7 @@
     "status": "Trạng thái",
     "status_SCHEDULED": "Đã lên lịch",
     "status_IN_PROGRESS": "Đang diễn ra",
+    "status_OVERTIME": "Quá giờ",
     "status_ENDED": "Đã kết thúc",
     "status_CANCELED": "Đã huỷ",
     "waitingForHost": "Đang chờ người chủ trì bắt đầu cuộc họp",

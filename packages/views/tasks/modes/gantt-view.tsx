@@ -113,7 +113,7 @@ export function GanttView({
         <div className="flex-1" />
         <Button
           size="sm"
-          variant={showCompleted ? "secondary" : "outline"}
+          variant={showCompleted ? "secondary" : "toolbar"}
           className={cn(
             "h-7 text-caption",
             !showCompleted && "text-muted-foreground",
