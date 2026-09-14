@@ -149,7 +149,7 @@ export function TaskDisplayControls({
           trigger={
             <Button
               type="button"
-              variant="outline"
+              variant="toolbar"
               size="sm"
               className="gap-1.5"
               data-testid="task-filter-add"
@@ -165,7 +165,7 @@ export function TaskDisplayControls({
             render={
               <Button
                 type="button"
-                variant="outline"
+                variant="toolbar"
                 size="sm"
                 disabled
                 aria-disabled
@@ -191,7 +191,7 @@ export function TaskDisplayControls({
                 render={
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="toolbar"
                     size="sm"
                     className="gap-1.5"
                     aria-label={t("tasks.display.title")}
