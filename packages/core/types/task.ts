@@ -59,6 +59,7 @@ export const TaskSchema = z.object({
   project_id: z.string().nullable().optional(),
   parent_task_id: z.string().nullable().optional(),
   stage: z.number().nullable().optional(),
+  properties: z.record(z.string(), z.unknown()).optional().default({}),
   position: z.number(),
   kind: z.string().optional().default("normal"),
   created_by: z.string(),
@@ -66,10 +67,11 @@ export const TaskSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
 });
-export type Task = Omit<z.infer<typeof TaskSchema>, "status" | "priority" | "kind"> & {
+export type Task = Omit<z.infer<typeof TaskSchema>, "status" | "priority" | "kind" | "properties"> & {
   status: TaskStatus;
   priority: TaskPriority;
   kind: TaskKind;
+  properties?: Record<string, unknown>;
 };
 
 // Comments come straight off the sqlc row (snake_case); only the fields the

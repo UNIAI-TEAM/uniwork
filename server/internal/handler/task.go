@@ -31,6 +31,12 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 	out.Title = t.Title
 	out.Description = t.Description
 	out.Status = t.Status
+	if len(t.Properties) > 0 {
+		var properties map[string]any
+		if json.Unmarshal(t.Properties, &properties) == nil {
+			out.Properties = properties
+		}
+	}
 	out.Priority = t.Priority
 	out.AssigneeKind = t.AssigneeKind
 	out.Position = t.Position
