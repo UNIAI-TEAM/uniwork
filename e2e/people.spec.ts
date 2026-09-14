@@ -64,7 +64,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await owner.getByRole("button", { name: "Gửi lời mời" }).click();
   await owner.getByRole("button", { name: "Hoàn tất" }).click();
   await expect(owner).toHaveURL(new RegExp(`/${orgSlug}/doi-danh-ba/tasks$`), { timeout: 15_000 });
-  await owner.getByRole("button", { name: "Đã hiểu" }).click();
+  await owner.getByRole("button", { name: "Để sau" }).click();
 
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();

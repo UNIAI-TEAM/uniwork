@@ -60,7 +60,7 @@ describe("InboxView", () => {
       { total: 1, by_workspace: { ws1: 1 } },
     );
     renderInbox();
-    const list = await screen.findByRole("listbox", { name: "Hộp việc" });
+    const list = await screen.findByRole("list", { name: "Hộp việc" });
     const items = within(list).getAllByRole("presentation");
     expect(items[0]).toHaveTextContent("Chưa đọc");
     expect(items[1]).toHaveTextContent("Trước đó");
@@ -98,25 +98,43 @@ describe("InboxView", () => {
     );
   });
 
-  it("moves with j/k, archives with e and toggles read with r", async () => {
+  it("moves focus between real rows with j/k, archives with e and toggles read with r", async () => {
     mockApi([row("n1"), row("n2")], { total: 2, by_workspace: { ws1: 2 } });
     renderInbox();
-    const list = await screen.findByRole("listbox", { name: "Hộp việc" });
-    list.focus();
-    fireEvent.keyDown(list, { key: "j" });
-    fireEvent.keyDown(list, { key: "j" });
-    expect(list.getAttribute("aria-activedescendant")).toBe("n2");
-    fireEvent.keyDown(list, { key: "k" });
-    expect(list.getAttribute("aria-activedescendant")).toBe("n1");
-    fireEvent.keyDown(list, { key: "r" });
+    const first = await screen.findByRole("link", { name: /Việc n1/ });
+    const second = screen.getByRole("link", { name: /Việc n2/ });
+    // The keys act on whichever row holds focus: no separate selection state,
+    // so Tab, mouse and j/k all agree on what "current" is.
+    first.focus();
+    fireEvent.keyDown(first, { key: "j" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "j" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "k" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "r" });
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/read", expect.objectContaining({ body: { ids: ["n1"] } })),
     );
-    fireEvent.keyDown(list, { key: "e" });
+    fireEvent.keyDown(first, { key: "e" });
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/archive", expect.objectContaining({ body: { ids: ["n1"] } })),
     );
-    // Selection moved on to the next row before the archive settled.
-    expect(list.getAttribute("aria-activedescendant")).toBe("n2");
+    // Focus moved on to the next row before the archive settled.
+    expect(document.activeElement).toBe(second);
+  });
+
+  it("exposes the row actions to the keyboard, not only to hover", async () => {
+    mockApi([row("n1")], { total: 1, by_workspace: { ws1: 1 } });
+    renderInbox();
+    await screen.findByRole("link", { name: /Việc n1/ });
+    const list = screen.getByRole("list", { name: "Hộp việc" });
+    // Plain list semantics: a link and two buttons per row, all in the tab order.
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(within(list).getByRole("button", { name: "Đánh dấu đã đọc" })).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Lưu trữ" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/archive", expect.objectContaining({ body: { ids: ["n1"] } })),
+    );
   });
 });

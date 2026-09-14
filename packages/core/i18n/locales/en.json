@@ -247,7 +247,7 @@
         "member_added": "Added to a workspace",
         "role_changed": "Role changed",
         "audit_export_ready": "Audit export ready",
-        "chat_follow_up": "Message FollowUp"
+        "chat_follow_up": "Message follow-up"
       }
     },
     "page": {
@@ -2606,7 +2606,7 @@
       "member_added": "{{actor}} added you to workspace {{workspace}}",
       "role_changed": "{{actor}} changed your role to {{role}}",
       "audit_export_ready": "Your audit export is ready",
-      "chat_follow_up": "You saved a FollowUp on a message"
+      "chat_follow_up": "You saved a follow-up on a message"
     }
   },
   "ai": {

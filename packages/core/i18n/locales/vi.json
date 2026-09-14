@@ -246,7 +246,7 @@
         "member_added": "Được thêm vào workspace",
         "role_changed": "Vai trò thay đổi",
         "audit_export_ready": "Bản xuất nhật ký sẵn sàng",
-        "chat_follow_up": "FollowUp tin nhắn"
+        "chat_follow_up": "Follow-up từ tin nhắn"
       }
     },
     "page": {
@@ -2602,7 +2602,7 @@
       "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
       "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
       "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng",
-      "chat_follow_up": "Bạn đã gắn FollowUp cho một tin nhắn"
+      "chat_follow_up": "Bạn đã gắn Follow-up cho một tin nhắn"
     }
   },
   "ai": {

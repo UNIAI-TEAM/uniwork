@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { paths } from "@uniwork/core/paths";
 import { useArchive, useMarkAllRead, useMarkRead, useMarkUnread, useNotifications, useUnreadCount } from "@uniwork/core/notifications";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -20,12 +21,13 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const unread = useUnreadCount();
   const count = unread.data?.by_workspace[workspace.id] ?? 0;
-  // Fetched only while open so the bell costs one request at boot, not two.
-  const list = useNotifications({ workspaceId: workspace.id, limit: 10 });
+  // Cold until opened, so the bell costs one request at boot (the count), not two.
+  const list = useNotifications({ workspaceId: workspace.id, limit: 10, enabled: open });
   const markRead = useMarkRead();
   const markUnread = useMarkUnread();
   const archive = useArchive();
   const markAll = useMarkAllRead();
+  const fail = () => toast.error(t("notifications.error"));
   const label = count > 0 ? t("notifications.bell_unread", { count }) : t("notifications.bell");
   const inboxHref = paths.workspace(workspace.organization_slug, workspace.slug).inbox();
 
@@ -35,7 +37,10 @@ export function NotificationBell() {
         <TooltipTrigger
           render={
             <PopoverTrigger
-              render={<Button type="button" variant="ghost" size="icon-sm" className="relative h-8 w-8" aria-label={label} />}
+              render={
+                // 32px in the bar; a 44px target under a finger (pointer-coarse), which the 48px bar still holds.
+                <Button type="button" variant="ghost" size="icon" className="relative pointer-coarse:size-11" aria-label={label} />
+              }
             />
           }
         >
@@ -43,7 +48,7 @@ export function NotificationBell() {
           {count > 0 ? (
             <span
               aria-hidden
-              className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold tabular-nums text-primary-foreground"
+              className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-micro leading-none font-semibold tabular-nums text-primary-foreground"
             >
               {count > 99 ? "99+" : count}
             </span>
@@ -66,7 +71,7 @@ export function NotificationBell() {
                 variant="ghost"
                 size="sm"
                 disabled={markAll.isPending}
-                onClick={() => markAll.mutate(workspace.id)}
+                onClick={() => markAll.mutate(workspace.id, { onError: fail })}
               >
                 <CheckCheck aria-hidden className="size-3.5" />
                 {t("notifications.mark_all_read")}
@@ -78,7 +83,7 @@ export function NotificationBell() {
           </span>
         </div>
         {list.data && list.data.notifications.length > 0 ? (
-          <ul role="listbox" className="max-h-96 overflow-y-auto" aria-label={t("nav.inbox")}>
+          <ul className="max-h-96 overflow-y-auto" aria-label={t("nav.inbox")}>
             {list.data.notifications.map((n) => (
               <NotificationRow
                 key={n.id}
@@ -87,10 +92,10 @@ export function NotificationBell() {
                 compact
                 onOpen={(row) => {
                   setOpen(false);
-                  if (!row.read_at) markRead.mutate([row.id]);
+                  if (!row.read_at) markRead.mutate([row.id], { onError: fail });
                 }}
-                onToggleRead={(row) => (row.read_at ? markUnread : markRead).mutate([row.id])}
-                onArchive={(row) => archive.mutate([row.id])}
+                onToggleRead={(row) => (row.read_at ? markUnread : markRead).mutate([row.id], { onError: fail })}
+                onArchive={(row) => archive.mutate([row.id], { onError: fail })}
               />
             ))}
           </ul>
