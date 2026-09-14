@@ -126,13 +126,22 @@ test("the commit-msg hook enforces exactly the prefixes CLAUDE.md documents", ()
 test("the commit-msg hook accepts this repo's whole history", () => {
   // A rule that would have rejected the commits already in the tree is not a
   // rule, it is a trap for the next person who writes a correct message.
+  //
+  // e88a055 landed on develop via PR #62 without a conventional prefix; rewriting
+  // shared history is not an option, so keep the subject here and nowhere else.
+  const historicalExceptions = new Set([
+    "Enhance UI components with transition classes and improve localization",
+  ]);
   const subjects = execFileSync("git", ["log", "--format=%s"], { cwd: root, encoding: "utf8" })
     .split("\n")
     .filter(Boolean);
   const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
   const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
   const rejected = subjects.filter(
-    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
+    (s) =>
+      !historicalExceptions.has(s) &&
+      !re.test(s) &&
+      !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
   );
   assert.deepEqual(rejected, [], "commit-msg would reject commits already in history");
 });
