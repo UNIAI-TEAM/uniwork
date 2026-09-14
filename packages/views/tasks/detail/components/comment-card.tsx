@@ -5,6 +5,16 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import type { TaskComment } from "@uniwork/core/types";
 import { ReactionBar } from "@uniwork/ui/components/common/reaction-bar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../../../agents/agent-badge";
@@ -34,6 +44,7 @@ export function TaskCommentCard({
   const { t } = useTranslation();
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [draft, setDraft] = useState(comment.body);
   const authorLabel =
     comment.author?.display_name ??
@@ -43,6 +54,7 @@ export function TaskCommentCard({
   const resolved = !!comment.resolved_at;
 
   return (
+    <>
     <article
       id={`comment-${comment.id}`}
       data-testid={`task-comment-${comment.id}`}
@@ -141,11 +153,41 @@ export function TaskCommentCard({
           </Button>
         ) : null}
         {isOwn && onDelete ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onDelete}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setDeleteOpen(true)}
+          >
             {t("common.delete")}
           </Button>
         ) : null}
       </div>
     </article>
+    <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("tasks.detail.comment_delete_title")}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("tasks.detail.comment_delete_description")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() => {
+              onDelete?.();
+              setDeleteOpen(false);
+            }}
+          >
+            {t("tasks.detail.comment_delete_confirm")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

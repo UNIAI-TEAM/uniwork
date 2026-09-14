@@ -16,6 +16,7 @@ const putMutate = vi.hoisted(() => vi.fn());
 const updateMutate = vi.hoisted(() => vi.fn());
 const attachMutateAsync = vi.hoisted(() => vi.fn());
 const detachMutateAsync = vi.hoisted(() => vi.fn());
+const projectState = vi.hoisted(() => ({ available: false }));
 const labelState = vi.hoisted(() => ({
   catalog: [] as TaskLabel[],
   attached: [] as TaskLabel[],
@@ -60,7 +61,30 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
       data: { statuses: [], categories: [], total: 0 },
       isLoading: false,
     }),
-    useProjects: () => ({ data: { projects: [], total: 0 }, isLoading: false }),
+    useProjects: () => ({
+      data: {
+        projects: projectState.available
+          ? [
+              {
+                id: "p1",
+                organization_id: "o1",
+                workspace_id: "w1",
+                title: "Apollo",
+                description: "",
+                status: "active",
+                priority: "medium",
+                progress: 0,
+                revision: 1,
+                created_by: "u1",
+                created_at: "2026-09-01T00:00:00Z",
+                updated_at: "2026-09-01T00:00:00Z",
+              },
+            ]
+          : [],
+        total: projectState.available ? 1 : 0,
+      },
+      isLoading: false,
+    }),
   };
 });
 
@@ -78,11 +102,13 @@ vi.mock("@uniwork/core/feature-flags", () => ({
       flags: {},
       rum_sample_rate: 0,
       work_management_capabilities: {
-        "tasks.projects": {
-          status: "unavailable",
-          reason_code: "surface_not_ready",
-          explanation_key: "capabilities.surface_not_ready",
-        },
+        "tasks.projects": projectState.available
+          ? { status: "available" }
+          : {
+              status: "unavailable",
+              reason_code: "surface_not_ready",
+              explanation_key: "capabilities.surface_not_ready",
+            },
       },
     },
   }),
@@ -149,6 +175,7 @@ beforeEach(() => {
   vi.mocked(toast.error).mockReset();
   labelState.catalog = [];
   labelState.attached = [];
+  projectState.available = false;
 });
 
 function renderSidebar() {
@@ -229,6 +256,22 @@ describe("TaskDetailPropertiesSidebar", () => {
     });
   });
 
+  it("hiện tên dự án và đổi dự án bằng picker thay vì lộ id", async () => {
+    projectState.available = true;
+    renderSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: /dự án: không có dự án/i }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Apollo" }));
+
+    await waitFor(() =>
+      expect(updateMutate).toHaveBeenCalledWith(
+        { taskId: "t1", patch: { project_id: "p1" } },
+        expect.any(Object),
+      ),
+    );
+    expect(screen.queryByText("p1")).not.toBeInTheDocument();
+  });
+
   it("disables custom properties when the catalog is empty", () => {
     render(
       shell(
@@ -240,6 +283,9 @@ describe("TaskDetailPropertiesSidebar", () => {
       ),
     );
 
+    fireEvent.click(
+      screen.getByRole("button", { name: /thêm thuộc tính|add properties/i }),
+    );
     const custom = screen.getByTestId("task-detail-custom-properties");
     expect(custom).toHaveAttribute("aria-disabled", "true");
     expect(custom).toHaveAttribute(

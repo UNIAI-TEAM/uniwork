@@ -11,6 +11,7 @@ import {
   useLazyEditor,
 } from "../../../editor";
 import { TaskDetailAttachmentsSlot } from "./task-detail-attachments-slot";
+import { TaskDetailContextLine } from "./task-detail-context-line";
 import { TaskDetailSubtasksSection } from "./subtasks-section";
 import { TaskDetailTimelineSlot } from "./task-detail-timeline-slot";
 
@@ -84,6 +85,8 @@ export function TaskDetailEditors({
             </div>
           ) : null}
         </section>
+
+        <TaskDetailContextLine workspaceId={workspaceId} task={task} />
 
         <div className="relative mt-5 rounded-lg">
           <ContentEditor

@@ -52,8 +52,9 @@ describe("TaskActivityRow", () => {
     );
     expect(el).toHaveTextContent("Cập nhật task");
     expect(el).toHaveTextContent("Lan");
-    expect(el).toHaveTextContent("todo");
-    expect(el).toHaveTextContent("in_progress");
+    expect(el).toHaveTextContent("Cần làm");
+    expect(el).toHaveTextContent("Đang làm");
+    expect(el).not.toHaveTextContent("in_progress");
   });
 
   it("không có tên thành viên thì hiện id rút gọn thay vì bỏ trống người thực hiện", () => {

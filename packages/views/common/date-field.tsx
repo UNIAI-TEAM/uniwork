@@ -40,6 +40,9 @@ interface DateFieldProps {
   className?: string;
   /** False when nested in a Dialog so the calendar stays clickable. */
   modal?: boolean;
+  /** Override the visible localized date without changing the date-only transport. */
+  formatOptions?: Intl.DateTimeFormatOptions;
+  showIcon?: boolean;
 }
 
 /**
@@ -56,6 +59,8 @@ export function DateField({
   disabled,
   className,
   modal = true,
+  formatOptions,
+  showIcon = true,
 }: DateFieldProps) {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -63,7 +68,10 @@ export function DateField({
   const before = min ? dateOnlyToLocalDate(min) : undefined;
   const after = max ? dateOnlyToLocalDate(max) : undefined;
   const label = selected
-    ? selected.toLocaleDateString(i18n.language, { day: "numeric", month: "short", year: "numeric" })
+    ? selected.toLocaleDateString(
+        i18n.language,
+        formatOptions ?? { day: "numeric", month: "short", year: "numeric" },
+      )
     : t("common.date_pick");
 
   return (
@@ -78,7 +86,9 @@ export function DateField({
           className,
         )}
       >
-        <CalendarDays aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        {showIcon ? (
+          <CalendarDays aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        ) : null}
         <span className="truncate">{label}</span>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

@@ -88,6 +88,22 @@ describe("TaskDetailSuitePage", () => {
       expect(screen.getByText("Ship detail shell")).toBeInTheDocument();
     });
 
+    expect(screen.getByText("TEAM-12 Ship detail shell")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /bình luận \(0\)|comments \(0\)/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /ghim công việc|pin task/i }),
+    ).toBeInTheDocument();
+    const actions = screen.getByRole("button", {
+      name: /thao tác công việc|task actions/i,
+    });
+    expect(actions).toBeInTheDocument();
+    fireEvent.click(actions);
+    expect(
+      await screen.findByText(/đổi trạng thái|change status/i),
+    ).toBeInTheDocument();
+
     expect(
       screen.getByRole("region", { name: /tiêu đề|title/i }),
     ).toBeInTheDocument();

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ChevronDown, Plus, Unlink, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { capabilityState } from "@uniwork/core/capabilities";
@@ -9,15 +9,25 @@ import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { paths } from "@uniwork/core/paths";
 import {
   useLabelsOnTask,
+  useProjects,
   usePutTask,
+  useSetTaskParent,
   useTask,
   useTaskLabels,
   useTaskProperties,
+  useTasks,
   useUpdateTask,
 } from "@uniwork/core/tasks";
 import { type Task } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { AgentBadge } from "../../../agents/agent-badge";
 import { DateField } from "../../../common/date-field";
@@ -26,6 +36,7 @@ import { useWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
 import { cn } from "@uniwork/ui/lib/utils";
+import { TaskDetailMetadata } from "./task-detail-metadata";
 import {
   AssigneePicker,
   LabelPicker,
@@ -42,6 +53,7 @@ const EMPTY_CONFIG = {
   rum_sample_rate: 0,
   work_management_capabilities: {},
 } as const;
+const NONE = "__none__";
 
 function PropRow({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
@@ -53,9 +65,8 @@ function PropRow({ label, children }: { label: ReactNode; children: ReactNode })
 }
 
 /**
- * Suite properties sidebar: status/priority via revisioned PUT; assignee and
- * due date via PATCH; labels via attach/detach. Project / stage / start date /
- * custom properties stay visible-disabled until their mutation surface lands.
+ * Suite properties sidebar: compact, named controls for the task's mutable
+ * fields, followed by its parent relationship and immutable metadata.
  */
 export function TaskDetailPropertiesSidebar({
   workspaceId,
@@ -73,6 +84,9 @@ export function TaskDetailPropertiesSidebar({
   const { data: publicConfig } = usePublicConfig();
   const put = usePutTask(workspaceId);
   const update = useUpdateTask(workspaceId);
+  const setParent = useSetTaskParent(workspaceId);
+  const projectsQuery = useProjects(workspaceId);
+  const tasksQuery = useTasks(workspaceId);
   const propertiesQuery = useTaskProperties(workspaceId);
   const catalog = propertiesQuery.data?.properties ?? [];
   const labelsQuery = useTaskLabels(workspaceId);
@@ -80,6 +94,7 @@ export function TaskDetailPropertiesSidebar({
   const labelToggle = useTaskLabelToggle(workspaceId, task.id);
   const parentId = task.parent_task_id ?? null;
   const { data: parentTask } = useTask(parentId ?? "");
+  const [optionalOpen, setOptionalOpen] = useState(false);
 
   const projectsCap = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
@@ -91,6 +106,17 @@ export function TaskDetailPropertiesSidebar({
   );
   const surfaceNotReady = t("capabilities.surface_not_ready");
   const catalogEmpty = !propertiesQuery.isLoading && catalog.length === 0;
+  const projects = projectsQuery.data?.projects ?? [];
+  const projectLabel =
+    projects.find((project) => project.id === task.project_id)?.title ??
+    t("tasks.detail.prop_project_none");
+  const parentCandidates = (tasksQuery.data ?? []).filter(
+    (candidate) => candidate.id !== task.id,
+  );
+  const creatorName =
+    task.created_by_kind === "agent"
+      ? agents?.find((agent) => agent.id === task.created_by)?.name
+      : members?.find((member) => member.user_id === task.created_by)?.display_name;
 
   const attachedLabels = useMemo(
     () => onTaskLabels.data?.labels ?? [],
@@ -165,27 +191,6 @@ export function TaskDetailPropertiesSidebar({
       aria-label={t("tasks.detail.properties_sidebar")}
       className={`h-full overflow-y-auto py-4 ${PAGE_GUTTER}`}
     >
-      {parentId ? (
-        <section className="mb-4">
-          <h2 className="mb-2 text-caption font-medium text-muted-foreground">
-            {t("tasks.detail.section_parent")}
-          </h2>
-          {parentHref && parentTask ? (
-            <AppLink
-              href={parentHref}
-              className="block truncate text-caption text-foreground hover:underline"
-            >
-              <span className="text-muted-foreground">
-                {parentTask.identifier || parentTask.id}
-              </span>{" "}
-              {parentTask.title}
-            </AppLink>
-          ) : (
-            <p className="text-caption text-muted-foreground">{parentId}</p>
-          )}
-        </section>
-      ) : null}
-
       <h2 className="mb-2 text-caption font-medium text-muted-foreground">
         {t("tasks.detail.section_properties")}
       </h2>
@@ -264,21 +269,45 @@ export function TaskDetailPropertiesSidebar({
         </PropRow>
 
         <PropRow label={<Label>{t("tasks.detail.prop_project")}</Label>}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-auto w-full justify-start px-2 py-1.5 text-caption"
-            disabled={projectsDisabled}
-            aria-disabled={projectsDisabled || undefined}
-            title={projectsDisabled ? projectsReason : undefined}
-          >
-            {task.project_id
-              ? task.project_id
-              : t("tasks.detail.prop_project_none")}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={projectsDisabled}
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-full justify-start gap-1 px-2 text-caption"
+                  aria-label={`${t("tasks.detail.prop_project")}: ${projectLabel}`}
+                  aria-disabled={projectsDisabled || undefined}
+                  title={projectsDisabled ? projectsReason : undefined}
+                />
+              }
+            >
+              <span className="truncate">{projectLabel}</span>
+              <ChevronDown aria-hidden className="ml-auto size-3.5 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-52">
+              <DropdownMenuRadioGroup
+                value={task.project_id || NONE}
+                onValueChange={(value) =>
+                  patchField({ project_id: value === NONE ? null : value })
+                }
+              >
+                <DropdownMenuRadioItem value={NONE}>
+                  {t("tasks.detail.prop_project_none")}
+                </DropdownMenuRadioItem>
+                {projects.map((project) => (
+                  <DropdownMenuRadioItem key={project.id} value={project.id}>
+                    {project.title}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </PropRow>
 
+        {attachedLabels.length > 0 || optionalOpen ? (
         <PropRow label={<Label>{t("tasks.detail.prop_labels")}</Label>}>
           <div className="space-y-1.5">
             {attachedLabels.length > 0 ? (
@@ -323,7 +352,9 @@ export function TaskDetailPropertiesSidebar({
             </LabelPicker>
           </div>
         </PropRow>
+        ) : null}
 
+        {task.start_date || optionalOpen ? (
         <PropRow label={<Label>{t("tasks.detail.prop_start_date")}</Label>}>
           <div title={surfaceNotReady}>
             <DateField
@@ -333,14 +364,19 @@ export function TaskDetailPropertiesSidebar({
             />
           </div>
         </PropRow>
+        ) : null}
 
+        {task.due_date || optionalOpen ? (
         <PropRow label={<Label>{t("tasks.dueDate")}</Label>}>
           <DateField
             value={task.due_date ?? ""}
             onChange={(v) => patchField({ due_date: v || null })}
           />
         </PropRow>
+        ) : null}
 
+        {optionalOpen ? (
+        <>
         <PropRow label={<Label>{t("tasks.detail.prop_stage")}</Label>}>
           <Button
             type="button"
@@ -373,7 +409,110 @@ export function TaskDetailPropertiesSidebar({
                 })}
           </Button>
         </PropRow>
+        </>
+        ) : null}
+
+        {!optionalOpen ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-1 h-8 w-full justify-start gap-1 px-2 text-caption text-muted-foreground"
+            onClick={() => setOptionalOpen(true)}
+          >
+            <Plus aria-hidden className="size-3.5" />
+            {t("tasks.detail.optional_properties")}
+          </Button>
+        ) : null}
       </div>
+
+      <section className="mt-5 border-t border-border pt-4">
+        <h2 className="mb-2 text-caption font-medium text-muted-foreground">
+          {t("tasks.detail.section_parent")}
+        </h2>
+        {parentHref && parentTask ? (
+          <div className="mb-2 flex items-center gap-1">
+            <AppLink
+              href={parentHref}
+              className="min-w-0 flex-1 truncate text-caption text-foreground hover:underline"
+            >
+              <span className="text-muted-foreground">
+                {parentTask.identifier || parentTask.id}
+              </span>{" "}
+              {parentTask.title}
+            </AppLink>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t("tasks.detail.parent_remove")}
+              aria-disabled={setParent.isPending || undefined}
+              onClick={() =>
+                setParent.mutate(
+                  { taskId: task.id, body: { parent_task_id: null } },
+                  { onError: (err) => toastApiError(err, t("common.error")) },
+                )
+              }
+            >
+              <Unlink aria-hidden />
+            </Button>
+          </div>
+        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-full justify-start gap-1 px-2 text-caption text-muted-foreground"
+                aria-label={
+                  parentId
+                    ? t("tasks.detail.parent_change")
+                    : t("tasks.detail.parent_add")
+                }
+              />
+            }
+          >
+            <Plus aria-hidden className="size-3.5" />
+            {parentId
+              ? t("tasks.detail.parent_change")
+              : t("tasks.detail.parent_add")}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-60">
+            <DropdownMenuRadioGroup
+              value={parentId || NONE}
+              onValueChange={(value) =>
+                setParent.mutate(
+                  {
+                    taskId: task.id,
+                    body: { parent_task_id: value === NONE ? null : value },
+                  },
+                  { onError: (err) => toastApiError(err, t("common.error")) },
+                )
+              }
+            >
+              <DropdownMenuRadioItem value={NONE}>
+                {t("tasks.detail.parent_none")}
+              </DropdownMenuRadioItem>
+              {parentCandidates.map((candidate) => (
+                <DropdownMenuRadioItem key={candidate.id} value={candidate.id}>
+                  <span className="text-muted-foreground">
+                    {candidate.identifier || candidate.id}
+                  </span>{" "}
+                  {candidate.title}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </section>
+
+      <TaskDetailMetadata
+        creatorName={creatorName ?? task.created_by}
+        createdAt={task.created_at}
+        updatedAt={task.updated_at}
+      />
     </aside>
   );
 }

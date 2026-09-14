@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useMembers } from "@uniwork/core/workspaces";
+import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useResourceHistory } from "@uniwork/core/audit";
 import type { AuditEvent, TaskComment } from "@uniwork/core/types";
 import {
@@ -12,6 +13,7 @@ import {
   useCreateCommentSuite,
   useDeleteComment,
   useRemoveCommentReaction,
+  useProjects,
   useResolveComment,
   useSubscribeTask,
   useTaskSubscribers,
@@ -27,7 +29,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../../../toast-api-error";
 import { useFindExpandedThreads } from "../find/find-expanded-threads";
 import { useTaskFindQuery } from "../find/find-query-context";
-import { TaskActivityRow, isTimelineActivity } from "./activity-row";
+import { isTimelineActivity } from "./activity-row";
+import { TaskActivityGroup } from "./activity-group";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
 import { buildCommentThreads, type CommentThread } from "./comment-thread";
@@ -35,6 +38,7 @@ import { commentPreviewOrFallback } from "./comment-preview-text";
 import { TaskReplyComposer } from "./reply-composer";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
 import { ThreadNavPanel, type ThreadNavItem } from "./thread-nav-panel";
+import { groupTimelineEntries } from "./timeline-entries";
 
 function isThreadResolved(thread: CommentThread): boolean {
   return !!thread.root.resolved_at;
@@ -80,6 +84,8 @@ export function TaskDetailTimeline({
   const subscribers = useTaskSubscribers(taskId);
   // Best effort: an actor outside this workspace still shows as a short id.
   const members = useMembers(workspaceId);
+  const agents = useWorkspaceAgents(workspaceId);
+  const projects = useProjects(workspaceId);
   const subscribe = useSubscribeTask(taskId);
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -170,6 +176,16 @@ export function TaskDetailTimeline({
       ),
     [members.data],
   );
+  const valueNames = useMemo(
+    () =>
+      new Map([
+        ...(members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
+        ...(agents.data ?? []).map((a) => [a.id, a.name] as const),
+        ...(projects.data?.projects ?? []).map((p) => [p.id, p.title] as const),
+      ]),
+    [members.data, agents.data, projects.data?.projects],
+  );
+  const displayEntries = useMemo(() => groupTimelineEntries(entries), [entries]);
 
   const watching = useMemo(() => {
     if (!currentUserId) return false;
@@ -349,12 +365,13 @@ export function TaskDetailTimeline({
             </p>
           )
         ) : (
-          entries.map((entry) =>
-            entry.kind === "activity" ? (
-              <TaskActivityRow
-                key={entry.event.id}
-                event={entry.event}
-                actorName={actorNames.get(entry.event.actor_id)}
+          displayEntries.map((entry) =>
+            entry.kind === "activity-group" ? (
+              <TaskActivityGroup
+                key={`activity-${entry.events[0]?.id ?? "empty"}`}
+                events={entry.events}
+                actorNames={actorNames}
+                valueNames={valueNames}
               />
             ) : (
               <div

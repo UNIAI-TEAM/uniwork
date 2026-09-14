@@ -11,6 +11,7 @@ import {
 } from "../../layout/animated-right-sidebar";
 import { useWorkspace } from "../../layout/workspace-context";
 import { TaskDetailEditors } from "./components/task-detail-editors";
+import { TaskDetailHeaderActions } from "./components/task-detail-header-actions";
 import { TaskDetailResizableLayout } from "./components/task-detail-layout";
 import { TaskDetailPropertiesSidebarSlot } from "./components/task-detail-properties-slot";
 import { TaskFindScope } from "./find/task-find-scope";
@@ -28,7 +29,7 @@ export function TaskDetailSuitePage(props: {
   /** Wired when the actions menu lands (Task 7+). */
   onDeleted?: () => void;
 }) {
-  const { workspaceId, taskId } = props;
+  const { workspaceId, taskId, onDeleted } = props;
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
   const { data: task, isLoading, isError, error, refetch } = useTask(taskId);
@@ -73,10 +74,8 @@ export function TaskDetailSuitePage(props: {
     );
   }
 
-  const leaf =
-    task.identifier?.trim() ||
-    task.title ||
-    t("tasks.detail.title_placeholder");
+  const identifier = task.identifier?.trim();
+  const leaf = [identifier, task.title].filter(Boolean).join(" ") || t("tasks.detail.title_placeholder");
 
   return (
     <div
@@ -87,10 +86,18 @@ export function TaskDetailSuitePage(props: {
         segments={segments}
         leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
         actions={
-          <RightSidebarToggle
-            controller={sidebarController}
-            label={t("tasks.detail.sidebar_toggle")}
-          />
+          <>
+            <TaskDetailHeaderActions
+              workspaceId={workspaceId}
+              task={task}
+              tasksHref={tasksHref}
+              onDeleted={onDeleted}
+            />
+            <RightSidebarToggle
+              controller={sidebarController}
+              label={t("tasks.detail.sidebar_toggle")}
+            />
+          </>
         }
       />
       <TaskDetailResizableLayout
