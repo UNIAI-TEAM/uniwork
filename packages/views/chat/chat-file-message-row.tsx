@@ -8,18 +8,19 @@ import { loadChatFileBlob } from "@uniwork/core/api/endpoints/chat";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import {
+  isChatImageContentType,
+  isChatPdfContentType,
+} from "./chat-file-accept";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import { ChatReplyQuote } from "./chat-reply-quote";
+import { MessageTaskCard } from "./message-task-card";
 
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function isImageContentType(contentType: string | undefined): boolean {
-  return Boolean(contentType?.startsWith("image/"));
 }
 
 export function ChatFileMessageRow({
@@ -38,6 +39,10 @@ export function ChatFileMessageRow({
   onPin,
   onCopy,
   onDelete,
+  onCreateTask,
+  onLinkTask,
+  onFollowUp,
+  workHubEnabled = false,
 }: {
   workspaceId: string;
   roomId: string;
@@ -54,20 +59,26 @@ export function ChatFileMessageRow({
   onPin?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
   onDelete?: (message: ChatMessage) => void;
+  onCreateTask?: (message: ChatMessage) => void;
+  onLinkTask?: (message: ChatMessage) => void;
+  onFollowUp?: (message: ChatMessage) => void;
+  workHubEnabled?: boolean;
 }) {
   const { t } = useTranslation();
   const file = message.file;
-  const isImage = isImageContentType(file?.content_type);
+  const isImage = isChatImageContentType(file?.content_type);
+  const isPdf = isChatPdfContentType(file?.content_type);
+  const loadsInlinePreview = isImage || isPdf;
   const reactionEntries = Object.entries(message.reactions);
   const [busy, setBusy] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewStatus, setPreviewStatus] = useState<"idle" | "loading" | "ready" | "error">(
-    isImage ? "loading" : "idle",
+    loadsInlinePreview ? "loading" : "idle",
   );
   const previewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isImage || !file) {
+    if (!loadsInlinePreview || !file) {
       setPreviewStatus("idle");
       return;
     }
@@ -92,14 +103,14 @@ export function ChatFileMessageRow({
         previewUrlRef.current = null;
       }
     };
-  }, [file, isImage, message.id, roomId, workspaceId]);
+  }, [file, loadsInlinePreview, message.id, roomId, workspaceId]);
 
   const download = async () => {
     if (busy || !file) return;
     setBusy(true);
     try {
       const blob =
-        previewUrl && isImage
+        previewUrl && loadsInlinePreview
           ? await fetch(previewUrl).then((res) => res.blob())
           : await loadChatFileBlob(workspaceId, roomId, message.id);
       const url = URL.createObjectURL(blob);
@@ -126,10 +137,10 @@ export function ChatFileMessageRow({
       className={cn(
         "flex w-full max-w-full",
         isOwn ? "justify-end" : "justify-start",
-        compactTop ? "pt-0.5" : "pt-3",
+        compactTop ? "mt-2" : "mt-4",
       )}
     >
-      <div className={cn("flex max-w-[min(100%,24rem)] gap-2", isOwn && "flex-row-reverse")}>
+      <div className={cn("flex max-w-[min(100%,22rem)] gap-2", isOwn && "flex-row-reverse")}>
         {showAvatar && !isOwn ? (
           <ActorAvatar
             name={senderLabel}
@@ -154,20 +165,23 @@ export function ChatFileMessageRow({
             onPin={onPin}
             onCopy={onCopy}
             onDelete={onDelete}
+            onCreateTask={workHubEnabled ? onCreateTask : undefined}
+            onLinkTask={workHubEnabled ? onLinkTask : undefined}
+            onFollowUp={workHubEnabled ? onFollowUp : undefined}
             canEdit={false}
           />
           {showSenderName && !isOwn ? (
-            <p className="mb-1 px-1 text-caption font-medium text-brand">{senderLabel}</p>
+            <p className="mb-1.5 px-1 text-caption font-medium text-brand">{senderLabel}</p>
           ) : null}
           <div
             className={cn(
-              "overflow-hidden rounded-2xl border shadow-sm",
+              "overflow-hidden rounded-xl border shadow-sm",
               isOwn ? "border-brand/30 bg-brand/10" : "border-border bg-surface",
-              !isImage && "px-3 py-2",
+              !isImage && !isPdf && "px-3 py-2",
             )}
           >
             {replyToMessage ? (
-              <div className={cn(isImage ? "px-2 pt-2" : undefined)}>
+              <div className={cn(isImage || isPdf ? "px-2 pt-2" : undefined)}>
                 <ChatReplyQuote
                   message={replyToMessage}
                   workspaceId={workspaceId}
@@ -188,7 +202,7 @@ export function ChatFileMessageRow({
                   <img
                     src={previewUrl}
                     alt={file?.filename || t("chat.file_untitled")}
-                    className="max-h-80 max-w-full object-contain"
+                    className="max-h-56 max-w-full object-contain"
                   />
                 </button>
               ) : (
@@ -205,6 +219,55 @@ export function ChatFileMessageRow({
                   )}
                 </div>
               )
+            ) : isPdf ? (
+              <div className="space-y-2 p-2">
+                <div className="flex items-center gap-3 px-1">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <FileText className="size-4" aria-hidden />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-body font-medium text-foreground">
+                      {file?.filename || t("chat.file_untitled")}
+                    </p>
+                    <p className="text-caption text-muted-foreground">
+                      {formatBytes(file?.size_bytes ?? 0)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-9 shrink-0"
+                    disabled={busy}
+                    aria-label={t("chat.file_download")}
+                    onClick={() => void download()}
+                  >
+                    {busy ? (
+                      <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                    ) : (
+                      <Download className="size-4" aria-hidden />
+                    )}
+                  </Button>
+                </div>
+                {previewStatus === "ready" && previewUrl ? (
+                  <iframe
+                    title={t("chat.file_pdf_preview")}
+                    src={previewUrl}
+                    className="h-72 w-full rounded-lg border border-border bg-background"
+                  />
+                ) : previewStatus === "error" ? (
+                  <p className="px-1 pb-1 text-caption text-muted-foreground">
+                    {t("chat.file_download_failed")}
+                  </p>
+                ) : (
+                  <div className="flex h-40 items-center justify-center">
+                    <LoaderCircle
+                      className="size-5 animate-spin text-muted-foreground"
+                      aria-hidden
+                    />
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex items-center gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -262,6 +325,13 @@ export function ChatFileMessageRow({
                 ? t("chat.thread_replies_unread", { count: message.replyCount })
                 : t("chat.thread_replies", { count: message.replyCount })}
             </button>
+          ) : null}
+          {workHubEnabled ? (
+            <MessageTaskCard
+              workspaceId={workspaceId}
+              messageId={message.id}
+              className={cn("mt-1", isOwn && "items-end self-end")}
+            />
           ) : null}
         </div>
       </div>

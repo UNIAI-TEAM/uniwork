@@ -71,6 +71,13 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
           pinToTop: record.note.pin_to_top ?? false,
         }
       : undefined,
+    post: record.post
+      ? {
+          title: record.post.title,
+          body: record.post.body,
+          pinToTop: record.post.pin_to_top ?? false,
+        }
+      : undefined,
     priority:
       record.priority === "important" || record.priority === "urgent"
         ? record.priority

@@ -188,6 +188,28 @@ func TestTaskCRUD(t *testing.T) {
 	}
 }
 
+func TestTaskUpdateAcceptsRemainingBuiltInBoardStatuses(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+
+	for _, status := range []string{"backlog", "in_review", "blocked"} {
+		t.Run(status, func(t *testing.T) {
+			task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Move to " + status})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			updated, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{Status: &status})
+			if err != nil {
+				t.Fatalf("update status to %q: %v", status, err)
+			}
+			if updated.Status != status {
+				t.Fatalf("status = %q, want %q", updated.Status, status)
+			}
+		})
+	}
+}
+
 func TestTaskNumbersAreAtomicPerWorkspace(t *testing.T) {
 	s, _, ua, ub, w := taskFixture(t)
 	ctx := context.Background()

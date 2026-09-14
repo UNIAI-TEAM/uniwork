@@ -16,12 +16,13 @@ type CreateTaskSDI struct {
 type PatchTaskSDI struct {
 	Title        *string  `json:"title" description:"Tiêu đề mới" example:"Chuẩn bị standup"`
 	Description  *string  `json:"description" example:"Agenda và ghi chú"`
-	Status       *string  `json:"status" description:"todo, in_progress, done hoặc cancelled" example:"in_progress"`
+	Status       *string  `json:"status" description:"backlog, todo, in_progress, in_review, done, blocked hoặc cancelled" example:"in_progress"`
 	Priority     *string  `json:"priority" example:"high"`
 	Position     *float64 `json:"position" description:"Thứ tự trên bảng; số lớn hơn nằm sau" example:"1"`
 	AssigneeID   *string  `json:"assignee_id" description:"Gán thành viên hoặc agent, hoặc gửi null để bỏ giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	AssigneeKind *string  `json:"assignee_kind" description:"human (mặc định) hoặc agent; đọc cùng assignee_id" example:"agent"`
 	DueDate      *string  `json:"due_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa hạn" example:"2026-08-28"`
+	ProjectID    *string  `json:"project_id" description:"Gắn project ULID, hoặc gửi null để gỡ" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 }
 
 // QueryTasksSDI is POST /api/v1/workspaces/{workspaceID}/tasks/query (flagged suite).

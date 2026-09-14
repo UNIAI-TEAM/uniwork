@@ -7,6 +7,7 @@ import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { InstantMeetingDialog } from "./instant-meeting-dialog";
 import { MeetingFilters } from "./meeting-filters";
@@ -55,6 +56,7 @@ export function MeetingsPageView({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <CollectionPageHeader
         icon={CalendarDays}
+        tone={moduleTone("meetings")}
         title={t("meetings.title")}
         count={stats?.total ?? total}
         actions={
@@ -83,6 +85,7 @@ export function MeetingsPageView({
       ) : isEmpty ? (
         <CollectionPageState
           icon={CalendarDays}
+          tone={moduleTone("meetings")}
           title={t("meetings.empty_title")}
           description={t("meetings.empty_description")}
           actions={

@@ -88,3 +88,18 @@ export async function signalChatTyping(workspaceId: string, roomId: string): Pro
   });
   return parsed.status === "ok";
 }
+
+export async function signalChatPresence(
+  workspaceId: string,
+  state: "online" | "offline" = "online",
+  opts: { keepalive?: boolean } = {},
+): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/presence`,
+    { method: "POST", body: { state }, keepalive: opts.keepalive },
+  );
+  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/presence",
+  });
+  return parsed.status === "ok";
+}

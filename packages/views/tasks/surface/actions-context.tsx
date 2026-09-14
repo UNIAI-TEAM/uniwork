@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
+import type { BatchUpdateBody } from "@uniwork/core/api/endpoints/tasks-suite";
 import type { Task } from "@uniwork/core/types";
 import type { ActorKind } from "@uniwork/core/types/audit";
 
@@ -34,7 +35,7 @@ export interface TaskSurfaceActions {
   ) => void;
   batchUpdate: (
     taskIds: string[],
-    updates: Record<string, unknown>,
+    updates: BatchUpdateBody["updates"],
   ) => Promise<void>;
   batchDelete: (taskIds: string[]) => Promise<void>;
 }

@@ -89,5 +89,6 @@ export type ChatPageContentProps = {
   canPinMessages: boolean;
   canCreatePolls: boolean;
   canCreateNotes: boolean;
+  peerLastReadAt?: string | null;
   t: (key: string, options?: Record<string, string | number>) => string;
 };

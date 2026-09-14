@@ -5,6 +5,7 @@ import { ChannelSettingsSheet } from "./channel-settings-sheet";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
+import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { DmSettingsSheet } from "./dm-settings-sheet";
 import { GroupSettingsSheet } from "./group-settings-sheet";
 import { WorkspaceSettingsSheet } from "./workspace-settings-sheet";
@@ -51,6 +52,7 @@ type ChatPageContentDialogsProps = Pick<
   | "activeRoomId"
   | "canPinMessages"
   | "t"
+  | "onMessageSearchOpenChange"
 > & {
   createPollOpen: boolean;
   onCreatePollOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
@@ -58,6 +60,8 @@ type ChatPageContentDialogsProps = Pick<
   onCreateReminderOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createNoteOpen: boolean;
   onCreateNoteOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  createPostOpen: boolean;
+  onCreatePostOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function ChatPageContentDialogs({
@@ -100,12 +104,15 @@ export function ChatPageContentDialogs({
   activeRoomId,
   canPinMessages,
   t,
+  onMessageSearchOpenChange,
   createPollOpen,
   onCreatePollOpenChange,
   createReminderOpen,
   onCreateReminderOpenChange,
   createNoteOpen,
   onCreateNoteOpenChange,
+  createPostOpen,
+  onCreatePostOpenChange,
 }: ChatPageContentDialogsProps) {
   return (
     <>
@@ -134,6 +141,15 @@ export function ChatPageContentDialogs({
           canPinToTop={canPinMessages}
         />
       ) : null}
+      {activeRoomId ? (
+        <ChatCreatePostDialog
+          open={createPostOpen}
+          onOpenChange={onCreatePostOpenChange}
+          workspaceId={workspaceId}
+          roomId={activeRoomId}
+          canPinToTop={canPinMessages}
+        />
+      ) : null}
       {target.kind === "workspace" && workspaceRoomId ? (
         <WorkspaceSettingsSheet
           open={workspaceSettingsOpen}
@@ -144,6 +160,7 @@ export function ChatPageContentDialogs({
           workspaceMembers={workspaceMembers}
           currentUserId={currentUserId}
           youLabel={t("chat.you")}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
         />
       ) : null}
       {target.kind === "group" && activeGroup ? (
@@ -161,6 +178,7 @@ export function ChatPageContentDialogs({
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
             onLeave={onLeaveGroup}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
           />
           <AddGroupMembersDialog
             open={addMembersOpen}
@@ -195,6 +213,7 @@ export function ChatPageContentDialogs({
           onUnblock={onUnblockContact}
           blocking={blockingContact}
           unblocking={unblockingContact}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
         />
       ) : null}
       {workHubEnabled && activeChannel ? (
@@ -213,6 +232,7 @@ export function ChatPageContentDialogs({
             onLeave={activeChannel.is_default ? undefined : onLeaveChannel}
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
           />
           {!activeChannel.is_default ? (
             <AddGroupMembersDialog

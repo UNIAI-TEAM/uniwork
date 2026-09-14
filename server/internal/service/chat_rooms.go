@@ -22,16 +22,18 @@ const (
 
 // ChatRoomSummary is a dm, group, or channel room visible to the caller.
 type ChatRoomSummary struct {
-	ID                    string
-	Kind                  string
-	Name                  string
-	WorkspaceID           string
-	MemberUserIDs         []string
-	UnreadCount           int
-	MentionUnreadCount    int
-	PeerUserID            string
-	PeerEmail             string
-	PeerDisplayName       string
+	ID                 string
+	Kind               string
+	Name               string
+	WorkspaceID        string
+	MemberUserIDs      []string
+	UnreadCount        int
+	MentionUnreadCount int
+	PeerUserID         string
+	PeerEmail          string
+	PeerDisplayName    string
+	// PeerLastReadAt is the DM peer's read cursor (nil for non-DM or never read).
+	PeerLastReadAt        *time.Time
 	LastMessageBody       string
 	LastMessageKind       string
 	LastMessageSenderID   string
@@ -602,6 +604,12 @@ func (s *ChatService) roomSummary(
 			out.PeerDisplayName = peer.DisplayName
 			if strings.TrimSpace(out.Name) == "" {
 				out.Name = peer.DisplayName
+			}
+			if member, mErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+				RoomID: roomID, UserID: peerID,
+			}); mErr == nil && member.LastReadAt.Valid {
+				t := member.LastReadAt.Time
+				out.PeerLastReadAt = &t
 			}
 		}
 	}

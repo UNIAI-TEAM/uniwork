@@ -14,6 +14,7 @@ type chatMessageMetadata struct {
 	Poll             *ChatPollPayload     `json:"poll,omitempty"`
 	Reminder         *ChatReminderPayload `json:"reminder,omitempty"`
 	Note             *ChatNotePayload     `json:"note,omitempty"`
+	Post             *ChatPostPayload     `json:"post,omitempty"`
 	Priority         string               `json:"priority,omitempty"`
 }
 

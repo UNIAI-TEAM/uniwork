@@ -113,6 +113,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			PinToTop: m.Note.PinToTop,
 		}
 	}
+	if m.Post != nil {
+		out.Post = &sdo.ChatPostDTO{
+			Title:    m.Post.Title,
+			Body:     m.Post.Body,
+			PinToTop: m.Post.PinToTop,
+		}
+	}
 	return out
 }
 
@@ -139,6 +146,9 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
 	}
+	if r.PeerLastReadAt != nil {
+		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
+	}
 	if r.LastMessageAt != nil {
 		out.LastMessageAt = r.LastMessageAt.Format(time.RFC3339)
 	}
@@ -163,7 +173,9 @@ func parseChatMessageListQuery(r *http.Request) (service.ListChatMessagesInput, 
 		}
 		before = &t
 	}
-	return service.ListChatMessagesInput{Before: before, Limit: limit}, nil
+	// mark_read=0 keeps last_read_at so CatchUp still sees unread after open.
+	skipMarkRead := strings.TrimSpace(r.URL.Query().Get("mark_read")) == "0"
+	return service.ListChatMessagesInput{Before: before, Limit: limit, SkipMarkRead: skipMarkRead}, nil
 }
 
 func (h *handlers) getWorkspaceChatRoom(w http.ResponseWriter, r *http.Request) {
@@ -323,6 +335,17 @@ func (h *handlers) inviteChatGroupMembers(w http.ResponseWriter, r *http.Request
 
 func (h *handlers) leaveChatRoom(w http.ResponseWriter, r *http.Request) {
 	err := h.Chat.LeaveChatRoom(
+		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+func (h *handlers) markChatRoomRead(w http.ResponseWriter, r *http.Request) {
+	err := h.Chat.MarkRoomRead(
 		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
 	)
 	if err != nil {
@@ -534,6 +557,19 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			service.SendNoteMessageInput{
 				Body:             in.Note.Body,
 				PinToTop:         in.Note.PinToTop,
+				ReplyToMessageID: in.ReplyToMessageID,
+			},
+		)
+	} else if in.Post != nil {
+		msg, err = h.Chat.SendPostMessage(
+			r.Context(),
+			userID,
+			workspaceID,
+			roomID,
+			service.SendPostMessageInput{
+				Title:            in.Post.Title,
+				Body:             in.Post.Body,
+				PinToTop:         in.Post.PinToTop,
 				ReplyToMessageID: in.ReplyToMessageID,
 			},
 		)

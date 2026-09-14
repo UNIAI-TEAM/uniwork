@@ -18,12 +18,21 @@ import {
   ROW_HEIGHT,
 } from "./gantt-geometry";
 import { GanttScheduledRow } from "./gantt-row";
+import { LoadedCountNotice } from "./loaded-count-notice";
+import type { TaskSurfacePagination } from "../surface/use-task-surface-data";
 
 /**
  * Suite TaskSurface gantt mode — timeline renderer. The surface applies
  * `ganttCanvasRows` before handing tasks over; this view only orders + draws.
+ * A timeline has no list end, so later pages load from the count notice.
  */
-export function GanttView({ tasks }: { tasks: Task[] }) {
+export function GanttView({
+  tasks,
+  pagination,
+}: {
+  tasks: Task[];
+  pagination?: TaskSurfacePagination;
+}) {
   const { t } = useTranslation();
   const zoom = useViewStore((s) => s.ganttZoom);
   const showCompleted = useViewStore((s) => s.ganttShowCompleted);
@@ -55,19 +64,29 @@ export function GanttView({ tasks }: { tasks: Task[] }) {
     el.scrollLeft = target;
   }, [todayOffsetDays, dayPx]);
 
+  // Undated tasks on unloaded pages may still be dated ones; the notice stays
+  // up over the empty timeline too.
+  const notice = pagination ? (
+    <LoadedCountNotice pagination={pagination} withAction />
+  ) : null;
+
   if (scheduled.length === 0) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center text-body text-muted-foreground"
-        data-testid="gantt-empty"
-      >
-        {t("tasks.gantt.empty")}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {notice}
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center text-body text-muted-foreground"
+          data-testid="gantt-empty"
+        >
+          {t("tasks.gantt.empty")}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="gantt-view">
+      {notice}
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
         <div className="inline-flex items-center rounded-md border border-foreground/10 p-0.5">
           {(
@@ -94,7 +113,7 @@ export function GanttView({ tasks }: { tasks: Task[] }) {
         <div className="flex-1" />
         <Button
           size="sm"
-          variant={showCompleted ? "secondary" : "outline"}
+          variant={showCompleted ? "secondary" : "toolbar"}
           className={cn(
             "h-7 text-caption",
             !showCompleted && "text-muted-foreground",

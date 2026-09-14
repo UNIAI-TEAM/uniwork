@@ -73,6 +73,34 @@ export type AiUsageSummary = z.infer<typeof AiUsageSummarySchema>;
 export interface AskUniInput {
   conversation_id?: string;
   question: string;
-  focus?: { kind: "task" | "meeting"; id: string };
+  focus?: { kind: "task" | "meeting" | "room" | "thread" | "message"; id: string };
+  locale?: string;
+}
+
+export const ChatCatchUpActionItemSchema = z.object({
+  title: z.string(),
+  owner: z.string().optional().default(""),
+  due: z.string().optional().default(""),
+  source_message_id: z.string().optional().default(""),
+});
+export type ChatCatchUpActionItem = z.infer<typeof ChatCatchUpActionItemSchema>;
+
+export const ChatCatchUpResponseSchema = z.object({
+  summary: z.string().optional().default(""),
+  highlights: z.array(z.string()).optional().default([]),
+  action_items: z.array(ChatCatchUpActionItemSchema).optional().default([]),
+  message_count: z.number().optional().default(0),
+  mode: z.string().optional().default("unread"),
+  since: z.string().optional().default(""),
+  usage: z
+    .object({ input_tokens: z.number().optional().default(0), output_tokens: z.number().optional().default(0) })
+    .optional()
+    .default({ input_tokens: 0, output_tokens: 0 }),
+});
+export type ChatCatchUpResponse = z.infer<typeof ChatCatchUpResponseSchema>;
+
+export interface ChatCatchUpInput {
+  room_id: string;
+  thread_root_id?: string;
   locale?: string;
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/endpoints/ai";
-import type { AskUniInput } from "../types/ai";
+import type { AskUniInput, ChatCatchUpInput } from "../types/ai";
 
 export { useAiPanelStore } from "./store";
 
@@ -53,6 +53,17 @@ export function useAskUni(wsId: string) {
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: aiKeys.messages(res.conversation_id) });
       void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
+      void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
+      void qc.invalidateQueries({ queryKey: aiKeys.usages() });
+    },
+  });
+}
+
+export function useChatCatchUp(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ChatCatchUpInput) => api.chatCatchUp(wsId, body),
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
       void qc.invalidateQueries({ queryKey: aiKeys.usages() });
     },

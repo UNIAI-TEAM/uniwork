@@ -76,6 +76,10 @@ export interface RequestOpts {
    * Content-Type are still owned by the transport.
    */
   headers?: Record<string, string>;
+  /** Keep the request alive across page unload (presence offline, etc.). */
+  keepalive?: boolean;
+  /** Aborts the request, e.g. the `signal` TanStack hands a query function it may cancel. */
+  signal?: AbortSignal;
 }
 
 function baseUrl(): string {
@@ -128,6 +132,8 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     headers,
     credentials: "include",
     body,
+    keepalive: opts.keepalive,
+    signal: opts.signal,
   });
 }
 
@@ -213,15 +219,24 @@ let refreshInFlight: Promise<SessionResponse | null> | null = null;
  */
 export function refreshSession(): Promise<SessionResponse | null> {
   refreshInFlight ??= (async () => {
+    const tokenBefore = getAccessToken();
     try {
       const raw = await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true });
       const sess = parseWithFallback<SessionResponse | null>(raw, SessionResponseSchema, null, {
         endpoint: "POST /api/v1/auth/refresh",
       });
+      // Login/register may set a newer token while this refresh was in flight.
+      const tokenNow = getAccessToken();
+      if (tokenNow !== null && tokenNow !== tokenBefore) {
+        return sess;
+      }
       setAccessToken(sess?.access_token ?? null);
       return sess;
     } catch {
-      setAccessToken(null);
+      // Do not wipe a token that arrived (e.g. login) after this call started.
+      if (getAccessToken() === tokenBefore) {
+        setAccessToken(null);
+      }
       return null;
     } finally {
       refreshInFlight = null;

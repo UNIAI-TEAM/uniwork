@@ -18,6 +18,7 @@ var titles = map[string]map[string]string{
 		KindMemberAdded:       "{{actor}} đã thêm bạn vào workspace {{workspace}}",
 		KindRoleChanged:       "{{actor}} đã đổi vai trò của bạn thành {{role}}",
 		KindAuditExportReady:  "Bản xuất nhật ký của bạn đã sẵn sàng",
+		KindChatFollowUp:      "Bạn đã gắn FollowUp cho một tin nhắn",
 	},
 	"en": {
 		KindTaskAssigned:      "{{actor}} assigned you “{{task}}”",
@@ -29,6 +30,7 @@ var titles = map[string]map[string]string{
 		KindMemberAdded:       "{{actor}} added you to workspace {{workspace}}",
 		KindRoleChanged:       "{{actor}} changed your role to {{role}}",
 		KindAuditExportReady:  "Your audit export is ready",
+		KindChatFollowUp:      "You saved a FollowUp on a message",
 	},
 }
 

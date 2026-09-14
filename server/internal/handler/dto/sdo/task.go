@@ -28,7 +28,7 @@ type TaskDTO struct {
 	Assignee      *ActorDTO `json:"assignee,omitempty"`
 	StartDate     *string   `json:"start_date,omitempty" example:"2026-08-25"`
 	DueDate       *string   `json:"due_date,omitempty" example:"2026-08-28"`
-	ProjectID     *string   `json:"project_id,omitempty" example:"01J8X4PROJN1P2Q3R4S5T6U7V8"`
+	ProjectID     *string   `json:"project_id,omitempty" description:"Project ULID khi task thuộc một project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 	ParentTaskID  *string   `json:"parent_task_id,omitempty" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 	Position      float64   `json:"position" example:"0"`
 	Kind          string    `json:"kind" description:"user hoặc welcome" example:"user"`
@@ -53,6 +53,9 @@ type CommentDTO struct {
 	UpdatedAt   string   `json:"updated_at,omitempty" example:"2026-08-27T10:00:00Z"`
 	DisplayName string   `json:"display_name" example:"Nguyễn Văn An"`
 	AvatarURL   string   `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
+	// Reactions is never omitted: the client must be able to tell "nobody
+	// reacted" ([]) apart from "this server does not send the field".
+	Reactions []CommentReactionDTO `json:"reactions"`
 }
 
 // CommentSDO wraps one comment.

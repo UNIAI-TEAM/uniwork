@@ -4,7 +4,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import { getChatRoomMessage } from "../api/endpoints/chat";
 import { useAuthStore } from "../auth/store";
-import { chatKeys } from "./hooks";
+import { chatKeys } from "./chat-keys";
 import { useActiveChatRoomStore } from "./active-chat-room-store";
 
 export const CHAT_MESSAGE_CACHE_MAX = 1000;
@@ -144,6 +144,15 @@ function currentUserId(): string | null {
   return useAuthStore.getState().user?.id ?? null;
 }
 
+/**
+ * DM/group/channel also emit `chat.room.activity`, which refetches rooms with
+ * the server unread count. Local +1 there races into unread=2 for one message.
+ * Only the workspace room skips activity, so it still increments locally.
+ */
+function shouldIncrementUnreadLocally(room: ChatRoomRecord | undefined): boolean {
+  return room?.kind === "workspace";
+}
+
 export async function fetchAndPatchChatMessage(
   qc: QueryClient,
   wsId: string,
@@ -158,11 +167,12 @@ export async function fetchAndPatchChatMessage(
   const viewerId = currentUserId();
   const isOwn = viewerId != null && message.sender_id === viewerId;
   const viewing = isViewingRoom(wsId, roomId);
-  qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) =>
-    patchRoomSidebarFromMessage(old, roomId, message, {
-      incrementUnread: !isOwn && !viewing,
-    }),
-  );
+  qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => {
+    const room = old?.find((entry) => entry.id === roomId);
+    return patchRoomSidebarFromMessage(old, roomId, message, {
+      incrementUnread: !isOwn && !viewing && shouldIncrementUnreadLocally(room),
+    });
+  });
 }
 
 export function patchChatMessageDeleted(
@@ -198,10 +208,45 @@ export function patchChatMentionCreated(
   if (isViewingRoom(wsId, roomId)) return;
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) => {
     if (!old) return old;
-    return old.map((room) =>
-      room.id === roomId
-        ? { ...room, mention_unread_count: (room.mention_unread_count ?? 0) + 1 }
-        : room,
-    );
+    return old.map((room) => {
+      if (room.id !== roomId) return room;
+      // Same race as unread: DM/group/channel unread badges come from
+      // `chat.room.activity` refetch; only workspace bumps locally.
+      if (!shouldIncrementUnreadLocally(room)) return room;
+      return { ...room, mention_unread_count: (room.mention_unread_count ?? 0) + 1 };
+    });
   });
+}
+
+/**
+ * Invalidate message↔task link queries. Does not touch message list caches so
+ * optimistic / pending sends stay put.
+ */
+export function invalidateChatMessageLinks(
+  qc: QueryClient,
+  wsId: string,
+  messageId: string,
+): void {
+  if (!messageId) return;
+  void qc.invalidateQueries({ queryKey: chatKeys.messageLinks(wsId, messageId) });
+}
+
+/** `chat.message.linked` — refresh links for the message; leave message lists alone. */
+export function patchChatMessageLinked(
+  qc: QueryClient,
+  wsId: string,
+  _roomId: string,
+  messageId: string,
+): void {
+  invalidateChatMessageLinks(qc, wsId, messageId);
+}
+
+/** `chat.thread.linked` — links hang off the thread root message id. */
+export function patchChatThreadLinked(
+  qc: QueryClient,
+  wsId: string,
+  _roomId: string,
+  threadRootId: string,
+): void {
+  invalidateChatMessageLinks(qc, wsId, threadRootId);
 }

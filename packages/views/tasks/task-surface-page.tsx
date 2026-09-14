@@ -4,6 +4,7 @@ import { SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { PageHeader } from "../layout/page-header";
 import { TaskSurface } from "./surface/task-surface";
 import type { TaskSurfaceMode } from "./surface/types";
@@ -45,6 +46,7 @@ export function TaskSurfacePage({
         renderEmpty={() => (
           <CollectionPageState
             icon={SquareCheckBig}
+            tone={moduleTone("tasks")}
             title={t("tasks.empty_title")}
             description={t("tasks.empty_description")}
           />

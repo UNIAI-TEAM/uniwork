@@ -81,3 +81,22 @@ type AiUsageSDO struct {
 	To   string          `json:"to" example:"2026-09-06T00:00:00Z"`
 	Rows []AiUsageRowDTO `json:"rows"`
 }
+
+// ChatCatchUpActionItemDTO is one suggested follow-up from CatchUp (C-13.7).
+type ChatCatchUpActionItemDTO struct {
+	Title           string `json:"title" example:"Gửi bản nháp cho An"`
+	Owner           string `json:"owner,omitempty" example:"An"`
+	Due             string `json:"due,omitempty" example:"thứ Sáu"`
+	SourceMessageID string `json:"source_message_id,omitempty" example:"01J8XMSG0000000000000001"`
+}
+
+// ChatCatchUpSDO is POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up.
+type ChatCatchUpSDO struct {
+	Summary      string                     `json:"summary" example:"An nhắc hạn spec F-09; Bình hỏi trạng thái PR."`
+	Highlights   []string                   `json:"highlights"`
+	ActionItems  []ChatCatchUpActionItemDTO `json:"action_items"`
+	MessageCount int                        `json:"message_count" example:"12"`
+	Mode         string                     `json:"mode" description:"unread khi tóm tắt sau last_read" example:"unread"`
+	Since        string                     `json:"since" example:"2026-09-11T08:00:00Z"`
+	Usage        AiUsageDTO                 `json:"usage"`
+}

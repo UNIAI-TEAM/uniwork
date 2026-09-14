@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, ChevronLeft, Clock, Pin, StickyNote } from "lucide-react";
+import { BarChart3, ChevronLeft, Clock, Megaphone, Pin, StickyNote } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChatRoomMessages } from "@uniwork/core/chat";
@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
+import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
@@ -28,6 +29,7 @@ import {
 function bulletinKindIcon(kind: string, pinned: boolean) {
   if (pinned && kind === "text") return Pin;
   if (kind === "note") return StickyNote;
+  if (kind === "post") return Megaphone;
   if (kind === "poll") return BarChart3;
   if (kind === "reminder") return Clock;
   if (pinned) return Pin;
@@ -125,6 +127,7 @@ export function ChatRoomBulletinSheet({
   const { data: rows = [] } = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
   const [tab, setTab] = useState<BulletinTab>(initialTab);
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
+  const [createPostOpen, setCreatePostOpen] = useState(false);
   const [createPollOpen, setCreatePollOpen] = useState(false);
   const [createReminderOpen, setCreateReminderOpen] = useState(false);
 
@@ -138,6 +141,7 @@ export function ChatRoomBulletinSheet({
   const tabs: { value: BulletinTab; label: string; hidden?: boolean }[] = [
     { value: "all", label: t("chat.bulletin_tab_all") },
     { value: "pinned", label: t("chat.bulletin_tab_pinned") },
+    { value: "posts", label: t("chat.bulletin_tab_posts"), hidden: !canCreateNotes },
     { value: "notes", label: t("chat.bulletin_tab_notes"), hidden: !canCreateNotes },
     { value: "polls", label: t("chat.bulletin_tab_polls"), hidden: !showPolls || !canCreatePolls },
     {
@@ -242,6 +246,17 @@ export function ChatRoomBulletinSheet({
                   type="button"
                   variant="outline"
                   className="h-11 w-full justify-center gap-2 rounded-xl border-brand/30 bg-brand/5 text-brand hover:bg-brand/10"
+                  onClick={() => setCreatePostOpen(true)}
+                >
+                  <Megaphone className="size-4" aria-hidden />
+                  {t("chat.bulletin_create_post")}
+                </Button>
+              ) : null}
+              {canCreateNotes ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full justify-center gap-2 rounded-xl border-brand/30 bg-brand/5 text-brand hover:bg-brand/10"
                   onClick={() => setCreateNoteOpen(true)}
                 >
                   <StickyNote className="size-4" aria-hidden />
@@ -267,6 +282,13 @@ export function ChatRoomBulletinSheet({
       <ChatCreateNoteDialog
         open={createNoteOpen}
         onOpenChange={setCreateNoteOpen}
+        workspaceId={workspaceId}
+        roomId={roomId}
+        canPinToTop={canPinMessages}
+      />
+      <ChatCreatePostDialog
+        open={createPostOpen}
+        onOpenChange={setCreatePostOpen}
         workspaceId={workspaceId}
         roomId={roomId}
         canPinToTop={canPinMessages}

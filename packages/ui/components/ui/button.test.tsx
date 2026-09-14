@@ -26,6 +26,18 @@ describe("Button", () => {
     );
     expect(screen.getByRole("button", { name: "x" })).toHaveClass("size-7");
   });
+
+  it("keeps compact toolbar actions quieter than form controls", () => {
+    render(<Button variant="toolbar">Hiển thị</Button>);
+    expect(screen.getByRole("button", { name: "Hiển thị" })).toHaveClass(
+      "border-transparent",
+      "bg-surface-hover/60",
+      "aria-expanded:bg-surface-hover",
+    );
+    expect(screen.getByRole("button", { name: "Hiển thị" })).not.toHaveClass(
+      "border-input",
+    );
+  });
 });
 
 describe("ButtonLink", () => {

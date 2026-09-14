@@ -75,6 +75,73 @@ describe("tasks endpoints", () => {
     await expect(listComments("t1")).resolves.toEqual([]);
   });
 
+  it("listComments mặc định reactions về [] khi server cũ không trả trường đó", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ comments: [{ id: "c1", task_id: "t1", author_id: "u1", body: "một" }] }),
+    );
+    const got = await listComments("t1");
+    expect(got[0]?.reactions).toEqual([]);
+  });
+
+  it("listComments giữ reactions server trả về", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          {
+            id: "c1",
+            task_id: "t1",
+            author_id: "u1",
+            body: "một",
+            reactions: [
+              {
+                id: "r1",
+                comment_id: "c1",
+                actor_type: "member",
+                actor_id: "u1",
+                emoji: "👍",
+                created_at: "2026-09-12T00:00:00Z",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const got = await listComments("t1");
+    expect(got[0]?.reactions).toHaveLength(1);
+  });
+
+  it("listComments không loại bỏ cả danh sách khi một bình luận có reactions: null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [{ id: "c1", task_id: "t1", author_id: "u1", body: "một", reactions: null }],
+      }),
+    );
+    const got = await listComments("t1");
+    expect(got).toHaveLength(1);
+    expect(got[0]?.id).toBe("c1");
+    expect(got[0]?.reactions).toEqual([]);
+  });
+
+  it("listComments giữ bình luận khi một reaction hỏng, chỉ mất reaction", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          {
+            id: "c1",
+            task_id: "t1",
+            author_id: "u1",
+            body: "một",
+            reactions: [{ id: "r1", emoji: 42 }],
+          },
+        ],
+      }),
+    );
+    const got = await listComments("t1");
+    expect(got).toHaveLength(1);
+    expect(got[0]?.body).toBe("một");
+    expect(got[0]?.reactions).toEqual([]);
+  });
+
   it("addComment posts the body and returns the comment", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ comment: { id: "c1", task_id: "t1", author_id: "u1", body: "nice" } }),

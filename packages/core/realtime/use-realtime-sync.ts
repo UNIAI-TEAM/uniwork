@@ -15,6 +15,7 @@ import { orgMemberRootKey } from "../organizations/hooks";
 import { peopleRootKey } from "../people/hooks";
 import { planCacheUpdate } from "../tasks/cache-coordinator";
 import { taskKeys } from "../tasks/hooks";
+import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import {
@@ -32,7 +33,13 @@ import {
  * event version. Bursts coalesce into one debounced wave per ~250ms.
  *
  * Work Management events go through `planCacheUpdate` (invalidate + refetch).
- * Frames carry ids only — never write the payload into query data or Zustand.
+ * Frames are never written into Zustand, and into query data only through the
+ * one exception ADR 0015 allows: a `task.updated` frame's Patch fields patch
+ * the task's cached records that already sit at the frame's `revision_before`
+ * — the detail entry and the task's rows in list-style caches
+ * (`applyTaskPatchFrame`, applied here before the keys are returned). When the
+ * detail entry was patched the frame skips the detail key; list roots and
+ * every other key still invalidate, so row order and placement come from the API.
  */
 function keysFor(
   wsId: string,
@@ -45,7 +52,14 @@ function keysFor(
 
   const workMgmt = planCacheUpdate(wsId, { type, payload });
   if (workMgmt.keys.length > 0) {
-    for (const k of workMgmt.keys) push(k);
+    const patchedDetail =
+      workMgmt.patch && applyTaskPatchFrame(qc, wsId, workMgmt.patch).detailPatched
+        ? JSON.stringify(taskKeys.detail(workMgmt.patch.taskId))
+        : null;
+    for (const k of workMgmt.keys) {
+      if (patchedDetail !== null && JSON.stringify(k) === patchedDetail) continue;
+      push(k);
+    }
     // Activity tab is the audit slice of this task; keep it in sync with
     // task/comment mutations that the coordinator maps.
     if (
@@ -99,6 +113,13 @@ function keysFor(
       if (payload.room_id) {
         push(chatKeys.roomMembers(wsId, payload.room_id));
       }
+      break;
+    }
+    case "chat.follow_up.created":
+    case "chat.follow_up.updated":
+    case "chat.follow_up.completed":
+    case "chat.follow_up.deleted": {
+      push(chatKeys.followUps(wsId));
       break;
     }
     case "meeting.created":
@@ -234,6 +255,21 @@ function handleChatRealtimeEvent(
       chatScheduler.scheduleRoomActivity();
       return true;
     }
+    case "chat.message.linked": {
+      if (messageId) {
+        chatScheduler.scheduleMessageLinked(roomId ?? "", messageId);
+        return true;
+      }
+      return false;
+    }
+    case "chat.thread.linked": {
+      const threadRootId = payload.thread_root_id;
+      if (threadRootId) {
+        chatScheduler.scheduleThreadLinked(roomId ?? "", threadRootId);
+        return true;
+      }
+      return false;
+    }
     default:
       return false;
   }
@@ -265,6 +301,10 @@ function allWorkspaceKeys(wsId: string) {
     taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
+    // Open conversations go stale while the socket is down (BE restart).
+    chatKeys.roomMessagesRoot(wsId),
+    chatKeys.messages(wsId),
+    chatKeys.threadMessagesRoot(wsId),
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),
     meetingKeys.joinRequestsRoot,

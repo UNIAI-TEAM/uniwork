@@ -2,6 +2,7 @@
 import { Plus } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { errorCode } from "@uniwork/core/api";
 import { appHost } from "@uniwork/core/config";
 import { useCreateOrganization } from "@uniwork/core/organizations";
 import type { Organization } from "@uniwork/core/types";
@@ -11,6 +12,48 @@ import { isSlugConflict } from "../../workspace/slug";
 import { pickerCardClass, RadioCardGroup, RadioMark } from "../components/option-card";
 import { StepFooter, StepHeading, STEP_HINT_ID } from "../components/step-shell";
 import { SlugFields, useSlugForm } from "../slug-field";
+
+/**
+ * How a failed create should be reported. Deliberately NOT the server's
+ * sentence: `ApiError.message` is filled from the response body, which the Go
+ * side writes in hardcoded Vietnamese ("định danh chỉ gồm a-z, 0-9 và dấu gạch
+ * ngang (2-40 ký tự)" from `ValidateSlug`), so rendering it shows Vietnamese to
+ * an English-locale user. `ApiError.code` is the stable, localizable handle.
+ */
+export type CreateFailure = "slug_taken" | "slug_invalid" | "unknown";
+
+/**
+ * `invalid_request` is what `handlers.mapServiceError` answers for every
+ * `service.ValidationError`, and on the org/workspace create endpoints the only
+ * validation a user can trip is `ValidateSlug` — the empty-name branch is
+ * unreachable because `form.canSubmit` already requires a name. Everything else
+ * (entitlement_required, quota_exceeded, subscription_inactive, internal, …) is
+ * not fixable in the slug field, so it stays "unknown" and gets the generic
+ * translated toast rather than a misleading inline field error.
+ */
+export function classifyCreateFailure(err: unknown): CreateFailure {
+  if (isSlugConflict(err)) return "slug_taken";
+  if (errorCode(err) === "invalid_request") return "slug_invalid";
+  return "unknown";
+}
+
+/**
+ * Put the caret where the fix is. The only two failures we render inline are
+ * about the slug, and without this the user has to hunt back up the form for a
+ * field they cannot see from the footer on a short viewport.
+ */
+export function focusSlugInput(idPrefix: string) {
+  document.getElementById(`${idPrefix}-slug`)?.focus();
+}
+
+/**
+ * First code point, not first code unit. Names are never slugified, so
+ * "🚀 Đội Alpha" is storable, and `name.slice(0, 1)` cuts that emoji's UTF-16
+ * surrogate pair in half — the avatar tile renders a replacement character.
+ */
+export function avatarInitial(name: string): string {
+  return ([...name][0] ?? "").toUpperCase();
+}
 
 /**
  * Bước 2 — Tổ chức. Chưa thuộc org nào: form tên + slug. Đã thuộc org (resume
@@ -49,15 +92,44 @@ export function StepOrganization({
       { name: form.name.trim(), slug: form.slug.trim() },
       {
         onSuccess: (organization) => {
-          if (organization) onSelected(organization);
-        },
-        onError: (err) => {
-          if (isSlugConflict(err)) {
-            form.setServerError(t("onboarding.step_organization.slug_taken_error"));
-            toast.error(t("onboarding.step_organization.slug_conflict_toast"));
+          if (organization) {
+            onSelected(organization);
             return;
           }
-          toast.error(err instanceof Error && err.message ? err.message : t("onboarding.step_workspace.create_failed_toast"));
+          // A falsy result is a RESOLVED mutation, not a rejected one:
+          // `organizations.create()` runs the response through
+          // `parseWithFallback(..., null, ...)`, so a drifted payload succeeds
+          // with nothing to hand on. Doing nothing here was a dead end at the
+          // very first step — the organization DOES exist on the server, the
+          // CTA silently snapped back from "Đang tạo…" to "Tạo Unicom", and the
+          // second press answered "Định danh tổ chức này đã có người dùng"
+          // about the user's own one-second-old organization. Report the
+          // failure instead; `useCreateOrganization` invalidates
+          // `organizationKeys.list()` on every success, so the refreshed list
+          // is what lets the user recover — the organization reappears as a
+          // pickable card.
+          toast.error(t("onboarding.step_organization.create_failed_toast"));
+        },
+        onError: (err) => {
+          const failure = classifyCreateFailure(err);
+          if (failure === "unknown") {
+            // No field to attach it to, so the toast is the right surface here.
+            toast.error(t("onboarding.step_organization.create_failed_toast"));
+            return;
+          }
+          // Inline only, never inline + toast: `FieldError` renders
+          // `role="alert"` and the toast has its own live region, so the pair
+          // announced the same fact twice to a screen-reader user and printed
+          // it in two places for everyone else. The inline one wins — it is
+          // tied to the input and persists while the user fixes it.
+          form.setServerError(
+            failure === "slug_taken"
+              ? t("onboarding.step_organization.slug_taken_error")
+              : // Reused across both steps the way `useSlugForm` already reuses
+                // this group for its client-side slug errors.
+                t("onboarding.step_organization.slug_invalid_error"),
+          );
+          focusSlugInput("org");
         },
       },
     );
@@ -71,6 +143,12 @@ export function StepOrganization({
   if (picked) {
     hint = t("onboarding.step_organization.hint_opening", { name: picked.name });
     label = t("onboarding.step_organization.cta_open", { name: picked.name });
+    // Reachable, despite appearances: the picker cards stay clickable while a
+    // create is in flight, so picking an existing org mid-request lands here
+    // with `isCreating` true. The Button below refuses to run `onContinue`
+    // while `disabled`, which is what keeps this honest — `aria-disabled` on a
+    // button that still fires its handler is exactly what
+    // packages/views/test/inactive.ts forbids.
     disabled = isCreating;
     onContinue = () => onSelected(picked);
   } else if (creatingActive) {
@@ -85,7 +163,12 @@ export function StepOrganization({
       disabled = false;
       onContinue = handleCreate;
     } else {
-      hint = t("onboarding.step_organization.hint_name_first");
+      // `hint_name_first` lies whenever the name field is visibly full: a name
+      // with no [a-z0-9] (CJK, emoji) slugifies to "", so the user reads "Đặt
+      // tên tổ chức để tạo" next to the name they just typed.
+      hint = form.name.trim()
+        ? t("onboarding.step_organization.hint_slug_needed")
+        : t("onboarding.step_organization.hint_name_first");
       label = t("onboarding.step_organization.cta_create");
       disabled = true;
       onContinue = () => {};
@@ -132,8 +215,13 @@ export function StepOrganization({
       <div className="flex flex-col gap-8 pt-2 sm:pt-6">
         <StepHeading
           title={
+            // `headline_resume` names one organization. Above a list of three
+            // equal cards that arbitrarily privileges the first, so it is used
+            // only when there is in fact exactly one to name.
             resume
-              ? t("onboarding.step_organization.headline_resume", { name: organizations[0]!.name })
+              ? organizations.length === 1
+                ? t("onboarding.step_organization.headline_resume", { name: organizations[0]!.name })
+                : t("onboarding.step_organization.headline_resume_many")
               : t("onboarding.step_organization.headline_first")
           }
           description={resume ? t("onboarding.step_organization.lede_resume") : t("onboarding.step_organization.lede_first")}
@@ -147,7 +235,7 @@ export function StepOrganization({
                 onSelect={() => setPickedId((p) => (p === o.id ? null : o.id))}
                 title={o.name}
                 subtitle={`${host}/${o.slug}`}
-                avatar={o.name.slice(0, 1).toUpperCase()}
+                avatar={avatarInitial(o.name)}
               />
             ))}
             <CollapsibleCreateCard
@@ -165,7 +253,18 @@ export function StepOrganization({
         )}
       </div>
       <StepFooter hint={hint}>
-        <Button size="lg" className="w-full" aria-disabled={disabled || undefined} aria-describedby={STEP_HINT_ID} onClick={onContinue}>
+        <Button
+          size="lg"
+          className="w-full"
+          aria-disabled={disabled || undefined}
+          aria-describedby={STEP_HINT_ID}
+          // `aria-disabled` keeps the button focusable on purpose, so blocking
+          // the action in JS is the other half of that contract.
+          onClick={() => {
+            if (disabled) return;
+            onContinue();
+          }}
+        >
           {label}
         </Button>
       </StepFooter>

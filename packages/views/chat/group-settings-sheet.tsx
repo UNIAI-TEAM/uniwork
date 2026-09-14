@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Bell, BellOff, Pin, Settings, Tag, UserPlus } from "lucide-react";
+import { Bell, BellOff, Pin, Search, Settings, Tag, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
@@ -28,6 +28,7 @@ import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
   ChatSettingsBulletinEntry,
   ChatSettingsCollapsibleSection,
+  ChatSettingsMenuRow,
   ChatSettingsQuickAction,
   ChatSettingsQuickActions,
   ChatSettingsTitleRow,
@@ -68,6 +69,7 @@ export function GroupSettingsSheet({
   onLeave,
   leaving,
   leaveDisabled,
+  onOpenSearch,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -78,6 +80,7 @@ export function GroupSettingsSheet({
   memberProfiles: Record<string, MemberProfile>;
   nicknamesByUserId?: Record<string, string>;
   onAddMembers: () => void;
+  onOpenSearch?: () => void;
   onLeave: () => void | Promise<void>;
   leaving?: boolean;
   leaveDisabled?: boolean;
@@ -326,6 +329,19 @@ export function GroupSettingsSheet({
             onClick={() => setBulletinOpen(true)}
           />
 
+          {onOpenSearch ? (
+            <section className="border-b border-border">
+              <ChatSettingsMenuRow
+                icon={Search}
+                label={t("chat.search_messages")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenSearch();
+                }}
+              />
+            </section>
+          ) : null}
+
           <div className="px-4 pb-4">
             <LeaveConversationSection
               variant="group"
@@ -384,7 +400,9 @@ export function ChatConversationToolbar({
   onToggleSidebar,
   settingsAriaLabel,
   onOpenSettings,
-  onOpenSearch,
+  catchUpAriaLabel,
+  onCatchUp,
+  catchUpDisabled,
   voiceCallAriaLabel,
   onVoiceCall,
   voiceCallDisabled,
@@ -401,7 +419,9 @@ export function ChatConversationToolbar({
   onToggleSidebar?: () => void;
   settingsAriaLabel: string;
   onOpenSettings: () => void;
-  onOpenSearch?: () => void;
+  catchUpAriaLabel?: string;
+  onCatchUp?: () => void;
+  catchUpDisabled?: boolean;
   voiceCallAriaLabel?: string;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
@@ -424,8 +444,9 @@ export function ChatConversationToolbar({
       onToggleSidebar={onToggleSidebar}
       settingsAriaLabel={settingsAriaLabel}
       onOpenSettings={onOpenSettings}
-      searchAriaLabel={t("chat.search_messages")}
-      onOpenSearch={onOpenSearch}
+      catchUpAriaLabel={catchUpAriaLabel}
+      onCatchUp={onCatchUp}
+      catchUpDisabled={catchUpDisabled}
       voiceCallAriaLabel={voiceCallAriaLabel}
       onVoiceCall={onVoiceCall}
       voiceCallDisabled={voiceCallDisabled}
@@ -444,7 +465,8 @@ export function GroupChatToolbar({
   sidebarCollapsed,
   onToggleSidebar,
   onOpenSettings,
-  onOpenSearch,
+  onCatchUp,
+  catchUpDisabled,
   onVoiceCall,
   voiceCallDisabled,
   onVideoCall,
@@ -457,7 +479,8 @@ export function GroupChatToolbar({
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onOpenSettings: () => void;
-  onOpenSearch?: () => void;
+  onCatchUp?: () => void;
+  catchUpDisabled?: boolean;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
   onVideoCall?: () => void;
@@ -478,7 +501,9 @@ export function GroupChatToolbar({
       onToggleSidebar={onToggleSidebar}
       settingsAriaLabel={t("chat.group_settings")}
       onOpenSettings={onOpenSettings}
-      onOpenSearch={onOpenSearch}
+      catchUpAriaLabel={t("chat.ai.catch_up")}
+      onCatchUp={onCatchUp}
+      catchUpDisabled={catchUpDisabled}
       voiceCallAriaLabel={t("chat.voice_call_start")}
       onVoiceCall={onVoiceCall}
       voiceCallDisabled={voiceCallDisabled}

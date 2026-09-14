@@ -2,10 +2,12 @@
 
 import type { ReactNode } from "react";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
+import { shouldShowReadReceipt } from "@uniwork/core/chat/read-receipt-utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageRow } from "./chat-message-row";
 import { ChatFileMessageRow } from "./chat-file-message-row";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
+import { ChatPostMessageRow } from "./chat-post-message-row";
 import { ChatPollMessageRow } from "./chat-poll-message-row";
 import { ChatReminderMessageRow } from "./chat-reminder-message-row";
 import { ChatVoiceMessageRow } from "./chat-voice-message-row";
@@ -22,6 +24,9 @@ export type NativeChatMessageActions = {
   onPin: (message: ChatMessage) => void;
   onCopy: (message: ChatMessage) => void;
   onDelete: (message: ChatMessage) => void;
+  onCreateTask?: (message: ChatMessage) => void;
+  onLinkTask?: (message: ChatMessage) => void;
+  onFollowUp?: (message: ChatMessage) => void;
 };
 
 export function renderNativeChatMessage(input: {
@@ -36,6 +41,8 @@ export function renderNativeChatMessage(input: {
   showSenderName: boolean;
   canPinMessages: boolean;
   highlightMessageId: string | null;
+  workHubEnabled?: boolean;
+  peerLastReadAt?: string | null;
   actions: NativeChatMessageActions;
 }): ReactNode {
   const {
@@ -50,6 +57,8 @@ export function renderNativeChatMessage(input: {
     showSenderName,
     canPinMessages,
     highlightMessageId,
+    workHubEnabled = false,
+    peerLastReadAt = null,
     actions,
   } = input;
   const message = messages[index];
@@ -73,6 +82,18 @@ export function renderNativeChatMessage(input: {
       <ChatNoteMessageRow
         key={message.id}
         note={message.note}
+        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        showSenderName={showSenderName}
+        compactTop={compactTop}
+      />
+    );
+  }
+  if (message.kind === "post" && message.post) {
+    const { compactTop } = messageGrouping(messages, index);
+    return (
+      <ChatPostMessageRow
+        key={message.id}
+        post={message.post}
         senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
         showSenderName={showSenderName}
         compactTop={compactTop}
@@ -143,6 +164,10 @@ export function renderNativeChatMessage(input: {
         onPin={canPinMessages ? actions.onPin : undefined}
         onCopy={actions.onCopy}
         onDelete={actions.onDelete}
+        onCreateTask={workHubEnabled ? actions.onCreateTask : undefined}
+        onLinkTask={workHubEnabled ? actions.onLinkTask : undefined}
+        onFollowUp={workHubEnabled ? actions.onFollowUp : undefined}
+        workHubEnabled={workHubEnabled}
       />
     );
   }
@@ -158,7 +183,12 @@ export function renderNativeChatMessage(input: {
       key={message.id}
       message={message}
       isOwn={isOwn}
-      showReadReceipt={false}
+      showReadReceipt={shouldShowReadReceipt({
+        messages,
+        index,
+        currentUserId,
+        peerLastReadAt,
+      })}
       senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
       replyToMessage={replyTarget}
       workspaceId={workspaceId}
@@ -170,6 +200,10 @@ export function renderNativeChatMessage(input: {
       onPin={isPending || !canPinMessages ? undefined : actions.onPin}
       onCopy={isPending ? undefined : actions.onCopy}
       onDelete={isPending ? undefined : actions.onDelete}
+      onCreateTask={isPending || !workHubEnabled ? undefined : actions.onCreateTask}
+      onLinkTask={isPending || !workHubEnabled ? undefined : actions.onLinkTask}
+      onFollowUp={isPending || !workHubEnabled ? undefined : actions.onFollowUp}
+      workHubEnabled={workHubEnabled}
       showSenderName={showSenderName}
       compactTop={compactTop}
       nameContext={nameContext}

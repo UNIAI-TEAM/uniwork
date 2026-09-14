@@ -352,12 +352,12 @@ INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, priority,
   assignee_id, assignee_kind, assignee_type, due_date, position,
   created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
-  origin_type, origin_id
+  origin_type, origin_id, project_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12,
   $13, $14, $15, $16, $17, $18,
-  $19, $20
+  $19, $20, $21
 )
 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
 `
@@ -383,6 +383,7 @@ type CreateTaskParams struct {
 	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
 	OriginType     pgtype.Text        `json:"origin_type"`
 	OriginID       pgtype.Text        `json:"origin_id"`
+	ProjectID      pgtype.Text        `json:"project_id"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -407,6 +408,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.LastActivityAt,
 		arg.OriginType,
 		arg.OriginID,
+		arg.ProjectID,
 	)
 	var i Task
 	err := row.Scan(
@@ -453,7 +455,7 @@ INSERT INTO task_comments (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, now()
 )
-RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
 `
 
 type CreateTaskCommentParams struct {
@@ -496,6 +498,7 @@ func (q *Queries) CreateTaskComment(ctx context.Context, arg CreateTaskCommentPa
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.ChatMessageID,
 	)
 	return i, err
 }
@@ -1737,6 +1740,71 @@ func (q *Queries) SetTaskParent(ctx context.Context, arg SetTaskParentParams) (T
 	row := q.db.QueryRow(ctx, setTaskParent,
 		arg.ParentTaskID,
 		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeID,
+		&i.DueDate,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
+		&i.OrganizationID,
+		&i.Number,
+		&i.ProjectID,
+		&i.ParentTaskID,
+		&i.AssigneeType,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Metadata,
+		&i.Properties,
+		&i.StartDate,
+		&i.Stage,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.Revision,
+		&i.LastActivityAt,
+	)
+	return i, err
+}
+
+const setTaskProjectID = `-- name: SetTaskProjectID :one
+UPDATE tasks SET
+  project_id = $2,
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = $1
+  AND organization_id = $3
+  AND workspace_id = $4
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
+`
+
+type SetTaskProjectIDParams struct {
+	ID             string      `json:"id"`
+	ProjectID      pgtype.Text `json:"project_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+}
+
+func (q *Queries) SetTaskProjectID(ctx context.Context, arg SetTaskProjectIDParams) (Task, error) {
+	row := q.db.QueryRow(ctx, setTaskProjectID,
+		arg.ID,
+		arg.ProjectID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 	)

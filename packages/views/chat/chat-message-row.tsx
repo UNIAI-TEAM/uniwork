@@ -13,6 +13,7 @@ import { ChatMessageBody } from "./chat-message-body";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
+import { MessageTaskCard } from "./message-task-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
 
@@ -34,6 +35,10 @@ export function ChatMessageRow({
   onPin,
   onCopy,
   onDelete,
+  onCreateTask,
+  onLinkTask,
+  onFollowUp,
+  workHubEnabled = false,
   showSenderName = false,
   compactTop = false,
   showAvatar = true,
@@ -54,6 +59,10 @@ export function ChatMessageRow({
   onPin?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
   onDelete?: (message: ChatMessage) => void;
+  onCreateTask?: (message: ChatMessage) => void;
+  onLinkTask?: (message: ChatMessage) => void;
+  onFollowUp?: (message: ChatMessage) => void;
+  workHubEnabled?: boolean;
   showSenderName?: boolean;
   compactTop?: boolean;
   showAvatar?: boolean;
@@ -72,7 +81,7 @@ export function ChatMessageRow({
       id={`chat-msg-${message.id}`}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors",
-        compactTop ? "mt-1" : "mt-3",
+        compactTop ? "mt-2" : "mt-4",
         isOwn ? "justify-end" : "justify-start gap-2",
         highlighted && "bg-brand/10 ring-2 ring-brand/40",
         isPending && "opacity-80",
@@ -93,7 +102,7 @@ export function ChatMessageRow({
 
       <div
         className={cn(
-          "group relative flex min-w-0 max-w-[min(100%,20rem)] flex-col gap-1",
+          "group relative flex min-w-0 max-w-[min(100%,22rem)] flex-col gap-1.5",
           isOwn ? "items-end" : "items-start",
         )}
       >
@@ -108,12 +117,15 @@ export function ChatMessageRow({
             onPin={onPin}
             onCopy={onCopy}
             onDelete={onDelete}
+            onCreateTask={workHubEnabled ? onCreateTask : undefined}
+            onLinkTask={workHubEnabled ? onLinkTask : undefined}
+            onFollowUp={workHubEnabled ? onFollowUp : undefined}
             canEdit={canEdit}
           />
         ) : null}
 
         {!isOwn && showSenderName && showAvatar ? (
-          <p className={cn("px-1 text-caption font-medium", nameClass)}>{senderLabel}</p>
+          <p className={cn("px-1 pb-0.5 text-caption font-medium", nameClass)}>{senderLabel}</p>
         ) : null}
 
         {message.priority === "important" || message.priority === "urgent" ? (
@@ -131,7 +143,7 @@ export function ChatMessageRow({
 
         <div
           className={cn(
-            "w-fit max-w-full px-3.5 py-2",
+            "w-fit max-w-full px-3.5 py-2.5",
             isOwn
               ? "rounded-[18px] rounded-br-[4px] bg-brand text-brand-foreground shadow-sm"
               : "rounded-[18px] rounded-bl-[4px] bg-surface shadow-sm ring-1 ring-border/60",
@@ -186,6 +198,14 @@ export function ChatMessageRow({
               ? t("chat.thread_replies_unread", { count: message.replyCount })
               : t("chat.thread_replies", { count: message.replyCount })}
           </button>
+        ) : null}
+
+        {workHubEnabled && workspaceId && !isPending ? (
+          <MessageTaskCard
+            workspaceId={workspaceId}
+            messageId={message.id}
+            className={cn(isOwn && "items-end self-end")}
+          />
         ) : null}
 
         {showReadReceipt ? (

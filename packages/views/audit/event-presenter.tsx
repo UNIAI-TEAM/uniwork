@@ -77,13 +77,14 @@ export function ActorIcon({ kind, className }: { kind: string; className?: strin
   return <Icon aria-hidden className={className} />;
 }
 
-/** Translated action / resource names; the raw token is the fallback so nothing goes blank. */
+/** Translated action / resource / field names; the raw token is the fallback so nothing goes blank. */
 export function useAuditLabels() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
   return {
     action: (action: string) => t(`actions.${action}`, { defaultValue: action }),
     resource: (type: string) => t(`resources.${type}`, { defaultValue: type }),
     actorKind: (kind: string) => t(`actor_kind.${kind}`, { defaultValue: t("actor_kind.unknown") }),
+    field: (field: string) => t(`fields.${field}`, { defaultValue: field }),
   };
 }
 
@@ -157,6 +158,7 @@ export function ChangeSummary({
   empty: ReactNode;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit.table" });
+  const { field: fieldLabel } = useAuditLabels();
   const entries = changeEntries(event);
   if (entries.length === 0) return <span className="text-muted-foreground">{empty}</span>;
   const shown = entries.slice(0, max);
@@ -165,7 +167,7 @@ export function ChangeSummary({
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {shown.map(([field, change]) => (
         <span key={field} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-caption whitespace-nowrap">
-          <span className="font-medium">{field}</span>
+          <span className="font-medium">{fieldLabel(field)}</span>
           {hasValue(change.from) ? (
             <>
               <ChangeValue value={change.from} className="text-muted-foreground line-through" />

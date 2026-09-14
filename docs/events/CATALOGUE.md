@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-09-04 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-09-14 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -12,9 +12,14 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
 - **Không nhúng phiên bản vào tên.** `event_version` là một cột. Đổi payload theo
   cách phá vỡ thì tăng `v`, consumer switch theo cột, giữ cả hai ít nhất một
   release.
-- **Payload chỉ mang id.** Không nội dung, không email, không token. Consumer cần
-  nội dung thì đọc lại qua API, nên một sự kiện không bao giờ lộ trường mà người
-  đọc không được xem.
+- **Payload của sự kiện có client nghe chỉ mang id.** Không nội dung, không email,
+  không token. Consumer cần nội dung thì đọc lại qua API, nên một sự kiện không lộ
+  trường mà người đọc không được xem. Ngoại lệ là hàng có cột **Patch** (ADR 0015):
+  frame của nó được mang thêm những trường đó và cặp `revision_before`/`revision` giữ
+  guard vá; xem mục dưới. Hàng hạ tầng (phạm vi `-`) không có client nào nghe nên không
+  bị luật id: `provider.*` gọi phòng và người tham gia bằng tên phía nhà cung cấp
+  (`room_name`, `identity`). Ở mọi hàng, kể cả hàng hạ tầng, cặp revision chỉ đứng cạnh
+  **Patch**.
 - **Phạm vi** quyết định ai nhận: `workspace` (mọi người trong workspace),
   `organization` (mọi kết nối trong tổ chức, dù đang ở workspace nào — danh bạ
   và phòng ban thuộc về công ty, không thuộc một workspace),
@@ -27,119 +32,156 @@ file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mj
   không ai thiệt**. Gõ phím, tín hiệu thoại, một dòng transcript mà dòng sau thay
   thế. Thứ người dùng sẽ hỏi lại sau này thì luôn là `outbox`.
 
+## Cột Patch
+
+`Patch` liệt kê trường nội dung một frame được mang để client vá bản ghi task đã có
+trong cache, thay vì chờ refetch (`docs/adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md`).
+Chỉ `task.updated` có cột này; `scripts/events-catalogue.test.mjs` đỏ khi một hàng khác
+khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cần ADR mới.
+
+- Server chỉ gửi trường vá khi mọi trường có trong input của một lời gọi
+  `TaskService.updateTaskInTx` cho task đó (một lô `BatchUpdateTasks` là nhiều lời gọi)
+  đều thuộc `Patch`: frame mang mọi trường vá có trong input, kể cả trường giá trị không
+  đổi, kèm `revision_before` và `revision` của riêng lời gọi đó. Input có trường khác (kể
+  cả `description` không đổi), hoặc input rỗng, thì frame chỉ mang id, không có hai
+  revision.
+- Client chỉ vá khi frame có ít nhất một khoá `Patch` và đủ hai revision, và `revision`
+  trong cache bằng `revision_before` của frame; thiếu một điều kiện thì invalidate như mọi
+  sự kiện khác. Frame có khoá nội dung ngoài `Patch` (ngoài `task_id`, `workspace_id` và
+  cặp revision) thì không vá, invalidate như cũ. Frame không bao giờ tạo bản ghi, và list
+  vẫn invalidate.
+- Nhờ luật trên, mở thêm một trường `Patch` (bằng ADR mới) an toàn với client đã deploy:
+  frame không mang event version, client cũ gặp khoá nó không biết thì không vá mà
+  refetch, nên không bao giờ nhận revision mới trong khi trường mới còn cũ.
+- Mọi giá trị là chuỗi (payload là `map[string]string`); ngày ở dạng `YYYY-MM-DD`;
+  trường bị xoá là chuỗi rỗng.
+- Các nơi khác phát `task.updated` (xoá dự án, nhãn, thuộc tính tuỳ biến, cha và phụ thuộc)
+  chỉ gửi `task_id`, `workspace_id`. Cột Payload của hàng này là tập khoá một frame
+  *có thể* mang; thiếu hai revision hoặc không có trường vá thì không vá.
+
 ## Bảng
 
-| Topic | v | Payload | Phạm vi | Cách gửi |
-| --- | --- | --- | --- | --- |
-| `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | workspace | outbox |
-| `audit.export_requested` | 1 | `export_id`, `organization_id` | - | outbox |
-| `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | user | outbox |
-| `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id` | user | ephemeral |
-| `chat.message` | 1 | `meeting_id` | workspace | ephemeral |
-| `chat.message.created` | 1 | `room_id`, `message_id` | chat | ephemeral |
-| `chat.message.deleted` | 1 | `room_id`, `message_id` | chat | ephemeral |
-| `chat.message.updated` | 1 | `room_id`, `message_id` | chat | ephemeral |
-| `chat.channel.archived` | 1 | `room_id`, `workspace_id` | workspace | outbox |
-| `chat.channel.created` | 1 | `room_id`, `workspace_id` | workspace | outbox |
-| `chat.channel.updated` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
-| `chat.thread.replied` | 1 | `room_id`, `thread_root_id`, `message_id` | chat | ephemeral |
-| `chat.room.activity` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
-| `chat.room.created` | 1 | `room_id` | room | outbox |
-| `chat.room.member_added` | 1 | `room_id`, `user_id` | room | outbox |
-| `chat.room.member_removed` | 1 | `room_id`, `user_id` | room | outbox |
-| `chat.room.updated` | 1 | `room_id`, `workspace_id` | workspace | ephemeral |
-| `chat.typing` | 1 | `room_id`, `user_id` | chat | ephemeral |
-| `chat.voice.accept` | 1 | `room_id`, `user_id` | user | ephemeral |
-| `chat.voice.hangup` | 1 | `room_id`, `user_id` | user | ephemeral |
-| `chat.voice.invite` | 1 | `room_id`, `user_id` | user | ephemeral |
-| `conference.session_ready` | 1 | `meeting_id`, `version` | workspace | ephemeral |
-| `flag.updated` | 1 | `flag_key` | - | outbox |
-| `host.transferred` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `invitation.responded` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `invite_link.revoked` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `join_request.approved` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `join_request.canceled` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `join_request.created` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `join_request.rejected` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `meeting.canceled` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `meeting.created` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `meeting.deleted` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `meeting.ended` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `meeting.started` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `meeting.updated` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `invitation.revoked` | 1 | `organization_id`, `invitation_id` | organization | outbox |
-| `member.deactivated` | 1 | `organization_id`, `user_id` | user | outbox |
-| `member.invited` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
-| `member.joined` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
-| `member.left` | 1 | `organization_id`, `user_id` | user | outbox |
-| `member.reactivated` | 1 | `organization_id`, `user_id` | user | outbox |
-| `member.removed` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
-| `member.role_changed` | 1 | `organization_id`, `user_id`, `workspace_id` | user | outbox |
-| `notification.created` | 1 | `notification_id`, `user_id` | user | outbox |
-| `notification.push` | 1 | `notification_id`, `user_id` | - | outbox |
-| `organization.created` | 1 | `organization_id` | user | outbox |
-| `organization.updated` | 1 | `organization_id` | user | outbox |
-| `organization.suspended` | 1 | `organization_id`, `user_id` | user | outbox |
-| `organization.unsuspended` | 1 | `organization_id`, `user_id` | user | outbox |
-| `organization.ownership_transferred` | 1 | `organization_id`, `user_id` | user | outbox |
-| `profile.updated` | 1 | `organization_id`, `user_id` | organization | outbox |
-| `department.created` | 1 | `organization_id`, `department_id` | organization | outbox |
-| `department.updated` | 1 | `organization_id`, `department_id` | organization | outbox |
-| `department.archived` | 1 | `organization_id`, `department_id` | organization | outbox |
-| `people.exported` | 1 | `organization_id`, `user_id` | - | outbox |
-| `participant.invited` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `participant.removed` | 1 | `meeting_id`, `version` | workspace | outbox |
-| `provider.end_session` | 1 | `room_name` | - | outbox |
-| `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | - | outbox |
-| `provider.remove_participant` | 1 | `room_name`, `identity` | - | outbox |
-| `quota.threshold` | 1 | `organization_id`, `user_id` | user | outbox |
-| `recording.ready` | 1 | `meeting_id` | workspace | ephemeral |
-| `recording.started` | 1 | `meeting_id` | workspace | ephemeral |
-| `recording.stopped` | 1 | `meeting_id` | workspace | ephemeral |
-| `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | user | outbox |
-| `summary.created` | 1 | `meeting_id` | workspace | ephemeral |
-| `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
-| `task.comment_updated` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
-| `task.comment_deleted` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
-| `task.comment_resolved` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
-| `task.comment_unresolved` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
-| `comment.reaction_added` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
-| `comment.reaction_removed` | 1 | `task_id`, `comment_id`, `workspace_id` | workspace | outbox |
-| `task.reaction_added` | 1 | `task_id`, `workspace_id` | workspace | outbox |
-| `task.reaction_removed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
-| `task.subscribed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
-| `task.unsubscribed` | 1 | `task_id`, `workspace_id` | workspace | outbox |
-| `attachment.uploaded` | 1 | `attachment_id`, `task_id`, `workspace_id` | workspace | outbox |
-| `attachment.deleted` | 1 | `attachment_id`, `task_id`, `workspace_id` | workspace | outbox |
-| `task.created` | 1 | `task_id`, `workspace_id` | workspace | outbox |
-| `task.deleted` | 1 | `task_id`, `workspace_id` | workspace | outbox |
-| `task.updated` | 1 | `task_id`, `workspace_id` | workspace | outbox |
-| `task_label.created` | 1 | `label_id`, `workspace_id` | workspace | outbox |
-| `task_label.deleted` | 1 | `label_id`, `workspace_id` | workspace | outbox |
-| `task_label.updated` | 1 | `label_id`, `workspace_id` | workspace | outbox |
-| `task_pin.created` | 1 | `pin_id`, `workspace_id` | workspace | outbox |
-| `task_pin.deleted` | 1 | `pin_id`, `workspace_id` | workspace | outbox |
-| `task_pin.reordered` | 1 | `workspace_id`, `user_id` | workspace | outbox |
-| `task_property.created` | 1 | `property_id`, `workspace_id` | workspace | outbox |
-| `task_property.updated` | 1 | `property_id`, `workspace_id` | workspace | outbox |
-| `task_status.created` | 1 | `status_id`, `workspace_id` | workspace | outbox |
-| `task_status.deleted` | 1 | `status_id`, `workspace_id` | workspace | outbox |
-| `task_status.updated` | 1 | `status_id`, `workspace_id` | workspace | outbox |
-| `task_view.created` | 1 | `view_id`, `workspace_id` | workspace | outbox |
-| `task_view.deleted` | 1 | `view_id`, `workspace_id` | workspace | outbox |
-| `task_view.updated` | 1 | `view_id`, `workspace_id` | workspace | outbox |
-| `task_view_preference.updated` | 1 | `workspace_id`, `user_id`, `scope_id` | workspace | outbox |
-| `project.created` | 1 | `project_id`, `workspace_id` | workspace | outbox |
-| `project.deleted` | 1 | `project_id`, `workspace_id` | workspace | outbox |
-| `project.updated` | 1 | `project_id`, `workspace_id` | workspace | outbox |
-| `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
-| `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
-| `project_resource.updated` | 1 | `resource_id`, `project_id`, `workspace_id` | workspace | outbox |
-| `transcript.appended` | 1 | `meeting_id` | workspace | ephemeral |
-| `webhook.deliver` | 1 | `subscription_id`, `event_id` | - | outbox |
-| `workspace.created` | 1 | `workspace_id`, `organization_id` | workspace | outbox |
-| `workspace.updated` | 1 | `workspace_id`, `organization_id` | workspace | outbox |
-| `workspace_agent.added` | 1 | `workspace_id`, `agent_id` | workspace | outbox |
+| Topic | v | Payload | Patch | Phạm vi | Cách gửi |
+| --- | --- | --- | --- | --- | --- |
+| `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | — | workspace | outbox |
+| `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
+| `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
+| `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id` | — | user | ephemeral |
+| `chat.message` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `chat.message.created` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
+| `chat.message.deleted` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
+| `chat.message.updated` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
+| `chat.channel.archived` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
+| `chat.channel.created` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
+| `chat.channel.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
+| `chat.thread.replied` | 1 | `room_id`, `thread_root_id`, `message_id` | — | chat | ephemeral |
+| `chat.thread.linked` | 1 | `room_id`, `thread_root_id`, `task_id` | — | room | outbox |
+| `chat.message.linked` | 1 | `room_id`, `message_id`, `target_id` | — | room | outbox |
+| `chat.follow_up.created` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
+| `chat.follow_up.updated` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
+| `chat.follow_up.completed` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
+| `chat.follow_up.deleted` | 1 | `follow_up_id`, `workspace_id`, `room_id`, `message_id`, `user_id` | — | user | outbox |
+| `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | — | - | outbox |
+| `chat.room.activity` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
+| `chat.room.created` | 1 | `room_id` | — | room | outbox |
+| `chat.room.member_added` | 1 | `room_id`, `user_id` | — | room | outbox |
+| `chat.room.member_removed` | 1 | `room_id`, `user_id` | — | room | outbox |
+| `chat.room.read` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
+| `chat.room.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
+| `chat.typing` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
+| `chat.voice.accept` | 1 | `room_id`, `user_id` | — | user | ephemeral |
+| `chat.voice.hangup` | 1 | `room_id`, `user_id` | — | user | ephemeral |
+| `chat.voice.invite` | 1 | `room_id`, `user_id` | — | user | ephemeral |
+| `conference.session_ready` | 1 | `meeting_id`, `version` | — | workspace | ephemeral |
+| `flag.updated` | 1 | `flag_key` | — | - | outbox |
+| `host.transferred` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `invitation.responded` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `invite_link.revoked` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `join_request.approved` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `join_request.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `join_request.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `join_request.rejected` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `meeting.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `meeting.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `meeting.deleted` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `meeting.ended` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `meeting.started` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `meeting.updated` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `invitation.revoked` | 1 | `organization_id`, `invitation_id` | — | organization | outbox |
+| `member.deactivated` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `member.invited` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `member.joined` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `member.left` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `member.reactivated` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `member.removed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `member.role_changed` | 1 | `organization_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `notification.created` | 1 | `notification_id`, `user_id` | — | user | outbox |
+| `notification.push` | 1 | `notification_id`, `user_id` | — | - | outbox |
+| `organization.created` | 1 | `organization_id` | — | user | outbox |
+| `organization.updated` | 1 | `organization_id` | — | user | outbox |
+| `organization.suspended` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `organization.unsuspended` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `organization.ownership_transferred` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `profile.updated` | 1 | `organization_id`, `user_id` | — | organization | outbox |
+| `department.created` | 1 | `organization_id`, `department_id` | — | organization | outbox |
+| `department.updated` | 1 | `organization_id`, `department_id` | — | organization | outbox |
+| `department.archived` | 1 | `organization_id`, `department_id` | — | organization | outbox |
+| `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |
+| `participant.invited` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `participant.removed` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `provider.end_session` | 1 | `room_name` | — | - | outbox |
+| `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
+| `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |
+| `quota.threshold` | 1 | `organization_id`, `user_id` | — | user | outbox |
+| `recording.ready` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `recording.started` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `recording.stopped` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | — | user | outbox |
+| `summary.created` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `task.comment_updated` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `task.comment_deleted` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `task.comment_resolved` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `task.comment_unresolved` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `comment.reaction_added` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `comment.reaction_removed` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `task.reaction_added` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.reaction_removed` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.subscribed` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.unsubscribed` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `attachment.uploaded` | 1 | `attachment_id`, `task_id`, `workspace_id` | — | workspace | outbox |
+| `attachment.deleted` | 1 | `attachment_id`, `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.created` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.deleted` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.updated` | 1 | `task_id`, `workspace_id`, `revision_before`, `revision` | `title`, `status`, `priority`, `due_date` | workspace | outbox |
+| `task_label.created` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
+| `task_label.deleted` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
+| `task_label.updated` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
+| `task_pin.created` | 1 | `pin_id`, `workspace_id` | — | workspace | outbox |
+| `task_pin.deleted` | 1 | `pin_id`, `workspace_id` | — | workspace | outbox |
+| `task_pin.reordered` | 1 | `workspace_id`, `user_id` | — | workspace | outbox |
+| `task_property.created` | 1 | `property_id`, `workspace_id` | — | workspace | outbox |
+| `task_property.updated` | 1 | `property_id`, `workspace_id` | — | workspace | outbox |
+| `task_status.created` | 1 | `status_id`, `workspace_id` | — | workspace | outbox |
+| `task_status.deleted` | 1 | `status_id`, `workspace_id` | — | workspace | outbox |
+| `task_status.updated` | 1 | `status_id`, `workspace_id` | — | workspace | outbox |
+| `task_view.created` | 1 | `view_id`, `workspace_id` | — | workspace | outbox |
+| `task_view.deleted` | 1 | `view_id`, `workspace_id` | — | workspace | outbox |
+| `task_view.updated` | 1 | `view_id`, `workspace_id` | — | workspace | outbox |
+| `task_view_preference.updated` | 1 | `workspace_id`, `user_id`, `scope_id` | — | workspace | outbox |
+| `project.created` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.deleted` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.updated` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
+| `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
+| `project_resource.updated` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
+| `transcript.appended` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `user.offline` | 1 | `user_id` | — | workspace | ephemeral |
+| `user.presence` | 1 | `user_id` | — | workspace | ephemeral |
+| `webhook.deliver` | 1 | `subscription_id`, `event_id` | — | - | outbox |
+| `workspace.created` | 1 | `workspace_id`, `organization_id` | — | workspace | outbox |
+| `workspace.updated` | 1 | `workspace_id`, `organization_id` | — | workspace | outbox |
+| `workspace_agent.added` | 1 | `workspace_id`, `agent_id` | — | workspace | outbox |
 
 ## Sự kiện không nằm ở đây
 

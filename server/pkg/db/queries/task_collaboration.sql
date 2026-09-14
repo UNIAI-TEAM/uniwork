@@ -12,13 +12,18 @@ SELECT *
 FROM task_comments
 WHERE id = $1;
 
+-- name: GetTaskCommentByChatMessageID :one
+SELECT *
+FROM task_comments
+WHERE chat_message_id = $1;
+
 -- name: CreateTaskCommentThreaded :one
 INSERT INTO task_comments (
   id, organization_id, workspace_id, task_id, author_id, author_kind, body, origin,
-  parent_comment_id, comment_type, updated_at
+  parent_comment_id, comment_type, chat_message_id, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8,
-  $9, $10, now()
+  $9, $10, sqlc.narg(chat_message_id), now()
 )
 RETURNING *;
 
@@ -89,6 +94,15 @@ WHERE comment_id = $1
   AND organization_id = $2
   AND workspace_id = $3
 ORDER BY created_at;
+
+-- name: ListTaskCommentReactions :many
+SELECT r.*
+FROM comment_reactions r
+JOIN task_comments c ON c.id = r.comment_id
+WHERE c.task_id = $1
+  AND r.organization_id = $2
+  AND r.workspace_id = $3
+ORDER BY r.created_at;
 
 -- name: InsertTaskReaction :one
 INSERT INTO task_reactions (

@@ -14,12 +14,12 @@ import (
 const createTaskCommentThreaded = `-- name: CreateTaskCommentThreaded :one
 INSERT INTO task_comments (
   id, organization_id, workspace_id, task_id, author_id, author_kind, body, origin,
-  parent_comment_id, comment_type, updated_at
+  parent_comment_id, comment_type, chat_message_id, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8,
-  $9, $10, now()
+  $9, $10, $11, now()
 )
-RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
 `
 
 type CreateTaskCommentThreadedParams struct {
@@ -33,6 +33,7 @@ type CreateTaskCommentThreadedParams struct {
 	Origin          pgtype.Text `json:"origin"`
 	ParentCommentID pgtype.Text `json:"parent_comment_id"`
 	CommentType     string      `json:"comment_type"`
+	ChatMessageID   pgtype.Text `json:"chat_message_id"`
 }
 
 func (q *Queries) CreateTaskCommentThreaded(ctx context.Context, arg CreateTaskCommentThreadedParams) (TaskComment, error) {
@@ -47,6 +48,7 @@ func (q *Queries) CreateTaskCommentThreaded(ctx context.Context, arg CreateTaskC
 		arg.Origin,
 		arg.ParentCommentID,
 		arg.CommentType,
+		arg.ChatMessageID,
 	)
 	var i TaskComment
 	err := row.Scan(
@@ -66,6 +68,7 @@ func (q *Queries) CreateTaskCommentThreaded(ctx context.Context, arg CreateTaskC
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.ChatMessageID,
 	)
 	return i, err
 }
@@ -189,7 +192,7 @@ func (q *Queries) DeleteTaskSubscriber(ctx context.Context, arg DeleteTaskSubscr
 
 const getTaskComment = `-- name: GetTaskComment :one
 
-SELECT id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+SELECT id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
 FROM task_comments
 WHERE id = $1
   AND organization_id = $2
@@ -223,12 +226,44 @@ func (q *Queries) GetTaskComment(ctx context.Context, arg GetTaskCommentParams) 
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.ChatMessageID,
+	)
+	return i, err
+}
+
+const getTaskCommentByChatMessageID = `-- name: GetTaskCommentByChatMessageID :one
+SELECT id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
+FROM task_comments
+WHERE chat_message_id = $1
+`
+
+func (q *Queries) GetTaskCommentByChatMessageID(ctx context.Context, chatMessageID pgtype.Text) (TaskComment, error) {
+	row := q.db.QueryRow(ctx, getTaskCommentByChatMessageID, chatMessageID)
+	var i TaskComment
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.AuthorID,
+		&i.Body,
+		&i.CreatedAt,
+		&i.AuthorKind,
+		&i.Origin,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentCommentID,
+		&i.CommentType,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.ChatMessageID,
 	)
 	return i, err
 }
 
 const getTaskCommentByID = `-- name: GetTaskCommentByID :one
-SELECT id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+SELECT id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
 FROM task_comments
 WHERE id = $1
 `
@@ -253,6 +288,7 @@ func (q *Queries) GetTaskCommentByID(ctx context.Context, id string) (TaskCommen
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.ChatMessageID,
 	)
 	return i, err
 }
@@ -432,6 +468,51 @@ func (q *Queries) ListDescendantTaskIDs(ctx context.Context, arg ListDescendantT
 	return items, nil
 }
 
+const listTaskCommentReactions = `-- name: ListTaskCommentReactions :many
+SELECT r.id, r.organization_id, r.workspace_id, r.comment_id, r.actor_type, r.actor_id, r.emoji, r.created_at
+FROM comment_reactions r
+JOIN task_comments c ON c.id = r.comment_id
+WHERE c.task_id = $1
+  AND r.organization_id = $2
+  AND r.workspace_id = $3
+ORDER BY r.created_at
+`
+
+type ListTaskCommentReactionsParams struct {
+	TaskID         string `json:"task_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) ListTaskCommentReactions(ctx context.Context, arg ListTaskCommentReactionsParams) ([]CommentReaction, error) {
+	rows, err := q.db.Query(ctx, listTaskCommentReactions, arg.TaskID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CommentReaction{}
+	for rows.Next() {
+		var i CommentReaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.CommentID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Emoji,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskReactions = `-- name: ListTaskReactions :many
 SELECT id, organization_id, workspace_id, task_id, actor_type, actor_id, emoji, created_at
 FROM task_reactions
@@ -530,7 +611,7 @@ WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
   AND resolved_at IS NULL
-RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
 `
 
 type ResolveTaskCommentParams struct {
@@ -567,6 +648,7 @@ func (q *Queries) ResolveTaskComment(ctx context.Context, arg ResolveTaskComment
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.ChatMessageID,
 	)
 	return i, err
 }
@@ -582,7 +664,7 @@ WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
   AND resolved_at IS NOT NULL
-RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
 `
 
 type UnresolveTaskCommentParams struct {
@@ -611,6 +693,7 @@ func (q *Queries) UnresolveTaskComment(ctx context.Context, arg UnresolveTaskCom
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.ChatMessageID,
 	)
 	return i, err
 }
@@ -623,7 +706,7 @@ SET body = $4,
 WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
-RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, task_id, author_id, body, created_at, author_kind, origin, organization_id, workspace_id, parent_comment_id, comment_type, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, chat_message_id
 `
 
 type UpdateTaskCommentBodyParams struct {
@@ -658,6 +741,7 @@ func (q *Queries) UpdateTaskCommentBody(ctx context.Context, arg UpdateTaskComme
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.ChatMessageID,
 	)
 	return i, err
 }

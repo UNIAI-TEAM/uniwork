@@ -57,6 +57,31 @@ func (h *handlers) askUni(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *handlers) chatCatchUp(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ChatCatchUpSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	res, err := h.AskUNI.CatchUp(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), service.CatchUpInput{
+		RoomID: in.RoomID, ThreadRootID: in.ThreadRootID, Locale: in.Locale,
+	})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	items := make([]sdo.ChatCatchUpActionItemDTO, 0, len(res.ActionItems))
+	for _, a := range res.ActionItems {
+		items = append(items, sdo.ChatCatchUpActionItemDTO{
+			Title: a.Title, Owner: a.Owner, Due: a.Due, SourceMessageID: a.SourceMessageID,
+		})
+	}
+	respondJSON(w, 200, sdo.ChatCatchUpSDO{
+		Summary: res.Summary, Highlights: res.Highlights, ActionItems: items,
+		MessageCount: res.MessageCount, Mode: res.Mode, Since: res.Since.UTC().Format(time.RFC3339),
+		Usage: sdo.AiUsageDTO{InputTokens: res.InputTokens, OutputTokens: res.OutputTokens},
+	})
+}
+
 func (h *handlers) listAiConversations(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.AskUNI.ListConversations(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
 	if err != nil {

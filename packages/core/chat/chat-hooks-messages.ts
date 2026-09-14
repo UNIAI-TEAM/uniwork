@@ -1,13 +1,14 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
-import type { ChatUserLookup } from "../api/endpoints/chat";
+import type { ChatMessageRecord, ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
 import { ApiError } from "../api/http";
 import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
+import { mergeMessageIntoList, patchRoomSidebarFromMessage } from "./realtime-cache";
 
 export function useSendChatRoomMessage(workspaceId: string) {
   const qc = useQueryClient();
@@ -38,17 +39,32 @@ export function useSendChatRoomMessage(workspaceId: string) {
         body: string;
         pin_to_top?: boolean;
       };
+      post?: {
+        title: string;
+        body: string;
+        pin_to_top?: boolean;
+      };
       priority?: "important" | "urgent";
     }) => runWithChatSendRetry(() => chat.sendChatRoomMessage(workspaceId, input.roomId, input)),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       if (variables.client_msg_id) {
         usePendingChatMessagesStore.getState().remove(variables.client_msg_id);
       }
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+      if (data) {
+        qc.setQueryData<ChatMessageRecord[]>(
+          chatKeys.roomMessages(workspaceId, variables.roomId),
+          (old) => mergeMessageIntoList(old, data),
+        );
+        qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>
+          patchRoomSidebarFromMessage(old, variables.roomId, data),
+        );
+      } else {
+        void qc.invalidateQueries({
+          queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
+        });
+        void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      }
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
-      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
 }

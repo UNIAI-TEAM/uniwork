@@ -110,6 +110,13 @@ export const ChatMessageSchema = z.object({
       pin_to_top: z.boolean().optional().default(false),
     })
     .optional(),
+  post: z
+    .object({
+      title: z.string(),
+      body: z.string(),
+      pin_to_top: z.boolean().optional().default(false),
+    })
+    .optional(),
   priority: z.enum(["important", "urgent"]).optional(),
   // Echo of the sender's idempotency key; a client drops its own queued copy
   // when this comes back, instead of guessing from body and timestamp.
@@ -117,8 +124,21 @@ export const ChatMessageSchema = z.object({
 });
 export type ChatMessageRecord = z.infer<typeof ChatMessageSchema>;
 
+/** Keep valid rows when one item drifts — a single bad message must not empty the timeline. */
+function lenientMessageList(items: unknown[]): ChatMessageRecord[] {
+  const out: ChatMessageRecord[] = [];
+  for (const item of items) {
+    const parsed = ChatMessageSchema.safeParse(item);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const ChatMessagesListSchema = z.object({
-  messages: z.array(ChatMessageSchema).optional().default([]),
+  messages: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) => lenientMessageList(items ?? [])),
 });
 
 export const ChatMessageEnvelopeSchema = z.object({
@@ -149,6 +169,7 @@ export const ChatRoomSchema = z.object({
   peer_user_id: z.string().optional(),
   peer_email: z.string().optional(),
   peer_display_name: z.string().optional(),
+  peer_last_read_at: z.string().optional(),
   last_message_body: z.string().optional(),
   last_message_kind: z.string().optional(),
   last_message_sender_id: z.string().optional(),
@@ -162,8 +183,21 @@ export const ChatRoomSchema = z.object({
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 
+/** Keep valid rooms when one row drifts — a single bad room must not empty the sidebar. */
+function lenientRoomList(items: unknown[]): ChatRoomRecord[] {
+  const out: ChatRoomRecord[] = [];
+  for (const item of items) {
+    const parsed = ChatRoomSchema.safeParse(item);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const ChatRoomsListSchema = z.object({
-  rooms: z.array(ChatRoomSchema).optional().default([]),
+  rooms: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) => lenientRoomList(items ?? [])),
 });
 
 export const ChatRoomEnvelopeSchema = z.object({

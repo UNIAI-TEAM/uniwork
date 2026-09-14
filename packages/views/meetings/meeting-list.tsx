@@ -173,7 +173,10 @@ function MeetingDayMobileList({
             <MeetingCardRow className={cn(live && "border-brand/30 bg-brand/5")}>
               <MeetingCardRowTime>{formatMeetingTimes(m.starts_at, m.ends_at, locale)}</MeetingCardRowTime>
               <MeetingCardRowMain>
-                <AppLink href={ws.meeting(m.id)} className="min-w-0 outline-none">
+                <AppLink
+                  href={ws.meeting(m.id)}
+                  className="min-w-0 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
                   <span className="block truncate text-body font-medium text-foreground">{m.title}</span>
                   <span className="mt-0.5 block truncate text-caption text-muted-foreground">{host}</span>
                 </AppLink>

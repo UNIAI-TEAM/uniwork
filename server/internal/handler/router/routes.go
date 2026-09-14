@@ -176,7 +176,6 @@ type Routes struct {
 	GetAttachmentContent   http.HandlerFunc
 	DownloadAttachment     http.HandlerFunc
 	DeleteAttachment       http.HandlerFunc
-	GetTaskTimeline        http.HandlerFunc
 	CommentSubTaskPreview  http.HandlerFunc
 	CreateCommentSubTasks  http.HandlerFunc
 	PreviewCommentTriggers http.HandlerFunc
@@ -197,6 +196,7 @@ type Routes struct {
 
 	AiCapabilities       http.HandlerFunc
 	AskUni               http.HandlerFunc
+	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc
 	ListAiMessages       http.HandlerFunc
 	DeleteAiConversation http.HandlerFunc
@@ -305,11 +305,23 @@ type Routes struct {
 	UnfollowChatThread          http.HandlerFunc
 	MarkChatThreadRead          http.HandlerFunc
 	ListChatThreads             http.HandlerFunc
+	CreateTaskFromChatMessage   http.HandlerFunc
+	CreateChatMessageLink       http.HandlerFunc
+	ListChatMessageLinks        http.HandlerFunc
+	DeleteChatMessageLink       http.HandlerFunc
+	SyncChatThreadTask          http.HandlerFunc
+	UnsyncChatThreadTask        http.HandlerFunc
+	ListChatFollowUps           http.HandlerFunc
+	CreateChatFollowUp          http.HandlerFunc
+	PatchChatFollowUp           http.HandlerFunc
+	DeleteChatFollowUp          http.HandlerFunc
+	ConvertChatFollowUpToTask   http.HandlerFunc
 	ListChatRoomMembers         http.HandlerFunc
 	PatchChatRoomMember         http.HandlerFunc
 	PatchChatRoom               http.HandlerFunc
 	RemoveChatRoomMember        http.HandlerFunc
 	LeaveChatRoom               http.HandlerFunc
+	MarkChatRoomRead            http.HandlerFunc
 	ListWorkspaceChatMessages   http.HandlerFunc
 	SendWorkspaceChatMessage    http.HandlerFunc
 	ListChatRoomMessages        http.HandlerFunc
@@ -330,4 +342,5 @@ type Routes struct {
 	SignalChatVoiceAccept       http.HandlerFunc
 	SignalChatVoiceHangup       http.HandlerFunc
 	SignalChatTyping            http.HandlerFunc
+	SignalChatPresence          http.HandlerFunc
 }

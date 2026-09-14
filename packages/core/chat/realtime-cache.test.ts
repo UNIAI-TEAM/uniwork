@@ -10,6 +10,8 @@ import {
   isChatThreadReply,
   mergeMessageIntoList,
   patchChatMessageDeleted,
+  patchChatMessageLinked,
+  patchChatThreadLinked,
   patchRoomSidebarFromMessage,
   removeMessageFromList,
 } from "./realtime-cache";
@@ -100,6 +102,53 @@ describe("patchRoomSidebarFromMessage", () => {
   });
 });
 
+describe("fetchAndPatchChatMessage unread", () => {
+  it("does not locally increment unread for DM rooms (activity refetch owns the count)", async () => {
+    const message = sampleMessage("m1", "2026-01-01T11:00:00Z");
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "dm",
+        name: "Bob",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1");
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(0);
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.last_message_body).toBe(
+      message.body,
+    );
+  });
+
+  it("increments unread locally for workspace rooms", async () => {
+    const message = { ...sampleMessage("m1", "2026-01-01T11:00:00Z"), room_id: "ws-room" };
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "ws-room",
+        kind: "workspace",
+        name: "General",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "ws-room", "m1");
+
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(1);
+  });
+});
+
 describe("patchChatMessageDeleted", () => {
   it("removes message from room cache", () => {
     const qc = new QueryClient();
@@ -160,5 +209,31 @@ describe("thread reply cache patches", () => {
         (m) => m.id,
       ),
     ).toEqual(["r1"]);
+  });
+});
+
+describe("message / thread link cache patches", () => {
+  it("invalidates messageLinks without touching message lists", () => {
+    const qc = new QueryClient();
+    const messages = [sampleMessage("m1", "2026-01-01T10:00:00Z")];
+    qc.setQueryData(chatKeys.roomMessages("ws1", "room1"), messages);
+    qc.setQueryData(chatKeys.messageLinks("ws1", "m1"), [{ id: "l1" }]);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    patchChatMessageLinked(qc, "ws1", "room1", "m1");
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.messageLinks("ws1", "m1"),
+    });
+    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toEqual(messages);
+  });
+
+  it("invalidates links for the thread root on chat.thread.linked", () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    patchChatThreadLinked(qc, "ws1", "room1", "root1");
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.messageLinks("ws1", "root1"),
+    });
   });
 });

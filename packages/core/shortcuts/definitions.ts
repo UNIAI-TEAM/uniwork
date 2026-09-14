@@ -1,3 +1,4 @@
+import { isImeComposing } from "../utils";
 import {
   getShortcutPlatform,
   getShortcutRuntime,
@@ -66,6 +67,23 @@ const primary = (key: string) =>
  */
 export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
   { id: "ai.askUni", category: "general", defaultShortcut: primary("J"), allowInEditable: true },
+  { id: "openSearch", category: "general", defaultShortcut: primary("K"), allowInEditable: true },
+  { id: "createTask", category: "general", defaultShortcut: createShortcutChord("C"), allowInEditable: false },
+  { id: "findInTask", category: "general", defaultShortcut: primary("F"), allowInEditable: true },
+  // Deliberately unbound: no chord was verified free of browser/OS reservations
+  // on every platform. Users bind it in Settings.
+  { id: "openThreadNav", category: "general", defaultShortcut: null, allowInEditable: false },
+  { id: "send", category: "general", defaultShortcut: createShortcutChord("Enter", { primary: true }), allowInEditable: true },
+  { id: "goBack", category: "navigation", defaultShortcut: primary("["), allowInEditable: false },
+  { id: "goForward", category: "navigation", defaultShortcut: primary("]"), allowInEditable: false },
+  { id: "goInbox", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goTasks", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goMyTasks", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goProjects", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goMeetings", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goChat", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goPeople", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goSettings", category: "navigation", defaultShortcut: null, allowInEditable: false },
 ];
 
 export const SHORTCUT_ACTION_BY_ID = Object.fromEntries(
@@ -216,6 +234,26 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
   );
 }
 
+const PORTAL_LAYER_SELECTOR =
+  '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]';
+
+/**
+ * Whether an open popup (menu, dialog, listbox) owns the keyboard. Popups are
+ * portaled to the body, so page-level listeners still see their keypresses;
+ * the `data-base-ui-inert` marker catches modal layers even when focus never
+ * left the page.
+ */
+export function isPortalLayerShortcutTarget(target: EventTarget | null): boolean {
+  if (typeof document === "undefined") return false;
+  if (document.querySelector("[data-base-ui-inert]") !== null) return true;
+  return target instanceof Element && target.closest(PORTAL_LAYER_SELECTOR) !== null;
+}
+
+/** A focused control already handled it, the key is auto-repeating, or an IME is composing. */
+export function shouldIgnoreGlobalShortcutEvent(event: KeyboardEvent): boolean {
+  return event.defaultPrevented || event.repeat || isImeComposing(event);
+}
+
 const PRIMARY_RESERVED_KEYS = new Set([
   // Window operations the app itself owns on every runtime: W closes the
   // tab, R/F5 is the reload guard, Q quits.
@@ -224,6 +262,10 @@ const PRIMARY_RESERVED_KEYS = new Set([
   "A", "C", "V", "X", "Y", "Z",
   // Zoom accelerators: fixed app shortcuts on desktop, browser zoom on web.
   "Equals", "Plus", "Minus", "Underscore", "0",
+  // The shared sidebar primitive (packages/ui/components/ui/sidebar.tsx) owns
+  // Cmd/Ctrl+B on window and ignores defaultPrevented, so a product action
+  // bound to it would fire alongside the sidebar toggle.
+  "B",
 ]);
 
 // Accelerators owned by the browser UI around a tab: print, address bar,
@@ -257,6 +299,9 @@ export function isReservedShortcut(
   if (platform === "macos") {
     if (modifiers.primary && (key === "Space" || key === "Tab" || key === "M" || key === "H")) return true;
     if (modifiers.control && ["Up", "Down", "Left", "Right"].includes(key)) return true;
+    // The sidebar primitive matches ctrlKey as well as metaKey on every
+    // platform, so literal Control+B toggles it on macOS too.
+    if (modifiers.control && key === "B") return true;
   } else {
     // Windows/Super shortcuts are owned by the shell/window manager and often
     // never reach the browser. Reject all of them instead of pretending a
@@ -285,6 +330,23 @@ function hasCommandModifier(shortcut: ShortcutChord): boolean {
 }
 
 /**
+ * Cmd/Ctrl+F, with any extra modifier. It belongs to find: the task detail
+ * page answers `findInTask`, and the chat page (chat-page-content.tsx) opens
+ * message search from a window listener that ignores defaultPrevented, so any
+ * other action bound to it would fire alongside that search. The listener
+ * matches ctrlKey as well as metaKey, so literal Control+F counts on macOS,
+ * as literal Control+B does for the sidebar primitive.
+ */
+export function isFindShortcut(
+  shortcut: ShortcutChord,
+  platform: ShortcutPlatform = getShortcutPlatform(),
+): boolean {
+  const { modifiers, key } = shortcut;
+  if (key !== "F") return false;
+  return modifiers.primary || (platform === "macos" && modifiers.control);
+}
+
+/**
  * Product-level safety policy layered on top of OS/browser reservations.
  * Plain text keys are useful for non-editable navigation (for example `C`),
  * but an action allowed inside editors must not fire while the user types.
@@ -301,6 +363,7 @@ export function isShortcutAllowedForAction(
   // Tab is focus navigation (and Ctrl+Tab is browser tab navigation) on every
   // supported platform. It is never a dependable product-level binding.
   if (shortcut.key === "Tab") return false;
+  if (actionId !== "findInTask" && isFindShortcut(shortcut, platform)) return false;
   const hasModifier = hasShortcutModifier(shortcut);
   const hasCommand = hasCommandModifier(shortcut);
 

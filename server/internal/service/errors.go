@@ -105,6 +105,11 @@ func coded(status int, code, msg string) error {
 	return CodedError{Code: code, Status: status, Msg: msg}
 }
 
+func codedIs(err error, code string) bool {
+	var ce CodedError
+	return errors.As(err, &ce) && ce.Code == code
+}
+
 func errInvalidState() error {
 	return coded(http.StatusConflict, "invalid_meeting_state", "thao tác không hợp lệ với trạng thái cuộc họp hiện tại")
 }

@@ -63,6 +63,59 @@ type MeetingSummary struct {
 	ActionItems []ActionItem `json:"action_items"`
 }
 
+// CatchUpActionItem is one suggested follow-up from unread chat (C-13.7).
+// SourceID is optional and must match a pack source when present.
+type CatchUpActionItem struct {
+	Title    string `json:"title"`
+	Owner    string `json:"owner,omitempty"`
+	Due      string `json:"due,omitempty"`
+	SourceID string `json:"source_id,omitempty"`
+}
+
+// CatchUp is the structured catch-up brief for a room or thread.
+type CatchUp struct {
+	Summary     string              `json:"summary"`
+	Highlights  []string            `json:"highlights"`
+	ActionItems []CatchUpActionItem `json:"action_items"`
+}
+
+// ParseCatchUpJSON parses the chat_catchup model output and drops unknown source_ids.
+func ParseCatchUpJSON(s string, pack []Source) (CatchUp, error) {
+	raw, err := extractJSON(s)
+	if err != nil {
+		return CatchUp{}, ErrOutputInvalid.wrap(err)
+	}
+	var out CatchUp
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return CatchUp{}, ErrOutputInvalid.wrap(err)
+	}
+	if strings.TrimSpace(out.Summary) == "" {
+		return CatchUp{}, ErrOutputInvalid.wrap(errors.New("empty summary"))
+	}
+	if out.Highlights == nil {
+		out.Highlights = []string{}
+	}
+	if out.ActionItems == nil {
+		out.ActionItems = []CatchUpActionItem{}
+	}
+	known := map[string]bool{}
+	for _, src := range pack {
+		known[src.ID] = true
+	}
+	kept := make([]CatchUpActionItem, 0, len(out.ActionItems))
+	for _, item := range out.ActionItems {
+		if strings.TrimSpace(item.Title) == "" {
+			continue
+		}
+		if item.SourceID != "" && !known[item.SourceID] {
+			item.SourceID = ""
+		}
+		kept = append(kept, item)
+	}
+	out.ActionItems = kept
+	return out, nil
+}
+
 // ParseSummaryJSON accepts the model text and tolerates a ```json fence or
 // prose around the object: it parses from the first '{' to the last '}'.
 func ParseSummaryJSON(s string) (MeetingSummary, error) {

@@ -3,6 +3,7 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   askUni,
+  chatCatchUp,
   deleteAiConversation,
   getAiCapabilities,
   getAiUsage,
@@ -52,6 +53,28 @@ describe("ai endpoints", () => {
     expect(JSON.parse(init.body as string)).toEqual({ question: "task nào quá hạn?", focus: { kind: "task", id: "t1" }, locale: "vi" });
     vi.mocked(fetch).mockResolvedValueOnce(json({ conversation_id: "c1", message: { id: 1 } }));
     await expect(askUni("ws1", { question: "?" })).rejects.toThrow("ai_output_invalid");
+  });
+
+  it("chatCatchUp posts room focus and degrades malformed payloads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        summary: "Có 2 tin mới.",
+        highlights: ["An nhắc hạn"],
+        action_items: [{ title: "Gửi bản nháp", owner: "An", source_message_id: "m1" }],
+        message_count: 2,
+        since: "2026-09-11T08:00:00Z",
+        usage: { input_tokens: 10, output_tokens: 4 },
+      }),
+    );
+    const res = await chatCatchUp("ws1", { room_id: "r1", locale: "vi" });
+    expect(res.summary).toBe("Có 2 tin mới.");
+    expect(res.action_items[0]!.source_message_id).toBe("m1");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ room_id: "r1", locale: "vi" });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/workspaces/ws1/ai/chat/catch-up");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: 1 }));
+    expect((await chatCatchUp("ws1", { room_id: "r1" })).summary).toBe("");
   });
 
   it("conversations and messages degrade to empty lists", async () => {

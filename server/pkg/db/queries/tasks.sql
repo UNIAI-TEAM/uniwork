@@ -10,12 +10,12 @@ INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, priority,
   assignee_id, assignee_kind, assignee_type, due_date, position,
   created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
-  origin_type, origin_id
+  origin_type, origin_id, project_id
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12,
   $13, $14, $15, $16, $17, $18,
-  $19, $20
+  $19, $20, $21
 )
 RETURNING *;
 
@@ -64,6 +64,17 @@ RETURNING *;
 -- name: SetTaskDueDate :one
 UPDATE tasks SET
   due_date = $2,
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = $1
+  AND organization_id = $3
+  AND workspace_id = $4
+RETURNING *;
+
+-- name: SetTaskProjectID :one
+UPDATE tasks SET
+  project_id = $2,
   revision = revision + 1,
   updated_at = now(),
   last_activity_at = now()

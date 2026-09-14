@@ -10,6 +10,7 @@ import (
 const (
 	PromptMeetingSummary = "meeting_summary@1"
 	PromptCopilotAnswer  = "copilot_answer@1"
+	PromptChatCatchUp    = "chat_catchup@1"
 )
 
 type TranscriptLine struct {
@@ -33,7 +34,7 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 - "action_items": tasks someone must do next; "title" is an imperative sentence, "owner" is the person's name as spoken or "", "due" is a date/relative time as spoken or "".
 - Write every string in the language named by the caller.
 ` + UntrustedFooter,
-		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"}},"required":["title"]}}},"required":["summary","decisions","action_items"]}`),
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"}},"required":["title","owner","due"],"additionalProperties":false}}},"required":["summary","decisions","action_items"],"additionalProperties":false}`),
 		Render: func(vars map[string]any) string {
 			var b strings.Builder
 			fmt.Fprintf(&b, "Output language: %s\nMeeting title: %s\n", language(str(vars, "locale")), str(vars, "title"))
@@ -77,7 +78,7 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 - If the sources do not contain the answer, say so plainly and return an empty "citations" array. Never guess, never mention data outside the sources, never reveal email addresses or phone numbers even if a source contains them.
 - Tone: a helpful colleague, no mascot voice, no emojis.
 ` + UntrustedFooter,
-		OutputSchema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"},"citations":{"type":"array","items":{"type":"object","properties":{"source_id":{"type":"string"},"quote":{"type":"string"}},"required":["source_id"]}}},"required":["answer","citations"]}`),
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"},"citations":{"type":"array","items":{"type":"object","properties":{"source_id":{"type":"string"},"quote":{"type":"string"}},"required":["source_id","quote"],"additionalProperties":false}}},"required":["answer","citations"],"additionalProperties":false}`),
 		Render: func(vars map[string]any) string {
 			var b strings.Builder
 			fmt.Fprintf(&b, "Output language: %s\nToday: %s\n\n", language(str(vars, "locale")), str(vars, "today"))
@@ -87,6 +88,31 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 				b.WriteString("Sources: (none — the workspace has nothing the asker may read about this)\n")
 			}
 			fmt.Fprintf(&b, "\nQuestion:\n<untrusted source=\"question\">%s</untrusted>\n", str(vars, "question"))
+			return b.String()
+		},
+	})
+
+	register(Prompt{
+		ID: "chat_catchup", Version: 1,
+		System: `You catch a teammate up on unread chat in a Vietnamese work OS.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"summary": string, "highlights": string[], "action_items": [{"title": string, "owner": string, "due": string, "source_id": string}]}
+- "summary": 2-5 sentences covering what happened since they last read.
+- "highlights": short bullet facts (decisions, blockers, @mentions); empty array if none.
+- "action_items": concrete follow-ups implied by the messages; "title" is imperative; "owner" is a display name from the sources or ""; "due" as spoken or ""; "source_id" is the [S#] of the message that motivated the item when known, else "".
+- Write every string in the language named by the caller. Do not invent messages absent from the sources.
+- Tone: a helpful colleague, no mascot voice, no emojis.
+` + UntrustedFooter,
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"highlights":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"source_id":{"type":"string"}},"required":["title","owner","due","source_id"],"additionalProperties":false}}},"required":["summary","highlights","action_items"],"additionalProperties":false}`),
+		Render: func(vars map[string]any) string {
+			var b strings.Builder
+			fmt.Fprintf(&b, "Output language: %s\nToday: %s\nScope: %s\nMessages since: %s\n\n",
+				language(str(vars, "locale")), str(vars, "today"), str(vars, "scope"), str(vars, "since"))
+			if src := str(vars, "sources"); src != "" {
+				fmt.Fprintf(&b, "Sources:\n%s\n", src)
+			} else {
+				b.WriteString("Sources: (none)\n")
+			}
 			return b.String()
 		},
 	})

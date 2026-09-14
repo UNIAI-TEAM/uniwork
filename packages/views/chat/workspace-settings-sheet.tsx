@@ -5,6 +5,8 @@ import {
   BellOff,
   ChevronLeft,
   Hash,
+  History,
+  Info,
   PanelLeft,
   PanelLeftClose,
   Pin,
@@ -34,6 +36,7 @@ import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
   ChatSettingsBulletinEntry,
   ChatSettingsCollapsibleSection,
+  ChatSettingsMenuRow,
   ChatSettingsQuickAction,
   ChatSettingsQuickActionsDm,
   ChatSettingsTitleRow,
@@ -63,6 +66,7 @@ export function WorkspaceSettingsSheet({
   workspaceMembers,
   currentUserId,
   youLabel,
+  onOpenSearch,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -72,6 +76,7 @@ export function WorkspaceSettingsSheet({
   workspaceMembers: Member[];
   currentUserId: string;
   youLabel: string;
+  onOpenSearch?: () => void;
 }) {
   const { t } = useTranslation();
   const { data: chatMembers = [] } = useChatRoomMembers(workspaceId, roomId, open);
@@ -268,6 +273,19 @@ export function WorkspaceSettingsSheet({
             label={t("chat.settings_notes_pins_polls")}
             onClick={() => setBulletinOpen(true)}
           />
+
+          {onOpenSearch ? (
+            <section className="border-b border-border">
+              <ChatSettingsMenuRow
+                icon={Search}
+                label={t("chat.search_messages")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenSearch();
+                }}
+              />
+            </section>
+          ) : null}
         </div>
 
         {renameOpen ? (
@@ -304,7 +322,8 @@ export function WorkspaceChatToolbar({
   sidebarCollapsed,
   onToggleSidebar,
   onOpenSettings,
-  onOpenSearch,
+  onCatchUp,
+  catchUpDisabled,
 }: {
   title: string;
   memberCount: number;
@@ -313,7 +332,8 @@ export function WorkspaceChatToolbar({
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onOpenSettings: () => void;
-  onOpenSearch?: () => void;
+  onCatchUp?: () => void;
+  catchUpDisabled?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -362,15 +382,16 @@ export function WorkspaceChatToolbar({
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        {onOpenSearch ? (
+        {onCatchUp ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={t("chat.search_messages")}
-            onClick={onOpenSearch}
+            aria-label={t("chat.ai.catch_up")}
+            disabled={catchUpDisabled}
+            onClick={onCatchUp}
           >
-            <Search className="size-5" aria-hidden />
+            <History className="size-5" aria-hidden />
           </Button>
         ) : null}
         <Button
@@ -380,7 +401,7 @@ export function WorkspaceChatToolbar({
           aria-label={t("chat.workspace_room_settings")}
           onClick={onOpenSettings}
         >
-          <Settings className="size-5" aria-hidden />
+          <Info className="size-5" aria-hidden />
         </Button>
       </div>
     </div>

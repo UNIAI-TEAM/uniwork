@@ -51,9 +51,17 @@ const (
 
 // EventDef is one row of the catalogue.
 type EventDef struct {
-	Topic    string
-	Version  int
-	Payload  []string
+	Topic   string
+	Version int
+	// Payload lists the keys a frame of this topic may carry: ids, never
+	// content (an infrastructure row may name a provider's own handle, such as
+	// room_name), plus the revision_before/revision pair on a row with Patch.
+	Payload []string
+	// Patch names the only content fields an event may carry: a client writes
+	// them into a record it already holds, and only while that record's
+	// revision equals the frame's revision_before (ADR 0015). Empty on every
+	// row but task.updated; scripts/events-catalogue.test.mjs holds both.
+	Patch    []string
 	Scope    Scope
 	Delivery Delivery
 }
@@ -61,7 +69,11 @@ type EventDef struct {
 var catalogue = []EventDef{
 	// Tasks
 	{Topic: "task.created", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// task.updated is the one row that may carry content (ADR 0015): the Patch
+	// fields ride along only when every field present in the update's input is
+	// one of them, and the revision pair that guards them only beside them; a frame without a patch field
+	// carries ids only. Every other task.updated emitter sends ids only.
+	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id", "revision_before", "revision"}, Patch: []string{"title", "status", "priority", "due_date"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_updated", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -137,9 +149,17 @@ var catalogue = []EventDef{
 	{Topic: "chat.channel.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.channel.archived", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.replied", Version: 1, Payload: []string{"room_id", "thread_root_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.thread.linked", Version: 1, Payload: []string{"room_id", "thread_root_id", "task_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.message.linked", Version: 1, Payload: []string{"room_id", "message_id", "target_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.created", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.updated", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.completed", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "chat.follow_up.deleted", Version: 1, Payload: []string{"follow_up_id", "workspace_id", "room_id", "message_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_added", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.member_removed", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
+	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
@@ -203,6 +223,8 @@ var catalogue = []EventDef{
 	{Topic: "provider.ensure_session", Version: 1, Payload: []string{"meeting_id", "room_name", "session_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "provider.remove_participant", Version: 1, Payload: []string{"room_name", "identity"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "provider.end_session", Version: 1, Payload: []string{"room_name"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "user.offline", Version: 1, Payload: []string{"user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	{Topic: "user.presence", Version: 1, Payload: []string{"user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "webhook.deliver", Version: 1, Payload: []string{"subscription_id", "event_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 }
 

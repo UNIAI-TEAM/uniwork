@@ -85,6 +85,13 @@ INSERT INTO chat_messages (
   $1, $2, $3, $4, 'note', $5, $6
 ) RETURNING *;
 
+-- name: CreateChatPostMessage :one
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, kind, body, metadata
+) VALUES (
+  $1, $2, $3, $4, 'post', $5, $6
+) RETURNING *;
+
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id

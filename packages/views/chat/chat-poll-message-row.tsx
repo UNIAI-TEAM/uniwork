@@ -81,15 +81,20 @@ export function ChatPollMessageRow({
 
   return (
     <>
-      <article className={cn("flex w-full max-w-full justify-center py-1", compactTop ? "pt-0.5" : "pt-3")}>
-        <div className="w-full max-w-md rounded-2xl border border-border bg-surface px-4 py-3 shadow-sm">
+      <article
+        className={cn(
+          "flex w-full max-w-full justify-center",
+          compactTop ? "mt-2.5" : "mt-4",
+        )}
+      >
+        <div className="w-full max-w-md rounded-xl border border-border bg-surface px-3.5 py-3 shadow-sm">
           {showSenderName ? (
-            <p className="mb-1 text-caption font-medium text-brand">{senderLabel}</p>
+            <p className="mb-2 text-caption font-medium text-brand">{senderLabel}</p>
           ) : null}
 
-          <div className="mb-3 flex items-start gap-2">
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-              <BarChart3 className="size-4" aria-hidden />
+          <div className="mb-3 flex items-start gap-2.5">
+            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
+              <BarChart3 className="size-3.5" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-caption font-medium uppercase tracking-wide text-muted-foreground">

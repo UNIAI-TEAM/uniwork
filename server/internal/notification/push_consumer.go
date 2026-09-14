@@ -131,6 +131,8 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 		return base + "/meetings/" + n.ResourceID, nil
 	case "audit_export":
 		return base + "/settings?tab=audit", nil
+	case "chat_message":
+		return base + "/chat", nil
 	default:
 		return base + "/inbox", nil
 	}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
+import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import { listChatRoomMessages, listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
 import {
@@ -23,7 +24,7 @@ import type { ChatMessage } from "./chat-messages";
 import { CHAT_MESSAGE_INITIAL, CHAT_MESSAGE_MAX_IN_MEMORY, CHAT_MESSAGE_PAGE_SIZE } from "./chat-messages";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
 import { ChatReplyComposerBar } from "./chat-reply-quote";
-import { VirtualChatMessageList } from "./virtual-chat-message-list";
+import { VirtualChatMessageList, updateStickToBottomFromScroll } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { toChatMessage } from "./native-chat-message-mapping";
 import { renderNativeChatMessage } from "./native-chat-message-item";
@@ -31,6 +32,7 @@ import {
   buildMainTimelineMessages,
   buildThreadViewMessages,
 } from "./native-chat-message-timeline";
+import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 
 export function NativeChatMessagePanel({
   workspaceId,
@@ -41,13 +43,15 @@ export function NativeChatMessagePanel({
   youLabel,
   replyTo,
   onReplyToChange,
-  refreshKey,
+  refreshKey: _refreshKey,
   showSenderName = false,
   embedded = false,
   anchorMessageId = null,
   onClearAnchor,
   canPinMessages = true,
   workHubEnabled = false,
+  peerLastReadAt = null,
+  onFollowUp,
   onActiveThreadRootIdChange,
 }: {
   workspaceId: string;
@@ -65,11 +69,14 @@ export function NativeChatMessagePanel({
   onClearAnchor?: () => void;
   canPinMessages?: boolean;
   workHubEnabled?: boolean;
+  peerLastReadAt?: string | null;
+  onFollowUp?: (message: ChatMessage) => void;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
 }) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const programmaticScrollRef = useRef(false);
   const [olderMessages, setOlderMessages] = useState<ChatMessage[]>([]);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -100,6 +107,10 @@ export function NativeChatMessagePanel({
   const editMessage = useEditChatMessage(workspaceId);
   const deleteMessage = useDeleteChatMessage(workspaceId);
   const togglePin = useToggleChatMessagePin(workspaceId);
+  const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(
+    workspaceId,
+    workHubEnabled,
+  );
 
   const handleReact = useCallback(
     (message: ChatMessage) => {
@@ -209,6 +220,23 @@ export function NativeChatMessagePanel({
     onActiveThreadRootIdChange?.(threadRoot?.id ?? null);
   }, [onActiveThreadRootIdChange, threadRoot?.id]);
 
+  // Own optimistic / pending sends must keep the viewport on the newest row.
+  const lastTimelineMessage = messages[messages.length - 1];
+  useEffect(() => {
+    if (!lastTimelineMessage) return;
+    if (
+      lastTimelineMessage.deliveryStatus === "sending" ||
+      lastTimelineMessage.deliveryStatus === "queued" ||
+      isPendingChatMessageId(lastTimelineMessage.id) ||
+      lastTimelineMessage.sender === currentUserId
+    ) {
+      stickToBottomRef.current = true;
+    }
+  }, [
+    currentUserId,
+    lastTimelineMessage,
+  ]);
+
   useEffect(() => {
     stickToBottomRef.current = true;
     onReplyToChange(null);
@@ -216,9 +244,14 @@ export function NativeChatMessagePanel({
     setThreadRoot(null);
     setAnchorMessages(null);
     setHighlightMessageId(null);
-    setHasMore(latestRows.length >= CHAT_MESSAGE_INITIAL);
     onActiveThreadRootIdChange?.(null);
-  }, [roomId, onReplyToChange, onActiveThreadRootIdChange, latestRows.length]);
+  }, [roomId, onReplyToChange, onActiveThreadRootIdChange]);
+
+  // Only seed hasMore from the initial page when we are not holding older pages.
+  useEffect(() => {
+    if (olderMessages.length > 0) return;
+    setHasMore(latestRows.length >= CHAT_MESSAGE_INITIAL);
+  }, [roomId, latestRows.length, olderMessages.length]);
 
   useEffect(() => {
     if (!anchorMessageId) {
@@ -251,10 +284,8 @@ export function NativeChatMessagePanel({
     return () => window.clearTimeout(timer);
   }, [highlightMessageId, anchorMessages]);
 
-  useEffect(() => {
-    if (refreshKey == null || refreshKey === 0) return;
-    setOlderMessages([]);
-  }, [refreshKey]);
+  // refreshKey used to wipe older pages on every send; that jumped the viewport
+  // and re-triggered "load older". Keep history while sticking to new messages.
 
   const loadOlder = useCallback(async () => {
     if (loadingOlder || allMessages.length === 0 || threadRoot || anchorMessages) return;
@@ -289,11 +320,18 @@ export function NativeChatMessagePanel({
   }, [allMessages, anchorMessages, loadingOlder, roomId, threadRoot, workspaceId]);
 
   const onScroll = () => {
+    if (programmaticScrollRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stickToBottomRef.current = distanceFromBottom < 72;
-    if (el.scrollTop <= 72 && hasMore && !loadingOlder) {
+    updateStickToBottomFromScroll(el, stickToBottomRef);
+    // Near-top while stick-to-bottom is usually a layout flash after a reload
+    // before pin runs — never page older history in that state.
+    if (
+      el.scrollTop <= 72 &&
+      hasMore &&
+      !loadingOlder &&
+      !stickToBottomRef.current
+    ) {
       void loadOlder();
     }
   };
@@ -314,6 +352,8 @@ export function NativeChatMessagePanel({
         showSenderName,
         canPinMessages,
         highlightMessageId,
+        workHubEnabled,
+        peerLastReadAt,
         actions: {
           onReply: onReplyToChange,
           onReact: handleReact,
@@ -322,6 +362,9 @@ export function NativeChatMessagePanel({
           onPin: handlePin,
           onCopy: handleCopy,
           onDelete: handleDelete,
+          onCreateTask: taskLinkActions?.onCreateTask,
+          onLinkTask: taskLinkActions?.onLinkTask,
+          onFollowUp,
         },
       }),
     [
@@ -337,9 +380,13 @@ export function NativeChatMessagePanel({
       messages,
       messagesById,
       nameContext,
+      onFollowUp,
       onReplyToChange,
+      peerLastReadAt,
       roomId,
       showSenderName,
+      taskLinkActions,
+      workHubEnabled,
       workspaceId,
       youLabel,
     ],
@@ -395,13 +442,15 @@ export function NativeChatMessagePanel({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-muted/25 px-4 py-4"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-muted/25 px-3 py-5 sm:px-4"
         aria-label={t("chat.messages_region")}
       >
         <VirtualChatMessageList
+          key={roomId}
           messages={messages}
           scrollRef={scrollRef}
           stickToBottomRef={stickToBottomRef}
+          programmaticScrollRef={programmaticScrollRef}
           highlightMessageId={highlightMessageId}
           header={listHeader}
           empty={<p className="text-body text-muted-foreground">{emptyLabel}</p>}
@@ -427,6 +476,7 @@ export function NativeChatMessagePanel({
           void handleSaveEdit(body);
         }}
       />
+      {taskLinkDialogs}
     </div>
   );
 }

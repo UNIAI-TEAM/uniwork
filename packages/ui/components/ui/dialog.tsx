@@ -4,6 +4,10 @@ import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@uniwork/ui/lib/utils"
+import {
+  UI_MODAL_TRANSITION_CLASS,
+  UI_OVERLAY_TRANSITION_CLASS,
+} from "@uniwork/ui/lib/motion"
 import { Button } from "@uniwork/ui/components/ui/button"
 import { XIcon } from "lucide-react"
 
@@ -31,7 +35,8 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs",
+        UI_OVERLAY_TRANSITION_CLASS,
         className
       )}
       {...props}
@@ -41,19 +46,25 @@ function DialogOverlay({
 
 function DialogContent({
   className,
+  overlayClassName,
   children,
   showCloseButton = true,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /** Scrim override. The default bg-black/10 assumes a dialog the user can
+      dismiss by looking away; a dialog that must own the screen (welcome,
+      destructive confirm) passes a heavier one. */
+  overlayClassName?: string
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-body text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none sm:max-w-sm",
+          UI_MODAL_TRANSITION_CLASS,
           className
         )}
         {...props}
@@ -102,7 +113,9 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:flex-row sm:justify-end",
+        // No negative margins: DialogContent often uses p-0 (chat/create flows);
+        // -mx-4/-mb-4 assumed the default p-4 and pulled buttons into the border.
+        "flex flex-col-reverse gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

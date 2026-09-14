@@ -59,6 +59,13 @@ describe("request", () => {
     expect(apiErrorMessage("nope")).toBeUndefined();
   });
 
+  it("hands the caller's abort signal to fetch, so a cancelled query stops its request", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(okJson({ ok: true }));
+    const controller = new AbortController();
+    await request("/api/v1/x", { signal: controller.signal });
+    expect(vi.mocked(fetch).mock.calls[0]![1]!.signal).toBe(controller.signal);
+  });
+
   it("returns undefined for an empty 204", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(request("/api/v1/x", { method: "DELETE" })).resolves.toBeUndefined();

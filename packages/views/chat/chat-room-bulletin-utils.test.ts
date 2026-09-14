@@ -55,11 +55,28 @@ describe("chat-room-bulletin-utils", () => {
         settings: {},
       } as unknown as ChatMessageRecord["poll"],
     },
+    {
+      id: "m5",
+      room_id: "r1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "U1",
+      body: "Deploy tonight",
+      kind: "post",
+      created_at: "2026-03-26T11:30:00Z",
+      pinned: false,
+      mentioned_user_ids: [],
+      reactions: {},
+      reply_count: 0,
+      thread_unread: false,
+      post: { title: "Release 1.4", body: "Deploy tonight", pin_to_top: false },
+    },
   ];
 
   it("detects bulletin messages", () => {
     expect(isBulletinMessage(rows[0]!)).toBe(true);
     expect(isBulletinMessage(rows[1]!)).toBe(true);
+    expect(isBulletinMessage(rows[3]!)).toBe(true);
     expect(
       isBulletinMessage({
         ...rows[0]!,
@@ -72,9 +89,15 @@ describe("chat-room-bulletin-utils", () => {
 
   it("filters tabs and sorts newest first", () => {
     expect(filterBulletinMessages([...rows], "notes").map((row) => row.id)).toEqual(["m2"]);
+    expect(filterBulletinMessages([...rows], "posts").map((row) => row.id)).toEqual(["m5"]);
     expect(filterBulletinMessages([...rows], "polls").map((row) => row.id)).toEqual(["m3"]);
     expect(filterBulletinMessages([...rows], "pinned").map((row) => row.id)).toEqual(["m1"]);
-    expect(filterBulletinMessages([...rows], "all").map((row) => row.id)).toEqual(["m2", "m1", "m3"]);
+    expect(filterBulletinMessages([...rows], "all").map((row) => row.id)).toEqual([
+      "m5",
+      "m2",
+      "m1",
+      "m3",
+    ]);
   });
 
   it("filters reminder tab and builds previews", () => {
@@ -92,6 +115,7 @@ describe("chat-room-bulletin-utils", () => {
     ]);
     expect(bulletinMessagePreview(rows[1]!, "Call")).toBe("team note");
     expect(bulletinMessagePreview(rows[2]!, "Call")).toBe("Lunch?");
+    expect(bulletinMessagePreview(rows[3]!, "Call")).toBe("Release 1.4");
     expect(bulletinMessagePreview(reminder, "Call")).toContain("standup");
     expect(
       bulletinMessagePreview(

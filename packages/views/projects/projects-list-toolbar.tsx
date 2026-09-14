@@ -134,6 +134,7 @@ export function ProjectsListToolbar({
         <div className="relative hidden md:block">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            variant="subtle"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             aria-label={t("projects.page.search_placeholder")}
@@ -156,7 +157,7 @@ export function ProjectsListToolbar({
           <DropdownMenuTrigger
             render={
               <Button
-                variant={hasActiveFilters ? "default" : "outline"}
+                variant={hasActiveFilters ? "default" : "toolbar"}
                 size="sm"
                 className={
                   hasActiveFilters
@@ -240,7 +241,7 @@ export function ProjectsListToolbar({
                 <TooltipTrigger
                   render={
                     <Button
-                      variant="outline"
+                      variant="toolbar"
                       size="sm"
                       className="h-8 w-8 gap-1 px-0 text-muted-foreground md:w-auto md:px-2.5"
                     />
@@ -267,7 +268,7 @@ export function ProjectsListToolbar({
                   <DropdownMenuTrigger
                     render={
                       <Button
-                        variant="outline"
+                        variant="toolbar"
                         size="sm"
                         className="flex-1 justify-between text-caption"
                       />
@@ -290,7 +291,7 @@ export function ProjectsListToolbar({
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <Button
-                  variant="outline"
+                  variant="toolbar"
                   size="icon-sm"
                   onClick={() =>
                     setSortDirection(sortDirection === "asc" ? "desc" : "asc")
@@ -341,7 +342,7 @@ export function ProjectsListToolbar({
                 <TooltipTrigger
                   render={
                     <Button
-                      variant="outline"
+                      variant="toolbar"
                       size="sm"
                       className="h-8 w-8 gap-1 px-0 text-muted-foreground md:w-auto md:px-2.5"
                     />

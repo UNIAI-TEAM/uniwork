@@ -6,8 +6,6 @@ import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useCreateChatChannel } from "@uniwork/core/chat";
 import { useProjects } from "@uniwork/core/tasks";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -28,16 +26,14 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { cn } from "@uniwork/ui/lib/utils";
+import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
-
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
 
 export function CreateChannelDialog({
   open,
@@ -137,14 +133,16 @@ export function CreateChannelDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1 border-b border-border bg-muted/20 px-5 py-4">
-          <DialogTitle>{t("chat.channel.create_title")}</DialogTitle>
+        <DialogHeader className="space-y-1.5 border-b border-border px-5 py-4">
+          <DialogTitle className="text-title">{t("chat.channel.create_title")}</DialogTitle>
           <DialogDescription>{t("chat.channel.create_description")}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
           <div className="space-y-2">
-            <Label htmlFor="channel-name">{t("chat.channel.name_label")}</Label>
+            <Label htmlFor="channel-name" className="text-label font-medium">
+              {t("chat.channel.name_label")}
+            </Label>
             <Input
               id="channel-name"
               value={name}
@@ -157,19 +155,21 @@ export function CreateChannelDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="channel-topic">{t("chat.channel.topic_label")}</Label>
+            <Label htmlFor="channel-topic" className="text-label font-medium">
+              {t("chat.channel.topic_label")}
+            </Label>
             <Textarea
               id="channel-topic"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder={t("chat.channel.topic_placeholder")}
-              className="min-h-16 rounded-xl"
+              className="min-h-16 resize-none rounded-xl"
               maxLength={280}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>{t("chat.channel.visibility_label")}</Label>
+            <Label className="text-label font-medium">{t("chat.channel.visibility_label")}</Label>
             <RadioGroup
               value={visibility}
               onValueChange={(value) => {
@@ -177,11 +177,25 @@ export function CreateChannelDialog({
               }}
               className="gap-2"
             >
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2">
+              <label
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
+                  visibility === "public"
+                    ? "border-foreground/20 bg-muted/40 ring-1 ring-ring/20"
+                    : "border-border/70 hover:bg-muted/30",
+                )}
+              >
                 <RadioGroupItem value="public" id="channel-vis-public" />
                 <span className="text-body text-foreground">{t("chat.channel.visibility_public")}</span>
               </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2">
+              <label
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
+                  visibility === "private"
+                    ? "border-foreground/20 bg-muted/40 ring-1 ring-ring/20"
+                    : "border-border/70 hover:bg-muted/30",
+                )}
+              >
                 <RadioGroupItem value="private" id="channel-vis-private" />
                 <span className="text-body text-foreground">{t("chat.channel.visibility_private")}</span>
               </label>
@@ -189,7 +203,7 @@ export function CreateChannelDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>{t("chat.channel.project_label")}</Label>
+            <Label className="text-label font-medium">{t("chat.channel.project_label")}</Label>
             <Select
               value={projectId || "__none__"}
               onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
@@ -212,6 +226,10 @@ export function CreateChannelDialog({
             </Select>
           </div>
 
+          {pendingMembers.length > 0 ? (
+            <SelectedMemberChips members={pendingMembers} onRemove={removeMember} />
+          ) : null}
+
           <div className="space-y-3">
             <WorkspaceMemberSearchField
               id="channel-member-search"
@@ -230,38 +248,10 @@ export function CreateChannelDialog({
               emptyLabel={t("chat.workspace_members_empty")}
               onPick={addMember}
             />
-            {pendingMembers.length > 0 ? (
-              <ul className="flex flex-wrap gap-2">
-                {pendingMembers.map((member) => (
-                  <li key={member.user_id}>
-                    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-2">
-                      <ActorAvatar
-                        name={member.display_name}
-                        initials={initialOf(member.display_name)}
-                        size="sm"
-                      />
-                      <span className="min-w-0 truncate text-caption font-medium text-foreground">
-                        {displayLabelForChatContact(member)}
-                      </span>
-                      <button
-                        type="button"
-                        className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        aria-label={t("chat.remove_member", {
-                          name: displayLabelForChatContact(member),
-                        })}
-                        onClick={() => removeMember(member.user_id)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </div>
         </div>
 
-        <DialogFooter className="border-t border-border bg-muted/10 px-5 py-4 sm:justify-between">
+        <DialogFooter className="border-t border-border px-5 py-3.5 sm:justify-between">
           <Button
             type="button"
             variant="outline"

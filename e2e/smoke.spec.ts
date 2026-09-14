@@ -62,3 +62,8 @@ test("register → workspace → task → meeting", async ({ page }) => {
       .or(page.locator("[data-lk-theme]")),
   ).toBeVisible({ timeout: 15_000 });
 });
+
+test("đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng", async ({ page }) => {
+  await page.goto("/khong-ton-tai-dau-ca");
+  await expect(page.getByTestId("app-not-found")).toBeVisible();
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Hash, Lock, UserPlus } from "lucide-react";
+import { Archive, Hash, Lock, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
@@ -30,7 +30,7 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { ChannelSettingsMembers } from "./channel-settings-members";
-import { ChatSettingsTitleRow } from "./chat-settings-ui";
+import { ChatSettingsMenuRow, ChatSettingsTitleRow } from "./chat-settings-ui";
 import { LeaveConversationSection } from "./leave-conversation-section";
 
 export function ChannelSettingsSheet({
@@ -45,6 +45,7 @@ export function ChannelSettingsSheet({
   onLeave,
   leaving,
   leaveDisabled,
+  onOpenSearch,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -57,6 +58,7 @@ export function ChannelSettingsSheet({
   onLeave?: () => void | Promise<void>;
   leaving?: boolean;
   leaveDisabled?: boolean;
+  onOpenSearch?: () => void;
 }) {
   const { t } = useTranslation();
   const updateChannel = useUpdateChatChannel(workspaceId);
@@ -127,6 +129,19 @@ export function ChannelSettingsSheet({
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <ChatSettingsTitleRow title={`#${channel.name}`} />
+
+          {onOpenSearch ? (
+            <section className="border-b border-border">
+              <ChatSettingsMenuRow
+                icon={Search}
+                label={t("chat.search_messages")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenSearch();
+                }}
+              />
+            </section>
+          ) : null}
 
           <div className="space-y-5 px-5 py-4">
             <div className="space-y-2">

@@ -139,3 +139,32 @@ func TestPushConsumerIdentityAndOff(t *testing.T) {
 		t.Fatal("push off must acknowledge rows")
 	}
 }
+
+func TestRuleChatFollowUpCreated(t *testing.T) {
+	f := newFixture(t)
+	payload := `{"follow_up_id":"fu1","workspace_id":"` + f.wsID + `","user_id":"` + f.owner.ID + `","message_id":"msg1","room_id":"room1"}`
+	ev := db.OutboxEvent{
+		ID: "ev-fu", Topic: "chat.follow_up.created", Payload: payload,
+		ActorKind: pgtype.Text{String: "human", Valid: true},
+		ActorID:   pgtype.Text{String: f.owner.ID, Valid: true},
+	}
+	if err := f.consumer.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	got := f.inbox(t, f.owner.ID)
+	if len(got) != 1 || got[0].Kind != KindChatFollowUp || got[0].ResourceID != "msg1" {
+		t.Fatalf("follow-up inbox = %+v", got)
+	}
+	if got[0].GroupKey != "chat_follow_up:fu1" || got[0].WorkspaceID.String != f.wsID {
+		t.Fatalf("follow-up attribution = %+v", got[0])
+	}
+	// Incomplete payload is a no-op.
+	if err := f.consumer.Handle(f.ctx, db.OutboxEvent{
+		ID: "ev-fu-empty", Topic: "chat.follow_up.created", Payload: `{"user_id":"x"}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.inbox(t, f.owner.ID)) != 1 {
+		t.Fatal("incomplete payload created a row")
+	}
+}
