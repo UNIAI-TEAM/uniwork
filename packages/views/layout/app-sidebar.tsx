@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ChevronsUpDown,
   FolderKanban,
+  House,
   Inbox,
   ListTodo,
   LogOut,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { HOME_PAGE_FLAG, useFlag } from "@uniwork/core/feature-flags";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -52,11 +54,13 @@ import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.home" | "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
   module: ModuleKey;
   href: string;
   icon: LucideIcon;
   badge?: number;
+  /** Active only on this exact path; the workspace root prefixes every other route. */
+  exact?: boolean;
 }
 
 /* Active row: pale-violet fill with brand text, the ClickUp selected state.
@@ -85,8 +89,10 @@ export function AppSidebar() {
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const unread = useUnreadCount();
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
+  const homeEnabled = useFlag(HOME_PAGE_FLAG, false);
 
   const items: NavItem[] = [
+    ...(homeEnabled ? [{ key: "nav.home", module: "home", href: ws.root(), icon: House, exact: true } satisfies NavItem] : []),
     { key: "nav.inbox", module: "inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
     { key: "nav.tasks", module: "tasks", href: ws.tasks(), icon: SquareCheckBig },
     { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks(), icon: ListTodo },
@@ -96,7 +102,7 @@ export function AppSidebar() {
     { key: "nav.people", module: "people", href: ws.people(), icon: Users },
   ];
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const isActive = (href: string, exact = false) => pathname === href || (!exact && pathname.startsWith(href + "/"));
 
   const dismissSheet = () => {
     if (isCompact) setOpenMobile(false);
@@ -122,8 +128,8 @@ export function AppSidebar() {
           <SidebarGroup className="group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {items.map(({ key, module, href, icon: Icon, badge }) => {
-                  const active = isActive(href);
+                {items.map(({ key, module, href, icon: Icon, badge, exact }) => {
+                  const active = isActive(href, exact);
                   return (
                     <SidebarMenuItem key={href}>
                       <SidebarMenuButton

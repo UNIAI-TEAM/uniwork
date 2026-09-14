@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import * as api from "../api/endpoints/home";
 import { updateTask } from "../api/endpoints/tasks";
 import { batchUpdateTasks } from "../api/endpoints/tasks-suite";
+import { useMarkRead } from "../notifications/hooks";
 import { taskKeys } from "../tasks/keys";
 import type { HomePreference, HomeSummary } from "../types/home";
 import { overdueDays } from "./brief";
@@ -114,4 +115,28 @@ export function useHomePrefs(wsId: string) {
   const reset = useCallback(() => mutate(DEFAULT_HOME_PREFS), [mutate]);
 
   return { prefs, loading: query.isLoading, saving: mutation.isPending, failed: mutation.isError, update, reset };
+}
+
+/**
+ * Opening an inbox row from home marks it read and takes it off the cached
+ * summary at once, so coming back to home never shows it as waiting. The
+ * inbox caches are patched by the notification hook itself.
+ */
+export function useReadHomeNotification(wsId: string) {
+  const qc = useQueryClient();
+  const { mutate } = useMarkRead();
+  return useCallback(
+    (id: string) => {
+      qc.setQueryData<HomeSummary | null>(homeKeys.summary(wsId), (summary) => {
+        if (!summary || !summary.inbox.some((n) => n.id === id)) return summary;
+        return {
+          ...summary,
+          inbox: summary.inbox.filter((n) => n.id !== id),
+          counts: { ...summary.counts, unread: atLeastZero(summary.counts.unread - 1) },
+        };
+      });
+      mutate([id]);
+    },
+    [mutate, qc, wsId],
+  );
 }

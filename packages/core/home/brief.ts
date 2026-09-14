@@ -24,7 +24,7 @@ export function overdueDays(today: string, due: string | undefined): number {
 }
 
 /** Calendar day of an instant in the person's zone, as YYYY-MM-DD. */
-function localDay(iso: string, timeZone: string): string {
+export function localDay(iso: string, timeZone: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   try {
