@@ -52,7 +52,7 @@ test("home lists my work due today and completes it", async ({ page }) => {
   }).toPass({ timeout: 60_000, intervals: [3_000] });
 
   await expect(page.getByRole("link", { name: "Trang chủ", exact: true })).toHaveAttribute("aria-current", "page");
-  const list = page.getByRole("listbox", { name: "Công việc của tôi" });
+  const list = page.getByRole("list", { name: "Công việc của tôi" });
   await expect(list.getByText(title)).toBeVisible();
   await expect(list.getByText("Hạn hôm nay")).toBeVisible();
 

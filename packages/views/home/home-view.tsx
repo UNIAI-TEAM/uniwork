@@ -99,7 +99,7 @@ export function HomeView() {
               icon={SlidersHorizontal}
               label={t("home.actions.customize")}
               aria-expanded={customizing}
-              aria-controls="home-customize"
+              aria-controls={customizing ? "home-customize" : undefined}
               onClick={() => setCustomizing((open) => !open)}
             />
             <CollectionPageHeaderAction icon={RefreshCw} label={t("home.actions.refresh")} disabled={retrying} onClick={retry} />
