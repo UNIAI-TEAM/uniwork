@@ -6,14 +6,12 @@ import {
   ChevronRight,
   Plus,
   SlidersHorizontal,
-  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import {
   useChildTaskProgress,
   useCreateTask,
-  useDeleteTask,
   useSetTaskParent,
   useTaskChildren,
   useTaskProperties,
@@ -34,6 +32,12 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../../../layout/workspace-context";
 import { toastApiError } from "../../../toast-api-error";
+import { useWorkspaceAssigneeOptions } from "../../pickers";
+import {
+  TaskSurfaceSelectionProvider,
+  useCreateTaskSurfaceSelection,
+} from "../../surface/selection-context";
+import { BatchActionToolbar } from "../../views/batch-action-toolbar";
 import { SubtaskRow } from "./subtask-row";
 
 export function TaskDetailSubtasksSection({
@@ -49,13 +53,21 @@ export function TaskDetailSubtasksSection({
   const { data: progressRows = [] } = useChildTaskProgress(workspaceId);
   const propertyCatalog = useTaskProperties(workspaceId).data?.properties ?? [];
   const create = useCreateTask(workspaceId);
-  const remove = useDeleteTask(workspaceId);
   const setParent = useSetTaskParent(workspaceId);
   const [title, setTitle] = useState("");
   const [pending, setPending] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(
-    () => new Set(),
+  const selection = useCreateTaskSurfaceSelection(
+    `${taskId}:${children.map((child) => child.id).join(",")}`,
+  );
+  const selected = selection.selectedIds;
+  const { options: assigneeOptions } = useWorkspaceAssigneeOptions(workspaceId);
+  const members = useMemo(
+    () =>
+      assigneeOptions
+        .filter((option) => option.kind === "human")
+        .map((option) => ({ id: option.id, name: option.name })),
+    [assigneeOptions],
   );
   const fields = useSubtaskDisplayStore((state) => state.fields);
   const toggleField = useSubtaskDisplayStore((state) => state.toggle);
@@ -118,10 +130,11 @@ export function TaskDetailSubtasksSection({
   }
 
   return (
-    <section
-      aria-label={t("tasks.detail.section_subtasks")}
-      className={cn(children.length > 0 ? "mt-10 group/subtasks" : "mt-6")}
-    >
+    <TaskSurfaceSelectionProvider selection={selection}>
+      <section
+        aria-label={t("tasks.detail.section_subtasks")}
+        className={cn(children.length > 0 ? "mt-10 group/subtasks" : "mt-6")}
+      >
       {children.length > 0 ? (
         <div className="mb-2 flex items-center gap-2">
           <Button
@@ -158,11 +171,9 @@ export function TaskDetailSubtasksSection({
               }
             }}
             onChange={(event) =>
-              setSelected(
-                event.target.checked
-                  ? new Set(children.map((child) => child.id))
-                  : new Set(),
-              )
+              event.target.checked
+                ? selection.select(children.map((child) => child.id))
+                : selection.clear()
             }
             aria-label={t("tasks.detail.subtask_select_all")}
             className={cn(
@@ -233,27 +244,12 @@ export function TaskDetailSubtasksSection({
       ) : null}
 
       <div id={regionId} hidden={collapsed}>
-        {selected.size > 0 ? (
-          <div className="mb-2 flex h-9 items-center gap-2 rounded-lg border border-border/60 bg-card px-3 text-caption">
-            <span>{t("tasks.detail.subtask_selected", { count: selected.size })}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-7"
-              onClick={() => {
-                void Promise.all(
-                  [...selected].map((id) => remove.mutateAsync(id)),
-                )
-                  .then(() => setSelected(new Set()))
-                  .catch((error) => toastApiError(error, t("common.error")));
-              }}
-            >
-              <Trash2 aria-hidden />
-              {t("common.delete")}
-            </Button>
-          </div>
-        ) : null}
+        <BatchActionToolbar
+          workspaceId={workspaceId}
+          tasks={children}
+          placement="inline"
+          members={members}
+        />
         {isLoading ? (
           <p className="text-caption text-muted-foreground">{t("common.loading")}</p>
         ) : children.length > 0 ? (
@@ -278,25 +274,15 @@ export function TaskDetailSubtasksSection({
                         .task(child.id)}
                       selected={selected.has(child.id)}
                       onSelect={(checked) =>
-                        setSelected((current) => {
-                          const next = new Set(current);
-                          if (checked) next.add(child.id);
-                          else next.delete(child.id);
-                          return next;
-                        })
+                        checked
+                          ? selection.select([child.id])
+                          : selection.deselect([child.id])
                       }
                       show={fields}
                       childProgress={progressRows.find(
                         (row) => row.parent_task_id === child.id,
                       )}
                       propertyCatalog={propertyCatalog}
-                      onDelete={() => {
-                        void remove
-                          .mutateAsync(child.id)
-                          .catch((error) =>
-                            toastApiError(error, t("common.error")),
-                          );
-                      }}
                     />
                   ))}
                 </ul>
@@ -333,7 +319,8 @@ export function TaskDetailSubtasksSection({
             </Button>
           </form>
         ) : null}
-      </div>
-    </section>
+        </div>
+      </section>
+    </TaskSurfaceSelectionProvider>
   );
 }

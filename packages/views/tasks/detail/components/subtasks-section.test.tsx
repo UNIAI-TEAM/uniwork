@@ -193,4 +193,32 @@ describe("TaskDetailSubtasksSection", () => {
     ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Existing child")).toBeVisible();
   });
+
+  it("giữ người phụ trách và hạn ở cuối hàng, rồi hiện đủ batch actions khi chọn", () => {
+    render(
+      shell(<TaskDetailSubtasksSection workspaceId="w1" taskId="t1" />),
+    );
+
+    expect(screen.getByText(/11.*9|Sep 11/)).toBeVisible();
+    expect(
+      screen.getByRole("combobox", { name: /người phụ trách.*Me/i }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Thao tác sub-task" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /TEAM-2/ }),
+    );
+
+    expect(screen.getByText("Đã chọn 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bỏ chọn" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trạng thái" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Độ ưu tiên" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: /^Người nhận/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hạn" })).toBeInTheDocument();
+    expect(screen.getByTestId("batch-delete")).toBeInTheDocument();
+  });
 });

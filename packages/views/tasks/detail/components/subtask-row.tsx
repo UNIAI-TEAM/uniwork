@@ -1,34 +1,22 @@
 "use client";
 
 import { useMemo } from "react";
-import { MoreHorizontal, Tags, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   type TaskPatch,
   useLabelsOnTask,
   usePutTask,
-  useTaskLabels,
   useUpdateTask,
 } from "@uniwork/core/tasks";
 import type { Task, TaskProperty } from "@uniwork/core/types";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../../../common/date-field";
 import { AppLink } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
 import {
   AssigneePicker,
-  LabelPicker,
   StatusPicker,
   labelChipClass,
-  useTaskLabelToggle,
   useWorkspaceAssigneeOptions,
   type AssigneeRef,
 } from "../../pickers";
@@ -47,7 +35,6 @@ export function SubtaskRow({
   show,
   childProgress,
   propertyCatalog,
-  onDelete,
 }: {
   task: Task;
   workspaceId: string;
@@ -63,22 +50,15 @@ export function SubtaskRow({
   };
   childProgress?: { done: number; total: number };
   propertyCatalog: TaskProperty[];
-  onDelete: () => void;
 }) {
   const { t } = useTranslation();
   const update = useUpdateTask(workspaceId);
   const put = usePutTask(workspaceId);
-  const labels = useTaskLabels(workspaceId).data?.labels ?? [];
   const attachedQuery = useLabelsOnTask(task.id);
   const attached = useMemo(
     () => attachedQuery.data?.labels ?? [],
     [attachedQuery.data?.labels],
   );
-  const attachedIds = useMemo(
-    () => new Set(attached.map((label) => label.id)),
-    [attached],
-  );
-  const labelToggle = useTaskLabelToggle(workspaceId, task.id);
   const { options: assigneeOptions } = useWorkspaceAssigneeOptions(workspaceId);
   const assigneeValue: AssigneeRef | null = task.assignee_id
     ? {
@@ -265,50 +245,6 @@ export function SubtaskRow({
           )}
         </AssigneePicker>
       ) : null}
-
-      <LabelPicker
-        labels={labels}
-        selectedIds={attachedIds}
-        pendingIds={labelToggle.pendingIds}
-        onToggle={labelToggle.toggle}
-        ariaLabel={t("tasks.detail.prop_labels")}
-        emptyLabel={t("tasks.labels_empty")}
-        align="end"
-        triggerClassName="size-6 p-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100"
-      >
-        <Tags aria-hidden className="size-3.5" />
-      </LabelPicker>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={t("tasks.detail.subtask_actions")}
-              className="text-muted-foreground opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100"
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => patch({ status: "done" })}>
-            <StatusIcon status="done" className="mr-2 size-4" />
-            {t("tasks.status_done")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => patch({ status: "todo" })}>
-            <StatusIcon status="todo" className="mr-2 size-4" />
-            {t("tasks.status_todo")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onDelete} variant="destructive">
-            <Trash2 aria-hidden className="mr-2 size-4" />
-            {t("common.delete")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </li>
   );
 }
