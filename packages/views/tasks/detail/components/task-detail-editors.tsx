@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import {
@@ -45,6 +45,7 @@ export function TaskDetailEditors({
   const { t } = useTranslation();
   const titleEditorRef = useRef<TitleEditorRef>(null);
   const descEditorRef = useRef<ContentEditorRef>(null);
+  const [liveDescription, setLiveDescription] = useState(task.description ?? "");
   const currentUser = useAuthStore((state) => state.user);
   const members = useMembers(workspaceId);
   const attachments = useTaskAttachments(workspaceId, task.id);
@@ -88,6 +89,10 @@ export function TaskDetailEditors({
     editorRef: titleEditorRef,
     resetKey: task.id,
   });
+
+  useEffect(() => {
+    setLiveDescription(task.description ?? "");
+  }, [task.description, task.id]);
 
   return (
     <div
@@ -147,6 +152,7 @@ export function TaskDetailEditors({
             key={task.id}
             value={task.description ?? ""}
             placeholder={t("tasks.detail.description_placeholder")}
+            onDocumentChange={setLiveDescription}
             onUpdate={(md) => {
               if (md !== (task.description ?? "")) {
                 onSaveDescription(md);
@@ -181,7 +187,7 @@ export function TaskDetailEditors({
         <TaskDetailAttachmentsSlot
           workspaceId={workspaceId}
           taskId={task.id}
-          content={task.description ?? ""}
+          content={liveDescription}
         />
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
         <TaskDetailTimelineSlot workspaceId={workspaceId} taskId={task.id} />

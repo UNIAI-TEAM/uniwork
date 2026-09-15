@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
-import { ContentEditor } from "./content-editor";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { createRef, type ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { ContentEditor, type ContentEditorRef } from "./content-editor";
 
 function wrap(ui: ReactNode) {
   return (
@@ -24,5 +24,38 @@ describe("ContentEditor", () => {
     });
     expect(surface).toHaveAttribute("contenteditable", "true");
     expect(screen.getByText("Body")).toBeInTheDocument();
+  });
+
+  it("publishes the visible document before the persistence debounce", async () => {
+    const ref = createRef<ContentEditorRef>();
+    const onDocumentChange = vi.fn();
+    const onUpdate = vi.fn();
+
+    render(
+      wrap(
+        <ContentEditor
+          ref={ref}
+          defaultValue="Body"
+          debounceMs={60_000}
+          onDocumentChange={onDocumentChange}
+          onUpdate={onUpdate}
+          disableMentions
+        />,
+      ),
+    );
+    await waitFor(() => expect(ref.current).not.toBeNull());
+
+    act(() => {
+      expect(ref.current?.insertMarkdownAtEnd("![photo](/api/v1/attachments/a1/download)")).toBe(
+        true,
+      );
+    });
+
+    await waitFor(() => {
+      expect(onDocumentChange).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/attachments/a1/download"),
+      );
+    });
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 });
