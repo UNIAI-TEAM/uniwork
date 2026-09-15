@@ -59,6 +59,22 @@ export function useRemoveCommentReaction(taskId: string) {
   });
 }
 
+export function useAddTaskReaction(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (emoji: string) => collab.addTaskReaction(taskId, { emoji }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) }),
+  });
+}
+
+export function useRemoveTaskReaction(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (emoji: string) => collab.removeTaskReaction(taskId, { emoji }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.detail(taskId) }),
+  });
+}
+
 export function useTaskSubscribers(taskId: string) {
   return useQuery({
     queryKey: taskKeys.subscribers(taskId),

@@ -48,13 +48,15 @@ function FileUploadButton({
         title={attachLabel}
         className={cn("text-muted-foreground", className)}
       >
-        <Paperclip className={iconSize} />
+        <Paperclip className={iconSize} aria-hidden="true" />
       </Button>
       <input
         ref={inputRef}
         type="file"
         multiple={multiple}
         className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
         onChange={handleChange}
       />
     </>

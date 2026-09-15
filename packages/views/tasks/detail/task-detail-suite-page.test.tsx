@@ -49,6 +49,16 @@ const task = {
   created_by: "u1",
   created_at: "2026-09-01T00:00:00Z",
   updated_at: "2026-09-01T00:00:00Z",
+  reactions: [
+    {
+      id: "r1",
+      task_id: "t1",
+      actor_type: "member",
+      actor_id: "u1",
+      emoji: "❤️",
+      created_at: "2026-09-01T00:00:00Z",
+    },
+  ],
 };
 
 function shell(ui: React.ReactElement) {
@@ -117,6 +127,18 @@ describe("TaskDetailSuitePage", () => {
     expect(screen.getByTestId("task-detail-main-pane")).toContainElement(
       screen.getByText("TEAM-12 Ship detail shell"),
     );
+    const reaction = screen.getByRole("button", { name: /❤️\s*1/ });
+    expect(reaction).toBeInTheDocument();
+    fireEvent.click(reaction);
+    await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/tasks/t1/reactions",
+        expect.objectContaining({ method: "DELETE", body: { emoji: "❤️" } }),
+      );
+    });
+    expect(
+      screen.getByRole("button", { name: /đính kèm tệp|attach file/i }),
+    ).toBeInTheDocument();
 
     const sidebarToggle = screen.getByRole("button", {
       name: /hiện hoặc ẩn thuộc tính|show or hide properties/i,

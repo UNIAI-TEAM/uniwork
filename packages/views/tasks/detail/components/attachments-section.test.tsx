@@ -7,21 +7,7 @@ import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
 import { TaskDetailAttachmentsSection } from "./attachments-section";
 
-const uploadMutateAsync = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({
-    id: "a-new",
-    workspace_id: "w1",
-    task_id: "t1",
-    filename: "shot.png",
-    url: "/api/v1/attachments/a-new/content",
-    download_url: "/api/v1/attachments/a-new/download",
-    content_type: "image/png",
-    size_bytes: 12,
-    created_at: "2026-09-09T00:00:00Z",
-  }),
-);
 const deleteMutateAsync = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-const tryOpenPreview = vi.hoisted(() => vi.fn(() => true));
 
 const attachmentsState = vi.hoisted(() => ({
   data: [] as Array<{
@@ -45,10 +31,6 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
       data: attachmentsState.data,
       isLoading: false,
       isError: false,
-    }),
-    useUploadTaskAttachment: () => ({
-      mutateAsync: uploadMutateAsync,
-      isPending: false,
     }),
     useDeleteAttachment: () => ({
       mutateAsync: deleteMutateAsync,
@@ -74,30 +56,6 @@ const publicConfigState = vi.hoisted(() => ({
 vi.mock("@uniwork/core/feature-flags", () => ({
   usePublicConfig: () => ({ data: publicConfigState.data }),
 }));
-
-vi.mock("../../../editor", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../editor")>();
-  return {
-    ...actual,
-    useEditorUpload: (
-      uploadFile?: (
-        file: File,
-        ctx?: { taskId?: string },
-      ) => Promise<unknown>,
-    ) => ({
-      upload: async (file: File, ctx?: { taskId?: string }) => {
-        if (!uploadFile) return null;
-        return uploadFile(file, ctx);
-      },
-      uploading: false,
-    }),
-    useAttachmentPreview: () => ({
-      tryOpen: tryOpenPreview,
-      open: vi.fn(),
-      modal: null,
-    }),
-  };
-});
 
 vi.mock("@uniwork/core/api/http", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/api/http")>();
@@ -145,9 +103,7 @@ beforeAll(() => {
 beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(me);
-  uploadMutateAsync.mockClear();
   deleteMutateAsync.mockClear();
-  tryOpenPreview.mockClear();
   attachmentsState.data = [];
   publicConfigState.data = {
     flags: {},
@@ -163,31 +119,17 @@ beforeEach(() => {
 });
 
 describe("TaskDetailAttachmentsSection", () => {
-  it("shows empty state when there are no attachments", () => {
+  it("stays out of the layout when there are no standalone attachments", () => {
     render(
       shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
     );
 
     expect(
-      screen.getByText(/chưa có tệp đính kèm|no attachments yet/i),
-    ).toBeInTheDocument();
+      screen.queryByRole("region", { name: /đính kèm|attachments/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it("uploads a chosen file via the attachment mutation", async () => {
-    render(
-      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
-    );
-
-    const file = new File(["png"], "shot.png", { type: "image/png" });
-    const input = screen.getByLabelText(/thêm tệp|add file|upload/i);
-    fireEvent.change(input, { target: { files: [file] } });
-
-    await waitFor(() => {
-      expect(uploadMutateAsync).toHaveBeenCalledWith(file);
-    });
-  });
-
-  it("lists attachments and only previews image/pdf allowlist kinds", () => {
+  it("renders images inline and other files as attachment cards", () => {
     attachmentsState.data = [
       {
         id: "a1",
@@ -218,18 +160,61 @@ describe("TaskDetailAttachmentsSection", () => {
       shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
     );
 
-    expect(screen.getByText("photo.png")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "photo.png" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("notes.docx")).toBeInTheDocument();
-
-    const previewButtons = screen.getAllByRole("button", {
-      name: /xem trước|preview/i,
-    });
-    expect(previewButtons).toHaveLength(1);
-    fireEvent.click(previewButtons[0]!);
-    expect(tryOpenPreview).toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /xem ảnh|view image/i }),
+    ).toBeInTheDocument();
   });
 
-  it("shows capability reason and disables upload when unavailable", () => {
+  it("does not repeat an attachment referenced by the description", () => {
+    attachmentsState.data = [
+      {
+        id: "a1",
+        workspace_id: "w1",
+        task_id: "t1",
+        filename: "photo.png",
+        url: "/api/v1/attachments/a1/content",
+        download_url: "/api/v1/attachments/a1/download",
+        content_type: "image/png",
+        size_bytes: 10,
+        created_at: "2026-09-01T00:00:00Z",
+      },
+    ];
+
+    render(
+      shell(
+        <TaskDetailAttachmentsSection
+          workspaceId="w1"
+          taskId="t1"
+          content="![photo](/api/v1/attachments/a1/download)"
+        />,
+      ),
+    );
+
+    expect(screen.queryByRole("img", { name: "photo.png" })).toBeNull();
+    expect(
+      screen.queryByRole("region", { name: /đính kèm|attachments/i }),
+    ).toBeNull();
+  });
+
+  it("keeps existing files visible but hides destructive actions when unavailable", () => {
+    attachmentsState.data = [
+      {
+        id: "a2",
+        workspace_id: "w1",
+        task_id: "t1",
+        filename: "notes.docx",
+        url: "/api/v1/attachments/a2/content",
+        download_url: "/api/v1/attachments/a2/download",
+        content_type:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        size_bytes: 20,
+        created_at: "2026-09-01T00:00:00Z",
+      },
+    ];
     publicConfigState.data = {
       flags: {},
       rum_sample_rate: 0,
@@ -246,9 +231,41 @@ describe("TaskDetailAttachmentsSection", () => {
       shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
     );
 
+    expect(screen.getByText("notes.docx")).toBeInTheDocument();
     expect(
-      screen.getByText(/bề mặt này chưa sẵn sàng|this surface is not ready/i),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText(/thêm tệp|add file|upload/i)).toBeDisabled();
+      screen.queryByRole("button", { name: /gỡ|xóa|remove|delete/i }),
+    ).toBeNull();
+  });
+
+  it("confirms before deleting a standalone attachment", async () => {
+    attachmentsState.data = [
+      {
+        id: "a2",
+        workspace_id: "w1",
+        task_id: "t1",
+        filename: "notes.docx",
+        url: "/api/v1/attachments/a2/content",
+        download_url: "/api/v1/attachments/a2/download",
+        content_type:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        size_bytes: 20,
+        created_at: "2026-09-01T00:00:00Z",
+      },
+    ];
+
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /gỡ tệp đính kèm|remove attachment/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /xóa|delete/i }),
+    );
+
+    await waitFor(() => {
+      expect(deleteMutateAsync).toHaveBeenCalledWith("a2");
+    });
   });
 });

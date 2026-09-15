@@ -1,15 +1,29 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@uniwork/core/auth";
+import {
+  useAddTaskReaction,
+  useRemoveTaskReaction,
+  useTaskAttachments,
+  useUploadTaskAttachment,
+} from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
+import { useMembers } from "@uniwork/core/workspaces";
+import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
+import { ReactionBar } from "@uniwork/ui/components/common/reaction-bar";
 import {
   ContentEditor,
   type ContentEditorRef,
   TitleEditor,
   type TitleEditorRef,
+  FileDropOverlay,
+  useEditorUpload,
+  useFileDropZone,
   useLazyEditor,
 } from "../../../editor";
+import { toastApiError } from "../../../toast-api-error";
 import { TaskDetailAttachmentsSlot } from "./task-detail-attachments-slot";
 import { TaskDetailContextLine } from "./task-detail-context-line";
 import { TaskDetailSubtasksSection } from "./subtasks-section";
@@ -31,6 +45,45 @@ export function TaskDetailEditors({
   const { t } = useTranslation();
   const titleEditorRef = useRef<TitleEditorRef>(null);
   const descEditorRef = useRef<ContentEditorRef>(null);
+  const currentUser = useAuthStore((state) => state.user);
+  const members = useMembers(workspaceId);
+  const attachments = useTaskAttachments(workspaceId, task.id);
+  const uploadMutation = useUploadTaskAttachment(workspaceId, task.id);
+  const addReaction = useAddTaskReaction(task.id);
+  const removeReaction = useRemoveTaskReaction(task.id);
+  const { upload, uploading } = useEditorUpload(async (file) => {
+    const attachment = await uploadMutation.mutateAsync(file);
+    if (!attachment) throw new Error("upload failed");
+    return attachment;
+  });
+  const uploadIntoDescription = useCallback(
+    (file: File) => upload(file, { taskId: task.id }),
+    [task.id, upload],
+  );
+  const { isDragOver, dropZoneProps } = useFileDropZone({
+    onDrop: (files) => files.forEach((file) => descEditorRef.current?.uploadFile(file)),
+    enabled: !uploading,
+  });
+  const actorNames = useMemo(
+    () =>
+      new Map(
+        (members.data ?? []).map((member) => [member.user_id, member.display_name] as const),
+      ),
+    [members.data],
+  );
+  const toggleReaction = (emoji: string) => {
+    if (!currentUser || addReaction.isPending || removeReaction.isPending) return;
+    const reacted = (task.reactions ?? []).some(
+      (reaction) =>
+        reaction.emoji === emoji &&
+        reaction.actor_type === "member" &&
+        reaction.actor_id === currentUser.id,
+    );
+    const mutation = reacted ? removeReaction : addReaction;
+    void mutation.mutateAsync(emoji).catch((error: unknown) => {
+      toastApiError(error, t("common.error"));
+    });
+  };
   const titleLazy = useLazyEditor({
     editorRef: titleEditorRef,
     resetKey: task.id,
@@ -88,7 +141,7 @@ export function TaskDetailEditors({
 
         <TaskDetailContextLine workspaceId={workspaceId} task={task} />
 
-        <div className="relative mt-5 rounded-lg">
+        <div className="relative mt-5 rounded-lg" {...dropZoneProps}>
           <ContentEditor
             ref={descEditorRef}
             key={task.id}
@@ -102,12 +155,35 @@ export function TaskDetailEditors({
             debounceMs={1500}
             flushPendingOnUnmount
             currentTaskId={task.id}
+            attachments={attachments.data}
+            onUploadFile={(file) => uploadIntoDescription(file)}
             disableMentions
           />
+          <div className="mt-3 flex items-center gap-1">
+            <ReactionBar
+              reactions={task.reactions ?? []}
+              currentUserId={currentUser?.id}
+              onToggle={toggleReaction}
+              getActorName={(type, id) =>
+                type === "member" ? actorNames.get(id) ?? id : id
+              }
+            />
+            <FileUploadButton
+              size="sm"
+              multiple
+              disabled={uploading}
+              onSelect={(file) => descEditorRef.current?.uploadFile(file)}
+            />
+          </div>
+          {isDragOver ? <FileDropOverlay /> : null}
         </div>
 
+        <TaskDetailAttachmentsSlot
+          workspaceId={workspaceId}
+          taskId={task.id}
+          content={task.description ?? ""}
+        />
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
-        <TaskDetailAttachmentsSlot workspaceId={workspaceId} taskId={task.id} />
         <TaskDetailTimelineSlot workspaceId={workspaceId} taskId={task.id} />
       </div>
     </div>
