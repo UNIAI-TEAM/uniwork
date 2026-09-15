@@ -82,44 +82,49 @@ export function TaskDetailSuitePage(props: {
       className="flex h-full min-h-0 flex-col overflow-hidden"
       data-testid="task-detail-suite"
     >
-      <BreadcrumbHeader
-        segments={segments}
-        leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
-        actions={
-          <>
-            <TaskDetailHeaderActions
-              workspaceId={workspaceId}
-              task={task}
-              tasksHref={tasksHref}
-              onDeleted={onDeleted}
-            />
-            <RightSidebarToggle
-              controller={sidebarController}
-              label={t("tasks.detail.sidebar_toggle")}
-            />
-          </>
-        }
-      />
       <TaskDetailResizableLayout
         sidebarController={sidebarController}
         sidebarLabel={t("tasks.detail.sidebar_toggle")}
         main={
-          // The editors element is created here and handed to the find scope
-          // as children, so find state changing inside the scope (every
-          // keystroke) never re-renders them.
-          <TaskFindScope
-            taskId={taskId}
-            container={scrollEl}
-            description={task.description ?? ""}
+          <div
+            className="flex h-full min-h-0 flex-col"
+            data-testid="task-detail-main-pane"
           >
-            <TaskDetailEditors
-              task={task}
-              workspaceId={workspaceId}
-              scrollContainerRef={attachScroll}
-              onSaveTitle={(title) => saveField({ title })}
-              onSaveDescription={(description) => saveField({ description })}
+            <BreadcrumbHeader
+              segments={segments}
+              leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
+              actions={
+                <>
+                  <TaskDetailHeaderActions
+                    workspaceId={workspaceId}
+                    task={task}
+                    tasksHref={tasksHref}
+                    onDeleted={onDeleted}
+                  />
+                  <RightSidebarToggle
+                    controller={sidebarController}
+                    label={t("tasks.detail.sidebar_toggle")}
+                  />
+                </>
+              }
             />
-          </TaskFindScope>
+            {/* The editors element is created here and handed to the find scope
+                as children, so find state changing inside the scope (every
+                keystroke) never re-renders them. */}
+            <TaskFindScope
+              taskId={taskId}
+              container={scrollEl}
+              description={task.description ?? ""}
+            >
+              <TaskDetailEditors
+                task={task}
+                workspaceId={workspaceId}
+                scrollContainerRef={attachScroll}
+                onSaveTitle={(title) => saveField({ title })}
+                onSaveDescription={(description) => saveField({ description })}
+              />
+            </TaskFindScope>
+          </div>
         }
         sidebar={
           <TaskDetailPropertiesSidebarSlot

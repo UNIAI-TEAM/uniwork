@@ -63,6 +63,17 @@ afterEach(() => {
 });
 
 describe("useAnimatedRightSidebar", () => {
+  it("keeps panel wrappers from exposing duplicate scrollbars", () => {
+    render(<Harness showLayout />);
+
+    expect(screen.getByTestId("content").firstElementChild).toHaveClass(
+      "!overflow-hidden",
+    );
+    expect(screen.getByTestId("sidebar").firstElementChild).toHaveClass(
+      "!overflow-hidden",
+    );
+  });
+
   it("a toggle whose frame lands after the page unmounted does not throw", () => {
     const { unmount } = render(<Harness showLayout />);
     const frames = holdAnimationFrames();

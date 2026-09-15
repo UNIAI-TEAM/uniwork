@@ -83,6 +83,22 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 		t.Fatalf("reaction: %d %v", res.StatusCode, body)
 	}
 
+	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/reactions", token, map[string]any{
+		"emoji": "❤️",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("task reaction: %d %v", res.StatusCode, body)
+	}
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID, token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("get task with reactions: %d %v", res.StatusCode, body)
+	}
+	task, _ := body["task"].(map[string]any)
+	reactions, _ := task["reactions"].([]any)
+	if len(reactions) != 1 {
+		t.Fatalf("task reactions = %v", task["reactions"])
+	}
+
 	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/subscribe", token, map[string]any{})
 	if res.StatusCode != 200 {
 		t.Fatalf("subscribe: %d %v", res.StatusCode, body)

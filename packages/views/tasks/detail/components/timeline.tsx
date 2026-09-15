@@ -171,10 +171,25 @@ export function TaskDetailTimeline({
 
   const actorNames = useMemo(
     () =>
-      new Map(
-        (members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
-      ),
-    [members.data],
+      new Map([
+        ...(members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
+        ...(agents.data ?? []).map((a) => [a.id, a.name] as const),
+      ]),
+    [members.data, agents.data],
+  );
+  const actorAvatarUrls = useMemo(
+    () =>
+      new Map([
+        ...(members.data ?? []).flatMap((member) =>
+          typeof member.avatar_url === "string"
+            ? [[member.user_id, member.avatar_url] as const]
+            : [],
+        ),
+        ...(agents.data ?? []).flatMap((agent) =>
+          agent.avatar_url ? [[agent.id, agent.avatar_url] as const] : [],
+        ),
+      ]),
+    [members.data, agents.data],
   );
   const valueNames = useMemo(
     () =>
@@ -371,6 +386,7 @@ export function TaskDetailTimeline({
                 key={`activity-${entry.events[0]?.id ?? "empty"}`}
                 events={entry.events}
                 actorNames={actorNames}
+                actorAvatarUrls={actorAvatarUrls}
                 valueNames={valueNames}
               />
             ) : (

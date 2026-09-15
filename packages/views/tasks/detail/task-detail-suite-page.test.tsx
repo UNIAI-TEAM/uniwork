@@ -49,6 +49,16 @@ const task = {
   created_by: "u1",
   created_at: "2026-09-01T00:00:00Z",
   updated_at: "2026-09-01T00:00:00Z",
+  reactions: [
+    {
+      id: "r1",
+      task_id: "t1",
+      actor_type: "member",
+      actor_id: "u1",
+      emoji: "❤️",
+      created_at: "2026-09-01T00:00:00Z",
+    },
+  ],
 };
 
 function shell(ui: React.ReactElement) {
@@ -103,12 +113,31 @@ describe("TaskDetailSuitePage", () => {
     expect(
       await screen.findByText(/đổi trạng thái|change status/i),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /ghim công việc|pin task/i }),
+    ).not.toBeInTheDocument();
+    expect(document.body).not.toHaveStyle({ overflow: "hidden" });
 
     expect(
       screen.getByRole("region", { name: /tiêu đề|title/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("complementary", { name: /thuộc tính|properties/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("task-detail-main-pane")).toContainElement(
+      screen.getByText("TEAM-12 Ship detail shell"),
+    );
+    const reaction = screen.getByRole("button", { name: /❤️\s*1/ });
+    expect(reaction).toBeInTheDocument();
+    fireEvent.click(reaction);
+    await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/tasks/t1/reactions",
+        expect.objectContaining({ method: "DELETE", body: { emoji: "❤️" } }),
+      );
+    });
+    expect(
+      screen.getByRole("button", { name: /đính kèm tệp|attach file/i }),
     ).toBeInTheDocument();
 
     const sidebarToggle = screen.getByRole("button", {

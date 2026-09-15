@@ -5,13 +5,13 @@ import { useTranslation } from "react-i18next";
 import type { AuditEvent } from "@uniwork/core/types";
 import {
   ActionIcon,
-  ActorIcon,
   changeEntries,
   ChangeValue,
   EventTime,
   shortId,
   useAuditLabels,
 } from "../../../audit/event-presenter";
+import { TaskActorAvatar } from "./task-actor-avatar";
 
 /**
  * Actions the task timeline deliberately leaves out, because the thing they
@@ -38,10 +38,12 @@ export function isTimelineActivity(event: AuditEvent): boolean {
 export function TaskActivityRow({
   event,
   actorName,
+  actorAvatarUrl,
   valueNames = new Map(),
 }: {
   event: AuditEvent;
   actorName?: string;
+  actorAvatarUrl?: string;
   valueNames?: Map<string, string>;
 }) {
   const { t } = useTranslation();
@@ -64,9 +66,10 @@ export function TaskActivityRow({
     >
       <ActionIcon action={event.action} className="size-5" />
       <span className="inline-flex items-center gap-1 font-medium text-foreground">
-        <ActorIcon
+        <TaskActorAvatar
+          name={actorName ?? shortId(event.actor_id)}
+          avatarUrl={actorAvatarUrl}
           kind={event.actor_kind}
-          className="size-3.5 text-muted-foreground"
         />
         {actorName ?? shortId(event.actor_id)}
       </span>

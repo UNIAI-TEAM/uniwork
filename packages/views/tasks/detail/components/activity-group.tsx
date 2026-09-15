@@ -12,10 +12,12 @@ const ACTIVITY_PAGE_SIZE = 50;
 export function TaskActivityGroup({
   events,
   actorNames,
+  actorAvatarUrls = new Map(),
   valueNames,
 }: {
   events: AuditEvent[];
   actorNames: Map<string, string>;
+  actorAvatarUrls?: Map<string, string>;
   valueNames: Map<string, string>;
 }) {
   const { t } = useTranslation();
@@ -52,6 +54,7 @@ export function TaskActivityGroup({
               key={event.id}
               event={event}
               actorName={actorNames.get(event.actor_id)}
+              actorAvatarUrl={actorAvatarUrls.get(event.actor_id)}
               valueNames={valueNames}
             />
           ))}

@@ -6,9 +6,11 @@ import { setAccessToken } from "../api/session";
 import { taskKeys } from "./keys";
 import {
   useAddCommentReaction,
+  useAddTaskReaction,
   useCreateCommentSuite,
   useDeleteComment,
   useRemoveCommentReaction,
+  useRemoveTaskReaction,
   useResolveComment,
   useSubscribeTask,
   useTaskSubscribers,
@@ -137,6 +139,28 @@ describe("task collaboration + attachment hooks", () => {
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     const wrapper = wrapperFor(qc);
 
+    const addTaskReaction = renderHook(() => useAddTaskReaction("t1"), {
+      wrapper,
+    });
+    await act(async () => {
+      await addTaskReaction.result.current.mutateAsync("❤️");
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: taskKeys.detail("t1"),
+    });
+
+    invalidate.mockClear();
+    const removeTaskReaction = renderHook(() => useRemoveTaskReaction("t1"), {
+      wrapper,
+    });
+    await act(async () => {
+      await removeTaskReaction.result.current.mutateAsync("❤️");
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: taskKeys.detail("t1"),
+    });
+
+    invalidate.mockClear();
     const sub = renderHook(() => useSubscribeTask("t1"), { wrapper });
     await act(async () => {
       await sub.result.current.mutateAsync(undefined);

@@ -482,6 +482,17 @@ func (s *TaskService) AddTaskReaction(ctx context.Context, actor Actor, taskID, 
 	return row, nil
 }
 
+// TaskReactions returns every reaction after applying the task visibility gate.
+func (s *TaskService) TaskReactions(ctx context.Context, actor Actor, taskID string) ([]db.TaskReaction, error) {
+	task, err := s.authorizeActor(ctx, actor, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListTaskReactions(ctx, db.ListTaskReactionsParams{
+		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
+}
+
 // RemoveTaskReaction deletes the caller's emoji on a task.
 func (s *TaskService) RemoveTaskReaction(ctx context.Context, actor Actor, taskID, emoji string) error {
 	task, err := s.authorizeActor(ctx, actor, taskID)

@@ -37,6 +37,7 @@ import { AppLink } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
 import { cn } from "@uniwork/ui/lib/utils";
 import { TaskDetailMetadata } from "./task-detail-metadata";
+import { TaskActorAvatar } from "./task-actor-avatar";
 import {
   AssigneePicker,
   LabelPicker,
@@ -113,11 +114,6 @@ export function TaskDetailPropertiesSidebar({
   const parentCandidates = (tasksQuery.data ?? []).filter(
     (candidate) => candidate.id !== task.id,
   );
-  const creatorName =
-    task.created_by_kind === "agent"
-      ? agents?.find((agent) => agent.id === task.created_by)?.name
-      : members?.find((member) => member.user_id === task.created_by)?.display_name;
-
   const attachedLabels = useMemo(
     () => onTaskLabels.data?.labels ?? [],
     [onTaskLabels.data?.labels],
@@ -151,6 +147,13 @@ export function TaskDetailPropertiesSidebar({
   const assigneeValue: AssigneeRef | null = task.assignee_id
     ? { id: task.assignee_id, kind: task.assignee_kind === "agent" ? "agent" : "human" }
     : null;
+  const selectedAssignee = assigneeValue
+    ? assigneeOptions.find(
+        (option) => option.id === assigneeValue.id && option.kind === assigneeValue.kind,
+      )
+    : undefined;
+  const assigneeName = selectedAssignee?.name ?? task.assignee?.display_name;
+  const assigneeAvatarUrl = selectedAssignee?.avatarUrl ?? task.assignee?.avatar_url;
 
   const putField = (patch: { status?: string; priority?: string }) => {
     put.mutate(
@@ -243,7 +246,7 @@ export function TaskDetailPropertiesSidebar({
             value={assigneeValue}
             options={assigneeOptions}
             ariaLabel={t("tasks.assignee")}
-            valueLabel={task.assignee?.display_name ?? t("tasks.unassigned")}
+            valueLabel={assigneeName ?? t("tasks.unassigned")}
             unassignedLabel={t("tasks.unassigned")}
             searchPlaceholder={t("tasks.assignee_search_placeholder")}
             noResultsLabel={t("tasks.assignee_no_results")}
@@ -258,8 +261,15 @@ export function TaskDetailPropertiesSidebar({
               }
             }}
           >
-            {task.assignee ? (
-              <span className="truncate">{task.assignee.display_name}</span>
+            {assigneeName ? (
+              <span className="flex min-w-0 items-center gap-2">
+                <TaskActorAvatar
+                  name={assigneeName}
+                  avatarUrl={assigneeAvatarUrl}
+                  kind={assigneeValue?.kind}
+                />
+                <span className="truncate">{assigneeName}</span>
+              </span>
             ) : (
               <span className="truncate text-muted-foreground">
                 {t("tasks.unassigned")}
@@ -509,7 +519,10 @@ export function TaskDetailPropertiesSidebar({
       </section>
 
       <TaskDetailMetadata
-        creatorName={creatorName ?? task.created_by}
+        creatorId={task.created_by}
+        creatorKind={task.created_by_kind}
+        members={members}
+        agents={agents}
         createdAt={task.created_at}
         updatedAt={task.updated_at}
       />

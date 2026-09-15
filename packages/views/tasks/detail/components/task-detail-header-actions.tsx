@@ -143,7 +143,7 @@ export function TaskDetailHeaderActions({
       >
         {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
       </Button>
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger
           render={
             <Button

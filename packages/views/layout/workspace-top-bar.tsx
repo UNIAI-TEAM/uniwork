@@ -131,18 +131,23 @@ export function WorkspaceTopBar({
       <div className="flex-1" />
       <AskUniButton />
       <NotificationBell />
-      {/* The one filled control in the bar: the brand CTA the reference
-          layout leads with. Icon-only below md, labelled above. */}
-      <Button
-        type="button"
-        size="sm"
-        className="h-8 gap-1 px-2 md:px-2.5"
-        aria-label={createLabel}
-        onClick={() => onCreateOpenChange(true)}
-      >
-        <Plus aria-hidden className="size-4" />
-        <span className="hidden md:inline">{createLabel}</span>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8"
+              aria-label={createLabel}
+              onClick={() => onCreateOpenChange(true)}
+            />
+          }
+        >
+          <Plus aria-hidden className="size-4 text-muted-foreground" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{createLabel}</TooltipContent>
+      </Tooltip>
       <DropdownMenu>
         <Tooltip>
           <TooltipTrigger
@@ -170,7 +175,9 @@ export function WorkspaceTopBar({
             onValueChange={(next) => {
               if (!next || next === themeValue) return;
               setTheme(next as ThemeValue);
-              toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+              toast.success(t("settings.preferences.toastSaved"), {
+                id: "settings-auto-save",
+              });
             }}
           >
             {themeOptions.map((option) => {
