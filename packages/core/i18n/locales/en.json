@@ -2481,7 +2481,7 @@
       "cta_creating": "Creating…",
       "cta_open": "Continue with {{name}}",
       "slug_taken_error": "That organization slug is already taken.",
-      "headline_resume_many": "Pick one of your organizations, or start another.",
+      "headline_resume_pick": "Pick one of your organizations, or start another.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "hint_slug_needed": "Add a URL for your organization to create it.",
       "create_failed_toast": "Couldn't create the organization. Please try again.",
@@ -2520,7 +2520,7 @@
       "slug_length_error": "The URL needs 2 to 40 characters",
       "hint_slug_needed": "Add a URL for your workspace to create it.",
       "slug_taken_error": "That slug is already taken.",
-      "headline_resume_many": "Pick one of your workspaces, or create a new one.",
+      "headline_resume_pick": "Pick one of your workspaces, or create a new one.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "create_failed_toast": "Couldn't create that. Please try again.",
       "picker_label": "Choose a workspace"

@@ -221,7 +221,7 @@ export function StepOrganization({
             resume
               ? organizations.length === 1
                 ? t("onboarding.step_organization.headline_resume", { name: organizations[0]!.name })
-                : t("onboarding.step_organization.headline_resume_many")
+                : t("onboarding.step_organization.headline_resume_pick")
               : t("onboarding.step_organization.headline_first")
           }
           description={resume ? t("onboarding.step_organization.lede_resume") : t("onboarding.step_organization.lede_first")}

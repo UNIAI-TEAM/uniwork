@@ -164,7 +164,7 @@ export function StepWorkspace({
             resume
               ? existing.length === 1
                 ? t("onboarding.step_workspace.headline_resume", { name: existing[0]!.name })
-                : t("onboarding.step_workspace.headline_resume_many")
+                : t("onboarding.step_workspace.headline_resume_pick")
               : t("onboarding.step_workspace.headline_first")
           }
           description={resume ? t("onboarding.step_workspace.lede_resume") : t("onboarding.step_workspace.lede_first")}
