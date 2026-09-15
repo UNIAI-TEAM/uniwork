@@ -155,10 +155,26 @@ the product owner promotes them (PRODUCT.md). Promoting a locale is adding it
 to `STABLE_LOCALES`, after which the gate demands every key.
 
 `i18n/parity.test.ts` holds this for every file in `locales/`: text leaves
-that are not blank, plural keys in `_one`/`_other` pairs, the key sets above,
-the same `{{variables}}` per key, and no Vietnamese text outside `vi.json`.
+that are not blank and are stored in NFC, plural keys in `_one`/`_other`
+pairs, the key sets above, the same `{{variables}}` per key, and no Vietnamese
+text outside `vi.json` — letters only Vietnamese uses, or text identical to
+the Vietnamese that is not plain ASCII. A name that stays Vietnamese in every
+language goes into that test's allowlist with its reason.
 `scripts/i18n-duplicate-keys.test.mjs` catches a key written twice in one
 object, which `JSON.parse` would otherwise drop without a word.
+
+Adding a beta locale takes more than its file:
+
+1. `packages/core/i18n/locales/<code>.json` with the keys translated so far.
+   A plural stem carries both `_one` and `_other`, even in a language with a
+   single plural form such as Myanmar, Khmer or Lao: copy the `_other` text.
+2. The code in `SupportedLocale` and `SUPPORTED_LOCALES`, the language's own
+   name in `LOCALE_NATIVE_NAMES`, and a loader in `packages/core/i18n/index.ts`.
+3. A server-rendered request preloads only English (`apps/web/app/layout.tsx`,
+   `sync-request-locale.ts`). Until that path loads the new dictionary too, a
+   reload in the new locale renders Vietnamese.
+4. Missing keys fall back to Vietnamese (`fallbackLng`). Decide whether that
+   suits the locale's readers before shipping it.
 
 ### The distinction: everyday noun vs product term
 
@@ -184,7 +200,7 @@ object, which `JSON.parse` would otherwise drop without a word.
 | inbox (the notification screen) | **hộp việc** | Inbox | `nav.inbox = "Hộp việc"`; route stays `/inbox` (OPEN_QUESTIONS N5) |
 | Ask UNI (the read-only copilot) | **Hỏi UNI** | Ask UNI | `ai.title = "Hỏi UNI"`; UNI is the assistant's name, never "trợ lý ảo" |
 | channel (chat work hub) | **kênh** | channel | `chat.channel.*`; first-class chat room kind attached to a Project |
-| thread (chat) | **thread** | thread | keep English — internal users say "thread", not "luồng" |
+| thread (chat) | **thread** | thread | keep English — internal users say "thread", not "luồng"; the voice lint rejects "luồng" anywhere, so a string where it means a flow goes into that rule's allowlist with its reason |
 | link (message ↔ work item) | **gắn** | link | `chat.message.linked` / message↔task attachment |
 | source / citation (what an answer points at) | **nguồn** / **trích dẫn** | source / citation | `ai.sources = "Nguồn"`; rendered as `[S1]` links |
 | notification | **thông báo** | Notification | `notifications.*`; one row in the inbox is a "thông báo" |
@@ -256,8 +272,8 @@ both keys with identical text. Put the count first.
 ## 3. Vietnamese voice and style
 
 What a machine can check here — no "vui lòng" or "quý khách", `…` for an
-ellipsis, curly quotes, ASCII punctuation, tone marks on the main vowel, no
-stray spaces — and the §2 terms (workspace, UNI, thread, việc) are held by
+ellipsis, curly quotes, ASCII punctuation, the traditional tone-mark
+placement, no stray spaces — and the §2 terms (workspace, UNI, thread, việc) are held by
 `packages/core/i18n/voice.test.ts`. Register, tone and the kinds of copy below
 are the reviewer's.
 
@@ -278,9 +294,10 @@ are the reviewer's.
 - Quotes are curly double quotes `“…”`:
   `notifications.kind.task_assigned = "{{actor}} đã giao bạn việc “{{task}}”"`.
   A straight `"` needs escaping in JSON and reads as code.
-- Tone marks sit on the main vowel in open syllables, as the glossary's
-  Hủy / Xóa already do: `hủy`, `xóa`, `tùy`, `khóa` — not `huỷ`, `xoá`,
-  `tuỳ`, `khoá`.
+- In the open syllables oa, oe and uy the tone mark goes on the first vowel:
+  the traditional placement (kiểu cũ) the glossary's Hủy / Xóa already use —
+  `hủy`, `xóa`, `tùy`, `khóa`, not `huỷ`, `xoá`, `tuỳ`, `khoá`. After q the u
+  belongs to the consonant, so `quý` is spelled the same either way.
 
 ### Kinds of copy
 
