@@ -1,8 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
-const FILES = ["packages/core/i18n/locales/vi.json", "packages/core/i18n/locales/en.json"];
+const LOCALES = "packages/core/i18n/locales";
+// Every locale file rather than a list of two: a locale added later is scanned
+// the day its file lands.
+const FILES = readdirSync(LOCALES)
+  .filter((name) => name.endsWith(".json"))
+  .sort()
+  .map((name) => `${LOCALES}/${name}`);
 
 /**
  * Hai khoá trùng tên trong cùng một object là hợp lệ với JSON.parse: bản sau
@@ -82,6 +88,14 @@ export function duplicateKeys(source) {
   }
   return dups;
 }
+
+// A scanner over no files passes forever; prove it is reading the real ones.
+test("scans the locale files the app loads", () => {
+  assert.ok(
+    FILES.includes(`${LOCALES}/vi.json`) && FILES.includes(`${LOCALES}/en.json`),
+    `scanned: ${FILES.join(", ") || "nothing"}`,
+  );
+});
 
 for (const file of FILES) {
   test(`${file} has no duplicate keys`, () => {
