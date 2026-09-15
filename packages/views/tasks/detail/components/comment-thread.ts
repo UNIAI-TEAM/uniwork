@@ -5,6 +5,21 @@ export type CommentThread = {
   replies: TaskComment[];
 };
 
+export type ThreadResolution =
+  | { kind: "none" }
+  | { kind: "root" }
+  | { kind: "reply"; resolutionId: string };
+
+export function deriveThreadResolution(root: TaskComment, replies: TaskComment[]): ThreadResolution {
+  if (root.resolved_at) return { kind: "root" };
+  let chosen: TaskComment | null = null;
+  for (const reply of replies) {
+    if (!reply.resolved_at) continue;
+    if (!chosen || reply.resolved_at > (chosen.resolved_at ?? "")) chosen = reply;
+  }
+  return chosen ? { kind: "reply", resolutionId: chosen.id } : { kind: "none" };
+}
+
 function byCreatedAt(a: TaskComment, b: TaskComment): number {
   return (a.created_at ?? "").localeCompare(b.created_at ?? "");
 }

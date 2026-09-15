@@ -38,6 +38,8 @@ const createMutateAsync = vi.hoisted(() =>
     created_at: "2026-09-09T00:00:00Z",
   }),
 );
+const addReactionMutate = vi.hoisted(() => vi.fn());
+const removeReactionMutate = vi.hoisted(() => vi.fn());
 
 const mockUseComments = vi.hoisted(() =>
   vi.fn(() => ({
@@ -93,9 +95,11 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
     useDeleteComment: () => ({ mutate: vi.fn(), isPending: false }),
     useResolveComment: () => ({ mutate: vi.fn(), isPending: false }),
     useUnresolveComment: () => ({ mutate: vi.fn(), isPending: false }),
-    useAddCommentReaction: () => ({ mutate: vi.fn(), isPending: false }),
-    useRemoveCommentReaction: () => ({ mutate: vi.fn(), isPending: false }),
+    useAddCommentReaction: () => ({ mutate: addReactionMutate, isPending: false }),
+    useRemoveCommentReaction: () => ({ mutate: removeReactionMutate, isPending: false }),
     useTaskSubscribers: mockUseTaskSubscribers,
+    useTaskAttachments: () => ({ data: [], isLoading: false }),
+    useUploadTaskAttachment: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useSubscribeTask: () => ({ mutate: vi.fn(), isPending: false }),
     useUnsubscribeTask: () => ({ mutate: vi.fn(), isPending: false }),
   };
@@ -199,6 +203,7 @@ vi.mock("../../../editor", () => {
       onUploadingChange: () => {},
       isBlocked: () => false,
     }),
+    useEditorUpload: () => ({ upload: vi.fn(), uploading: false }),
     useComposerSubmit: ({
       editorRef,
       onSubmit,
@@ -323,6 +328,8 @@ beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(me);
   createMutateAsync.mockClear();
+  addReactionMutate.mockClear();
+  removeReactionMutate.mockClear();
   // Drafts are a module singleton: a leftover draft from another case would
   // now auto-activate a composer (initialActive) and change what renders.
   useCommentDraftStore.setState({ drafts: {} });
@@ -350,6 +357,26 @@ beforeEach(() => {
 });
 
 describe("TaskDetailTimeline", () => {
+  it("toggle reaction dựa trên trạng thái hiện tại, không dùng lỗi add để suy ra remove", () => {
+    mockComments([{ ...mockUseComments().data[0]!, reactions: [
+      { id: "r1", comment_id: "c1", actor_type: "member", actor_id: "u1", emoji: "👍", created_at: "2026-09-15T00:00:00Z" },
+      { id: "r2", comment_id: "c1", actor_type: "member", actor_id: "u2", emoji: "❤️", created_at: "2026-09-15T00:00:01Z" },
+    ] }]);
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+    fireEvent.click(screen.getByRole("button", { name: /👍 1:/ }));
+    fireEvent.click(screen.getByRole("button", { name: /❤️ 1:/ }));
+
+    expect(removeReactionMutate).toHaveBeenCalledWith(
+      { commentId: "c1", emoji: "👍" },
+      expect.any(Object),
+    );
+    expect(addReactionMutate).toHaveBeenCalledWith(
+      { commentId: "c1", emoji: "❤️" },
+      expect.any(Object),
+    );
+  });
+
   it("shows real follower avatars beside the follow action and caps the visible group", () => {
     mockUseTaskSubscribers.mockReturnValue({
       data: [
@@ -397,7 +424,8 @@ describe("TaskDetailTimeline", () => {
 
     expect(screen.getByText("Existing note")).toBeInTheDocument();
 
-    const standIn = screen.getByRole("button", {
+    const dock = screen.getByTestId("task-comment-composer-dock");
+    const standIn = within(dock).getByRole("button", {
       name: /viết bình luận|write a comment/i,
     });
     fireEvent.click(standIn);
@@ -408,7 +436,7 @@ describe("TaskDetailTimeline", () => {
     fireEvent.change(editor, { target: { value: "Hello timeline" } });
 
     fireEvent.click(
-      screen.getByRole("button", { name: /gửi|send|đăng|post/i }),
+      within(dock).getByRole("button", { name: /gửi|send|đăng|post/i }),
     );
 
     await waitFor(() => {
@@ -501,7 +529,7 @@ describe("TaskDetailTimeline", () => {
     ]);
     mockResourceHistory([
       auditEvent({ id: "a1", action: "task.comment_added" }),
-      auditEvent({ id: "a2", action: "task.reaction_added" }),
+      auditEvent({ id: "a2", action: "comment.reaction_added" }),
       auditEvent({ id: "a3", action: "task.subscribed" }),
     ]);
 
@@ -741,8 +769,6 @@ describe("TaskDetailTimeline", () => {
     mockResourceHistory([]);
 
     renderTimeline({ workspaceId: "w1", taskId: "t1" });
-
-    fireEvent.click(screen.getByTestId("comment-reply-c1"));
 
     const replyBox = await screen.findByTestId("reply-composer-c1");
     fireEvent.click(

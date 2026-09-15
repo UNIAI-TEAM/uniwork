@@ -59,6 +59,7 @@ function ReactionBar({
             render={
               <button
                 type="button"
+                aria-label={`${g.emoji} ${g.count}: ${g.actors.map((a) => getActorName(a.type, a.id)).join(", ")}`}
                 onClick={() => onToggle(g.emoji)}
                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption transition-colors hover:bg-brand/15 ${
                   g.reacted

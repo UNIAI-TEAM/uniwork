@@ -180,13 +180,31 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 	return c, nil
 }
 
-// UpdateComment edits body; author only (or workspace admin via RequireMember is enough for MVP suite — author check).
+func (s *TaskService) canManageComment(ctx context.Context, actor Actor, comment db.TaskComment) (bool, error) {
+	if comment.AuthorID == actor.ID && comment.AuthorKind == string(actor.Kind) {
+		return true, nil
+	}
+	if actor.Kind != audit.KindHuman {
+		return false, nil
+	}
+	member, err := s.ws.RequireMember(ctx, comment.WorkspaceID, actor.ID)
+	if err != nil {
+		return false, err
+	}
+	return member.Role == "owner" || member.Role == "admin", nil
+}
+
+// UpdateComment edits body; authors and workspace moderators may edit.
 func (s *TaskService) UpdateComment(ctx context.Context, actor Actor, commentID string, in UpdateCommentInput) (db.TaskComment, error) {
 	before, err := s.loadComment(ctx, actor, commentID)
 	if err != nil {
 		return db.TaskComment{}, err
 	}
-	if before.AuthorID != actor.ID || before.AuthorKind != string(actor.Kind) {
+	allowed, err := s.canManageComment(ctx, actor, before)
+	if err != nil {
+		return db.TaskComment{}, err
+	}
+	if !allowed {
 		return db.TaskComment{}, ErrForbidden
 	}
 	body := strings.TrimSpace(in.Body)
@@ -221,13 +239,17 @@ func (s *TaskService) UpdateComment(ctx context.Context, actor Actor, commentID 
 	return c, nil
 }
 
-// DeleteComment removes a comment; author only.
+// DeleteComment removes a comment; authors and workspace moderators may delete.
 func (s *TaskService) DeleteComment(ctx context.Context, actor Actor, commentID string) error {
 	before, err := s.loadComment(ctx, actor, commentID)
 	if err != nil {
 		return err
 	}
-	if before.AuthorID != actor.ID || before.AuthorKind != string(actor.Kind) {
+	allowed, err := s.canManageComment(ctx, actor, before)
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return ErrForbidden
 	}
 	tx, err := s.pool.Begin(ctx)

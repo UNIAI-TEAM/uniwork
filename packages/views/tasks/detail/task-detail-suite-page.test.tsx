@@ -137,8 +137,8 @@ describe("TaskDetailSuitePage", () => {
       );
     });
     expect(
-      screen.getByRole("button", { name: /đính kèm tệp|attach file/i }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("button", { name: /đính kèm tệp|attach file/i }),
+    ).toHaveLength(2);
 
     const sidebarToggle = screen.getByRole("button", {
       name: /hiện hoặc ẩn thuộc tính|show or hide properties/i,

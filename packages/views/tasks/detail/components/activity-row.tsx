@@ -24,7 +24,7 @@ import { TaskActorAvatar } from "./task-actor-avatar";
  * worse lie than labelling it with its raw name.
  */
 const DUPLICATED_BY_THE_TIMELINE =
-  /^task\.(comment_|reaction_|subscribed$|unsubscribed$)/;
+  /^(?:task\.(?:comment_|reaction_|subscribed$|unsubscribed$)|comment\.reaction_)/;
 
 export function isTimelineActivity(event: AuditEvent): boolean {
   return !DUPLICATED_BY_THE_TIMELINE.test(event.action);

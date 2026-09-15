@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
@@ -20,6 +22,9 @@ func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
 	}
 	if parent.ParentCommentID.Valid {
 		t.Fatalf("parent should have no parent: %+v", parent)
+	}
+	if !parent.CreatedAt.Valid || !parent.UpdatedAt.Valid {
+		t.Fatalf("created comment must persist timestamps: %+v", parent)
 	}
 
 	reply, err := s.AddCommentSuite(ctx, Human(ua.ID), task.ID, AddCommentInput{
@@ -46,6 +51,9 @@ func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
 		}
 		if c.CommentType == "" || c.Revision < 1 {
 			t.Fatalf("GET list missing type/revision: %+v", c)
+		}
+		if !c.CreatedAt.Valid || !c.UpdatedAt.Valid {
+			t.Fatalf("GET list missing persisted timestamps: %+v", c)
 		}
 	}
 	if !foundReply {
@@ -153,6 +161,9 @@ func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
 	if edited.Body != "edited parent" || edited.Revision < 2 {
 		t.Fatalf("edit = %+v", edited)
 	}
+	if !edited.UpdatedAt.Valid || edited.UpdatedAt.Time.Before(parent.UpdatedAt.Time) {
+		t.Fatalf("edit did not retain/update timestamp: before=%+v after=%+v", parent, edited)
+	}
 	if err := s.DeleteComment(ctx, Human(ua.ID), reply.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +193,36 @@ func TestCommentReplyResolveReactionAndSubscriber(t *testing.T) {
 	}
 	for topic := range want {
 		t.Fatalf("missing outbox topic %s in %#v", topic, drained)
+	}
+}
+
+func TestWorkspaceOwnerCanModerateMemberComment(t *testing.T) {
+	s, _, owner, member, w := taskFixture(t)
+	ctx := context.Background()
+	if err := s.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+		OrganizationID: w.OrganizationID, UserID: member.ID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+		WorkspaceID: w.ID, UserID: member.ID, Role: "member",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.Create(ctx, Human(owner.ID), w.ID, CreateTaskInput{Title: "Moderated comments"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	comment, err := s.AddCommentSuite(ctx, Human(member.ID), task.ID, AddCommentInput{Body: "member note"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited, err := s.UpdateComment(ctx, Human(owner.ID), comment.ID, UpdateCommentInput{Body: "owner edit"})
+	if err != nil || edited.Body != "owner edit" {
+		t.Fatalf("owner edit = %+v err=%v", edited, err)
+	}
+	if err := s.DeleteComment(ctx, Human(owner.ID), comment.ID); err != nil {
+		t.Fatalf("owner delete: %v", err)
 	}
 }
 

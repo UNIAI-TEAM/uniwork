@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useResourceHistory } from "@uniwork/core/audit";
-import type { AuditEvent, TaskComment } from "@uniwork/core/types";
+import type { AuditEvent } from "@uniwork/core/types";
 import {
   useAddCommentReaction,
   useComments,
@@ -16,9 +17,11 @@ import {
   useProjects,
   useResolveComment,
   useSubscribeTask,
+  useTaskAttachments,
   useTaskSubscribers,
   useUnresolveComment,
   useUnsubscribeTask,
+  useUploadTaskAttachment,
   useUpdateComment,
 } from "@uniwork/core/tasks";
 import {
@@ -38,7 +41,7 @@ import { isTimelineActivity } from "./activity-row";
 import { TaskActivityGroup } from "./activity-group";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
-import { buildCommentThreads, type CommentThread } from "./comment-thread";
+import { buildCommentThreads, deriveThreadResolution, type CommentThread } from "./comment-thread";
 import { commentPreviewOrFallback } from "./comment-preview-text";
 import { TaskReplyComposer } from "./reply-composer";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
@@ -92,6 +95,8 @@ export function TaskDetailTimeline({
   const errFallback = t("common.error");
   const currentUserId = useAuthStore((s) => s.user?.id);
   const { data: comments, isLoading } = useComments(taskId);
+  const attachments = useTaskAttachments(workspaceId, taskId);
+  const { mutateAsync: uploadTaskAttachment } = useUploadTaskAttachment(workspaceId, taskId);
   const history = useResourceHistory(workspaceId, "task", taskId);
   const createComment = useCreateCommentSuite(taskId);
   const updateComment = useUpdateComment(taskId);
@@ -108,13 +113,18 @@ export function TaskDetailTimeline({
   const subscribe = useSubscribeTask(taskId);
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const currentMember = useCurrentMember(workspaceId);
   // Remembered per task, so an opened resolved thread is still open when the
   // person comes back. The store hands back a stable array (a shared empty
   // one when nothing is open); the Set is derived below, never in the
   // selector, or every render would produce a new identity and re-run the
   // scroll effect below.
   const expandedResolvedIds = useResolvedExpandedThreads(taskId);
+  const uploadCommentFile = useCallback(async (file: File) => {
+    const attachment = await uploadTaskAttachment(file);
+    if (!attachment) throw new Error("upload failed");
+    return attachment;
+  }, [uploadTaskAttachment]);
   // The single source of truth for "which comment should the page scroll to
   // and highlight". Seeded from the URL hash on mount, and re-pointed by the
   // thread-nav chips (via jumpToComment) — one mechanism, two triggers. The
@@ -148,7 +158,7 @@ export function TaskDetailTimeline({
           t("tasks.detail.comment_preview_empty"),
         ),
         replyCount: thread.replies.length,
-        resolved: isThreadResolved(thread),
+        resolved: deriveThreadResolution(thread.root, thread.replies).kind !== "none",
       })),
     [threads, t],
   );
@@ -303,7 +313,6 @@ export function TaskDetailTimeline({
   const onReplySubmit = async (parentId: string, body: string): Promise<boolean> => {
     try {
       const created = await createComment.mutateAsync({ body: { body, parent_id: parentId } });
-      setReplyingTo(null);
       return !!created;
     } catch (err) {
       toastApiError(err, errFallback);
@@ -311,46 +320,63 @@ export function TaskDetailTimeline({
     }
   };
 
-  const renderCommentCard = (comment: TaskComment, onReply?: () => void) => (
+  const renderCommentThread = (thread: CommentThread) => (
     <TaskCommentCard
-      key={comment.id}
-      comment={comment}
-      highlighted={highlightedId === comment.id}
-      onReply={onReply}
-      onToggleReaction={(emoji) => {
-        addReaction.mutate(
-          { commentId: comment.id, emoji },
-          {
-            onError: () => {
-              removeReaction.mutate(
-                { commentId: comment.id, emoji },
-                {
-                  onError: (err) => toastApiError(err, errFallback),
-                },
-              );
-            },
-          },
+      key={thread.root.id}
+      taskId={taskId}
+      comment={thread.root}
+      replies={thread.replies}
+      attachments={attachments.data}
+      uploadFile={uploadCommentFile}
+      highlightedId={highlightedId}
+      canModerate={currentMember.role === "owner" || currentMember.role === "admin"}
+      getActorName={(_type, id) => actorNames.get(id) ?? id}
+      replyComposer={
+        <TaskReplyComposer
+          taskId={taskId}
+          parent={thread.root}
+          inline
+          attachments={attachments.data}
+          uploadFile={uploadCommentFile}
+          onSubmit={(body) => onReplySubmit(thread.root.id, body)}
+          onCancel={() => undefined}
+        />
+      }
+      onToggleReaction={(commentId, emoji) => {
+        const target = commentId === thread.root.id
+          ? thread.root
+          : thread.replies.find((reply) => reply.id === commentId);
+        const reacted = target?.reactions?.some(
+          (reaction) => reaction.actor_type === "member" && reaction.actor_id === currentUserId && reaction.emoji === emoji,
         );
-      }}
-      onEdit={(body) => {
-        updateComment.mutate(
-          { commentId: comment.id, body: { body } },
+        const mutation = reacted ? removeReaction : addReaction;
+        mutation.mutate(
+          { commentId, emoji },
           { onError: (err) => toastApiError(err, errFallback) },
         );
       }}
-      onResolveToggle={(resolved) => {
+      onEdit={async (commentId, body) => {
+        try {
+          const updated = await updateComment.mutateAsync({ commentId, body: { body } });
+          return !!updated;
+        } catch (err) {
+          toastApiError(err, errFallback);
+          return false;
+        }
+      }}
+      onResolveToggle={(commentId, resolved) => {
         if (resolved) {
-          resolveComment.mutate(comment.id, {
+          resolveComment.mutate(commentId, {
             onError: (err) => toastApiError(err, errFallback),
           });
         } else {
-          unresolveComment.mutate(comment.id, {
+          unresolveComment.mutate(commentId, {
             onError: (err) => toastApiError(err, errFallback),
           });
         }
       }}
-      onDelete={() => {
-        deleteComment.mutate(comment.id, {
+      onDelete={(commentId) => {
+        deleteComment.mutate(commentId, {
           onError: (err) => toastApiError(err, errFallback),
         });
       }}
@@ -473,28 +499,7 @@ export function TaskDetailTimeline({
                 {!isThreadResolved(entry.thread) ||
                 expandedResolved.has(entry.thread.root.id) ? (
                   <>
-                    {renderCommentCard(entry.thread.root, () =>
-                      setReplyingTo(entry.thread.root.id),
-                    )}
-                    {entry.thread.replies.length > 0 ? (
-                      <div className="ml-6 border-l border-border pl-3">
-                        {entry.thread.replies.map((reply) =>
-                          renderCommentCard(reply),
-                        )}
-                      </div>
-                    ) : null}
-                    {replyingTo === entry.thread.root.id ? (
-                      <div className="ml-6 border-l border-border pl-3">
-                        <TaskReplyComposer
-                          taskId={taskId}
-                          parent={entry.thread.root}
-                          onSubmit={(body) =>
-                            onReplySubmit(entry.thread.root.id, body)
-                          }
-                          onCancel={() => setReplyingTo(null)}
-                        />
-                      </div>
-                    ) : null}
+                    {renderCommentThread(entry.thread)}
                   </>
                 ) : null}
               </div>
@@ -507,7 +512,15 @@ export function TaskDetailTimeline({
         data-testid="task-comment-composer-dock"
         className="sticky bottom-0 z-10 mt-4 border-t border-border bg-background pt-3"
       >
-        <TaskCommentComposer taskId={taskId} onSubmit={onCompose} />
+        <div className="rounded-lg border border-border bg-card px-3 py-2">
+          <TaskCommentComposer
+            taskId={taskId}
+            attachments={attachments.data}
+            uploadFile={uploadCommentFile}
+            compact
+            onSubmit={onCompose}
+          />
+        </div>
       </div>
     </section>
   );

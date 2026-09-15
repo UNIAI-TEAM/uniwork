@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import {
   useAddTaskReaction,
+  useComments,
   useRemoveTaskReaction,
   useTaskAttachments,
   useUploadTaskAttachment,
@@ -49,6 +50,7 @@ export function TaskDetailEditors({
   const currentUser = useAuthStore((state) => state.user);
   const members = useMembers(workspaceId);
   const attachments = useTaskAttachments(workspaceId, task.id);
+  const comments = useComments(task.id);
   const uploadMutation = useUploadTaskAttachment(workspaceId, task.id);
   const addReaction = useAddTaskReaction(task.id);
   const removeReaction = useRemoveTaskReaction(task.id);
@@ -71,6 +73,10 @@ export function TaskDetailEditors({
         (members.data ?? []).map((member) => [member.user_id, member.display_name] as const),
       ),
     [members.data],
+  );
+  const attachmentReferences = useMemo(
+    () => [liveDescription, ...(comments.data ?? []).map((comment) => comment.body)].join("\n"),
+    [comments.data, liveDescription],
   );
   const toggleReaction = (emoji: string) => {
     if (!currentUser || addReaction.isPending || removeReaction.isPending) return;
@@ -187,7 +193,7 @@ export function TaskDetailEditors({
         <TaskDetailAttachmentsSlot
           workspaceId={workspaceId}
           taskId={task.id}
-          content={liveDescription}
+          content={attachmentReferences}
         />
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
         <TaskDetailTimelineSlot workspaceId={workspaceId} taskId={task.id} />
