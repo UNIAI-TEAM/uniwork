@@ -77,6 +77,17 @@ const RULES: readonly Rule[] = [
     passes: "Thread đã giải quyết",
   },
   {
+    rule: "a task is “việc” or “công việc”, never “task” (§2)",
+    // `{{task}}` is a variable name, not copy.
+    pattern: /(?<!\{\{)\b(?:sub-)?tasks?\b(?!\}\})/iu,
+    flags: "Thêm sub-task",
+    passes: "{{actor}} đã giao bạn việc “{{task}}”",
+    allow: {
+      "settings.audit.filters.action_placeholder": "an audit action identifier, typed as it is stored",
+      "settings.audit.filters.resource_type_placeholder": "an audit resource identifier, typed as it is stored",
+    },
+  },
+  {
     // Old and new placement differ only in open syllables oa, oe, uy; after
     // q the u belongs to the consonant, so quý is right either way.
     rule: "tone marks sit on the main vowel: hủy, xóa, tùy, never huỷ, xoá, tuỳ (§3 Punctuation)",

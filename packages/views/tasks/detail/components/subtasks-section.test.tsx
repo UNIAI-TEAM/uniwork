@@ -129,7 +129,7 @@ describe("TaskDetailSubtasksSection", () => {
     expect(screen.getByTestId("subtasks-progress")).toHaveTextContent("1/1");
 
     fireEvent.click(screen.getByRole("button", { name: "Tập trung ô thêm" }));
-    const input = screen.getByRole("textbox", { name: "Thêm sub-task" });
+    const input = screen.getByRole("textbox", { name: "Thêm công việc con" });
     fireEvent.change(input, { target: { value: "New child" } });
     fireEvent.submit(input.closest("form")!);
 
@@ -152,7 +152,7 @@ describe("TaskDetailSubtasksSection", () => {
     );
 
     const toggle = screen.getByRole("button", {
-      name: "Hiện hoặc ẩn danh sách sub-task",
+      name: "Hiện hoặc ẩn danh sách công việc con",
     });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     const regionId = toggle.getAttribute("aria-controls");
@@ -161,7 +161,7 @@ describe("TaskDetailSubtasksSection", () => {
     expect(region).not.toBeNull();
     expect(region).toContainElement(screen.getByText("Existing child"));
     fireEvent.click(screen.getByRole("button", { name: "Tập trung ô thêm" }));
-    const draft = screen.getByRole("textbox", { name: "Thêm sub-task" });
+    const draft = screen.getByRole("textbox", { name: "Thêm công việc con" });
     fireEvent.change(draft, { target: { value: "Bản nháp" } });
     expect(region).toContainElement(draft);
 
@@ -170,19 +170,19 @@ describe("TaskDetailSubtasksSection", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("Existing child")).not.toBeVisible();
     expect(
-      screen.getByRole("textbox", { name: "Thêm sub-task", hidden: true }),
+      screen.getByRole("textbox", { name: "Thêm công việc con", hidden: true }),
     ).not.toBeVisible();
-    expect(screen.getByRole("heading", { name: "Sub-task" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Công việc con" })).toBeVisible();
     expect(screen.getByTestId("subtasks-progress")).toBeVisible();
     fireEvent.click(toggle);
-    expect(screen.getByRole("textbox", { name: "Thêm sub-task" })).toHaveValue("Bản nháp");
+    expect(screen.getByRole("textbox", { name: "Thêm công việc con" })).toHaveValue("Bản nháp");
     fireEvent.click(toggle);
     first.unmount();
 
     render(shell(<TaskDetailSubtasksSection workspaceId="w1" taskId="t1" />));
 
     const again = screen.getByRole("button", {
-      name: "Hiện hoặc ẩn danh sách sub-task",
+      name: "Hiện hoặc ẩn danh sách công việc con",
     });
     expect(again).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("Existing child")).not.toBeVisible();
@@ -198,7 +198,7 @@ describe("TaskDetailSubtasksSection", () => {
     render(shell(<TaskDetailSubtasksSection workspaceId="w1" taskId="t1" />));
 
     expect(
-      screen.getByRole("button", { name: "Hiện hoặc ẩn danh sách sub-task" }),
+      screen.getByRole("button", { name: "Hiện hoặc ẩn danh sách công việc con" }),
     ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Existing child")).toBeVisible();
   });
@@ -213,7 +213,7 @@ describe("TaskDetailSubtasksSection", () => {
       screen.getByRole("combobox", { name: /người phụ trách.*Me/i }),
     ).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Thao tác sub-task" }),
+      screen.queryByRole("button", { name: "Thao tác công việc con" }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(

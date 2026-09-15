@@ -315,7 +315,7 @@ describe("TaskSurface", () => {
     ).toBeInTheDocument();
     expect(screen.queryByTestId("gantt-empty")).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/chưa có task đã lên lịch|no scheduled tasks/i),
+      screen.queryByText(/chưa có việc đã lên lịch|no scheduled tasks/i),
     ).not.toBeInTheDocument();
   });
 
@@ -336,7 +336,7 @@ describe("TaskSurface", () => {
     );
 
     expect(
-      await screen.findByText(/chưa có task đã lên lịch|no scheduled tasks/i),
+      await screen.findByText(/chưa có việc đã lên lịch|no scheduled tasks/i),
     ).toBeInTheDocument();
     expect(screen.queryByText("Chưa có công việc nào")).not.toBeInTheDocument();
     expect(screen.queryByText("No tasks yet")).not.toBeInTheDocument();

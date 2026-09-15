@@ -52,7 +52,7 @@ test("a task edit shows up in the organization's audit log", async ({ page }) =>
 
   // The founder is the organization owner, so the log is theirs to read, and
   // the entry names the field that moved rather than the whole row.
-  await expect(page.getByRole("cell", { name: /Cập nhật task/ }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("cell", { name: /Cập nhật việc/ }).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("cell", { name: /title/ }).first()).toBeVisible();
 
   // Filtering to something nobody did leaves an honest empty state, not rows.

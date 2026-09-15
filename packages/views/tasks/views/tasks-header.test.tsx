@@ -110,7 +110,7 @@ describe("TasksHeader mode switcher", () => {
       screen.getByRole("combobox", { name: "Sắp xếp" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("switch", { name: "Hiện sub-task" }),
+      screen.getByRole("switch", { name: "Hiện công việc con" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("switch", { name: "Độ ưu tiên" }),

@@ -23,7 +23,7 @@ describe("WelcomeAfterOnboarding", () => {
     setWelcomeSignal("w1");
     const onOpenTask = vi.fn();
     render(wrap(<WelcomeAfterOnboarding workspace={ws} onOpenTask={onOpenTask} />));
-    const open = await screen.findByRole("button", { name: "Mở task hướng dẫn" });
+    const open = await screen.findByRole("button", { name: "Mở việc hướng dẫn" });
     expect(screen.getAllByText("Chào mừng đến UniWork!").length).toBeGreaterThan(0);
     fireEvent.click(open);
     expect(onOpenTask).toHaveBeenCalledWith("t1");
