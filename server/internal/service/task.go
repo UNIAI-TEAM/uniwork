@@ -318,15 +318,23 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)
+	if err != nil {
+		return db.Task{}, err
+	}
+	emit := []audit.Event{{Topic: "task.created", Payload: map[string]string{
+		"task_id": task.ID, "workspace_id": workspaceID,
+	}}}
+	if autoSubscribed {
+		emit = append(emit, taskSubscriptionEvent(task))
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Actor:        actor,
 		Action:       audit.ActionTaskCreated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(nil, taskAuditFields(task)),
-	}, audit.Event{Topic: "task.created", Payload: map[string]string{
-		"task_id": task.ID, "workspace_id": workspaceID,
-	}}); err != nil {
+	}, emit...); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
@@ -457,13 +465,21 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 			return db.Task{}, err
 		}
 	}
+	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)
+	if err != nil {
+		return db.Task{}, err
+	}
+	emit := []audit.Event{{Topic: "task.updated", Payload: taskUpdatedPayload(task, in, revisionBefore)}}
+	if autoSubscribed {
+		emit = append(emit, taskSubscriptionEvent(task))
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
 		Actor:        actor,
 		Action:       audit.ActionTaskUpdated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(taskAuditFields(before), taskAuditFields(task)),
-	}, audit.Event{Topic: "task.updated", Payload: taskUpdatedPayload(task, in, revisionBefore)}); err != nil {
+	}, emit...); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil

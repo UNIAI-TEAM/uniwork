@@ -41,6 +41,7 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
       push(taskKeys.list(wsId), taskKeys.myTasks(wsId), taskKeys.queryRoot(wsId), taskKeys.tableRoot(wsId));
       if (payload.task_id) {
         push(taskKeys.detail(payload.task_id), taskKeys.children(payload.task_id));
+        if (event.type === "task.updated") push(taskKeys.subscribers(payload.task_id));
       }
       // Only task.updated declares Patch in the catalogue.
       if (event.type === "task.updated") patch = parseTaskPatchFrame(payload);

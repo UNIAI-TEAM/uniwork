@@ -11,7 +11,15 @@ import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
 import { useTaskDetailUiStore } from "@uniwork/core/tasks/stores/task-detail-ui-store";
-import type { AuditEvent, TaskComment, User, Workspace } from "@uniwork/core/types";
+import type {
+  Agent,
+  AuditEvent,
+  Member,
+  TaskComment,
+  TaskSubscriber,
+  User,
+  Workspace,
+} from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
 import { TaskFindQueryContext } from "../find/find-query-context";
@@ -52,6 +60,26 @@ const mockUseComments = vi.hoisted(() =>
   })),
 );
 
+const mockUseTaskSubscribers = vi.hoisted(() =>
+  vi.fn(() => ({ data: [] as TaskSubscriber[], isLoading: false })),
+);
+const mockUseMembers = vi.hoisted(() =>
+  vi.fn(() => ({ data: [] as Member[] })),
+);
+const mockUseWorkspaceAgents = vi.hoisted(() =>
+  vi.fn(() => ({ data: [] as Agent[] })),
+);
+
+vi.mock("@uniwork/core/workspaces", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/workspaces")>();
+  return { ...actual, useMembers: mockUseMembers };
+});
+
+vi.mock("@uniwork/core/agents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/agents")>();
+  return { ...actual, useWorkspaceAgents: mockUseWorkspaceAgents };
+});
+
 vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/tasks")>();
   return {
@@ -67,7 +95,7 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
     useUnresolveComment: () => ({ mutate: vi.fn(), isPending: false }),
     useAddCommentReaction: () => ({ mutate: vi.fn(), isPending: false }),
     useRemoveCommentReaction: () => ({ mutate: vi.fn(), isPending: false }),
-    useTaskSubscribers: () => ({ data: [], isLoading: false }),
+    useTaskSubscribers: mockUseTaskSubscribers,
     useSubscribeTask: () => ({ mutate: vi.fn(), isPending: false }),
     useUnsubscribeTask: () => ({ mutate: vi.fn(), isPending: false }),
   };
@@ -316,9 +344,54 @@ beforeEach(() => {
     },
   ]);
   mockResourceHistory([]);
+  mockUseTaskSubscribers.mockReturnValue({ data: [], isLoading: false });
+  mockUseMembers.mockReturnValue({ data: [] });
+  mockUseWorkspaceAgents.mockReturnValue({ data: [] });
 });
 
 describe("TaskDetailTimeline", () => {
+  it("shows real follower avatars beside the follow action and caps the visible group", () => {
+    mockUseTaskSubscribers.mockReturnValue({
+      data: [
+        { task_id: "t1", actor_type: "member", actor_id: "u1", reason: "manual", created_at: "2026-09-15T00:00:00Z" },
+        { task_id: "t1", actor_type: "member", actor_id: "u2", reason: "assignee", created_at: "2026-09-15T00:00:01Z" },
+        { task_id: "t1", actor_type: "agent", actor_id: "a1", reason: "manual", created_at: "2026-09-15T00:00:02Z" },
+        { task_id: "t1", actor_type: "member", actor_id: "u3", reason: "manual", created_at: "2026-09-15T00:00:03Z" },
+        { task_id: "t1", actor_type: "member", actor_id: "u4", reason: "manual", created_at: "2026-09-15T00:00:04Z" },
+      ],
+      isLoading: false,
+    });
+    mockUseMembers.mockReturnValue({
+      data: [
+        { workspace_id: "w1", user_id: "u1", role: "member", email: "me@x.com", display_name: "Me", avatar_url: "/avatars/me.png" },
+        { workspace_id: "w1", user_id: "u2", role: "member", email: "lan@x.com", display_name: "Lan", avatar_url: "/avatars/lan.png" },
+        { workspace_id: "w1", user_id: "u3", role: "member", email: "minh@x.com", display_name: "Minh", avatar_url: "/avatars/minh.png" },
+        { workspace_id: "w1", user_id: "u4", role: "member", email: "hoa@x.com", display_name: "Hoa", avatar_url: "/avatars/hoa.png" },
+      ],
+    });
+    mockUseWorkspaceAgents.mockReturnValue({
+      data: [
+        { id: "a1", organization_id: "o1", name: "Agent 17", handle: "agent-17", description: "", avatar_url: "/avatars/agent-17.png", status: "active", owner_user_id: "u1" },
+      ],
+    });
+
+    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+
+    const followers = screen.getByLabelText(
+      "Người theo dõi: Me, Lan, Agent 17, Minh, Hoa",
+    );
+    expect(within(followers).getByRole("img", { name: "Me" })).toHaveAttribute(
+      "src",
+      "/avatars/me.png",
+    );
+    expect(within(followers).getByRole("img", { name: "Agent 17" })).toHaveAttribute(
+      "src",
+      "/avatars/agent-17.png",
+    );
+    expect(within(followers).getAllByRole("img")).toHaveLength(4);
+    expect(within(followers).getByText("+1")).toBeInTheDocument();
+  });
+
   it("compose comment calls create suite mutation", async () => {
     renderTimeline({ workspaceId: "w1", taskId: "t1" });
 
