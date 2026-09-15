@@ -66,7 +66,7 @@ describe("StepOrganization", () => {
     renderStep({ onSelected });
     submit("Unicom");
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Vui lòng thử lại."),
+      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Thử lại."),
     );
     expect(onSelected).not.toHaveBeenCalled();
     // The CTA is back to its idle label, which is exactly why the failure has
@@ -92,7 +92,7 @@ describe("StepOrganization", () => {
     renderStep();
     submit("Unicom");
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Vui lòng thử lại."),
+      expect(toast.error).toHaveBeenCalledWith("Không tạo được tổ chức. Thử lại."),
     );
     expect(toast.error).not.toHaveBeenCalledWith(serverSentence);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

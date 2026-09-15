@@ -36,7 +36,7 @@ describe("MeetingFilters", () => {
     fireEvent.click(screen.getByRole("button", { name: /Đã kết thúc/ }));
     expect(onStatus).toHaveBeenCalledWith("ENDED");
 
-    fireEvent.click(screen.getByRole("button", { name: /Đã huỷ/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Đã hủy/ }));
     expect(onStatus).toHaveBeenCalledWith("CANCELED");
   });
 

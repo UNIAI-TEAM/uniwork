@@ -118,7 +118,7 @@ describe("MeetingDetailView", () => {
     expect(await screen.findByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hủy cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sửa cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chuyển chủ trì" })).toBeInTheDocument();
   });
@@ -151,7 +151,7 @@ describe("MeetingDetailView", () => {
     expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
     expect(screen.getByText("Đã kết thúc")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hủy cuộc họp" })).toBeInTheDocument();
   });
 
   it("shows three RSVP actions for a pending invitee", async () => {

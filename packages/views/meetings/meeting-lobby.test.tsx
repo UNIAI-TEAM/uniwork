@@ -115,7 +115,7 @@ describe("MeetingLobby", () => {
     );
 
     expect(
-      screen.getByText("Vui lòng đợi cho đến khi người chủ trì đưa bạn vào cuộc họp. Trang này sẽ tự cập nhật."),
+      screen.getByText("Chờ người chủ trì đưa bạn vào cuộc họp. Trang này sẽ tự cập nhật."),
     ).toBeInTheDocument();
   });
 

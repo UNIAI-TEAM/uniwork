@@ -85,7 +85,7 @@ describe("StepWorkspace", () => {
     const onCreated = vi.fn();
     renderStep({ onCreated });
     submit("Đội Alpha");
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không tạo được. Vui lòng thử lại."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không tạo được workspace. Thử lại."));
     expect(onCreated).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Tạo Đội Alpha" })).toBeInTheDocument();
   });
@@ -107,7 +107,7 @@ describe("StepWorkspace", () => {
     requestMock.mockRejectedValueOnce(new ApiError(serverSentence, "quota_exceeded", 403));
     renderStep();
     submit("Đội Alpha");
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không tạo được. Vui lòng thử lại."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không tạo được workspace. Thử lại."));
     expect(toast.error).not.toHaveBeenCalledWith(serverSentence);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

@@ -144,14 +144,14 @@ describe("HomeView", () => {
     serve({ prefs: { enabled: { stats: false, mywork: false, upcoming: false, inbox: false, brief: false } } });
     renderHome();
     expect(await screen.findByText("Bạn đã ẩn mọi khối trên trang chủ.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Mở tuỳ chỉnh" }));
-    expect(screen.getByRole("heading", { name: "Tuỳ chỉnh trang chủ" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mở tùy chỉnh" }));
+    expect(screen.getByRole("heading", { name: "Tùy chỉnh trang chủ" })).toBeInTheDocument();
   });
 
   it("saves a hidden section and removes it from the page", async () => {
     renderHome();
     expect(await screen.findByText("Từ dữ liệu thật")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tuỳ chỉnh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tùy chỉnh" }));
     fireEvent.click(screen.getByRole("switch", { name: "Tóm tắt hôm nay" }));
     await waitFor(() => {
       const put = requestMock.mock.calls.find(([p, o]) => String(p).endsWith("/home/preferences") && (o as Opts)?.method === "PUT");

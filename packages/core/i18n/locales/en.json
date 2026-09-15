@@ -2522,7 +2522,7 @@
       "slug_taken_error": "That slug is already taken.",
       "headline_resume_pick": "Pick one of your workspaces, or create a new one.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
-      "create_failed_toast": "Couldn't create that. Please try again.",
+      "create_failed_toast": "Couldn't create the workspace. Please try again.",
       "picker_label": "Choose a workspace"
     },
     "step_invite": {
