@@ -93,21 +93,20 @@ describe("TaskDetailSuitePage", () => {
       screen.getByRole("button", { name: /bình luận \(0\)|comments \(0\)/i }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /ghim công việc|pin task/i }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: /ghim công việc|pin task/i }),
+    ).toBeInTheDocument();
     const actions = screen.getByRole("button", {
       name: /thao tác công việc|task actions/i,
     });
     expect(actions).toBeInTheDocument();
     fireEvent.click(actions);
     expect(
-      await screen.findByRole("menuitem", {
-        name: /ghim công việc|pin task/i,
-      }),
-    ).toBeInTheDocument();
-    expect(
       await screen.findByText(/đổi trạng thái|change status/i),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /ghim công việc|pin task/i }),
+    ).not.toBeInTheDocument();
+    expect(document.body).not.toHaveStyle({ overflow: "hidden" });
 
     expect(
       screen.getByRole("region", { name: /tiêu đề|title/i }),

@@ -28,8 +28,6 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { copyText } from "@uniwork/ui/lib/clipboard";
@@ -135,7 +133,17 @@ export function TaskDetailHeaderActions({
         <MessageSquare aria-hidden />
         <span className="tabular-nums">{comments.data?.length ?? 0}</span>
       </Button>
-      <DropdownMenu>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={pinned ? t("tasks.detail.unpin") : t("tasks.detail.pin")}
+        aria-disabled={pinPending || undefined}
+        onClick={togglePin}
+      >
+        {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
+      </Button>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger
           render={
             <Button
@@ -149,14 +157,6 @@ export function TaskDetailHeaderActions({
           <MoreHorizontal aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
-          <DropdownMenuItem
-            disabled={pinPending}
-            onClick={togglePin}
-          >
-            {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-            {pinned ? t("tasks.detail.unpin") : t("tasks.detail.pin")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <RowActionItems
             parts={DROPDOWN_PARTS}
             model={{
