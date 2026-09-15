@@ -235,7 +235,11 @@ export function AnimatedRightSidebarLayout({
       }
       className={cn("min-h-0 flex-1", className)}
     >
-      <ResizablePanel id="content" minSize="40%" className="min-w-0">
+      <ResizablePanel
+        id="content"
+        minSize="40%"
+        className="min-w-0 !overflow-hidden"
+      >
         {main}
       </ResizablePanel>
       <ResizableHandle withHandle />
@@ -249,7 +253,7 @@ export function AnimatedRightSidebarLayout({
         collapsible
         groupResizeBehavior="preserve-pixel-size"
         onResize={controller.handleResize}
-        className="min-w-0 border-l border-border"
+        className="min-w-0 !overflow-hidden border-l border-border"
       >
         <AnimatedRightSidebar
           open={controller.desktopVisualOpen}
