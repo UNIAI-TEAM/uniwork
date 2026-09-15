@@ -99,9 +99,12 @@ describe("TaskDetailSuitePage", () => {
     });
 
     expect(screen.getByText("TEAM-12 Ship detail shell")).toBeInTheDocument();
+    // ThreadNav replaces the old scroll-to-comments button; with zero threads
+    // the trigger stays unmounted (MIN_THREADS = 1).
     expect(
-      screen.getByRole("button", { name: /bình luận \(0\)|comments \(0\)/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /bình luận \(\d+\)|comments \(\d+\)/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("task-thread-nav-trigger")).toBeNull();
     expect(
       screen.getByRole("button", { name: /ghim công việc|pin task/i }),
     ).toBeInTheDocument();

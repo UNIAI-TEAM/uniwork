@@ -47,15 +47,14 @@ export function TaskCommentEditor({ taskId, body, attachments, uploadFile, onSav
         onUpdate={setDraft}
         onSubmit={() => void save()}
       />
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>{t("common.cancel")}</Button>
         <FileUploadButton
           size="sm"
           multiple
           disabled={editorUpload.uploading || uploadGate.uploading}
           onSelect={(file) => editorRef.current?.uploadFile(file)}
         />
-        <span className="flex-1" />
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>{t("common.cancel")}</Button>
         <Button type="button" size="sm" aria-disabled={!draft.trim() || saving || uploadGate.uploading || undefined} onClick={() => void save()}>
           {t("common.save")}
         </Button>

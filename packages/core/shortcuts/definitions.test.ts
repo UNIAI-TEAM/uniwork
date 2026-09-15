@@ -39,10 +39,11 @@ describe("UniWork shortcut actions", () => {
     expect(SHORTCUT_ACTION_BY_ID.openSearch?.allowInEditable).toBe(true);
   });
 
-  it("declares thread navigation as bindable but unbound by default", () => {
-    expect(SHORTCUT_ACTION_BY_ID.openThreadNav).toBeDefined();
-    expect(SHORTCUT_ACTION_BY_ID.openThreadNav?.defaultShortcut).toBeNull();
-    expect(SHORTCUT_ACTION_BY_ID.openThreadNav?.allowInEditable).toBe(false);
+  it("opens thread navigation with primary+shift+O from anywhere, including editors", () => {
+    expect(SHORTCUT_ACTION_BY_ID.openThreadNav?.defaultShortcut).toEqual(
+      createShortcutChord("O", { primary: true, shift: true }),
+    );
+    expect(SHORTCUT_ACTION_BY_ID.openThreadNav?.allowInEditable).toBe(true);
   });
 
   it("leaves navigation actions unbound by default", () => {
@@ -59,7 +60,16 @@ describe("UniWork shortcut actions", () => {
   it("keeps every shipped default inside the action safety policy on macOS and Windows web", () => {
     const bound = SHORTCUT_ACTIONS.filter((action) => action.defaultShortcut !== null);
     expect(bound.map((action) => action.id)).toEqual(
-      expect.arrayContaining(["ai.askUni", "openSearch", "createTask", "findInTask", "send", "goBack", "goForward"]),
+      expect.arrayContaining([
+        "ai.askUni",
+        "openSearch",
+        "createTask",
+        "findInTask",
+        "openThreadNav",
+        "send",
+        "goBack",
+        "goForward",
+      ]),
     );
     for (const platform of ["macos", "windows"] as const) {
       for (const action of bound) {

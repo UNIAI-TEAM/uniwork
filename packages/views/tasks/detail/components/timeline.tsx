@@ -37,15 +37,15 @@ import {
 import { toastApiError } from "../../../toast-api-error";
 import { useFindExpandedThreads } from "../find/find-expanded-threads";
 import { useTaskFindQuery } from "../find/find-query-context";
+import { useTaskThreadNavOptional } from "../thread-nav-context";
 import { isTimelineActivity } from "./activity-row";
 import { TaskActivityGroup } from "./activity-group";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
-import { buildCommentThreads, deriveThreadResolution, type CommentThread } from "./comment-thread";
-import { commentPreviewOrFallback } from "./comment-preview-text";
+import { buildCommentThreads, type CommentThread } from "./comment-thread";
 import { TaskReplyComposer } from "./reply-composer";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
-import { ThreadNavPanel, type ThreadNavItem } from "./thread-nav-panel";
+import { scrollCommentIntoContainer } from "./thread-nav-helpers";
 import { groupTimelineEntries } from "./timeline-entries";
 
 const MAX_VISIBLE_FOLLOWERS = 4;
@@ -94,6 +94,7 @@ export function TaskDetailTimeline({
   const findQuery = useTaskFindQuery();
   const errFallback = t("common.error");
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const threadNav = useTaskThreadNavOptional();
   const { data: comments, isLoading } = useComments(taskId);
   const attachments = useTaskAttachments(workspaceId, taskId);
   const { mutateAsync: uploadTaskAttachment } = useUploadTaskAttachment(workspaceId, taskId);
@@ -127,9 +128,9 @@ export function TaskDetailTimeline({
   }, [uploadTaskAttachment]);
   // The single source of truth for "which comment should the page scroll to
   // and highlight". Seeded from the URL hash on mount, and re-pointed by the
-  // thread-nav chips (via jumpToComment) — one mechanism, two triggers. The
-  // nonce forces the effect below to rerun even when a chip is clicked twice
-  // in a row for the same thread.
+  // header thread-nav (via registerJump) — one mechanism, two triggers. The
+  // nonce forces the effect below to rerun even when the same thread is
+  // requested twice in a row.
   const [scrollRequest, setScrollRequest] = useState<{
     target: string;
     nonce: number;
@@ -149,20 +150,6 @@ export function TaskDetailTimeline({
     [expandedResolvedIds, findExpanded.ids],
   );
 
-  const navThreads = useMemo<ThreadNavItem[]>(
-    () =>
-      threads.map((thread) => ({
-        id: thread.root.id,
-        preview: commentPreviewOrFallback(
-          thread.root.body,
-          t("tasks.detail.comment_preview_empty"),
-        ),
-        replyCount: thread.replies.length,
-        resolved: deriveThreadResolution(thread.root, thread.replies).kind !== "none",
-      })),
-    [threads, t],
-  );
-
   // The highlight fade lives in a ref, not in the scroll effect's cleanup.
   // The effect clears `scrollRequest` as its last act, which re-runs it
   // immediately; a cleanup-owned timer would be cancelled by that very
@@ -177,8 +164,18 @@ export function TaskDetailTimeline({
     [],
   );
 
-  const jumpToComment = (id: string) =>
+  const jumpToComment = useCallback((id: string) => {
     setScrollRequest((prev) => ({ target: id, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
+
+  // Header panel jumps through the page-owned context; absent when the
+  // timeline is mounted alone in a test without the suite provider.
+  const registerJump = threadNav?.registerJump;
+  useEffect(() => {
+    if (!registerJump) return;
+    registerJump(jumpToComment);
+    return () => registerJump(null);
+  }, [registerJump, jumpToComment]);
 
   const entries = useMemo(() => {
     const commentRows = threads.map((thread) => ({
@@ -259,9 +256,9 @@ export function TaskDetailTimeline({
     // so the target renders, then a later run of this effect (triggered by
     // the expandedResolved change) finds the element and scrolls to it. A
     // link wins over memory: a thread the person collapsed last visit still
-    // opens for it, and stays remembered as open afterwards. The
-    // thread-nav chips point at this same target/effect pair instead of
-    // scrolling on their own, so the two triggers never fight each other.
+    // opens for it, and stays remembered as open afterwards. The header
+    // thread-nav points at this same target/effect pair instead of scrolling
+    // on its own, so the two triggers never fight each other.
     const thread = threads.find(
       (th) => th.root.id === target || th.replies.some((r) => r.id === target),
     );
@@ -280,8 +277,11 @@ export function TaskDetailTimeline({
       if (!expandedResolved.has(thread.root.id)) return;
     }
     const el = document.getElementById(`comment-${target}`);
-    if (!el) return;
-    el.scrollIntoView({ block: "nearest" });
+    const container = threadNav?.scrollContainerEl;
+    if (!el || !container) return;
+    // Drive scrollTop on the page scroller only — never native scrollIntoView,
+    // which also scrolls every scrollable ancestor (desktop shell included).
+    scrollCommentIntoContainer(el, container);
     setHighlightedId(target);
     if (fadeTimerRef.current !== undefined) {
       window.clearTimeout(fadeTimerRef.current);
@@ -298,7 +298,14 @@ export function TaskDetailTimeline({
     // identity and re-scrolls to the stale hash target with a fresh
     // highlight.
     setScrollRequest(null);
-  }, [scrollRequest, threads, taskId, expandedResolved, expandedResolvedIds]);
+  }, [
+    scrollRequest,
+    threads,
+    taskId,
+    expandedResolved,
+    expandedResolvedIds,
+    threadNav?.scrollContainerEl,
+  ]);
 
   const onCompose = async (body: string): Promise<boolean> => {
     try {
@@ -328,6 +335,7 @@ export function TaskDetailTimeline({
       replies={thread.replies}
       attachments={attachments.data}
       uploadFile={uploadCommentFile}
+      highlighted={threadNav?.hoverThreadId === thread.root.id}
       highlightedId={highlightedId}
       canModerate={currentMember.role === "owner" || currentMember.role === "admin"}
       getActorName={(_type, id) => actorNames.get(id) ?? id}
@@ -384,6 +392,9 @@ export function TaskDetailTimeline({
   );
 
   return (
+    <>
+    {/* Activity section only — the composer sits outside so sticky can pin
+        across the content column (baseline issue-detail). */}
     <section
       aria-label={t("tasks.detail.timeline_section")}
       className="mt-8 border-t border-border pt-6"
@@ -443,8 +454,6 @@ export function TaskDetailTimeline({
           ) : null}
         </div>
       </div>
-
-      <ThreadNavPanel threads={navThreads} onJump={jumpToComment} />
 
       <div className="mt-4 space-y-3">
         {history.isError ? (
@@ -507,21 +516,31 @@ export function TaskDetailTimeline({
           )
         )}
       </div>
-
-      <div
-        data-testid="task-comment-composer-dock"
-        className="sticky bottom-0 z-10 mt-4 border-t border-border bg-background pt-3"
-      >
-        <div className="rounded-lg border border-border bg-card px-3 py-2">
-          <TaskCommentComposer
-            taskId={taskId}
-            attachments={attachments.data}
-            uploadFile={uploadCommentFile}
-            compact
-            onSubmit={onCompose}
-          />
-        </div>
-      </div>
     </section>
+
+    {/* Bottom comment input — direct child of the content column (not the
+        Activity section): a sticky box can't leave its containing block, and
+        the Activity section only spans the timeline — at column level
+        `sticky bottom-0` pins across the whole scroll range (baseline).
+
+        Opaque bg-background under the card, a 16px gradient fade above
+        (covers the mt-4 gap at rest), and pb-4 so the card floats off the
+        viewport edge — with -mb-4 giving the padding back to the column's
+        py-8 so the at-rest layout doesn't shift. */}
+    <div
+      data-testid="task-comment-composer-dock"
+      className="relative sticky bottom-0 z-10 mt-4 -mb-4 bg-background pb-4 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-gradient-to-t before:from-background before:to-transparent"
+    >
+      <div className="rounded-lg border border-border bg-card px-3 py-2">
+        <TaskCommentComposer
+          taskId={taskId}
+          attachments={attachments.data}
+          uploadFile={uploadCommentFile}
+          compact
+          onSubmit={onCompose}
+        />
+      </div>
+    </div>
+    </>
   );
 }

@@ -48,6 +48,7 @@ export function TaskReplyComposer({
         attachments={attachments}
         uploadFile={uploadFile}
         compact={inline}
+        refocusAfterSend
         onSubmit={onSubmit}
       />
     </div>

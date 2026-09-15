@@ -70,9 +70,17 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
   { id: "openSearch", category: "general", defaultShortcut: primary("K"), allowInEditable: true },
   { id: "createTask", category: "general", defaultShortcut: createShortcutChord("C"), allowInEditable: false },
   { id: "findInTask", category: "general", defaultShortcut: primary("F"), allowInEditable: true },
-  // Deliberately unbound: no chord was verified free of browser/OS reservations
-  // on every platform. Users bind it in Settings.
-  { id: "openThreadNav", category: "general", defaultShortcut: null, allowInEditable: false },
+  // Mod+Shift+O — known gap: Chrome on Windows/Linux binds Ctrl+Shift+O to its
+  // bookmark manager, so on those web builds the default never reaches the page.
+  // Recordable rather than reserved: desktop receives it, and Settings lets
+  // affected users rebind. allowInEditable because jumping threads while
+  // drafting a comment is the common case.
+  {
+    id: "openThreadNav",
+    category: "general",
+    defaultShortcut: createShortcutChord("O", { primary: true, shift: true }),
+    allowInEditable: true,
+  },
   { id: "send", category: "general", defaultShortcut: createShortcutChord("Enter", { primary: true }), allowInEditable: true },
   { id: "goBack", category: "navigation", defaultShortcut: primary("["), allowInEditable: false },
   { id: "goForward", category: "navigation", defaultShortcut: primary("]"), allowInEditable: false },

@@ -1,13 +1,18 @@
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import type { AvatarSize } from "@uniwork/ui/lib/avatar-size";
 
 export function TaskActorAvatar({
   name,
   avatarUrl,
   kind,
+  size = "xs",
+  className,
 }: {
   name: string;
   avatarUrl?: string;
   kind?: string;
+  size?: AvatarSize;
+  className?: string;
 }) {
   return (
     <ActorAvatar
@@ -16,7 +21,8 @@ export function TaskActorAvatar({
       avatarUrl={avatarUrl}
       isAgent={kind === "agent"}
       isSystem={kind === "system"}
-      size="xs"
+      size={size}
+      className={className}
     />
   );
 }

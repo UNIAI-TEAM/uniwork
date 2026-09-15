@@ -1,17 +1,11 @@
 "use client";
 
 /**
- * ReadonlyContent — compatibility wrapper over the canonical <RichContent>.
+ * ReadonlyContent — compatibility wrapper over RichContent.
  *
- * The renderer itself moved to packages/views/rich-content/ (UNI-0) so Chat,
- * Task descriptions and Comments all share ONE implementation of Markdown
- * parsing, sanitize, fenced-code dispatch, mentions, links and attachments.
- * This file stays only so existing document-density callers (comment cards,
- * issue detail, autopilot detail, Markdown attachment preview) keep their
- * import path and props.
- *
- * Do not reintroduce rendering logic here. New behaviour belongs in
- * RichContent, where every surface picks it up at once.
+ * Callers (comment cards, description surfaces) keep this import path; the
+ * renderer lives next to it under stubs/ until the full rich-content package
+ * (fences, mermaid, entity unfurl) is ported.
  */
 
 import { memo } from "react";

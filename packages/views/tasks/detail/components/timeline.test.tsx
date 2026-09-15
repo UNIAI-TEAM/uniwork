@@ -23,6 +23,11 @@ import type {
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
 import { TaskFindQueryContext } from "../find/find-query-context";
+import {
+  TaskThreadNavProvider,
+  useTaskThreadNav,
+} from "../thread-nav-context";
+import * as threadNavHelpers from "./thread-nav-helpers";
 import { TaskDetailTimeline } from "./timeline";
 
 vi.mock("sonner", () => ({
@@ -264,6 +269,51 @@ function shell(ui: ReactNode) {
   );
 }
 
+/** Calls the timeline's registered jump through the page-owned context. */
+function JumpTrigger({ threadId }: { threadId: string }) {
+  const { jumpToThread } = useTaskThreadNav();
+  return (
+    <button
+      type="button"
+      data-testid={`jump-${threadId}`}
+      onClick={() => jumpToThread(threadId)}
+    />
+  );
+}
+
+function TimelineUnderNav({
+  workspaceId,
+  taskId,
+  findQuery,
+  children,
+}: {
+  workspaceId: string;
+  taskId: string;
+  findQuery?: string;
+  children?: ReactNode;
+}) {
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+  const timeline = <TaskDetailTimeline workspaceId={workspaceId} taskId={taskId} />;
+  return (
+    <TaskThreadNavProvider scrollContainerEl={scrollEl}>
+      {children}
+      <div
+        ref={setScrollEl}
+        data-testid="timeline-scroll"
+        style={{ overflow: "auto", height: 400 }}
+      >
+        {findQuery === undefined ? (
+          timeline
+        ) : (
+          <TaskFindQueryContext.Provider value={findQuery}>
+            {timeline}
+          </TaskFindQueryContext.Provider>
+        )}
+      </div>
+    </TaskThreadNavProvider>
+  );
+}
+
 function mockComments(comments: TaskComment[]) {
   mockUseComments.mockReturnValue({
     data: comments,
@@ -296,22 +346,25 @@ function renderTimeline({
   workspaceId,
   taskId,
   findQuery,
+  jumpIds = [],
 }: {
   workspaceId: string;
   taskId: string;
   findQuery?: string;
+  /** Extra jump triggers for tests that drive the header-nav jump path. */
+  jumpIds?: string[];
 }) {
-  const timeline = <TaskDetailTimeline workspaceId={workspaceId} taskId={taskId} />;
-  // Only find cases pass a query. The rest render the exact tree they always
-  // did, so a case that later rerenders the bare timeline keeps the same tree
-  // instead of remounting it.
   return render(
     shell(
-      findQuery === undefined ? (
-        timeline
-      ) : (
-        <TaskFindQueryContext.Provider value={findQuery}>{timeline}</TaskFindQueryContext.Provider>
-      ),
+      <TimelineUnderNav
+        workspaceId={workspaceId}
+        taskId={taskId}
+        findQuery={findQuery}
+      >
+        {jumpIds.map((id) => (
+          <JumpTrigger key={id} threadId={id} />
+        ))}
+      </TimelineUnderNav>,
     ),
   );
 }
@@ -320,11 +373,10 @@ beforeAll(() => {
   initI18n();
 });
 
-const scrollIntoView = vi.fn();
+const scrollComment = vi.spyOn(threadNavHelpers, "scrollCommentIntoContainer");
 
 beforeEach(() => {
-  scrollIntoView.mockClear();
-  Element.prototype.scrollIntoView = scrollIntoView;
+  scrollComment.mockClear();
   resetAuthStoreForTests();
   setSessionUser(me);
   createMutateAsync.mockClear();
@@ -671,16 +723,21 @@ describe("TaskDetailTimeline", () => {
     ).toBeInTheDocument();
   });
 
-  it("giữ ô soạn bình luận dính đáy khi cuộn", () => {
+  it("ghim ô soạn bình luận ở cấp cột, cách đáy bằng pb-4 như baseline", () => {
     mockComments([]);
     mockResourceHistory([]);
     renderTimeline({ workspaceId: "w1", taskId: "t1" });
-    expect(screen.getByTestId("task-comment-composer-dock")).toHaveClass(
-      "sticky",
-    );
+    const dock = screen.getByTestId("task-comment-composer-dock");
+    const timeline = screen.getByTestId("task-detail-timeline");
+    // Outside the Activity section so sticky spans the content column.
+    expect(dock.closest("[data-testid='task-detail-timeline']")).toBeNull();
+    expect(dock).toHaveClass("sticky", "bottom-0", "pb-4", "-mb-4");
+    expect(
+      timeline.compareDocumentPosition(dock) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
-  it("bấm chip điều hướng luồng thì cuộn tới và mở luồng đã giải quyết đó", () => {
+  it("nhảy qua thread-nav thì cuộn tới và mở luồng đã giải quyết đó", () => {
     mockComments([
       {
         id: "c1",
@@ -742,11 +799,11 @@ describe("TaskDetailTimeline", () => {
     ]);
     mockResourceHistory([]);
 
-    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+    renderTimeline({ workspaceId: "w1", taskId: "t1", jumpIds: ["c2"] });
 
     expect(screen.queryByText("trả lời trong luồng hai")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("thread-nav-c2"));
+    fireEvent.click(screen.getByTestId("jump-c2"));
 
     expect(screen.getByText("trả lời trong luồng hai")).toBeInTheDocument();
   });
@@ -897,9 +954,9 @@ describe("TaskDetailTimeline", () => {
     ]);
     mockResourceHistory([]);
 
-    renderTimeline({ workspaceId: "w1", taskId: "t1" });
+    renderTimeline({ workspaceId: "w1", taskId: "t1", jumpIds: ["c2"] });
 
-    fireEvent.click(screen.getByTestId("thread-nav-c2"));
+    fireEvent.click(screen.getByTestId("jump-c2"));
     expect(screen.getByText("trả lời trong luồng hai")).toBeInTheDocument();
 
     // Closing the bar must stick. While the scroll request was still
@@ -909,8 +966,6 @@ describe("TaskDetailTimeline", () => {
 
     expect(screen.queryByText("trả lời trong luồng hai")).not.toBeInTheDocument();
     // The root card too, not just the reply — only the collapsed bar remains.
-    // (The thread-nav chip still carries the root's preview text, so assert on
-    // the card's testid rather than on the words.)
     expect(screen.queryByTestId("task-comment-c2")).toBeNull();
   });
 
@@ -942,11 +997,13 @@ describe("TaskDetailTimeline", () => {
     // already be retired, or every refetch re-fires the jump.
     mockComments([...comments]);
     rerender(
-      shell(<TaskDetailTimeline workspaceId="w1" taskId="t1" />),
+      shell(
+        <TimelineUnderNav workspaceId="w1" taskId="t1" />,
+      ),
     );
 
     await waitFor(() =>
-      expect(scrollIntoView).toHaveBeenCalledTimes(1),
+      expect(scrollComment).toHaveBeenCalledTimes(1),
     );
   });
 
@@ -1023,7 +1080,7 @@ describe("TaskDetailTimeline", () => {
       renderTimeline({ workspaceId: "w1", taskId: "t1" });
 
       expect(await screen.findByText("trả lời bên trong")).toBeInTheDocument();
-      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(scrollComment).toHaveBeenCalledTimes(1));
     });
 
     it("thay đổi ghi nhớ của task khác không render lại timeline này", async () => {
@@ -1033,12 +1090,12 @@ describe("TaskDetailTimeline", () => {
       render(
         shell(
           <Profiler id="timeline" onRender={() => { commits += 1; }}>
-            <TaskDetailTimeline workspaceId="w1" taskId="t1" />
+            <TimelineUnderNav workspaceId="w1" taskId="t1" />
           </Profiler>,
         ),
       );
       // Hash expands the thread, scrolls, then retires the request.
-      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(scrollComment).toHaveBeenCalledTimes(1));
       const settled = commits;
 
       act(() => {
@@ -1047,7 +1104,7 @@ describe("TaskDetailTimeline", () => {
       });
 
       expect(commits).toBe(settled);
-      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollComment).toHaveBeenCalledTimes(1);
     });
 
     // In-page find opens matching resolved threads through a temporary set,
@@ -1093,48 +1150,5 @@ describe("TaskDetailTimeline", () => {
       expect(screen.getByTestId("resolved-thread-bar")).toHaveAttribute("aria-expanded", "true");
       expect(screen.getByText(decomposed)).toBeInTheDocument();
     });
-  });
-
-  it("không hiện bảng điều hướng luồng khi có ba luồng trở xuống", () => {
-    mockComments([
-      {
-        id: "c1",
-        task_id: "t1",
-        author_id: "u1",
-        author_kind: "human",
-        body: "luồng một",
-        type: "comment",
-        revision: 0,
-        created_at: "2026-09-12T10:00:00Z",
-        reactions: [],
-      },
-      {
-        id: "c2",
-        task_id: "t1",
-        author_id: "u1",
-        author_kind: "human",
-        body: "luồng hai",
-        type: "comment",
-        revision: 0,
-        created_at: "2026-09-12T10:01:00Z",
-        reactions: [],
-      },
-      {
-        id: "c3",
-        task_id: "t1",
-        author_id: "u1",
-        author_kind: "human",
-        body: "luồng ba",
-        type: "comment",
-        revision: 0,
-        created_at: "2026-09-12T10:02:00Z",
-        reactions: [],
-      },
-    ]);
-    mockResourceHistory([]);
-
-    renderTimeline({ workspaceId: "w1", taskId: "t1" });
-
-    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 });

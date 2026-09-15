@@ -638,7 +638,7 @@
         "open_search": { "label": "Mở tìm kiếm", "description": "Tìm và chạy lệnh từ bất cứ đâu." },
         "create_task": { "label": "Tạo việc", "description": "Mở hộp tạo việc mới." },
         "find_in_task": { "label": "Tìm trong việc", "description": "Tìm chữ trong trang chi tiết việc đang mở." },
-        "open_thread_nav": { "label": "Điều hướng luồng", "description": "Đưa focus tới danh sách luồng thảo luận của việc đang mở." },
+        "open_thread_nav": { "label": "Điều hướng luồng", "description": "Mở hoặc ghim bảng điều hướng luồng thảo luận của việc đang mở." },
         "send": { "label": "Gửi", "description": "Gửi bình luận và trả lời trong ô soạn thảo." },
         "go_back": { "label": "Quay lại", "description": "Lùi lại trong lịch sử, như trình duyệt." },
         "go_forward": { "label": "Tiến tới", "description": "Tiến tới trong lịch sử, như trình duyệt." },
@@ -1110,9 +1110,26 @@
       "activity_error": "Không tải được hoạt động. Thử lại sau.",
       "thread_resolved_one": "Luồng đã giải quyết · {{count}} trả lời",
       "thread_resolved_other": "Luồng đã giải quyết · {{count}} trả lời",
-      "thread_nav": "Điều hướng luồng",
-      "thread_nav_replies_one": "· {{count}} trả lời",
-      "thread_nav_replies_other": "· {{count}} trả lời",
+      "thread_nav": {
+        "button_label_one": "Luồng thảo luận ({{count}})",
+        "button_label_other": "Luồng thảo luận ({{count}})",
+        "search_placeholder": "Tìm luồng hoặc người viết",
+        "match_count_one": "{{count}} khớp",
+        "match_count_other": "{{count}} khớp",
+        "filter_all": "Tất cả",
+        "filter_unresolved": "Chưa giải quyết",
+        "filter_resolved": "Đã giải quyết",
+        "filter_mine": "@tôi",
+        "group": {
+          "today": "Hôm nay",
+          "yesterday": "Hôm qua",
+          "earlier": "Trước đó"
+        },
+        "empty": "Không có luồng khớp",
+        "hint_select": "chọn",
+        "hint_jump": "nhảy tới",
+        "hint_close": "đóng"
+      },
       "find": {
         "label": "Tìm trong công việc",
         "placeholder": "Tìm trong công việc…",

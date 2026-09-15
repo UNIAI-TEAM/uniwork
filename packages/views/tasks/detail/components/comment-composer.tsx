@@ -7,6 +7,7 @@ import type { UploadFileFn } from "@uniwork/core/hooks/use-file-upload";
 import type { Attachment } from "@uniwork/core/types";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useCommentDraftStore } from "@uniwork/core/tasks/stores/comment-draft-store";
 import {
   ContentEditor,
@@ -28,8 +29,9 @@ import {
 const DRAFT_DEBOUNCE_MS = 1500;
 
 /**
- * Lazy ContentEditor comment composer. Submit awaits the server; draft stays
- * on failure (useComposerSubmit contract).
+ * Lazy ContentEditor comment composer. Layout: TipTap on top, attach + send
+ * grouped at the bottom-right. Submit awaits the server;
+ * draft stays on failure (useComposerSubmit contract).
  */
 export function TaskCommentComposer({
   taskId,
@@ -37,6 +39,7 @@ export function TaskCommentComposer({
   attachments,
   uploadFile,
   compact = false,
+  refocusAfterSend = false,
   onSubmit,
 }: {
   taskId: string;
@@ -45,6 +48,8 @@ export function TaskCommentComposer({
   attachments?: Attachment[];
   uploadFile?: UploadFileFn;
   compact?: boolean;
+  /** Thread replies keep the caret for the next message (baseline ReplyInput). */
+  refocusAfterSend?: boolean;
   onSubmit: (body: string) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
@@ -101,7 +106,9 @@ export function TaskCommentComposer({
   const { submitting, submit } = useComposerSubmit({
     editorRef,
     uploadGate,
-    afterAccepted: "blur",
+    containerRef,
+    // Reply keeps the caret for the next message; top-level comment blurs.
+    afterAccepted: refocusAfterSend ? "refocus" : "blur",
     onSubmit: (body) => {
       lastSubmittedRef.current = body;
       return onSubmit(body);
@@ -145,32 +152,65 @@ export function TaskCommentComposer({
   });
 
   const placeholder = t("tasks.detail.comment_placeholder");
+  const actionsDisabled = isEmpty || submitting || uploadGate.uploading;
+  const uploading = editorUpload.uploading || uploadGate.uploading;
+
+  const actions = (
+    <div
+      className={cn(
+        "flex items-center gap-1",
+        compact ? "absolute bottom-0 right-0" : "absolute bottom-1.5 right-1.5",
+      )}
+    >
+      <FileUploadButton
+        size="sm"
+        multiple
+        disabled={uploading}
+        onSelect={(file) => lazy.uploadOrQueue([file])}
+      />
+      <Button
+        type="button"
+        size="icon-sm"
+        aria-label={t("tasks.detail.comment_send")}
+        aria-disabled={actionsDisabled || undefined}
+        onClick={() => {
+          if (actionsDisabled) return;
+          void submit();
+        }}
+      >
+        <ArrowUp aria-hidden />
+      </Button>
+    </div>
+  );
 
   return (
     <div
       ref={containerRef}
-      className={compact ? "relative" : "relative rounded-lg border border-border bg-card p-3"}
+      className={cn(
+        "relative flex min-w-0 flex-col",
+        compact
+          ? !isEmpty && "pb-9"
+          : "rounded-lg border border-border bg-card pb-10",
+      )}
       data-testid="task-comment-composer"
     >
-      <div className={compact ? "flex min-h-10 items-end gap-2" : undefined}>
-        {compact ? (
-          <FileUploadButton
-            size="sm"
-            multiple
-            disabled={editorUpload.uploading || uploadGate.uploading}
-            onSelect={(file) => editorRef.current?.uploadFile(file)}
-          />
-        ) : null}
-        {lazy.active ? (
-          <div className={lazy.ready ? (compact ? "min-w-0 flex-1" : undefined) : "hidden"}>
+      {lazy.active ? (
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto",
+            submitting && "pointer-events-none opacity-60",
+            !lazy.ready && "hidden",
+            !compact && "px-3 pt-2",
+          )}
+          aria-busy={submitting || undefined}
+        >
           <ContentEditor
             key={`comment-composer-${key}`}
             ref={editorRef}
             defaultValue={draft}
             placeholder={placeholder}
-            className={compact ? "min-h-8 py-1 text-body" : "min-h-16 text-body"}
+            className={cn("text-body", compact ? "min-h-8" : "min-h-16")}
             debounceMs={0}
-            showBubbleMenu={false}
             disableMentions
             onReady={lazy.onReady}
             onUploadingChange={uploadGate.onUploadingChange}
@@ -194,14 +234,19 @@ export function TaskCommentComposer({
               void submit();
             }}
           />
-          </div>
-        ) : null}
-        {!lazy.ready ? (
-          <div
+        </div>
+      ) : null}
+      {!lazy.ready ? (
+        <div
           role="button"
           tabIndex={0}
           data-testid="task-comment-composer-shell"
-          className={compact ? "min-h-8 min-w-0 flex-1 cursor-text py-1 text-body text-muted-foreground" : "min-h-16 cursor-text text-body text-muted-foreground"}
+          aria-label={placeholder}
+          className={cn(
+            "min-h-0 flex-1 cursor-text",
+            !compact && "px-3 pt-2",
+            "rich-text-editor text-body",
+          )}
           onClick={(e) => {
             const sel = window.getSelection();
             if (sel && !sel.isCollapsed) return;
@@ -213,46 +258,11 @@ export function TaskCommentComposer({
               lazy.activate();
             }
           }}
-          >
-            {placeholder}
-          </div>
-        ) : null}
-        {compact ? (
-        <Button
-          type="button"
-          size="icon-sm"
-          aria-label={t("tasks.detail.comment_send")}
-          aria-disabled={isEmpty || submitting || uploadGate.uploading || undefined}
-          onClick={() => {
-            if (isEmpty || submitting || uploadGate.uploading) return;
-            void submit();
-          }}
         >
-          <ArrowUp aria-hidden />
-        </Button>
-        ) : null}
-      </div>
-      {!compact ? (
-        <div className="mt-2 flex items-center justify-between">
-          <FileUploadButton
-            size="sm"
-            multiple
-            disabled={editorUpload.uploading || uploadGate.uploading}
-            onSelect={(file) => editorRef.current?.uploadFile(file)}
-          />
-          <Button
-            type="button"
-            size="sm"
-            aria-disabled={isEmpty || submitting || uploadGate.uploading || undefined}
-            onClick={() => {
-              if (isEmpty || submitting || uploadGate.uploading) return;
-              void submit();
-            }}
-          >
-            {t("tasks.detail.comment_send")}
-          </Button>
-      </div>
+          <p className="text-muted-foreground">{placeholder}</p>
+        </div>
       ) : null}
+      {actions}
     </div>
   );
 }

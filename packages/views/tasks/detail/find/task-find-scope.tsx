@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useComments } from "@uniwork/core/tasks";
 import { useTaskDetailShortcuts } from "../hooks/use-task-detail-shortcuts";
+import { useToggleThreadNav } from "../thread-nav-context";
 import { TaskFindQueryContext } from "./find-query-context";
 import { TaskFindBar } from "./task-find-bar";
 import { useTaskFind } from "./use-task-find";
@@ -37,7 +38,14 @@ export function TaskFindScope({
     contentKey: `${comments?.length ?? 0}:${description}`,
   });
   const { open, query, closeFind, openFind, barRef } = find;
-  useTaskDetailShortcuts({ container, findBarRef: barRef, onFind: openFind });
+  // Stable API only — open/pin/hover must not re-render this scope (TipTap).
+  const onToggleThreadNav = useToggleThreadNav();
+  useTaskDetailShortcuts({
+    container,
+    findBarRef: barRef,
+    onFind: openFind,
+    onToggleThreadNav,
+  });
 
   // The route reuses the page for another task: drop the old search.
   useEffect(() => {
