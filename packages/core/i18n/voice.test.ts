@@ -17,10 +17,10 @@ type Rule = {
   readonly rule: string;
   /** Never global: `test` must not carry state between strings. */
   readonly pattern: RegExp;
-  /** A string the rule must flag. */
-  readonly flags: string;
-  /** The corrected form, plus look-alikes the rule must leave alone. */
-  readonly passes: string;
+  /** Strings the rule must flag. */
+  readonly flags: readonly string[];
+  /** Corrected forms, and look-alikes the rule must leave alone. */
+  readonly passes: readonly string[];
   /** Strings the rule would flag that are right as written, each with its reason. */
   readonly allow?: Readonly<Record<string, string>>;
 };
@@ -31,57 +31,59 @@ const RULES: readonly Rule[] = [
   {
     rule: "no “vui lòng” padding (§3 Register)",
     pattern: /vui lòng/iu,
-    flags: "Không lưu được. Vui lòng thử lại.",
-    passes: "Không lưu được. Thử lại.",
+    flags: ["Không lưu được. Vui lòng thử lại."],
+    passes: ["Không lưu được. Thử lại."],
   },
   {
     rule: "no “quý khách” (§3 Register)",
     pattern: /quý khách/iu,
-    flags: "Cảm ơn quý khách",
-    passes: "Cảm ơn bạn",
+    flags: ["Cảm ơn quý khách"],
+    passes: ["Cảm ơn bạn"],
   },
   {
     rule: "an ellipsis is the single character … (§3 Punctuation)",
     pattern: /\.\.\./u,
-    flags: "Đang tải...",
-    passes: "Đang tải…",
+    flags: ["Đang tải..."],
+    passes: ["Đang tải…"],
   },
   {
     rule: "quotes are curly “…”, never straight (§3 Punctuation)",
     pattern: /"/u,
-    flags: 'Bình chọn "Ăn trưa" đã đóng',
-    passes: "Bình chọn “Ăn trưa” đã đóng",
+    flags: ['Bình chọn "Ăn trưa" đã đóng'],
+    passes: ["Bình chọn “Ăn trưa” đã đóng"],
   },
   {
     rule: "punctuation is ASCII, never full-width (§3 Punctuation)",
     pattern: /[，。：；！？（）]/u,
-    flags: "Đã lưu！",
-    passes: "Đã lưu!",
+    flags: ["Đã lưu！"],
+    passes: ["Đã lưu!"],
   },
   {
     rule: "workspace stays “workspace”, never “không gian làm việc” (§2)",
     pattern: /không gian làm việc/iu,
-    flags: "Thành viên không gian làm việc",
-    passes: "Thành viên workspace",
+    flags: ["Thành viên không gian làm việc"],
+    passes: ["Thành viên workspace"],
   },
   {
     rule: "UNI is UNI, never “trợ lý ảo” (§2)",
     pattern: /trợ lý ảo/iu,
-    flags: "Hỏi trợ lý ảo",
-    passes: "Hỏi UNI",
+    flags: ["Hỏi trợ lý ảo"],
+    passes: ["Hỏi UNI"],
   },
   {
+    // The word, not the meaning: a string where "luồng" is a flow rather than
+    // a thread goes into `allow`, with that reason.
     rule: "a thread is “thread”, never “luồng” (§2)",
     pattern: /luồng/iu,
-    flags: "Luồng đã giải quyết",
-    passes: "Thread đã giải quyết",
+    flags: ["Luồng đã giải quyết"],
+    passes: ["Thread đã giải quyết"],
   },
   {
     rule: "a task is “việc” or “công việc”, never “task” (§2)",
     // `{{task}}` is a variable name, not copy.
-    pattern: /(?<!\{\{)\b(?:sub-)?tasks?\b(?!\}\})/iu,
-    flags: "Thêm sub-task",
-    passes: "{{actor}} đã giao bạn việc “{{task}}”",
+    pattern: /(?<!\{\{)\b(?:sub-?)?tasks?\b(?!\}\})/iu,
+    flags: ["Thêm sub-task", "Thêm subtask", "Ẩn Subtasks"],
+    passes: ["{{actor}} đã giao bạn việc “{{task}}”", "Tiến độ {{subtask}}"],
     allow: {
       "settings.audit.filters.action_placeholder": "an audit action identifier, typed as it is stored",
       "settings.audit.filters.resource_type_placeholder": "an audit resource identifier, typed as it is stored",
@@ -90,16 +92,16 @@ const RULES: readonly Rule[] = [
   {
     // Old and new placement differ only in open syllables oa, oe, uy; after
     // q the u belongs to the consonant, so quý is right either way.
-    rule: "tone marks sit on the main vowel: hủy, xóa, tùy, never huỷ, xoá, tuỳ (§3 Punctuation)",
+    rule: "in oa, oe and uy the tone mark goes on the first vowel: hủy, xóa, tùy, never huỷ, xoá, tuỳ (§3 Punctuation)",
     pattern: new RegExp(`(?<!q)(?:o[àáảãạ]|o[èéẻẽẹ]|u[ỳýỷỹỵ])(?![${LETTER}])`, "iu"),
-    flags: "Huỷ cuộc họp",
-    passes: "Hủy khoản thanh toán quý này",
+    flags: ["Huỷ cuộc họp", "Từ khoá", "Chúc khoẻ"],
+    passes: ["Hủy khoản thanh toán quý này", "Hoàn tất kế hoạch", "Khuỷu tay, xoáy nước"],
   },
   {
     rule: "no leading, trailing or doubled spaces (§3 Punctuation)",
     pattern: /^ | $| {2}/u,
-    flags: "Lưu  thay đổi",
-    passes: "Lưu thay đổi",
+    flags: ["Lưu  thay đổi", " Lưu", "Lưu "],
+    passes: ["Lưu thay đổi"],
     allow: {
       "onboarding.welcome.illustration.card1_body": "follows a bold name in the same sentence",
       "onboarding.welcome.illustration.card5_prefix": "precedes a bold name in the same sentence",
@@ -125,12 +127,12 @@ const VI_BY_KEY = new Map(VI);
 describe("Vietnamese voice", () => {
   for (const { rule, pattern, flags, passes, allow = {} } of RULES) {
     describe(rule, () => {
-      it("fires on a violation", () => {
-        expect(pattern.test(flags)).toBe(true);
+      it("fires on every violation sample", () => {
+        expect(flags.filter((sample) => !pattern.test(sample))).toEqual([]);
       });
 
-      it("stays quiet on the corrected form", () => {
-        expect(pattern.test(passes)).toBe(false);
+      it("stays quiet on the corrected forms and look-alikes", () => {
+        expect(passes.filter((sample) => pattern.test(sample))).toEqual([]);
       });
 
       it("holds across vi.json", () => {

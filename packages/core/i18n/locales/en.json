@@ -1101,7 +1101,7 @@
       "comment_resolved_fold_other": "{{count}} replies folded around the resolution",
       "comment_resolved_fold_close": "Collapse resolved replies",
       "comment_delete_title": "Delete comment?",
-      "comment_delete_description": "The comment will be removed from the activity thread.",
+      "comment_delete_description": "The comment will be removed from Activity.",
       "comment_delete_confirm": "Delete comment",
       "reply": "Reply",
       "reply_cancel": "Cancel reply",

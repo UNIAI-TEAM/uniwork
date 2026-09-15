@@ -514,7 +514,7 @@
         "task.created": "Tạo việc",
         "task.updated": "Cập nhật việc",
         "task.deleted": "Xóa việc",
-        "task.comment_added": "Bình luận vào việc",
+        "task.comment_added": "Bình luận trong việc",
         "subscription.changed": "Đổi gói dịch vụ",
         "audit.retention_set": "Đổi thời gian lưu nhật ký",
         "audit.export_requested": "Yêu cầu xuất nhật ký",
@@ -894,7 +894,7 @@
       "edit": "Sửa view",
       "delete": "Xóa view",
       "delete_title": "Xóa view này?",
-      "delete_description": "“{{name}}” sẽ bị gỡ. Các việc không bị xóa.",
+      "delete_description": "“{{name}}” sẽ bị gỡ. Công việc không bị xóa.",
       "toast_deleted": "Đã xóa view"
     },
     "view_selector": {
@@ -963,7 +963,7 @@
       "zoom_week": "Tuần",
       "zoom_month": "Tháng",
       "show_completed": "Hiện đã hoàn thành",
-      "empty": "Chưa có việc đã lên lịch — đặt ngày bắt đầu hoặc hạn trên bất kỳ việc nào để hiện trên timeline.",
+      "empty": "Chưa có việc đã lên lịch — đặt ngày bắt đầu hoặc hạn cho bất kỳ việc nào để hiện trên timeline.",
       "inverted_dates_warning": "Ngày bắt đầu sau hạn — thanh vẽ từ ngày sớm đến muộn."
     },
     "swimlane": {
@@ -1992,7 +1992,7 @@
       "assignee_none": "Chưa gán",
       "due_label": "Hạn",
       "sync_thread": "Đồng bộ thread với bình luận của việc",
-      "sync_thread_hint": "Trả lời trong thread thành bình luận của việc và ngược lại.",
+      "sync_thread_hint": "Trả lời trong thread sẽ thành bình luận của việc, và ngược lại.",
       "search_label": "Tìm việc",
       "search_placeholder": "Tên, mã hoặc id…",
       "task_list_aria": "Danh sách việc",

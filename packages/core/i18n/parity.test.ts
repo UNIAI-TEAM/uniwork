@@ -21,6 +21,12 @@ const LOCALES_DIR = resolve(process.cwd(), "i18n/locales");
 const PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
 /** Letters only Vietnamese uses among Latin scripts — so not é, à or ô. */
 const VIETNAMESE_ONLY = /[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệĩỉịọỏốồổỗộớờởỡợũụủứừửữựỳỵỷỹ]/iu;
+/** Text that is Vietnamese in every locale, each with its reason. */
+const VIETNAMESE_TEXT_ALLOWED: Readonly<Record<string, string>> = {
+  "onboarding.welcome.illustration.card4_actor": "a Vietnamese colleague's name in the illustration",
+};
+/** A letter outside ASCII: text identical to Vietnamese that has one was not translated. */
+const NON_ASCII_LETTER = /(?![A-Za-z])\p{L}/u;
 
 /** Dotted key → text. A leaf that is not a string, or is blank, is a problem. */
 function flatten(tree: Tree): { entries: Map<string, string>; problems: string[] } {
@@ -76,8 +82,9 @@ function keyDiff(source: Iterable<string>, locale: Iterable<string>) {
   };
 }
 
+/** Variable names in any order; `{{- name}}` is i18next's unescaped `{{name}}`. */
 function variables(text: string): string {
-  return [...text.matchAll(/\{\{\s*([^\s,}]+)[^}]*\}\}/g)]
+  return [...text.matchAll(/\{\{-?\s*([^\s,}]+)[^}]*\}\}/g)]
     .map((match) => match[1])
     .sort()
     .join(" ");
@@ -94,11 +101,30 @@ function variableProblems(source: ReadonlyMap<string, string>, locale: ReadonlyM
   return problems.sort();
 }
 
-/** Text pasted from vi.json rather than translated. */
-function vietnameseTextProblems(locale: ReadonlyMap<string, string>): string[] {
+/**
+ * Text pasted from vi.json rather than translated: letters only Vietnamese
+ * uses, or the Vietnamese string itself when it is not plain ASCII — "Xóa"
+ * has no letter French lacks, but it is still the vi text.
+ */
+function vietnameseTextProblems(
+  source: ReadonlyMap<string, string>,
+  locale: ReadonlyMap<string, string>,
+  allow: Readonly<Record<string, string>>,
+): string[] {
   return [...locale]
-    .filter(([, text]) => VIETNAMESE_ONLY.test(text))
+    .filter(
+      ([key, text]) =>
+        !(key in allow) && (VIETNAMESE_ONLY.test(text) || (text === source.get(key) && NON_ASCII_LETTER.test(text))),
+    )
     .map(([key, text]) => `${key}: ${text}`)
+    .sort();
+}
+
+/** Decomposed (NFD) text slips past every letter rule above. */
+function normalizationProblems(locale: ReadonlyMap<string, string>): string[] {
+  return [...locale]
+    .filter(([, text]) => text !== text.normalize("NFC"))
+    .map(([key]) => key)
     .sort();
 }
 
@@ -128,22 +154,47 @@ describe("the locale gate", () => {
     const source = new Map([
       ["k", "{{count}} việc của {{name}}"],
       ["changed", "{{a}}"],
+      ["unescaped", "{{- a}} và {{- b}}"],
     ]);
     const locale = new Map([
       ["k", "{{ name }}'s {{count}} tasks"],
       ["changed", "{{b}}"],
+      ["unescaped", "{{- a}} and {{- c}}"],
       ["only_here", "{{c}}"],
     ]);
-    expect(variableProblems(source, locale)).toEqual(["changed: vi has (a), this locale has (b)"]);
+    expect(variableProblems(source, locale)).toEqual([
+      "changed: vi has (a), this locale has (b)",
+      "unescaped: vi has (a b), this locale has (a c)",
+    ]);
   });
 
-  it("spots Vietnamese text without flagging European accents", () => {
+  it("spots pasted Vietnamese, even words a European language could spell, sparing allowed names", () => {
+    const source = new Map([
+      ["pasted", "Không tạo được"],
+      ["short", "Xóa"],
+      ["brand", "UniWork"],
+      ["name", "Hà"],
+      ["french", "Bản nháp"],
+    ]);
     const locale = new Map([
       ["pasted", "Không tạo được"],
-      ["french", "Café résumé à la carte"],
+      ["short", "Xóa"],
+      ["brand", "UniWork"],
       ["name", "Hà"],
+      ["french", "Café résumé à la carte"],
     ]);
-    expect(vietnameseTextProblems(locale)).toEqual(["pasted: Không tạo được"]);
+    expect(vietnameseTextProblems(source, locale, { name: "a person's name" })).toEqual([
+      "pasted: Không tạo được",
+      "short: Xóa",
+    ]);
+  });
+
+  it("reports text not stored in NFC, which every letter rule would miss", () => {
+    const locale = new Map([
+      ["composed", "tạo"],
+      ["decomposed", "tạo"],
+    ]);
+    expect(normalizationProblems(locale)).toEqual(["decomposed"]);
   });
 });
 
@@ -168,10 +219,25 @@ describe("locale files", () => {
 
   const source = PARSED.get(SOURCE)?.entries ?? new Map<string, string>();
 
+  it("allowlists only Vietnamese text some locale still carries", () => {
+    const stale = Object.keys(VIETNAMESE_TEXT_ALLOWED).filter(
+      (key) =>
+        ![...PARSED].some(
+          ([code, { entries }]) =>
+            code !== SOURCE && vietnameseTextProblems(source, new Map([[key, entries.get(key) ?? ""]]), {}).length > 0,
+        ),
+    );
+    expect(stale).toEqual([]);
+  });
+
   for (const [code, { entries, problems }] of PARSED) {
     describe(code, () => {
       it("has only non-blank text leaves", () => {
         expect(problems).toEqual([]);
+      });
+
+      it("stores text in NFC", () => {
+        expect(normalizationProblems(entries)).toEqual([]);
       });
 
       it("pairs every plural key as _one and _other", () => {
@@ -195,7 +261,7 @@ describe("locale files", () => {
       });
 
       it("contains no Vietnamese text", () => {
-        expect(vietnameseTextProblems(entries)).toEqual([]);
+        expect(vietnameseTextProblems(source, entries, VIETNAMESE_TEXT_ALLOWED)).toEqual([]);
       });
     });
   }

@@ -37,6 +37,8 @@ describe("PreferencesTab language", () => {
         </ThemeProvider>,
       ),
     );
+    // Closed, the control shows the current language by its own name.
+    expect(screen.getByRole("combobox", { name: "Ngôn ngữ" })).toHaveTextContent("Tiếng Việt");
     fireEvent.click(screen.getByRole("combobox", { name: "Ngôn ngữ" }));
     const options = await screen.findAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual(["Tiếng Việt", "English", "ភាសាខ្មែរBeta"]);
