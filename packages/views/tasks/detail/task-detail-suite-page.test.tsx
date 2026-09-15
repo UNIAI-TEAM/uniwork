@@ -115,6 +115,9 @@ describe("TaskDetailSuitePage", () => {
     expect(
       screen.getByRole("complementary", { name: /thuộc tính|properties/i }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("task-detail-main-pane")).toContainElement(
+      screen.getByText("TEAM-12 Ship detail shell"),
+    );
 
     const sidebarToggle = screen.getByRole("button", {
       name: /hiện hoặc ẩn thuộc tính|show or hide properties/i,
