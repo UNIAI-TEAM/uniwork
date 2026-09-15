@@ -19,8 +19,8 @@ type ReactionSDI struct {
 
 // SubscribeTaskSDI is POST .../subscribe|unsubscribe|unsubscribe/subtree.
 type SubscribeTaskSDI struct {
-	UserID   string `json:"user_id" description:"ULID đích; bỏ trống = người gọi" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UserType string `json:"user_type" description:"member hoặc agent" example:"member"`
+	UserID   string `json:"user_id" description:"ULID người gọi; bỏ trống để tự nhận diện" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UserType string `json:"user_type" description:"Loại của người gọi: member hoặc agent" example:"member"`
 }
 
 // UploadTaskAttachmentSDI is multipart POST .../tasks/{taskID}/attachments.

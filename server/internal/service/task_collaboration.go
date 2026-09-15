@@ -31,7 +31,9 @@ type UpdateCommentInput struct {
 	Body string
 }
 
-// SubscribeTaskInput targets a subscriber; empty UserID means the caller.
+// SubscribeTaskInput identifies the caller; empty UserID means the caller.
+// A non-empty target must still match the caller so one member cannot change
+// another member's notification preferences.
 type SubscribeTaskInput struct {
 	UserID   string
 	UserType string // member|agent; default member for humans

@@ -26,6 +26,11 @@ import {
   useTaskDetailUiStore,
 } from "@uniwork/core/tasks/stores/task-detail-ui-store";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import {
+  AvatarGroup,
+  AvatarGroupCount,
+} from "@uniwork/ui/components/ui/avatar";
 import { toastApiError } from "../../../toast-api-error";
 import { useFindExpandedThreads } from "../find/find-expanded-threads";
 import { useTaskFindQuery } from "../find/find-query-context";
@@ -39,6 +44,20 @@ import { TaskReplyComposer } from "./reply-composer";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
 import { ThreadNavPanel, type ThreadNavItem } from "./thread-nav-panel";
 import { groupTimelineEntries } from "./timeline-entries";
+
+const MAX_VISIBLE_FOLLOWERS = 4;
+
+function avatarInitials(name: string): string {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?"
+  );
+}
 
 function isThreadResolved(thread: CommentThread): boolean {
   return !!thread.root.resolved_at;
@@ -208,6 +227,20 @@ export function TaskDetailTimeline({
       (s) => s.actor_id === currentUserId && s.actor_type === "member",
     );
   }, [subscribers.data, currentUserId]);
+  const followerActors = useMemo(
+    () =>
+      (subscribers.data ?? []).map((subscriber) => {
+        const name = actorNames.get(subscriber.actor_id) ?? subscriber.actor_id;
+        return {
+          id: `${subscriber.actor_type}:${subscriber.actor_id}`,
+          name,
+          initials: avatarInitials(name),
+          avatarUrl: actorAvatarUrls.get(subscriber.actor_id),
+          isAgent: subscriber.actor_type === "agent",
+        };
+      }),
+    [subscribers.data, actorNames, actorAvatarUrls],
+  );
 
   useEffect(() => {
     const target = scrollRequest?.target ?? null;
@@ -334,28 +367,55 @@ export function TaskDetailTimeline({
         <h2 className="text-body font-semibold text-foreground">
           {t("tasks.detail.timeline_section")}
         </h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-disabled={subscribe.isPending || unsubscribe.isPending || undefined}
-          onClick={() => {
-            if (subscribe.isPending || unsubscribe.isPending) return;
-            if (watching) {
-              unsubscribe.mutate(undefined, {
-                onError: (err) => toastApiError(err, errFallback),
-              });
-            } else {
-              subscribe.mutate(undefined, {
-                onError: (err) => toastApiError(err, errFallback),
-              });
-            }
-          }}
-        >
-          {watching
-            ? t("tasks.detail.unsubscribe")
-            : t("tasks.detail.subscribe")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-disabled={subscribe.isPending || unsubscribe.isPending || undefined}
+            onClick={() => {
+              if (subscribe.isPending || unsubscribe.isPending) return;
+              if (watching) {
+                unsubscribe.mutate(undefined, {
+                  onError: (err) => toastApiError(err, errFallback),
+                });
+              } else {
+                subscribe.mutate(undefined, {
+                  onError: (err) => toastApiError(err, errFallback),
+                });
+              }
+            }}
+          >
+            {watching
+              ? t("tasks.detail.unsubscribe")
+              : t("tasks.detail.subscribe")}
+          </Button>
+          {followerActors.length > 0 ? (
+            <AvatarGroup
+              aria-label={t("tasks.detail.followers", {
+                names: followerActors.map((actor) => actor.name).join(", "),
+              })}
+            >
+              {followerActors.slice(0, MAX_VISIBLE_FOLLOWERS).map((actor) => (
+                <ActorAvatar
+                  key={actor.id}
+                  name={actor.name}
+                  initials={actor.initials}
+                  avatarUrl={actor.avatarUrl}
+                  isAgent={actor.isAgent}
+                  size="md"
+                />
+              ))}
+              {followerActors.length > MAX_VISIBLE_FOLLOWERS ? (
+                <AvatarGroupCount aria-hidden="true">
+                  {t("tasks.detail.more_followers_short", {
+                    count: followerActors.length - MAX_VISIBLE_FOLLOWERS,
+                  })}
+                </AvatarGroupCount>
+              ) : null}
+            </AvatarGroup>
+          ) : null}
+        </div>
       </div>
 
       <ThreadNavPanel threads={navThreads} onJump={jumpToComment} />
