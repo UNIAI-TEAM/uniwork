@@ -4,6 +4,7 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "create": "Create",
+    "beta": "Beta",
     "loading": "Loading…",
     "error": "Something went wrong",
     "empty": "Nothing here yet",
@@ -211,8 +212,7 @@
       "themeLight": "Light theme",
       "themeDark": "Dark theme",
       "themeSystem": "System theme",
-      "languageVi": "Language: Tiếng Việt",
-      "languageEn": "Language: English"
+      "language": "Language: {{language}}"
     },
     "pages": {
       "tasks": "Tasks",
@@ -295,8 +295,6 @@
       "themeDark": "Dark",
       "themeSystem": "System",
       "language": "Language",
-      "languageVi": "Tiếng Việt",
-      "languageEn": "English",
       "toastSaved": "Saved",
       "themes": "Themes",
       "themesHint": "Saved on this device only. Your other devices keep their own.",
@@ -1103,7 +1101,7 @@
       "comment_resolved_fold_other": "{{count}} replies folded around the resolution",
       "comment_resolved_fold_close": "Collapse resolved replies",
       "comment_delete_title": "Delete comment?",
-      "comment_delete_description": "The comment will be removed from the activity thread.",
+      "comment_delete_description": "The comment will be removed from Activity.",
       "comment_delete_confirm": "Delete comment",
       "reply": "Reply",
       "reply_cancel": "Cancel reply",
@@ -2483,7 +2481,7 @@
       "cta_creating": "Creating…",
       "cta_open": "Continue with {{name}}",
       "slug_taken_error": "That organization slug is already taken.",
-      "headline_resume_many": "Pick one of your organizations, or start another.",
+      "headline_resume_pick": "Pick one of your organizations, or start another.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
       "hint_slug_needed": "Add a URL for your organization to create it.",
       "create_failed_toast": "Couldn't create the organization. Please try again.",
@@ -2522,9 +2520,9 @@
       "slug_length_error": "The URL needs 2 to 40 characters",
       "hint_slug_needed": "Add a URL for your workspace to create it.",
       "slug_taken_error": "That slug is already taken.",
-      "headline_resume_many": "Pick one of your workspaces, or create a new one.",
+      "headline_resume_pick": "Pick one of your workspaces, or create a new one.",
       "slug_invalid_error": "Invalid URL: lowercase letters, numbers and hyphens, 2–40 characters.",
-      "create_failed_toast": "Couldn't create that. Please try again.",
+      "create_failed_toast": "Couldn't create the workspace. Please try again.",
       "picker_label": "Choose a workspace"
     },
     "step_invite": {

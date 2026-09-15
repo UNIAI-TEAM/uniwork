@@ -1,28 +1,41 @@
 import { match } from "@formatjs/intl-localematcher";
 import {
   DEFAULT_LOCALE,
+  STABLE_LOCALES,
   SUPPORTED_LOCALES,
   type LocaleAdapter,
   type SupportedLocale,
 } from "./types";
 
-export function matchLocale(candidates: string[]): SupportedLocale {
+export function matchLocale(
+  candidates: readonly string[],
+  available: readonly SupportedLocale[] = SUPPORTED_LOCALES,
+): SupportedLocale {
   if (candidates.length === 0) return DEFAULT_LOCALE;
   try {
-    return match(
-      candidates,
-      SUPPORTED_LOCALES,
-      DEFAULT_LOCALE,
-    ) as SupportedLocale;
+    return match(candidates, available, DEFAULT_LOCALE) as SupportedLocale;
   } catch {
     return DEFAULT_LOCALE;
   }
 }
 
-export function pickLocale(adapter: LocaleAdapter): SupportedLocale {
-  const choice = adapter.getUserChoice();
+/**
+ * The locale policy both hosts share: the browser through `pickLocale`, the
+ * server through `resolveRequestLocale`. A choice the user made wins, a beta
+ * locale included. The browser's own languages only ever select a stable one,
+ * so nobody lands in a partial translation they did not pick beside its Beta
+ * label.
+ */
+export function resolveLocale(
+  choice: string | null | undefined,
+  preferences: readonly string[],
+): SupportedLocale {
   if (choice) return matchLocale([choice]);
-  return matchLocale(adapter.getSystemPreferences());
+  return matchLocale(preferences, STABLE_LOCALES);
+}
+
+export function pickLocale(adapter: LocaleAdapter): SupportedLocale {
+  return resolveLocale(adapter.getUserChoice(), adapter.getSystemPreferences());
 }
 
 /**

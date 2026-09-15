@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
+import { LocaleName } from "../../common/locale-name";
 import { SettingsCard, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
 import { ThemesPanel } from "./themes-panel";
 
@@ -29,10 +30,10 @@ export function PreferencesTab() {
     ? (i18n.language as SupportedLocale)
     : DEFAULT_LOCALE;
 
-  const languageOptions: { value: SupportedLocale; label: string }[] = [
-    { value: "vi", label: t("preferences.languageVi") },
-    { value: "en", label: t("preferences.languageEn") },
-  ];
+  const languageOptions = SUPPORTED_LOCALES.map((locale) => ({
+    value: locale,
+    label: <LocaleName locale={locale} />,
+  }));
 
   const handleLanguageChange = (next: SupportedLocale) => {
     if (next === currentLocale) return;

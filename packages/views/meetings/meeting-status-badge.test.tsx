@@ -22,7 +22,7 @@ describe("MeetingStatusBadge", () => {
     expect(screen.getByText("Đã kết thúc")).toBeInTheDocument();
 
     rerender(<MeetingStatusBadge status="CANCELED" />);
-    expect(screen.getByText("Đã huỷ")).toBeInTheDocument();
+    expect(screen.getByText("Đã hủy")).toBeInTheDocument();
 
     rerender(<MeetingStatusBadge status="UNKNOWN" />);
     expect(screen.getByText("Đã lên lịch")).toBeInTheDocument();

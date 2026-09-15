@@ -509,8 +509,8 @@ describe("TaskDetailTimeline", () => {
     renderTimeline({ workspaceId: "w1", taskId: "t1" });
 
     const row = await screen.findByTestId("task-timeline-activity-a1");
-    expect(row).toHaveTextContent("Tạo task");
-    expect(row).not.toHaveTextContent("Cập nhật task");
+    expect(row).toHaveTextContent("Tạo việc");
+    expect(row).not.toHaveTextContent("Cập nhật việc");
   });
 
   it("không thêm dòng hoạt động cho bình luận và reaction vì thẻ bình luận đã kể", () => {

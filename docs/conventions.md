@@ -138,11 +138,43 @@ what was deliberately not done.
 
 ## 2. i18n glossary (vi ↔ en)
 
-`vi` is the source language; `en` is a translation. Both files in
-`packages/core/i18n/locales/` must carry every key — `i18n/parity.test.ts`
-fails on drift. One flat namespace, keys nested by section:
-`feature.component.action` (`onboarding.step_invite.role_member`,
-`workspace.inviteNotAllowed`).
+`vi` is the source language; every other locale is translated from it. One
+flat namespace, keys nested by section: `feature.component.action`
+(`onboarding.step_invite.role_member`, `workspace.inviteNotAllowed`).
+
+### Stable and beta locales
+
+`STABLE_LOCALES` in `packages/core/i18n/types.ts` — today `vi` and `en` — are
+at full parity: each carries exactly the keys `vi.json` carries. Every other
+locale in `SUPPORTED_LOCALES` is beta. Its file may lack keys, which fall
+back, but never adds one; every language picker renders it through
+`LocaleName` (`packages/views/common/locale-name.tsx`), which adds the Beta
+badge; and it is selected only when the user picks it, never from the
+browser's languages (`resolveLocale`). Myanmar, Khmer and Lao stay beta until
+the product owner promotes them (PRODUCT.md). Promoting a locale is adding it
+to `STABLE_LOCALES`, after which the gate demands every key.
+
+`i18n/parity.test.ts` holds this for every file in `locales/`: text leaves
+that are not blank and are stored in NFC, plural keys in `_one`/`_other`
+pairs, the key sets above, the same `{{variables}}` per key, and no Vietnamese
+text outside `vi.json` — letters only Vietnamese uses, or text identical to
+the Vietnamese that is not plain ASCII. A name that stays Vietnamese in every
+language goes into that test's allowlist with its reason.
+`scripts/i18n-duplicate-keys.test.mjs` catches a key written twice in one
+object, which `JSON.parse` would otherwise drop without a word.
+
+Adding a beta locale takes more than its file:
+
+1. `packages/core/i18n/locales/<code>.json` with the keys translated so far.
+   A plural stem carries both `_one` and `_other`, even in a language with a
+   single plural form such as Myanmar, Khmer or Lao: copy the `_other` text.
+2. The code in `SupportedLocale` and `SUPPORTED_LOCALES`, the language's own
+   name in `LOCALE_NATIVE_NAMES`, and a loader in `packages/core/i18n/index.ts`.
+3. A server-rendered request preloads only English (`apps/web/app/layout.tsx`,
+   `sync-request-locale.ts`). Until that path loads the new dictionary too, a
+   reload in the new locale renders Vietnamese.
+4. Missing keys fall back to Vietnamese (`fallbackLng`). Decide whether that
+   suits the locale's readers before shipping it.
 
 ### The distinction: everyday noun vs product term
 
@@ -154,7 +186,8 @@ fails on drift. One flat namespace, keys nested by section:
 
 | Concept | vi | en | Note |
 | --- | --- | --- | --- |
-| task (the unit of work) | **công việc** / **việc** | Task | `tasks.title = "Công việc"`, `tasks.new = "Việc mới"` |
+| task (the unit of work) | **công việc** / **việc** | Task | `tasks.title = "Công việc"`, `tasks.new = "Việc mới"`; never "task" in Vietnamese copy |
+| sub-task / parent task | **công việc con** / **công việc cha** | Sub-task / Parent task | `tasks.detail.section_parent = "Công việc cha"` |
 | meeting | **cuộc họp** | Meeting | `meetings.title = "Cuộc họp"` |
 | workspace | **workspace** | Workspace | kept in English in vi copy: `workspace.create = "Tạo workspace"` |
 | organization | **tổ chức** | Organization | `"tên tổ chức không được để trống"` |
@@ -167,7 +200,7 @@ fails on drift. One flat namespace, keys nested by section:
 | inbox (the notification screen) | **hộp việc** | Inbox | `nav.inbox = "Hộp việc"`; route stays `/inbox` (OPEN_QUESTIONS N5) |
 | Ask UNI (the read-only copilot) | **Hỏi UNI** | Ask UNI | `ai.title = "Hỏi UNI"`; UNI is the assistant's name, never "trợ lý ảo" |
 | channel (chat work hub) | **kênh** | channel | `chat.channel.*`; first-class chat room kind attached to a Project |
-| thread (chat) | **thread** | thread | keep English — internal users say "thread", not "luồng" |
+| thread (chat) | **thread** | thread | keep English — internal users say "thread", not "luồng"; the voice lint rejects "luồng" anywhere, so a string where it means a flow goes into that rule's allowlist with its reason |
 | link (message ↔ work item) | **gắn** | link | `chat.message.linked` / message↔task attachment |
 | source / citation (what an answer points at) | **nguồn** / **trích dẫn** | source / citation | `ai.sources = "Nguồn"`; rendered as `[S1]` links |
 | notification | **thông báo** | Notification | `notifications.*`; one row in the inbox is a "thông báo" |
@@ -187,7 +220,8 @@ workspace already. Do not translate it in one place and not another.
   even inside Vietnamese text: `owner` / `admin` / `member`;
   `todo` / `in_progress` / `done` / `cancelled`; `low` / `medium` / `high` /
   `urgent`. Their *labels* are translated (`tasks.status = "Trạng thái"`), the
-  *values* are not.
+  *values* are not. The same holds for an identifier the user types into a
+  filter, such as the audit action `task.updated`.
 
 ### Generic UI words
 
@@ -214,11 +248,11 @@ both keys with identical text. Put the count first.
 
 ```json
 // vi.json
-"invite_invalid_summary_one":   "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi.",
-"invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng — sửa hoặc xoá trước khi gửi."
+"invite_invalid_summary_one":   "{{count}} địa chỉ chưa đúng định dạng và sẽ không được gửi.",
+"invite_invalid_summary_other": "{{count}} địa chỉ chưa đúng định dạng và sẽ không được gửi."
 // en.json
-"invite_invalid_summary_one":   "{{count}} address isn't formatted correctly — fix or remove it before sending.",
-"invite_invalid_summary_other": "{{count}} addresses aren't formatted correctly — fix or remove them before sending."
+"invite_invalid_summary_one":   "{{count}} address isn't formatted correctly and won't be sent.",
+"invite_invalid_summary_other": "{{count}} addresses aren't formatted correctly and won't be sent."
 ```
 
 ### Interpolation
@@ -229,13 +263,19 @@ both keys with identical text. Put the count first.
 ### Adding a key
 
 1. Add it to `vi.json` first — Vietnamese is what the product is written in.
-2. Add the `en` counterpart. Run `pnpm test --filter @uniwork/core` — parity fails otherwise.
+2. Add the `en` counterpart. Run `pnpm test --filter @uniwork/core` — the parity gate and the voice lint fail otherwise.
 3. In `packages/views`, JSX text must go through `t()`;
    `i18next/no-literal-string` makes a raw string a lint error.
 
 ---
 
 ## 3. Vietnamese voice and style
+
+What a machine can check here — no "vui lòng" or "quý khách", `…` for an
+ellipsis, curly quotes, ASCII punctuation, the traditional tone-mark
+placement, no stray spaces — and the §2 terms (workspace, UNI, thread, việc) are held by
+`packages/core/i18n/voice.test.ts`. Register, tone and the kinds of copy below
+are the reviewer's.
 
 ### Register
 
@@ -251,7 +291,13 @@ both keys with identical text. Put the count first.
   `"loading": "Đang tải…"`), not three dots.
 - A single space on each side of an English word inside Vietnamese text:
   "Tạo workspace", "Mời thành viên vào workspace".
-- Quotes are straight double quotes `"…"`.
+- Quotes are curly double quotes `“…”`:
+  `notifications.kind.task_assigned = "{{actor}} đã giao bạn việc “{{task}}”"`.
+  A straight `"` needs escaping in JSON and reads as code.
+- In the open syllables oa, oe and uy the tone mark goes on the first vowel:
+  the traditional placement (kiểu cũ) the glossary's Hủy / Xóa already use —
+  `hủy`, `xóa`, `tùy`, `khóa`, not `huỷ`, `xoá`, `tuỳ`, `khoá`. After q the u
+  belongs to the consonant, so `quý` is spelled the same either way.
 
 ### Kinds of copy
 

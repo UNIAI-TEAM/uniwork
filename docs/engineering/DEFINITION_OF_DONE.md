@@ -20,7 +20,7 @@ mỗi ô có cách kiểm, và ô "không áp dụng" ghi lý do một dòng. Th
 | Sự kiện `<entity>.<verb>` khớp ở ba nơi | `scripts/events-catalogue.test.mjs` |
 | Endpoint có SDI/SDO và lên Swagger | `server/internal/handler/swagger_test.go` |
 | Route có builder và ngược lại; slug gốc reserved | `packages/core/paths/consistency.test.ts`, CI diff `reserved-slugs.ts` |
-| vi/en đủ khoá; JSX qua `t()` | `i18n/parity.test.ts`, `i18next/no-literal-string` |
+| Locale stable đủ khóa, locale beta chỉ là tập con của vi; copy vi đúng phần máy kiểm được của conventions §2–§3; JSX qua `t()` | `i18n/parity.test.ts`, `i18n/voice.test.ts`, `scripts/i18n-duplicate-keys.test.mjs`, `i18next/no-literal-string` |
 | Token khai ở `:root` và `.dark`; tương phản đo trên trang | `packages/ui/styles/tokens.test.ts`, `e2e/onboarding-contrast.spec.ts` |
 | Coverage không giảm | vitest `thresholds`, `server/coverage.floor` |
 | Realtime chỉ invalidate, không ghi payload | `use-realtime-sync.test.tsx` |

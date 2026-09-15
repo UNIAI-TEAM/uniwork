@@ -30,6 +30,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { AskUniButton } from "../ai/ask-uni-button";
 import { AskUniPanel } from "../ai/ask-uni-panel";
+import { LocaleName } from "../common/locale-name";
 import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
@@ -109,11 +110,6 @@ export function WorkspaceTopBar({
   const currentLocale: SupportedLocale = SUPPORTED_LOCALES.includes(i18n.language as SupportedLocale)
     ? (i18n.language as SupportedLocale)
     : DEFAULT_LOCALE;
-
-  const languageOptions: { value: SupportedLocale; label: string }[] = [
-    { value: "vi", label: t("settings.preferences.languageVi") },
-    { value: "en", label: t("settings.preferences.languageEn") },
-  ];
 
   const ThemeIcon = THEME_ICONS[themeValue];
   const createLabel = t("topbar.createTask");
@@ -225,9 +221,9 @@ export function WorkspaceTopBar({
               toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
             }}
           >
-            {languageOptions.map((option) => (
-              <DropdownMenuRadioItem key={option.value} value={option.value}>
-                {option.label}
+            {SUPPORTED_LOCALES.map((locale) => (
+              <DropdownMenuRadioItem key={locale} value={locale}>
+                <LocaleName locale={locale} />
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

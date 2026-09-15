@@ -110,7 +110,7 @@ function commentsResponse() {
 }
 
 const FIND_LABEL = /tìm trong công việc|find in task/i;
-const THREAD_NAV = /điều hướng luồng|thread navigation/i;
+const THREAD_NAV = /điều hướng thread|thread navigation/i;
 
 function shell(ui: ReactNode) {
   return wrapWithNav(

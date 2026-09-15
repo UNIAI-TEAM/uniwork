@@ -397,10 +397,10 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openKebab();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa việc" }));
     await waitFor(() => expect(actions!.batchDelete).toHaveBeenCalledTimes(1));
     expect(actions!.batchDelete).toHaveBeenCalledWith(["t1"]);
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã xóa task"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã xóa việc"));
   });
 
   it("bấm xác nhận hai lần khi đang xóa chỉ gọi batchDelete một lần", async () => {
@@ -413,7 +413,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openContextMenu();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    const confirm = within(dialog).getByRole("button", { name: "Xóa task" });
+    const confirm = within(dialog).getByRole("button", { name: "Xóa việc" });
 
     // Both clicks inside one act: React has not re-rendered in between, so
     // aria-disabled is not on the button yet. Only an in-flight ref stops the second.
@@ -441,7 +441,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openContextMenu();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa việc" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(actions.batchDelete).toHaveBeenCalledTimes(1);
@@ -458,7 +458,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const contextMenu = await openContextMenu();
     await chooseItem(contextMenu, "Xóa", "mouse");
     const first = await screen.findByRole("alertdialog");
-    fireEvent.click(within(first).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(first).getByRole("button", { name: "Xóa việc" }));
     expect(actions.batchDelete).toHaveBeenCalledTimes(1);
 
     // Escape stays live while deleting, so the user can leave the dialog.
@@ -468,7 +468,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const dropdown = await openKebab();
     await chooseItem(dropdown, "Xóa", "mouse");
     const second = await screen.findByRole("alertdialog");
-    fireEvent.click(within(second).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(second).getByRole("button", { name: "Xóa việc" }));
 
     expect(actions.batchDelete).toHaveBeenCalledTimes(1);
     await act(async () => resolveDelete());
@@ -503,7 +503,7 @@ describe("RowActionsMenu: xóa phải xác nhận", () => {
     const menu = await openContextMenu();
     await chooseItem(menu, "Xóa", "mouse");
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa việc" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 });
@@ -560,8 +560,8 @@ describe.each<Mode>(["list", "board"])("nổi bọt trên %s: hành động khô
       const dialog = await screen.findByRole("alertdialog");
       expect(onOpenTask).not.toHaveBeenCalled();
       // Clicking inside the dialog body (not a button) must not reach the row either.
-      fireEvent.click(within(dialog).getByText("Xóa task này?"));
-      fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+      fireEvent.click(within(dialog).getByText("Xóa việc này?"));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Xóa việc" }));
       await waitFor(() => expect(actions!.batchDelete).toHaveBeenCalledWith(["t1"]));
       expect(onOpenTask).not.toHaveBeenCalled();
     });

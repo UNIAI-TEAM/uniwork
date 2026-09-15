@@ -66,7 +66,7 @@ describe("modes/ListView", () => {
 
     expect(screen.getByTestId("list-group-todo")).toHaveTextContent("Suite row");
     expect(screen.getByTestId("list-group-backlog")).toHaveTextContent(
-      "Chưa có task",
+      "Chưa có việc",
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Cần làm/ }));
