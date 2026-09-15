@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
-import { Monitor, Moon, Plus, Settings2, Sun } from "lucide-react";
+import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -12,10 +12,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@uniwork/ui/components/ui/sidebar";
@@ -117,10 +115,10 @@ export function WorkspaceTopBar({
     { value: "en", label: t("settings.preferences.languageEn") },
   ];
 
+  const ThemeIcon = THEME_ICONS[themeValue];
   const createLabel = t("topbar.createTask");
   const themeLabel = t("topbar.theme");
   const languageLabel = t("topbar.language");
-  const preferencesLabel = t("settings.page.tabs.preferences");
 
   return (
     <header
@@ -161,17 +159,17 @@ export function WorkspaceTopBar({
                     variant="ghost"
                     size="icon-sm"
                     className="h-8 w-8"
-                    aria-label={preferencesLabel}
+                    aria-label={themeLabel}
                   />
                 }
               />
             }
           >
-            <Settings2 aria-hidden className="size-4 text-muted-foreground" />
+            <ThemeIcon aria-hidden className="size-4 text-muted-foreground" />
           </TooltipTrigger>
-          <TooltipContent side="bottom">{preferencesLabel}</TooltipContent>
+          <TooltipContent side="bottom">{themeLabel}</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" className="min-w-48">
+        <DropdownMenuContent align="end" className="min-w-44">
           <DropdownMenuRadioGroup
             value={themeValue}
             onValueChange={(next) => {
@@ -182,7 +180,6 @@ export function WorkspaceTopBar({
               });
             }}
           >
-            <DropdownMenuLabel>{themeLabel}</DropdownMenuLabel>
             {themeOptions.map((option) => {
               const Icon = THEME_ICONS[option.value];
               return (
@@ -193,7 +190,30 @@ export function WorkspaceTopBar({
               );
             })}
           </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-8 w-8"
+                    aria-label={languageLabel}
+                  />
+                }
+              />
+            }
+          >
+            <Languages aria-hidden className="size-4 text-muted-foreground" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{languageLabel}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end" className="min-w-44">
           <DropdownMenuRadioGroup
             value={currentLocale}
             onValueChange={(next) => {
@@ -205,7 +225,6 @@ export function WorkspaceTopBar({
               toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
             }}
           >
-            <DropdownMenuLabel>{languageLabel}</DropdownMenuLabel>
             {languageOptions.map((option) => (
               <DropdownMenuRadioItem key={option.value} value={option.value}>
                 {option.label}

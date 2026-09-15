@@ -80,18 +80,15 @@ describe("WorkspaceChrome", () => {
 });
 
 describe("WorkspaceTopBar", () => {
-  it("renders compact create and one preferences menu without the search pill", () => {
+  it("renders compact create with separate theme and language menus", () => {
     renderTopBar();
     expect(screen.queryByRole("button", { name: /tìm kiếm/i })).toBeNull();
     const create = screen.getByRole("button", { name: /tạo việc/i });
     expect(create).toHaveTextContent("");
     expect(create).toHaveClass("h-8", "w-8");
-    expect(screen.queryByLabelText(/giao diện/i)).toBeNull();
-    expect(screen.queryByLabelText(/ngôn ngữ/i)).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /tùy chọn/i }));
-    expect(screen.getByText("Giao diện")).toBeInTheDocument();
-    expect(screen.getByText("Ngôn ngữ")).toBeInTheDocument();
+    expect(screen.getByLabelText(/giao diện/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
   });
 });
