@@ -42,7 +42,12 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
           identifier: "TEAM-2",
           stage: 1,
           due_date: "2026-09-11",
-          assignee: { id: "u1", kind: "human", display_name: "Me" },
+          assignee: {
+            id: "u1",
+            kind: "human",
+            display_name: "Me",
+            avatar_url: "/uploads/avatars/me.png",
+          },
           created_by: "u1",
           created_at: "2026-09-01T00:00:00Z",
           updated_at: "2026-09-01T00:00:00Z",
@@ -117,6 +122,10 @@ describe("TaskDetailSubtasksSection", () => {
     expect(
       screen.getByRole("combobox", { name: /người phụ trách.*Me/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Me" })).toHaveAttribute(
+      "src",
+      "/uploads/avatars/me.png",
+    );
     expect(screen.getByTestId("subtasks-progress")).toHaveTextContent("1/1");
 
     fireEvent.click(screen.getByRole("button", { name: "Tập trung ô thêm" }));

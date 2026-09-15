@@ -47,6 +47,27 @@ describe("TaskCommentCard", () => {
     expect(screen.getByText("👍")).toBeInTheDocument();
   });
 
+  it("hiển thị avatar tài khoản của tác giả", () => {
+    render(
+      <TaskCommentCard
+        comment={{
+          ...base,
+          author: {
+            id: "u1",
+            kind: "human",
+            display_name: "Me",
+            avatar_url: "/uploads/avatars/me.png",
+          },
+        }}
+        onToggleReaction={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "Me" })).toHaveAttribute(
+      "src",
+      "/uploads/avatars/me.png",
+    );
+  });
+
   it("không hiển thị reaction nào khi mảng rỗng", () => {
     render(<TaskCommentCard comment={base} onToggleReaction={vi.fn()} />);
     expect(screen.queryByText("👍")).not.toBeInTheDocument();

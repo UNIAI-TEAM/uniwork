@@ -19,6 +19,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../../../agents/agent-badge";
 import { ReadonlyContent } from "../../../editor";
+import { TaskActorAvatar } from "./task-actor-avatar";
 
 /**
  * One comment row. Reactions come embedded in listComments; the bar renders
@@ -66,6 +67,11 @@ export function TaskCommentCard({
       )}
     >
       <header className="mb-1.5 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+        <TaskActorAvatar
+          name={authorLabel}
+          avatarUrl={comment.author?.avatar_url ?? comment.avatar_url}
+          kind={comment.author_kind}
+        />
         <span className="font-medium text-foreground">{authorLabel}</span>
         {comment.author_kind === "agent" ? <AgentBadge /> : null}
         {resolved ? (

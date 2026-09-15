@@ -182,6 +182,7 @@ export function AppSidebar() {
                 <ActorAvatar
                   name={user.display_name}
                   initials={initialOf(user.display_name)}
+                  avatarUrl={user.avatar_url}
                   size="lg"
                   className="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
                 />

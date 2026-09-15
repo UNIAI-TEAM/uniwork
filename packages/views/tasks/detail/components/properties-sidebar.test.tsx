@@ -21,6 +21,16 @@ const labelState = vi.hoisted(() => ({
   catalog: [] as TaskLabel[],
   attached: [] as TaskLabel[],
 }));
+const memberState = vi.hoisted(() => ({
+  members: [] as Array<{
+    workspace_id: string;
+    user_id: string;
+    role: "member";
+    email: string;
+    display_name: string;
+    avatar_url?: string;
+  }>,
+}));
 
 function makeLabel(id: string, name: string, color: string): TaskLabel {
   return {
@@ -89,7 +99,7 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
 });
 
 vi.mock("@uniwork/core/workspaces", () => ({
-  useMembers: () => ({ data: [], isLoading: false }),
+  useMembers: () => ({ data: memberState.members, isLoading: false }),
 }));
 
 vi.mock("@uniwork/core/agents", () => ({
@@ -176,6 +186,7 @@ beforeEach(() => {
   labelState.catalog = [];
   labelState.attached = [];
   projectState.available = false;
+  memberState.members = [];
 });
 
 function renderSidebar() {
@@ -254,6 +265,57 @@ describe("TaskDetailPropertiesSidebar", () => {
       taskId: "t1",
       patch: { assignee_id: null, assignee_kind: "human" },
     });
+  });
+
+  it("uses current account avatars for the assignee and creator", () => {
+    memberState.members = [
+      {
+        workspace_id: "w1",
+        user_id: "u1",
+        role: "member",
+        email: "creator@example.com",
+        display_name: "Creator",
+        avatar_url: "/uploads/avatars/creator.png",
+      },
+      {
+        workspace_id: "w1",
+        user_id: "u2",
+        role: "member",
+        email: "assignee@example.com",
+        display_name: "Assignee",
+        avatar_url: "/uploads/avatars/assignee.png",
+      },
+    ];
+
+    render(
+      shell(
+        <TaskDetailPropertiesSidebar
+          workspaceId="w1"
+          task={{
+            ...task,
+            assignee_id: "u2",
+            assignee_kind: "human",
+            assignee: {
+              kind: "human",
+              id: "u2",
+              display_name: "Stale name",
+              avatar_url: "/uploads/avatars/stale.png",
+            },
+          }}
+          onRefetch={() => {}}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("img", { name: "Assignee" })).toHaveAttribute(
+      "src",
+      "/uploads/avatars/assignee.png",
+    );
+    expect(screen.getByRole("img", { name: "Creator" })).toHaveAttribute(
+      "src",
+      "/uploads/avatars/creator.png",
+    );
+    expect(screen.queryByText("Stale name")).not.toBeInTheDocument();
   });
 
   it("hiện tên dự án và đổi dự án bằng picker thay vì lộ id", async () => {

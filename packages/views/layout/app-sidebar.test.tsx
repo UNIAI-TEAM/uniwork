@@ -13,6 +13,7 @@ initI18n();
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "An",
+  avatar_url: "/uploads/avatars/an.png",
   onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
 };
 const workspace: Workspace = {
@@ -46,6 +47,14 @@ beforeEach(() => {
 });
 
 describe("AppSidebar", () => {
+  it("shows the current account avatar instead of an initials-only dummy", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.getByRole("img", { name: "An" })).toHaveAttribute(
+      "src",
+      "/uploads/avatars/an.png",
+    );
+  });
+
   it("renders the workspace sections as real links that navigate through the adapter", () => {
     const nav = renderSidebar("/acme/team/meetings");
     const tasks = screen.getByRole("link", { name: "Công việc" });

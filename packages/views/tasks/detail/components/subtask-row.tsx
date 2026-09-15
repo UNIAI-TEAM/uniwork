@@ -21,6 +21,7 @@ import {
   type AssigneeRef,
 } from "../../pickers";
 import { PriorityFlag, StatusIcon } from "../../modes/status-pill";
+import { TaskActorAvatar } from "./task-actor-avatar";
 
 function isClosed(status: string) {
   return status === "done" || status === "cancelled";
@@ -66,6 +67,13 @@ export function SubtaskRow({
         kind: task.assignee_kind === "agent" ? "agent" : "human",
       }
     : null;
+  const selectedAssignee = assigneeValue
+    ? assigneeOptions.find(
+        (option) => option.id === assigneeValue.id && option.kind === assigneeValue.kind,
+      )
+    : undefined;
+  const assigneeName = selectedAssignee?.name ?? task.assignee?.display_name;
+  const assigneeAvatarUrl = selectedAssignee?.avatarUrl ?? task.assignee?.avatar_url;
   const closed = isClosed(task.status);
   const overdue = Boolean(
     task.due_date &&
@@ -216,7 +224,7 @@ export function SubtaskRow({
           value={assigneeValue}
           options={assigneeOptions}
           ariaLabel={t("tasks.assignee")}
-          valueLabel={task.assignee?.display_name ?? t("tasks.unassigned")}
+          valueLabel={assigneeName ?? t("tasks.unassigned")}
           unassignedLabel={t("tasks.unassigned")}
           searchPlaceholder={t("tasks.assignee_search_placeholder")}
           noResultsLabel={t("tasks.assignee_no_results")}
@@ -230,13 +238,12 @@ export function SubtaskRow({
             )
           }
         >
-          {task.assignee ? (
-            <span
-              title={task.assignee.display_name}
-              className="flex size-5 items-center justify-center rounded-full bg-secondary text-micro text-secondary-foreground"
-            >
-              {task.assignee.display_name.slice(0, 1).toUpperCase()}
-            </span>
+          {assigneeName ? (
+            <TaskActorAvatar
+              name={assigneeName}
+              avatarUrl={assigneeAvatarUrl}
+              kind={assigneeValue?.kind}
+            />
           ) : (
             <span
               aria-hidden
