@@ -4,6 +4,7 @@
     "cancel": "Hủy",
     "delete": "Xóa",
     "create": "Tạo",
+    "beta": "Beta",
     "loading": "Đang tải…",
     "error": "Có lỗi xảy ra",
     "empty": "Chưa có dữ liệu",
@@ -210,8 +211,7 @@
       "themeLight": "Giao diện sáng",
       "themeDark": "Giao diện tối",
       "themeSystem": "Giao diện theo hệ thống",
-      "languageVi": "Ngôn ngữ: Tiếng Việt",
-      "languageEn": "Ngôn ngữ: English"
+      "language": "Ngôn ngữ: {{language}}"
     },
     "pages": {
       "tasks": "Công việc",
@@ -294,8 +294,6 @@
       "themeDark": "Tối",
       "themeSystem": "Theo hệ thống",
       "language": "Ngôn ngữ",
-      "languageVi": "Tiếng Việt",
-      "languageEn": "English",
       "toastSaved": "Đã lưu",
       "themes": "Giao diện",
       "themesHint": "Chỉ lưu trên thiết bị này. Máy khác của bạn giữ lựa chọn riêng.",

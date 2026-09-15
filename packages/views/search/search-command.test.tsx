@@ -13,6 +13,11 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import type { NavigationAdapter } from "../navigation";
 import { SearchCommand } from "./search-command";
 
+vi.mock("@uniwork/core/i18n", async (importOriginal) => {
+  const { withBetaLocale } = await import("../test/beta-locale");
+  return withBetaLocale(await importOriginal<typeof import("@uniwork/core/i18n")>());
+});
+
 initI18n();
 
 const user: User = {
@@ -173,5 +178,15 @@ describe("SearchCommand", () => {
     expect(screen.getByText("Công việc")).toBeInTheDocument();
     expect(screen.getByText("Cuộc họp")).toBeInTheDocument();
     expect(screen.getByText("Cài đặt")).toBeInTheDocument();
+  });
+
+  it("offers one language command per supported locale, named in that language, beta labelled", () => {
+    renderPalette();
+    openPalette();
+    const languages = screen
+      .getAllByRole("option")
+      .map((option) => option.textContent)
+      .filter((text) => text?.startsWith("Ngôn ngữ:"));
+    expect(languages).toEqual(["Ngôn ngữ: Tiếng Việt", "Ngôn ngữ: English", "Ngôn ngữ: ភាសាខ្មែរBeta"]);
   });
 });

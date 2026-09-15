@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
@@ -8,6 +8,11 @@ import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "./workspace-context";
 import { WorkspaceChrome, WorkspaceTopBar } from "./workspace-top-bar";
+
+vi.mock("@uniwork/core/i18n", async (importOriginal) => {
+  const { withBetaLocale } = await import("../test/beta-locale");
+  return withBetaLocale(await importOriginal<typeof import("@uniwork/core/i18n")>());
+});
 
 initI18n();
 
@@ -90,5 +95,13 @@ describe("WorkspaceTopBar", () => {
     expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
+  });
+
+  it("names every supported locale in its own language and labels the beta one", async () => {
+    renderTopBar();
+    fireEvent.click(screen.getByLabelText(/ngôn ngữ/i));
+    const items = await screen.findAllByRole("menuitemradio");
+    expect(items.map((item) => item.textContent)).toEqual(["Tiếng Việt", "English", "ភាសាខ្មែរBeta"]);
+    expect(within(items[2]!).getByText("ភាសាខ្មែរ")).toHaveAttribute("lang", "km");
   });
 });

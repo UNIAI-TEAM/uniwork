@@ -1,6 +1,6 @@
 "use client";
 import { useTranslation } from "react-i18next";
-import { setLocale, type SupportedLocale } from "@uniwork/core/i18n";
+import { LOCALE_NATIVE_NAMES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { Button } from "@uniwork/ui/components/ui/button";
 
@@ -20,7 +20,7 @@ export function LocaleSwitch({ className }: { className?: string }) {
   const localeAdapter = useLocaleAdapter();
   const current: SupportedLocale = i18n.language === "en" ? "en" : "vi";
   const target: SupportedLocale = current === "vi" ? "en" : "vi";
-  const label = target === "vi" ? t("settings.preferences.languageVi") : t("settings.preferences.languageEn");
+  const label = LOCALE_NATIVE_NAMES[target];
   return (
     <Button
       type="button"

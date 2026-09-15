@@ -4,7 +4,7 @@ import { CalendarDays, History, Monitor, Moon, Settings, SquareCheckBig, Sun } f
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
+import { DEFAULT_LOCALE, LOCALE_NATIVE_NAMES, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { paths } from "@uniwork/core/paths";
 import { useSearchStore } from "@uniwork/core/search";
@@ -19,6 +19,7 @@ import {
   CommandItem,
   CommandList,
 } from "@uniwork/ui/components/ui/command";
+import { LocaleBetaBadge } from "../common/locale-name";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 
@@ -154,25 +155,29 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               <Monitor />
               {t("search.commands.themeSystem")}
             </CommandItem>
-            {SUPPORTED_LOCALES.map((locale) => (
-              <CommandItem
-                key={locale}
-                value={`${locale === "vi" ? t("search.commands.languageVi") : t("search.commands.languageEn")} ${locale}`}
-                onSelect={() => {
-                  if (
-                    (SUPPORTED_LOCALES.includes(i18n.language as SupportedLocale)
-                      ? (i18n.language as SupportedLocale)
-                      : DEFAULT_LOCALE) === locale
-                  ) {
-                    setOpen(false);
-                    return;
-                  }
-                  run(() => changeLanguage(locale));
-                }}
-              >
-                {locale === "vi" ? t("search.commands.languageVi") : t("search.commands.languageEn")}
-              </CommandItem>
-            ))}
+            {SUPPORTED_LOCALES.map((locale) => {
+              const label = t("search.commands.language", { language: LOCALE_NATIVE_NAMES[locale] });
+              return (
+                <CommandItem
+                  key={locale}
+                  value={`${label} ${locale}`}
+                  onSelect={() => {
+                    if (
+                      (SUPPORTED_LOCALES.includes(i18n.language as SupportedLocale)
+                        ? (i18n.language as SupportedLocale)
+                        : DEFAULT_LOCALE) === locale
+                    ) {
+                      setOpen(false);
+                      return;
+                    }
+                    run(() => changeLanguage(locale));
+                  }}
+                >
+                  {label}
+                  <LocaleBetaBadge locale={locale} />
+                </CommandItem>
+              );
+            })}
           </CommandGroup>
         </CommandList>
       </Command>

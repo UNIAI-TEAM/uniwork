@@ -4,6 +4,7 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "create": "Create",
+    "beta": "Beta",
     "loading": "Loading…",
     "error": "Something went wrong",
     "empty": "Nothing here yet",
@@ -211,8 +212,7 @@
       "themeLight": "Light theme",
       "themeDark": "Dark theme",
       "themeSystem": "System theme",
-      "languageVi": "Language: Tiếng Việt",
-      "languageEn": "Language: English"
+      "language": "Language: {{language}}"
     },
     "pages": {
       "tasks": "Tasks",
@@ -295,8 +295,6 @@
       "themeDark": "Dark",
       "themeSystem": "System",
       "language": "Language",
-      "languageVi": "Tiếng Việt",
-      "languageEn": "English",
       "toastSaved": "Saved",
       "themes": "Themes",
       "themesHint": "Saved on this device only. Your other devices keep their own.",
