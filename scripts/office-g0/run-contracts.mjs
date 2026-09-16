@@ -372,7 +372,10 @@ export function createModel({
       // Idempotency first: a retry of a request the server already answered is
       // not judged twice, and a reused key with other content is refused
       // instead of silently replaying the first answer.
-      const ledgerKey = "document.save:" + idempotencyKey;
+      // The ledger is scoped, not global. A bare key would make the same value in
+      // two workspaces collide, and the client would get idempotency_payload_mismatch
+      // for a request that never collided with anything.
+      const ledgerKey = ["document.save", doc.orgId, doc.wsId, docId, idempotencyKey].join(":");
       const fingerprint = fingerprintOf({ docId, baseRevision, checksum: upload.checksum });
       const existing = idempotencyKey ? state.idempotency.get(ledgerKey) : undefined;
       if (existing) {
@@ -381,6 +384,10 @@ export function createModel({
         if (idempotencyFingerprint && existing.fingerprint !== fingerprint) {
           fail("idempotency_payload_mismatch", { key: idempotencyKey });
         }
+        // A replay answers a request that already committed, but it is still a
+        // read of that version by this actor: a share revoked in the meantime
+        // must not hand the version metadata back.
+        requireLevel(session.accountId, doc, ["edit", "manage"]);
         return { ...existing.response, replayed: true };
       }
 
@@ -595,6 +602,13 @@ export function createModel({
         fail("owner_requires_copy", { reason: "copy_already_exists", copyId });
       }
       const copyChecksum = source.checksum + ":" + targetFormat;
+      // A copy is a real new document with its own bytes: it consumes quota like
+      // any other write. Skipping this lets a full or zero quota keep minting
+      // documents through conversion.
+      const copyBytes = copyChecksum.length;
+      if (state.quota.usedBytes + copyBytes > state.quota.limitBytes) {
+        fail("quota_exceeded", { used: state.quota.usedBytes, limit: state.quota.limitBytes });
+      }
       state.documents.set(copyId, {
         id: copyId,
         orgId: source.orgId,
@@ -610,6 +624,7 @@ export function createModel({
       state.versions.set(copyId, [
         { version: 1, checksum: copyChecksum, reason: "agent", base: source.currentVersion },
       ]);
+      state.quota.usedBytes += copyBytes;
       state.acl.set(copyId, new Map());
       // The converter keeps access to the copy it created (plan 5.4: the copy
       // preserves the source's permissions). A Work Product copy keeps flowing
@@ -1132,11 +1147,15 @@ export const FAULT_CASES = [
     run({ model, base }) {
       const key = "k-inflight";
       // Model a first attempt that claimed the key and has not committed yet.
-      model.state.idempotency.set("document.save:" + key, {
+      // The ledger row is scoped by document, matching commitSave's key.
+      model.state.idempotency.set(
+        ["document.save", "org-1", "ws-1", base.docId, key].join(":"),
+        {
         accountId: base.accountId,
         fingerprint: "pending",
         response: null,
-      });
+        },
+      );
       const upload = model.beginUpload({ ...base, payload: "concurrent" });
       let observed;
       try {
@@ -1393,6 +1412,109 @@ export const FAULT_CASES = [
       versions: 2,
     },
   },
+  {
+    id: "ledger-scoped-and-rechecked",
+    requirement: "Ledger idempotency theo scope tài liệu và kiểm lại quyền khi replay",
+    run({ model, base }) {
+      model.addDocument({ id: "doc-w2", orgId: "org-1", wsId: "ws-2", checksum: "w2" });
+      model.grant("doc-w2", base.accountId, "edit");
+      // The same key value in another workspace is a different ledger row, not a
+      // payload conflict.
+      const firstUpload = model.beginUpload({ ...base, payload: "same-value", idempotencyKey: "shared-key" });
+      const first = model.commitSave({
+        ...base,
+        uploadId: firstUpload.uploadId,
+        payload: "same-value",
+        idempotencyKey: "shared-key",
+      });
+
+      const w2 = model.beginUpload({
+        sessionId: base.sessionId,
+        docId: "doc-w2",
+        baseRevision: 1,
+        payload: "other-value",
+        engine: base.engine,
+      });
+      let second;
+      try {
+        const committed = model.commitSave({
+          sessionId: base.sessionId,
+          docId: "doc-w2",
+          uploadId: w2.uploadId,
+          baseRevision: 1,
+          payload: "other-value",
+          engine: base.engine,
+          idempotencyKey: "shared-key",
+        });
+        second = { outcome: "committed", version: committed.version };
+      } catch (error) {
+        second = { outcome: "error", code: error.code };
+      }
+
+      // Replay after the share is gone: the ledger row exists, but the actor may
+      // no longer read that version.
+      model.revoke(base.docId, base.accountId);
+      let replayAfterRevoke;
+      try {
+        model.commitSave({
+          ...base,
+          uploadId: firstUpload.uploadId,
+          payload: "same-value",
+          idempotencyKey: "shared-key",
+        });
+        replayAfterRevoke = "replayed";
+      } catch (error) {
+        replayAfterRevoke = error.code;
+      }
+      return {
+        firstVersion: first.version,
+        second: second.outcome,
+        secondCode: second.code ?? null,
+        secondVersion: second.version ?? null,
+        replayAfterRevoke,
+      };
+    },
+    expect: {
+      firstVersion: 2,
+      second: "committed",
+      secondCode: null,
+      secondVersion: 2,
+      replayAfterRevoke: "forbidden",
+    },
+  },
+  {
+    id: "conversion-respects-quota",
+    requirement: "Bản sao chuyển đổi tiêu quota như mọi ghi khác",
+    run({ model, base }) {
+      model.setQuotaLimit(model.state.quota.usedBytes);
+      let copy;
+      try {
+        const made = model.convertDocument({
+          sessionId: base.sessionId,
+          docId: base.docId,
+          targetFormat: "md",
+          mode: "copy",
+        });
+        copy = { outcome: "created", copyId: made.copyId };
+      } catch (error) {
+        copy = { outcome: "error", code: error.code, errorClass: error.errorClass };
+      }
+      return {
+        ...copy,
+        quotaUsed: model.state.quota.usedBytes,
+        quotaLimit: model.state.quota.limitBytes,
+        sourceVersions: model.versionsOf(base.docId),
+      };
+    },
+    expect: {
+      outcome: "error",
+      code: "quota_exceeded",
+      errorClass: "quota",
+      quotaUsed: 7,
+      quotaLimit: 7,
+      sourceVersions: 1,
+    },
+  },
 ];
 
 /** Every case id the plan's mandatory list ("Ca bắt buộc") requires. */
@@ -1419,6 +1541,8 @@ export const REQUIRED_CASE_IDS = [
   "recovery-checks-base-version",
   "draft-apis-require-matching-session",
   "upload-owner-and-single-commit",
+  "ledger-scoped-and-rechecked",
+  "conversion-respects-quota",
 ];
 /**
  * Run every case against a fresh model. The fixture is identical for all cases,

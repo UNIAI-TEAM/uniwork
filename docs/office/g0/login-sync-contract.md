@@ -5,7 +5,7 @@
 > **Nguồn:** spec [Documents + UniWork Office G0](../../superpowers/specs/2026-09-16-documents-office-g0-design.md) §9;
 > plan [G0](../../superpowers/plans/2026-09-16-documents-office-g0.md) Task 5;
 > C-01 §2/§3/§5/§13; Q5-A, Q7-B, Q8-A.
-> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 22/22 ca khớp oracle,
+> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 24/24 ca khớp oracle,
 > xuất `.go-tmp/office-g0/run-contracts.json`. Đây là **model tham chiếu**, không phải
 > E2E sản phẩm. Xem §8 để biết chính xác mức bằng chứng.
 
@@ -141,6 +141,7 @@ thêm `errorClass`:
 | `forbidden` | 403 | `permission` | khoá trong app, giữ nháp |
 | `quota_exceeded` | 413 | `quota` | giữ nháp `dirty`, báo người dùng |
 | `engine_incompatible` | 409 | `incompatible` | chặn mở/sửa, yêu cầu cập nhật |
+| `upload_already_committed` | 409 | `conflict` | upload đã tiêu; retry bằng cùng key hoặc upload mới |
 | `token_expired` | 401 | `session` | refresh; thất bại thì giữ nháp |
 
 Bảng này là hằng số trong `run-contracts.mjs` (`ERROR_CODES`) và có test khẳng định
@@ -243,13 +244,13 @@ và tài khoản ngoài Work Product đọc bản sao nhận `forbidden`.
 ## 8. Bằng chứng chạy
 
 ```sh
-node scripts/office-g0/run-contracts.mjs                    # 22/22, ghi JSON
+node scripts/office-g0/run-contracts.mjs                    # 24/24, ghi JSON
 node scripts/office-g0/run-contracts.mjs --legacy-idempotency --out <path>
 node --test scripts/office-g0/run-contracts.test.mjs
 ```
 
 Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON ghi `gitHead` để
-đối chiếu): **22/22 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
+đối chiếu): **24/24 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
 
 | Ca trong plan | id | Kết quả |
 | --- | --- | --- |
@@ -275,6 +276,8 @@ Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON g
 | Phục hồi kiểm cả base version | `recovery-checks-base-version` | lệch version → `conflict`, giữ nháp |
 | Đọc nháp phải qua phiên | `draft-apis-require-matching-session` | đổi accountId → `forbidden`; logout → `token_expired`, byte còn |
 | Upload thuộc người tạo, commit một lần | `upload-owner-and-single-commit` | người khác commit → `forbidden`; tái dùng upload đã commit → `upload_already_committed`; retry cùng key → replay |
+| Ledger idempotency theo scope và kiểm lại quyền | `ledger-scoped-and-rechecked` | cùng key ở workspace khác không xung đột; replay sau khi thu quyền → `forbidden` |
+| Bản sao chuyển đổi tiêu quota | `conversion-respects-quota` | quota đầy → `quota_exceeded`, nguồn không đổi |
 
 Năm ca cuối được thêm ở vòng sửa sau review: chúng đóng khoảng trống mà bộ 16 ca
 ban đầu còn để lọt (§8.2).
@@ -344,6 +347,28 @@ Kiểm chứng bằng mutation cho hai fix này (bản sao trong
 | --- | --- | --- |
 | Bỏ kiểm `upload.accountId` | 1 | ca crash bằng `ProtocolError: upload_already_committed` ngay khi A commit chính upload của mình sau khi B đã commit hộ |
 | Bỏ kiểm `upload.committed` | 1 | `upload-owner-and-single-commit` FAIL (21/22) |
+
+### 8.4 Vòng sửa 3
+
+Probe thứ ba của main tìm thêm ba lỗi, đều nằm ngoài tập tình huống bộ 16 ca đầu
+mô tả:
+
+| Lỗi đã xác nhận | Bằng chứng trước khi sửa | Đã sửa |
+| --- | --- | --- |
+| Replay trả metadata phiên bản sau khi quyền đã bị thu | nhánh replay trả về trước khi kiểm quyền → `replayed`, version 2 | replay kiểm lại `edit/manage`; thu quyền → `forbidden` |
+| Ledger idempotency không có scope tài liệu | cùng key ở hai workspace khác nhau → `idempotency_payload_mismatch` dù không hề trùng | ledger key gồm org/ws/doc |
+| Bản sao chuyển đổi không tiêu quota | quota = 0 vẫn tạo được bản sao, `usedBytes` vượt `limitBytes` | kiểm quota trước khi tạo bản sao và trừ `usedBytes` |
+
+Ca `ledger-scoped-and-rechecked` và `conversion-respects-quota` khẳng định hai vế
+đầu và cuối; vế replay sau thu quyền nằm trong chính ca ledger.
+
+Kiểm chứng bằng mutation (bản sao trong `../.uniwork-dev/office-g0/mutants-r3/`):
+
+| Bản hoàn lại fix | Exit | Ca thất bại |
+| --- | --- | --- |
+| Bỏ kiểm quyền ở nhánh replay | 1 | `ledger-scoped-and-rechecked` (23/24) |
+| Ledger key bỏ scope tài liệu | 1 | `idempotency-in-flight` và `ledger-scoped-and-rechecked` (22/24) |
+| Bỏ kiểm quota khi tạo bản sao | 1 | `conversion-respects-quota` (23/24) |
 
 ## 9. Việc tiếp theo
 
