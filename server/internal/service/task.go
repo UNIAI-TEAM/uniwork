@@ -41,20 +41,21 @@ func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, sto
 }
 
 type CreateTaskInput struct {
-	Title        string
-	Description  string
-	Status       string
-	Priority     string
-	AssigneeID   *string
-	AssigneeKind string // "" or human | agent (ADR 0007)
-	StartDate    *string
-	DueDate      *string
-	OriginType   string
-	OriginID     *string
-	ProjectID    *string // optional; must belong to the same workspace
-	ParentTaskID *string // optional; must belong to the same workspace
-	Stage        *int32
-	LabelIDs     []string
+	Title         string
+	Description   string
+	Status        string
+	Priority      string
+	AssigneeID    *string
+	AssigneeKind  string // "" or human | agent (ADR 0007)
+	StartDate     *string
+	DueDate       *string
+	OriginType    string
+	OriginID      *string
+	ProjectID     *string // optional; must belong to the same workspace
+	ParentTaskID  *string // optional; must belong to the same workspace
+	Stage         *int32
+	LabelIDs      []string
+	AttachmentIDs []string
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate/ProjectID con trỏ
@@ -366,6 +367,34 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 			return db.Task{}, err
 		}
 	}
+	attachmentIDs := make([]string, 0, len(in.AttachmentIDs))
+	seenAttachmentIDs := make(map[string]struct{}, len(in.AttachmentIDs))
+	for _, id := range in.AttachmentIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, exists := seenAttachmentIDs[id]; exists {
+			continue
+		}
+		seenAttachmentIDs[id] = struct{}{}
+		attachmentIDs = append(attachmentIDs, id)
+	}
+	if len(attachmentIDs) > 20 {
+		return db.Task{}, Invalid("attachment_ids tối đa 20")
+	}
+	if len(attachmentIDs) > 0 {
+		bound, err := q.BindAttachmentsToTask(ctx, db.BindAttachmentsToTaskParams{
+			TaskID: pgtype.Text{String: task.ID, Valid: true}, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+			UploaderType: s.commentActorType(actor.Kind), UploaderID: actor.ID, AttachmentIds: attachmentIDs,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+		if len(bound) != len(attachmentIDs) {
+			return db.Task{}, coded(http.StatusUnprocessableEntity, "attachment_not_available", "đính kèm không tồn tại, đã hết hạn hoặc đã được sử dụng")
+		}
+	}
 	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)
 	if err != nil {
 		return db.Task{}, err
@@ -373,6 +402,11 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	emit := []audit.Event{{Topic: "task.created", Payload: map[string]string{
 		"task_id": task.ID, "workspace_id": workspaceID,
 	}}}
+	for _, attachmentID := range attachmentIDs {
+		emit = append(emit, audit.Event{Topic: "attachment.uploaded", Payload: map[string]string{
+			"attachment_id": attachmentID, "task_id": task.ID, "workspace_id": workspaceID,
+		}})
+	}
 	if autoSubscribed {
 		emit = append(emit, taskSubscriptionEvent(task))
 	}

@@ -434,6 +434,10 @@ func registerTasksSuite(r api, h Routes) {
 			summary: "Upload task attachment", description: "Tải lên đính kèm (multipart field file, tối đa 25 MiB).",
 			tags: []string{"tasks"}, sdi: sdi.UploadTaskAttachmentSDI{}, sdo: sdo.AttachmentDTO{}, auth: true,
 		})
+		suite.Post("/workspaces/{workspaceID}/attachments", h.UploadWorkspaceAttachment, apiOp{
+			summary: "Upload attachment before task create", description: "Tải tệp tạm theo workspace; gửi id trong attachment_ids khi tạo task.",
+			tags: []string{"tasks"}, sdi: sdi.UploadWorkspaceAttachmentSDI{}, sdo: sdo.AttachmentDTO{}, auth: true,
+		})
 		suite.Get("/attachments/{attachmentID}", h.GetAttachment, apiOp{
 			summary: "Get attachment", description: "Metadata đính kèm (không gồm object_key).",
 			tags: []string{"tasks"}, sdo: sdo.AttachmentDTO{}, auth: true,

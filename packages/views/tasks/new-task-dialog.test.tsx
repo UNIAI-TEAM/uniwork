@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { setSessionUser } from "@uniwork/core/auth";
@@ -80,6 +81,24 @@ describe("NewTaskDialog", () => {
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Việc mới" })).toBeNull();
+  });
+
+  it("persists edits without updating the draft store during React render", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <StrictMode>
+        {wrap(<NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />)}
+      </StrictMode>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Không cảnh báo" } });
+
+    expect(
+      consoleError.mock.calls.some(([message]) =>
+        String(message).includes("Cannot update a component"),
+      ),
+    ).toBe(false);
+    consoleError.mockRestore();
   });
 
   it("does not mount agent trigger or squad assign chrome", () => {
@@ -232,5 +251,40 @@ describe("NewTaskDialog", () => {
     expect(options.action?.label).toBe("Xem task");
     options.action?.onClick();
     expect(push).toHaveBeenCalledWith("/acme/team/tasks/t1");
+  });
+
+  it("uploads before create, gates submit, and binds the staged attachment", async () => {
+    let resolveUpload: ((value: unknown) => void) | undefined;
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/members")) return { members: [] };
+      if (path.endsWith("/projects")) return { projects: [], total: 0 };
+      if (init?.method === "POST" && path.endsWith("/attachments")) {
+        return new Promise((resolve) => { resolveUpload = resolve; });
+      }
+      if (init?.method === "POST" && path.endsWith("/tasks")) return { task: createdTask };
+      return {};
+    });
+    render(wrap(<NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />));
+    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Có tệp" } });
+    const form = screen.getByLabelText("Tiêu đề").closest("form")!;
+    fireEvent.change(screen.getByLabelText("Đính kèm"), {
+      target: { files: [new File(["hello"], "brief.txt", { type: "text/plain" })] },
+    });
+    fireEvent.submit(form);
+    expect(requestMock.mock.calls.filter(([path]) => String(path).endsWith("/tasks"))).toHaveLength(0);
+
+    await waitFor(() => expect(resolveUpload).toBeTypeOf("function"));
+    await act(async () => resolveUpload?.({
+      id: "att-1", workspace_id: "ws1", task_id: null, filename: "brief.txt",
+      url: "/api/v1/attachments/att-1/content", download_url: "/api/v1/attachments/att-1/download",
+      content_type: "text/plain", size_bytes: 5, created_at: "2026-09-16T00:00:00Z",
+    }));
+    await waitFor(() => expect(screen.queryByText("brief.txt")).toBeInTheDocument());
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/tasks",
+      expect.objectContaining({ body: expect.objectContaining({ attachment_ids: ["att-1"] }) }),
+    ));
   });
 });

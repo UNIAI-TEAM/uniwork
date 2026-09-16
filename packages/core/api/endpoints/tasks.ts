@@ -43,6 +43,7 @@ export interface CreateTaskBody {
   parent_task_id?: string | null;
   stage?: number | null;
   label_ids?: string[];
+  attachment_ids?: string[];
 }
 
 const enc = encodeURIComponent;

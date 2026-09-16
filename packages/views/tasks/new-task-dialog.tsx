@@ -9,6 +9,8 @@ import {
   useProjects,
   useTaskLabels,
   useTaskStatuses,
+  useUploadWorkspaceAttachment,
+  useDeleteAttachment,
   type CreateTaskBody,
 } from "@uniwork/core/tasks";
 import { useCreateTaskDraftStore, type CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
@@ -78,34 +80,41 @@ export function NewTaskDialog({
   const workspaceContext = useOptionalWorkspace();
   const navigation = useOptionalNavigation();
   const create = useCreateTask(workspaceId);
+  const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
+  const deleteAttachment = useDeleteAttachment(workspaceId, "");
   const { data: projectList } = useProjects(workspaceId);
   const { data: labelList } = useTaskLabels(workspaceId);
   const { data: statusList } = useTaskStatuses(workspaceId);
   const assignees = useWorkspaceAssigneeOptions(workspaceId);
-  const draftStore = useCreateTaskDraftStore();
+  const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
+  const persistDraft = useCreateTaskDraftStore((state) => state.setDraft);
+  const clearDraft = useCreateTaskDraftStore((state) => state.clearDraft);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [draft, setDraftState] = useState<CreateTaskDraft>(() => draftFromDefaults(defaults));
   const draftRef = useRef(draft);
+  const uploadInFlightRef = useRef(false);
   const [createAnother, setCreateAnother] = useState(false);
+  const [failedFile, setFailedFile] = useState<File | null>(null);
   const open = openProp ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   useEffect(() => {
     if (!open) return;
-    setDraftState(draftStore.draftFor(workspaceId) ?? draftFromDefaults(defaults));
-  }, [open, workspaceId, defaults, draftStore]);
+    const next = draftFor(workspaceId) ?? draftFromDefaults(defaults);
+    draftRef.current = next;
+    setDraftState(next);
+  }, [open, workspaceId, defaults, draftFor]);
 
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
 
   const updateDraft = (patch: Partial<CreateTaskDraft>) => {
-    setDraftState((current) => {
-      const next = { ...current, ...patch, version: (current.version ?? 0) + 1 };
-      draftRef.current = next;
-      draftStore.setDraft(workspaceId, next);
-      return next;
-    });
+    const current = draftRef.current;
+    const next = { ...current, ...patch, version: (current.version ?? 0) + 1 };
+    draftRef.current = next;
+    setDraftState(next);
+    persistDraft(workspaceId, next);
   };
 
   const statusItems = useMemo(
@@ -135,7 +144,7 @@ export function NewTaskDialog({
     : t("tasks.unassigned");
 
   const submit = () => {
-    if (create.isPending) return;
+    if (create.isPending || uploadInFlightRef.current) return;
     const title = draft.title.trim();
     if (!title) return;
     const submitted = { ...draft, title };
@@ -153,6 +162,7 @@ export function NewTaskDialog({
         start_date: draft.startDate || null,
         due_date: draft.dueDate || null,
         label_ids: draft.labelIds,
+        attachment_ids: draft.attachments?.map((attachment) => attachment.id),
         idempotencyKey: draft.idempotencyKey,
       })
       .then((task) => {
@@ -160,7 +170,7 @@ export function NewTaskDialog({
         const submittedIsStillCurrent =
           latest.idempotencyKey === submitted.idempotencyKey &&
           (latest.version ?? 0) === (submitted.version ?? 0);
-        draftStore.clearDraft(workspaceId, submitted.idempotencyKey, submitted.version ?? 0);
+        clearDraft(workspaceId, submitted.idempotencyKey, submitted.version ?? 0);
         const taskPath = workspaceContext
           ? paths
               .workspace(
@@ -195,6 +205,16 @@ export function NewTaskDialog({
         setOpen(false);
       })
       .catch((error: unknown) => toastApiError(error, t("tasks.create.error")));
+  };
+
+  const uploadFile = (file: File) => {
+    setFailedFile(null);
+    uploadInFlightRef.current = true;
+    void uploadAttachment.mutateAsync(file).then((attachment) => {
+      updateDraft({ attachments: [...(draftRef.current.attachments ?? []), attachment] });
+    }).catch(() => setFailedFile(file)).finally(() => {
+      uploadInFlightRef.current = false;
+    });
   };
 
   return (
@@ -265,6 +285,47 @@ export function NewTaskDialog({
               <DateField id="task-due-date" value={draft.dueDate ?? ""} onChange={(value) => updateDraft({ dueDate: value || undefined })} modal={false} />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="task-attachments">{t("tasks.detail.attachments_section")}</Label>
+            <Input
+              id="task-attachments"
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) uploadFile(file);
+                event.target.value = "";
+              }}
+            />
+            {uploadAttachment.isPending ? (
+              <p className="text-caption text-muted-foreground" aria-live="polite">
+                {t("tasks.detail.attachments_uploading", { filename: uploadAttachment.variables?.name ?? "" })}
+              </p>
+            ) : null}
+            {failedFile ? (
+              <div className="flex items-center justify-between gap-2 text-body" role="alert">
+                <span>{t("editor.upload.failed_label", { filename: failedFile.name })}</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => uploadFile(failedFile)}>
+                  {t("common.retry")}
+                </Button>
+              </div>
+            ) : null}
+            {(draft.attachments ?? []).map((attachment) => (
+              <div key={attachment.id} className="flex items-center justify-between gap-2 text-body">
+                <span className="truncate">{attachment.filename}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    updateDraft({ attachments: draftRef.current.attachments?.filter((item) => item.id !== attachment.id) });
+                    void deleteAttachment.mutateAsync(attachment.id);
+                  }}
+                >
+                  {t("editor.upload.remove")}
+                </Button>
+              </div>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
             <label className="flex items-center gap-2 text-body">
               <Checkbox checked={createAnother} onCheckedChange={setCreateAnother} />
@@ -272,8 +333,8 @@ export function NewTaskDialog({
             </label>
             <div className="flex gap-2">
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>{t("common.cancel")}</Button>
-              <Button type="submit" aria-disabled={create.isPending || !draft.title.trim()}>
-                {create.isPending ? t("tasks.create.creating") : t("common.create")}
+              <Button type="submit" aria-disabled={create.isPending || uploadAttachment.isPending || !draft.title.trim()}>
+                {create.isPending || uploadAttachment.isPending ? t("tasks.create.creating") : t("common.create")}
               </Button>
             </div>
           </div>

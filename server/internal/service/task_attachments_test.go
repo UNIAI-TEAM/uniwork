@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestUploadListGetOpenDeleteAttachment(t *testing.T) {
@@ -114,5 +116,69 @@ func TestUploadAttachmentRejectsOversizeAndBadMIME(t *testing.T) {
 		if !errors.As(err, &ve) {
 			t.Fatalf("bad mime: %v", err)
 		}
+	}
+}
+
+func TestStageAttachmentAndBindAtomicallyOnTaskCreate(t *testing.T) {
+	s, _, _, ua, _, w := taskFixtureWithStorage(t)
+	ctx := context.Background()
+	body := []byte("# draft\n")
+
+	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "draft.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if att.TaskID.Valid {
+		t.Fatalf("staged attachment unexpectedly bound to %q", att.TaskID.String)
+	}
+
+	task, err := s.CreateTaskSuite(ctx, Human(ua.ID), w.ID, CreateTaskInput{
+		Title: "With staged file", AttachmentIDs: []string{att.ID},
+	}, "create-with-attachment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed, err := s.ListTaskAttachments(ctx, Human(ua.ID), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].ID != att.ID || listed[0].TaskID.String != task.ID {
+		t.Fatalf("bound attachments = %+v", listed)
+	}
+}
+
+func TestCreateTaskRejectsForeignOrAlreadyBoundAttachment(t *testing.T) {
+	s, _, _, ua, _, w := taskFixtureWithStorage(t)
+	ctx := context.Background()
+	body := []byte("x")
+	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "one.txt", "text/plain", 1, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.CreateTaskSuite(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "First", AttachmentIDs: []string{att.ID}}, "first-with-attachment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.CreateTaskSuite(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Second", AttachmentIDs: []string{att.ID}}, "second-with-attachment")
+	if err == nil {
+		t.Fatalf("already-bound attachment from %s was accepted", first.ID)
+	}
+}
+
+func TestStagedAttachmentIsPrivateToUploader(t *testing.T) {
+	s, _, _, ua, ub, w := taskFixtureWithStorage(t)
+	ctx := context.Background()
+	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: ub.ID, Role: "member"}); err != nil {
+		t.Fatal(err)
+	}
+	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "private.txt", "text/plain", 1, strings.NewReader("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetAttachment(ctx, Human(ub.ID), att.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("other member read staged attachment: %v", err)
+	}
+	if err := s.DeleteAttachment(ctx, Human(ub.ID), att.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("other member deleted staged attachment: %v", err)
 	}
 }

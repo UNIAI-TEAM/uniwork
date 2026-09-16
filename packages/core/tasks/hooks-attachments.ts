@@ -20,6 +20,16 @@ export function useUploadTaskAttachment(workspaceId: string, taskId: string) {
   });
 }
 
+export function useUploadWorkspaceAttachment(workspaceId: string) {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const attachment = await attachments.uploadWorkspaceAttachment(workspaceId, file);
+      if (!attachment) throw new Error("Malformed attachment upload response");
+      return attachment;
+    },
+  });
+}
+
 export function useDeleteAttachment(workspaceId: string, taskId: string) {
   const qc = useQueryClient();
   return useMutation({

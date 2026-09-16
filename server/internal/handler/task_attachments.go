@@ -119,6 +119,46 @@ func (h *handlers) uploadTaskAttachment(w http.ResponseWriter, r *http.Request) 
 	respondJSON(w, http.StatusOK, attachmentDTO(att))
 }
 
+func (h *handlers) uploadWorkspaceAttachment(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, service.MaxAttachmentBytes+attachmentMultipartHeadroom)
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			respondError(w, http.StatusRequestEntityTooLarge, "too_large", "attachment must be at most 25 MiB")
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, service.MaxAttachmentBytes+1))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "could not read upload")
+		return
+	}
+	if int64(len(data)) > service.MaxAttachmentBytes {
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "attachment must be at most 25 MiB")
+		return
+	}
+	filename, contentType := "file", "application/octet-stream"
+	if header != nil {
+		if base := path.Base(header.Filename); base != "" && base != "." && base != ".." {
+			filename = base
+		}
+		contentType = header.Header.Get("Content-Type")
+	}
+	if contentType == "" || contentType == "application/octet-stream" {
+		contentType = http.DetectContentType(data)
+	}
+	att, err := h.Tasks.UploadWorkspaceAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), filename, contentType, int64(len(data)), bytes.NewReader(data))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, attachmentDTO(att))
+}
+
 func (h *handlers) getAttachment(w http.ResponseWriter, r *http.Request) {
 	att, err := h.Tasks.GetAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "attachmentID"))
 	if err != nil {

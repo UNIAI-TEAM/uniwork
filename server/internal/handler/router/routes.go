@@ -162,27 +162,28 @@ type Routes struct {
 	PutProjectResource    http.HandlerFunc
 	DeleteProjectResource http.HandlerFunc
 
-	UpdateComment          http.HandlerFunc
-	DeleteComment          http.HandlerFunc
-	ResolveComment         http.HandlerFunc
-	UnresolveComment       http.HandlerFunc
-	AddCommentReaction     http.HandlerFunc
-	RemoveCommentReaction  http.HandlerFunc
-	AddTaskReaction        http.HandlerFunc
-	RemoveTaskReaction     http.HandlerFunc
-	ListTaskSubscribers    http.HandlerFunc
-	SubscribeTask          http.HandlerFunc
-	UnsubscribeTask        http.HandlerFunc
-	UnsubscribeTaskSubtree http.HandlerFunc
-	ListTaskAttachments    http.HandlerFunc
-	UploadTaskAttachment   http.HandlerFunc
-	GetAttachment          http.HandlerFunc
-	GetAttachmentContent   http.HandlerFunc
-	DownloadAttachment     http.HandlerFunc
-	DeleteAttachment       http.HandlerFunc
-	CommentSubTaskPreview  http.HandlerFunc
-	CreateCommentSubTasks  http.HandlerFunc
-	PreviewCommentTriggers http.HandlerFunc
+	UpdateComment             http.HandlerFunc
+	DeleteComment             http.HandlerFunc
+	ResolveComment            http.HandlerFunc
+	UnresolveComment          http.HandlerFunc
+	AddCommentReaction        http.HandlerFunc
+	RemoveCommentReaction     http.HandlerFunc
+	AddTaskReaction           http.HandlerFunc
+	RemoveTaskReaction        http.HandlerFunc
+	ListTaskSubscribers       http.HandlerFunc
+	SubscribeTask             http.HandlerFunc
+	UnsubscribeTask           http.HandlerFunc
+	UnsubscribeTaskSubtree    http.HandlerFunc
+	ListTaskAttachments       http.HandlerFunc
+	UploadTaskAttachment      http.HandlerFunc
+	UploadWorkspaceAttachment http.HandlerFunc
+	GetAttachment             http.HandlerFunc
+	GetAttachmentContent      http.HandlerFunc
+	DownloadAttachment        http.HandlerFunc
+	DeleteAttachment          http.HandlerFunc
+	CommentSubTaskPreview     http.HandlerFunc
+	CreateCommentSubTasks     http.HandlerFunc
+	PreviewCommentTriggers    http.HandlerFunc
 
 	// WorkManagementCapabilityStub backs every catalogue disposition:stubbed route.
 	WorkManagementCapabilityStub http.HandlerFunc

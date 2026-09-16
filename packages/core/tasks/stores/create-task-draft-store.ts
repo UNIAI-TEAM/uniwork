@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { draftWriteOwner, registerDraftCleanup } from "../../drafts/cleanup-registry";
 import { defaultStorage } from "../../platform/storage";
 import type { TaskPriority } from "../../types/task";
+import type { Attachment } from "../../types/attachment";
 
 const CREATE_TASK_DRAFT_STORAGE_KEY = "uniwork_create_task_drafts";
 
@@ -21,6 +22,7 @@ export type CreateTaskDraft = {
   startDate?: string;
   dueDate?: string;
   labelIds?: string[];
+  attachments?: Attachment[];
   idempotencyKey: string;
   /** Monotonic local edit revision used to protect a newer draft from a late response. */
   version?: number;
@@ -48,7 +50,8 @@ function hasMeaningfulContent(draft: CreateTaskDraft): boolean {
       draft.stage ||
       draft.startDate ||
       draft.dueDate ||
-      draft.labelIds?.length,
+      draft.labelIds?.length ||
+      draft.attachments?.length,
   );
 }
 

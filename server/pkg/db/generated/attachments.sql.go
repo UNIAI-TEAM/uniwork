@@ -11,6 +11,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bindAttachmentsToTask = `-- name: BindAttachmentsToTask :many
+UPDATE attachments
+SET task_id = $1, expires_at = NULL, updated_at = now()
+WHERE organization_id = $2
+  AND workspace_id = $3
+  AND uploader_type = $4
+  AND uploader_id = $5
+  AND task_id IS NULL
+  AND comment_id IS NULL
+  AND expires_at > now()
+  AND id = ANY($6::text[])
+RETURNING id
+`
+
+type BindAttachmentsToTaskParams struct {
+	TaskID         pgtype.Text `json:"task_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	UploaderType   string      `json:"uploader_type"`
+	UploaderID     string      `json:"uploader_id"`
+	AttachmentIds  []string    `json:"attachment_ids"`
+}
+
+func (q *Queries) BindAttachmentsToTask(ctx context.Context, arg BindAttachmentsToTaskParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, bindAttachmentsToTask,
+		arg.TaskID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UploaderType,
+		arg.UploaderID,
+		arg.AttachmentIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAttachment = `-- name: DeleteAttachment :exec
 DELETE FROM attachments
 WHERE id = $1
@@ -30,7 +80,7 @@ func (q *Queries) DeleteAttachment(ctx context.Context, arg DeleteAttachmentPara
 }
 
 const getAttachment = `-- name: GetAttachment :one
-SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at
+SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
 FROM attachments
 WHERE id = $1
   AND organization_id = $2
@@ -63,12 +113,13 @@ func (q *Queries) GetAttachment(ctx context.Context, arg GetAttachmentParams) (A
 		&i.SourceContextID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
 
 const getAttachmentByID = `-- name: GetAttachmentByID :one
-SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at
+SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
 FROM attachments
 WHERE id = $1
 `
@@ -93,6 +144,7 @@ func (q *Queries) GetAttachmentByID(ctx context.Context, id string) (Attachment,
 		&i.SourceContextID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
@@ -102,29 +154,30 @@ const insertAttachment = `-- name: InsertAttachment :one
 INSERT INTO attachments (
   id, organization_id, workspace_id, task_id, comment_id,
   uploader_type, uploader_id, object_key, object_url,
-  filename, content_type, metadata, size_bytes
+  filename, content_type, metadata, size_bytes, expires_at
 ) VALUES (
   $1, $2, $3, $4, $5,
   $6, $7, $8, $9,
-  $10, $11, $12, $13
+  $10, $11, $12, $13, $14
 )
-RETURNING id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at
+RETURNING id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
 `
 
 type InsertAttachmentParams struct {
-	ID             string      `json:"id"`
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
-	TaskID         pgtype.Text `json:"task_id"`
-	CommentID      pgtype.Text `json:"comment_id"`
-	UploaderType   string      `json:"uploader_type"`
-	UploaderID     string      `json:"uploader_id"`
-	ObjectKey      string      `json:"object_key"`
-	ObjectUrl      pgtype.Text `json:"object_url"`
-	Filename       string      `json:"filename"`
-	ContentType    string      `json:"content_type"`
-	Metadata       []byte      `json:"metadata"`
-	SizeBytes      int64       `json:"size_bytes"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	TaskID         pgtype.Text        `json:"task_id"`
+	CommentID      pgtype.Text        `json:"comment_id"`
+	UploaderType   string             `json:"uploader_type"`
+	UploaderID     string             `json:"uploader_id"`
+	ObjectKey      string             `json:"object_key"`
+	ObjectUrl      pgtype.Text        `json:"object_url"`
+	Filename       string             `json:"filename"`
+	ContentType    string             `json:"content_type"`
+	Metadata       []byte             `json:"metadata"`
+	SizeBytes      int64              `json:"size_bytes"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 }
 
 // Attachments on tasks (and optionally comments).
@@ -143,6 +196,7 @@ func (q *Queries) InsertAttachment(ctx context.Context, arg InsertAttachmentPara
 		arg.ContentType,
 		arg.Metadata,
 		arg.SizeBytes,
+		arg.ExpiresAt,
 	)
 	var i Attachment
 	err := row.Scan(
@@ -162,12 +216,13 @@ func (q *Queries) InsertAttachment(ctx context.Context, arg InsertAttachmentPara
 		&i.SourceContextID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
 }
 
 const listAttachmentsByTask = `-- name: ListAttachmentsByTask :many
-SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at
+SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
 FROM attachments
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -207,6 +262,7 @@ func (q *Queries) ListAttachmentsByTask(ctx context.Context, arg ListAttachments
 			&i.SourceContextID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ExpiresAt,
 		); err != nil {
 			return nil, err
 		}
