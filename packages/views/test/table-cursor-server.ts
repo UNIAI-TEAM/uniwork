@@ -11,6 +11,8 @@ type Params = Record<string, unknown>;
 interface TableCursorServerOptions {
   /** Rows in one branch; `parentId` is null for top-level rows. */
   count: (groupKey: string | null, parentId: string | null) => number;
+  /** What pages claim as the branch total, when it differs from the rows served. */
+  claimed?: (groupKey: string | null, parentId: string | null) => number;
   /** `group@offset` pages whose first request fails. */
   failOnce?: string[];
   /** `group@offset` pages whose first request answers 409 `cursor_query_mismatch`. */
@@ -65,7 +67,7 @@ export function serveTableCursor(options: TableCursorServerOptions) {
       query_fingerprint: "fp-rows",
       group_key: groupKey,
       parent_id: parentId,
-      total,
+      total: options.claimed?.(groupKey, parentId) ?? total,
       rows,
       next_cursor: end < total ? encodeCursor(end) : null,
     };

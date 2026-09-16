@@ -151,17 +151,30 @@ describe("useCursorBranches", () => {
     expect(server.rowRequests()).toEqual([`todo@${encodeCursor(4)}`]);
   });
 
-  it("reports the first page's total, never below the largest seen", async () => {
+  it("follows the first page's total down after deletions", async () => {
     let count = 6;
     serveTableCursor({ count: () => count });
     const { client, result } = renderBranches({});
     await waitFor(() => expect(result.current.byKey.get("todo")?.total).toBe(6));
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
 
     count = 3;
     await act(() => client.refetchQueries({ queryKey: tableRowsBranchPrefix("w1", branch("todo").body) }));
+    await waitFor(() => expect(result.current.byKey.get("todo")?.total).toBe(3));
     await settle();
     expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
-    expect(result.current.byKey.get("todo")?.total).toBe(6);
+    expect(result.current.byKey.get("todo")?.total).toBe(3);
+  });
+
+  it("never reports a total below the rows loaded", async () => {
+    serveTableCursor({ count: () => 6, claimed: () => 1 });
+    const { result } = renderBranches({});
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+    expect(result.current.byKey.get("todo")?.total).toBe(2);
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
+    expect(result.current.byKey.get("todo")?.total).toBe(4);
   });
 
   it("reports a failed page, and retry refetches it and clears the error", async () => {

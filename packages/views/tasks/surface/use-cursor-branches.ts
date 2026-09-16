@@ -18,7 +18,7 @@ export interface CursorBranchState {
   key: string;
   /** Loaded pages in order; the first copy of an id wins. */
   rows: TableRowsResult["rows"];
-  /** The branch's total, the largest any loaded page reported. */
+  /** The first page's total, never below the rows loaded. */
   total: number;
   /** The first page is pending and has no data yet. */
   isLoading: boolean;
@@ -189,9 +189,6 @@ export function useCursorBranches(
     }
   }, [prepared, pagesOf, resetBranch]);
 
-  // The largest first-page total seen per branch, so a count never shrinks
-  // under rows already on screen while a refetch settles.
-  const largestTotal = useRef(new Map<string, number>());
   const byKey = useMemo(() => {
     const map = new Map<string, CursorBranchState>();
     for (const b of prepared) {
@@ -200,8 +197,7 @@ export function useCursorBranches(
       const last = pages[pages.length - 1];
       const cursors = b.bodies.map((body) => body.cursor);
       const nextCursor = last?.data?.next_cursor ?? null;
-      const total = Math.max(largestTotal.current.get(b.stateKey) ?? 0, first?.data?.total ?? 0);
-      largestTotal.current.set(b.stateKey, total);
+      const rows = mergeRows(pages);
       const retry = () => {
         for (const page of pages) {
           if (page.isError) void page.refetch();
@@ -209,8 +205,9 @@ export function useCursorBranches(
       };
       map.set(b.key, {
         key: b.key,
-        rows: mergeRows(pages),
-        total,
+        rows,
+        // The first page's count, which drops after deletions; never below the rows on screen.
+        total: Math.max(first?.data?.total ?? 0, rows.length),
         isLoading: !!first?.isLoading && first.data === undefined,
         isFetchingMore: pages.length > 1 && !!last?.isFetching,
         isError: !!last?.isError && last.data === undefined,
