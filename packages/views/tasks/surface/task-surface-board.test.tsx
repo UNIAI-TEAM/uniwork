@@ -64,7 +64,7 @@ const heading = (status: string, count: number) =>
     name: `${i18n.t(`tasks.status_${status}`)}, ${count}`,
   });
 const pagesOf = (requests: string[], status: string) =>
-  requests.filter((page) => page.startsWith(`${status}@`));
+  requests.filter((page) => page.startsWith(`status:${status}@`));
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Clicks a column's load more once it is live again; a click while inert is a no-op. */
@@ -163,7 +163,7 @@ describe("TaskSurface board columns on the table API", () => {
     expect(heading("todo", 120)).toBeInTheDocument();
     expect(heading("in_progress", 3)).toBeInTheDocument();
     expect(within(column("done")).getByText(i18n.t("tasks.surface.empty_column"))).toBeInTheDocument();
-    expect([...server.rowRequests()].sort()).toEqual(["in_progress@0", "todo@0"]);
+    expect([...server.rowRequests()].sort()).toEqual(["status:in_progress@0", "status:todo@0"]);
     expect(server.groupBodies.every((body) => body.group_by === "status")).toBe(true);
     expect(server.paths.some((path) => path.includes("/tasks/grouped"))).toBe(false);
     expect(within(column("todo")).getByRole("button", { name: "Tải thêm" })).toBeInTheDocument();
@@ -180,15 +180,15 @@ describe("TaskSurface board columns on the table API", () => {
     // Virtualised column: a page landing must not ask for the next one by itself.
     expect(within(column("todo")).getByTestId("fake-virtuoso")).toBeInTheDocument();
     await settle(300);
-    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["todo@0", "todo@50"]);
-    expect(pagesOf(server.rowRequests(), "in_progress")).toEqual(["in_progress@0"]);
+    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["status:todo@0", "status:todo@50"]);
+    expect(pagesOf(server.rowRequests(), "in_progress")).toEqual(["status:in_progress@0"]);
 
     await clickColumnLoadMore("todo");
     await waitFor(() => expect(cardsIn("todo")).toBe(120), LONG);
     expect(within(column("todo")).getByText("Không còn công việc để tải")).toBeInTheDocument();
     expect(within(column("todo")).queryByRole("button", { name: "Tải thêm" })).toBeNull();
     expect(heading("todo", 120)).toBeInTheDocument();
-    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["todo@0", "todo@50", "todo@100"]);
+    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["status:todo@0", "status:todo@50", "status:todo@100"]);
   }, 60_000);
 
   it("offers the column-end button below the virtualization threshold too", async () => {
@@ -206,29 +206,29 @@ describe("TaskSurface board columns on the table API", () => {
     await clickColumnLoadMore("todo");
 
     await waitFor(() => expect(cardsIn("todo")).toBe(10), LONG);
-    expect(server.rowRequests()).toEqual(["todo@0", "todo@50"]);
+    expect(server.rowRequests()).toEqual(["status:todo@0", "status:todo@50"]);
     expect(heading("todo", 120)).toBeInTheDocument();
   }, 60_000);
 
   it("a column load more clicked during a realtime refetch still gets exactly the next page", async () => {
     // The second request for todo's first page is the refetch; hold it so the click lands mid-refetch.
-    const server = serveBoardTable({ counts: { todo: 120 }, hold: "todo@0", holdNth: 2 });
+    const server = serveBoardTable({ counts: { todo: 120 }, hold: "status:todo@0", holdNth: 2 });
     renderBoard("board-refetch-click");
     await waitFor(() => expect(cardsIn("todo")).toBe(50), LONG);
 
     fireEvent.click(screen.getByRole("button", { name: "task.updated arrives" }));
-    await waitFor(() => expect(server.rowRequests()).toEqual(["todo@0", "todo@0"]), LONG);
+    await waitFor(() => expect(server.rowRequests()).toEqual(["status:todo@0", "status:todo@0"]), LONG);
     await clickColumnLoadMore("todo");
     await waitFor(() => expect(cardsIn("todo")).toBe(100), LONG);
 
     server.release();
     await settle(300);
-    expect(server.rowRequests()).toEqual(["todo@0", "todo@0", "todo@50"]);
+    expect(server.rowRequests()).toEqual(["status:todo@0", "status:todo@0", "status:todo@50"]);
     expect(cardsIn("todo")).toBe(100);
   }, 60_000);
 
   it("a column whose page fails offers retry in that column and leaves the rest of the board alone", async () => {
-    const server = serveBoardTable({ counts: { todo: 120, in_progress: 3 }, failOnce: ["todo@0"] });
+    const server = serveBoardTable({ counts: { todo: 120, in_progress: 3 }, failOnce: ["status:todo@0"] });
     renderBoard("board-column-error");
 
     await waitFor(() => expect(cardsIn("in_progress")).toBe(3), LONG);
@@ -241,7 +241,7 @@ describe("TaskSurface board columns on the table API", () => {
     fireEvent.click(retry);
 
     await waitFor(() => expect(cardsIn("todo")).toBe(50), LONG);
-    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["todo@0", "todo@0"]);
+    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["status:todo@0", "status:todo@0"]);
   }, 60_000);
 
   it("a project board asks the table API for that project's groups and rows only", async () => {
@@ -252,7 +252,7 @@ describe("TaskSurface board columns on the table API", () => {
     expect(server.groupBodies.length).toBeGreaterThan(0);
     expect(server.rowBodies.length).toBeGreaterThan(0);
     for (const body of [...server.groupBodies, ...server.rowBodies]) {
-      expect(body.filter).toEqual({ project_ids: ["p1"] });
+      expect((body.query as { filter?: unknown } | undefined)?.filter).toEqual({ project_ids: ["p1"] });
     }
   }, 60_000);
 
@@ -279,7 +279,7 @@ describe("TaskSurface board columns on the table API", () => {
     await waitFor(() => expect(server.rowRequests()).toHaveLength(rowsBefore + 2), LONG);
     await waitFor(() => expect(server.groupBodies).toHaveLength(groupsBefore + 1), LONG);
     await settle(300);
-    expect([...server.rowRequests().slice(rowsBefore)].sort()).toEqual(["in_progress@0", "todo@0"]);
+    expect([...server.rowRequests().slice(rowsBefore)].sort()).toEqual(["status:in_progress@0", "status:todo@0"]);
     expect(cardsIn("todo")).toBe(50);
   }, 60_000);
 
@@ -293,10 +293,10 @@ describe("TaskSurface board columns on the table API", () => {
 
     expect(await screen.findByText("160 / 180 công việc đã tải", {}, LONG)).toBeInTheDocument();
     expect([...server.rowRequests()].sort()).toEqual([
-      "in_progress@0",
-      "in_progress@50",
-      "todo@0",
-      "todo@50",
+      "status:in_progress@0",
+      "status:in_progress@50",
+      "status:todo@0",
+      "status:todo@50",
     ]);
   }, 60_000);
 
@@ -338,7 +338,7 @@ type StoredTask = Record<string, unknown> & { id: string; status: string; positi
 /**
  * A table API over a task list the test can change, for moves: groups and
  * rows are computed from the list on every request and a PATCH writes it.
- * `hold(name)` parks every request named `groups`, `status@offset` or `PATCH`
+ * `hold(name)` parks every request named `groups`, `status:<status>@offset` or `PATCH`
  * until `release(name)`.
  */
 function serveMovableBoard(initial: StoredTask[]) {
@@ -361,7 +361,7 @@ function serveMovableBoard(initial: StoredTask[]) {
         query_fingerprint: "fp-groups",
         total: tasks.length,
         groups: statuses.map((status) => ({
-          key: status,
+          key: `status:${status}`,
           value: { kind: "status", status },
           count: tasks.filter((task) => task.status === status).length,
         })),
@@ -369,17 +369,17 @@ function serveMovableBoard(initial: StoredTask[]) {
       };
     }
     if (path.includes("/tasks/table/rows")) {
-      await pass(`${String(body.group_key)}@${String(body.offset)}`);
+      const offset = typeof body.cursor === "string" ? Number(atob(body.cursor)) : 0;
+      await pass(`${String(body.group_key)}@${offset}`);
       const rows = tasks
-        .filter((task) => task.status === body.group_key)
+        .filter((task) => `status:${task.status}` === body.group_key)
         .sort((a, b) => a.position - b.position);
       return {
         query_fingerprint: "fp-rows",
         group_key: body.group_key,
         parent_id: null,
         total: rows.length,
-        rows: rows.map((task) => ({ task: { ...task }, direct_child_count: 0 })),
-        branch_total: rows.length,
+        rows: rows.map((task) => ({ task: { ...task }, direct_child_count: 0, labels: [] })),
         next_cursor: null,
       };
     }
@@ -485,14 +485,14 @@ describe("TaskSurface board when a column fills after the first load", () => {
     board.move("todo-0", { status: "done", position: 0 });
     await waitFor(() => expect(server.requests).toContain("PATCH"), LONG);
     // The refetch after the save is held, so its loading state is on screen for as long as it lasts.
-    server.hold("done@0");
+    server.hold("status:done@0");
     server.release("PATCH");
-    await waitFor(() => expect(server.requests).toContain("done@0"), LONG);
+    await waitFor(() => expect(server.requests).toContain("status:done@0"), LONG);
     await settle(300);
 
     expect(screen.queryByTestId("task-surface-skeleton")).toBeNull();
     expect(column("todo")).toBe(todoColumn);
-    server.release("done@0");
+    server.release("status:done@0");
     await waitFor(() => expect(cardsIn("done")).toBe(1), LONG);
     expect(cardsIn("todo")).toBe(1);
     expect(skeleton.stop()).toBe(false);
@@ -508,15 +508,15 @@ describe("TaskSurface board when a column fills after the first load", () => {
 
     // Another member moved todo-0 to done; its event invalidates the table root.
     server.tasks[0]!.status = "done";
-    server.hold("done@0");
+    server.hold("status:done@0");
     fireEvent.click(screen.getByRole("button", { name: "task.updated arrives" }));
-    await waitFor(() => expect(server.requests).toContain("done@0"), LONG);
+    await waitFor(() => expect(server.requests).toContain("status:done@0"), LONG);
     await settle(300);
 
     expect(screen.queryByTestId("task-surface-skeleton")).toBeNull();
     expect(within(column("done")).getByText("Đang tải thêm công việc…")).toBeInTheDocument();
     expect(column("todo")).toBe(todoColumn);
-    server.release("done@0");
+    server.release("status:done@0");
     await waitFor(() => expect(cardsIn("done")).toBe(1), LONG);
     expect(cardsIn("todo")).toBe(1);
     expect(skeleton.stop()).toBe(false);
@@ -566,7 +566,7 @@ describe("TaskSurface board moves before the save lands", () => {
     await waitFor(() => expect(heading("todo", 2)).toBeInTheDocument(), LONG);
     expect(heading("done", 2)).toBeInTheDocument();
     // The refetch after the failure is held, so the counts come from the rollback alone.
-    for (const name of ["groups", "todo@0", "done@0"]) server.hold(name);
+    for (const name of ["groups", "status:todo@0", "status:done@0"]) server.hold(name);
     server.failNextPatch();
     server.release("PATCH");
 
@@ -574,7 +574,7 @@ describe("TaskSurface board moves before the save lands", () => {
     expect(heading("todo", 3)).toBeInTheDocument();
     expect(cardsIn("todo")).toBe(3);
     expect(cardsIn("done")).toBe(1);
-    for (const name of ["groups", "todo@0", "done@0"]) server.release(name);
+    for (const name of ["groups", "status:todo@0", "status:done@0"]) server.release(name);
     await settle(300);
     expect(heading("todo", 3)).toBeInTheDocument();
     expect(heading("done", 1)).toBeInTheDocument();
@@ -594,15 +594,15 @@ describe("TaskSurface board moves before the save lands", () => {
     await settle(300);
     // The seeded page is fresh under the app's staleTime, so the column does not
     // ask the server (which still has the task in todo) while the save is out.
-    expect(server.requests).not.toContain("done@0");
+    expect(server.requests).not.toContain("status:done@0");
     expect(cardsIn("done")).toBe(1);
 
-    server.hold("done@0");
+    server.hold("status:done@0");
     server.release("PATCH");
-    await waitFor(() => expect(server.requests).toContain("done@0"), LONG);
+    await waitFor(() => expect(server.requests).toContain("status:done@0"), LONG);
     await settle(300);
     expect(cardsIn("done")).toBe(1);
-    server.release("done@0");
+    server.release("status:done@0");
     await settle(300);
 
     expect(cardsIn("done")).toBe(1);
@@ -619,14 +619,22 @@ describe("TaskSurface board moves before the save lands", () => {
     await waitFor(() => expect(cardsIn("todo")).toBe(2), LONG);
     const doneFirstPage = tableRowsPageQuery(
       "w1",
-      tableRowsPageBody({ groupBy: "status", groupKey: "done", columns: ["title", "status"], limit: 50, offset: 0 }),
+      tableRowsPageBody({
+        query: {},
+        groupBy: "status",
+        hierarchy: false,
+        groupKey: "status:done",
+        parentId: null,
+        cursor: null,
+        limit: 50,
+      }),
     ).queryKey;
 
     server.hold("PATCH");
     board.move("todo-0", { status: "done", position: 0 });
     await waitFor(() => expect(cardsIn("done")).toBe(1), LONG);
     expect(client.getQueryState(doneFirstPage)).toBeDefined();
-    for (const name of ["groups", "todo@0"]) server.hold(name);
+    for (const name of ["groups", "status:todo@0"]) server.hold(name);
     server.failNextPatch();
     server.release("PATCH");
 
@@ -634,11 +642,11 @@ describe("TaskSurface board moves before the save lands", () => {
     expect(cardsIn("done")).toBe(0);
     expect(heading("todo", 2)).toBeInTheDocument();
     expect(client.getQueryState(doneFirstPage)).toBeUndefined();
-    for (const name of ["groups", "todo@0"]) server.release(name);
+    for (const name of ["groups", "status:todo@0"]) server.release(name);
     await settle(300);
     expect(cardsIn("done")).toBe(0);
     expect(client.getQueryState(doneFirstPage)).toBeUndefined();
-    expect(server.requests).not.toContain("done@0");
+    expect(server.requests).not.toContain("status:done@0");
   }, 60_000);
 });
 
@@ -648,7 +656,7 @@ describe("TaskSurface board column sentinel", () => {
     // visible (test/media-stub.ts). The page is held so the column re-renders
     // in its loading state with the footer mounted; a footer remounted on
     // render would observe again and load another page.
-    const server = serveBoardTable({ counts: { todo: 120, in_progress: 3 }, hold: "todo@50" });
+    const server = serveBoardTable({ counts: { todo: 120, in_progress: 3 }, hold: "status:todo@50" });
     renderBoard("board-sentinel");
 
     await waitFor(
@@ -662,7 +670,7 @@ describe("TaskSurface board column sentinel", () => {
     await waitFor(() => expect(cardsIn("todo")).toBe(100), LONG);
     await settle(300);
 
-    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["todo@0", "todo@50"]);
-    expect(pagesOf(server.rowRequests(), "in_progress")).toEqual(["in_progress@0"]);
+    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["status:todo@0", "status:todo@50"]);
+    expect(pagesOf(server.rowRequests(), "in_progress")).toEqual(["status:in_progress@0"]);
   }, 60_000);
 });

@@ -1,28 +1,23 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useQueries, type UseQueryResult } from "@tanstack/react-query";
-import type { TableFilter, TableRowsResult } from "@uniwork/core/api/endpoints/tasks-table";
+import { useMemo, useState } from "react";
+import type { UseQueryResult } from "@tanstack/react-query";
+import type { TableQuery, TableRowsResult } from "@uniwork/core/api/endpoints/tasks-table";
 import { useTableGroups } from "@uniwork/core/tasks";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import {
+  normalizeTableQuery,
   tableGroupsBody,
   tableRowsPageBody,
-  tableRowsPageQuery,
 } from "@uniwork/core/tasks/surface/table-query";
 import type { Task, TaskStatus } from "@uniwork/core/types";
 import { TABLE_PAGE_SIZE } from "../modes/table-view-model";
+import { useCursorBranches, type CursorBranchSpec } from "./use-cursor-branches";
 import type { TaskSurfacePagination } from "./use-task-surface-data";
 
-/** Board columns are status buckets; the table API keys each one by its raw status. */
+/** Board columns are status buckets; the table API keys each one `status:<status>`. */
 const BOARD_GROUP_BY = "status";
-/**
- * The table API takes `columns` into its fingerprint only and returns whole
- * tasks, so the board sends a fixed minimum: the card's title and the field
- * its column stands for.
- */
-const BOARD_TABLE_COLUMNS = ["title", "status"];
-const NO_PAGES: Readonly<Record<string, number>> = {};
+const STATUS_KEY_PREFIX = "status:";
 const EMPTY_TASKS: Task[] = [];
 
 /** Where one status column's server paging stands. */
@@ -30,7 +25,7 @@ export interface BoardColumnPaging {
   /** Tasks in the column on the server; never below the tasks loaded. */
   count: number;
   hasMore: boolean;
-  /** The column's last requested page is in flight. */
+  /** A page after the column's first is in flight. */
   isLoadingMore: boolean;
   /** The column's last requested page failed; the pages before it stay. */
   isError: boolean;
@@ -46,16 +41,19 @@ interface BoardColumnState extends BoardColumnPaging {
   isLoading: boolean;
 }
 
-type PageState = Pick<
+/**
+ * Kept for the table view (use-table-view-data.ts), which still pages on its
+ * own until it moves onto `useCursorBranches`; the board no longer uses it.
+ */
+export type PageState = Pick<
   UseQueryResult<TableRowsResult>,
   "data" | "isError" | "isLoading" | "isFetching" | "refetch"
 >;
 
 /**
- * The page fields the board reads, as plain objects. Passed to `useQueries`
- * as `combine` (a stable function), the result keeps its identity until one of
- * these fields changes, so the columns are not rebuilt on every render. The
- * table view relies on the same identity (see use-table-view-data.ts).
+ * The page fields a `useQueries` reader keeps, as plain objects. Passed as
+ * `combine` (a stable function), the result keeps its identity until one of
+ * these fields changes.
  */
 export function pickPageStates(results: readonly PageState[]): PageState[] {
   return results.map(({ data, isError, isLoading, isFetching, refetch }) => ({
@@ -68,26 +66,10 @@ export function pickPageStates(results: readonly PageState[]): PageState[] {
 }
 
 /**
- * A column's pages in order. Offset pages overlap when a task moves between two
- * page requests, so one id can arrive twice; the first copy wins.
- */
-function mergeRows(pages: readonly PageState[]): Task[] {
-  const seen = new Set<string>();
-  const tasks: Task[] = [];
-  for (const page of pages) {
-    for (const row of page.data?.rows ?? []) {
-      if (seen.has(row.task.id)) continue;
-      seen.add(row.task.id);
-      tasks.push(row.task);
-    }
-  }
-  return tasks.length > 0 ? tasks : EMPTY_TASKS;
-}
-
-/**
  * Board data on the table API: one groups call for every column's count, then
- * pages of 50 per status column (`group_key`), each column paged on its own.
- * Bodies and keys come from `tasks/surface/table-query`, as the table view's do.
+ * one cursor branch per status column (`group_key` `status:<status>`), pages of
+ * 50 each, paged on its own through `useCursorBranches`. Bodies come from
+ * `tasks/surface/table-query`, as the table view's do.
  */
 export function useBoardColumnsData({
   workspaceId,
@@ -105,127 +87,88 @@ export function useBoardColumnsData({
   const grouping = useViewStore((s) => s.grouping);
   // Assignee and project boards regroup every loaded task, hidden statuses included.
   const skipsHidden = grouping !== "assignee" && grouping !== "project";
-  const filter = useMemo<TableFilter | undefined>(
-    () => (projectId ? { project_ids: [projectId] } : undefined),
+  const query = useMemo<TableQuery>(
+    () => normalizeTableQuery({ filter: projectId ? { project_ids: [projectId] } : undefined }),
     [projectId],
   );
-
-  // Pages asked for per column, tagged with the query they were asked on. A new
-  // filter reads as no pages instead of being reset in an effect, so no render
-  // asks the new filter for a later page.
-  const identity = JSON.stringify([workspaceId, filter ?? null]);
-  const [paging, setPaging] = useState<{ identity: string; pages: Record<string, number> }>(
-    () => ({ identity, pages: {} }),
-  );
-  const pagesByStatus = paging.identity === identity ? paging.pages : NO_PAGES;
+  const identity = JSON.stringify([workspaceId, query]);
 
   const groupsQuery = useTableGroups(
     enabled ? workspaceId : "",
-    enabled
-      ? tableGroupsBody({
-          filter,
-          groupBy: BOARD_GROUP_BY,
-          columns: BOARD_TABLE_COLUMNS,
-          limit: TABLE_PAGE_SIZE,
-        })
-      : null,
+    enabled ? tableGroupsBody({ query, groupBy: BOARD_GROUP_BY }) : null,
   );
   const groups = groupsQuery.data?.groups;
   const countByStatus = useMemo(
-    () => new Map((groups ?? []).map((group) => [group.key, group.count])),
+    () =>
+      new Map(
+        (groups ?? []).map((group) => [
+          group.value.status ??
+            (group.key.startsWith(STATUS_KEY_PREFIX)
+              ? group.key.slice(STATUS_KEY_PREFIX.length)
+              : group.key),
+          group.count,
+        ]),
+      ),
     [groups],
   );
 
-  const pageQueries = useMemo(() => {
-    const list: Array<{ status: string; pageIndex: number }> = [];
-    if (!enabled) return list;
+  const branches: CursorBranchSpec[] = [];
+  if (enabled) {
     for (const status of categories) {
       // A column the groups call leaves out is empty: no rows to ask for.
       if ((countByStatus.get(status) ?? 0) === 0) continue;
       if (skipsHidden && hiddenStatuses.includes(status as TaskStatus)) continue;
-      const pages = pagesByStatus[status] ?? 1;
-      for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
-        list.push({ status, pageIndex });
-      }
-    }
-    return list;
-  }, [categories, countByStatus, enabled, hiddenStatuses, pagesByStatus, skipsHidden]);
-
-  const pageStates = useQueries({
-    queries: pageQueries.map(({ status, pageIndex }) => ({
-      ...tableRowsPageQuery(
-        workspaceId,
-        tableRowsPageBody({
-          filter,
+      branches.push({
+        key: status,
+        body: tableRowsPageBody({
+          query,
           groupBy: BOARD_GROUP_BY,
-          groupKey: status,
-          columns: BOARD_TABLE_COLUMNS,
+          hierarchy: false,
+          groupKey: `${STATUS_KEY_PREFIX}${status}`,
+          parentId: null,
+          cursor: null,
           limit: TABLE_PAGE_SIZE,
-          offset: pageIndex * TABLE_PAGE_SIZE,
         }),
-      ),
-      enabled: !!workspaceId,
-    })),
-    combine: pickPageStates,
-  });
-
-  // Each page is its own query, so a click during a background refetch of the
-  // loaded pages does not join that refetch: the next page starts at once.
-  const requestPage = useCallback(
-    (status: string, requested: number) => {
-      setPaging((prev) => {
-        const pages = prev.identity === identity ? prev.pages : NO_PAGES;
-        // Asked for already: the button and the sentinel fired for one page.
-        if ((pages[status] ?? 1) !== requested) return prev;
-        return { identity, pages: { ...pages, [status]: requested + 1 } };
+        enabled: true,
       });
-    },
-    [identity],
-  );
+    }
+  }
+  const { byKey, isRefreshing: branchesRefreshing } = useCursorBranches(workspaceId, branches);
 
   const columns = useMemo(() => {
-    const pagesOf = new Map<string, PageState[]>();
-    pageQueries.forEach(({ status }, index) => {
-      const state = pageStates[index];
-      if (state) pagesOf.set(status, [...(pagesOf.get(status) ?? []), state]);
-    });
     const result: Record<string, BoardColumnState> = {};
     for (const status of categories) {
-      const pages = pagesOf.get(status) ?? [];
-      const tasks = mergeRows(pages);
-      const last = pages[pages.length - 1];
-      // The largest count any response gave, never below the loaded cards: a
-      // malformed page parses to `total: 0`.
-      const count = pages.reduce(
-        (largest, page) => Math.max(largest, page.data?.total ?? 0),
-        Math.max(countByStatus.get(status) ?? 0, tasks.length),
-      );
-      const isLoadingMore = !!last && !last.data && last.isFetching;
-      const isError = !!last && last.isError && !last.data;
-      // A short page ends the column whatever the count says. A page not in yet,
-      // or failed, keeps the footer up for its loading or retry state.
-      const hasMore = !last
-        ? false
-        : last.data
-          ? last.data.rows.length >= TABLE_PAGE_SIZE && pages.length * TABLE_PAGE_SIZE < count
-          : true;
+      const branch = byKey.get(status);
+      const tasks = branch && branch.rows.length > 0 ? branch.rows.map((row) => row.task) : EMPTY_TASKS;
+      const groupCount = countByStatus.get(status) ?? 0;
+      if (!branch) {
+        result[status] = {
+          status,
+          tasks,
+          count: groupCount,
+          hasMore: false,
+          isLoading: false,
+          isLoadingMore: false,
+          isError: false,
+          loadMore: () => {},
+        };
+        continue;
+      }
       result[status] = {
         status,
         tasks,
-        count,
-        hasMore,
-        isLoading: pages[0]?.isLoading ?? false,
-        isLoadingMore,
-        isError,
-        loadMore: () => {
-          if (isLoadingMore) return;
-          if (isError) void last?.refetch();
-          else if (hasMore) requestPage(status, pages.length);
-        },
+        count: Math.max(groupCount, branch.total, tasks.length),
+        // A page in flight or failed keeps the footer up for its loading or retry state.
+        hasMore: branch.hasMore || branch.isLoading || branch.isFetchingMore || branch.isError,
+        isLoading: branch.isLoading,
+        // The first page counts too: a column that fills after the board loaded shows it in its footer.
+        isLoadingMore: branch.isLoading || branch.isFetchingMore,
+        isError: branch.isError,
+        loadMore: branch.loadMore,
       };
     }
     return result;
-  }, [categories, countByStatus, pageQueries, pageStates, requestPage]);
+  }, [byKey, categories, countByStatus]);
 
   const tasks = useMemo(() => {
     const seen = new Set<string>();
@@ -269,10 +212,11 @@ export function useBoardColumnsData({
   // when every page the board still asks for is new, as when the only column
   // with tasks empties into one that had none; switched off, it starts over.
   const [loadedIdentity, setLoadedIdentity] = useState<string | null>(null);
+  const branchStates = [...byKey.values()];
   const waitsForFirstPages =
     loadedIdentity !== identity &&
-    pageStates.some((page) => page.isLoading) &&
-    !pageStates.some((page) => page.data !== undefined);
+    branchStates.some((branch) => branch.isLoading) &&
+    !branchStates.some((branch) => !branch.isLoading && !branch.isError);
   const isLoading = enabled && (groupsQuery.isLoading || waitsForFirstPages);
   if (enabled && !isLoading && groupsQuery.data !== undefined && loadedIdentity !== identity) {
     setLoadedIdentity(identity);
@@ -283,7 +227,7 @@ export function useBoardColumnsData({
     enabled &&
     !isLoading &&
     ((groupsQuery.isFetching && !groupsQuery.isLoading) ||
-      pageStates.some((page) => page.isFetching && page.data !== undefined));
+      branchesRefreshing);
 
   return {
     columns,

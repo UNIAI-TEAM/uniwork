@@ -5,8 +5,12 @@ import { initI18n } from "@uniwork/core/i18n";
 import { taskKeys } from "@uniwork/core/tasks";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
+import {
+  tableGroupsBody,
+  tableRowsPageBody,
+  tableRowsPageQuery,
+} from "@uniwork/core/tasks/surface/table-query";
 import { serveBoardTable } from "../../test/board-table-server";
-import { useTableViewData } from "../modes/use-table-view-data";
 import { useBoardColumnsData } from "./use-board-columns-data";
 
 initI18n();
@@ -40,46 +44,51 @@ function renderColumns(categories: string[], before?: (store: ReturnType<typeof 
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 150)));
 
 describe("useBoardColumnsData", () => {
-  it("puts a column page in the same cache entry the table view uses for the same parameters", async () => {
+  it("pages a column under the key the shared table-query builders give its parameters", async () => {
     const server = serveBoardTable({ counts: { todo: 3 } });
-    const { client, store, Wrapper } = setup();
-    // The table view grouped by status with the board's columns: the parameters match.
-    store.getState().setTableGrouping("status");
-    for (const key of ["priority", "assignee", "due_date", "labels"] as const) {
-      store.getState().toggleTableColumn(key);
-    }
-    const filter = { project_ids: ["p1"] };
+    const { client, Wrapper } = setup();
     const { result } = renderHook(
-      () => ({
-        board: useBoardColumnsData({
+      () =>
+        useBoardColumnsData({
           workspaceId: "w1",
           projectId: "p1",
           categories: ["todo"],
           enabled: true,
         }),
-        table: useTableViewData({ workspaceId: "w1", filter }),
-      }),
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(result.current.board.columns.todo?.tasks).toHaveLength(3));
-    await waitFor(() => expect(result.current.table.loadedTasks).toHaveLength(3));
+    await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(3));
 
+    const query = { filter: { project_ids: ["p1"] } };
     const entries = client.getQueryCache().findAll({ queryKey: taskKeys.tableRoot("w1") });
-    const rows = entries.filter((query) => query.queryKey[2] === "rows");
-    const groups = entries.filter((query) => query.queryKey[2] === "groups");
-    // Byte for byte the key the table view has always built.
-    expect(rows.map((query) => query.queryKey)).toEqual([
-      [
-        "tasks-table",
+    const rows = entries.filter((entry) => entry.queryKey[2] === "rows");
+    const groups = entries.filter((entry) => entry.queryKey[2] === "groups");
+    expect(rows.map((entry) => entry.queryKey)).toEqual([
+      tableRowsPageQuery(
         "w1",
-        "rows",
-        '{"filter":{"project_ids":["p1"]},"group_by":"status","group_key":"todo","columns":["title","status"],"limit":50,"offset":0}',
-      ],
+        tableRowsPageBody({
+          query,
+          groupBy: "status",
+          hierarchy: false,
+          groupKey: "status:todo",
+          parentId: null,
+          cursor: null,
+          limit: 50,
+        }),
+      ).queryKey,
     ]);
-    expect(rows[0]!.getObserversCount()).toBe(2);
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.getObserversCount()).toBe(2);
-    expect(server.rowRequests()).toEqual(["todo@0"]);
+    expect(server.groupBodies).toEqual([tableGroupsBody({ query, groupBy: "status" })]);
+    expect(server.rowBodies[0]).toEqual({
+      query,
+      group_by: "status",
+      group_key: "status:todo",
+      hierarchy: false,
+      parent_id: null,
+      cursor: null,
+      limit: 50,
+    });
+    expect(server.rowRequests()).toEqual(["status:todo@0"]);
   });
 
   it("merges a column's pages in order and keeps the first copy of an id that crosses a page boundary", async () => {
@@ -95,7 +104,7 @@ describe("useBoardColumnsData", () => {
     expect(ids.slice(48, 51)).toEqual(["todo-48", "todo-49", "todo-50"]);
     expect(result.current.tasks).toHaveLength(99);
     expect(result.current.columns.todo!.count).toBe(120);
-    expect(server.rowRequests()).toEqual(["todo@0", "todo@50"]);
+    expect(server.rowRequests()).toEqual(["status:todo@0", "status:todo@50"]);
   });
 
   it("asks for no rows of a column the groups call leaves out", async () => {
@@ -113,7 +122,7 @@ describe("useBoardColumnsData", () => {
     });
     expect(result.current.isLoading).toBe(false);
     await settle();
-    expect(server.rowRequests()).toEqual(["todo@0"]);
+    expect(server.rowRequests()).toEqual(["status:todo@0"]);
   });
 
   it("counts a hidden status column from its group without loading its rows", async () => {
@@ -125,7 +134,7 @@ describe("useBoardColumnsData", () => {
 
     expect(result.current.columns.done).toMatchObject({ count: 2, tasks: [] });
     await settle();
-    expect(server.rowRequests()).toEqual(["todo@0"]);
+    expect(server.rowRequests()).toEqual(["status:todo@0"]);
   });
 
   it("turns load more fired twice before the page renders into one request", async () => {
@@ -142,7 +151,7 @@ describe("useBoardColumnsData", () => {
 
     await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(100));
     await settle();
-    expect(server.rowRequests()).toEqual(["todo@0", "todo@50"]);
+    expect(server.rowRequests()).toEqual(["status:todo@0", "status:todo@50"]);
   });
 
   it("ends a column at a short page whatever its count claims", async () => {
@@ -156,7 +165,7 @@ describe("useBoardColumnsData", () => {
     expect(result.current.columns.todo!.hasMore).toBe(false);
     act(() => result.current.columns.todo!.loadMore());
     await settle();
-    expect(server.rowRequests()).toEqual(["todo@0", "todo@50"]);
+    expect(server.rowRequests()).toEqual(["status:todo@0", "status:todo@50"]);
   });
 
   it("never counts a column below the cards it has loaded", async () => {
@@ -174,9 +183,9 @@ describe("useBoardColumnsData", () => {
   });
 
   it("loads as a board until the first column page arrives", async () => {
-    const server = serveBoardTable({ counts: { todo: 3 }, hold: "todo@0" });
+    const server = serveBoardTable({ counts: { todo: 3 }, hold: "status:todo@0" });
     const { result } = renderColumns(["todo"]);
-    await waitFor(() => expect(server.rowRequests()).toEqual(["todo@0"]));
+    await waitFor(() => expect(server.rowRequests()).toEqual(["status:todo@0"]));
     await settle();
 
     expect(result.current.isLoading).toBe(true);
@@ -188,13 +197,13 @@ describe("useBoardColumnsData", () => {
   it("loads a column that fills after the first load inside that column, not as the board", async () => {
     // Counts are read on each request, so a column can gain tasks between two groups calls.
     const counts: Record<string, number> = { todo: 3, done: 0 };
-    const server = serveBoardTable({ counts, hold: "done@0" });
+    const server = serveBoardTable({ counts, hold: "status:done@0" });
     const { client, result } = renderColumns(["todo", "done"]);
     await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(3));
 
     counts.done = 2;
     act(() => void client.invalidateQueries({ queryKey: taskKeys.tableRoot("w1") }));
-    await waitFor(() => expect(server.rowRequests()).toContain("done@0"));
+    await waitFor(() => expect(server.rowRequests()).toContain("status:done@0"));
     await settle();
 
     expect(result.current.columns.done).toMatchObject({ isLoading: true, tasks: [] });
@@ -206,7 +215,7 @@ describe("useBoardColumnsData", () => {
 
   it("does not load as a board again when the only column with tasks empties into one that has none", async () => {
     const counts: Record<string, number> = { todo: 1, done: 0 };
-    const server = serveBoardTable({ counts, hold: "done@0" });
+    const server = serveBoardTable({ counts, hold: "status:done@0" });
     const { client, result } = renderColumns(["todo", "done"]);
     await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(1));
 
@@ -214,7 +223,7 @@ describe("useBoardColumnsData", () => {
     counts.todo = 0;
     counts.done = 1;
     act(() => void client.invalidateQueries({ queryKey: taskKeys.tableRoot("w1") }));
-    await waitFor(() => expect(server.rowRequests()).toContain("done@0"));
+    await waitFor(() => expect(server.rowRequests()).toContain("status:done@0"));
     await settle();
 
     expect(result.current.columns.done?.isLoading).toBe(true);
@@ -224,7 +233,7 @@ describe("useBoardColumnsData", () => {
   });
 
   it("loads as a board again after being switched off and on with nothing cached", async () => {
-    const server = serveBoardTable({ counts: { todo: 3 }, hold: "todo@0", holdNth: 2 });
+    const server = serveBoardTable({ counts: { todo: 3 }, hold: "status:todo@0", holdNth: 2 });
     const { client, Wrapper } = setup();
     const { result, rerender } = renderHook(
       ({ enabled }: { enabled: boolean }) =>
@@ -236,7 +245,7 @@ describe("useBoardColumnsData", () => {
     rerender({ enabled: false });
     client.removeQueries({ queryKey: taskKeys.tableRoot("w1") });
     rerender({ enabled: true });
-    await waitFor(() => expect(server.rowRequests()).toEqual(["todo@0", "todo@0"]));
+    await waitFor(() => expect(server.rowRequests()).toEqual(["status:todo@0", "status:todo@0"]));
     await settle();
 
     expect(result.current.isLoading).toBe(true);
@@ -248,7 +257,7 @@ describe("useBoardColumnsData", () => {
   it("keeps a failed page to its own column and retries that page through load more", async () => {
     const server = serveBoardTable({
       counts: { todo: 120, in_progress: 3 },
-      failOnce: ["todo@50"],
+      failOnce: ["status:todo@50"],
     });
     const { result } = renderColumns(["todo", "in_progress"]);
     await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(50));
@@ -265,10 +274,10 @@ describe("useBoardColumnsData", () => {
 
     await waitFor(() => expect(result.current.columns.todo?.tasks).toHaveLength(100));
     expect(result.current.columns.todo!.isError).toBe(false);
-    expect(server.rowRequests().filter((page) => page.startsWith("todo@"))).toEqual([
-      "todo@0",
-      "todo@50",
-      "todo@50",
+    expect(server.rowRequests().filter((page) => page.startsWith("status:todo@"))).toEqual([
+      "status:todo@0",
+      "status:todo@50",
+      "status:todo@50",
     ]);
   });
 });
