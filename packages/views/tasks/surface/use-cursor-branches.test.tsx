@@ -127,6 +127,43 @@ describe("useCursorBranches", () => {
     expect(result.current.byKey.get("todo")!.rows[2]!.task.title).toBe("todo 2 v1");
   });
 
+  it("keeps the tail pages when the first page refetches with equal data", async () => {
+    const server = serveTableCursor({ count: () => 6 });
+    const { client, result } = renderBranches({});
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
+
+    // A window-refocus style refetch: the server answers the same rows.
+    server.rowBodies.length = 0;
+    await act(() => client.refetchQueries({ queryKey: tableRowsBranchPrefix("w1", branch("todo").body) }));
+    await waitFor(() => expect(server.rowBodies.length).toBeGreaterThanOrEqual(2));
+    await settle();
+
+    const state = result.current.byKey.get("todo")!;
+    expect(state.rows.map((row) => row.task.id)).toEqual([0, 1, 2, 3].map((i) => `todo-${i}`));
+    expect(state.hasMore).toBe(true);
+
+    // The cursors stayed too: the next page is the third one.
+    server.rowBodies.length = 0;
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(6));
+    expect(server.rowRequests()).toEqual([`todo@${encodeCursor(4)}`]);
+  });
+
+  it("reports the first page's total, never below the largest seen", async () => {
+    let count = 6;
+    serveTableCursor({ count: () => count });
+    const { client, result } = renderBranches({});
+    await waitFor(() => expect(result.current.byKey.get("todo")?.total).toBe(6));
+
+    count = 3;
+    await act(() => client.refetchQueries({ queryKey: tableRowsBranchPrefix("w1", branch("todo").body) }));
+    await settle();
+    expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
+    expect(result.current.byKey.get("todo")?.total).toBe(6);
+  });
+
   it("reports a failed page, and retry refetches it and clears the error", async () => {
     const server = serveTableCursor({ count: () => 5, failOnce: ["todo@0"] });
     const { result } = renderBranches({});

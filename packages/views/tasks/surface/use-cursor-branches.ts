@@ -154,19 +154,22 @@ export function useCursorBranches(
     return out;
   }, [prepared, pageStates]);
 
-  // Stale tail: when the first page refetches (an edit, an invalidation), the
-  // later pages' cursors point into the old ordering. Drop them.
-  const firstPageUpdatedAt = useRef(new Map<string, number>());
+  // Stale tail: when the first page comes back with different content (an
+  // edit, an invalidation), the later pages' cursors point into the old
+  // ordering. Drop them. Compared by `data` identity, not `dataUpdatedAt`:
+  // structural sharing keeps `data` the same object when a refetch (a window
+  // refocus) returns equal content, and then the tail is still valid.
+  const firstPageData = useRef(new Map<string, TableRowsResult>());
   // A 409 error object is acted on once, even while its query retries.
   const handledMismatches = useRef(new WeakSet<object>());
   useEffect(() => {
     for (const b of prepared) {
       const pages = pagesOf.get(b.stateKey) ?? [];
-      const first = pages[0];
-      if (first && first.dataUpdatedAt > 0) {
-        const seen = firstPageUpdatedAt.current.get(b.stateKey);
-        firstPageUpdatedAt.current.set(b.stateKey, first.dataUpdatedAt);
-        if (seen !== undefined && seen !== first.dataUpdatedAt && pages.length > 1) {
+      const data = pages[0]?.data;
+      if (data !== undefined) {
+        const seen = firstPageData.current.get(b.stateKey);
+        firstPageData.current.set(b.stateKey, data);
+        if (seen !== undefined && seen !== data && pages.length > 1) {
           resetBranch(b.stateKey);
           continue;
         }
@@ -186,6 +189,9 @@ export function useCursorBranches(
     }
   }, [prepared, pagesOf, resetBranch]);
 
+  // The largest first-page total seen per branch, so a count never shrinks
+  // under rows already on screen while a refetch settles.
+  const largestTotal = useRef(new Map<string, number>());
   const byKey = useMemo(() => {
     const map = new Map<string, CursorBranchState>();
     for (const b of prepared) {
@@ -194,6 +200,8 @@ export function useCursorBranches(
       const last = pages[pages.length - 1];
       const cursors = b.bodies.map((body) => body.cursor);
       const nextCursor = last?.data?.next_cursor ?? null;
+      const total = Math.max(largestTotal.current.get(b.stateKey) ?? 0, first?.data?.total ?? 0);
+      largestTotal.current.set(b.stateKey, total);
       const retry = () => {
         for (const page of pages) {
           if (page.isError) void page.refetch();
@@ -202,7 +210,7 @@ export function useCursorBranches(
       map.set(b.key, {
         key: b.key,
         rows: mergeRows(pages),
-        total: pages.reduce((max, page) => Math.max(max, page.data?.total ?? 0), 0),
+        total,
         isLoading: !!first?.isLoading && first.data === undefined,
         isFetchingMore: pages.length > 1 && !!last?.isFetching,
         isError: !!last?.isError && last.data === undefined,
