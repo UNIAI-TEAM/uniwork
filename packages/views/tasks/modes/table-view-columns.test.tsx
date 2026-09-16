@@ -188,6 +188,28 @@ const callsTo = (method: string) =>
     ([, init]) => (init as { method?: string } | undefined)?.method === method,
   );
 
+const COLUMN_LEFT: Record<string, number> = {
+  title: 40,
+  status: 400,
+  priority: 550,
+  assignee: 680,
+  due_date: 860,
+  labels: 1000,
+};
+
+/** jsdom lays nothing out; dnd-kit's keyboard sensor needs each column's box. */
+function stubColumnRects(): () => void {
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    const left = COLUMN_LEFT[this.getAttribute("data-column-id") ?? ""];
+    if (left === undefined) return original.call(this);
+    return { x: left, y: 0, left, top: 0, width: 120, height: 32, right: left + 120, bottom: 32, toJSON: () => ({}) } as DOMRect;
+  };
+  return () => {
+    HTMLElement.prototype.getBoundingClientRect = original;
+  };
+}
+
 describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () => {
   it("ô thuộc tính select gửi PUT giá trị với id lựa chọn", async () => {
     const { row } = await renderTable(["property:p1"]);
@@ -262,7 +284,7 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
   it("Giảm dần trên header cột thuộc tính sắp theo property:<id> giảm dần", async () => {
     const { store } = await renderTable(["property:p1"]);
     const header = await screen.findByRole("columnheader", { name: /Mức độ/ });
-    fireEvent.click(within(header).getByRole("button", { name: /Mức độ/ }));
+    fireEvent.click(within(header).getByRole("button", { name: /^Mức độ/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Giảm dần/i }));
     expect(store.getState().sortBy).toBe("property:p1");
     expect(store.getState().sortDirection).toBe("desc");
@@ -271,7 +293,7 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
   it("cột multi_select không có mục sắp xếp, chỉ Ẩn cột", async () => {
     await renderTable(["property:p3"]);
     const header = await screen.findByRole("columnheader", { name: /Thẻ/ });
-    fireEvent.click(within(header).getByRole("button", { name: /Thẻ/ }));
+    fireEvent.click(within(header).getByRole("button", { name: /^Thẻ/ }));
     await screen.findByRole("menuitem", { name: "Ẩn cột" });
     expect(screen.queryByRole("menuitem", { name: /dần/i })).toBeNull();
   });
@@ -279,7 +301,7 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
   it("Tăng dần trên header Ngày bắt đầu sắp theo start_date", async () => {
     const { store } = await renderTable(["start_date"]);
     const header = await screen.findByRole("columnheader", { name: /Ngày bắt đầu/ });
-    fireEvent.click(within(header).getByRole("button", { name: /Ngày bắt đầu/ }));
+    fireEvent.click(within(header).getByRole("button", { name: /^Ngày bắt đầu/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Tăng dần/i }));
     expect(store.getState().sortBy).toBe("start_date");
     expect(store.getState().sortDirection).toBe("asc");
@@ -293,5 +315,66 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
     fireEvent.click(item);
     expect(store.getState().tableColumns.map((column) => column.key)).toContain("property:p2");
     expect(callsTo("PUT")).toHaveLength(0);
+  });
+  it("ô dự án có project_id nhưng không có trong danh sách dự án hiện —", async () => {
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.includes("/tasks/table/rows")) {
+        const page = (await base(path, init)) as { rows: Array<{ task: object }> };
+        return { ...page, rows: [{ ...page.rows[0], task: { ...task, project_id: "pr-gone" } }] };
+      }
+      return base(path, init);
+    });
+    const { row } = await renderTable(["project"]);
+    expect(
+      await within(cell(row, "project")).findByRole("button", { name: "Dự án: —" }),
+    ).toBeInTheDocument();
+  });
+
+  it("bỏ giao người phụ trách gửi assignee_id null, assignee_kind human", async () => {
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.includes("/tasks/table/rows")) {
+        const page = (await base(path, init)) as { rows: Array<{ task: object }> };
+        return {
+          ...page,
+          rows: [{ ...page.rows[0], task: { ...task, assignee_id: "a1", assignee_kind: "agent" } }],
+        };
+      }
+      return base(path, init);
+    });
+    const { row } = await renderTable();
+    fireEvent.click(within(cell(row, "assignee")).getByRole("combobox"));
+    fireEvent.click(await screen.findByRole("option", { name: /Chưa giao/ }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1", {
+        method: "PATCH",
+        body: { assignee_id: null, assignee_kind: "human" },
+      }),
+    );
+  });
+
+  it("kéo cột bằng bàn phím đổi thứ tự cột trong store; cột tiêu đề không có nút kéo", async () => {
+    const { store } = await renderTable();
+    expect(screen.queryByRole("button", { name: "Di chuyển cột Tiêu đề" })).toBeNull();
+    const restoreRects = stubColumnRects();
+    try {
+      const grip = await screen.findByRole("button", { name: "Di chuyển cột Trạng thái" });
+      grip.focus();
+      fireEvent.keyDown(grip, { code: "Space" });
+      // dnd-kit binds its move/drop keys on the next tick after the pick-up.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      fireEvent.keyDown(grip, { code: "ArrowRight" });
+      fireEvent.keyDown(grip, { code: "Space" });
+    } finally {
+      restoreRects();
+    }
+    await waitFor(() =>
+      expect(store.getState().tableColumns.map((column) => column.key).slice(0, 3)).toEqual([
+        "title",
+        "priority",
+        "status",
+      ]),
+    );
   });
 });

@@ -1017,6 +1017,7 @@
       "branch_error": "Could not load tasks",
       "empty_search": "No tasks match “{{query}}”",
       "refreshing": "Refreshing the table",
+      "reorder_column": "Move column {{name}}",
       "showing_of_total": "Showing {{shown}} of {{total}}",
       "unavailable_cell": "Unavailable",
       "empty_value": "Empty",
@@ -1027,7 +1028,7 @@
       "no_value": "No value",
       "checked": "Checked",
       "unchecked": "Unchecked",
-      "grouping_reset": "This property can't group the table, so grouping is off.",
+      "grouping_reset": "This property can't group the table, so grouping is set to “No grouping”.",
       "grouping": {
         "none": "No grouping",
         "status": "Status",

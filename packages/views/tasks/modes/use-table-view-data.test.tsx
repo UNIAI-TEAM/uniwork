@@ -342,7 +342,7 @@ describe("useTableViewData", () => {
     expect(result.current.groupsError).toBe(false);
     expect(infoMock).toHaveBeenCalledTimes(1);
     expect(infoMock).toHaveBeenCalledWith(
-      "Không nhóm được theo thuộc tính này, đã chuyển về Không nhóm.",
+      "Không nhóm được theo thuộc tính này, đã chuyển về “Không nhóm”.",
     );
   });
 });

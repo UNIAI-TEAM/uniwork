@@ -227,8 +227,10 @@ export function TableProjectCell({
 }) {
   const { t } = useTranslation();
   const none = t("tasks.detail.prop_project_none");
+  // A project this list does not have (not loaded, or not visible) is still a
+  // project: say nothing rather than claim there is none.
   const title = projectId
-    ? (projects.find((project) => project.id === projectId)?.title ?? none)
+    ? (projects.find((project) => project.id === projectId)?.title ?? "—")
     : none;
   return (
     <EnumFieldPicker

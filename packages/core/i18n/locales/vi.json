@@ -1016,6 +1016,7 @@
       "branch_error": "Không tải được việc",
       "empty_search": "Không có việc khớp “{{query}}”",
       "refreshing": "Đang làm mới bảng",
+      "reorder_column": "Di chuyển cột {{name}}",
       "showing_of_total": "Hiển thị {{shown}}/{{total}}",
       "unavailable_cell": "Chưa có",
       "empty_value": "Trống",
@@ -1026,7 +1027,7 @@
       "no_value": "Chưa có giá trị",
       "checked": "Đã chọn",
       "unchecked": "Chưa chọn",
-      "grouping_reset": "Không nhóm được theo thuộc tính này, đã chuyển về Không nhóm.",
+      "grouping_reset": "Không nhóm được theo thuộc tính này, đã chuyển về “Không nhóm”.",
       "grouping": {
         "none": "Không nhóm",
         "status": "Trạng thái",

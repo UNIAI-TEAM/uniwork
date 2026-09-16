@@ -100,6 +100,7 @@ export function TableView({
   const tableColumns = useViewStore((s) => s.tableColumns);
   const setTableColumnWidth = useViewStore((s) => s.setTableColumnWidth);
   const toggleTableColumn = useViewStore((s) => s.toggleTableColumn);
+  const reorderTableColumn = useViewStore((s) => s.reorderTableColumn);
   const toggleTableGroupCollapsed = useViewStore(
     (s) => s.toggleTableGroupCollapsed,
   );
@@ -223,6 +224,22 @@ export function TableView({
       return t(`tasks.table.columns.${key}`);
     },
     [properties, t],
+  );
+
+  // The title column stays first; every other column moves by its header grip.
+  const reorderableColumnIds = useMemo(
+    () => columnKeys.filter((key) => key !== "title"),
+    [columnKeys],
+  );
+  const onColumnReorder = useCallback(
+    (active: string, over: string) =>
+      reorderTableColumn(active as TableColumnKey, over as TableColumnKey),
+    [reorderTableColumn],
+  );
+  const reorderHandleLabel = useCallback(
+    (id: string) =>
+      t("tasks.table.reorder_column", { name: columnLabel(id as TableColumnKey) }),
+    [columnLabel, t],
   );
 
   const onSort = useCallback(
@@ -369,6 +386,9 @@ export function TableView({
             className="min-h-0 flex-1"
             virtualizeRows={data.displayRows.length > 40}
             virtualRowHeight={40}
+            reorderableColumnIds={reorderableColumnIds}
+            onColumnReorder={onColumnReorder}
+            reorderHandleLabel={reorderHandleLabel}
             emptyMessage={
               <TableEmptyMessage search={data.search} onClearSearch={() => setSearch("")} />
             }
