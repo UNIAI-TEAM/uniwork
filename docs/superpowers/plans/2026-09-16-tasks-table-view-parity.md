@@ -1,6 +1,6 @@
 # View Bảng ngang usf — Implementation Plan
 
-> **Trạng thái:** in-progress — PR1 xong (`5bbae89`), spec + ADR 0020 (`2774938`)
+> **Trạng thái:** in-progress — PR1 #81 merged; PR2 #82, PR3 #83 in review; PR4 on feature/UNI-654-table-polish-e2e
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -845,3 +845,25 @@ Scenarios (one `test.describe.serial`, one registered user via `registerVerified
 
 - [ ] `make check`; e2e twice; `uptime` before judging any flake.
 - [ ] Update spec status line to `shipped` (after merge) and this plan's status; `make issue-pr KEY=UNI-654`; `make issue-note` with evidence (commands + results + screenshots path); after merge `make issue-done KEY=UNI-654`.
+
+## Ghi chép thực thi
+
+Các chỗ lệch khỏi plan, chốt trong ledger `.superpowers/sdd/2026-09-16-tasks-table-view-parity/progress.md` (dòng `Ruling:`); spec đã cập nhật theo.
+
+- **Task 1** — regex key trạng thái trong group key theo catalog (`^[a-z0-9][a-z0-9_]{0,31}$`), không phải `^[a-z0-9_]{1,32}$`: key nhóm nhận đúng những gì catalog tạo được.
+- **Task 2** — sort thuộc tính số dùng `CASE WHEN jsonb_typeof(...) = 'number' THEN (...)::numeric END` thay cho `NULLIF` + cast: giá trị không kiểm kiểu khi ghi, một giá trị hỏng không được làm hỏng bảng; số lưu dạng chuỗi xếp như rỗng. Sort field lạ lùi về `position` tăng dần.
+- **Task 2/12** — option của thuộc tính select đọc khoan dung như `optionsFor` trong `create-task-custom-properties.tsx` (chuỗi, hoặc object `value ?? id ?? name` / `label ?? name ?? value`), không chỉ `{id, name}`.
+- **Task 3** — thêm test service cho facet `project` có search (spec §3.4); `group_by=none` trả groups rỗng; facets bỏ qua `group_by`; `limit` kẹp 1..100 (≤ 0 → 50).
+- **Task 4** — key cache `taskKeys.tableRows(ws, bodyHashKhôngCursor, cursor?)`: trang 5 đoạn, tiền tố nhánh 4 đoạn.
+- **Task 5** — kéo board vẫn lạc quan trên API cursor (`patchTableCaches`), kể cả tạo trang đầu cho cột trạng thái rỗng; bản đầu của implementer đã xóa nó.
+- **Task 6** — tổng của nhánh = `max(total trang đầu, số dòng đã tải)`, tính lại mỗi lần để xóa việc làm giảm số. Luật cắt trang đuôi: bản đầu so `dataUpdatedAt`, rồi identity `data`; review cuối thấy cả hai làm mất trang đuôi khi sửa dòng ở trang 1 → chốt so `next_cursor` của trang đầu (spec §4).
+- **Task 7** — "Tải thêm" không chờ refetch nền của trang cuối đã có dữ liệu.
+- **Task 8** — `sortTasksForTable` chuyển thành `sortSurfaceTasks` (list/gantt/swimlane vẫn sort ở client) thay vì xóa.
+- **Task 11** — sửa giá trị thuộc tính giữ dòng ở nhánh nhóm cũ đến khi refetch settle (như các nhóm không phải trạng thái).
+- **Task 13** — store đổi tên `tableExpandedParents`/`toggleTableParentExpanded`, bỏ giá trị cũ trong `merge` của persist, không bump version. Board và bảng chỉ chung cache khi tắt việc con.
+- **Task 15/16** — nối kéo đổi thứ tự cột vào `table-view.tsx` ở Task 16; header và grip trên coarse pointer cao/rộng 44px.
+- **Task 18b (thêm)** — lưu trạng thái view qua reload: `DashboardLayout` gọi `setCurrentWorkspace` (bị mất sau port); outbox chat gắn `senderId`, TTL 24 giờ, đăng xuất xóa scope.
+- **Task 19** — selection là state cục bộ theo instance trong views (không phải Zustand store dùng chung).
+- **Task 20** — ưu tiên và các cột ngày rộng 152px (128px cắt chữ); bảng cuộn về đầu khi query đổi (`scrollResetKey`).
+- **Task 21** — ngân sách thời gian §6 được giữ bằng test đếm render (Task 19) và kịch bản e2e "không treo", không đo mili-giây trong e2e (dễ flake khi máy tải cao).
+- **Review cuối** — sửa: cắt trang đuôi theo `next_cursor`; mô tả SDI cho `query`/`sort`; `parseDate` nêu đúng tên trường; gắn nhãn hủy fetch rows đang chạy trước khi vá; `sort_value` không ép kiểu được → 400 `invalid_cursor`; xóa code chết (`useTableRows`, helper CSV/tính cột); `propertiesDisabled` mặc định `false`; nhóm trạng thái mới chèn theo vị trí catalog. Để sau: reset chọn dòng khi đổi search, outline của thanh kéo đổi độ rộng, gộp parser option với form tạo việc; facets chưa nhận search của bảng (spec §9).

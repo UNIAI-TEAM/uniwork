@@ -1,6 +1,6 @@
 # UniWork — View Bảng của Công việc ngang usf
 
-> **Trạng thái:** in-progress — PR1 (sửa treo) đã commit trên nhánh `feature/UNI-654-…`; PR2–PR4 theo plan `../plans/2026-09-16-tasks-table-view-parity.md`
+> **Trạng thái:** in-progress — PR1 #81 merged; PR2 #82, PR3 #83 in review; PR4 on feature/UNI-654-table-polish-e2e
 
 **Ngày:** 2026-09-16
 **Issue:** UNI-654 (sub-issue của UNI-426 · F-05 Tasks parity)
@@ -54,6 +54,11 @@ dùng, không treo, không N+1, có e2e.
 - Index trigram cho tìm kiếm — thêm khi đo thấy chậm.
 - Nhóm theo ưu tiên: usf không có, UniWork có sẵn ở server → **giữ và mở ở UI**.
 
+**Đã làm thêm ngoài spec (PR4)** — người đọc cần biết vì chúng đổi hành vi ngoài bảng:
+- **Lưu trạng thái view qua reload**: chế độ xem, cột, nhóm của bảng không còn sau reload, cả trên develop. Nguyên nhân gốc: sau đợt port, `DashboardLayout` không gọi `setCurrentWorkspace` nên store persist theo workspace (view việc, điều hướng, nháp chat) không có slug và bỏ mọi lần ghi. Shell gọi nó trong render phase (`5611c22`).
+- **Outbox gửi chat gắn người gửi**: khi scope workspace chạy thật, outbox chat có thể gửi hộ tin của người dùng trước trên cùng trình duyệt. Mỗi mục mang `senderId`, chỉ người gửi đó flush; mục quá 24 giờ bị bỏ; đăng xuất xóa scope workspace (`9a00d56`).
+- **Cuộn về đầu khi query đổi**: đổi sort, search (sau debounce), lọc hoặc nhóm đưa bảng về dòng đầu (`DataTable.scrollResetKey`); refetch nền, sửa dòng, mở cha, "Tải thêm" và bật/tắt việc con giữ vị trí (`f409b64`).
+
 ## 3. Hợp đồng API bảng (thay thế, không tương thích ngược)
 
 Ba route giữ nguyên đường dẫn: `POST /api/v1/workspaces/{ws}/tasks/table/{groups,rows,facets}`.
@@ -94,7 +99,7 @@ server đổi cùng PR2.
 | `start_date`, `due_date` | cột | NULLS LAST cả hai chiều |
 | `status` | `task_statuses.position` của workspace theo `key`, rồi rank category mặc định | status không có trong catalog xếp cuối |
 | `priority` | rank cố định `urgent,high,medium,low,none` | |
-| `property:<id>` | number → `(properties->>id)::numeric`; date/text/url/select → `NULLIF(properties->>id,'')`; select xếp theo **tên option** (tra config) | multi_select, checkbox, thuộc tính lưu trữ/không tồn tại → lùi về `position`; NULLS LAST |
+| `property:<id>` | number → `CASE WHEN jsonb_typeof(properties->id) = 'number' THEN (properties->>id)::numeric END` (giá trị không phải số — kể cả chuỗi `"12"` — xếp như rỗng, vì giá trị thuộc tính không được kiểm kiểu khi ghi và một giá trị hỏng không được làm hỏng cả câu); date/text/url/select → `NULLIF(properties->>id,'')`; select xếp theo **tên option** (tra config) | multi_select, checkbox, thuộc tính lưu trữ/không tồn tại → lùi về `position`; NULLS LAST |
 
 Tiebreak luôn `t.created_at DESC, t.id DESC`.
 
@@ -131,7 +136,7 @@ Nhóm theo thuộc tính kiểu khác, thuộc tính lưu trữ hoặc không t�
 - base64url không padding của JSON `{v:1, fp, group_key, parent_id, sort_value, sort_null, created_at, id}`.
 - `fp` = `sha256` hex của JSON chuẩn hóa: workspace id + query (mảng filter đã sort, bỏ trùng; search đã trim) + group_by + hierarchy.
 - Keyset `(sortExpr, created_at DESC, id DESC)` có xử lý NULLS LAST; server lấy `limit+1` để quyết định `next_cursor`.
-- `fp`/`group_key`/`parent_id` lệch → **409** `cursor_query_mismatch`; cursor hỏng → **400** `invalid_cursor`.
+- `fp`/`group_key`/`parent_id` lệch → **409** `cursor_query_mismatch`; cursor hỏng → **400** `invalid_cursor`. Cursor đúng `fp` nhưng `sort_value` không ép được sang kiểu của sort (ví dụ `"abc"` khi sort `position`) cũng là **400** `invalid_cursor` (`tablequery.ValidateCursorSortValue`), không phải 500.
 - Groups không phân trang (số nhóm nhỏ: status/priority/project/assignee/option); `next_cursor` luôn `null`, giữ trường để client ổn định.
 
 ### 3.4 Response
@@ -161,7 +166,7 @@ hierarchy = hàng chục query). Dựng SQL trong **`server/pkg/db/tablequery/`*
 
 - `packages/core/api/endpoints/tasks-table.ts`: schema/kiểu mới, test malformed cho cả ba endpoint (degrade, không throw); map lỗi 409/422 thành `ApiError` có `code`.
 - `packages/core/tasks/surface/table-query.ts`: builder body mới; cache key = JSON của body (thứ tự trường cố định) — board và bảng cùng tham số vẫn chung một entry.
-- Phân trang cursor dùng chung: `useCursorBranches` (views) giữ, mỗi nhánh, danh sách cursor `[null, c1, c2…]`; trang n+1 lấy `next_cursor` của trang n. Khi trang đầu của nhánh refetch xong mà `dataUpdatedAt` đổi → cắt về `[null]` (bỏ trang đuôi cũ để không trùng/hụt dòng). Query đổi (filter/search/sort) → mọi nhánh về `[null]`. Kết quả `useQueries` luôn qua `combine` ổn định.
+- Phân trang cursor dùng chung: `useCursorBranches` (views) giữ, mỗi nhánh, danh sách cursor `[null, c1, c2…]`; trang n+1 lấy `next_cursor` của trang n. Khi `next_cursor` của trang đầu (ranh giới keyset) khác giá trị lần trước của cùng nhánh + query → cắt về `[null]` (bỏ trang đuôi cũ để không trùng/hụt dòng); dữ liệu placeholder của query trước không tính. Sửa lạc quan (kéo board, đặt/gỡ thuộc tính, gắn nhãn), vá realtime `task.updated`, refetch sau khi sửa một dòng ở trang 1 hay refocus cửa sổ đều giữ nguyên ranh giới nên giữ trang đuôi và vị trí cuộn. (Không so `dataUpdatedAt` hay identity của `data`: cả hai đổi ở mọi lần ghi và làm mất trang đuôi của người đã cuộn xa.) Query đổi (filter/search/sort) → mọi nhánh về `[null]`. Kết quả `useQueries` luôn qua `combine` ổn định.
 - Board (`use-board-columns-data.ts`) chuyển sang `useCursorBranches` với `group_by=status`, `hierarchy=false`.
 - Realtime: giữ invalidate `tableRoot`; `realtime-task-patch.ts` vá task trong entry rows mới (row có thêm `labels`, không đụng).
 - 409 `cursor_query_mismatch` → reset nhánh về `[null]` một lần.
@@ -169,7 +174,7 @@ hierarchy = hàng chục query). Dựng SQL trong **`server/pkg/db/tablequery/`*
 ## 5. View Bảng
 
 ### 5.1 Dữ liệu
-- `use-table-view-data.ts` viết lại trên `useCursorBranches`: nhánh = `(group_key, parent_id)`. Nhóm thu gọn không tạo nhánh. **Cha mặc định đóng** (khác usf mở sẵn): mở sẵn nghĩa là một request con cho mỗi cha trên màn hình; người dùng bấm mở thì mới tạo nhánh con. Store lưu danh sách cha **đang mở** (bump version store, xóa trạng thái cũ). Một task chỉ hiện một lần.
+- `use-table-view-data.ts` viết lại trên `useCursorBranches`: nhánh = `(group_key, parent_id)`. Nhóm thu gọn không tạo nhánh. **Cha mặc định đóng** (khác usf mở sẵn): mở sẵn nghĩa là một request con cho mỗi cha trên màn hình; người dùng bấm mở thì mới tạo nhánh con. Store lưu danh sách cha **đang mở** dưới tên mới `tableExpandedParents` (`toggleTableParentExpanded`); giá trị cũ đã lưu (danh sách cha đóng) bị bỏ trong `merge` của persist, không bump version — store theo surface không bao giờ chạy `migrate`. Một task chỉ hiện một lần.
 - Bỏ `sortTasksForTable` và lọc search ở client (server làm).
 - Search: ô tìm kiếm debounce 300 ms; đang tải hiện chỉ báo nhỏ, giữ dữ liệu cũ (`placeholderData`) để bảng không nhấp nháy.
 - `showSubTasks=false` → gửi `hierarchy=false`, hiển thị phẳng mọi việc khớp (không lồng).
@@ -191,7 +196,7 @@ Menu: Không nhóm / Trạng thái / Ưu tiên / Người phụ trách / Dự á
 ## 6. Giao diện và hiệu năng
 
 - Đường kẻ ô dùng `border-border/60` (ngang) và bỏ kẻ dọc trừ ranh giới cột ghim; header nền như hiện tại. Kiểm tương phản sáng/tối bằng e2e contrast hiện có.
-- Độ rộng mặc định: ưu tiên 128px, trạng thái 148px, người phụ trách 176px, ngày 128px (không cắt "Trung bình", "Chưa giao").
+- Độ rộng mặc định (`DEFAULT_COLUMN_WIDTHS` trong `packages/views/tasks/modes/table-view-columns.tsx`): tiêu đề 360px, số hiệu 96px, trạng thái 148px, ưu tiên 152px, người phụ trách 176px, nhãn 180px, dự án 168px, ngày bắt đầu/hạn/tạo/cập nhật 152px, cột thuộc tính 160px, cột khác 140px. Ưu tiên và ngày là 152px chứ không 128px: 128px cắt "Trung bình", "Không ưu tiên" và ngày đầy đủ trên Chromium.
 - Nút mở rộng việc con: vùng bấm 24×24 (44px trên coarse pointer theo contract primitive), icon 14px, `aria-expanded`.
 - Chiều cao dòng cố định 40px khớp `virtualRowHeight`.
 - Vùng cuộn có `padding-bottom` bằng chiều cao thanh thao tác hàng loạt khi đang chọn → không che "Tải thêm".
@@ -207,7 +212,7 @@ Menu: Không nhóm / Trạng thái / Ưu tiên / Người phụ trách / Dự á
 | Go `service` (DB thật) | sort mọi field × chiều qua 3 trang không trùng/hụt; search nhiều từ + số hiệu; hierarchy gốc/con/cha ngoài membership; group project/priority/property select+checkbox; 422; 409; `total` nhánh; nhãn trong rows; cách ly hai tổ chức |
 | Go `handler` | 400 cursor hỏng, 409, 422, openapi có SDI/SDO mới |
 | core | schema + malformed cho 3 endpoint; builder body/key; hooks property value |
-| views | `useCursorBranches` (nối cursor, cắt đuôi khi trang đầu đổi, reset khi query đổi, combine ổn định); bảng: sort header gửi đúng body, search debounce, mở cha tải con, nhóm dự án/ưu tiên/thuộc tính, 422 → none, editor thuộc tính 7 kiểu, reorder bằng bàn phím, retry nhánh, render-loop guard, chọn dòng không render lại ô khác; board vẫn qua test hiện có |
+| views | `useCursorBranches` (nối cursor, cắt đuôi khi `next_cursor` trang đầu đổi, giữ đuôi khi sửa lạc quan/vá realtime, reset khi query đổi, combine ổn định); bảng: sort header gửi đúng body, search debounce, mở cha tải con, nhóm dự án/ưu tiên/thuộc tính, 422 → none, editor thuộc tính 7 kiểu, reorder bằng bàn phím, retry nhánh, render-loop guard, chọn dòng không render lại ô khác; board vẫn qua test hiện có |
 | e2e `e2e/tasks-table.spec.ts` | 120 việc (có con, 2 dự án, 1 thuộc tính select): chuyển board→bảng không treo; sort tiêu đề đúng qua "Tải thêm"; search thấy việc ngoài trang 1; con ở trang khác lồng đúng dưới cha; nhóm dự án + ưu tiên; sửa thuộc tính trong ô; đổi thứ tự cột bằng bàn phím và còn sau reload; bấm được điều hướng sau mọi bước |
 
 ## 8. Chia PR
@@ -224,3 +229,5 @@ Menu: Không nhóm / Trạng thái / Ưu tiên / Người phụ trách / Dự á
 - **UNI-648** (tạo việc: editor thuộc tính) chạy song song: editor đặt ở `packages/views/tasks/properties/` để dùng chung; ai merge sau rebase và gộp về một editor.
 - Keyset theo `status` cần join catalog: thêm index nếu đo `EXPLAIN` thấy seq scan trên workspace > 10k việc (migration CONCURRENTLY riêng).
 - Board đổi phân trang: test board hiện có là lưới an toàn; giữ nguyên hành vi hiển thị cột.
+- **Khoảng trống đã biết — facets bỏ qua search của bảng**: server áp `search` cho facets (§3.4), nhưng body facets dựng trong `use-task-surface-controller.ts` chỉ có `filter`; ô tìm kiếm là state cục bộ của `TableView`. Hiện chưa màn nào mở facet (`setActiveTableFacet` không có nơi gọi, `tableFacetCounts` không có nơi đọc) nên không request nào sai. Khi nối UI đếm facet, phải nâng search đã debounce lên controller (hoặc truyền vào) để số đếm khớp dòng đang hiện.
+- **Trang đuôi khi ranh giới không đổi**: giữ trang đuôi khi `next_cursor` của trang 1 không đổi nghĩa là một dòng chuyển qua ranh giới trang mà trang 1 không đổi ranh giới có thể trùng/hụt đến khi các trang sau refetch (chúng bị invalidate cùng lúc nên khoảng này ngắn).
