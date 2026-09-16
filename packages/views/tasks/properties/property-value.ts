@@ -40,8 +40,10 @@ export function isValidUrl(value: string): boolean {
   }
 }
 
-/** "1.234,5" and "1234,5" both mean the same number in vi copy; only the
- * decimal comma is a UI affordance, so only the first one found is rewritten. */
+/** Only the first `,` becomes a `.`, so "1234,5" reads as 1234.5 but a
+ * thousands-grouped "1.234,5" is rejected (the leftover `.` at index 1 makes
+ * "1.234.5" fail `Number()`) — vi copy's comma is a decimal separator here,
+ * not a grouping one, and there is no thousands-grouping support. */
 function parseNumberInput(raw: string): number | undefined {
   const trimmed = raw.trim();
   if (trimmed === "") return undefined;

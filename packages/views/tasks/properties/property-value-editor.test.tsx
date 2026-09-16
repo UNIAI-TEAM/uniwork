@@ -62,6 +62,24 @@ describe("PropertyValueEditor", () => {
       fireEvent.keyDown(input, { key: "Enter" });
       expect(onClear).toHaveBeenCalled();
     });
+
+    it("blur cũng commit giá trị đã sửa, không cần Enter", () => {
+      const onChange = vi.fn();
+      render(
+        <PropertyValueEditor property={prop} value="hello" onChange={onChange} onClear={vi.fn()} ariaLabel="Ghi chú" />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Ghi chú" }));
+      const input = screen.getByRole("textbox", { name: "Ghi chú" });
+      fireEvent.change(input, { target: { value: "world" } });
+      fireEvent.blur(input);
+      expect(onChange).toHaveBeenCalledWith("world");
+      // Editing closed back to the trigger (uncontrolled here: the harness
+      // doesn't feed the new value back through `value`, so the trigger still
+      // shows the old prop — only the callback and edit-mode exit are ours to
+      // assert).
+      expect(screen.getByRole("button", { name: "Ghi chú" })).toBeInTheDocument();
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    });
   });
 
   describe("url", () => {
@@ -243,6 +261,26 @@ describe("PropertyValueEditor", () => {
       expect(screen.queryByRole("button", { name: "Thuộc tính cũ" })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Xóa giá trị" }));
       expect(onClear).toHaveBeenCalled();
+    });
+
+    it("disabled thì nút Xóa giá trị không gọi onClear", () => {
+      const onClear = vi.fn();
+      render(
+        <PropertyValueEditor
+          property={prop}
+          value="giá trị cũ"
+          disabled
+          disabledReason="Không có quyền sửa"
+          onChange={vi.fn()}
+          onClear={onClear}
+          ariaLabel="Thuộc tính cũ"
+        />,
+      );
+      const clearButton = screen.getByRole("button", { name: "Xóa giá trị" });
+      expect(clearButton).toHaveAttribute("aria-disabled", "true");
+      expect(clearButton).toHaveAttribute("title", "Không có quyền sửa");
+      fireEvent.click(clearButton);
+      expect(onClear).not.toHaveBeenCalled();
     });
   });
 });

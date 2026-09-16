@@ -188,6 +188,7 @@ function PropertyCheckboxEditor({
   property,
   value,
   disabled,
+  disabledReason,
   onChange,
   ariaLabel,
   onTriggerNavigationGuard,
@@ -198,6 +199,7 @@ function PropertyCheckboxEditor({
       checked={checked}
       disabled={disabled}
       aria-label={ariaLabel}
+      title={disabled ? disabledReason : undefined}
       onPointerDown={onTriggerNavigationGuard}
       onClick={onTriggerNavigationGuard}
       onCheckedChange={(next) => onChange(next === true)}
@@ -211,6 +213,8 @@ function PropertyCheckboxEditor({
 function ArchivedPropertyValue({
   property,
   value,
+  disabled,
+  disabledReason,
   onClear,
   triggerClassName,
   onTriggerNavigationGuard,
@@ -226,10 +230,13 @@ function ArchivedPropertyValue({
           variant="ghost"
           size="icon-sm"
           className="size-6 shrink-0"
+          aria-disabled={disabled || undefined}
           aria-label={t("tasks.properties.clear")}
+          title={disabled ? disabledReason : undefined}
           onPointerDown={onTriggerNavigationGuard}
           onClick={(event) => {
             onTriggerNavigationGuard?.(event);
+            if (disabled) return;
             onClear();
           }}
         >
