@@ -386,6 +386,12 @@ phải trả `not_found` kèm status/errorClass/kind, không phải `Error` tr�
 | --- | --- | --- |
 | Bỏ khai báo `not_found` trong `ERROR_CODES` | 1 | `unknown-resource-is-typed` (24/25) |
 
+Bản sao mutation tái lập bằng `node ../.uniwork-dev/office-g0/mutate-doc005-round4.cjs <worktree> <mutants-r4>`
+(ngoài repo, không commit). Cùng bản đó làm `run-contracts.test.mjs` đỏ 2 test:
+`every fault case passes against its literal oracle` và
+`the evidence records the modeled-authorization limits` — tức self-test bắt được chứ
+không chỉ harness.
+
 ## 9. Việc tiếp theo
 
 | Việc | Giai đoạn | Ghi chú |
