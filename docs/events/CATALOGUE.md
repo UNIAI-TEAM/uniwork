@@ -92,6 +92,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.voice.accept` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.voice.hangup` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.voice.invite` | 1 | `room_id`, `user_id` | — | user | ephemeral |
+| `chat.voice.recording.started` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
+| `chat.voice.recording.stopped` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `conference.session_ready` | 1 | `meeting_id`, `version` | — | workspace | ephemeral |
 | `flag.updated` | 1 | `flag_key` | — | - | outbox |
 | `host.transferred` | 1 | `meeting_id`, `version` | — | workspace | outbox |

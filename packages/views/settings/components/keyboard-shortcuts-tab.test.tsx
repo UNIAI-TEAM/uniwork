@@ -293,6 +293,7 @@ describe("KeyboardShortcutsTab reset", () => {
 
 describe("SettingsPage shortcuts tab", () => {
   it("opens the shortcuts tab from ?tab=shortcuts", async () => {
+    await import("./keyboard-shortcuts-tab");
     render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={user}>
@@ -301,7 +302,7 @@ describe("SettingsPage shortcuts tab", () => {
         nav("tab=shortcuts"),
       ),
     );
+    expect(await screen.findByRole("tab", { name: "Phím tắt" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("heading", { name: "Phím tắt", level: 2 })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Phím tắt" })).toHaveAttribute("aria-selected", "true");
   });
 });

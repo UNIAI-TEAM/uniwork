@@ -245,7 +245,6 @@ describe("LoginView", () => {
   });
 
   it("keeps focus on the language switch instead of jumping to the heading", async () => {
-    const i18n = initI18n();
     render(wrap(<LoginView onSuccess={() => {}} />));
     // Two switches: one in the rail, one in the phone header; CSS hides one.
     const toEnglish = screen.getAllByRole("button", { name: "Chuyển sang English" })[0]!;
@@ -254,9 +253,8 @@ describe("LoginView", () => {
     await screen.findByRole("heading", { name: "Log in" });
 
     expect(screen.getByRole("heading", { name: "Log in" })).not.toHaveFocus();
-    expect(screen.getAllByRole("button", { name: "Switch to Tiếng Việt" })[0]).toHaveFocus();
-    await i18n.changeLanguage("vi");
-    document.documentElement.lang = "vi";
+    // Whichever switch is visible/focused — not necessarily index 0 in DOM order.
+    expect(document.activeElement).toHaveAccessibleName("Switch to Tiếng Việt");
   });
 
   it("selects the rejected password so the retry replaces it in one keystroke", async () => {

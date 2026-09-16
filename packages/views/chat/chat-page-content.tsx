@@ -20,6 +20,7 @@ import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPageContentDialogs } from "./chat-page-content-dialogs";
+import { ChatPageContentSheets } from "./chat-page-content-sheets";
 import {
   ChatPageConversationToolbar,
   chatPageEmptyLabel,
@@ -28,7 +29,6 @@ import { ChatPageEmptyConversation } from "./chat-page-empty-conversation";
 import { chatComposerPlaceholder } from "./chat-composer-placeholder";
 import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
 import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
-import { ChatCatchUpSheet } from "./chat-catch-up-sheet";
 
 export function ChatPageContent({
   target,
@@ -121,6 +121,7 @@ export function ChatPageContent({
   const [createPostOpen, setCreatePostOpen] = useState(false);
   const [mobileListMode, setMobileListMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [recordingsOpen, setRecordingsOpen] = useState(false);
   const followUpUi = useChatFollowUpUi(workspaceId, workHubEnabled);
   const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId, activeThreadRootId);
 
@@ -407,6 +408,11 @@ export function ChatPageContent({
                     onOpenDmSettings={() => onDmSettingsOpenChange(true)}
                     onCatchUp={catchUpUi.onCatchUp}
                     catchUpDisabled={catchUpUi.loading}
+                    onOpenRecordings={
+                      target.kind === "dm" || target.kind === "group" || target.kind === "channel"
+                        ? () => setRecordingsOpen(true)
+                        : undefined
+                    }
                     onVoiceCall={onVoiceCall}
                     voiceCallDisabled={voiceCallDisabled}
                     onVideoCall={onVideoCall}
@@ -489,15 +495,20 @@ export function ChatPageContent({
           </div>
         </div>
       </div>
-      {followUpUi.sheet}
-      <ChatCatchUpSheet
-        open={catchUpUi.open}
-        onOpenChange={catchUpUi.setOpen}
-        loading={catchUpUi.loading}
-        error={catchUpUi.error}
-        result={catchUpUi.result}
-        onRetry={catchUpUi.onRetry}
+      <ChatPageContentSheets
+        followUpSheet={followUpUi.sheet}
+        catchUpOpen={catchUpUi.open}
+        onCatchUpOpenChange={catchUpUi.setOpen}
+        catchUpLoading={catchUpUi.loading}
+        catchUpError={catchUpUi.error}
+        catchUpResult={catchUpUi.result}
+        onCatchUpRetry={catchUpUi.onRetry}
         workspaceId={workspaceId}
+        recordingsOpen={recordingsOpen}
+        onRecordingsOpenChange={setRecordingsOpen}
+        activeRoomId={activeRoomId}
+        currentUserId={currentUserId}
+        nameContext={nameContext}
       />
     </>
   );

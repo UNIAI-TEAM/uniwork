@@ -22,6 +22,9 @@ RETURNING *;
 -- name: ListMeetingRecordings :many
 SELECT * FROM meeting_recordings WHERE meeting_id = $1 ORDER BY started_at DESC;
 
+-- name: GetMeetingRecordingByID :one
+SELECT * FROM meeting_recordings WHERE id = $1 AND meeting_id = $2;
+
 -- name: GetActiveMeetingRecording :one
 SELECT * FROM meeting_recordings WHERE meeting_id = $1 AND status = 'ACTIVE' ORDER BY started_at DESC LIMIT 1;
 

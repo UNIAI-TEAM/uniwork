@@ -12,7 +12,6 @@ import {
   useBlockChatUser,
   useChatBlockStatus,
   useChatRooms,
-  useChatVoiceToken,
   useCreateChatGroup,
   useEnsureWorkspaceChatRoom,
   useInviteChatGroupMembers,
@@ -27,6 +26,7 @@ import {
   useUnblockChatUser,
   useChatSendOutboxFlush,
   useChatSendOutboxCount,
+  useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -48,13 +48,12 @@ import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatMediaSend } from "./use-chat-media-send";
 import { useChatPageSignals } from "./use-chat-page-signals";
+import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
 import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
 import { useNativeTyping } from "./use-native-typing";
-import { useNativeVoiceCall } from "./use-native-voice-call";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
-import { VoiceCallOverlay } from "./voice-call-overlay";
 
 export function ChatPageView({
   workspaceId,
@@ -116,7 +115,6 @@ export function ChatPageView({
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const syncedRef = useRef(false);
 
   const currentMember = useCurrentMember(workspaceId);
 
@@ -223,16 +221,6 @@ export function ChatPageView({
   const canCreatePolls = roomPermissions.canCreatePolls;
   const canCreateNotes = roomPermissions.canCreateNotes;
 
-  const voiceAllowedRoomIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const room of rooms) {
-      if (room.kind === "dm" || room.kind === "group" || room.kind === "channel") {
-        ids.add(room.id);
-      }
-    }
-    return ids;
-  }, [rooms]);
-
   const chatScopeRoomIds = useMemo(
     () =>
       selectLazyChatScopeRoomIds({
@@ -312,15 +300,7 @@ export function ChatPageView({
       setComposerPriority,
     });
 
-  useEffect(() => {
-    if (!authReady || syncedRef.current) return;
-    syncedRef.current = true;
-    // Ensure syncs default-channel membership before trusting listRooms; a
-    // parallel empty response used to stick in the cache until hard reload.
-    void ensureRoom.mutateAsync().finally(() => {
-      void refetch();
-    });
-  }, [authReady, ensureRoom, refetch]);
+  useSyncChatRoomsOnAuth(workspaceId, ensureRoom);
 
   const headerTitle = chatHeaderTitle(
     target,
@@ -344,18 +324,8 @@ export function ChatPageView({
     [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId],
   );
 
-  const chatVoiceToken = useChatVoiceToken();
-  const mintVoiceToken = useCallback(
-    async (roomId: string, callId: string) => chatVoiceToken.mutateAsync({ roomId, callId }),
-    [chatVoiceToken],
-  );
-  const { voiceCall, startCall, acceptCall, declineCall, leaveCall, endCallForAll, markVoiceConnected, inCall } = useNativeVoiceCall({
-    workspaceId,
-    currentUserId,
-    mintToken: mintVoiceToken,
-    allowedRoomIds: voiceAllowedRoomIds,
-  });
-  const { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall } = useChatVoiceHandlers({
+  const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();
+  const { handleStartVoiceCall, handleStartVideoCall } = useChatVoiceHandlers({
     targetKind: target.kind,
     activeRoomId,
     activeContact,
@@ -418,7 +388,7 @@ export function ChatPageView({
   }
 
   const callControlsDisabled =
-    !activeRoomId || inCall || chatVoiceToken.isPending || (target.kind === "dm" && dmBlocked);
+    !activeRoomId || inCall || (target.kind === "dm" && dmBlocked);
   const leaveRoomAnd = (cleanup: () => void) => {
     if (activeRoomId) void handleLeaveConversation(activeRoomId, cleanup);
   };
@@ -513,14 +483,6 @@ export function ChatPageView({
         canCreateNotes={canCreateNotes}
         peerLastReadAt={peerLastReadAt}
         t={t}
-      />
-      <VoiceCallOverlay
-        state={voiceCall}
-        onAccept={() => void handleAcceptVoiceCall()}
-        onDecline={() => void declineCall()}
-        onLeave={leaveCall}
-        onEndForAll={() => void endCallForAll()}
-        onConnected={markVoiceConnected}
       />
     </div>
   );

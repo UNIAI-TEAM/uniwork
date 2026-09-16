@@ -86,6 +86,31 @@ export function bumpThreadRootReplyCount(
   });
 }
 
+function patchRoomMessageListIfLoaded(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  patch: (existing: ChatMessageRecord[]) => ChatMessageRecord[],
+): void {
+  const key = chatKeys.roomMessages(wsId, roomId);
+  const existing = qc.getQueryData<ChatMessageRecord[]>(key);
+  if (existing === undefined) return;
+  qc.setQueryData<ChatMessageRecord[]>(key, patch(existing));
+}
+
+function patchWorkspaceMessageListIfLoaded(
+  qc: QueryClient,
+  wsId: string,
+  roomId: string,
+  patch: (existing: ChatMessageRecord[]) => ChatMessageRecord[],
+): void {
+  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
+  if (wsRoom?.room_id !== roomId) return;
+  const key = chatKeys.messages(wsId);
+  const existing = qc.getQueryData<ChatMessageRecord[]>(key);
+  if (existing === undefined) return;
+  qc.setQueryData<ChatMessageRecord[]>(key, patch(existing));
+}
 function patchThreadReplyCaches(
   qc: QueryClient,
   wsId: string,
@@ -101,17 +126,14 @@ function patchThreadReplyCaches(
 
   qc.setQueryData<ChatMessageRecord[]>(threadKey, (old) => mergeMessageIntoList(old, message));
 
-  const patchMainList = (old: ChatMessageRecord[] | undefined) => {
-    const withoutReply = removeMessageFromList(old, message.id);
+  const patchMainList = (existing: ChatMessageRecord[]) => {
+    const withoutReply = removeMessageFromList(existing, message.id);
     if (alreadyPresent) return withoutReply;
     return bumpThreadRootReplyCount(withoutReply, message) ?? withoutReply;
   };
 
-  qc.setQueryData<ChatMessageRecord[]>(chatKeys.roomMessages(wsId, roomId), patchMainList);
-  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
-  if (wsRoom?.room_id === roomId) {
-    qc.setQueryData<ChatMessageRecord[]>(chatKeys.messages(wsId), patchMainList);
-  }
+  patchRoomMessageListIfLoaded(qc, wsId, roomId, patchMainList);
+  patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, patchMainList);
 }
 
 function patchMessageCaches(
@@ -124,15 +146,12 @@ function patchMessageCaches(
     patchThreadReplyCaches(qc, wsId, roomId, message);
     return;
   }
-  qc.setQueryData<ChatMessageRecord[]>(chatKeys.roomMessages(wsId, roomId), (old) =>
-    mergeMessageIntoList(old, message),
+  patchRoomMessageListIfLoaded(qc, wsId, roomId, (existing) =>
+    mergeMessageIntoList(existing, message),
   );
-  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
-  if (wsRoom?.room_id === roomId) {
-    qc.setQueryData<ChatMessageRecord[]>(chatKeys.messages(wsId), (old) =>
-      mergeMessageIntoList(old, message),
-    );
-  }
+  patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, (existing) =>
+    mergeMessageIntoList(existing, message),
+  );
 }
 
 function isViewingRoom(wsId: string, roomId: string): boolean {
@@ -181,15 +200,12 @@ export function patchChatMessageDeleted(
   roomId: string,
   messageId: string,
 ): void {
-  qc.setQueryData<ChatMessageRecord[]>(chatKeys.roomMessages(wsId, roomId), (old) =>
-    removeMessageFromList(old, messageId),
+  patchRoomMessageListIfLoaded(qc, wsId, roomId, (existing) =>
+    removeMessageFromList(existing, messageId),
   );
-  const wsRoom = qc.getQueryData<{ room_id?: string }>(chatKeys.room(wsId));
-  if (wsRoom?.room_id === roomId) {
-    qc.setQueryData<ChatMessageRecord[]>(chatKeys.messages(wsId), (old) =>
-      removeMessageFromList(old, messageId),
-    );
-  }
+  patchWorkspaceMessageListIfLoaded(qc, wsId, roomId, (existing) =>
+    removeMessageFromList(existing, messageId),
+  );
   // Thread message caches are keyed by root; drop the id from any cached thread list.
   qc.setQueriesData<ChatMessageRecord[]>(
     { queryKey: ["chat", "thread-messages", wsId, roomId] },

@@ -149,6 +149,17 @@ function renderComposer(onSubmit: (body: string) => Promise<boolean>) {
   );
 }
 
+/** Same composer with CoreProvider so logout cleanup is wired like production. */
+function renderComposerInApp(onSubmit: (body: string) => Promise<boolean>) {
+  return render(
+    wrap(
+      <CoreProvider>
+        <TaskCommentComposer taskId="t1" onSubmit={onSubmit} />
+      </CoreProvider>,
+    ),
+  );
+}
+
 async function activate() {
   const standIn = screen.getByRole("button", {
     name: /viết bình luận|write a comment/i,
@@ -449,15 +460,6 @@ describe("TaskCommentComposer draft persistence", () => {
 
 const DRAFTS_KEY = "uniwork_task_comment_drafts";
 
-/** The real seam: `CoreProvider` assigns the logout cleanup callback. */
-function wireLogoutCleanup() {
-  render(
-    <CoreProvider>
-      <div />
-    </CoreProvider>,
-  );
-}
-
 async function logOut() {
   await act(async () => {
     await useAuthStore.getState().logout();
@@ -489,8 +491,7 @@ describe("TaskCommentComposer after logout", () => {
     "rời trang sau khi đăng xuất lúc nháp còn đang debounce: nháp không quay lại bộ nhớ hay storage",
     { timeout: 10_000 },
     async () => {
-      wireLogoutCleanup();
-      const view = renderComposer(vi.fn().mockResolvedValue(true));
+      const view = renderComposerInApp(vi.fn().mockResolvedValue(true));
       const editor = await activate();
 
       vi.useFakeTimers();
@@ -520,8 +521,7 @@ describe("TaskCommentComposer after logout", () => {
     "trang còn mở khi hết debounce sau đăng xuất: nháp không được ghi lại",
     { timeout: 10_000 },
     async () => {
-      wireLogoutCleanup();
-      const view = renderComposer(vi.fn().mockResolvedValue(true));
+      const view = renderComposerInApp(vi.fn().mockResolvedValue(true));
       const editor = await activate();
 
       vi.useFakeTimers();
@@ -552,8 +552,7 @@ describe("TaskCommentComposer after logout", () => {
             resolveSubmit = resolve;
           }),
       );
-      wireLogoutCleanup();
-      renderComposer(onSubmit);
+      renderComposerInApp(onSubmit);
       const editor = await activate();
 
       vi.useFakeTimers();
@@ -594,15 +593,16 @@ describe("TaskCommentComposer after logout", () => {
         revision: 1,
         reactions: [],
       };
-      wireLogoutCleanup();
       const view = render(
         wrap(
-          <TaskReplyComposer
-            taskId="t1"
-            parent={parent}
-            onSubmit={vi.fn().mockResolvedValue(true)}
-            onCancel={() => {}}
-          />,
+          <CoreProvider>
+            <TaskReplyComposer
+              taskId="t1"
+              parent={parent}
+              onSubmit={vi.fn().mockResolvedValue(true)}
+              onCancel={() => {}}
+            />
+          </CoreProvider>,
         ),
       );
       const editor = await activate();

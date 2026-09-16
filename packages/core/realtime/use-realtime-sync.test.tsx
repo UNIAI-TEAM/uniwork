@@ -463,7 +463,10 @@ describe("useRealtimeSync", () => {
       vi.advanceTimersByTime(250);
       await Promise.resolve();
     });
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(keysCalled(invalidate)).toEqual([
+      JSON.stringify(chatKeys.voiceRecordings("ws1", "dm1")),
+    ]);
     expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.roomMessages("ws1", "dm1"))).toHaveLength(1);
     vi.useRealTimers();
   });
@@ -498,7 +501,10 @@ describe("useRealtimeSync", () => {
       vi.advanceTimersByTime(250);
       await Promise.resolve();
     });
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(keysCalled(invalidate)).toEqual([
+      JSON.stringify(chatKeys.voiceRecordings("ws1", "ws-room")),
+    ]);
     expect(qc.getQueryData<chatApi.ChatMessageRecord[]>(chatKeys.messages("ws1"))).toHaveLength(1);
     vi.useRealTimers();
   });

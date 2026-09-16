@@ -167,6 +167,17 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
 		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},
 	})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings/{recordingID}/playback-url", h.GetMeetingRecordingPlaybackURL, apiOp{
+		summary:     "Get meeting recording playback URL",
+		description: "URL presigned ngắn hạn để phát MP4 trực tiếp (stream/seek) thay vì tải qua proxy.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MeetingRecordingPlaybackSDO{},
+	})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings/{recordingID}/content", h.StreamMeetingRecording, apiOp{
+		summary:     "Stream meeting recording",
+		description: "Phát bản ghi cuộc họp (MP4) qua proxy S3 cho thành viên hoặc khách đang tham gia.",
+		tags:        []string{"meetings"},
+	})
 	r.Post("/integrations/livekit/webhook", h.LiveKitWebhook, apiOp{
 		summary: "LiveKit webhook (signature required)", tags: []string{"integrations"},
 		sdo: sdo.StatusSDO{},

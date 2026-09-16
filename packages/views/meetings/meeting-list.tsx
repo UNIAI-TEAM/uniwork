@@ -24,6 +24,7 @@ import {
 } from "./meeting-datetime";
 import { MeetingStatusBadge } from "./meeting-status-badge";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingListRecordingButton } from "./meeting-list-recording-button";
 
 /** Newest-created first; falls back to ULID id when created_at is absent. */
 function meetingCreatedSortKey(m: Meeting): string {
@@ -106,6 +107,7 @@ function MeetingDayCards({
       {items.map((m) => {
         const host = hostName(m.host_user_id ?? m.created_by);
         const live = isScheduledMeetingLive(m);
+        const ended = m.status === "ENDED";
         return (
           <li key={m.id}>
             <MeetingCardRow
@@ -126,6 +128,7 @@ function MeetingDayCards({
               </MeetingCardRowMain>
               <MeetingCardRowActions>
                 <MeetingStatusBadge status={displayMeetingStatus(m)} />
+                {ended ? <MeetingListRecordingButton meetingId={m.id} enabled={ended} /> : null}
                 {live ? (
                   <Button
                     type="button"
@@ -168,6 +171,7 @@ function MeetingDayMobileList({
       {items.map((m) => {
         const host = hostName(m.host_user_id ?? m.created_by);
         const live = isScheduledMeetingLive(m);
+        const ended = m.status === "ENDED";
         return (
           <li key={m.id}>
             <MeetingCardRow className={cn(live && "border-brand/30 bg-brand/5")}>
@@ -195,7 +199,12 @@ function MeetingDayMobileList({
                     <span className="hidden sm:inline">{t("meetings.joinNow")}</span>
                   </Button>
                 ) : (
-                  <MeetingStatusBadge status={displayMeetingStatus(m)} />
+                  <>
+                    <MeetingStatusBadge status={displayMeetingStatus(m)} />
+                    {ended ? (
+                      <MeetingListRecordingButton meetingId={m.id} enabled={ended} compact />
+                    ) : null}
+                  </>
                 )}
               </MeetingCardRowActions>
             </MeetingCardRow>

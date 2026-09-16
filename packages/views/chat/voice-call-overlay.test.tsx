@@ -43,6 +43,8 @@ const handlers = {
   onConnected: vi.fn(),
 };
 
+const overlayProps = { workspaceId: "ws1", ...handlers };
+
 describe("VoiceCallOverlay", () => {
   it("renders incoming call actions", () => {
     render(
@@ -55,7 +57,7 @@ describe("VoiceCallOverlay", () => {
             peerName: "Long",
             callKind: "dm",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -79,7 +81,7 @@ describe("VoiceCallOverlay", () => {
             outgoing: true,
             callKind: "dm",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -100,7 +102,7 @@ describe("VoiceCallOverlay", () => {
             outgoing: false,
             callKind: "group",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -123,7 +125,7 @@ describe("VoiceCallOverlay", () => {
             outgoing: true,
             callKind: "group",
           }}
-          {...handlers}
+          {...overlayProps}
         />,
       ),
     );
@@ -133,7 +135,7 @@ describe("VoiceCallOverlay", () => {
 
   it("returns null while idle", () => {
     const { container } = render(
-      wrap(<VoiceCallOverlay state={{ status: "idle" }} {...handlers} />),
+      wrap(<VoiceCallOverlay state={{ status: "idle" }} {...overlayProps} />),
     );
     expect(container).toBeEmptyDOMElement();
   });

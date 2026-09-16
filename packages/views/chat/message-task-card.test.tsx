@@ -61,11 +61,11 @@ describe("MessageTaskCard", () => {
     wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" />);
 
     expect(screen.queryByTestId("chat-task-peek-dialog")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "chat.link.open_task" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mở LUN-2 · long ơi" }));
     expect(screen.getByTestId("chat-task-peek-dialog")).toBeInTheDocument();
-    expect(screen.getByLabelText("chat.link.title_label")).toHaveValue("long ơi");
+    expect(screen.getByLabelText("Tiêu đề")).toHaveValue("long ơi");
     expect(screen.getByTestId("chat-task-peek-fields")).toBeInTheDocument();
-    expect(screen.getByLabelText("tasks.status")).toBeInTheDocument();
-    expect(screen.getByLabelText("chat.link.project_label")).toBeInTheDocument();
+    expect(screen.getByLabelText("Trạng thái")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project")).toBeInTheDocument();
   });
 });

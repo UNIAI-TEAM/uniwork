@@ -92,6 +92,7 @@ func (s *ChatService) SignalVoiceHangup(
 			return ErrForbidden
 		}
 	}
+	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
 	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID, durationSeconds); logErr != nil {
 		return logErr
 	}

@@ -177,9 +177,13 @@ func main() {
 			TokenTTL: cfg.LiveKitTokenTTL, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 		}
 		if cfg.LiveKitRecordingBucket != "" {
+			recordingEndpoint := os.Getenv("LIVEKIT_RECORDING_S3_ENDPOINT")
+			if recordingEndpoint == "" {
+				recordingEndpoint = os.Getenv("AWS_ENDPOINT_URL")
+			}
 			lk.Recording = &meetings.RecordingS3{
 				AccessKey: os.Getenv("AWS_ACCESS_KEY_ID"), Secret: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-				Region: os.Getenv("AWS_REGION"), Endpoint: os.Getenv("AWS_ENDPOINT_URL"),
+				Region: os.Getenv("AWS_REGION"), Endpoint: recordingEndpoint,
 				Bucket: cfg.LiveKitRecordingBucket,
 			}
 			log.Info("meeting recording enabled", "bucket", cfg.LiveKitRecordingBucket)
@@ -217,7 +221,9 @@ func main() {
 	chatSvc := service.NewChatService(pool, q, wsSvc, pub)
 	chatSvc.TenorAPIKey = cfg.TenorAPIKey
 	chatSvc.SetTasks(taskSvc)
+	chatSvc.SetConference(conference)
 	taskSvc.Chat = chatSvc
+	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
 	hub.SetAuthorizer(realtime.ChatScopeAuthorizer{Gate: chatSvc})
 	// Directory and department events belong to the organization, so every

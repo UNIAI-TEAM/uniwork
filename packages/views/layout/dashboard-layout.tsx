@@ -11,6 +11,7 @@ import { WorkspaceChrome } from "./workspace-top-bar";
 import { WorkspaceLoader } from "./workspace-loader";
 import { WorkspaceProvider } from "./workspace-context";
 import { WorkspaceRealtimeSync } from "./workspace-realtime-sync";
+import { ChatVoiceCallHost } from "../chat/chat-voice-call-host";
 
 interface DashboardLayoutProps {
   orgSlug: string;
@@ -42,23 +43,25 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
       {({ user, workspace }) => (
         <WorkspaceProvider workspace={workspace} user={user}>
           <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
-            <WorkspaceRealtimeSync />
-            <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
-              {/* First in the DOM so it is the first tab stop; visible only
-                  while focused. */}
-              <a
-                href={`#${MAIN_CONTENT_ID}`}
-                className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-popover focus-visible:px-3 focus-visible:py-2 focus-visible:text-body focus-visible:text-popover-foreground focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {t("nav.skip_to_content")}
-              </a>
-              <AppSidebar />
-              <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
-                <NavigationProgress />
-                <WorkspaceChrome>{children}</WorkspaceChrome>
-                {extra}
-              </SidebarInset>
-            </SidebarProvider>
+            <ChatVoiceCallHost>
+              <WorkspaceRealtimeSync />
+              <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
+                {/* First in the DOM so it is the first tab stop; visible only
+                    while focused. */}
+                <a
+                  href={`#${MAIN_CONTENT_ID}`}
+                  className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-popover focus-visible:px-3 focus-visible:py-2 focus-visible:text-body focus-visible:text-popover-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t("nav.skip_to_content")}
+                </a>
+                <AppSidebar />
+                <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
+                  <NavigationProgress />
+                  <WorkspaceChrome>{children}</WorkspaceChrome>
+                  {extra}
+                </SidebarInset>
+              </SidebarProvider>
+            </ChatVoiceCallHost>
           </WSProvider>
         </WorkspaceProvider>
       )}

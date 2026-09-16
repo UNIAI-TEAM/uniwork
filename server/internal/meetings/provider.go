@@ -74,10 +74,11 @@ type EndProviderSessionRequest struct {
 
 // StartRecordingRequest asks the provider to record the whole room.
 // FilePrefix is the object key prefix (no extension); the provider appends
-// its own file name.
+// its own file name. Layout defaults to "speaker" when empty.
 type StartRecordingRequest struct {
 	RoomName   string
 	FilePrefix string
+	Layout     string
 }
 
 type RecordingRef struct {

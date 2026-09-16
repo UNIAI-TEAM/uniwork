@@ -16,7 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@uniwork/core/auth";
+import { useLogout } from "@uniwork/core/auth";
 import { HOME_PAGE_FLAG, useFlag } from "@uniwork/core/feature-flags";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
@@ -83,7 +83,7 @@ export function AppSidebar() {
   const { workspace, user } = useWorkspace();
   const { pathname, replace } = useNavigation();
   const { isCompact, setOpenMobile } = useSidebar();
-  const logout = useAuthStore((s) => s.logout);
+  const { mutateAsync: logout } = useLogout();
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);

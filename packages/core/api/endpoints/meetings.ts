@@ -29,7 +29,7 @@ import {
   type MeetingParticipant,
   type MeetingStatistics,
 } from "../../types/meeting";
-import { ApiError, request, requestText } from "../http";
+import { ApiError, request, requestBlob, requestText } from "../http";
 import { setGuestSession } from "../guest-session";
 import { parseWithFallback } from "../schema";
 
@@ -463,6 +463,73 @@ export async function startRecording(meetingId: string): Promise<MeetingRecordin
 export async function stopRecording(meetingId: string): Promise<MeetingRecording | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/recording/stop`, { method: "POST" });
   return parseWithFallback(raw, RecordingResponse, { recording: null }, { endpoint: "stopRecording" }).recording;
+}
+
+const MeetingRecordingPlaybackSchema = z.object({
+  playback_url: z.string().optional().default(""),
+  expires_at: z.string().optional().default(""),
+});
+
+export type MeetingRecordingPlayback = {
+  playback_url: string;
+  expires_at: string;
+};
+
+/** Short-lived presigned URL for direct MP4 streaming (seek-friendly). */
+export async function getMeetingRecordingPlaybackUrl(
+  meetingId: string,
+  recordingId: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<MeetingRecordingPlayback | null> {
+  const raw = await request(
+    `/api/v1/meetings/${enc(meetingId)}/recordings/${enc(recordingId)}/playback-url`,
+    { signal: opts.signal },
+  );
+  const parsed = parseWithFallback(raw, MeetingRecordingPlaybackSchema, { playback_url: "", expires_at: "" }, {
+    endpoint: "GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/playback-url",
+  });
+  if (!parsed.playback_url.trim()) return null;
+  return { playback_url: parsed.playback_url, expires_at: parsed.expires_at };
+}
+
+export function loadMeetingRecordingBlob(
+  meetingId: string,
+  recordingId: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<Blob> {
+  return requestBlob(
+    `/api/v1/meetings/${enc(meetingId)}/recordings/${enc(recordingId)}/content`,
+    opts,
+  );
+}
+
+export type MeetingRecordingPlaybackSource =
+  | { kind: "remote"; url: string; expiresAt: string }
+  | { kind: "blob"; url: string };
+
+/**
+ * Prefer presigned streaming URL; fall back to authenticated blob proxy when
+ * presign is unavailable or the storage endpoint is not browser-reachable.
+ */
+export async function resolveMeetingRecordingPlayback(
+  meetingId: string,
+  recordingId: string,
+  opts: { signal?: AbortSignal } = {},
+): Promise<MeetingRecordingPlaybackSource> {
+  try {
+    const presigned = await getMeetingRecordingPlaybackUrl(meetingId, recordingId, opts);
+    if (presigned?.playback_url) {
+      return {
+        kind: "remote",
+        url: presigned.playback_url,
+        expiresAt: presigned.expires_at,
+      };
+    }
+  } catch {
+    /* presign optional — proxy blob below */
+  }
+  const blob = await loadMeetingRecordingBlob(meetingId, recordingId, opts);
+  return { kind: "blob", url: URL.createObjectURL(blob) };
 }
 
 /** Fetches the iCalendar text; the caller turns it into a download. */

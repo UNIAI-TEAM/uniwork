@@ -20,6 +20,7 @@ const ActiveVoiceCallSession = lazy(() =>
 export type { VoiceCallKind, VoiceCallOverlayState } from "./voice-call-overlay-types";
 
 export function VoiceCallOverlay({
+  workspaceId,
   state,
   onAccept,
   onDecline,
@@ -27,6 +28,7 @@ export function VoiceCallOverlay({
   onEndForAll,
   onConnected,
 }: {
+  workspaceId: string;
   state: VoiceCallOverlayState;
   onAccept: () => void;
   onDecline: () => void;
@@ -157,6 +159,9 @@ export function VoiceCallOverlay({
   return (
     <Suspense fallback={null}>
       <ActiveVoiceCallSession
+        workspaceId={workspaceId}
+        roomId={state.roomId}
+        callId={state.callId}
         peerName={state.peerName}
         callKind={state.callKind}
         isCaller={state.outgoing}

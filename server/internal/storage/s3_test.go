@@ -329,6 +329,32 @@ func TestS3StoragePresignGetWithContentDisposition(t *testing.T) {
 	}
 }
 
+func TestS3StorageKeyFromURL_CustomEndpointHostDockerInternal(t *testing.T) {
+	s := &S3Storage{
+		bucket:      "uniwork",
+		endpointURL: "http://localhost:9000",
+	}
+
+	rawURL := "http://host.docker.internal:9000/uniwork/chat-voice/org/ws/call-2026.mp4"
+
+	if got := s.KeyFromURL(rawURL); got != "chat-voice/org/ws/call-2026.mp4" {
+		t.Fatalf("KeyFromURL(%q) = %q, want %q", rawURL, got, "chat-voice/org/ws/call-2026.mp4")
+	}
+}
+
+func TestS3StorageKeyFromURL_LiveKitDoubleSchemeURL(t *testing.T) {
+	s := &S3Storage{
+		bucket:      "uniwork",
+		endpointURL: "http://localhost:9000",
+	}
+
+	rawURL := "https://http://host.docker.internal:9000/uniwork/chat-voice/org/ws/call-2026.mp4"
+
+	if got := s.KeyFromURL(rawURL); got != "chat-voice/org/ws/call-2026.mp4" {
+		t.Fatalf("KeyFromURL(%q) = %q, want %q", rawURL, got, "chat-voice/org/ws/call-2026.mp4")
+	}
+}
+
 func TestS3StorageKeyFromURL_CustomEndpointWithTrailingSlash(t *testing.T) {
 	s := &S3Storage{
 		bucket:      "test-bucket",

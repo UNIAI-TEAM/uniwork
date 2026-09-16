@@ -172,6 +172,8 @@ var catalogue = []EventDef{
 	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.hangup", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.recording.started", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.recording.stopped", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 
 	// Meetings
 	{Topic: "meeting.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

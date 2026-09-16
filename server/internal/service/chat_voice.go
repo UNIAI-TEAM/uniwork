@@ -27,6 +27,9 @@ type VoiceCallLogInfo struct {
 	Outcome         string
 	DurationSeconds int
 	CallerID        string
+	RecordingID     string
+	RecordingStatus string
+	RecordingURL    string
 }
 
 type voiceCallSession struct {
@@ -446,18 +449,22 @@ func (s *ChatService) finalizeVoiceCall(
 	}
 	sess := raw.(voiceCallSession)
 	outcome, duration := voiceCallOutcome(sess, userID, clientDuration)
-	meta, err := json.Marshal(map[string]any{
+	metaMap := map[string]any{
 		"call_id":          callID,
 		"outcome":          outcome,
 		"duration_seconds": duration,
 		"caller_id":        sess.callerID,
-	})
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	// Pre-create message id so recording metadata can reference it before insert.
+	msgID := util.NewID()
+	metaMap = s.attachVoiceRecordingToCallLog(ctx, room, callID, msgID, metaMap)
+	meta, err := json.Marshal(metaMap)
 	if err != nil {
 		return err
 	}
-	anchorWS := roomAnchorWorkspaceID(room)
 	msg, err := s.q.CreateChatVoiceCallLog(ctx, db.CreateChatVoiceCallLogParams{
-		ID:          util.NewID(),
+		ID:          msgID,
 		RoomID:      room.ID,
 		WorkspaceID: anchorWS,
 		SenderID:    sess.callerID,
@@ -497,6 +504,9 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 		Outcome         string `json:"outcome"`
 		DurationSeconds int    `json:"duration_seconds"`
 		CallerID        string `json:"caller_id"`
+		RecordingID     string `json:"recording_id"`
+		RecordingStatus string `json:"recording_status"`
+		RecordingURL    string `json:"recording_url"`
 	}
 	if err := json.Unmarshal(raw, &meta); err != nil || meta.Outcome == "" {
 		return nil
@@ -506,6 +516,9 @@ func voiceCallLogFromMetadata(kind string, raw []byte) *VoiceCallLogInfo {
 		Outcome:         meta.Outcome,
 		DurationSeconds: meta.DurationSeconds,
 		CallerID:        meta.CallerID,
+		RecordingID:     meta.RecordingID,
+		RecordingStatus: meta.RecordingStatus,
+		RecordingURL:    meta.RecordingURL,
 	}
 }
 

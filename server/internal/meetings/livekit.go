@@ -145,13 +145,20 @@ func (a *LiveKitAdapter) egress() *lksdk.EgressClient {
 	return lksdk.NewEgressClient(a.URL, a.APIKey, a.APISecret)
 }
 
+func recordingLayout(layout string) string {
+	if layout == "" {
+		return "speaker"
+	}
+	return layout
+}
+
 func (a *LiveKitAdapter) StartRecording(ctx context.Context, req StartRecordingRequest) (RecordingRef, error) {
 	if a.Recording == nil || a.Recording.Bucket == "" {
 		return RecordingRef{}, fmt.Errorf("livekit recording: no S3 bucket configured")
 	}
 	info, err := a.egress().StartRoomCompositeEgress(ctx, &livekit.RoomCompositeEgressRequest{
 		RoomName: req.RoomName,
-		Layout:   "speaker",
+		Layout:   recordingLayout(req.Layout),
 		FileOutputs: []*livekit.EncodedFileOutput{{
 			FileType: livekit.EncodedFileType_MP4,
 			Filepath: req.FilePrefix + "-{time}.mp4",

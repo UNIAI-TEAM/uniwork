@@ -147,6 +147,30 @@ describe("fetchAndPatchChatMessage unread", () => {
 
     expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.unread_count).toBe(1);
   });
+
+  it("does not seed roomMessages before the room timeline was loaded", async () => {
+    const message = sampleMessage("m1", "2026-01-01T11:00:00Z");
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue(message);
+    const qc = new QueryClient();
+    qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"), [
+      {
+        id: "room1",
+        kind: "dm",
+        name: "Bob",
+        workspace_id: "ws1",
+        member_user_ids: [],
+        unread_count: 0,
+        mention_unread_count: 0,
+      },
+    ]);
+
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1");
+
+    expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toBeUndefined();
+    expect(qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms("ws1"))?.[0]?.last_message_body).toBe(
+      message.body,
+    );
+  });
 });
 
 describe("patchChatMessageDeleted", () => {

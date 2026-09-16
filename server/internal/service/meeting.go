@@ -93,6 +93,8 @@ type MeetingService struct {
 	// nil means the feature reports itself as unavailable.
 	AI    *ai.Gateway
 	Tasks *TaskService
+	// Chat receives LiveKit recording webhooks that do not match a meeting egress.
+	Chat *ChatService
 	// ent is the entitlement gate (F-02); built here so it can never be nil.
 	ent *EntitlementService
 }

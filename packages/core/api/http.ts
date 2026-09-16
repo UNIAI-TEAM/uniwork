@@ -183,11 +183,11 @@ export async function requestText(path: string): Promise<string> {
  * Fetch an authenticated binary response. Native media elements cannot attach
  * the bearer token, so callers create a short-lived object URL from this blob.
  */
-export async function requestBlob(path: string): Promise<Blob> {
-  let res = await rawFetch(path, {});
+export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"> = {}): Promise<Blob> {
+  let res = await rawFetch(path, opts);
   if (res.status === 401 && getAccessToken()) {
     const refreshed = await refreshSession();
-    if (refreshed) res = await rawFetch(path, {});
+    if (refreshed) res = await rawFetch(path, opts);
   }
   if (!res.ok) {
     let code = "internal";

@@ -28,6 +28,9 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
           outcome: record.voice_call.outcome,
           duration_seconds: record.voice_call.duration_seconds,
           caller_id: record.voice_call.caller_id,
+          recording_id: record.voice_call.recording_id,
+          recording_status: record.voice_call.recording_status,
+          recording_url: record.voice_call.recording_url,
         }
       : undefined,
     voice: record.voice,

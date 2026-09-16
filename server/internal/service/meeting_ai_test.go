@@ -206,6 +206,44 @@ func TestRecordingLifecycle(t *testing.T) {
 	}
 }
 
+func TestMeetingRecordingForPlayback(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	fp := s.provider.(*meetings.FakeProvider)
+	fp.RecordingEnabled = true
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Playback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := s.StartRecording(ctx, ua.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ce CodedError
+	if _, err := s.GetMeetingRecordingForPlayback(ctx, ua.ID, "", m.ID, rec.ID); !errors.As(err, &ce) || ce.Code != "recording_not_ready" {
+		t.Fatalf("active recording: %v", err)
+	}
+	if _, err := s.StopRecording(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.HandleProviderEvent(ctx, ProviderNeutralEvent{
+		Type: "conference.recording_ended", ProviderEventID: "ev-playback", RecordingID: rec.EgressID,
+		RecordingURL: "https://bucket/meeting-rec.mp4",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetMeetingRecordingForPlayback(ctx, ua.ID, "", m.ID, rec.ID)
+	if err != nil || got.FileUrl.String != "https://bucket/meeting-rec.mp4" {
+		t.Fatalf("playback: %+v err=%v", got, err)
+	}
+	if _, err := s.GetMeetingRecordingForPlayback(ctx, ua.ID, "", m.ID, ""); err == nil {
+		t.Fatal("empty recording_id accepted")
+	}
+	if _, err := s.GetMeetingRecordingForPlayback(ctx, ua.ID, "", m.ID, "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing recording: %v", err)
+	}
+}
+
 func TestAutoEndOverdue(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
