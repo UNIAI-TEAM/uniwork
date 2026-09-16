@@ -283,7 +283,7 @@ Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON g
 | Bản sao chuyển đổi tiêu quota | `conversion-respects-quota` | quota đầy → `quota_exceeded`, nguồn không đổi |
 | Tài nguyên không tồn tại trả lỗi có kiểu | `unknown-resource-is-typed` | doc/upload lạ → `not_found` 404, `missing`, `unknown_resource` |
 
-Tám ca cuối được thêm ở các vòng sửa sau review: chúng đóng khoảng trống mà bộ 16 ca
+Chín ca cuối được thêm ở các vòng sửa sau review: chúng đóng khoảng trống mà bộ 16 ca
 ban đầu còn để lọt (§8.2-§8.5).
 
 ### 8.1 Giới hạn — đọc trước khi trích dẫn bằng chứng
