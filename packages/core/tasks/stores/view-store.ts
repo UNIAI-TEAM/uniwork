@@ -113,7 +113,7 @@ export const viewStorePersistOptions = (name: string) => ({
     tableColumns: state.tableColumns,
     tableGrouping: state.tableGrouping,
     tableCollapsedGroups: state.tableCollapsedGroups,
-    tableCollapsedParents: state.tableCollapsedParents,
+    tableExpandedParents: state.tableExpandedParents,
     tableHierarchy: state.tableHierarchy,
     tableCalculation: state.tableCalculation,
   }),
@@ -146,8 +146,17 @@ export function mergeViewStatePersisted<T extends TaskViewState>(
   const persistedTitle = persistedTableColumns.find(
     (column) => column.key === "title",
   );
-  const legacy = p as Partial<T> & { showSubIssues?: unknown };
-  const { showSubIssues: _legacyShowSubIssues, ...persistedRest } = legacy;
+  const legacy = p as Partial<T> & {
+    showSubIssues?: unknown;
+    tableCollapsedParents?: unknown;
+  };
+  // `tableCollapsedParents` listed the closed parents when parents were open by
+  // default; its ids mean the opposite of `tableExpandedParents`, so it is dropped.
+  const {
+    showSubIssues: _legacyShowSubIssues,
+    tableCollapsedParents: _legacyCollapsedParents,
+    ...persistedRest
+  } = legacy;
   const showSubTasks =
     typeof legacy.showSubTasks === "boolean"
       ? legacy.showSubTasks
@@ -175,9 +184,9 @@ export function mergeViewStatePersisted<T extends TaskViewState>(
     tableCollapsedGroups: Array.isArray(p.tableCollapsedGroups)
       ? p.tableCollapsedGroups
       : current.tableCollapsedGroups,
-    tableCollapsedParents: Array.isArray(p.tableCollapsedParents)
-      ? p.tableCollapsedParents
-      : current.tableCollapsedParents,
+    tableExpandedParents: Array.isArray(p.tableExpandedParents)
+      ? p.tableExpandedParents
+      : current.tableExpandedParents,
   };
 }
 

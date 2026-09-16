@@ -92,10 +92,12 @@ describe("useBoardColumnsData", () => {
     expect(server.rowRequests()).toEqual(["status:todo@0"]);
   });
 
-  it("shares its rows and groups cache entries with a table grouped by status on the same parameters", async () => {
+  it("shares its rows and groups cache entries with a flat table grouped by status on the same parameters", async () => {
     serveBoardTable({ counts: { todo: 3, done: 2 } });
     const { client, store, Wrapper } = setup();
     store.getState().setTableGrouping("status");
+    // The board is flat; a table showing sub-tasks asks `hierarchy: true` and pages apart.
+    store.getState().toggleShowSubTasks();
     const { result } = renderHook(
       () => ({
         board: useBoardColumnsData({

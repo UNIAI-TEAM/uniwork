@@ -32,7 +32,10 @@ export function TaskTableLoadMoreRow({
   return (
     <TableRow {...rowProps} className="hover:bg-transparent">
       <TableCell colSpan={colSpan} className="h-9 px-4 py-1.5">
-        <div className="sticky left-4 flex w-fit items-center gap-3">
+        <div
+          className="sticky left-4 flex w-fit items-center gap-3"
+          style={row.depth ? { paddingLeft: row.depth * 16 } : undefined}
+        >
           <span className="text-caption text-muted-foreground">{truncated}</span>
           {row.state === "has_more" || row.state === "loading" ? (
             <Button

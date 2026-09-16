@@ -27,7 +27,8 @@ export interface ViewDisplayFields {
   tableColumns: TableColumnConfig[];
   tableGrouping: TableGrouping;
   tableCollapsedGroups: string[];
-  tableCollapsedParents: string[];
+  /** Parents whose sub-tasks the table shows; every other parent is closed. */
+  tableExpandedParents: string[];
   tableHierarchy: boolean;
   tableCalculation: TableCalculation;
   setGanttZoom: (zoom: GanttZoom) => void;
@@ -44,7 +45,7 @@ export interface ViewDisplayFields {
   setTableColumnWidth: (key: TableColumnKey, width?: number) => void;
   setTableGrouping: (grouping: TableGrouping) => void;
   toggleTableGroupCollapsed: (key: string) => void;
-  toggleTableParentCollapsed: (taskId: string) => void;
+  toggleTableParentExpanded: (taskId: string) => void;
   toggleTableHierarchy: () => void;
   setTableCalculation: (calculation: TableCalculation) => void;
 }
@@ -74,7 +75,7 @@ export function viewDisplaySlice(set: DisplaySetState): ViewDisplayFields {
     tableColumns: DEFAULT_TABLE_COLUMNS.map((column) => ({ ...column })),
     tableGrouping: "none",
     tableCollapsedGroups: [],
-    tableCollapsedParents: [],
+    tableExpandedParents: [],
     tableHierarchy: true,
     tableCalculation: "none",
 
@@ -170,11 +171,11 @@ export function viewDisplaySlice(set: DisplaySetState): ViewDisplayFields {
           ? state.tableCollapsedGroups.filter((item) => item !== key)
           : [...state.tableCollapsedGroups, key],
       })),
-    toggleTableParentCollapsed: (taskId) =>
+    toggleTableParentExpanded: (taskId) =>
       set((state) => ({
-        tableCollapsedParents: state.tableCollapsedParents.includes(taskId)
-          ? state.tableCollapsedParents.filter((id) => id !== taskId)
-          : [...state.tableCollapsedParents, taskId],
+        tableExpandedParents: state.tableExpandedParents.includes(taskId)
+          ? state.tableExpandedParents.filter((id) => id !== taskId)
+          : [...state.tableExpandedParents, taskId],
       })),
     toggleTableHierarchy: () =>
       set((state) => ({ tableHierarchy: !state.tableHierarchy })),

@@ -63,7 +63,7 @@ export type TableViewMeta = {
   clearVisibleSelection: () => void;
   updateTask: (taskId: string, updates: Record<string, unknown>) => void;
   openTask?: (taskId: string) => void;
-  toggleTableParentCollapsed: (taskId: string) => void;
+  toggleTableParentExpanded: (taskId: string) => void;
   toggleTableColumn: (key: TableColumnKey) => void;
   propertiesDisabled: boolean;
   propertiesDisabledReason?: string;
@@ -244,7 +244,7 @@ function TaskCellContent({
           hierarchyDisabled={meta.hierarchyDisabled}
           editingDisabled={meta.editingDisabled}
           editingDisabledReason={meta.editingDisabledReason}
-          onToggleChildren={() => meta.toggleTableParentCollapsed(task.id)}
+          onToggleChildren={() => meta.toggleTableParentExpanded(task.id)}
           onCommit={(title) => meta.updateTask(task.id, { title })}
         />
       );

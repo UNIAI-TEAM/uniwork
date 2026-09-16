@@ -1,21 +1,33 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import type { TableGrouping } from "@uniwork/core/tasks/stores/view-store";
 import { serveBoardTable } from "../../test/board-table-server";
+import { serveTableCursor } from "../../test/table-cursor-server";
 import { useTableViewData } from "./use-table-view-data";
 
 initI18n();
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
 let storeCount = 0;
 
-function renderTableData(grouping: TableGrouping, initialSearch = "") {
+function renderTableData(
+  grouping: TableGrouping,
+  initialSearch = "",
+  before?: (store: ReturnType<typeof getTaskSurfaceViewStore>) => void,
+) {
   storeCount += 1;
   const store = getTaskSurfaceViewStore(`table-view-data-${storeCount}`);
   store.getState().setTableGrouping(grouping);
+  before?.(store);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -50,7 +62,7 @@ describe("useTableViewData", () => {
         query: {},
         group_by: "none",
         group_key: null,
-        hierarchy: false,
+        hierarchy: true,
         parent_id: null,
         cursor: null,
         limit: 50,
@@ -129,5 +141,87 @@ describe("useTableViewData", () => {
     vi.useRealTimers();
     await waitFor(() => expect(searched()).toHaveLength(1));
     expect(searched()[0]).toMatchObject({ query: { search: "abc" }, group_key: null, cursor: null });
+  });
+
+  it("lists every matching task flat with hierarchy off when sub-tasks are hidden", async () => {
+    const server = serveTableCursor({ count: () => 2, childCount: () => 3 });
+    const { result, store } = renderTableData("none", "", (s) => s.getState().toggleShowSubTasks());
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
+
+    expect(server.rowBodies).toEqual([expect.objectContaining({ hierarchy: false, parent_id: null })]);
+    expect(result.current.displayRows).toMatchObject([
+      { kind: "task", hasChildren: false, depth: 0 },
+      { kind: "task", hasChildren: false, depth: 0 },
+    ]);
+    expect(store.getState().tableExpandedParents).toEqual([]);
+  });
+
+  it("keeps parents closed and asks a parent's children only once it is expanded", async () => {
+    const server = serveTableCursor({
+      count: (_group, parentId) => (parentId ? 1 : 2),
+      childCount: (_group, parentId, index) => (!parentId && index === 0 ? 1 : 0),
+    });
+    const { result, store } = renderTableData("none");
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
+    expect(result.current.displayRows[0]).toMatchObject({
+      kind: "task",
+      key: "null-0",
+      hasChildren: true,
+      collapsed: true,
+    });
+    expect(server.rowBodies).toHaveLength(1);
+
+    act(() => store.getState().toggleTableParentExpanded("null-0"));
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(3));
+
+    expect(server.rowBodies.at(-1)).toEqual({
+      query: {},
+      group_by: "none",
+      group_key: null,
+      hierarchy: true,
+      parent_id: "null-0",
+      cursor: null,
+      limit: 50,
+    });
+    expect(
+      result.current.displayRows.map((row) => (row.kind === "task" ? `${row.key}@${row.depth}` : row.kind)),
+    ).toEqual(["null-0@0", "null/null-0-0@1", "null-1@0"]);
+  });
+
+  it("groups by project under the server's names, and names the tasks without a project", async () => {
+    const server = serveTableCursor({
+      count: () => 1,
+      groups: () => [
+        { key: "project:p1", value: { kind: "project", project_id: "p1", label: "Website" }, count: 1 },
+        { key: "project:none", value: { kind: "project" }, count: 1 },
+      ],
+    });
+    const { result } = renderTableData("project");
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
+
+    expect(server.groupBodies).toEqual([{ query: {}, group_by: "project" }]);
+    expect(
+      result.current.displayRows.filter((row) => row.kind === "group").map((row) => row.label),
+    ).toEqual(["Website", "Không có dự án"]);
+    expect(server.rowRequests().sort()).toEqual(["project:none@null", "project:p1@null"]);
+  });
+
+  it("falls back to no grouping with one notice when the server cannot group by a property", async () => {
+    const infoMock = vi.mocked(toast.info);
+    infoMock.mockClear();
+    const server = serveTableCursor({
+      count: () => 2,
+      groups: () => new ApiError("grouping needs an active select or checkbox property", "unsupported_group", 422),
+    });
+    const { result, store } = renderTableData("property:gone");
+    await waitFor(() => expect(store.getState().tableGrouping).toBe("none"));
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
+
+    expect(server.groupBodies).toEqual([{ query: {}, group_by: "property:gone" }]);
+    expect(result.current.groupsError).toBe(false);
+    expect(infoMock).toHaveBeenCalledTimes(1);
+    expect(infoMock).toHaveBeenCalledWith(
+      "Không nhóm được theo thuộc tính này, đã chuyển về Không nhóm.",
+    );
   });
 });

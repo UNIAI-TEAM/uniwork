@@ -64,6 +64,7 @@ export interface TableColumnConfig {
 export type TableGrouping =
   | "none"
   | "status"
+  | "priority"
   | "assignee"
   | "project"
   | `property:${string}`;

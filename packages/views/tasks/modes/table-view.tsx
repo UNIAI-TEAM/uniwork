@@ -17,7 +17,7 @@ import {
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { DataTable } from "@uniwork/ui/components/ui/data-table";
 import type { ChildProgress, Project } from "@uniwork/core/types";
-import { useTaskLabels } from "@uniwork/core/tasks";
+import { useTaskLabels, useTaskProperties } from "@uniwork/core/tasks";
 import { toastApiError } from "../../toast-api-error";
 import { BatchActionToolbar } from "../views/batch-action-toolbar";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
@@ -29,7 +29,7 @@ import {
   type TableViewMeta,
 } from "./table-view-columns";
 import { isRowControlTarget } from "./row-navigation";
-import { TableViewToolbar } from "./table-view-toolbar";
+import { TableViewToolbar, type TablePropertyGrouping } from "./table-view-toolbar";
 import {
   getTaskTableSelectionRange,
   type TaskTableDisplayRow,
@@ -40,12 +40,14 @@ import type { TableMember } from "./table-cell-editors";
 const EMPTY_MEMBERS: TableMember[] = [];
 const EMPTY_PROJECTS: Project[] = [];
 const EMPTY_CHILD_PROGRESS: ChildProgress[] = [];
+const GROUPABLE_PROPERTY_TYPES = new Set(["select", "checkbox"]);
 
 /**
  * Suite TaskSurface table mode — baseline table structure (groups, rows,
  * DataTable, column picker, selection) on suite table APIs.
  *
- * Project grouping and custom-property editors stay visible-disabled until
+ * Groups by status, priority, assignee, project or an active select/checkbox
+ * property on the server. Custom-property editors stay visible-disabled until
  * their table API contracts ship. Agent chrome is not mounted after cutover.
  */
 export function TableView({
@@ -54,7 +56,7 @@ export function TableView({
   members = EMPTY_MEMBERS,
   projects = EMPTY_PROJECTS,
   childProgress = EMPTY_CHILD_PROGRESS,
-  projectGroupingDisabled = true,
+  projectGroupingDisabled = false,
   projectGroupingReasonKey = "capabilities.unknown",
   propertiesDisabled = true,
   propertiesDisabledReasonKey = "capabilities.unknown",
@@ -81,7 +83,7 @@ export function TableView({
   const selection = useTaskSurfaceSelection();
   const selectionAnchorRef = useRef<string | null>(null);
   const [search, setSearch] = useState("");
-  const tableProjectGroupingReasonKey = "capabilities.surface_not_ready";
+  const propertiesQuery = useTaskProperties(workspaceId);
 
   const tableColumns = useViewStore((s) => s.tableColumns);
   const setTableColumnWidth = useViewStore((s) => s.setTableColumnWidth);
@@ -94,9 +96,22 @@ export function TableView({
   const setSortBy = useViewStore((s) => s.setSortBy);
   const setSortDirection = useViewStore((s) => s.setSortDirection);
   const showSubTasks = useViewStore((s) => s.showSubTasks);
-  const tableCollapsedParents = useViewStore((s) => s.tableCollapsedParents);
-  const toggleTableParentCollapsed = useViewStore(
-    (s) => s.toggleTableParentCollapsed,
+  const toggleTableParentExpanded = useViewStore(
+    (s) => s.toggleTableParentExpanded,
+  );
+
+  const propertyGroupings = useMemo<TablePropertyGrouping[]>(
+    () =>
+      (propertiesQuery.data?.properties ?? [])
+        .filter(
+          (property) =>
+            !property.archived_at && GROUPABLE_PROPERTY_TYPES.has(property.type),
+        )
+        .map((property) => ({
+          value: `property:${property.id}`,
+          label: property.name,
+        })),
+    [propertiesQuery.data?.properties],
   );
 
   const projectNames = useMemo(
@@ -119,8 +134,6 @@ export function TableView({
     workspaceId,
     filter,
     search,
-    collapsedParentIds: tableCollapsedParents,
-    showSubTasks,
     assigneeNames,
   });
 
@@ -223,7 +236,7 @@ export function TableView({
         });
       },
       openTask: onOpenTask,
-      toggleTableParentCollapsed,
+      toggleTableParentExpanded,
       toggleTableColumn,
       propertiesDisabled,
       propertiesDisabledReason: t(propertiesDisabledReasonKey),
@@ -250,7 +263,7 @@ export function TableView({
       sortBy,
       sortDirection,
       t,
-      toggleTableParentCollapsed,
+      toggleTableParentExpanded,
       toggleTableColumn,
       visibleTaskIds,
       workspaceId,
@@ -291,12 +304,9 @@ export function TableView({
       <TableViewToolbar
         search={search}
         onSearchChange={setSearch}
-        projectGroupingDisabled
-        projectGroupingReason={
-          projectGroupingDisabled
-            ? projectGroupingReasonKey
-            : tableProjectGroupingReasonKey
-        }
+        projectGroupingDisabled={projectGroupingDisabled}
+        projectGroupingReason={projectGroupingReasonKey}
+        propertyGroupings={propertyGroupings}
         propertiesDisabled={propertiesDisabled}
         propertiesDisabledReason={t(propertiesDisabledReasonKey)}
       />

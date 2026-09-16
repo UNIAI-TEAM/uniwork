@@ -1020,9 +1020,15 @@
       "labels_empty": "No labels in this workspace",
       "sort_ascending": "Sort ascending",
       "sort_descending": "Sort descending",
+      "no_project": "No project",
+      "no_value": "No value",
+      "checked": "Checked",
+      "unchecked": "Unchecked",
+      "grouping_reset": "This property can't group the table, so grouping is off.",
       "grouping": {
         "none": "No grouping",
         "status": "Status",
+        "priority": "Priority",
         "assignee": "Assignee",
         "project": "Project"
       },

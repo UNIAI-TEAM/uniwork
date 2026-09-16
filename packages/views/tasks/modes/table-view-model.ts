@@ -29,6 +29,8 @@ export type TaskTableDisplayRow =
       state: "loading" | "has_more" | "error" | "end";
       total: number;
       loadedCount: number;
+      /** The depth of the rows it pages; a child branch's control sits under its parent. */
+      depth?: number;
       onLoad?: () => void;
     };
 
@@ -55,65 +57,6 @@ export function getTaskTableSelectionRange(
   const start = Math.min(anchorIndex, targetIndex);
   const end = Math.max(anchorIndex, targetIndex);
   return taskIds.slice(start, end + 1);
-}
-
-/** Build the visible parent/child projection from the rows already loaded. */
-export function buildTaskTableHierarchy(
-  tasks: Task[],
-  directChildCount: ReadonlyMap<string, number>,
-  collapsedParentIds: ReadonlySet<string>,
-): Array<Extract<TaskTableDisplayRow, { kind: "task" }>> {
-  const taskById = new Map(tasks.map((task) => [task.id, task]));
-  const childrenByParent = new Map<string, Task[]>();
-  for (const task of tasks) {
-    const parentId = task.parent_task_id;
-    if (!parentId || !taskById.has(parentId)) continue;
-    const children = childrenByParent.get(parentId) ?? [];
-    children.push(task);
-    childrenByParent.set(parentId, children);
-  }
-
-  const rows: Array<Extract<TaskTableDisplayRow, { kind: "task" }>> = [];
-  const visited = new Set<string>();
-  const append = (task: Task, depth: number) => {
-    if (visited.has(task.id)) return;
-    visited.add(task.id);
-    const children = childrenByParent.get(task.id) ?? [];
-    const collapsed = collapsedParentIds.has(task.id);
-    rows.push({
-      kind: "task",
-      key: task.id,
-      task,
-      depth,
-      hasChildren:
-        children.length > 0 || (directChildCount.get(task.id) ?? 0) > 0,
-      collapsed,
-    });
-    if (collapsed) {
-      // Hide the loaded subtree so the orphan pass cannot re-promote children.
-      const markHidden = (parent: Task) => {
-        for (const child of childrenByParent.get(parent.id) ?? []) {
-          if (visited.has(child.id)) continue;
-          visited.add(child.id);
-          markHidden(child);
-        }
-      };
-      markHidden(task);
-      return;
-    }
-    for (const child of children) append(child, depth + 1);
-  };
-
-  for (const task of tasks) {
-    if (!task.parent_task_id || !taskById.has(task.parent_task_id)) {
-      append(task, 0);
-    }
-  }
-  // Malformed cyclic data must remain visible instead of disappearing.
-  for (const task of tasks) {
-    if (!visited.has(task.id)) append(task, 0);
-  }
-  return rows;
 }
 
 /**
@@ -202,39 +145,46 @@ export function buildTaskTableCsv(headers: string[], rows: unknown[][]) {
     .join("\r\n");
 }
 
-/**
- * Map view-store grouping to the table API `group_by`. Groupings the server
- * does not group by yet (project, custom properties) page ungrouped.
- */
-export function tableGroupBy(grouping: string): string {
-  return tableUsesServerGrouping(grouping) ? grouping : "none";
+export interface GroupLabelSource {
+  translateStatus: (status: string) => string;
+  translatePriority: (priority: string) => string;
+  unassigned: string;
+  noProject: string;
+  noValue: string;
+  checked: string;
+  unchecked: string;
+  resolveAssignee?: (id: string) => string | undefined;
 }
 
-export function tableUsesServerGrouping(grouping: string): boolean {
-  return grouping === "status" || grouping === "assignee";
-}
-
+/** A group header's text. Names the server resolved (assignee, project, option) win. */
 export function groupLabelFromDescriptor(
   key: string,
   value: TableGroupValue,
-  translateStatus: (status: string) => string,
-  translatePriority: (priority: string) => string,
-  unassignedLabel: string,
-  resolveAssignee?: (id: string) => string | undefined,
+  labels: GroupLabelSource,
 ): string {
-  if (value.kind === "status" && value.status) {
-    return translateStatus(value.status);
+  switch (value.kind) {
+    case "status":
+      return value.status ? labels.translateStatus(value.status) : key;
+    case "priority":
+      return value.priority ? labels.translatePriority(value.priority) : key;
+    case "assignee": {
+      // `assignee:none` carries no actor; `assignee:<type>:<id>` does.
+      if (value.label) return value.label;
+      const id = value.actor?.id;
+      return id ? (labels.resolveAssignee?.(id) ?? id) : labels.unassigned;
+    }
+    case "project":
+      return value.label || labels.noProject;
+    case "property":
+      if (value.option === undefined || value.option === "") return labels.noValue;
+      // A checkbox option is "true"/"false" and has no server label.
+      if (value.label) return value.label;
+      if (value.option === "true") return labels.checked;
+      if (value.option === "false") return labels.unchecked;
+      return value.option;
+    default:
+      return key;
   }
-  if (value.kind === "priority" && value.priority) {
-    return translatePriority(value.priority);
-  }
-  if (value.kind === "assignee") {
-    // `assignee:none` carries no actor; `assignee:<type>:<id>` does.
-    if (value.label) return value.label;
-    const id = value.actor?.id;
-    return id ? (resolveAssignee?.(id) ?? id) : unassignedLabel;
-  }
-  return key;
 }
 
 export const TABLE_PAGE_SIZE = 50;

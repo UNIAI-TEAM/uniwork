@@ -1019,9 +1019,15 @@
       "labels_empty": "Workspace chưa có nhãn",
       "sort_ascending": "Sắp xếp tăng dần",
       "sort_descending": "Sắp xếp giảm dần",
+      "no_project": "Không có dự án",
+      "no_value": "Chưa có giá trị",
+      "checked": "Đã chọn",
+      "unchecked": "Chưa chọn",
+      "grouping_reset": "Không nhóm được theo thuộc tính này, đã chuyển về Không nhóm.",
       "grouping": {
         "none": "Không nhóm",
         "status": "Trạng thái",
+        "priority": "Ưu tiên",
         "assignee": "Người phụ trách",
         "project": "Dự án"
       },

@@ -15,12 +15,13 @@ import {
 import { TableColumnPicker } from "./table-column-picker";
 import { TableTaskSearch } from "./table-task-search";
 
-const GROUPING_OPTIONS: TableGrouping[] = [
-  "none",
-  "status",
-  "assignee",
-  "project",
-];
+const GROUPING_OPTIONS = ["none", "status", "priority", "assignee", "project"] as const;
+
+/** An active select or checkbox property the table can group by. */
+export interface TablePropertyGrouping {
+  value: `property:${string}`;
+  label: string;
+}
 
 export function TableViewToolbar({
   search,
@@ -29,6 +30,7 @@ export function TableViewToolbar({
   projectGroupingReason,
   propertiesDisabled,
   propertiesDisabledReason,
+  propertyGroupings = [],
 }: {
   search: string;
   onSearchChange: (value: string) => void;
@@ -36,6 +38,7 @@ export function TableViewToolbar({
   projectGroupingReason: string;
   propertiesDisabled: boolean;
   propertiesDisabledReason: string;
+  propertyGroupings?: TablePropertyGrouping[];
 }) {
   const { t } = useTranslation();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
@@ -44,6 +47,10 @@ export function TableViewToolbar({
     tableGrouping === "project" && projectGroupingDisabled
       ? "none"
       : tableGrouping;
+  const groupingLabel = displayedGrouping.startsWith("property:")
+    ? (propertyGroupings.find((option) => option.value === displayedGrouping)
+        ?.label ?? t("tasks.table.columns.property_section"))
+    : t(`tasks.table.grouping.${displayedGrouping}`);
 
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
@@ -67,7 +74,7 @@ export function TableViewToolbar({
           }
         >
           <Layers className="size-3.5" aria-hidden />
-          {t(`tasks.table.grouping.${displayedGrouping}`)}
+          {groupingLabel}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuRadioGroup
@@ -91,6 +98,11 @@ export function TableViewToolbar({
                 </DropdownMenuRadioItem>
               );
             })}
+            {propertyGroupings.map((option) => (
+              <DropdownMenuRadioItem key={option.value} value={option.value}>
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
