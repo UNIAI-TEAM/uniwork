@@ -748,6 +748,12 @@
     "priority_medium": "Medium",
     "priority_high": "High",
     "priority_urgent": "Urgent",
+    "properties": {
+      "clear": "Clear value",
+      "invalid_url": "Invalid URL",
+      "invalid_number": "Invalid number",
+      "empty": "Empty"
+    },
     "create": {
       "description": "Create a task with the properties it needs from the start.",
       "project": "Project",

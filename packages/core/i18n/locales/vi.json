@@ -747,6 +747,12 @@
     "priority_medium": "Trung bình",
     "priority_high": "Cao",
     "priority_urgent": "Khẩn cấp",
+    "properties": {
+      "clear": "Xóa giá trị",
+      "invalid_url": "URL không hợp lệ",
+      "invalid_number": "Số không hợp lệ",
+      "empty": "Trống"
+    },
     "create": {
       "description": "Tạo công việc cùng các thuộc tính cần thiết ngay từ đầu.",
       "project": "Dự án",
