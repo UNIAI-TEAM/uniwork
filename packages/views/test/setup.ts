@@ -1,9 +1,20 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { installMediaStubs } from "./media-stub";
 import { afterEach, vi } from "vitest";
 
-afterEach(cleanup);
+initI18n();
+
+afterEach(async () => {
+  cleanup();
+  // i18next is a module singleton; a locale-switch test in one file must not
+  // leave English labels for a login test in another worker file.
+  await setLocale("vi");
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = "vi";
+  }
+});
 
 installMediaStubs();
 

@@ -7,6 +7,7 @@ import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
 import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
 import { useMembers } from "@uniwork/core/workspaces";
 import { toastApiError } from "../toast-api-error";
+import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import {
   useAddNote,
   useCreateMeetingSummary,
@@ -18,7 +19,7 @@ import {
   useRecordings,
   useTranscript,
 } from "@uniwork/core/meetings";
-import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import {
   Progress,
@@ -83,6 +84,7 @@ export function MeetingRoomCopilotTab({
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [note, setNote] = useState("");
+  const [playbackId, setPlaybackId] = useState<string | null>(null);
 
   const memberPreview = useMemo(
     () => (members ?? []).map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
@@ -332,20 +334,24 @@ export function MeetingRoomCopilotTab({
 
         {completedRecording?.file_url ? (
           <section className="space-y-2">
-            <ButtonLink
-              variant="secondary"
-              className="w-full"
-              href={completedRecording.file_url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("meetings.openRecording")}
-            </ButtonLink>
+            <Button type="button" variant="secondary" className="w-full" onClick={() => setPlaybackId(completedRecording.id)}>
+              {t("meetings.recording_play")}
+            </Button>
           </section>
         ) : null}
       </div>
 
       <MeetingCopilotFooter />
+      {playbackId ? (
+        <MeetingRecordingDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPlaybackId(null);
+          }}
+          meetingId={meetingId}
+          recordingId={playbackId}
+        />
+      ) : null}
     </div>
   );
 }

@@ -27,6 +27,15 @@ func TestMintChatVoiceTokenDisablesDataChannel(t *testing.T) {
 	}
 }
 
+func TestRecordingLayout(t *testing.T) {
+	if got := recordingLayout(""); got != "speaker" {
+		t.Fatalf("empty = %q, want speaker", got)
+	}
+	if got := recordingLayout("grid"); got != "grid" {
+		t.Fatalf("grid = %q", got)
+	}
+}
+
 func TestMintToken(t *testing.T) {
 	tok, err := MintToken("api-key", "api-secret-at-least-32-characters!!", "uniwork-room1", "user_1", "Hà", time.Hour)
 	if err != nil {

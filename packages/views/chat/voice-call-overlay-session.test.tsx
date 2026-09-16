@@ -6,6 +6,7 @@ import { ActiveVoiceCallSession } from "./voice-call-overlay-session";
 import { PreConnectFloatingCall } from "./voice-call-pre-connect";
 
 const toggleCamera = vi.fn().mockResolvedValue(true);
+const toggleScreenShare = vi.fn().mockResolvedValue(true);
 const toggleMute = vi.fn();
 
 vi.mock("./voice-call-room", () => ({
@@ -15,12 +16,20 @@ vi.mock("./voice-call-room", () => ({
     muted: false,
     cameraEnabled: false,
     remoteCameraEnabled: false,
+    screenShareEnabled: false,
+    remoteScreenShareEnabled: false,
     remoteParticipantCount: 1,
     needsAudioUnlock: false,
     bindLocalVideo: vi.fn(),
     bindRemoteVideo: vi.fn(),
+    bindLocalScreenShare: vi.fn(),
+    bindRemoteScreenShare: vi.fn(),
+    bindParticipantVideo: vi.fn(),
+    bindParticipantScreenShare: vi.fn(),
+    participantTiles: [],
     toggleMute,
     toggleCamera,
+    toggleScreenShare,
     unlockAudio: vi.fn(),
     disconnect: vi.fn(),
   }),
@@ -56,6 +65,9 @@ describe("ActiveVoiceCallSession", () => {
     render(
       wrap(
         <ActiveVoiceCallSession
+          workspaceId="ws1"
+          roomId="room1"
+          callId="call1"
           peerName="Long"
           callKind="dm"
           isCaller
@@ -77,5 +89,7 @@ describe("ActiveVoiceCallSession", () => {
     expect(toggleMute).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByLabelText("Bật camera"));
     expect(toggleCamera).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByLabelText("Chia sẻ màn hình"));
+    expect(toggleScreenShare).toHaveBeenCalledTimes(1);
   });
 });

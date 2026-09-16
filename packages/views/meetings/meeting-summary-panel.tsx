@@ -22,6 +22,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
+import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 
 /** Browser download of an .ics the API already authenticated for us. */
@@ -81,6 +82,7 @@ export function MeetingSummaryPanel({
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [showTranscript, setShowTranscript] = useState(false);
+  const [playbackId, setPlaybackId] = useState<string | null>(null);
 
   const memberPreview = useMemo(
     () => (members ?? []).map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
@@ -297,9 +299,9 @@ export function MeetingSummaryPanel({
                       : null}
                   </span>
                   {r.file_url ? (
-                    <a href={r.file_url} target="_blank" rel="noreferrer" className="text-brand underline-offset-4 hover:underline">
-                      {t("meetings.openRecording")}
-                    </a>
+                    <Button type="button" size="sm" variant="link" className="h-auto px-0" onClick={() => setPlaybackId(r.id)}>
+                      {t("meetings.recording_play")}
+                    </Button>
                   ) : (
                     <span className="text-caption text-muted-foreground">{t(`meetings.recordingStatus.${r.status}`, { defaultValue: r.status })}</span>
                   )}
@@ -309,6 +311,16 @@ export function MeetingSummaryPanel({
           </div>
         ) : null}
       </div>
+      {playbackId ? (
+        <MeetingRecordingDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPlaybackId(null);
+          }}
+          meetingId={meetingId}
+          recordingId={playbackId}
+        />
+      ) : null}
     </PanelCard>
   );
 }

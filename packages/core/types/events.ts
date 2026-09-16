@@ -41,6 +41,8 @@ export const WS_EVENT_TYPES = [
   "chat.voice.accept",
   "chat.voice.hangup",
   "chat.voice.invite",
+  "chat.voice.recording.started",
+  "chat.voice.recording.stopped",
   "conference.session_ready",
   "department.archived",
   "department.created",

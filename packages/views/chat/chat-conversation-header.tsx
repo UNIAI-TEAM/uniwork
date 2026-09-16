@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronLeft, History, Info, PanelLeft, PanelLeftClose, Phone, Video } from "lucide-react";
+import { ChevronLeft, Disc3, History, Info, PanelLeft, PanelLeftClose, Phone, Video } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -19,6 +19,8 @@ export function ChatConversationHeader({
   catchUpAriaLabel,
   onCatchUp,
   catchUpDisabled,
+  recordingsAriaLabel,
+  onOpenRecordings,
   voiceCallAriaLabel,
   onVoiceCall,
   voiceCallDisabled,
@@ -40,6 +42,8 @@ export function ChatConversationHeader({
   catchUpAriaLabel?: string;
   onCatchUp?: () => void;
   catchUpDisabled?: boolean;
+  recordingsAriaLabel?: string;
+  onOpenRecordings?: () => void;
   voiceCallAriaLabel?: string;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
@@ -105,6 +109,18 @@ export function ChatConversationHeader({
             onClick={onCatchUp}
           >
             <History className="size-5" aria-hidden />
+          </Button>
+        ) : null}
+        {onOpenRecordings ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-10 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={recordingsAriaLabel}
+            onClick={onOpenRecordings}
+          >
+            <Disc3 className="size-5" aria-hidden />
           </Button>
         ) : null}
         {onVideoCall ? (

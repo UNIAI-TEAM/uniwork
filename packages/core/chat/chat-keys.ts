@@ -29,4 +29,6 @@ export const chatKeys = {
   trendingGifs: (wsId: string) => ["chat", "gifs-trending", wsId] as const,
   stickers: (wsId: string, query: string) => ["chat", "stickers", wsId, query] as const,
   mediaStatus: (wsId: string) => ["chat", "media-status", wsId] as const,
+  voiceRecordings: (wsId: string, roomId: string) =>
+    ["chat", "voice-recordings", wsId, roomId] as const,
 };

@@ -35,8 +35,6 @@ describe("CreateTaskFromMessageDialog", () => {
         messageBody="Sửa bug login ngay hôm nay"
       />,
     );
-    expect(screen.getByLabelText("chat.link.title_label")).toHaveValue(
-      "Sửa bug login ngay hôm nay",
-    );
+    expect(screen.getByLabelText("Tiêu đề")).toHaveValue("Sửa bug login ngay hôm nay");
   });
 });

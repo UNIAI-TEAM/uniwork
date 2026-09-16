@@ -16,7 +16,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-import { ChatConversationToolbar } from "./group-settings-sheet";
+import { ChatConversationToolbar } from "./chat-conversation-toolbar";
 import { BlockConversationSection } from "./block-conversation-section";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import {
@@ -265,6 +265,7 @@ export function DmChatToolbar({
   onOpenSettings,
   onCatchUp,
   catchUpDisabled,
+  onOpenRecordings,
   onVoiceCall,
   voiceCallDisabled,
   onVideoCall,
@@ -279,6 +280,7 @@ export function DmChatToolbar({
   onOpenSettings: () => void;
   onCatchUp?: () => void;
   catchUpDisabled?: boolean;
+  onOpenRecordings?: () => void;
   onVoiceCall?: () => void;
   voiceCallDisabled?: boolean;
   onVideoCall?: () => void;
@@ -315,6 +317,8 @@ export function DmChatToolbar({
       catchUpAriaLabel={t("chat.ai.catch_up")}
       onCatchUp={onCatchUp}
       catchUpDisabled={catchUpDisabled}
+      recordingsAriaLabel={t("chat.voice_recordings_open")}
+      onOpenRecordings={onOpenRecordings}
       voiceCallAriaLabel={t("chat.voice_call_start")}
       onVoiceCall={onVoiceCall}
       voiceCallDisabled={voiceCallDisabled}

@@ -21,6 +21,29 @@ DEFAULT_SECRET="secret_must_be_at_least_32_chars"
 
 LIVEKIT_ENV_SNIPPET=".livekit.env.local"
 
+# Egress /health answers inside the container. Docker Desktop on Windows often
+# resets HTTP to the published host port even when the service is fine, so never
+# rely on curl to localhost:8081 alone.
+wait_for_egress_healthy() {
+  local compose_file=$1
+  local attempts=${2:-120}
+  local i
+  for i in $(seq 1 "$attempts"); do
+    if docker compose -f "$compose_file" ps egress 2>/dev/null | grep -q '(healthy)'; then
+      return 0
+    fi
+    if docker compose -f "$compose_file" exec -T egress \
+      curl -sf -o /dev/null "http://127.0.0.1:8081/health" 2>/dev/null; then
+      return 0
+    fi
+    if curl -sf -o /dev/null "http://127.0.0.1:8081/health" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 if [ "${SKIP_LIVEKIT:-}" = "1" ]; then
   rm -f "$LIVEKIT_ENV_SNIPPET"
   echo "==> SKIP_LIVEKIT=1 — not starting local LiveKit."
@@ -112,6 +135,22 @@ tmp_config="$(mktemp)"
 sed -E "s|(host\\.docker\\.internal:)[0-9]+/api/v1/integrations/livekit/webhook|\\1${PORT}/api/v1/integrations/livekit/webhook|" \
   "$TEMPLATE" > "$tmp_config"
 
+# Egress joins as a WebRTC participant inside Docker; ICE must reach the host gateway,
+# not 127.0.0.1 (which is localhost inside the egress container). LiveKit v1.9 only
+# supports a single rtc.node_ip — use host.docker.internal's IP when recording is on.
+if [ -n "${LIVEKIT_RECORDING_BUCKET:-}" ]; then
+  docker_host_ip=""
+  if command -v docker >/dev/null 2>&1; then
+    docker_host_ip="$(docker run --rm alpine nslookup host.docker.internal 2>/dev/null \
+      | awk '/^Address: / { ip=$2 } END { print ip }')"
+  fi
+  if [ -n "$docker_host_ip" ] && [ "$docker_host_ip" != "127.0.0.1" ]; then
+    sed -E "s|(node_ip: )127\\.0\\.0\\.1|\\1${docker_host_ip}|" "$tmp_config" > "${tmp_config}.ip" \
+      && mv "${tmp_config}.ip" "$tmp_config"
+    echo "==> Recording ICE: node_ip=${docker_host_ip} (host gateway for LiveKit Egress)"
+  fi
+fi
+
 need_recreate=0
 if [ ! -f "$LOCAL_CONFIG" ] || ! cmp -s "$tmp_config" "$LOCAL_CONFIG"; then
   mv "$tmp_config" "$LOCAL_CONFIG"
@@ -151,3 +190,20 @@ fi
 
 echo "✓ LiveKit ready (local Docker). API key: ${LIVEKIT_API_KEY}"
 echo "  Logs follow with make start / make dev (docker compose logs -f livekit)."
+
+if [ -n "${LIVEKIT_RECORDING_BUCKET:-}" ]; then
+  if [ "${STORAGE_BACKEND:-}" = "s3" ] && [ -f "docker-compose.minio.yml" ]; then
+    echo "==> Ensuring MinIO for recordings (bucket ${LIVEKIT_RECORDING_BUCKET})..."
+    docker compose -f docker-compose.minio.yml up -d minio
+    docker compose -f docker-compose.minio.yml run --rm minio-init
+  fi
+  echo "==> Ensuring LiveKit Egress for recording bucket ${LIVEKIT_RECORDING_BUCKET}..."
+  docker compose -f "$COMPOSE_FILE" up -d egress
+  if ! wait_for_egress_healthy "$COMPOSE_FILE" 120; then
+    echo "✗ LiveKit Egress did not become healthy."
+    docker compose -f "$COMPOSE_FILE" ps egress || true
+    docker compose -f "$COMPOSE_FILE" logs --tail=40 egress || true
+    exit 1
+  fi
+  echo "✓ LiveKit Egress ready. Set LIVEKIT_RECORDING_S3_ENDPOINT=http://host.docker.internal:9000 when MinIO runs in Docker."
+fi

@@ -122,6 +122,13 @@ function keysFor(
       }
       break;
     }
+    case "chat.voice.recording.started":
+    case "chat.voice.recording.stopped": {
+      if (payload.room_id) {
+        push(chatKeys.voiceRecordings(wsId, payload.room_id));
+      }
+      break;
+    }
     case "chat.follow_up.created":
     case "chat.follow_up.updated":
     case "chat.follow_up.completed":
@@ -344,6 +351,12 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       const payload = (msg.payload ?? {}) as Record<string, string>;
       const eventType = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
+        if (
+          payload.room_id &&
+          (eventType === "chat.message.created" || eventType === "chat.message.updated")
+        ) {
+          scheduler.schedule(chatKeys.voiceRecordings(wsId, payload.room_id));
+        }
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {

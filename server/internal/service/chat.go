@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -34,6 +35,7 @@ type ChatService struct {
 	ws          *WorkspaceService
 	pub         EventPublisher
 	tasks       *TaskService
+	conference  meetings.ConferenceProvider
 	TenorAPIKey string
 }
 

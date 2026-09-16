@@ -123,4 +123,31 @@ describe("MeetingList", () => {
     render(shell(<MeetingList workspaceId="w1" meetings={[todayMeeting]} onOpenRoom={() => {}} />));
     expect(await screen.findByText("Hôm nay")).toBeInTheDocument();
   });
+
+  it("shows rewatch when an ended meeting has a recording", async () => {
+    const ended: Meeting = {
+      ...meetings[0]!,
+      id: "m-ended",
+      title: "Cuộc họp tức thì",
+      status: "ENDED",
+      actual_end_at: new Date().toISOString(),
+    };
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/members")) {
+        return Promise.resolve({
+          members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }],
+        });
+      }
+      if (p.endsWith("/recordings")) {
+        return Promise.resolve({
+          recordings: [{ id: "rec1", meeting_id: "m-ended", status: "COMPLETE", file_url: "https://x/rec.mp4" }],
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingList workspaceId="w1" meetings={[ended]} onOpenRoom={() => {}} />));
+    expect(await screen.findAllByText("Cuộc họp tức thì")).not.toHaveLength(0);
+    expect(await screen.findAllByRole("button", { name: "Xem lại" })).not.toHaveLength(0);
+  });
 });

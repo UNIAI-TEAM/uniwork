@@ -26,6 +26,14 @@ let initInFlight: Promise<void> | null = null;
 let initialized = false;
 let onLogout: (() => void) | null = null;
 
+/** Drop to anon. Logout callback runs only for an explicit logout, not token loss. */
+function clearSession(runLogoutCallback = true): void {
+  const state = useAuthStore.getState();
+  if (state.user === null && state.status === "anon") return;
+  useAuthStore.setState({ user: null, status: "anon" });
+  if (runLogoutCallback) onLogout?.();
+}
+
 /**
  * The access token itself stays in api/session (memory only — never
  * localStorage, so a script injection cannot lift it); this store owns the
@@ -62,9 +70,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    clearSession();
     await auth.logout();
-    if (get().user !== null || get().status !== "anon") set({ user: null, status: "anon" });
-    onLogout?.();
   },
 
   setOnLogout: (cb) => {
@@ -73,10 +80,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 // A failed refresh inside the transport clears the token without telling
-// anyone. Follow it here so the UI cannot keep rendering a stale session.
+// anyone. Drop to anon so the UI cannot keep rendering a stale session, but
+// do not run logout cleanup — drafts stay for the same person signing back in.
 subscribeToToken(() => {
   if (getAccessToken() === null && useAuthStore.getState().status === "authed") {
-    useAuthStore.setState({ user: null, status: "anon" });
+    clearSession(false);
   }
 });
 

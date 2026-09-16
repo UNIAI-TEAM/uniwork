@@ -23,7 +23,14 @@ function voiceMessage(outcome: string, callerId = "peer"): ChatMessage {
 describe("VoiceCallLogRow", () => {
   it("shows completed call duration for participants", () => {
     render(
-      wrap(<VoiceCallLogRow message={voiceMessage("completed")} currentUserId="me" />),
+      wrap(
+        <VoiceCallLogRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={voiceMessage("completed")}
+          currentUserId="me"
+        />,
+      ),
     );
     expect(screen.getByText(/Cuộc gọi thoại · 2:05/)).toBeInTheDocument();
   });
@@ -31,7 +38,12 @@ describe("VoiceCallLogRow", () => {
   it("shows missed label for unanswered incoming calls", () => {
     render(
       wrap(
-        <VoiceCallLogRow message={voiceMessage("unanswered", "peer")} currentUserId="me" />,
+        <VoiceCallLogRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={voiceMessage("unanswered", "peer")}
+          currentUserId="me"
+        />,
       ),
     );
     expect(screen.getByText("Cuộc gọi nhỡ")).toBeInTheDocument();
@@ -40,7 +52,12 @@ describe("VoiceCallLogRow", () => {
   it("shows cancelled label for unanswered outgoing calls", () => {
     render(
       wrap(
-        <VoiceCallLogRow message={voiceMessage("unanswered", "me")} currentUserId="me" />,
+        <VoiceCallLogRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={voiceMessage("unanswered", "me")}
+          currentUserId="me"
+        />,
       ),
     );
     expect(screen.getByText("Đã hủy cuộc gọi")).toBeInTheDocument();

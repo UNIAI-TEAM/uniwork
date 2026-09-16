@@ -204,19 +204,41 @@ func (s *S3Storage) storageClass() types.StorageClass {
 	return types.StorageClassIntelligentTiering
 }
 
+// NormalizeObjectURL fixes malformed URLs returned by LiveKit Egress when the
+// configured S3 endpoint already includes a scheme (e.g. "https://http://host:9000/...").
+func NormalizeObjectURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	switch {
+	case strings.HasPrefix(rawURL, "https://http://"):
+		return "http://" + strings.TrimPrefix(rawURL, "https://http://")
+	case strings.HasPrefix(rawURL, "http://http://"):
+		return "http://" + strings.TrimPrefix(rawURL, "http://http://")
+	case strings.HasPrefix(rawURL, "https://https://"):
+		return "https://" + strings.TrimPrefix(rawURL, "https://https://")
+	default:
+		return rawURL
+	}
+}
+
 // KeyFromURL extracts the S3 object key from a CDN or bucket URL.
 // e.g. "https://cdn.uniwork.app/abc123.png" → "abc123.png"
 //
 //	"https://my-bucket.s3.us-east-1.amazonaws.com/uploads/x/y.png" → "uploads/x/y.png"
 func (s *S3Storage) KeyFromURL(rawURL string) string {
+	rawURL = NormalizeObjectURL(rawURL)
 	if s.endpointURL != "" {
-		for _, prefix := range []string{
-			customEndpointObjectPrefix(s.endpointURL, s.bucket, true),
-			customEndpointObjectPrefix(s.endpointURL, s.bucket, false),
-		} {
-			if strings.HasPrefix(rawURL, prefix) {
-				return strings.TrimPrefix(rawURL, prefix)
+		for _, endpoint := range customEndpointAliases(s.endpointURL) {
+			for _, prefix := range []string{
+				customEndpointObjectPrefix(endpoint, s.bucket, true),
+				customEndpointObjectPrefix(endpoint, s.bucket, false),
+			} {
+				if strings.HasPrefix(rawURL, prefix) {
+					return strings.TrimPrefix(rawURL, prefix)
+				}
 			}
+		}
+		if key := keyFromCustomEndpointPath(rawURL, s.bucket); key != "" {
+			return key
 		}
 	}
 
@@ -257,13 +279,46 @@ func (s *S3Storage) KeyFromURL(rawURL string) string {
 // wrapped in the SDK's smithy wrapper — callers can use errors.As to
 // distinguish "not found" from a transport failure.
 func (s *S3Storage) GetReader(ctx context.Context, key string) (io.ReadCloser, error) {
+	return s.GetReaderRange(ctx, key, 0, -1)
+}
+
+// ObjectSize returns the stored object length in bytes.
+func (s *S3Storage) ObjectSize(ctx context.Context, key string) (int64, error) {
 	if key == "" {
-		return nil, fmt.Errorf("s3 GetReader: empty key")
+		return 0, fmt.Errorf("s3 ObjectSize: empty key")
 	}
-	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 	})
+	if err != nil {
+		return 0, fmt.Errorf("s3 HeadObject: %w", err)
+	}
+	if out.ContentLength == nil {
+		return 0, fmt.Errorf("s3 HeadObject: missing ContentLength")
+	}
+	return *out.ContentLength, nil
+}
+
+// GetReaderRange streams an object, optionally bounded. Pass end < 0 for open-ended range.
+func (s *S3Storage) GetReaderRange(ctx context.Context, key string, start, end int64) (io.ReadCloser, error) {
+	if key == "" {
+		return nil, fmt.Errorf("s3 GetReaderRange: empty key")
+	}
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	}
+	if start > 0 || end >= 0 {
+		var rangeStr string
+		if end >= 0 {
+			rangeStr = fmt.Sprintf("bytes=%d-%d", start, end)
+		} else {
+			rangeStr = fmt.Sprintf("bytes=%d-", start)
+		}
+		input.Range = aws.String(rangeStr)
+	}
+	out, err := s.client.GetObject(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("s3 GetObject: %w", err)
 	}
@@ -402,6 +457,58 @@ func (s *S3Storage) uploadedURL(key string) string {
 
 func customEndpointObjectURL(endpointURL, bucket, key string, usePathStyle bool) string {
 	return customEndpointObjectPrefix(endpointURL, bucket, usePathStyle) + key
+}
+
+// customEndpointAliases returns equivalent local MinIO hosts so URLs written
+// by LiveKit Egress (host.docker.internal) still resolve when the app reads
+// via localhost (or the reverse).
+func customEndpointAliases(endpointURL string) []string {
+	trimmed := strings.TrimRight(endpointURL, "/")
+	u, err := url.Parse(trimmed)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return []string{trimmed}
+	}
+	host := u.Hostname()
+	port := u.Port()
+	portSuffix := ""
+	if port != "" {
+		portSuffix = ":" + port
+	}
+	altHosts := []string{host}
+	switch host {
+	case "localhost":
+		altHosts = append(altHosts, "host.docker.internal", "127.0.0.1")
+	case "host.docker.internal":
+		altHosts = append(altHosts, "localhost", "127.0.0.1")
+	case "127.0.0.1":
+		altHosts = append(altHosts, "localhost", "host.docker.internal")
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(altHosts))
+	for _, h := range altHosts {
+		variant := u.Scheme + "://" + h + portSuffix
+		if _, ok := seen[variant]; ok {
+			continue
+		}
+		seen[variant] = struct{}{}
+		out = append(out, variant)
+	}
+	return out
+}
+
+// keyFromCustomEndpointPath extracts the object key from any path-style URL
+// whose path begins with /<bucket>/, regardless of hostname.
+func keyFromCustomEndpointPath(rawURL, bucket string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	path := strings.TrimPrefix(u.Path, "/")
+	prefix := bucket + "/"
+	if strings.HasPrefix(path, prefix) {
+		return strings.TrimPrefix(path, prefix)
+	}
+	return ""
 }
 
 func customEndpointObjectPrefix(endpointURL, bucket string, usePathStyle bool) string {

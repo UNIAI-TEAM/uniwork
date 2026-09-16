@@ -247,6 +247,12 @@ type RecordingListSDO struct {
 	Recordings []RecordingDTO `json:"recordings"`
 }
 
+// MeetingRecordingPlaybackSDO is a short-lived direct playback URL (S3 presigned).
+type MeetingRecordingPlaybackSDO struct {
+	PlaybackURL string `json:"playback_url" description:"Presigned URL for inline MP4 playback" example:"https://s3.example/meetings/rec.mp4?X-Amz-Signature=…"`
+	ExpiresAt   string `json:"expires_at" description:"RFC3339 expiry of playback_url" example:"2026-09-15T11:00:00Z"`
+}
+
 // MeetingCapabilitiesSDO tells the client which optional features to show.
 type MeetingCapabilitiesSDO struct {
 	AISummary bool `json:"ai_summary"`

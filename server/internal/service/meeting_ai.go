@@ -15,6 +15,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -353,6 +354,7 @@ func (s *MeetingService) StartRecording(ctx context.Context, userID, meetingID s
 	ref, err := s.provider.StartRecording(ctx, meetings.StartRecordingRequest{
 		RoomName:   meetings.RoomNameForMeeting(meetingID),
 		FilePrefix: "meetings/" + m.WorkspaceID + "/" + meetingID,
+		Layout:     "grid",
 	})
 	if err != nil {
 		return db.MeetingRecording{}, coded(http.StatusBadGateway, "recording_failed", "không bắt đầu ghi hình được: "+err.Error())
@@ -408,6 +410,36 @@ func (s *MeetingService) Recordings(ctx context.Context, userID, guestID, meetin
 	return s.q.ListMeetingRecordings(ctx, meetingID)
 }
 
+// GetMeetingRecordingForPlayback returns a completed recording the caller may stream.
+func (s *MeetingService) GetMeetingRecordingForPlayback(
+	ctx context.Context, userID, guestID, meetingID, recordingID string,
+) (db.MeetingRecording, error) {
+	recordingID = strings.TrimSpace(recordingID)
+	if recordingID == "" {
+		return db.MeetingRecording{}, Invalid("recording_id is required")
+	}
+	if _, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID); err != nil {
+		return db.MeetingRecording{}, err
+	}
+	rec, err := s.q.GetMeetingRecordingByID(ctx, db.GetMeetingRecordingByIDParams{
+		ID: recordingID, MeetingID: meetingID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.MeetingRecording{}, ErrNotFound
+		}
+		return db.MeetingRecording{}, err
+	}
+	if rec.Status != RecordingComplete {
+		return db.MeetingRecording{}, coded(http.StatusConflict, "recording_not_ready",
+			"bản ghi chưa sẵn sàng")
+	}
+	if !rec.FileUrl.Valid || strings.TrimSpace(rec.FileUrl.String) == "" {
+		return db.MeetingRecording{}, ErrNotFound
+	}
+	return rec, nil
+}
+
 // finishRecordingFromProvider is called from HandleProviderEvent when the
 // provider reports an egress ended.
 func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev ProviderNeutralEvent) {
@@ -416,9 +448,12 @@ func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev Pro
 		status = RecordingFailed
 	}
 	rec, err := s.q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
-		EgressID: ev.RecordingID, Status: status, FileUrl: strText(ev.RecordingURL),
+		EgressID: ev.RecordingID, Status: status, FileUrl: strText(storage.NormalizeObjectURL(ev.RecordingURL)),
 	})
 	if err != nil {
+		if s.Chat != nil {
+			s.Chat.FinishVoiceRecordingByEgress(ctx, ev)
+		}
 		return
 	}
 	if m, err := s.q.GetMeeting(ctx, rec.MeetingID); err == nil {

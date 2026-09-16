@@ -44,9 +44,10 @@ services:
         mc mb --ignore-existing local/uniwork
         # Prefixes show as folders in the console; objects land under these keys.
         printf '' | mc pipe local/uniwork/chat/voice/.keep
+        printf '' | mc pipe local/uniwork/chat-voice/.keep
         printf '' | mc pipe local/uniwork/chat/files/.keep
         printf '' | mc pipe local/uniwork/avatars/.keep
-        echo "bucket uniwork ready (chat/voice, chat/files, avatars)"
+        echo "bucket uniwork ready (chat/voice, chat-voice, chat/files, avatars)"
 
 volumes:
   minio_data:

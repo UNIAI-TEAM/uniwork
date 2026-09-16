@@ -6,7 +6,7 @@ import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import { DmChatToolbar } from "./dm-settings-sheet";
-import { GroupChatToolbar } from "./group-settings-sheet";
+import { GroupChatToolbar } from "./chat-conversation-toolbar";
 import { WorkspaceChatToolbar } from "./workspace-settings-sheet";
 
 /** Conversation header toolbar for the active chat target. */
@@ -29,6 +29,7 @@ export function ChatPageConversationToolbar({
   onOpenDmSettings,
   onCatchUp,
   catchUpDisabled,
+  onOpenRecordings,
   onVoiceCall,
   voiceCallDisabled,
   onVideoCall,
@@ -52,6 +53,7 @@ export function ChatPageConversationToolbar({
   onOpenDmSettings: () => void;
   onCatchUp?: () => void;
   catchUpDisabled?: boolean;
+  onOpenRecordings?: () => void;
   onVoiceCall: () => void;
   voiceCallDisabled: boolean;
   onVideoCall: () => void;
@@ -84,6 +86,7 @@ export function ChatPageConversationToolbar({
         onOpenSettings={onOpenGroupSettings}
         onCatchUp={onCatchUp}
         catchUpDisabled={catchUpDisabled}
+        onOpenRecordings={onOpenRecordings}
         onVoiceCall={onVoiceCall}
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}
@@ -103,6 +106,7 @@ export function ChatPageConversationToolbar({
         onOpenSettings={onOpenChannelSettings}
         onCatchUp={onCatchUp}
         catchUpDisabled={catchUpDisabled}
+        onOpenRecordings={onOpenRecordings}
         onVoiceCall={onVoiceCall}
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}
@@ -125,6 +129,7 @@ export function ChatPageConversationToolbar({
         onOpenSettings={onOpenDmSettings}
         onCatchUp={onCatchUp}
         catchUpDisabled={catchUpDisabled}
+        onOpenRecordings={onOpenRecordings}
         onVoiceCall={onVoiceCall}
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}

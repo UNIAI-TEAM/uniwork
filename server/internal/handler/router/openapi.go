@@ -142,6 +142,12 @@ func pathParamSDI(path string) any {
 			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
 			MessageID   string `path:"messageID" description:"ULID tin nhắn" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "workspaceID,roomID,recordingID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			RoomID      string `path:"roomID" description:"ULID phòng chat" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+			RecordingID string `path:"recordingID" description:"ULID bản ghi cuộc gọi" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "workspaceID,messageID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
@@ -204,6 +210,11 @@ func pathParamSDI(path string) any {
 	case "participantID":
 		return struct {
 			ParticipantID string `path:"participantID" description:"ULID người tham dự" example:"01J8X4PARTN1P2Q3R4S5T6"`
+		}{}
+	case "meetingID,recordingID":
+		return struct {
+			MeetingID   string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V8"`
+			RecordingID string `path:"recordingID" description:"ULID bản ghi cuộc họp" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
 		}{}
 	case "meetingID,participantID":
 		return struct {

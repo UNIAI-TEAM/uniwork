@@ -14,6 +14,7 @@ import "../drafts/register-all-drafts";
 import { initI18n } from "../i18n";
 import { createLogger } from "../logger";
 import { createQueryClient } from "../query-client";
+import { QuerySessionSync } from "./query-session-sync";
 import { defaultStorage } from "./storage";
 
 /**
@@ -26,6 +27,8 @@ import { defaultStorage } from "./storage";
 function clearRegisteredDraftsOnLogout(): void {
   resetRegisteredDraftsInMemory();
   clearRegisteredGlobalDrafts(defaultStorage);
+  // Persist may rewrite the emptied state on the next microtask after reset.
+  queueMicrotask(() => clearRegisteredGlobalDrafts(defaultStorage));
 }
 
 function AuthInitializer() {
@@ -40,20 +43,30 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   const [ready] = useState(() => {
     initI18n();
     setSchemaLogger(createLogger("api"));
-    // Draft cleanup on logout: the Zustand singletons, which survive the
-    // client-side navigation that follows logout, and the globally keyed
-    // persisted storage, which survives a reload. This is the only caller of
-    // `setOnLogout`; nothing calls `clearWorkspaceStorage` on logout.
-    // Assigning the single callback slot is last-write-wins, so StrictMode's
-    // double invocation of this initializer registers the same callback twice
-    // with no additional effect.
-    useAuthStore.getState().setOnLogout(clearRegisteredDraftsOnLogout);
     return true;
   });
   void ready;
+
+  useEffect(() => {
+    // Draft cleanup on logout: the Zustand singletons, which survive the
+    // client-side navigation that follows logout, and the globally keyed
+    // persisted storage, which survives a reload. This is the only caller of
+    // `setOnLogout`; nothing calls `clearWorkspaceStorage` on logout. The query
+    // cache is cleared here too so every logout path (sidebar calls the store
+    // directly) drops stale workspace data before the next sign-in.
+    useAuthStore.getState().setOnLogout(() => {
+      clearRegisteredDraftsOnLogout();
+      queryClient.clear();
+    });
+    return () => {
+      useAuthStore.getState().setOnLogout(null);
+    };
+  }, [queryClient]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthInitializer />
+      <QuerySessionSync queryClient={queryClient} />
       {children}
     </QueryClientProvider>
   );

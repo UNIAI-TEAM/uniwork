@@ -236,6 +236,22 @@ describe("meetings D08b endpoints", () => {
     expect(await listRecordings("m1")).toEqual([]);
   });
 
+  it("getMeetingRecordingPlaybackUrl returns presigned url or null on drift", async () => {
+    const { getMeetingRecordingPlaybackUrl } = await import("./meetings");
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        playback_url: "https://s3.test/rec.mp4?sig=1",
+        expires_at: "2026-09-15T11:00:00Z",
+      }),
+    );
+    await expect(getMeetingRecordingPlaybackUrl("m1", "rec1")).resolves.toEqual({
+      playback_url: "https://s3.test/rec.mp4?sig=1",
+      expires_at: "2026-09-15T11:00:00Z",
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ playback_url: "" }));
+    await expect(getMeetingRecordingPlaybackUrl("m1", "rec1")).resolves.toBeNull();
+  });
+
   it("calendar returns the raw text with the bearer token", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response("BEGIN:VCALENDAR\r\n", { status: 200 }));
     expect(await fetchMeetingCalendar("m1")).toContain("BEGIN:VCALENDAR");

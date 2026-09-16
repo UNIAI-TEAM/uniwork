@@ -12,6 +12,37 @@ type VoiceCallLogDTO struct {
 	Outcome         string `json:"outcome" description:"completed, unanswered, or declined" example:"completed"`
 	DurationSeconds int    `json:"duration_seconds,omitempty" description:"Call length in seconds when completed" example:"125"`
 	CallerID        string `json:"caller_id" description:"User id of the caller" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	RecordingID     string `json:"recording_id,omitempty" description:"Chat voice recording id when present" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
+	RecordingStatus string `json:"recording_status,omitempty" description:"ACTIVE, PROCESSING, COMPLETE, or FAILED" example:"COMPLETE"`
+	RecordingURL    string `json:"recording_url,omitempty" description:"Playback URL when recording is complete" example:"https://s3.example/chat-voice/rec.mp4"`
+}
+
+// ChatVoiceRecordingDTO is a LiveKit egress row for a chat voice call.
+type ChatVoiceRecordingDTO struct {
+	ID        string `json:"id" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
+	RoomID    string `json:"room_id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	CallID    string `json:"call_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Status    string `json:"status" example:"ACTIVE"`
+	FileURL   string `json:"file_url,omitempty"`
+	StartedBy string `json:"started_by" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	StartedAt string `json:"started_at" example:"2026-09-14T10:00:00Z"`
+	EndedAt   string `json:"ended_at,omitempty"`
+}
+
+// ChatVoiceRecordingSDO wraps a chat voice recording.
+type ChatVoiceRecordingSDO struct {
+	Recording ChatVoiceRecordingDTO `json:"recording"`
+}
+
+// ChatVoiceRecordingListSDO lists call recordings in a chat room.
+type ChatVoiceRecordingListSDO struct {
+	Recordings []ChatVoiceRecordingDTO `json:"recordings"`
+}
+
+// ChatVoiceRecordingPlaybackSDO is a short-lived direct playback URL (S3 presigned).
+type ChatVoiceRecordingPlaybackSDO struct {
+	PlaybackURL string `json:"playback_url" description:"Presigned URL for inline MP4 playback" example:"https://s3.example/chat-voice/rec.mp4?X-Amz-Signature=…"`
+	ExpiresAt   string `json:"expires_at" description:"RFC3339 expiry of playback_url" example:"2026-09-15T11:00:00Z"`
 }
 
 // VoiceMessageDTO is metadata for private voice-message content.

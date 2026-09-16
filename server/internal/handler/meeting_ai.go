@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -190,6 +192,64 @@ func (h *handlers) listRecordings(w http.ResponseWriter, r *http.Request) {
 		out = append(out, toRecordingDTO(rec, guestID != ""))
 	}
 	respondJSON(w, 200, sdo.RecordingListSDO{Recordings: out})
+}
+
+func (h *handlers) getMeetingRecordingPlaybackURL(w http.ResponseWriter, r *http.Request) {
+	presigner, ok := h.Storage.(storage.DownloadPresigner)
+	if !ok {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
+		return
+	}
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	meetingID := chi.URLParam(r, "meetingID")
+	rec, err := h.Meetings.GetMeetingRecordingForPlayback(
+		r.Context(), userID, guestID, meetingID, chi.URLParam(r, "recordingID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	key := h.Storage.KeyFromURL(rec.FileUrl.String)
+	if key == "" {
+		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
+		return
+	}
+	playbackURL, expiresAt, err := presignRecordingPlaybackURL(r.Context(), presigner, key)
+	if err != nil {
+		h.Log.Error("meeting recording presign", "err", err, "recording_id", rec.ID)
+		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.MeetingRecordingPlaybackSDO{
+		PlaybackURL: playbackURL,
+		ExpiresAt:   expiresAt.Format(time.RFC3339),
+	})
+}
+
+func (h *handlers) streamMeetingRecording(w http.ResponseWriter, r *http.Request) {
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	meetingID := chi.URLParam(r, "meetingID")
+	rec, err := h.Meetings.GetMeetingRecordingForPlayback(
+		r.Context(), userID, guestID, meetingID, chi.URLParam(r, "recordingID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	key := h.Storage.KeyFromURL(rec.FileUrl.String)
+	if key == "" {
+		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
+		return
+	}
+	h.streamRecordingObject(w, r, key, rec.ID)
 }
 
 func (h *handlers) meetingCalendar(w http.ResponseWriter, r *http.Request) {

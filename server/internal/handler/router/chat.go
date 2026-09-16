@@ -352,6 +352,49 @@ func registerChat(r api, h Routes, chatWriteLimit, chatTypingLimit func(http.Han
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/start", h.StartChatVoiceRecording, apiOp{
+		summary:     "Start chat voice recording",
+		description: "Bắt đầu ghi âm cuộc gọi thoại/video trong phòng chat (LiveKit Egress).",
+		tags:        []string{"chat"},
+		sdi:         sdi.VoiceSignalSDI{},
+		sdo:         sdo.ChatVoiceRecordingSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/stop", h.StopChatVoiceRecording, apiOp{
+		summary:     "Stop chat voice recording",
+		description: "Dừng ghi âm cuộc gọi; URL bản ghi đến qua webhook LiveKit.",
+		tags:        []string{"chat"},
+		sdi:         sdi.VoiceSignalSDI{},
+		sdo:         sdo.ChatVoiceRecordingSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/active", h.GetActiveChatVoiceRecording, apiOp{
+		summary:     "Get active chat voice recording",
+		description: "Trạng thái ghi âm đang chạy của cuộc gọi (một egress cho cả phòng).",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatVoiceRecordingSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recordings", h.ListChatVoiceRecordings, apiOp{
+		summary:     "List chat voice call recordings",
+		description: "Danh sách bản ghi cuộc gọi thoại/video trong phòng chat.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatVoiceRecordingListSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recordings/{recordingID}/playback-url", h.GetChatVoiceRecordingPlaybackURL, apiOp{
+		summary:     "Get chat voice recording playback URL",
+		description: "URL presigned ngắn hạn để phát MP4 trực tiếp (stream/seek) thay vì tải qua proxy.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatVoiceRecordingPlaybackSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recordings/{recordingID}/content", h.StreamChatVoiceRecording, apiOp{
+		summary:     "Stream chat voice call recording",
+		description: "Phát bản ghi cuộc gọi thoại/video (MP4) qua proxy S3 cho thành viên phòng.",
+		tags:        []string{"chat"},
+		auth:        true,
+	})
 	r.With(chatTypingLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/typing", h.SignalChatTyping, apiOp{
 		summary:     "Signal typing indicator",
 		description: "Báo đang nhập tin trong phòng chat.",

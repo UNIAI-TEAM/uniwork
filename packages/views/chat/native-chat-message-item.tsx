@@ -120,7 +120,13 @@ export function renderNativeChatMessage(input: {
   }
   if (message.kind === "voice_call_log" || message.voiceCall) {
     return (
-      <VoiceCallLogRow key={message.id} message={message} currentUserId={currentUserId} />
+      <VoiceCallLogRow
+        key={message.id}
+        workspaceId={workspaceId}
+        roomId={roomId}
+        message={message}
+        currentUserId={currentUserId}
+      />
     );
   }
   if (message.kind === "voice" && message.voice) {

@@ -71,6 +71,16 @@ describe("auth store", () => {
     expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
   });
 
+  it("does not run logout cleanup when the token is cleared without calling logout", () => {
+    const onLogout = vi.fn();
+    useAuthStore.getState().setOnLogout(onLogout);
+    setAccessToken("tok");
+    useAuthStore.getState().setUser(user);
+    setAccessToken(null);
+    expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+    expect(onLogout).not.toHaveBeenCalled();
+  });
+
   it("does not downgrade authed session when a stale refresh completes", async () => {
     let resolveRefresh: (value: null) => void = () => undefined;
     vi.mocked(auth.refreshSession).mockReturnValueOnce(

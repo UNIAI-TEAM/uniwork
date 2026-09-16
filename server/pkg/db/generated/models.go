@@ -293,6 +293,21 @@ type ChatUserNickname struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ChatVoiceRecording struct {
+	ID               string             `json:"id"`
+	OrganizationID   string             `json:"organization_id"`
+	WorkspaceID      string             `json:"workspace_id"`
+	RoomID           string             `json:"room_id"`
+	CallID           string             `json:"call_id"`
+	EgressID         string             `json:"egress_id"`
+	Status           string             `json:"status"`
+	FileUrl          pgtype.Text        `json:"file_url"`
+	CallLogMessageID pgtype.Text        `json:"call_log_message_id"`
+	StartedBy        string             `json:"started_by"`
+	StartedAt        pgtype.Timestamptz `json:"started_at"`
+	EndedAt          pgtype.Timestamptz `json:"ended_at"`
+}
+
 type CommentReaction struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

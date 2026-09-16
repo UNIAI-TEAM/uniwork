@@ -111,8 +111,10 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	authSvc := service.NewAuthService(pool, q, minter, time.Hour, verification)
 	store := storage.NewLocalStorageFromEnv()
 	tasks := service.NewTaskService(pool, q, ws, store)
-	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")})
+	fp := &meetingspkg.FakeProvider{RecordingEnabled: true}
+	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, fp, service.MeetingRuntime{HMACKey: []byte("test")})
 	chatSvc := service.NewChatService(pool, q, ws, service.NopPublisher{})
+	chatSvc.SetConference(fp)
 	chatSvc.SetTasks(tasks)
 	// AI_PROVIDER=fake in the test env turns the gateway on with the
 	// deterministic provider; unset leaves it disabled, as in production

@@ -17,6 +17,9 @@ export interface ChatMessage {
     outcome: string;
     duration_seconds?: number;
     caller_id: string;
+    recording_id?: string;
+    recording_status?: string;
+    recording_url?: string;
   };
   voice?: {
     duration_ms: number;

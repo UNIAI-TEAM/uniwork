@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -97,5 +98,26 @@ describe("CoreProvider", () => {
     // Null, not an empty persisted state: resetting memory writes through
     // `persist`, so storage must be cleared after the reset, not before it.
     expect(defaultStorage.getItem("uniwork_task_comment_drafts")).toBeNull();
+  });
+
+  it("clears the query cache on logout even when callers use the auth store directly", async () => {
+    useAuthStore.getState().setUser(user);
+    let qc: QueryClient | null = null;
+
+    function CaptureClient() {
+      qc = useQueryClient();
+      return null;
+    }
+
+    render(
+      <CoreProvider>
+        <CaptureClient />
+      </CoreProvider>,
+    );
+
+    await waitFor(() => expect(qc).not.toBeNull());
+    qc!.setQueryData(["chat", "rooms", "ws1"], [{ id: "room1" }]);
+    await useAuthStore.getState().logout();
+    expect(qc!.getQueryData(["chat", "rooms", "ws1"])).toBeUndefined();
   });
 });

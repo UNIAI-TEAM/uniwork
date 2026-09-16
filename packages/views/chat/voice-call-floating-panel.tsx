@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@uniwork/ui/components/ui/avatar";
@@ -52,14 +52,27 @@ function VoiceCallPanelHeader({
   statusLabel,
   pulse,
   actions,
+  dragHandleProps,
 }: {
   peerName: string;
   statusLabel: string;
   pulse?: boolean;
   actions?: ReactNode;
+  dragHandleProps?: {
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => void;
+  };
 }) {
   return (
-    <div className="flex items-start gap-3 border-b border-border px-4 py-3">
+    <div
+      className={cn(
+        "flex items-start gap-3 border-b border-border px-4 py-3",
+        dragHandleProps && "cursor-grab touch-none select-none active:cursor-grabbing",
+      )}
+      {...dragHandleProps}
+    >
       <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
       <div className="min-w-0 flex-1 pt-0.5">
         <p className="truncate text-body font-semibold text-foreground">{peerName}</p>
@@ -94,6 +107,9 @@ export function VoiceCallFloatingPanel({
   pulse,
   footer,
   children,
+  panelRef,
+  panelStyle,
+  dragHandleProps,
 }: {
   peerName: string;
   statusLabel: string;
@@ -104,13 +120,31 @@ export function VoiceCallFloatingPanel({
   pulse?: boolean;
   footer?: ReactNode;
   children?: ReactNode;
+  panelRef?: RefObject<HTMLDivElement | null>;
+  panelStyle?: CSSProperties;
+  dragHandleProps?: {
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => void;
+  };
 }) {
   const { t } = useTranslation();
 
   if (mode === "minimized") {
     return (
-      <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
-        <div className="flex max-w-[min(100vw-2rem,320px)] items-center gap-3 rounded-full border border-border bg-surface px-3 py-2 shadow-[var(--menu-shadow)]">
+      <div
+        ref={panelRef}
+        className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6"
+        style={panelStyle}
+      >
+        <div
+          className={cn(
+            "flex max-w-[min(100vw-2rem,320px)] items-center gap-3 rounded-full border border-border bg-surface px-3 py-2 shadow-[var(--menu-shadow)]",
+            dragHandleProps && "cursor-grab touch-none select-none active:cursor-grabbing",
+          )}
+          {...dragHandleProps}
+        >
           <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-body font-medium text-foreground">{peerName}</p>
@@ -124,6 +158,7 @@ export function VoiceCallFloatingPanel({
               className="shrink-0 rounded-full"
               aria-label={t("chat.voice_call_expand")}
               onClick={onMaximize}
+              onPointerDown={(event) => event.stopPropagation()}
             >
               <Maximize2 aria-hidden className="size-4" />
             </Button>
@@ -136,7 +171,10 @@ export function VoiceCallFloatingPanel({
 
   const headerActions =
     allowResize && (onMinimize || onMaximize) ? (
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div
+        className="flex shrink-0 items-center gap-0.5"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
         {mode === "expanded" && onMinimize ? (
           <Button
             type="button"
@@ -197,16 +235,21 @@ export function VoiceCallFloatingPanel({
 
   return (
     <div
+      ref={allowResize ? panelRef : undefined}
       className={cn(
         "overflow-hidden rounded-2xl border border-border bg-surface shadow-[var(--menu-shadow)]",
-        allowResize ? "" : "w-full",
+        allowResize
+          ? "fixed bottom-4 right-4 z-50 w-[min(calc(100vw-2rem),380px)] sm:bottom-6 sm:right-6"
+          : "w-full",
       )}
+      style={allowResize ? panelStyle : undefined}
     >
       <VoiceCallPanelHeader
         peerName={peerName}
         statusLabel={statusLabel}
         pulse={pulse}
         actions={headerActions}
+        dragHandleProps={allowResize ? dragHandleProps : undefined}
       />
       {children ? <div className="px-4 py-4">{children}</div> : null}
       {footer ? <div className="border-t border-border px-4 py-3">{footer}</div> : null}

@@ -110,6 +110,31 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 	return i, err
 }
 
+const getMeetingRecordingByID = `-- name: GetMeetingRecordingByID :one
+SELECT id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at FROM meeting_recordings WHERE id = $1 AND meeting_id = $2
+`
+
+type GetMeetingRecordingByIDParams struct {
+	ID        string `json:"id"`
+	MeetingID string `json:"meeting_id"`
+}
+
+func (q *Queries) GetMeetingRecordingByID(ctx context.Context, arg GetMeetingRecordingByIDParams) (MeetingRecording, error) {
+	row := q.db.QueryRow(ctx, getMeetingRecordingByID, arg.ID, arg.MeetingID)
+	var i MeetingRecording
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.EgressID,
+		&i.Status,
+		&i.FileUrl,
+		&i.StartedBy,
+		&i.StartedAt,
+		&i.EndedAt,
+	)
+	return i, err
+}
+
 const insertMeetingRecording = `-- name: InsertMeetingRecording :one
 INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by)
 VALUES ($1, $2, $3, $4)
