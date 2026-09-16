@@ -140,16 +140,24 @@ func dedupeSorted(s []string) []string {
 }
 
 // fingerprintSort is the fixed-order shape of Sort used inside Fingerprint.
+// PropertyType and PropertyOptions ride along so that a property's type
+// change or a select property's option rename/reorder — which changes what
+// the sort actually orders by — invalidates outstanding cursors too.
 type fingerprintSort struct {
-	Field      string `json:"field"`
-	Desc       bool   `json:"desc"`
-	PropertyID string `json:"property_id"`
+	Field           string   `json:"field"`
+	Desc            bool     `json:"desc"`
+	PropertyID      string   `json:"property_id"`
+	PropertyType    string   `json:"property_type"`
+	PropertyOptions []string `json:"property_options"`
 }
 
 // fingerprintGroup is the fixed-order shape of Group used inside Fingerprint.
+// See fingerprintSort for why PropertyType/PropertyOptions are included.
 type fingerprintGroup struct {
-	Kind       GroupKind `json:"kind"`
-	PropertyID string    `json:"property_id"`
+	Kind            GroupKind `json:"kind"`
+	PropertyID      string    `json:"property_id"`
+	PropertyType    string    `json:"property_type"`
+	PropertyOptions []string  `json:"property_options"`
 }
 
 // fingerprintDoc is the canonical JSON shape hashed by Fingerprint. Field
@@ -170,13 +178,19 @@ type fingerprintDoc struct {
 // equivalent requests (reordered/duplicated filter values) share a
 // fingerprint.
 func Fingerprint(q Query) string {
-	var sortPropID string
+	var sortPropID, sortPropType string
+	var sortPropOptions []string
 	if q.Sort.Property != nil {
 		sortPropID = q.Sort.Property.ID
+		sortPropType = q.Sort.Property.Type
+		sortPropOptions = q.Sort.Property.Options
 	}
-	var groupPropID string
+	var groupPropID, groupPropType string
+	var groupPropOptions []string
 	if q.Group.Property != nil {
 		groupPropID = q.Group.Property.ID
+		groupPropType = q.Group.Property.Type
+		groupPropOptions = q.Group.Property.Options
 	}
 
 	doc := fingerprintDoc{
@@ -184,13 +198,17 @@ func Fingerprint(q Query) string {
 		Filter:    q.Filter,
 		Search:    q.Search,
 		Sort: fingerprintSort{
-			Field:      q.Sort.Field,
-			Desc:       q.Sort.Desc,
-			PropertyID: sortPropID,
+			Field:           q.Sort.Field,
+			Desc:            q.Sort.Desc,
+			PropertyID:      sortPropID,
+			PropertyType:    sortPropType,
+			PropertyOptions: sortPropOptions,
 		},
 		Group: fingerprintGroup{
-			Kind:       q.Group.Kind,
-			PropertyID: groupPropID,
+			Kind:            q.Group.Kind,
+			PropertyID:      groupPropID,
+			PropertyType:    groupPropType,
+			PropertyOptions: groupPropOptions,
 		},
 		Hierarchy: q.Hierarchy,
 	}

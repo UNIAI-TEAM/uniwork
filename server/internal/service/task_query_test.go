@@ -11,7 +11,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
-	"github.com/unicomhub/uniwork/server/pkg/db/tablequery"
 )
 
 func TestQueryTasksFiltersByStatusAndPaginates(t *testing.T) {
@@ -68,7 +67,7 @@ func TestQueryTasksFiltersByStatusAndPaginates(t *testing.T) {
 
 // Two projects in one workspace: QueryTasks / TableGroups with a project
 // filter must return only that project's tasks.
-func TestQueryAndTableFilterByProjectID(t *testing.T) {
+func TestQueryTasksFilterByProjectID(t *testing.T) {
 	s, _, ua, _, w := taskFixture(t)
 	ctx := context.Background()
 	actor := Human(ua.ID)
@@ -111,17 +110,6 @@ func TestQueryAndTableFilterByProjectID(t *testing.T) {
 	}
 	if len(page.Tasks) != 1 || page.Tasks[0].ID != taskA.ID {
 		t.Fatalf("QueryTasks = %+v, want only task A %s", page.Tasks, taskA.ID)
-	}
-
-	groups, err := s.TableGroups(ctx, actor, w.ID, TableQueryInput{
-		Filter:  tablequery.Filter{ProjectIDs: []string{projectA.ID}},
-		GroupBy: "status",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if groups.Total != 1 {
-		t.Fatalf("TableGroups total = %d, want 1", groups.Total)
 	}
 }
 

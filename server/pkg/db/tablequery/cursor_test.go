@@ -36,3 +36,37 @@ func TestFingerprintIgnoresFilterOrderAndDuplicates(t *testing.T) {
 		t.Fatal("sort must change the fingerprint")
 	}
 }
+
+func TestFingerprintChangesWithPropertyTypeAndOptionOrder(t *testing.T) {
+	sortA := Query{WorkspaceID: "w", Sort: Sort{Field: "property", Property: &PropertyRef{
+		ID: "p1", Type: "select", Options: []string{"todo", "doing", "done"},
+	}}}.Normalize()
+	sortReordered := Query{WorkspaceID: "w", Sort: Sort{Field: "property", Property: &PropertyRef{
+		ID: "p1", Type: "select", Options: []string{"doing", "todo", "done"},
+	}}}.Normalize()
+	if Fingerprint(sortA) == Fingerprint(sortReordered) {
+		t.Fatal("reordering a sort property's select options must change the fingerprint")
+	}
+	sortRetyped := Query{WorkspaceID: "w", Sort: Sort{Field: "property", Property: &PropertyRef{
+		ID: "p1", Type: "text", Options: []string{"todo", "doing", "done"},
+	}}}.Normalize()
+	if Fingerprint(sortA) == Fingerprint(sortRetyped) {
+		t.Fatal("changing a sort property's type must change the fingerprint")
+	}
+
+	groupA := Query{WorkspaceID: "w", Group: Group{Kind: GroupKindProperty, Property: &PropertyRef{
+		ID: "p1", Type: "select", Options: []string{"todo", "doing", "done"},
+	}}}.Normalize()
+	groupReordered := Query{WorkspaceID: "w", Group: Group{Kind: GroupKindProperty, Property: &PropertyRef{
+		ID: "p1", Type: "select", Options: []string{"doing", "todo", "done"},
+	}}}.Normalize()
+	if Fingerprint(groupA) == Fingerprint(groupReordered) {
+		t.Fatal("reordering a group property's select options must change the fingerprint")
+	}
+	groupRetyped := Query{WorkspaceID: "w", Group: Group{Kind: GroupKindProperty, Property: &PropertyRef{
+		ID: "p1", Type: "checkbox", Options: []string{"todo", "doing", "done"},
+	}}}.Normalize()
+	if Fingerprint(groupA) == Fingerprint(groupRetyped) {
+		t.Fatal("changing a group property's type must change the fingerprint")
+	}
+}

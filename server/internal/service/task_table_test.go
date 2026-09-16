@@ -452,6 +452,24 @@ func TestTableRowsCursorErrors(t *testing.T) {
 		TableQueryInput: grouped, GroupKey: strPtr("status:done"), Cursor: todo.NextCursor, Limit: 2,
 	})
 	wantTableCode(t, err, 409, "cursor_query_mismatch")
+
+	// A cursor minted under one hierarchy parent must not be reusable under
+	// another; ParentID is part of the cursor's scope, not just GroupKey.
+	parentA := mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "PA"})
+	parentB := mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "PB"})
+	mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "CA1", ParentTaskID: &parentA.ID})
+	mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "CA2", ParentTaskID: &parentA.ID})
+	mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "CB1", ParentTaskID: &parentB.ID})
+	underA, err := s.TableRows(ctx, actor, w.ID, TableRowsInput{
+		TableQueryInput: TableQueryInput{Hierarchy: true}, ParentID: &parentA.ID, Limit: 1,
+	})
+	if err != nil || underA.NextCursor == nil {
+		t.Fatalf("parentA page: err=%v next=%v", err, underA.NextCursor)
+	}
+	_, err = s.TableRows(ctx, actor, w.ID, TableRowsInput{
+		TableQueryInput: TableQueryInput{Hierarchy: true}, ParentID: &parentB.ID, Cursor: underA.NextCursor, Limit: 1,
+	})
+	wantTableCode(t, err, 409, "cursor_query_mismatch")
 }
 
 func TestTableRowsTotalIsBranchTotal(t *testing.T) {
@@ -485,5 +503,49 @@ func TestTableRowsTotalIsBranchTotal(t *testing.T) {
 	}
 	if seen != 5 {
 		t.Fatalf("rows across pages = %d, want 5", seen)
+	}
+}
+
+// TestTableGroupsFilterByProjectID is the table half of what used to be
+// TestQueryAndTableFilterByProjectID (see TestQueryTasksFilterByProjectID in
+// task_query_test.go for the QueryTasks half); split so only
+// task_table*.go files import pkg/db/tablequery (ADR 0020).
+func TestTableGroupsFilterByProjectID(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	projectA, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Project A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectB, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Project B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	taskA := mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "In A"})
+	taskB := mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "In B"})
+	linkTask := func(taskID, projectID string) {
+		t.Helper()
+		if _, err := s.pool.Exec(ctx,
+			`UPDATE tasks SET project_id = $1 WHERE id = $2 AND organization_id = $3 AND workspace_id = $4`,
+			projectID, taskID, w.OrganizationID, w.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	linkTask(taskA.ID, projectA.ID)
+	linkTask(taskB.ID, projectB.ID)
+
+	groups, err := s.TableGroups(ctx, actor, w.ID, TableQueryInput{
+		Filter:  tablequery.Filter{ProjectIDs: []string{projectA.ID}},
+		GroupBy: "status",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if groups.Total != 1 {
+		t.Fatalf("TableGroups total = %d, want 1", groups.Total)
 	}
 }
