@@ -22,11 +22,18 @@ const statusRankExpr = `COALESCE((SELECT s.position FROM task_statuses s WHERE s
 const priorityRankExpr = `CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`
 
 // sortSpec is the whitelisted sort expression with the cast used to compare a
-// cursor value against it.
+// cursor value against it. ascOnly marks expressions that ignore Sort.Desc
+// (position, including the defensive fallback).
 type sortSpec struct {
 	expr     string
 	cast     string
 	nullable bool
+	ascOnly  bool
+}
+
+// descending reports the effective direction for this sort.
+func (s sortSpec) descending(desc bool) bool {
+	return desc && !s.ascOnly
 }
 
 // sortExpr resolves q.Sort to a whitelisted expression. Property ids and
@@ -36,17 +43,17 @@ func (b *builder) sortExpr() sortSpec {
 	s := b.q.Sort
 	switch s.Field {
 	case "position":
-		return sortSpec{"t.position", "::float8", false}
+		return sortSpec{"t.position", "::float8", false, true}
 	case "title":
-		return sortSpec{"LOWER(t.title)", "::text", false}
+		return sortSpec{"LOWER(t.title)", "::text", false, false}
 	case "created_at", "updated_at":
-		return sortSpec{"t." + s.Field, "::timestamptz", false}
+		return sortSpec{"t." + s.Field, "::timestamptz", false, false}
 	case "start_date", "due_date":
-		return sortSpec{"t." + s.Field, "::date", true}
+		return sortSpec{"t." + s.Field, "::date", true, false}
 	case "status":
-		return sortSpec{statusRankExpr, "::float8", false}
+		return sortSpec{statusRankExpr, "::float8", false, false}
 	case "priority":
-		return sortSpec{priorityRankExpr, "::int", false}
+		return sortSpec{priorityRankExpr, "::int", false, false}
 	case "property":
 		p := s.Property
 		if p == nil {
@@ -54,24 +61,26 @@ func (b *builder) sortExpr() sortSpec {
 		}
 		switch p.Type {
 		case "number":
-			return sortSpec{fmt.Sprintf("NULLIF(t.properties->>%s::text,'')::numeric", b.a.add(p.ID)), "::numeric", true}
+			// Property values are not type-checked on write: non-numbers
+			// sort as NULL instead of failing the cast for the whole query.
+			return sortSpec{fmt.Sprintf("CASE WHEN jsonb_typeof(t.properties->%[1]s::text) = 'number' THEN (t.properties->>%[1]s::text)::numeric END", b.a.add(p.ID)), "::numeric", true, false}
 		case "date", "text", "url":
-			return sortSpec{fmt.Sprintf("NULLIF(t.properties->>%s::text,'')", b.a.add(p.ID)), "::text", true}
+			return sortSpec{fmt.Sprintf("NULLIF(t.properties->>%s::text,'')", b.a.add(p.ID)), "::text", true, false}
 		case "select":
 			opts := p.Options
 			if opts == nil {
 				opts = []string{}
 			}
-			return sortSpec{fmt.Sprintf("array_position(%s::text[], t.properties->>%s::text)", b.a.add(opts), b.a.add(p.ID)), "::int", true}
+			return sortSpec{fmt.Sprintf("array_position(%s::text[], t.properties->>%s::text)", b.a.add(opts), b.a.add(p.ID)), "::int", true, false}
 		}
 	}
 	// Normalize never leaves an unknown field; defend by sorting by position.
-	return sortSpec{"t.position", "::float8", false}
+	return sortSpec{"t.position", "::float8", false, true}
 }
 
 func (s sortSpec) orderBy(desc bool) string {
 	dir := "ASC"
-	if desc {
+	if s.descending(desc) {
 		dir = "DESC"
 	}
 	tail := "t.created_at DESC, t.id DESC"
@@ -89,7 +98,7 @@ func (b *builder) keyset(s sortSpec, desc bool, c *Cursor) string {
 		return fmt.Sprintf("((%s) IS NULL AND %s)", s.expr, tail)
 	}
 	op := ">"
-	if desc {
+	if s.descending(desc) {
 		op = "<"
 	}
 	var v string

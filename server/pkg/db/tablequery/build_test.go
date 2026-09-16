@@ -77,3 +77,35 @@ func TestSearchEscapesLikeWildcards(t *testing.T) {
 		t.Fatalf("escaped pattern missing from args: %v", args)
 	}
 }
+
+func TestNumberPropertySortGuardsNonNumbers(t *testing.T) {
+	q := baseQuery()
+	q.Sort = Sort{Field: "property", Property: &PropertyRef{ID: "n1", Type: "number"}}
+	sql, _ := BuildRows(RowsRequest{Query: q, Limit: 10})
+	if !strings.Contains(sql, "CASE WHEN jsonb_typeof(t.properties->$3::text) = 'number' THEN (t.properties->>$3::text)::numeric END") {
+		t.Fatalf("number sort without jsonb_typeof guard: %s", sql)
+	}
+	if strings.Contains(sql, "'')::numeric") {
+		t.Fatalf("unguarded numeric cast still present: %s", sql)
+	}
+}
+
+func TestNormalizeCoercesUnknownSortToPositionAsc(t *testing.T) {
+	for name, s := range map[string]Sort{
+		"unknown field":   {Field: "foo", Desc: true},
+		"person property": {Field: "property", Desc: true, Property: &PropertyRef{ID: "x", Type: "person"}},
+	} {
+		got := Query{Sort: s}.Normalize().Sort
+		if got.Field != "position" || got.Desc || got.Property != nil {
+			t.Errorf("%s: Normalize sort = %+v, want position asc", name, got)
+		}
+	}
+}
+
+func TestSortExprFallbackIsAscending(t *testing.T) {
+	q := Query{OrganizationID: "o", WorkspaceID: "w", Sort: Sort{Field: "foo", Desc: true}}
+	sql, _ := BuildRows(RowsRequest{Query: q, Limit: 10})
+	if strings.Contains(sql, "t.position DESC") || !strings.Contains(sql, "t.position ASC") {
+		t.Fatalf("fallback sort not ascending: %s", sql)
+	}
+}

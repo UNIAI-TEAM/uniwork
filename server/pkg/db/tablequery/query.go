@@ -82,16 +82,32 @@ func (q Query) Normalize() Query {
 	if q.Sort.Field == "" {
 		q.Sort.Field = "position"
 	}
+	if !sortFields[q.Sort.Field] {
+		q.Sort = Sort{Field: "position"}
+	}
 	if q.Sort.Field == "property" {
-		if q.Sort.Property == nil || q.Sort.Property.Type == "multi_select" || q.Sort.Property.Type == "checkbox" {
+		if q.Sort.Property == nil || !sortPropertyTypes[q.Sort.Property.Type] {
 			q.Sort = Sort{Field: "position"}
 		}
+	} else {
+		q.Sort.Property = nil
 	}
 	if q.Sort.Field == "position" {
 		q.Sort.Desc = false
 	}
 
 	return q
+}
+
+// sortFields is the whitelist of sort fields; anything else sorts by position.
+var sortFields = map[string]bool{
+	"position": true, "title": true, "created_at": true, "updated_at": true,
+	"start_date": true, "due_date": true, "status": true, "priority": true, "property": true,
+}
+
+// sortPropertyTypes are the property types that can be sorted on.
+var sortPropertyTypes = map[string]bool{
+	"text": true, "number": true, "select": true, "date": true, "url": true,
 }
 
 // normalizeSlice sorts and dedupes s, always returning a non-nil (possibly
