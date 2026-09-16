@@ -43,8 +43,13 @@ export interface UseTableViewDataResult {
   isLoading: boolean;
   isRefreshing: boolean;
   isEmpty: boolean;
+  /** The search the shown rows answer, trimmed; empty when there is none. */
+  search: string;
   groupBy: string;
+  /** The table has nothing to show because its groups (or its only branch) failed. */
   groupsError: boolean;
+  /** Asks the failed groups, or the failed ungrouped table, again. */
+  retry: () => void;
 }
 
 /**
@@ -95,6 +100,7 @@ export function useTableViewData({
   const groupsQuery = useTableGroups(
     workspaceId,
     grouped ? tableGroupsBody({ query, groupBy }) : null,
+    { keepPrevious: true },
   );
   const unsupportedGroup =
     groupsQuery.error instanceof ApiError && groupsQuery.error.code === UNSUPPORTED_GROUP;
@@ -129,13 +135,18 @@ export function useTableViewData({
     expandedParents: parentsInView,
     baseBody: { query, group_by: groupBy, hierarchy, limit: TABLE_PAGE_SIZE },
   });
-  const { byKey, isRefreshing: branchesRefreshing } = useCursorBranches(workspaceId, branches);
+  const { byKey, isRefreshing: branchesRefreshing } = useCursorBranches(workspaceId, branches, {
+    keepPreviousFirstPage: true,
+  });
 
   const walkInput = useMemo(
     () => ({ groupBy, groups, branches: byKey, collapsedGroups, hierarchy, expandedParents: expandedIds }),
     [byKey, collapsedGroups, expandedIds, groupBy, groups, hierarchy],
   );
-  const nextParents = useMemo(() => expandedParentsInView(walkInput), [walkInput]);
+  const nextParents = useMemo(
+    () => keepPendingParents(expandedParentsInView(walkInput), parentsInView, walkInput),
+    [walkInput, parentsInView],
+  );
   if (tableParentsSignature(nextParents) !== tableParentsSignature(parentsInView)) {
     setParentsInView(nextParents.length > 0 ? nextParents : NO_PARENTS);
   }
@@ -201,6 +212,13 @@ export function useTableViewData({
     : (ungrouped?.total ?? loadedTasks.length);
   const isEmpty = !isLoading && total === 0;
 
+  const refetchGroups = groupsQuery.refetch;
+  const retryUngrouped = ungrouped?.retry;
+  const retry = useCallback(() => {
+    if (grouped) void refetchGroups();
+    else retryUngrouped?.();
+  }, [grouped, refetchGroups, retryUngrouped]);
+
   return {
     displayRows,
     loadedTasks,
@@ -208,9 +226,42 @@ export function useTableViewData({
     isLoading,
     isRefreshing,
     isEmpty,
+    search: query.search ?? "",
     groupBy,
     groupsError: grouped
       ? groupsQuery.isError && !unsupportedGroup
       : !!ungrouped?.isError && ungrouped.rows.length === 0,
+    retry,
   };
+}
+
+/**
+ * The walk only sees parents under roots that have rows. While a root is still
+ * on its way (its groups, or its first page, not there yet), the parents it
+ * showed before stay planned — if still open — so their children are asked with
+ * the roots, not one level after another once the roots arrive.
+ */
+function keepPendingParents(
+  next: TableParentRef[],
+  previous: TableParentRef[],
+  walk: {
+    groupBy: string;
+    groups: TableGroupsResult["groups"] | undefined;
+    branches: ReadonlyMap<string, { isLoading: boolean }>;
+    expandedParents: ReadonlySet<string>;
+  },
+): TableParentRef[] {
+  const rootPending = (groupKey: string | null) => {
+    if (walk.groupBy !== "none" && !walk.groups) return true;
+    const root = walk.branches.get(tableBranchKey(groupKey, null));
+    return !root || root.isLoading;
+  };
+  const planned = new Set(next.map((parent) => tableBranchKey(parent.groupKey, parent.parentId)));
+  const kept = previous.filter(
+    (parent) =>
+      walk.expandedParents.has(parent.parentId) &&
+      !planned.has(tableBranchKey(parent.groupKey, parent.parentId)) &&
+      rootPending(parent.groupKey),
+  );
+  return kept.length > 0 ? [...next, ...kept] : next;
 }

@@ -195,13 +195,43 @@ export function useSetTaskDependency(workspaceId: string) {
   });
 }
 
-export function useTableGroups(workspaceId: string, body: table.TableGroupsBody | null) {
+/** The `group_by` a groups key was hashed from, or undefined for a key of another shape. */
+function groupByOfKey(queryKey: readonly unknown[]): unknown {
+  const hash = queryKey[3];
+  if (typeof hash !== "string") return undefined;
+  try {
+    return (JSON.parse(hash) as { group_by?: unknown } | null)?.group_by;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The table's groups. With `keepPrevious`, a changed query (a search, a filter)
+ * keeps showing the last groups of the same workspace and `group_by` until the
+ * new ones arrive; a changed grouping starts empty, since the old groups' keys
+ * mean nothing to it.
+ */
+export function useTableGroups(
+  workspaceId: string,
+  body: table.TableGroupsBody | null,
+  options: { keepPrevious?: boolean } = {},
+) {
   const hash = stableHash(body);
+  const keepPrevious = options.keepPrevious ?? false;
   return useQuery({
     queryKey: taskKeys.tableGroups(workspaceId, hash),
     queryFn: () => table.tableGroups(workspaceId, body!),
     enabled: !!workspaceId && !!body,
     retry: tableQueryRetry,
+    placeholderData: keepPrevious
+      ? (previous: table.TableGroupsResult | undefined, previousQuery?: { queryKey: readonly unknown[] }) =>
+          previousQuery &&
+          previousQuery.queryKey[1] === workspaceId &&
+          groupByOfKey(previousQuery.queryKey) === body?.group_by
+            ? previous
+            : undefined
+      : undefined,
   });
 }
 

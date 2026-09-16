@@ -11,8 +11,8 @@ import { requestMock } from "./request-mock";
 type Params = Record<string, unknown>;
 
 interface TableCursorServerOptions {
-  /** Rows in one branch; `parentId` is null for top-level rows. */
-  count: (groupKey: string | null, parentId: string | null) => number;
+  /** Rows in one branch; `parentId` is null for top-level rows. `search` is the query's search. */
+  count: (groupKey: string | null, parentId: string | null, search?: string) => number;
   /** What pages claim as the branch total, when it differs from the rows served. */
   claimed?: (groupKey: string | null, parentId: string | null) => number;
   /**
@@ -26,6 +26,8 @@ interface TableCursorServerOptions {
   childCount?: (groupKey: string | null, parentId: string | null, index: number) => number;
   /** Groups for a `group_by`; an `Error` returned is thrown instead. */
   groups?: (groupBy: string) => TableGroupDescriptor[] | Error;
+  /** Requests (rows or groups body) held until `release()`. */
+  hold?: (body: Params) => boolean;
 }
 
 export const encodeCursor = (offset: number) => btoa(String(offset));
@@ -38,12 +40,17 @@ export function serveTableCursor(options: TableCursorServerOptions) {
   const requestsPerPage = new Map<string, number>();
   // Bumped by `change()`: every row's title then differs, as after an edit.
   let version = 0;
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
 
   requestMock.mockReset();
   requestMock.mockImplementation(async (path: string, init?: { body?: unknown }) => {
     if (path.includes("/tasks/table/groups") && options.groups) {
       const body: Params = { ...(init?.body as Params | undefined) };
       groupBodies.push(body);
+      if (options.hold?.(body)) await held;
       const groups = options.groups(String(body.group_by));
       if (groups instanceof Error) throw groups;
       return {
@@ -58,6 +65,7 @@ export function serveTableCursor(options: TableCursorServerOptions) {
     }
     const body: Params = { ...(init?.body as Params | undefined) };
     rowBodies.push(body);
+    if (options.hold?.(body)) await held;
     const groupKey = typeof body.group_key === "string" ? body.group_key : null;
     const parentId = typeof body.parent_id === "string" ? body.parent_id : null;
     const offset = decodeCursor(body.cursor);
@@ -72,7 +80,7 @@ export function serveTableCursor(options: TableCursorServerOptions) {
       failed.add(`409:${page}`);
       throw new ApiError("cursor does not match the query", "cursor_query_mismatch", 409);
     }
-    const total = options.count(groupKey, parentId);
+    const total = options.count(groupKey, parentId, (body.query as { search?: string } | undefined)?.search);
     const end = Math.min(total, offset + limit);
     const rows = Array.from({ length: Math.max(0, end - offset) }, (_, k) => {
       const index = offset + k;
@@ -102,6 +110,8 @@ export function serveTableCursor(options: TableCursorServerOptions) {
     groupBodies,
     /** Every rows request as `group_key@cursor`, `null` for the first page. */
     rowRequests: () => rowBodies.map((body) => `${String(body.group_key)}@${String(body.cursor)}`),
+    /** Lets every held request answer. */
+    release: () => release(),
     change: () => {
       version += 1;
     },

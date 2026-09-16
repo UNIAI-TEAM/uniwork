@@ -36,7 +36,7 @@ export interface CursorBranchState {
 
 type PageState = Pick<
   UseQueryResult<TableRowsResult>,
-  "data" | "error" | "isLoading" | "isError" | "isFetching" | "dataUpdatedAt" | "refetch"
+  "data" | "error" | "isLoading" | "isError" | "isFetching" | "isPlaceholderData" | "dataUpdatedAt" | "refetch"
 >;
 
 /**
@@ -46,15 +46,18 @@ type PageState = Pick<
  * every render, and a caller memoizing on it renders forever.
  */
 function pickPageStates(results: readonly PageState[]): PageState[] {
-  return results.map(({ data, error, isLoading, isError, isFetching, dataUpdatedAt, refetch }) => ({
-    data,
-    error,
-    isLoading,
-    isError,
-    isFetching,
-    dataUpdatedAt,
-    refetch,
-  }));
+  return results.map(
+    ({ data, error, isLoading, isError, isFetching, isPlaceholderData, dataUpdatedAt, refetch }) => ({
+      data,
+      error,
+      isLoading,
+      isError,
+      isFetching,
+      isPlaceholderData,
+      dataUpdatedAt,
+      refetch,
+    }),
+  );
 }
 
 const FIRST_PAGE: readonly (string | null)[] = [null];
@@ -99,8 +102,21 @@ function mergeRows(pages: readonly PageState[]): TableRowsResult["rows"] {
 export function useCursorBranches(
   workspaceId: string,
   branches: CursorBranchSpec[],
+  options: {
+    /**
+     * A branch whose query changed (a search, a sort) keeps showing its last
+     * first page until the new one arrives, instead of starting empty. The
+     * table uses it so the rows, and the expanded parents under them, stay on
+     * screen. `useQueries` gives a new query key a new observer, so the
+     * previous data is kept here, per branch key, not by `keepPreviousData`.
+     */
+    keepPreviousFirstPage?: boolean;
+  } = {},
 ): { byKey: ReadonlyMap<string, CursorBranchState>; isRefreshing: boolean } {
   const [cursorsByBranch, setCursorsByBranch] = useState<Cursors>({});
+  const keepPreviousFirstPage = options.keepPreviousFirstPage ?? false;
+  // `workspace|branch key` → the branch's last first page that was real data.
+  const lastFirstPages = useRef(new Map<string, TableRowsResult>());
 
   // Callers rebuild `branches` each render; the signature keeps the work below
   // (and its identity) tied to what the branches ask, not to the array.
@@ -131,6 +147,9 @@ export function useCursorBranches(
       b.bodies.map((body) => ({
         ...tableRowsPageQuery(workspaceId, body),
         enabled: b.enabled && !!workspaceId,
+        ...(keepPreviousFirstPage && body.cursor === null
+          ? { placeholderData: () => lastFirstPages.current.get(`${workspaceId}|${b.key}`) }
+          : {}),
       })),
     ),
     combine: pickPageStates,
@@ -165,8 +184,9 @@ export function useCursorBranches(
   useEffect(() => {
     for (const b of prepared) {
       const pages = pagesOf.get(b.stateKey) ?? [];
-      const data = pages[0]?.data;
+      const data = pages[0]?.isPlaceholderData ? undefined : pages[0]?.data;
       if (data !== undefined) {
+        lastFirstPages.current.set(`${workspaceId}|${b.key}`, data);
         const seen = firstPageData.current.get(b.stateKey);
         firstPageData.current.set(b.stateKey, data);
         if (seen !== undefined && seen !== data && pages.length > 1) {
@@ -187,7 +207,7 @@ export function useCursorBranches(
         resetBranch(b.stateKey);
       }
     }
-  }, [prepared, pagesOf, resetBranch]);
+  }, [prepared, pagesOf, resetBranch, workspaceId]);
 
   const byKey = useMemo(() => {
     const map = new Map<string, CursorBranchState>();

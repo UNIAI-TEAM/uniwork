@@ -33,6 +33,7 @@ import { useTableColumnDefs } from "./table-view-columns";
 import type { TableViewMeta } from "./table-view-meta";
 import { isRowControlTarget } from "./row-navigation";
 import { TableViewToolbar, type TablePropertyGrouping } from "./table-view-toolbar";
+import { TableEmptyMessage, TableLoadErrorState, TableRefreshingBar } from "./table-view-states";
 import {
   getTaskTableSelectionRange,
   type TaskTableDisplayRow,
@@ -359,47 +360,50 @@ export function TableView({
         propertiesDisabledReason={t(propertiesDisabledReasonKey)}
       />
       {data.groupsError ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-body text-muted-foreground">
-          {t("tasks.table.load_error")}
-        </div>
+        <TableLoadErrorState onRetry={data.retry} />
       ) : (
-        <DataTable
-          table={table}
-          className="min-h-0 flex-1"
-          virtualizeRows={data.displayRows.length > 40}
-          virtualRowHeight={40}
-          emptyMessage={t("tasks.table.empty")}
-          onRowClick={(row, event) => {
-            if (row.original.kind === "group") {
-              toggleTableGroupCollapsed(row.original.key);
-              return;
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {data.isRefreshing ? <TableRefreshingBar /> : null}
+          <DataTable
+            table={table}
+            className="min-h-0 flex-1"
+            virtualizeRows={data.displayRows.length > 40}
+            virtualRowHeight={40}
+            emptyMessage={
+              <TableEmptyMessage search={data.search} onClearSearch={() => setSearch("")} />
             }
-            if (row.original.kind !== "task" || !onOpenTask) return;
-            if (isRowControlTarget(event.target)) return;
-            onOpenTask(row.original.task.id);
-          }}
-          renderRow={(row) => {
-            if (row.original.kind === "group") {
-              return (
-                <TaskTableGroupRow
-                  group={row.original}
-                  color={row.original.color}
-                  colSpan={table.getVisibleLeafColumns().length}
-                  onToggle={() => toggleTableGroupCollapsed(row.original.key)}
-                />
-              );
-            }
-            if (row.original.kind === "load_more") {
-              return (
-                <TaskTableLoadMoreRow
-                  row={row.original}
-                  colSpan={table.getVisibleLeafColumns().length}
-                />
-              );
-            }
-            return null;
-          }}
-        />
+            onRowClick={(row, event) => {
+              if (row.original.kind === "group") {
+                toggleTableGroupCollapsed(row.original.key);
+                return;
+              }
+              if (row.original.kind !== "task" || !onOpenTask) return;
+              if (isRowControlTarget(event.target)) return;
+              onOpenTask(row.original.task.id);
+            }}
+            renderRow={(row) => {
+              if (row.original.kind === "group") {
+                return (
+                  <TaskTableGroupRow
+                    group={row.original}
+                    color={row.original.color}
+                    colSpan={table.getVisibleLeafColumns().length}
+                    onToggle={() => toggleTableGroupCollapsed(row.original.key)}
+                  />
+                );
+              }
+              if (row.original.kind === "load_more") {
+                return (
+                  <TaskTableLoadMoreRow
+                    row={row.original}
+                    colSpan={table.getVisibleLeafColumns().length}
+                  />
+                );
+              }
+              return null;
+            }}
+          />
+        </div>
       )}
       <BatchActionToolbar
         workspaceId={workspaceId}

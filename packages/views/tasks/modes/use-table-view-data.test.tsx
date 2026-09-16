@@ -257,6 +257,74 @@ describe("useTableViewData", () => {
     ]);
   });
 
+  it("keeps the rows and open sub-tasks on screen while a changed search loads, and asks the children at once", async () => {
+    const server = serveTableCursor({
+      count: (_group, parentId) => (parentId ? 1 : 2),
+      childCount: (_group, parentId, index) => (!parentId && index === 0 ? 1 : 0),
+      hold: (body) => (body.query as { search?: string }).search === "x" && body.parent_id === null,
+    });
+    const { result, store, rerender } = renderTableData("none");
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
+    act(() => store.getState().toggleTableParentExpanded("null-0"));
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(3));
+    const shape = () =>
+      result.current.displayRows.map((row) => (row.kind === "task" ? `${row.key}@${row.depth}` : row.kind));
+
+    rerender({ search: "x" });
+    const searched = () =>
+      server.rowBodies.filter((body) => (body.query as { search?: string }).search === "x");
+    // The roots are held: the child branch is asked under the new query anyway.
+    await waitFor(() => expect(searched().map((body) => body.parent_id).sort()).toEqual([null, "null-0"]), {
+      timeout: 1500,
+    });
+    await waitFor(() => expect(result.current.isRefreshing).toBe(true));
+    expect(result.current.isLoading).toBe(false);
+    expect(shape()).toEqual(["null-0@0", "null/null-0-0@1", "null-1@0"]);
+
+    server.release();
+    await waitFor(() => expect(result.current.isRefreshing).toBe(false));
+    expect(shape()).toEqual(["null-0@0", "null/null-0-0@1", "null-1@0"]);
+  });
+
+  it("keeps the groups on screen while a changed search loads them again", async () => {
+    const server = serveTableCursor({
+      count: () => 1,
+      groups: () => [
+        { key: "status:todo", value: { kind: "status", status: "todo" }, count: 1 },
+      ],
+      hold: (body) => (body.query as { search?: string }).search === "x",
+    });
+    const { result, rerender } = renderTableData("status");
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(1));
+
+    rerender({ search: "x" });
+    await waitFor(() => expect(server.groupBodies).toHaveLength(2), { timeout: 1500 });
+    await waitFor(() => expect(result.current.isRefreshing).toBe(true));
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.displayRows.map((row) => row.kind)).toEqual(["group", "task"]);
+    server.release();
+    await waitFor(() => expect(result.current.isRefreshing).toBe(false));
+  });
+
+  it("starts a changed grouping from skeletons, not the old grouping's groups", async () => {
+    const server = serveTableCursor({
+      count: () => 1,
+      groups: (groupBy) => [
+        { key: `${groupBy}:a`, value: { kind: groupBy }, count: 1 },
+      ],
+      hold: (body) => body.group_by === "priority" && body.group_key === undefined,
+    });
+    const { result, store } = renderTableData("status");
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(1));
+
+    act(() => store.getState().setTableGrouping("priority"));
+    await waitFor(() => expect(server.groupBodies).toHaveLength(2));
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.displayRows.some((row) => row.kind === "group")).toBe(false);
+    server.release();
+    await waitFor(() => expect(result.current.displayRows[0]).toMatchObject({ kind: "group", key: "priority:a" }));
+  });
+
   it("falls back to no grouping with one notice when the server cannot group by a property", async () => {
     const infoMock = vi.mocked(toast.info);
     infoMock.mockClear();
