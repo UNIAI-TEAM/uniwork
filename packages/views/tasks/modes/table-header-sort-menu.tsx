@@ -71,9 +71,13 @@ export function TableHeaderSortMenu({
   const active = sortField !== undefined && sortBy === sortField;
   const hideable = columnKey !== "title";
   return (
-    <div className="-mx-4 -my-2 flex h-[calc(100%+1rem)] min-w-0 items-center px-4">
+    // One 16px line, no vertical padding: DataTable's header cell is h-8 py-2
+    // (a 16px content box), and a reorderable column wraps this in an
+    // overflow-hidden span exactly one line tall. Anything taller grows the
+    // row and clips the label's top, diacritics first.
+    <div className="flex min-w-0 items-center">
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex min-w-0 items-center gap-1 rounded px-1.5 py-1 hover:bg-accent">
+        <DropdownMenuTrigger className="flex min-w-0 items-center gap-1 rounded px-1.5 hover:bg-accent">
           <span className="truncate">{label}</span>
           {active ? (
             sortDirection === "asc" ? (

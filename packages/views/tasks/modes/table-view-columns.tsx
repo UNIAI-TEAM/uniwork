@@ -40,7 +40,8 @@ function SelectHeader({
   return (
     <input
       type="checkbox"
-      className="size-4 accent-primary"
+      // Block, not inline: on the baseline the line's descent grows the header row.
+      className="block size-4 accent-primary"
       checked={checked}
       ref={(node) => {
         if (node) node.indeterminate = indeterminate;
@@ -116,7 +117,11 @@ function AddColumnHeader({
         <button
           type="button"
           aria-label={t("tasks.table.columns.add")}
-          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          // Block-level (flex): an inline-block sits on the text baseline and
+          // the line's descent grows the header row. -my-1 keeps the 22px
+          // button to the 16px content box, overflowing into the cell's
+          // unclipped py-2.
+          className="-my-1 flex rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <Plus className="size-3.5" aria-hidden />
         </button>
