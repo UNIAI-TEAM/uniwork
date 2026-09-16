@@ -8,6 +8,7 @@ import { useCallRingtone } from "./use-call-ringtone";
 import { VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-floating-panel";
 import { PreConnectFloatingCall } from "./voice-call-pre-connect";
 import type { VoiceCallOverlayState } from "./voice-call-overlay-types";
+import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
 
 // livekit-client is 130 KB gzip and only a connected call needs it, so it
 // loads on the transition to "active" rather than with the chat route
@@ -25,6 +26,7 @@ export function VoiceCallOverlay({
   onAccept,
   onDecline,
   onLeave,
+  onDisconnected,
   onEndForAll,
   onConnected,
 }: {
@@ -33,6 +35,7 @@ export function VoiceCallOverlay({
   onAccept: () => void;
   onDecline: () => void;
   onLeave: () => void;
+  onDisconnected: () => void;
   onEndForAll: () => void;
   onConnected: () => void;
 }) {
@@ -41,12 +44,19 @@ export function VoiceCallOverlay({
 
   const handleConnectFailed = () => {
     toast.error(t("chat.voice_call_connect_failed"));
+    if (
+      state.status === "connecting" &&
+      (state.callKind === "dm" || (isMultiPartyVoiceCall(state.callKind) && state.outgoing))
+    ) {
+      onEndForAll();
+      return;
+    }
     onLeave();
   };
 
   const cancelPreConnect = () => {
     if (state.status === "connecting" || state.status === "ringing") {
-      if (state.callKind === "group" && state.outgoing) {
+      if (isMultiPartyVoiceCall(state.callKind) && state.outgoing) {
         onEndForAll();
         return;
       }
@@ -86,7 +96,7 @@ export function VoiceCallOverlay({
 
   if (state.status === "incoming") {
     const statusLabel =
-      state.callKind === "group"
+      isMultiPartyVoiceCall(state.callKind)
         ? t("chat.voice_call_incoming_group", {
             caller: state.callerName ?? state.peerName,
             group: state.peerName,
@@ -116,7 +126,7 @@ export function VoiceCallOverlay({
 
   if (state.status === "ringing") {
     const statusLabel =
-      state.callKind === "group"
+      isMultiPartyVoiceCall(state.callKind)
         ? t("chat.voice_call_group_calling")
         : t("chat.voice_call_calling");
     return (
@@ -135,9 +145,9 @@ export function VoiceCallOverlay({
 
   if (state.status === "connecting") {
     const cancelLabel =
-      state.callKind === "group" && state.outgoing
+      isMultiPartyVoiceCall(state.callKind) && state.outgoing
         ? t("chat.voice_call_end_for_all")
-        : state.callKind === "group"
+        : isMultiPartyVoiceCall(state.callKind)
           ? t("chat.voice_call_leave")
           : t("chat.voice_call_end");
     return (
@@ -172,6 +182,7 @@ export function VoiceCallOverlay({
         onMinimize={handleMinimize}
         onMaximize={handleMaximize}
         onLeave={onLeave}
+        onDisconnected={onDisconnected}
         onEndForAll={onEndForAll}
         onConnected={onConnected}
         onConnectFailed={handleConnectFailed}

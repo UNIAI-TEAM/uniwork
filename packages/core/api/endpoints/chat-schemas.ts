@@ -43,9 +43,39 @@ export const ChatMessageSchema = z.object({
       outcome: z.string(),
       duration_seconds: z.number().optional(),
       caller_id: z.string(),
+      participants: z
+        .array(
+          z.object({
+            user_id: z.string(),
+            display_name: z.string().optional().default(""),
+          }),
+        )
+        .optional(),
       recording_id: z.string().optional(),
       recording_status: z.string().optional(),
       recording_url: z.string().optional(),
+    })
+    .optional(),
+  voice_call_summary: z
+    .object({
+      call_id: z.string(),
+      call_log_message_id: z.string(),
+      summary: z.string().optional().default(""),
+      highlights: z
+        .array(z.string())
+        .nullish()
+        .transform((value) => value ?? []),
+      action_items: z
+        .array(
+          z.object({
+            title: z.string(),
+            owner: z.string().optional().default(""),
+            due: z.string().optional().default(""),
+            source_message_id: z.string().optional().default(""),
+          }),
+        )
+        .nullish()
+        .transform((value) => value ?? []),
     })
     .optional(),
   voice: z

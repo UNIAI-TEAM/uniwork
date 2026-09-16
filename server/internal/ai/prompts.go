@@ -8,9 +8,10 @@ import (
 
 // Prompt keys used by callers.
 const (
-	PromptMeetingSummary = "meeting_summary@1"
-	PromptCopilotAnswer  = "copilot_answer@1"
-	PromptChatCatchUp    = "chat_catchup@1"
+	PromptMeetingSummary  = "meeting_summary@1"
+	PromptCopilotAnswer   = "copilot_answer@1"
+	PromptChatCatchUp     = "chat_catchup@1"
+	PromptChatCallSummary = "chat_call_summary@1"
 )
 
 type TranscriptLine struct {
@@ -108,6 +109,31 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 			var b strings.Builder
 			fmt.Fprintf(&b, "Output language: %s\nToday: %s\nScope: %s\nMessages since: %s\n\n",
 				language(str(vars, "locale")), str(vars, "today"), str(vars, "scope"), str(vars, "since"))
+			if src := str(vars, "sources"); src != "" {
+				fmt.Fprintf(&b, "Sources:\n%s\n", src)
+			} else {
+				b.WriteString("Sources: (none)\n")
+			}
+			return b.String()
+		},
+	})
+
+	register(Prompt{
+		ID: "chat_call_summary", Version: 1,
+		System: `You summarize a completed voice call in a Vietnamese work chat room.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"summary": string, "highlights": string[], "action_items": [{"title": string, "owner": string, "due": string, "source_id": string}]}
+- "summary": 2-5 sentences on what was discussed or decided during the call.
+- "highlights": short bullet facts; empty array if none.
+- "action_items": concrete follow-ups; "title" is imperative; "owner" is a display name from the sources or ""; "due" as spoken or ""; "source_id" is the [S#] of the chat line that motivated the item when known, else "".
+- When only call metadata is present (no chat lines), summarize who joined and the call length; do not invent discussion topics.
+- Write every string in the language named by the caller. Tone: helpful colleague, no emojis.
+` + UntrustedFooter,
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"highlights":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"source_id":{"type":"string"}},"required":["title","owner","due","source_id"],"additionalProperties":false}}},"required":["summary","highlights","action_items"],"additionalProperties":false}`),
+		Render: func(vars map[string]any) string {
+			var b strings.Builder
+			fmt.Fprintf(&b, "Output language: %s\nToday: %s\nCall duration: %s\nParticipants: %s\n\n",
+				language(str(vars, "locale")), str(vars, "today"), str(vars, "duration"), str(vars, "participants"))
 			if src := str(vars, "sources"); src != "" {
 				fmt.Fprintf(&b, "Sources:\n%s\n", src)
 			} else {

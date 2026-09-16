@@ -12,6 +12,7 @@ import { ChatPollMessageRow } from "./chat-poll-message-row";
 import { ChatReminderMessageRow } from "./chat-reminder-message-row";
 import { ChatVoiceMessageRow } from "./chat-voice-message-row";
 import { VoiceCallLogRow } from "./voice-call-log-row";
+import { VoiceCallSummaryRow } from "./voice-call-summary-row";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { senderLabelFor } from "./native-chat-message-mapping";
 import { messageGrouping } from "./native-chat-message-grouping";
@@ -126,6 +127,19 @@ export function renderNativeChatMessage(input: {
         roomId={roomId}
         message={message}
         currentUserId={currentUserId}
+      />
+    );
+  }
+  if (message.voiceCallSummary) {
+    const { compactTop } = messageGrouping(messages, index);
+    return (
+      <VoiceCallSummaryRow
+        key={message.id}
+        workspaceId={workspaceId}
+        message={message}
+        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        showSenderName={showSenderName}
+        compactTop={compactTop}
       />
     );
   }

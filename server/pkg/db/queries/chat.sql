@@ -476,6 +476,31 @@ WHERE m.room_id = $1
 ORDER BY m.created_at ASC
 LIMIT sqlc.arg(msg_limit);
 
+-- name: ListChatMessagesInRoomBetween :many
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.room_id = sqlc.arg(room_id)
+  AND m.workspace_id = sqlc.arg(workspace_id)
+  AND m.deleted_at IS NULL
+  AND m.created_at >= sqlc.arg(start_at)
+  AND m.created_at <= sqlc.arg(end_at)
+  AND m.kind NOT IN ('voice_call_log', 'system')
+ORDER BY m.created_at ASC
+LIMIT sqlc.arg(msg_limit);
+
 -- name: ListChatMessagesBeforeOrAtInRoom :many
 SELECT
   m.id,

@@ -1,4 +1,4 @@
-export type VoiceCallKind = "dm" | "group";
+export type VoiceCallKind = "dm" | "group" | "channel";
 
 export type VoiceCallOverlayState =
   | { status: "idle" }

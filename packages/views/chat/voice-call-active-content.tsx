@@ -20,6 +20,7 @@ import { VoiceCallGroupVideoStage } from "./voice-call-group-video-stage";
 import { VoiceCallRecordControl } from "./voice-call-recording-controls";
 import { useVoiceCallRoom } from "./voice-call-room";
 import type { VoiceCallKind } from "./voice-call-overlay-types";
+import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
 
 const GROUP_ALONE_TIMEOUT_MS = 60_000;
 
@@ -77,15 +78,17 @@ function VoiceCallVideoStage({
     bindParticipantScreenShare,
   } = useVoiceCallRoom();
 
-  if (callKind === "group") {
+  if (isMultiPartyVoiceCall(callKind)) {
     return (
-      <VoiceCallGroupVideoStage
-        tiles={participantTiles}
-        youLabel={t("chat.you")}
-        size={size}
-        bindParticipantVideo={bindParticipantVideo}
-        bindParticipantScreenShare={bindParticipantScreenShare}
-      />
+      <div className={cn("w-full", size === "fullscreen" && "flex min-h-0 flex-1 flex-col")}>
+        <VoiceCallGroupVideoStage
+          tiles={participantTiles}
+          youLabel={t("chat.you")}
+          size={size}
+          bindParticipantVideo={bindParticipantVideo}
+          bindParticipantScreenShare={bindParticipantScreenShare}
+        />
+      </div>
     );
   }
 
@@ -193,7 +196,7 @@ function ActiveVoiceControls({
   };
 
   const handleLeave = () => {
-    if (callKind === "group" && isCaller && remoteParticipantCount === 0) {
+    if (isMultiPartyVoiceCall(callKind) && isCaller && remoteParticipantCount === 0) {
       onEndForAll();
       return;
     }
@@ -204,7 +207,7 @@ function ActiveVoiceControls({
     onLeave();
   };
 
-  const leaveLabel = callKind === "group" ? t("chat.voice_call_leave") : t("chat.voice_call_end");
+  const leaveLabel = isMultiPartyVoiceCall(callKind) ? t("chat.voice_call_leave") : t("chat.voice_call_end");
 
   const leaveButton = (
     <Button
@@ -232,7 +235,7 @@ function ActiveVoiceControls({
     return leaveButton;
   }
 
-  if (callKind === "group") {
+  if (isMultiPartyVoiceCall(callKind)) {
     return (
       <VoiceCallControlRow>
         <VoiceCallRoundControl
@@ -384,7 +387,7 @@ export function ActiveVoiceCallContent({
     }
     if (!hadRemoteRef.current) return;
     autoEndRef.current = true;
-    if (callKind === "group") {
+    if (isMultiPartyVoiceCall(callKind)) {
       if (isCaller) void onEndForAll();
       else onLeave();
       return;
@@ -393,7 +396,7 @@ export function ActiveVoiceCallContent({
   }, [connected, remoteParticipantCount, callKind, isCaller, onEndForAll, onLeave]);
 
   useEffect(() => {
-    if (autoEndRef.current || !connected || callKind !== "group" || !isCaller) return;
+    if (autoEndRef.current || !connected || !isMultiPartyVoiceCall(callKind) || !isCaller) return;
     if (remoteParticipantCount > 0 || hadRemoteRef.current) return;
 
     const timer = setTimeout(() => {
@@ -407,7 +410,7 @@ export function ActiveVoiceCallContent({
   const elapsed = useCallDuration(sessionLive, startedAt);
   const statusLabel = !connected
     ? t("chat.voice_call_connecting")
-    : callKind === "group" && remoteParticipantCount === 0
+    : isMultiPartyVoiceCall(callKind) && remoteParticipantCount === 0
       ? t("chat.voice_call_waiting_for_others")
       : t("chat.voice_call_connected_duration", { duration: formatVoiceCallDuration(elapsed) });
 
