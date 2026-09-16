@@ -22,10 +22,6 @@ const createMutateAsync = vi.hoisted(() =>
     description: "",
   }),
 );
-const setParentMutateAsync = vi.hoisted(() =>
-  vi.fn().mockResolvedValue(undefined),
-);
-
 vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/tasks")>();
   return {
@@ -62,10 +58,6 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
     }),
     useCreateTask: () => ({
       mutateAsync: createMutateAsync,
-      isPending: false,
-    }),
-    useSetTaskParent: () => ({
-      mutateAsync: setParentMutateAsync,
       isPending: false,
     }),
   };
@@ -106,7 +98,6 @@ beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(me);
   createMutateAsync.mockClear();
-  setParentMutateAsync.mockClear();
   useTaskDetailUiStore.setState({ tasks: {} });
 });
 
@@ -135,14 +126,8 @@ describe("TaskDetailSubtasksSection", () => {
 
     await waitFor(() => {
       expect(createMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "New child" }),
+        expect.objectContaining({ title: "New child", parent_task_id: "t1" }),
       );
-    });
-    await waitFor(() => {
-      expect(setParentMutateAsync).toHaveBeenCalledWith({
-        taskId: "child-1",
-        body: { parent_task_id: "t1" },
-      });
     });
   });
 

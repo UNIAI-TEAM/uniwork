@@ -742,10 +742,23 @@
     "status_done": "Hoàn thành",
     "status_blocked": "Đang chặn",
     "status_cancelled": "Đã hủy",
+    "priority_none": "Không ưu tiên",
     "priority_low": "Thấp",
     "priority_medium": "Trung bình",
     "priority_high": "Cao",
     "priority_urgent": "Khẩn cấp",
+    "create": {
+      "description": "Tạo công việc cùng các thuộc tính cần thiết ngay từ đầu.",
+      "project": "Dự án",
+      "project_none": "Không có dự án",
+      "start_date": "Ngày bắt đầu",
+      "labels_selected": "{{count}} nhãn đã chọn",
+      "create_another": "Tạo thêm việc sau khi lưu",
+      "creating": "Đang tạo…",
+      "success": "Đã tạo {{identifier}}",
+      "view": "Xem task",
+      "error": "Không thể tạo công việc. Thử lại."
+    },
     "surface": {
       "mode_placeholder": "Kiểu hiển thị này chưa sẵn sàng.",
       "group_by_project": "Nhóm theo dự án",

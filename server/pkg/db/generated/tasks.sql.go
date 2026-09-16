@@ -349,15 +349,19 @@ func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, 
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
-  id, organization_id, workspace_id, number, title, description, priority,
-  assignee_id, assignee_kind, assignee_type, due_date, position,
+  id, organization_id, workspace_id, number, title, description, status, priority,
+  assignee_id, assignee_kind, assignee_type, start_date, due_date, position,
   created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
-  origin_type, origin_id, project_id
+  origin_type, origin_id, project_id, parent_task_id, stage
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12,
-  $13, $14, $15, $16, $17, $18,
-  $19, $20, $21
+  $1, $2, $3, $4,
+  $5, $6, $7, $8,
+  $9, $10, $11,
+  $12, $13, $14,
+  $15, $16, $17,
+  $18, $19, $20,
+  $21, $22, $23,
+  $24, $25
 )
 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
 `
@@ -369,10 +373,12 @@ type CreateTaskParams struct {
 	Number         int64              `json:"number"`
 	Title          string             `json:"title"`
 	Description    string             `json:"description"`
+	Status         string             `json:"status"`
 	Priority       string             `json:"priority"`
 	AssigneeID     pgtype.Text        `json:"assignee_id"`
 	AssigneeKind   string             `json:"assignee_kind"`
 	AssigneeType   pgtype.Text        `json:"assignee_type"`
+	StartDate      pgtype.Date        `json:"start_date"`
 	DueDate        pgtype.Date        `json:"due_date"`
 	Position       float64            `json:"position"`
 	CreatedBy      string             `json:"created_by"`
@@ -384,6 +390,8 @@ type CreateTaskParams struct {
 	OriginType     pgtype.Text        `json:"origin_type"`
 	OriginID       pgtype.Text        `json:"origin_id"`
 	ProjectID      pgtype.Text        `json:"project_id"`
+	ParentTaskID   pgtype.Text        `json:"parent_task_id"`
+	Stage          pgtype.Int4        `json:"stage"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -394,10 +402,12 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.Number,
 		arg.Title,
 		arg.Description,
+		arg.Status,
 		arg.Priority,
 		arg.AssigneeID,
 		arg.AssigneeKind,
 		arg.AssigneeType,
+		arg.StartDate,
 		arg.DueDate,
 		arg.Position,
 		arg.CreatedBy,
@@ -409,6 +419,8 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.OriginType,
 		arg.OriginID,
 		arg.ProjectID,
+		arg.ParentTaskID,
+		arg.Stage,
 	)
 	var i Task
 	err := row.Scan(
@@ -1476,6 +1488,24 @@ type MaxTaskPositionParams struct {
 
 func (q *Queries) MaxTaskPosition(ctx context.Context, arg MaxTaskPositionParams) (float64, error) {
 	row := q.db.QueryRow(ctx, maxTaskPosition, arg.OrganizationID, arg.WorkspaceID, arg.Status)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const minTaskPosition = `-- name: MinTaskPosition :one
+SELECT COALESCE(MIN(position), 0)::float8 FROM tasks
+WHERE organization_id = $1 AND workspace_id = $2 AND status = $3
+`
+
+type MinTaskPositionParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	Status         string `json:"status"`
+}
+
+func (q *Queries) MinTaskPosition(ctx context.Context, arg MinTaskPositionParams) (float64, error) {
+	row := q.db.QueryRow(ctx, minTaskPosition, arg.OrganizationID, arg.WorkspaceID, arg.Status)
 	var column_1 float64
 	err := row.Scan(&column_1)
 	return column_1, err

@@ -86,6 +86,21 @@ WITH inserted AS (
 )
 SELECT inserted.label_id FROM inserted;
 
+-- name: AttachTaskLabelOnCreate :one
+INSERT INTO task_label_links (organization_id, workspace_id, task_id, label_id)
+SELECT $1, $2, $3, $4
+WHERE EXISTS (
+  SELECT 1 FROM tasks t
+  WHERE t.id = $3 AND t.organization_id = $1 AND t.workspace_id = $2
+)
+AND EXISTS (
+  SELECT 1 FROM task_labels l
+  WHERE l.id = $4 AND l.organization_id = $1 AND l.workspace_id = $2
+    AND l.archived_at IS NULL
+)
+ON CONFLICT DO NOTHING
+RETURNING label_id;
+
 -- name: DetachTaskLabel :one
 WITH deleted AS (
   DELETE FROM task_label_links AS x

@@ -20,8 +20,9 @@ func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := h.Tasks.CreateTaskSuite(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
-		service.CreateTaskInput{Title: in.Title, Description: in.Description, Priority: in.Priority,
-			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, DueDate: in.DueDate},
+		service.CreateTaskInput{Title: in.Title, Description: in.Description, Status: in.Status, Priority: in.Priority,
+			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, StartDate: in.StartDate, DueDate: in.DueDate,
+			ProjectID: in.ProjectID, ParentTaskID: in.ParentTaskID, Stage: in.Stage, LabelIDs: in.LabelIDs},
 		r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)

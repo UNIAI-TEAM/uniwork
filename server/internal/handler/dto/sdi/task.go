@@ -2,12 +2,18 @@ package sdi
 
 // CreateTaskSDI is POST /api/v1/workspaces/{workspaceID}/tasks.
 type CreateTaskSDI struct {
-	Title        string  `json:"title" minLength:"1" description:"Tiêu đề công việc" example:"Chuẩn bị standup"`
-	Description  string  `json:"description" description:"Chi tiết tùy chọn" example:"Agenda và ghi chú"`
-	Priority     string  `json:"priority" description:"none, low, medium, high hoặc urgent" example:"medium"`
-	AssigneeID   *string `json:"assignee_id" description:"Thành viên hoặc agent được giao; bỏ trống nếu chưa giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	AssigneeKind string  `json:"assignee_kind" description:"human (mặc định) hoặc agent" example:"human"`
-	DueDate      *string `json:"due_date" description:"Hạn chót dạng YYYY-MM-DD" example:"2026-08-28"`
+	Title        string   `json:"title" minLength:"1" description:"Tiêu đề công việc" example:"Chuẩn bị standup"`
+	Description  string   `json:"description" description:"Chi tiết tùy chọn" example:"Agenda và ghi chú"`
+	Status       string   `json:"status" description:"Key trạng thái trong catalog workspace; mặc định todo" example:"in_progress"`
+	Priority     string   `json:"priority" description:"none, low, medium, high hoặc urgent" example:"medium"`
+	AssigneeID   *string  `json:"assignee_id" description:"Thành viên hoặc agent được giao; bỏ trống nếu chưa giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	AssigneeKind string   `json:"assignee_kind" description:"human (mặc định) hoặc agent" example:"human"`
+	StartDate    *string  `json:"start_date" description:"Ngày bắt đầu dạng YYYY-MM-DD" example:"2026-08-25"`
+	DueDate      *string  `json:"due_date" description:"Hạn chót dạng YYYY-MM-DD" example:"2026-08-28"`
+	ProjectID    *string  `json:"project_id" description:"Project cùng workspace" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+	ParentTaskID *string  `json:"parent_task_id" description:"Task cha cùng workspace" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	Stage        *int32   `json:"stage" description:"Thứ tự giai đoạn, từ 1 trở lên" example:"1"`
+	LabelIDs     []string `json:"label_ids" description:"Các nhãn active cùng workspace, gắn nguyên tử khi tạo"`
 }
 
 // PatchTaskSDI documents PATCH /api/v1/tasks/{taskID}. The handler still

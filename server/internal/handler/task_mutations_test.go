@@ -97,6 +97,56 @@ func TestPutTaskSuiteStaleIfMatchConflict(t *testing.T) {
 	}
 }
 
+func TestCreateTaskHTTPAcceptsWorkManagementContext(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+	res, labelOut := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/task-labels", token, map[string]any{
+		"name": "Create parity", "color": "#ef4444",
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create label: %d %v", res.StatusCode, labelOut)
+	}
+	labelID := labelOut["label"].(map[string]any)["id"].(string)
+
+	res, parentOut := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Parent",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create parent: %d %v", res.StatusCode, parentOut)
+	}
+	parentID := parentOut["task"].(map[string]any)["id"].(string)
+
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title":          "Context child",
+		"status":         "in_progress",
+		"priority":       "none",
+		"parent_task_id": parentID,
+		"start_date":     "2026-09-17",
+		"due_date":       "2026-09-20",
+		"stage":          3,
+		"label_ids":      []string{labelID},
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create child: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	for key, want := range map[string]any{
+		"status": "in_progress", "priority": "none", "parent_task_id": parentID,
+		"start_date": "2026-09-17", "due_date": "2026-09-20", "stage": float64(3),
+	} {
+		if task[key] != want {
+			t.Fatalf("%s = %#v, want %#v; task=%v", key, task[key], want, task)
+		}
+	}
+	res, labelsOut := doJSON(t, srv, "GET", "/api/v1/tasks/"+task["id"].(string)+"/labels", token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list created labels: %d %v", res.StatusCode, labelsOut)
+	}
+	labels := labelsOut["labels"].([]any)
+	if len(labels) != 1 || labels[0].(map[string]any)["id"] != labelID {
+		t.Fatalf("created labels = %v, want %s", labels, labelID)
+	}
+}
+
 func TestBatchUpdateHTTPUpdatesThree(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 

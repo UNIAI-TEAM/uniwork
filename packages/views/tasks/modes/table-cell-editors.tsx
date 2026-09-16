@@ -79,6 +79,7 @@ export function TableStatusCell({
 }
 
 const PRIORITY_COLOR: Record<TaskPriority, string> = {
+  none: "text-muted-foreground",
   urgent: "text-destructive",
   high: "text-warning",
   medium: "text-info",

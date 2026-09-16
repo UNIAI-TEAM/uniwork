@@ -1,65 +1,282 @@
 "use client";
-import { useState } from "react";
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useCreateTask } from "@uniwork/core/tasks";
+import { toast } from "sonner";
+import { paths } from "@uniwork/core/paths";
+import {
+  useCreateTask,
+  useProjects,
+  useTaskLabels,
+  useTaskStatuses,
+  type CreateTaskBody,
+} from "@uniwork/core/tasks";
+import { useCreateTaskDraftStore, type CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
+import { TASK_PRIORITIES, TASK_STATUSES } from "@uniwork/core/types";
+import { createSafeId } from "@uniwork/core/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
+import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { Select } from "@uniwork/ui/components/ui/select";
+import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { DateField } from "../common/date-field";
+import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useOptionalNavigation } from "../navigation";
+import { toastApiError } from "../toast-api-error";
+import { AssigneePicker } from "./pickers/assignee-picker";
+import { LabelPicker } from "./pickers/label-picker";
+import { useWorkspaceAssigneeOptions } from "./pickers/member-options";
 
-export function NewTaskDialog({
-  workspaceId,
-  open: openProp,
-  onOpenChange,
-  showTrigger = true,
-}: {
+type NewTaskDialogProps = {
   workspaceId: string;
+  defaults?: Partial<CreateTaskBody>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   showTrigger?: boolean;
-}) {
+};
+
+function draftFromDefaults(defaults?: Partial<CreateTaskBody>): CreateTaskDraft {
+  return {
+    title: defaults?.title ?? "",
+    description: defaults?.description,
+    status: defaults?.status ?? "todo",
+    priority: defaults?.priority ?? "none",
+    assigneeId: defaults?.assignee_id ?? undefined,
+    assigneeKind:
+      defaults?.assignee_kind === "agent"
+        ? "agent"
+        : defaults?.assignee_id
+          ? "human"
+          : undefined,
+    projectId: defaults?.project_id ?? undefined,
+    parentTaskId: defaults?.parent_task_id ?? undefined,
+    stage: defaults?.stage == null ? undefined : String(defaults.stage),
+    startDate: defaults?.start_date ?? undefined,
+    dueDate: defaults?.due_date ?? undefined,
+    labelIds: defaults?.label_ids,
+    idempotencyKey: createSafeId(),
+    version: 0,
+  };
+}
+
+export function NewTaskDialog({
+  workspaceId,
+  defaults,
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: NewTaskDialogProps) {
   const { t } = useTranslation();
+  const workspaceContext = useOptionalWorkspace();
+  const navigation = useOptionalNavigation();
   const create = useCreateTask(workspaceId);
+  const { data: projectList } = useProjects(workspaceId);
+  const { data: labelList } = useTaskLabels(workspaceId);
+  const { data: statusList } = useTaskStatuses(workspaceId);
+  const assignees = useWorkspaceAssigneeOptions(workspaceId);
+  const draftStore = useCreateTaskDraftStore();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const [title, setTitle] = useState("");
+  const [draft, setDraftState] = useState<CreateTaskDraft>(() => draftFromDefaults(defaults));
+  const draftRef = useRef(draft);
+  const [createAnother, setCreateAnother] = useState(false);
   const open = openProp ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
 
+  useEffect(() => {
+    if (!open) return;
+    setDraftState(draftStore.draftFor(workspaceId) ?? draftFromDefaults(defaults));
+  }, [open, workspaceId, defaults, draftStore]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  const updateDraft = (patch: Partial<CreateTaskDraft>) => {
+    setDraftState((current) => {
+      const next = { ...current, ...patch, version: (current.version ?? 0) + 1 };
+      draftRef.current = next;
+      draftStore.setDraft(workspaceId, next);
+      return next;
+    });
+  };
+
+  const statusItems = useMemo(
+    () =>
+      statusList?.statuses.length
+        ? statusList.statuses.map((status) => ({ value: status.key, label: status.name }))
+        : TASK_STATUSES.map((status) => ({ value: status, label: t(`tasks.status_${status}`) })),
+    [statusList, t],
+  );
+  const priorityItems = useMemo(
+    () => TASK_PRIORITIES.map((priority) => ({ value: priority, label: t(`tasks.priority_${priority}`) })),
+    [t],
+  );
+  const projectItems = useMemo(
+    () => [
+      { value: "__none__", label: t("tasks.create.project_none") },
+      ...(projectList?.projects ?? []).map((project) => ({ value: project.id, label: project.title })),
+    ],
+    [projectList, t],
+  );
+  const assignee = draft.assigneeId
+    ? { id: draft.assigneeId, kind: draft.assigneeKind ?? ("human" as const) }
+    : null;
+  const assigneeLabel = assignee
+    ? assignees.options.find((option) => option.id === assignee.id && option.kind === assignee.kind)?.name ??
+      t("tasks.assignee")
+    : t("tasks.unassigned");
+
+  const submit = () => {
+    if (create.isPending) return;
+    const title = draft.title.trim();
+    if (!title) return;
+    const submitted = { ...draft, title };
+    void create
+      .mutateAsync({
+        title,
+        description: draft.description?.trim() || undefined,
+        status: draft.status,
+        priority: draft.priority,
+        assignee_id: draft.assigneeId || null,
+        assignee_kind: draft.assigneeId ? draft.assigneeKind ?? "human" : undefined,
+        project_id: draft.projectId || null,
+        parent_task_id: draft.parentTaskId || null,
+        stage: draft.stage ? Number(draft.stage) : null,
+        start_date: draft.startDate || null,
+        due_date: draft.dueDate || null,
+        label_ids: draft.labelIds,
+        idempotencyKey: draft.idempotencyKey,
+      })
+      .then((task) => {
+        const latest = draftRef.current;
+        const submittedIsStillCurrent =
+          latest.idempotencyKey === submitted.idempotencyKey &&
+          (latest.version ?? 0) === (submitted.version ?? 0);
+        draftStore.clearDraft(workspaceId, submitted.idempotencyKey, submitted.version ?? 0);
+        const taskPath = workspaceContext
+          ? paths
+              .workspace(
+                workspaceContext.workspace.organization_slug,
+                workspaceContext.workspace.slug,
+              )
+              .task(task.id)
+          : null;
+        toast.success(t("tasks.create.success", { identifier: task.identifier }), {
+          ...(taskPath && navigation
+            ? {
+                action: {
+                  label: t("tasks.create.view"),
+                  onClick: () => navigation.push(taskPath),
+                },
+              }
+            : {}),
+        });
+        if (!submittedIsStillCurrent) return;
+        if (createAnother) {
+          const next = draftFromDefaults({
+            status: draft.status,
+            priority: draft.priority,
+            assignee_id: draft.assigneeId,
+            assignee_kind: draft.assigneeKind,
+            project_id: draft.projectId,
+          });
+          setDraftState(next);
+          return;
+        }
+        setDraftState(draftFromDefaults());
+        setOpen(false);
+      })
+      .catch((error: unknown) => toastApiError(error, t("tasks.create.error")));
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {showTrigger ? (
-        <DialogTrigger render={<Button size="sm">{t("tasks.new")}</Button>} />
-      ) : null}
-      <DialogContent>
+      {showTrigger ? <DialogTrigger render={<Button size="sm">{t("tasks.new")}</Button>} /> : null}
+      <DialogContent className="max-h-[min(90vh,44rem)] overflow-y-auto sm:max-w-2xl">
         <DialogTitle>{t("tasks.new")}</DialogTitle>
+        <DialogDescription className="sr-only">{t("tasks.create.description")}</DialogDescription>
         <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            create.mutate(
-              { title },
-              {
-                onSuccess: () => {
-                  setTitle("");
-                  setOpen(false);
-                },
-              },
-            );
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
           }}
         >
-          <div>
+          <div className="space-y-1.5">
             <Label htmlFor="task-title">{t("tasks.taskTitle")}</Label>
-            <Input
-              id="task-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              autoFocus
-            />
+            <Input id="task-title" value={draft.title} onChange={(event) => updateDraft({ title: event.target.value })} required maxLength={200} autoFocus />
           </div>
-          <Button type="submit" disabled={create.isPending}>
-            {t("common.create")}
-          </Button>
+          <div className="space-y-1.5">
+            <Label htmlFor="task-description">{t("tasks.description")}</Label>
+            <Textarea id="task-description" value={draft.description ?? ""} onChange={(event) => updateDraft({ description: event.target.value })} rows={4} placeholder={t("tasks.detail.description_placeholder")} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="task-status">{t("tasks.status")}</Label>
+              <Select id="task-status" items={statusItems} value={draft.status ?? "todo"} onValueChange={(value) => updateDraft({ status: value ?? "todo" })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-priority">{t("tasks.priority")}</Label>
+              <Select id="task-priority" items={priorityItems} value={draft.priority ?? "medium"} onValueChange={(value) => updateDraft({ priority: value ?? "medium" })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("tasks.assignee")}</Label>
+              <AssigneePicker value={assignee} options={assignees.options} onChange={(value) => updateDraft({ assigneeId: value?.id, assigneeKind: value?.kind })} ariaLabel={t("tasks.assignee")} valueLabel={assigneeLabel} unassignedLabel={t("tasks.unassigned")} searchPlaceholder={t("tasks.assignee_search_placeholder")} noResultsLabel={t("tasks.assignee_no_results")} triggerClassName="w-full justify-between border border-input px-2.5">
+                <span className="truncate">{assigneeLabel}</span>
+              </AssigneePicker>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-project">{t("tasks.create.project")}</Label>
+              <Select id="task-project" items={projectItems} value={draft.projectId || "__none__"} onValueChange={(value) => updateDraft({ projectId: !value || value === "__none__" ? undefined : value })} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>{t("tasks.detail.prop_labels")}</Label>
+              <LabelPicker
+                labels={labelList?.labels ?? []}
+                selectedIds={new Set(draft.labelIds ?? [])}
+                onToggle={(labelId, checked) => {
+                  const selected = new Set(draft.labelIds ?? []);
+                  if (checked) selected.add(labelId);
+                  else selected.delete(labelId);
+                  updateDraft({ labelIds: [...selected] });
+                }}
+                ariaLabel={t("tasks.detail.prop_labels")}
+                valueLabel={t("tasks.create.labels_selected", { count: draft.labelIds?.length ?? 0 })}
+                emptyLabel={t("tasks.table.labels_empty")}
+                triggerClassName="w-full justify-start border border-input px-2.5"
+              >
+                <span>{t("tasks.create.labels_selected", { count: draft.labelIds?.length ?? 0 })}</span>
+              </LabelPicker>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-start-date">{t("tasks.create.start_date")}</Label>
+              <DateField id="task-start-date" value={draft.startDate ?? ""} onChange={(value) => updateDraft({ startDate: value || undefined })} modal={false} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-due-date">{t("tasks.dueDate")}</Label>
+              <DateField id="task-due-date" value={draft.dueDate ?? ""} onChange={(value) => updateDraft({ dueDate: value || undefined })} modal={false} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <label className="flex items-center gap-2 text-body">
+              <Checkbox checked={createAnother} onCheckedChange={setCreateAnother} />
+              {t("tasks.create.create_another")}
+            </label>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>{t("common.cancel")}</Button>
+              <Button type="submit" aria-disabled={create.isPending || !draft.title.trim()}>
+                {create.isPending ? t("tasks.create.creating") : t("common.create")}
+              </Button>
+            </div>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

@@ -272,6 +272,7 @@ function TaskSurfaceContent({
           ) : null}
           <NewTaskDialog
             workspaceId={workspaceId}
+            defaults={controller.createDefaults}
             open={controller.createOpen}
             onOpenChange={controller.setCreateOpen}
             showTrigger={false}

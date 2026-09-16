@@ -77,15 +77,40 @@ describe("tasks endpoints", () => {
     expect((await getTask("t1"))?.reactions).toEqual([]);
   });
 
-  it("createTask / updateTask post the body and return the task", async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(json({ task: validTask }))
-      .mockResolvedValueOnce(json({ task: { ...validTask, title: "Sửa" } }));
-    const created = await createTask("ws1", { title: "Việc" });
+  it("createTask posts the complete create context and idempotency key", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ task: validTask }));
+    const body = {
+      title: "Việc",
+      description: "Mô tả",
+      status: "in_progress" as const,
+      priority: "none" as const,
+      assignee_id: "u2",
+      assignee_kind: "human" as const,
+      due_date: "2026-09-30",
+      start_date: "2026-09-20",
+      project_id: "p1",
+      parent_task_id: "parent-1",
+      stage: 2,
+    };
+
+    const created = await createTask("ws1", body, { idempotencyKey: "create-1" });
+
     expect(created?.id).toBe("t1");
     const init = vi.mocked(fetch).mock.calls[0]![1]!;
     expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body as string)).toEqual({ title: "Việc" });
+    expect(init.headers).toMatchObject({ "Idempotency-Key": "create-1" });
+    expect(JSON.parse(init.body as string)).toEqual(body);
+  });
+
+  it("createTask degrades a malformed success response to null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ task: { nope: true } }));
+
+    await expect(createTask("ws1", { title: "Việc" })).resolves.toBeNull();
+  });
+
+  it("updateTask posts the body and returns the task", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ task: { ...validTask, title: "Sửa" } }));
     const updated = await updateTask("t1", { title: "Sửa" });
     expect(updated?.title).toBe("Sửa");
   });
