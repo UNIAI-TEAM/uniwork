@@ -135,6 +135,36 @@ describe("useTaskLabelToggle", () => {
     await waitFor(() => expect(result.current.pendingIds.has("l1")).toBe(false));
   });
 
+  it("hủy lượt tải rows đang chạy trước khi ghi lạc quan, để kết quả cũ không đè nhãn vừa gắn", async () => {
+    const qc = newClient();
+    qc.setQueryData(key, rowsPage([{ task: task("t1"), direct_child_count: 0, labels: [] }]));
+    let answerFetch: (page: TableRowsResult) => void = () => undefined;
+    void qc
+      .fetchQuery({
+        queryKey: key,
+        queryFn: () =>
+          new Promise<TableRowsResult>((resolve) => {
+            answerFetch = resolve;
+          }),
+      })
+      .catch(() => undefined);
+    const release = holdRequest();
+    const { result } = renderHook(() => useTaskLabelToggle(WS, "t1", catalog), { wrapper: wrapperFor(qc) });
+
+    act(() => result.current.toggle("l1", true));
+    await waitFor(() => expect(rowsOf(qc, key)?.rows[0]?.labels).toEqual([bugRowLabel]));
+
+    // The fetch started before the toggle answers with the old labels.
+    await act(async () => {
+      answerFetch(rowsPage([{ task: task("t1"), direct_child_count: 0, labels: [] }]));
+      await Promise.resolve();
+    });
+    expect(rowsOf(qc, key)?.rows[0]?.labels).toEqual([bugRowLabel]);
+
+    release();
+    await waitFor(() => expect(result.current.pendingIds.has("l1")).toBe(false));
+  });
+
   it("gắn nhãn chèn đúng vị trí theo tên (không phân biệt hoa thường), không phá nhãn khác", async () => {
     const qc = newClient();
     const zulu = label("l9", "Zulu", "#000000");

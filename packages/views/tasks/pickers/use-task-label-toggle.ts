@@ -38,7 +38,7 @@ function without(set: ReadonlySet<string>, id: string): Set<string> {
  * `labels` is the workspace label catalog (the table cell and the detail
  * sidebar both already hold it, for the picker's own choices) — it is where
  * an attach's optimistic `{id, name, color}` comes from. Before the request
- * goes out, `toggle` patches the task's row in every cached
+ * goes out, `toggle` cancels in-flight table-rows fetches, then patches the task's row in every cached
  * `taskKeys.tableRoot(workspaceId)` table-rows page (`patchTaskLabelCaches`
  * in core, mirroring `patchTaskPropertyCaches`): the table cell reads a row's
  * `labels` straight off that cache, no per-row query (task 18), so that's
@@ -59,29 +59,34 @@ export function useTaskLabelToggle(workspaceId: string, taskId: string, labels: 
     (labelId: string, checked: boolean) => {
       setPendingIds((prev) => new Set(prev).add(labelId));
 
-      let writes: TaskCacheWrite[] = [];
-      if (checked) {
-        const catalogLabel = labels.find((label) => label.id === labelId);
-        if (catalogLabel) {
-          const { id, name, color } = catalogLabel;
-          writes = patchTaskLabelCaches(qc, workspaceId, taskId, (current) =>
-            withLabelSorted(current, { id, name, color }),
-          );
+      void (async () => {
+        // A rows fetch already under way would land after the patch below and
+        // put the old labels back.
+        await qc.cancelQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
+        let writes: TaskCacheWrite[] = [];
+        if (checked) {
+          const catalogLabel = labels.find((label) => label.id === labelId);
+          if (catalogLabel) {
+            const { id, name, color } = catalogLabel;
+            writes = patchTaskLabelCaches(qc, workspaceId, taskId, (current) =>
+              withLabelSorted(current, { id, name, color }),
+            );
+          }
+        } else {
+          writes = patchTaskLabelCaches(qc, workspaceId, taskId, (current) => withoutLabelId(current, labelId));
         }
-      } else {
-        writes = patchTaskLabelCaches(qc, workspaceId, taskId, (current) => withoutLabelId(current, labelId));
-      }
 
-      const run = checked ? attach.mutateAsync : detach.mutateAsync;
-      void run(labelId)
-        .catch((err: unknown) => {
-          rollbackTaskCacheWrites(qc, writes);
-          toastApiError(err, t("common.error"));
-        })
-        .finally(() => {
-          setPendingIds((prev) => without(prev, labelId));
-          void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
-        });
+        const run = checked ? attach.mutateAsync : detach.mutateAsync;
+        await run(labelId)
+          .catch((err: unknown) => {
+            rollbackTaskCacheWrites(qc, writes);
+            toastApiError(err, t("common.error"));
+          })
+          .finally(() => {
+            setPendingIds((prev) => without(prev, labelId));
+            void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
+          });
+      })();
     },
     [attach.mutateAsync, detach.mutateAsync, labels, qc, t, taskId, workspaceId],
   );
