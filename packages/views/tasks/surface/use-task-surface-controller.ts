@@ -89,6 +89,9 @@ function taskPatchFromSurfaceUpdates(
       patch.assignee_kind = updates.assignee_kind;
     }
   }
+  if (updates.start_date === null || typeof updates.start_date === "string") {
+    patch.start_date = updates.start_date;
+  }
   if (updates.due_date === null || typeof updates.due_date === "string") {
     patch.due_date = updates.due_date;
   }

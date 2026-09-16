@@ -60,8 +60,8 @@ type CreateTaskInput struct {
 	Properties    map[string]json.RawMessage
 }
 
-// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate/ProjectID con trỏ
-// kép — con trỏ tới nil = xóa giá trị.
+// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/ProjectID
+// con trỏ kép — con trỏ tới nil = xóa giá trị.
 type UpdateTaskInput struct {
 	Title        *string
 	Description  *string
@@ -70,6 +70,7 @@ type UpdateTaskInput struct {
 	Position     *float64
 	AssigneeID   **string
 	AssigneeKind string // read only when AssigneeID is set; "" means human
+	StartDate    **string
 	DueDate      **string
 	ProjectID    **string
 }
@@ -557,6 +558,19 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		task, err = q.SetTaskAssignee(ctx, db.SetTaskAssigneeParams{
 			ID: before.ID, AssigneeID: optText(*in.AssigneeID), AssigneeKind: kind,
 			AssigneeType:   normalizedAssigneeType(*in.AssigneeID, kind),
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
+	if in.StartDate != nil {
+		start, serr := parseDate(*in.StartDate)
+		if serr != nil {
+			return db.Task{}, serr
+		}
+		task, err = q.SetTaskStartDate(ctx, db.SetTaskStartDateParams{
+			ID: before.ID, StartDate: start,
 			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		})
 		if err != nil {

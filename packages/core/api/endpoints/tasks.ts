@@ -25,6 +25,7 @@ export interface TaskPatch {
   assignee_id?: string | null;
   /** Read with assignee_id; omitted means human. */
   assignee_kind?: ActorKind;
+  start_date?: string | null;
   due_date?: string | null;
   project_id?: string | null;
 }
