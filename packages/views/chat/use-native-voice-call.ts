@@ -10,6 +10,7 @@ import {
 import { createVoiceCallId } from "@uniwork/core/chat/voice-call";
 import { useOptionalWS } from "@uniwork/core/realtime";
 import type { VoiceCallKind, VoiceCallOverlayState } from "./voice-call-overlay";
+import { isMultiPartyVoiceCall, voiceCallKindFromServer } from "./voice-call-kind-utils";
 
 type MintVoiceToken = (
   roomId: string,
@@ -32,7 +33,7 @@ function voiceEventForUser(
   allowedRoomIds: ReadonlySet<string>,
 ): boolean {
   if (!data.room_id) return false;
-  if (data.call_kind === "group") {
+  if (isMultiPartyVoiceCall(data.call_kind)) {
     return allowedRoomIds.has(data.room_id);
   }
   if (data.target_user_id) {
@@ -43,11 +44,10 @@ function voiceEventForUser(
 
 function incomingStateFromInvite(data: VoiceInvitePayload): VoiceCallOverlayState | null {
   if (!data.room_id || !data.call_id || !data.caller_id) return null;
-  const callKind: VoiceCallKind = data.call_kind === "group" ? "group" : "dm";
-  const peerName =
-    callKind === "group"
-      ? data.room_name?.trim() || data.caller_name?.trim() || data.caller_id
-      : data.caller_name?.trim() || data.caller_id;
+  const callKind = voiceCallKindFromServer(data.call_kind);
+  const peerName = isMultiPartyVoiceCall(callKind)
+    ? data.room_name?.trim() || data.caller_name?.trim() || data.caller_id
+    : data.caller_name?.trim() || data.caller_id;
   const callerName = data.caller_name?.trim() || data.caller_id;
   return {
     status: "incoming",
@@ -55,7 +55,7 @@ function incomingStateFromInvite(data: VoiceInvitePayload): VoiceCallOverlayStat
     roomId: data.room_id,
     peerName,
     callKind,
-    callerName: callKind === "group" ? callerName : undefined,
+    callerName: isMultiPartyVoiceCall(callKind) ? callerName : undefined,
   };
 }
 
@@ -142,13 +142,17 @@ export function useNativeVoiceCall({
     if (connectedAtRef.current != null) {
       durationSeconds = Math.max(0, Math.floor((Date.now() - connectedAtRef.current) / 1000));
     }
-    resetCallLocal();
-    if (hangupSentRef.current === callId) return;
+    if (hangupSentRef.current === callId) {
+      resetCallLocal();
+      return;
+    }
     hangupSentRef.current = callId;
     try {
       await signalChatVoiceHangup(workspaceId, roomId, callId, durationSeconds);
     } catch {
       hangupSentRef.current = null;
+    } finally {
+      resetCallLocal();
     }
   }, [workspaceId, resetCallLocal]);
 
@@ -156,6 +160,27 @@ export function useNativeVoiceCall({
     if (stateRef.current.status === "idle") return;
     resetCallLocal();
   }, [resetCallLocal]);
+
+  const finalizeCallOnDisconnect = useCallback(() => {
+    const current = stateRef.current;
+    if (current.status === "idle") return;
+    if (hangupSentRef.current === current.callId) {
+      resetCallLocal();
+      return;
+    }
+    if (current.callKind === "dm") {
+      void endCallForAll();
+      return;
+    }
+    if (
+      current.status === "ringing" ||
+      ((current.status === "connecting" || current.status === "active") && current.outgoing)
+    ) {
+      void endCallForAll();
+      return;
+    }
+    resetCallLocal();
+  }, [endCallForAll, resetCallLocal]);
 
   const connectCall = useCallback(
     async (
@@ -233,7 +258,7 @@ export function useNativeVoiceCall({
     const offAccept = ws.on("chat.voice.accept", (payload) => {
       const data = payload as VoiceInvitePayload & { user_id?: string };
       if (!data.room_id || !data.call_id || data.user_id === currentUserId) return;
-      if (data.call_kind === "group") return;
+      if (isMultiPartyVoiceCall(data.call_kind)) return;
       if (!voiceEventForUser(data, currentUserId, allowedRoomIds)) return;
       const current = stateRef.current;
       if (current.status !== "ringing" || current.callKind !== "dm") return;
@@ -281,8 +306,8 @@ export function useNativeVoiceCall({
       const callId = createVoiceCallId();
       hangupSentRef.current = null;
       await signalChatVoiceInvite(workspaceId, roomId, callId);
-      if (callKind === "group") {
-        return connectCall(roomId, callId, peerName, true, "group", undefined, withCamera);
+      if (isMultiPartyVoiceCall(callKind)) {
+        return connectCall(roomId, callId, peerName, true, callKind, undefined, withCamera);
       }
       setState({
         status: "ringing",
@@ -320,7 +345,7 @@ export function useNativeVoiceCall({
   const declineCall = useCallback(async () => {
     const current = stateRef.current;
     if (current.status === "idle") return;
-    if (current.callKind === "group") {
+    if (isMultiPartyVoiceCall(current.callKind)) {
       leaveCall();
       return;
     }
@@ -334,6 +359,7 @@ export function useNativeVoiceCall({
     declineCall,
     leaveCall,
     endCallForAll,
+    finalizeCallOnDisconnect,
     markVoiceConnected,
     inCall: state.status !== "idle",
   };

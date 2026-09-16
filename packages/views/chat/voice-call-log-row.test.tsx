@@ -35,6 +35,31 @@ describe("VoiceCallLogRow", () => {
     expect(screen.getByText(/Cuộc gọi thoại · 2:05/)).toBeInTheDocument();
   });
 
+  it("shows participant names on completed calls", () => {
+    render(
+      wrap(
+        <VoiceCallLogRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={{
+            ...voiceMessage("completed", "peer"),
+            voiceCall: {
+              outcome: "completed",
+              duration_seconds: 125,
+              caller_id: "peer",
+              participants: [
+                { user_id: "peer", display_name: "Alice" },
+                { user_id: "me", display_name: "Me" },
+              ],
+            },
+          }}
+          currentUserId="me"
+        />,
+      ),
+    );
+    expect(screen.getByText(/Cuộc gọi thoại · 2:05 · Alice, Bạn/)).toBeInTheDocument();
+  });
+
   it("shows missed label for unanswered incoming calls", () => {
     render(
       wrap(

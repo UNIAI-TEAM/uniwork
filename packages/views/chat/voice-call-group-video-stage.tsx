@@ -21,14 +21,20 @@ export function groupParticipantGridClass(
   return "grid-cols-3";
 }
 
+/** Fixed-size filmstrip tile while someone is presenting their screen. */
+export const voiceCallParticipantStripTileClass =
+  "h-[4.75rem] w-[6.75rem] shrink-0 sm:h-24 sm:w-32";
+
 function VoiceCallParticipantVideoTile({
   tile,
   label,
   bindParticipantVideo,
+  layout = "grid",
 }: {
   tile: VoiceCallParticipantTile;
   label: string;
   bindParticipantVideo: (identity: string, el: HTMLVideoElement | null) => void;
+  layout?: "grid" | "strip";
 }) {
   const bindVideo = useCallback(
     (el: HTMLVideoElement | null) => {
@@ -38,7 +44,12 @@ function VoiceCallParticipantVideoTile({
   );
 
   return (
-    <div className="relative aspect-video min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60">
+    <div
+      className={cn(
+        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60",
+        layout === "grid" ? "aspect-video" : "size-full",
+      )}
+    >
       {tile.hasVideo ? (
         /* eslint-disable-next-line jsx-a11y/media-has-caption -- LiveKit realtime video has no caption track */
         <video
@@ -50,7 +61,7 @@ function VoiceCallParticipantVideoTile({
         />
       ) : (
         <div className="flex size-full items-center justify-center bg-muted">
-          <Avatar className="size-12 text-body sm:size-14">
+          <Avatar className={cn("text-body", layout === "strip" ? "size-10 sm:size-12" : "size-12 sm:size-14")}>
             <AvatarFallback className="bg-primary/10 text-primary">
               {voiceCallInitialOf(label)}
             </AvatarFallback>
@@ -68,10 +79,12 @@ function VoiceCallScreenShareTile({
   label,
   bindParticipantScreenShare,
   identity,
+  presentation = false,
 }: {
   label: string;
   identity: string;
   bindParticipantScreenShare: (identity: string, el: HTMLVideoElement | null) => void;
+  presentation?: boolean;
 }) {
   const bindScreenShare = useCallback(
     (el: HTMLVideoElement | null) => {
@@ -81,7 +94,12 @@ function VoiceCallScreenShareTile({
   );
 
   return (
-    <div className="relative aspect-video min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60">
+    <div
+      className={cn(
+        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60",
+        presentation ? "min-h-0 flex-1" : "aspect-video",
+      )}
+    >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- LiveKit realtime video has no caption track */}
       <video ref={bindScreenShare} autoPlay playsInline className="size-full object-contain" />
       <span className="absolute inset-x-1 bottom-1 truncate rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-foreground backdrop-blur-sm">
@@ -129,6 +147,44 @@ export function VoiceCallGroupVideoStage({
   const participantLabel = (tile: VoiceCallParticipantTile) =>
     tile.isLocal ? youLabel : tile.name.trim() || tile.identity;
 
+  if (hasScreenShare) {
+    return (
+      <div
+        className={cn(
+          "flex w-full min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-background p-2 ring-1 ring-border/60",
+          size === "fullscreen" ? "h-full max-h-[min(70vh,720px)] flex-1" : "max-h-64",
+        )}
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          {screenShareTiles.map((tile) => (
+            <VoiceCallScreenShareTile
+              key={`${tile.identity}-screen`}
+              identity={tile.identity}
+              label={`${participantLabel(tile)} · ${t("meetings.sharedScreen")}`}
+              bindParticipantScreenShare={bindParticipantScreenShare}
+              presentation
+            />
+          ))}
+        </div>
+        <div
+          className="flex shrink-0 gap-2 overflow-x-auto pb-0.5 pt-1"
+          aria-label={t("chat.voice_call_participant_strip")}
+        >
+          {tiles.map((tile) => (
+            <div key={tile.identity} className={voiceCallParticipantStripTileClass}>
+              <VoiceCallParticipantVideoTile
+                tile={tile}
+                label={participantLabel(tile)}
+                bindParticipantVideo={bindParticipantVideo}
+                layout="strip"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -136,18 +192,6 @@ export function VoiceCallGroupVideoStage({
         size === "fullscreen" ? "max-h-[min(70vh,720px)]" : "max-h-64",
       )}
     >
-      {hasScreenShare ? (
-        <div className="flex shrink-0 flex-col gap-2">
-          {screenShareTiles.map((tile) => (
-            <VoiceCallScreenShareTile
-              key={`${tile.identity}-screen`}
-              identity={tile.identity}
-              label={`${participantLabel(tile)} · ${t("meetings.sharedScreen")}`}
-              bindParticipantScreenShare={bindParticipantScreenShare}
-            />
-          ))}
-        </div>
-      ) : null}
       <div className={cn("grid min-h-0 flex-1 gap-2 auto-rows-fr", gridClass)}>
         {tiles.map((tile) => (
           <VoiceCallParticipantVideoTile

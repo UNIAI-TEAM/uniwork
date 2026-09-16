@@ -222,6 +222,7 @@ func main() {
 	chatSvc.TenorAPIKey = cfg.TenorAPIKey
 	chatSvc.SetTasks(taskSvc)
 	chatSvc.SetConference(conference)
+	chatSvc.SetAIGateway(gateway)
 	taskSvc.Chat = chatSvc
 	meetingSvc.Chat = chatSvc
 	askUNI := service.NewAskUNIService(pool, q, wsSvc, orgSvc, taskSvc, meetingSvc, chatSvc, gateway, rdb)
@@ -242,6 +243,7 @@ func main() {
 	dispatcher.Register(service.NewAuditExportConsumer(q, store))
 	dispatcher.Register(outbox.WebhookConsumer{})
 	dispatcher.Register(service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
+	dispatcher.Register(service.NewChatVoiceSummaryConsumer(chatSvc))
 	// Notifications are the first bounded context fed purely by the outbox:
 	// the consumer turns committed events into inbox rows, the push consumer
 	// delivers notification.push, and two jobs (digest, reminder) run beside

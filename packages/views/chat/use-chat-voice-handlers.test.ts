@@ -75,6 +75,28 @@ describe("useChatVoiceHandlers", () => {
     expect(startCall).toHaveBeenCalledWith("room1", "Binh", "dm", { withCamera: true });
   });
 
+  it("starts a channel voice call", async () => {
+    const startCall = vi.fn().mockResolvedValue(true);
+    const { result } = renderHook(() =>
+      useChatVoiceHandlers({
+        targetKind: "channel",
+        activeRoomId: "room-c1",
+        activeContact: null,
+        activeGroup: null,
+        activeChannel: { name: "general" },
+        startCall,
+        acceptCall: vi.fn(),
+        declineCall: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleStartVoiceCall();
+    });
+
+    expect(startCall).toHaveBeenCalledWith("room-c1", "#general", "channel", { withCamera: false });
+  });
+
   it("starts a group voice call", async () => {
     const startCall = vi.fn().mockResolvedValue(true);
     const { result } = renderHook(() =>

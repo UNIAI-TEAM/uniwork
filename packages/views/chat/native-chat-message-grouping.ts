@@ -8,7 +8,8 @@ function isBubbleMessage(message: ChatMessage): boolean {
     message.kind !== "note" &&
     message.kind !== "post" &&
     message.kind !== "file" &&
-    !message.voiceCall
+    !message.voiceCall &&
+    !message.voiceCallSummary
   );
 }
 

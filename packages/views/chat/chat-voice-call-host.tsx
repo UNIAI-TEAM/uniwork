@@ -29,6 +29,7 @@ type ChatVoiceCallContextValue = {
   declineCall: () => Promise<void>;
   leaveCall: () => void;
   endCallForAll: () => Promise<void>;
+  finalizeCallOnDisconnect: () => void;
   markVoiceConnected: () => void;
   inCall: boolean;
 };
@@ -102,6 +103,7 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
       declineCall: voice.declineCall,
       leaveCall: voice.leaveCall,
       endCallForAll: voice.endCallForAll,
+      finalizeCallOnDisconnect: voice.finalizeCallOnDisconnect,
       markVoiceConnected: voice.markVoiceConnected,
       inCall: voice.inCall,
     }),
@@ -117,6 +119,7 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
         onAccept={() => void handleAccept()}
         onDecline={() => void voice.declineCall()}
         onLeave={voice.leaveCall}
+        onDisconnected={voice.finalizeCallOnDisconnect}
         onEndForAll={() => void voice.endCallForAll()}
         onConnected={voice.markVoiceConnected}
       />

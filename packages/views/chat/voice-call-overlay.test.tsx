@@ -39,6 +39,7 @@ const handlers = {
   onAccept: vi.fn(),
   onDecline: vi.fn(),
   onLeave: vi.fn(),
+  onDisconnected: vi.fn(),
   onEndForAll: vi.fn(),
   onConnected: vi.fn(),
 };
