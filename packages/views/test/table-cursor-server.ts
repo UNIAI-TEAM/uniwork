@@ -30,8 +30,11 @@ interface TableCursorServerOptions {
   hold?: (body: Params) => boolean;
 }
 
-export const encodeCursor = (offset: number) => btoa(String(offset));
-const decodeCursor = (cursor: unknown) => (typeof cursor === "string" ? Number(atob(cursor)) : 0);
+/** `boundary` > 0 marks a cursor minted after `moveBoundary()`: same offset, different keyset value. */
+export const encodeCursor = (offset: number, boundary = 0) =>
+  btoa(boundary > 0 ? `${offset}~${boundary}` : String(offset));
+const decodeCursor = (cursor: unknown) =>
+  typeof cursor === "string" ? Number(atob(cursor).split("~")[0]) : 0;
 
 export function serveTableCursor(options: TableCursorServerOptions) {
   const rowBodies: Params[] = [];
@@ -40,6 +43,8 @@ export function serveTableCursor(options: TableCursorServerOptions) {
   const requestsPerPage = new Map<string, number>();
   // Bumped by `change()`: every row's title then differs, as after an edit.
   let version = 0;
+  // Bumped by `moveBoundary()`: every cursor then differs, as when the first page's last row moved.
+  let boundary = 0;
   let release = () => {};
   let held = new Promise<void>((resolve) => {
     release = resolve;
@@ -101,7 +106,7 @@ export function serveTableCursor(options: TableCursorServerOptions) {
       parent_id: parentId,
       total: options.claimed?.(groupKey, parentId) ?? total,
       rows,
-      next_cursor: end < total ? encodeCursor(end) : null,
+      next_cursor: end < total ? encodeCursor(end, boundary) : null,
     };
   });
 
@@ -120,6 +125,9 @@ export function serveTableCursor(options: TableCursorServerOptions) {
     },
     change: () => {
       version += 1;
+    },
+    moveBoundary: () => {
+      boundary += 1;
     },
   };
 }
