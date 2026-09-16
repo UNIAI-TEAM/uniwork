@@ -16,6 +16,10 @@ import {
 import { TaskCellContent } from "./table-task-cell";
 import { getTableViewMeta } from "./table-view-meta";
 import {
+  useIsTaskSelected,
+  useSelectionSummary,
+} from "../surface/selection-context";
+import {
   RowActionsDropdown,
   RowDeleteDialog,
   useRowActionModel,
@@ -32,10 +36,9 @@ function SelectHeader({
 }) {
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
-  const ids = meta.visibleTaskIds;
-  const selectedCount = ids.filter((id) => meta.selectedIds.has(id)).length;
-  const checked = ids.length > 0 && selectedCount === ids.length;
-  const indeterminate = selectedCount > 0 && selectedCount < ids.length;
+  const summary = useSelectionSummary(meta.visibleTaskIds);
+  const checked = meta.visibleTaskIds.length > 0 && summary === "all";
+  const indeterminate = summary === "some";
 
   return (
     <input
@@ -65,11 +68,12 @@ function SelectCell({
 }) {
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
+  const selected = useIsTaskSelected(row.task.id);
   return (
     <input
       type="checkbox"
       className="size-4 accent-primary"
-      checked={meta.selectedIds.has(row.task.id)}
+      checked={selected}
       aria-label={t("tasks.table.select_row")}
       onChange={(event) => {
         const native = event.nativeEvent as MouseEvent;

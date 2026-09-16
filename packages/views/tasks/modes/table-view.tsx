@@ -26,7 +26,7 @@ import {
 import { toastApiError } from "../../toast-api-error";
 import { BatchActionToolbar } from "../views/batch-action-toolbar";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
-import { useTaskSurfaceSelection } from "../surface/selection-context";
+import { useTaskSurfaceSelectionHandle } from "../surface/selection-context";
 import { TaskTableGroupRow } from "./table-group-row";
 import { TaskTableLoadMoreRow } from "./table-load-more-row";
 import { useTableColumnDefs } from "./table-view-columns";
@@ -89,7 +89,7 @@ export function TableView({
   const { t } = useTranslation();
   const actions = useTaskSurfaceActionsOptional();
   const labelsQuery = useTaskLabels(workspaceId);
-  const selection = useTaskSurfaceSelection();
+  const selection = useTaskSurfaceSelectionHandle();
   const selectionAnchorRef = useRef<string | null>(null);
   const [search, setSearch] = useState("");
   const propertiesQuery = useTaskProperties(workspaceId);
@@ -197,7 +197,7 @@ export function TableView({
           )
         : null;
       if (range) {
-        if (selection.selectedIds.has(taskId)) selection.deselect(range);
+        if (selection.store.isSelected(taskId)) selection.deselect(range);
         else selection.select(range);
         return;
       }
@@ -301,7 +301,6 @@ export function TableView({
       toggleTableColumn,
       propertiesDisabled,
       propertiesDisabledReason: t(propertiesDisabledReasonKey),
-      selectedIds: selection.selectedIds,
     }),
     [
       clearVisibleSelection,
@@ -321,7 +320,6 @@ export function TableView({
       propertiesDisabled,
       propertiesDisabledReasonKey,
       selectAllVisible,
-      selection.selectedIds,
       setPropertyValue,
       unsetPropertyValue,
       showSubTasks,

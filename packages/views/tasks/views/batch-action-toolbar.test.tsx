@@ -9,7 +9,7 @@ import {
 } from "../surface/actions-context";
 import {
   TaskSurfaceSelectionProvider,
-  type TaskSurfaceSelection,
+  type TaskSurfaceSelectionHandle,
 } from "../surface/selection-context";
 import { requestMock, wrap } from "../../test/api-mock";
 import { BatchActionToolbar } from "./batch-action-toolbar";
@@ -76,9 +76,14 @@ function makeTask(over: Partial<Task> = {}): Task {
   };
 }
 
-function selectionStub(ids: string[]): TaskSurfaceSelection {
+function selectionStub(ids: string[]): TaskSurfaceSelectionHandle {
+  const selected = new Set(ids);
   return {
-    selectedIds: new Set(ids),
+    store: {
+      subscribe: () => () => {},
+      isSelected: (id) => selected.has(id),
+      getSnapshot: () => selected,
+    },
     toggle: vi.fn(),
     select: vi.fn(),
     deselect: vi.fn(),

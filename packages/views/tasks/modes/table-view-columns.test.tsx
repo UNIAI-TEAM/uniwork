@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
@@ -8,6 +8,7 @@ import { requestMock, wrap } from "../../test/api-mock";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { TaskSurface } from "../surface/task-surface";
+import { tableCellRenderCounter } from "./table-task-cell";
 
 // The real TaskSurface → TableView → DataTable against a fake API: each edit
 // has to reach the request it is meant to send, through the table's own meta.
@@ -408,5 +409,107 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
         "status",
       ]),
     );
+  });
+});
+
+describe("bảng: chọn hàng chỉ render lại ô chọn", () => {
+  function serveRows(count: number) {
+    const base = requestMock.getMockImplementation()!;
+    const rows = Array.from({ length: count }, (_, i) => ({
+      task: { ...task, id: `t${i + 1}`, title: `Task ${i + 1}` },
+      direct_child_count: 0,
+      labels: [],
+    }));
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.includes("/tasks/table/rows")) {
+        return {
+          query_fingerprint: "fp-rows",
+          group_key: null,
+          parent_id: null,
+          total: rows.length,
+          rows,
+          next_cursor: null,
+        };
+      }
+      return base(path, init);
+    });
+  }
+
+  const settle = (ms: number) =>
+    act(() => new Promise((resolve) => setTimeout(resolve, ms)));
+
+  const rowCheckbox = (title: string) =>
+    within(screen.getByText(title).closest("tr") as HTMLElement).getByRole("checkbox", {
+      name: "Chọn công việc",
+    }) as HTMLInputElement;
+
+  it("tick một hàng trong bảng 50 hàng không render lại ô dữ liệu nào", async () => {
+    // 50 rows virtualize; jsdom lays nothing out, so give the virtualizer a
+    // viewport and each row a height or it renders no rows at all.
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const height = this.tagName === "TR" ? 40 : 4000;
+      return { x: 0, y: 0, left: 0, top: 0, width: 1200, height, right: 1200, bottom: height, toJSON: () => ({}) } as DOMRect;
+    };
+    const viewport = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(4000);
+    const viewportWidth = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1200);
+    try {
+      serveRows(50);
+      await renderTable();
+      await screen.findByText("Task 2");
+      await settle(200);
+
+      const before = tableCellRenderCounter.count;
+      expect(before).toBeGreaterThan(0);
+      fireEvent.click(rowCheckbox("Task 2"));
+
+      await waitFor(() => expect(rowCheckbox("Task 2").checked).toBe(true));
+      await settle(50);
+      expect(tableCellRenderCounter.count).toBe(before);
+      expect(rowCheckbox("Task 1").checked).toBe(false);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original;
+      viewport.mockRestore();
+      viewportWidth.mockRestore();
+    }
+  });
+
+  it("chọn tất cả ở header tick mọi hàng, bấm lại bỏ tick", async () => {
+    serveRows(3);
+    await renderTable();
+    await screen.findByText("Task 3");
+    const all = screen.getByRole("checkbox", { name: "Chọn tất cả công việc" }) as HTMLInputElement;
+
+    fireEvent.click(rowCheckbox("Task 1"));
+    await waitFor(() => expect(all.indeterminate).toBe(true));
+    expect(all.checked).toBe(false);
+
+    fireEvent.click(all);
+    await waitFor(() => expect(all.checked).toBe(true));
+    for (const title of ["Task 1", "Task 2", "Task 3"]) {
+      expect(rowCheckbox(title).checked).toBe(true);
+    }
+    expect(all.indeterminate).toBe(false);
+
+    fireEvent.click(all);
+    await waitFor(() => expect(all.checked).toBe(false));
+    for (const title of ["Task 1", "Task 2", "Task 3"]) {
+      expect(rowCheckbox(title).checked).toBe(false);
+    }
+  });
+
+  it("shift-click chọn cả dải từ hàng neo", async () => {
+    serveRows(5);
+    await renderTable();
+    await screen.findByText("Task 5");
+
+    fireEvent.click(rowCheckbox("Task 2"));
+    await waitFor(() => expect(rowCheckbox("Task 2").checked).toBe(true));
+    fireEvent.click(rowCheckbox("Task 4"), { shiftKey: true });
+
+    await waitFor(() => expect(rowCheckbox("Task 4").checked).toBe(true));
+    expect(rowCheckbox("Task 3").checked).toBe(true);
+    expect(rowCheckbox("Task 1").checked).toBe(false);
+    expect(rowCheckbox("Task 5").checked).toBe(false);
   });
 });
