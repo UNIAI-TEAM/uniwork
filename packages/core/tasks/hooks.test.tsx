@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TableFilter, TableGroupsResult, TableRowsResult } from "../api/endpoints/tasks-table";
 import { setAccessToken } from "../api/session";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
@@ -10,6 +11,7 @@ import { useCreateTask, useDeleteTask, useUpdateTask } from "./hooks";
 import { useInfiniteMyTasks, useInfiniteQueryTasks } from "./hooks-suite";
 import { taskKeys } from "./keys";
 import { useRecentTasksStore } from "./stores/recent-tasks-store";
+import { tableGroupsBody, tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
 
 const WS = "ws1";
 const USER: User = {
@@ -151,6 +153,129 @@ describe("useCreateTask", () => {
       identifier: "UNI-2",
       title: "New task",
     });
+  });
+});
+
+/** The key one cached rows page sits under, built by the real body/key builders. */
+function rowsKey(
+  groupKey: string | null,
+  opts: { groupBy?: string; filter?: TableFilter; cursor?: string | null } = {},
+) {
+  return tableRowsPageQuery(
+    WS,
+    tableRowsPageBody({
+      query: { filter: opts.filter },
+      groupBy: opts.groupBy ?? "status",
+      hierarchy: false,
+      groupKey,
+      parentId: null,
+      cursor: opts.cursor ?? null,
+      limit: 50,
+    }),
+  ).queryKey;
+}
+
+function rowsPage(tasks: Task[], opts: { total?: number; nextCursor?: string | null } = {}): TableRowsResult {
+  return {
+    query_fingerprint: "f",
+    group_key: null,
+    parent_id: null,
+    total: opts.total ?? tasks.length,
+    rows: tasks.map((t) => ({ task: t, direct_child_count: 0, labels: [] })),
+    next_cursor: opts.nextCursor ?? null,
+  };
+}
+
+const rowsOf = (qc: QueryClient, key: readonly unknown[]) => qc.getQueryData<TableRowsResult>(key);
+const idsOf = (qc: QueryClient, key: readonly unknown[]) => rowsOf(qc, key)?.rows.map((row) => row.task.id);
+
+function groupsKey(opts: { groupBy?: string; filter?: TableFilter } = {}) {
+  return taskKeys.tableGroups(
+    WS,
+    JSON.stringify(tableGroupsBody({ query: { filter: opts.filter }, groupBy: opts.groupBy ?? "status" })),
+  );
+}
+
+/** Status groups in server order, counts as given; keys are `status:<value>` per the wire contract. */
+function groupsResult(counts: Record<string, number>): TableGroupsResult {
+  const keys = Object.keys(counts).sort();
+  return {
+    query_fingerprint: "g",
+    total: keys.reduce((sum, key) => sum + counts[key]!, 0),
+    groups: keys.map((key) => ({ key: `status:${key}`, value: { kind: "status", status: key }, count: counts[key]! })),
+    next_cursor: null,
+  };
+}
+const countsOf = (qc: QueryClient, key: readonly unknown[]) =>
+  qc.getQueryData<TableGroupsResult>(key)?.groups.map((group) => [group.key, group.count]);
+
+describe("useUpdateTask optimistic table caches (cursor contract)", () => {
+  const A = task("A", { status: "todo", position: 1 });
+  const B = task("B", { status: "todo", position: 2 });
+  const C = task("C", { status: "done", position: 1 });
+  const todoKey = rowsKey("status:todo");
+  const doneKey = rowsKey("status:done");
+
+  function mount(qc: QueryClient) {
+    return renderHook(() => useUpdateTask(WS), { wrapper: wrapperFor(qc) }).result;
+  }
+
+  it("moves a dragged task into the target column's cached first page and moves status group counts, at once", async () => {
+    const qc = newClient();
+    qc.setQueryData(todoKey, rowsPage([A, B]));
+    qc.setQueryData(doneKey, rowsPage([C]));
+    const board = groupsKey();
+    qc.setQueryData(board, groupsResult({ todo: 2, done: 1 }));
+    const release = holdTaskPatch();
+    const result = mount(qc);
+
+    act(() => result.current.mutate({ taskId: "A", patch: { status: "done", position: 0.5 } }));
+
+    await waitFor(() => expect(idsOf(qc, todoKey)).toEqual(["B"]));
+    expect(idsOf(qc, doneKey)).toEqual(["A", "C"]);
+    expect(countsOf(qc, board)).toEqual([
+      ["status:done", 2],
+      ["status:todo", 1],
+    ]);
+
+    release(json({ task: { ...A, status: "done", position: 0.5 } }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+
+  it("restores every table cache it wrote — rows pages and status groups — when the server rejects the move", async () => {
+    const qc = newClient();
+    const todoBefore = rowsPage([A, B]);
+    const doneBefore = rowsPage([C]);
+    qc.setQueryData(todoKey, todoBefore);
+    qc.setQueryData(doneKey, doneBefore);
+    const board = groupsKey();
+    const boardBefore = groupsResult({ todo: 2, done: 1 });
+    qc.setQueryData(board, boardBefore);
+    const release = holdTaskPatch();
+    const result = mount(qc);
+
+    act(() => result.current.mutate({ taskId: "A", patch: { status: "done", position: 0.5 } }));
+    await waitFor(() => expect(idsOf(qc, doneKey)).toEqual(["A", "C"]));
+
+    release(failure());
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(rowsOf(qc, todoKey)).toStrictEqual(todoBefore);
+    expect(rowsOf(qc, doneKey)).toStrictEqual(doneBefore);
+    expect(qc.getQueryData(board)).toStrictEqual(boardBefore);
+  });
+
+  it("reorders a column's cached page at once when a task moves within that column", async () => {
+    const qc = newClient();
+    qc.setQueryData(todoKey, rowsPage([A, B]));
+    const release = holdTaskPatch();
+    const result = mount(qc);
+
+    act(() => result.current.mutate({ taskId: "A", patch: { position: 3 } }));
+
+    await waitFor(() => expect(idsOf(qc, todoKey)).toEqual(["B", "A"]));
+    release(json({ task: { ...A, position: 3 } }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 });
 

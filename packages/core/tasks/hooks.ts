@@ -4,6 +4,7 @@ import * as tasks from "../api/endpoints/tasks";
 import type { Task } from "../types/task";
 import { taskKeys } from "./keys";
 import { useRecentTasksStore } from "./stores/recent-tasks-store";
+import { applyTaskPatch, patchTableCaches } from "./table-cache-patch";
 
 export type { CreateTaskBody, TaskPatch } from "../api/endpoints/tasks";
 export { taskKeys } from "./keys";
@@ -68,31 +69,23 @@ export function useCreateTask(workspaceId: string) {
   });
 }
 
-function applyTaskPatch(task: Task, patch: tasks.TaskPatch): Task {
-  return {
-    ...task,
-    ...Object.fromEntries(
-      Object.entries(patch).filter(([, v]) => v !== undefined),
-    ),
-  } as Task;
-}
-
 export function useUpdateTask(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ taskId, patch }: { taskId: string; patch: tasks.TaskPatch }) =>
       tasks.updateTask(taskId, patch),
     // Optimistic on purpose, and only here: a status/position patch is locally
-    // predictable, the user stays on the same screen, failure is rare and the
+    // predictable, the user stays on the board, failure is rare and the
     // rollback is a cache restore. Create/delete flows stay pessimistic.
-    // `taskKeys.list` gets the patch applied at once. The table API
-    // (`taskKeys.tableRoot`) is cursor-paged: a task's position within its
-    // branch is opaque to the client (an encoded cursor, not an offset it can
-    // do arithmetic on), so this hook cannot place the row itself the way the
-    // pre-cursor board did — it invalidates `tableRoot` on settle instead and
-    // waits for the refetch, same as every other list-style cache here.
+    // The board and the table read `taskKeys.tableRows` pages and status
+    // `taskKeys.tableGroups` counts (patched in ./table-cache-patch on the
+    // cursor contract), so the drop is applied there too (an already-cached
+    // first page of the target column gets the row) and does not snap back
+    // until the refetch lands. The infinite list pages are refreshed on
+    // settle, never patched.
     onMutate: async ({ taskId, patch }) => {
       await qc.cancelQueries({ queryKey: taskKeys.list(workspaceId) });
+      await qc.cancelQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
       const prev = qc.getQueryData<Task[]>(taskKeys.list(workspaceId));
       if (prev) {
         qc.setQueryData<Task[]>(
@@ -100,10 +93,17 @@ export function useUpdateTask(workspaceId: string) {
           prev.map((t) => (t.id === taskId ? applyTaskPatch(t, patch) : t)),
         );
       }
-      return { prev };
+      const tableWrites = patchTableCaches(qc, workspaceId, taskId, patch);
+      return { prev, tableWrites };
     },
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(taskKeys.list(workspaceId), ctx.prev);
+      for (const { key, before, after } of ctx?.tableWrites ?? []) {
+        // Rewritten since (a refetch, another member's event): newer than the snapshot, so it stays.
+        if (qc.getQueryData(key) !== after) continue;
+        if (before === undefined) qc.removeQueries({ queryKey: key, exact: true });
+        else qc.setQueryData(key, before);
+      }
     },
     onSettled: (_d, _e, { taskId }) => {
       void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
