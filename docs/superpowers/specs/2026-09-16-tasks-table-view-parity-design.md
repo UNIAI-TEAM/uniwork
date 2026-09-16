@@ -169,7 +169,7 @@ hierarchy = hàng chục query). Dựng SQL trong **`server/pkg/db/tablequery/`*
 ## 5. View Bảng
 
 ### 5.1 Dữ liệu
-- `use-table-view-data.ts` viết lại trên `useCursorBranches`: nhánh = `(group_key, parent_id)`. Nhóm thu gọn và cha thu gọn không tạo nhánh. Cha có `direct_child_count>0` và đang mở → nhánh con (tải khi dòng cha được mở). Một task chỉ hiện một lần.
+- `use-table-view-data.ts` viết lại trên `useCursorBranches`: nhánh = `(group_key, parent_id)`. Nhóm thu gọn không tạo nhánh. **Cha mặc định đóng** (khác usf mở sẵn): mở sẵn nghĩa là một request con cho mỗi cha trên màn hình; người dùng bấm mở thì mới tạo nhánh con. Store lưu danh sách cha **đang mở** (bump version store, xóa trạng thái cũ). Một task chỉ hiện một lần.
 - Bỏ `sortTasksForTable` và lọc search ở client (server làm).
 - Search: ô tìm kiếm debounce 300 ms; đang tải hiện chỉ báo nhỏ, giữ dữ liệu cũ (`placeholderData`) để bảng không nhấp nháy.
 - `showSubTasks=false` → gửi `hierarchy=false`, hiển thị phẳng mọi việc khớp (không lồng).
