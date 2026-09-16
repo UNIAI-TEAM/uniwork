@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
@@ -56,6 +57,7 @@ type CreateTaskInput struct {
 	Stage         *int32
 	LabelIDs      []string
 	AttachmentIDs []string
+	Properties    map[string]json.RawMessage
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate/ProjectID con trỏ
@@ -334,6 +336,10 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	properties, err := normalizeCreateTaskProperties(ctx, q, ws.OrganizationID, workspaceID, in.Properties)
+	if err != nil {
+		return db.Task{}, err
+	}
 	minPos, err := q.MinTaskPosition(ctx, db.MinTaskPositionParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: status,
 	})
@@ -355,7 +361,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),
 		OriginType: originTypeText(in.OriginType), OriginID: optText(in.OriginID),
-		ProjectID: projectID, ParentTaskID: parentTaskID, Stage: optInt4(in.Stage),
+		ProjectID: projectID, ParentTaskID: parentTaskID, Stage: optInt4(in.Stage), Properties: properties,
 	})
 	if err != nil {
 		return db.Task{}, err
@@ -420,6 +426,42 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		return db.Task{}, err
 	}
 	return task, nil
+}
+
+func normalizeCreateTaskProperties(
+	ctx context.Context,
+	q *db.Queries,
+	organizationID, workspaceID string,
+	values map[string]json.RawMessage,
+) ([]byte, error) {
+	if len(values) > maxActivePropertiesPerWorkspace {
+		return nil, Invalid("properties tối đa 20")
+	}
+	normalized := make(map[string]json.RawMessage, len(values))
+	for rawID, value := range values {
+		propertyID := strings.TrimSpace(rawID)
+		if propertyID == "" || len(value) == 0 || !json.Valid(value) {
+			return nil, Invalid("properties không hợp lệ")
+		}
+		property, err := q.GetTaskPropertyByID(ctx, db.GetTaskPropertyByIDParams{
+			OrganizationID: organizationID, WorkspaceID: workspaceID, ID: propertyID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && property.ArchivedAt.Valid) {
+			return nil, coded(http.StatusUnprocessableEntity, "property_not_available", "thuộc tính không tồn tại hoặc đã lưu trữ")
+		}
+		if err != nil {
+			return nil, err
+		}
+		normalized[propertyID] = value
+	}
+	encoded, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, Invalid("properties không hợp lệ")
+	}
+	if len(encoded) > 16*1024 {
+		return nil, Invalid("properties vượt quá giới hạn 16 KiB")
+	}
+	return encoded, nil
 }
 
 func (s *TaskService) List(ctx context.Context, userID, workspaceID string) ([]db.Task, error) {

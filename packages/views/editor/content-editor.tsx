@@ -99,6 +99,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       onUpdate,
       onDocumentChange,
       placeholder: placeholderText = "",
+      ariaLabel,
       className,
       debounceMs = 300,
       onSubmit,
@@ -423,6 +424,9 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
         },
         attributes: {
           class: cn("flex-1 rich-text-editor text-body outline-none", className),
+          role: "textbox",
+          "aria-multiline": "true",
+          ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
         },
       },
     });

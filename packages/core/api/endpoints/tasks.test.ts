@@ -91,6 +91,7 @@ describe("tasks endpoints", () => {
       project_id: "p1",
       parent_task_id: "parent-1",
       stage: 2,
+      properties: { "prop-1": 5 },
     };
 
     const created = await createTask("ws1", body, { idempotencyKey: "create-1" });

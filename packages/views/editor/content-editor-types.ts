@@ -21,6 +21,8 @@ export interface ContentEditorBaseProps {
    */
   onDocumentChange?: (markdown: string) => void;
   placeholder?: string;
+  /** Accessible name applied to the contenteditable surface. */
+  ariaLabel?: string;
   className?: string;
   debounceMs?: number;
   onSubmit?: () => void;

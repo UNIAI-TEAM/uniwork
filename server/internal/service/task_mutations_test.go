@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -254,6 +255,66 @@ func TestCreateTaskSuitePersistsWorkManagementContextAtTheHeadOfStatus(t *testin
 	labels, err := s.ListTaskLabelsOnTask(ctx, actor, created.ID)
 	if err != nil || len(labels) != 1 || labels[0].ID != label.ID {
 		t.Fatalf("labels = %+v err=%v", labels, err)
+	}
+}
+
+func TestCreateTaskSuitePersistsCustomPropertiesAtomically(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	property, err := s.CreateTaskProperty(ctx, actor, w.ID, CreateTaskPropertyInput{
+		Name: "Story points", Type: "number",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Estimated", Properties: map[string]json.RawMessage{property.ID: json.RawMessage(`5`)},
+	}, "create-with-properties")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var values map[string]any
+	if err := json.Unmarshal(created.Properties, &values); err != nil {
+		t.Fatal(err)
+	}
+	if values[property.ID] != float64(5) {
+		t.Fatalf("properties = %#v", values)
+	}
+}
+
+func TestCreateTaskSuiteRejectsForeignCustomPropertyWithoutCreatingTask(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	other, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Other properties", "other-properties")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := s.CreateTaskProperty(ctx, actor, other.Workspace.ID, CreateTaskPropertyInput{
+		Name: "Foreign score", Type: "number",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := s.List(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Must roll back", Properties: map[string]json.RawMessage{foreign.ID: json.RawMessage(`5`)},
+	}, "create-with-foreign-property")
+	if err == nil {
+		t.Fatal("expected foreign property to fail")
+	}
+	after, err := s.List(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("create was not atomic: before=%d after=%d", len(before), len(after))
 	}
 }
 

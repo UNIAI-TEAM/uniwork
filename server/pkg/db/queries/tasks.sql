@@ -10,7 +10,7 @@ INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, status, priority,
   assignee_id, assignee_kind, assignee_type, start_date, due_date, position,
   created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
-  origin_type, origin_id, project_id, parent_task_id, stage
+  origin_type, origin_id, project_id, parent_task_id, stage, properties
 ) VALUES (
   sqlc.arg('id'), sqlc.arg('organization_id'), sqlc.arg('workspace_id'), sqlc.arg('number'),
   sqlc.arg('title'), sqlc.arg('description'), sqlc.arg('status'), sqlc.arg('priority'),
@@ -19,7 +19,7 @@ INSERT INTO tasks (
   sqlc.arg('created_by'), sqlc.arg('created_by_kind'), sqlc.arg('creator_id'),
   sqlc.arg('creator_type'), sqlc.arg('revision'), sqlc.arg('last_activity_at'),
   sqlc.narg('origin_type'), sqlc.narg('origin_id'), sqlc.narg('project_id'),
-  sqlc.narg('parent_task_id'), sqlc.narg('stage')
+  sqlc.narg('parent_task_id'), sqlc.narg('stage'), sqlc.arg('properties')::jsonb
 )
 RETURNING *;
 

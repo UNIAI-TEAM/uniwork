@@ -23,7 +23,7 @@ describe("create task draft store", () => {
   beforeEach(() => {
     resetAuthStoreForTests();
     useAuthStore.getState().setUser(user);
-    useCreateTaskDraftStore.setState({ drafts: {}, ownerId: null });
+    useCreateTaskDraftStore.setState({ drafts: {}, settings: {}, ownerId: null });
   });
 
   it("keeps drafts isolated by workspace", () => {
@@ -92,5 +92,22 @@ describe("create task draft store", () => {
     });
 
     expect(useCreateTaskDraftStore.getState().draftFor("ws1")).toBeNull();
+  });
+
+  it("remembers create settings per workspace", () => {
+    useCreateTaskDraftStore.getState().setSettings("ws1", {
+      status: "in_review",
+      priority: "high",
+      projectId: "project-1",
+      stage: "2",
+    });
+
+    expect(useCreateTaskDraftStore.getState().settingsFor("ws1")).toEqual({
+      status: "in_review",
+      priority: "high",
+      projectId: "project-1",
+      stage: "2",
+    });
+    expect(useCreateTaskDraftStore.getState().settingsFor("ws2")).toBeNull();
   });
 });

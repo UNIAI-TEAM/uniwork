@@ -7,13 +7,19 @@ import { paths } from "@uniwork/core/paths";
 import {
   useCreateTask,
   useProjects,
+  useTaskProperties,
   useTaskLabels,
   useTaskStatuses,
+  useTasks,
   useUploadWorkspaceAttachment,
   useDeleteAttachment,
   type CreateTaskBody,
 } from "@uniwork/core/tasks";
-import { useCreateTaskDraftStore, type CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
+import {
+  useCreateTaskDraftStore,
+  type CreateTaskDraft,
+  type CreateTaskSettings,
+} from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@uniwork/core/types";
 import { createSafeId } from "@uniwork/core/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -28,14 +34,15 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
-import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { DateField } from "../common/date-field";
+import { ContentEditor } from "../editor";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
 import { AssigneePicker } from "./pickers/assignee-picker";
 import { LabelPicker } from "./pickers/label-picker";
 import { useWorkspaceAssigneeOptions } from "./pickers/member-options";
+import { CreateTaskCustomProperties } from "./create-task-custom-properties";
 
 type NewTaskDialogProps = {
   workspaceId: string;
@@ -45,25 +52,37 @@ type NewTaskDialogProps = {
   showTrigger?: boolean;
 };
 
-function draftFromDefaults(defaults?: Partial<CreateTaskBody>): CreateTaskDraft {
+function draftFromDefaults(
+  defaults?: Partial<CreateTaskBody>,
+  settings?: CreateTaskSettings | null,
+): CreateTaskDraft {
+  const hasDefaultAssignee = defaults != null && "assignee_id" in defaults;
+  const hasDefaultProject = defaults != null && "project_id" in defaults;
+  const hasDefaultStage = defaults != null && "stage" in defaults;
+  const assigneeId = hasDefaultAssignee ? defaults.assignee_id ?? undefined : settings?.assigneeId;
   return {
     title: defaults?.title ?? "",
     description: defaults?.description,
-    status: defaults?.status ?? "todo",
-    priority: defaults?.priority ?? "none",
-    assigneeId: defaults?.assignee_id ?? undefined,
+    status: defaults?.status ?? settings?.status ?? "todo",
+    priority: defaults?.priority ?? settings?.priority ?? "none",
+    assigneeId,
     assigneeKind:
-      defaults?.assignee_kind === "agent"
+      hasDefaultAssignee && defaults?.assignee_kind === "agent"
         ? "agent"
-        : defaults?.assignee_id
+        : hasDefaultAssignee && assigneeId
           ? "human"
-          : undefined,
-    projectId: defaults?.project_id ?? undefined,
+          : settings?.assigneeKind,
+    projectId: hasDefaultProject ? defaults?.project_id ?? undefined : settings?.projectId,
     parentTaskId: defaults?.parent_task_id ?? undefined,
-    stage: defaults?.stage == null ? undefined : String(defaults.stage),
+    stage: hasDefaultStage
+      ? defaults?.stage == null
+        ? undefined
+        : String(defaults.stage)
+      : settings?.stage,
     startDate: defaults?.start_date ?? undefined,
     dueDate: defaults?.due_date ?? undefined,
     labelIds: defaults?.label_ids,
+    properties: defaults?.properties,
     idempotencyKey: createSafeId(),
     version: 0,
   };
@@ -85,12 +104,18 @@ export function NewTaskDialog({
   const { data: projectList } = useProjects(workspaceId);
   const { data: labelList } = useTaskLabels(workspaceId);
   const { data: statusList } = useTaskStatuses(workspaceId);
+  const { data: taskList } = useTasks(workspaceId);
+  const { data: propertyList } = useTaskProperties(workspaceId);
   const assignees = useWorkspaceAssigneeOptions(workspaceId);
   const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
   const persistDraft = useCreateTaskDraftStore((state) => state.setDraft);
+  const settingsFor = useCreateTaskDraftStore((state) => state.settingsFor);
+  const persistSettings = useCreateTaskDraftStore((state) => state.setSettings);
   const clearDraft = useCreateTaskDraftStore((state) => state.clearDraft);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const [draft, setDraftState] = useState<CreateTaskDraft>(() => draftFromDefaults(defaults));
+  const [draft, setDraftState] = useState<CreateTaskDraft>(() =>
+    draftFromDefaults(defaults, settingsFor(workspaceId)),
+  );
   const draftRef = useRef(draft);
   const uploadInFlightRef = useRef(false);
   const [createAnother, setCreateAnother] = useState(false);
@@ -100,10 +125,10 @@ export function NewTaskDialog({
 
   useEffect(() => {
     if (!open) return;
-    const next = draftFor(workspaceId) ?? draftFromDefaults(defaults);
+    const next = draftFor(workspaceId) ?? draftFromDefaults(defaults, settingsFor(workspaceId));
     draftRef.current = next;
     setDraftState(next);
-  }, [open, workspaceId, defaults, draftFor]);
+  }, [open, workspaceId, defaults, draftFor, settingsFor]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -135,6 +160,16 @@ export function NewTaskDialog({
     ],
     [projectList, t],
   );
+  const parentItems = useMemo(
+    () => [
+      { value: "__none__", label: t("tasks.create.parent_none") },
+      ...(taskList ?? []).map((task) => ({
+        value: task.id,
+        label: `${task.identifier || task.id} ${task.title}`,
+      })),
+    ],
+    [taskList, t],
+  );
   const assignee = draft.assigneeId
     ? { id: draft.assigneeId, kind: draft.assigneeKind ?? ("human" as const) }
     : null;
@@ -163,6 +198,7 @@ export function NewTaskDialog({
         due_date: draft.dueDate || null,
         label_ids: draft.labelIds,
         attachment_ids: draft.attachments?.map((attachment) => attachment.id),
+        properties: draft.properties,
         idempotencyKey: draft.idempotencyKey,
       })
       .then((task) => {
@@ -171,6 +207,15 @@ export function NewTaskDialog({
           latest.idempotencyKey === submitted.idempotencyKey &&
           (latest.version ?? 0) === (submitted.version ?? 0);
         clearDraft(workspaceId, submitted.idempotencyKey, submitted.version ?? 0);
+        const savedSettings: CreateTaskSettings = {
+          status: submitted.status,
+          priority: submitted.priority,
+          assigneeId: submitted.assigneeId,
+          assigneeKind: submitted.assigneeKind,
+          projectId: submitted.projectId,
+          stage: submitted.stage,
+        };
+        persistSettings(workspaceId, savedSettings);
         const taskPath = workspaceContext
           ? paths
               .workspace(
@@ -191,17 +236,14 @@ export function NewTaskDialog({
         });
         if (!submittedIsStillCurrent) return;
         if (createAnother) {
-          const next = draftFromDefaults({
-            status: draft.status,
-            priority: draft.priority,
-            assignee_id: draft.assigneeId,
-            assignee_kind: draft.assigneeKind,
-            project_id: draft.projectId,
-          });
+          const next = draftFromDefaults(undefined, savedSettings);
+          draftRef.current = next;
           setDraftState(next);
           return;
         }
-        setDraftState(draftFromDefaults());
+        const next = draftFromDefaults(undefined, savedSettings);
+        draftRef.current = next;
+        setDraftState(next);
         setOpen(false);
       })
       .catch((error: unknown) => toastApiError(error, t("tasks.create.error")));
@@ -235,8 +277,16 @@ export function NewTaskDialog({
             <Input id="task-title" value={draft.title} onChange={(event) => updateDraft({ title: event.target.value })} required maxLength={200} autoFocus />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="task-description">{t("tasks.description")}</Label>
-            <Textarea id="task-description" value={draft.description ?? ""} onChange={(event) => updateDraft({ description: event.target.value })} rows={4} placeholder={t("tasks.detail.description_placeholder")} />
+            <Label>{t("tasks.description")}</Label>
+            <div className="min-h-24 rounded-lg border border-input px-2.5 py-2">
+              <ContentEditor
+                key={draft.idempotencyKey}
+                defaultValue={draft.description ?? ""}
+                ariaLabel={t("tasks.description")}
+                placeholder={t("tasks.detail.description_placeholder")}
+                onDocumentChange={(description) => updateDraft({ description })}
+              />
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -256,6 +306,25 @@ export function NewTaskDialog({
             <div className="space-y-1.5">
               <Label htmlFor="task-project">{t("tasks.create.project")}</Label>
               <Select id="task-project" items={projectItems} value={draft.projectId || "__none__"} onValueChange={(value) => updateDraft({ projectId: !value || value === "__none__" ? undefined : value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-parent">{t("tasks.create.parent")}</Label>
+              <Select
+                id="task-parent"
+                items={parentItems}
+                value={draft.parentTaskId || "__none__"}
+                onValueChange={(value) => updateDraft({ parentTaskId: !value || value === "__none__" ? undefined : value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-stage">{t("tasks.create.stage")}</Label>
+              <Input
+                id="task-stage"
+                type="number"
+                min={1}
+                value={draft.stage ?? ""}
+                onChange={(event) => updateDraft({ stage: event.target.value || undefined })}
+              />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>{t("tasks.detail.prop_labels")}</Label>
@@ -285,6 +354,21 @@ export function NewTaskDialog({
               <DateField id="task-due-date" value={draft.dueDate ?? ""} onChange={(value) => updateDraft({ dueDate: value || undefined })} modal={false} />
             </div>
           </div>
+          {(propertyList?.properties.length ?? 0) > 0 ? (
+            <fieldset className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
+              <legend className="px-1 text-body font-medium">{t("tasks.create.custom_properties")}</legend>
+              <CreateTaskCustomProperties
+                properties={propertyList?.properties ?? []}
+                values={draft.properties ?? {}}
+                onChange={(propertyId, value) => {
+                  const properties = { ...(draftRef.current.properties ?? {}) };
+                  if (value === undefined) delete properties[propertyId];
+                  else properties[propertyId] = value;
+                  updateDraft({ properties });
+                }}
+              />
+            </fieldset>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="task-attachments">{t("tasks.detail.attachments_section")}</Label>
             <Input

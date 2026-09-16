@@ -352,7 +352,7 @@ INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, status, priority,
   assignee_id, assignee_kind, assignee_type, start_date, due_date, position,
   created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
-  origin_type, origin_id, project_id, parent_task_id, stage
+  origin_type, origin_id, project_id, parent_task_id, stage, properties
 ) VALUES (
   $1, $2, $3, $4,
   $5, $6, $7, $8,
@@ -361,7 +361,7 @@ INSERT INTO tasks (
   $15, $16, $17,
   $18, $19, $20,
   $21, $22, $23,
-  $24, $25
+  $24, $25, $26::jsonb
 )
 RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
 `
@@ -392,6 +392,7 @@ type CreateTaskParams struct {
 	ProjectID      pgtype.Text        `json:"project_id"`
 	ParentTaskID   pgtype.Text        `json:"parent_task_id"`
 	Stage          pgtype.Int4        `json:"stage"`
+	Properties     []byte             `json:"properties"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -421,6 +422,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.ProjectID,
 		arg.ParentTaskID,
 		arg.Stage,
+		arg.Properties,
 	)
 	var i Task
 	err := row.Scan(

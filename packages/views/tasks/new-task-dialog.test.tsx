@@ -62,12 +62,14 @@ const workspace: Workspace = {
 describe("NewTaskDialog", () => {
   beforeEach(() => {
     setSessionUser(user);
-    useCreateTaskDraftStore.setState({ drafts: {}, ownerId: null });
+    useCreateTaskDraftStore.setState({ drafts: {}, settings: {}, ownerId: null });
     toastSuccess.mockReset();
     requestMock.mockReset();
     requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
       if (path.endsWith("/members")) return { members: [] };
       if (path.endsWith("/projects")) return { projects: [], total: 0 };
+      if (path.endsWith("/task-properties")) return { properties: [], total: 0 };
+      if (path.endsWith("/tasks") && init?.method !== "POST") return { tasks: [] };
       if (init?.method === "POST" && path.endsWith("/tasks")) return { task: createdTask };
       return {};
     });
@@ -135,7 +137,13 @@ describe("NewTaskDialog", () => {
     );
 
     fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "  Sửa lỗi  " } });
-    fireEvent.change(screen.getByLabelText("Mô tả"), { target: { value: "Chi tiết" } });
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Mô tả" })).toBeInTheDocument());
+    fireEvent.input(screen.getByRole("textbox", { name: "Mô tả" }), {
+      target: { innerHTML: "<p>Chi tiết</p>" },
+    });
+    await waitFor(() =>
+      expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.description).toBe("Chi tiết"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
 
     await waitFor(() =>
@@ -159,6 +167,57 @@ describe("NewTaskDialog", () => {
         }),
       ),
     );
+    await waitFor(() =>
+      expect(useCreateTaskDraftStore.getState().settingsFor("ws1")).toMatchObject({
+        status: "in_progress",
+        priority: "high",
+        projectId: "p1",
+      }),
+    );
+  });
+
+  it("creates with rich text, a selected parent and stage, and custom properties", async () => {
+    const property = {
+      id: "prop-1", organization_id: "o1", workspace_id: "ws1", name: "Story points",
+      type: "number", description: "", config: {}, position: 1, usage_count: 0,
+      created_at: "2026-09-16T00:00:00Z", updated_at: "2026-09-16T00:00:00Z",
+    };
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/members")) return { members: [] };
+      if (path.endsWith("/projects")) return { projects: [], total: 0 };
+      if (path.endsWith("/task-properties")) return { properties: [property], total: 1 };
+      if (path.endsWith("/tasks") && init?.method !== "POST") {
+        return { tasks: [{ ...createdTask, id: "parent-1", identifier: "UNI-9", title: "Task cha" }] };
+      }
+      if (init?.method === "POST" && path.endsWith("/tasks")) return { task: createdTask };
+      return {};
+    });
+    render(wrap(
+      <NewTaskDialog
+        workspaceId="ws1"
+        open
+        showTrigger={false}
+        onOpenChange={() => {}}
+        defaults={{ parent_task_id: "parent-1" }}
+      />,
+    ));
+
+    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Task đầy đủ" } });
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Mô tả" })).toBeInTheDocument());
+    fireEvent.input(screen.getByRole("textbox", { name: "Mô tả" }), {
+      target: { innerHTML: "<p><strong>Chi tiết</strong></p>" },
+    });
+    expect(screen.getByRole("combobox", { name: "Task cha" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Giai đoạn"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Story points"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
+
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/tasks",
+      expect.objectContaining({ body: expect.objectContaining({
+        parent_task_id: "parent-1", stage: 2, properties: { "prop-1": 5 },
+      }) }),
+    ));
   });
 
   it("keeps the dialog and draft open when a malformed create response degrades to null", async () => {
@@ -271,7 +330,7 @@ describe("NewTaskDialog", () => {
       target: { files: [new File(["hello"], "brief.txt", { type: "text/plain" })] },
     });
     fireEvent.submit(form);
-    expect(requestMock.mock.calls.filter(([path]) => String(path).endsWith("/tasks"))).toHaveLength(0);
+    expect(requestMock.mock.calls.filter(([path, init]) => String(path).endsWith("/tasks") && init?.method === "POST")).toHaveLength(0);
 
     await waitFor(() => expect(resolveUpload).toBeTypeOf("function"));
     await act(async () => resolveUpload?.({
