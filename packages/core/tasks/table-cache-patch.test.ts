@@ -36,16 +36,23 @@ function task(id: string, over: Partial<Task> = {}): Task {
 /** The key one cached rows page sits under, built by the real body/key builders. */
 function rowsKey(
   groupKey: string | null,
-  opts: { groupBy?: string; filter?: TableFilter; cursor?: string | null } = {},
+  opts: {
+    groupBy?: string;
+    filter?: TableFilter;
+    cursor?: string | null;
+    hierarchy?: boolean;
+    parentId?: string | null;
+    search?: string;
+  } = {},
 ): readonly unknown[] {
   return tableRowsPageQuery(
     WS,
     tableRowsPageBody({
-      query: { filter: opts.filter },
+      query: { filter: opts.filter, search: opts.search },
       groupBy: opts.groupBy ?? "status",
-      hierarchy: false,
+      hierarchy: opts.hierarchy ?? false,
       groupKey,
-      parentId: null,
+      parentId: opts.parentId ?? null,
       cursor: opts.cursor ?? null,
       limit: 50,
     }),
@@ -63,10 +70,12 @@ function rowsPage(tasks: Task[], opts: { total?: number; nextCursor?: string | n
   };
 }
 
-function groupsKey(opts: { groupBy?: string; filter?: TableFilter } = {}): readonly unknown[] {
+function groupsKey(opts: { groupBy?: string; filter?: TableFilter; search?: string } = {}): readonly unknown[] {
   return taskKeys.tableGroups(
     WS,
-    JSON.stringify(tableGroupsBody({ query: { filter: opts.filter }, groupBy: opts.groupBy ?? "status" })),
+    JSON.stringify(
+      tableGroupsBody({ query: { filter: opts.filter, search: opts.search }, groupBy: opts.groupBy ?? "status" }),
+    ),
   );
 }
 
@@ -295,5 +304,265 @@ describe("patchTableCaches", () => {
     expect(writes).toHaveLength(1);
     expect(writes[0]?.before).toBe(todoBefore);
     expect(writes[0]?.after).toBe(qc.getQueryData(todoKey));
+  });
+
+  describe("hierarchy", () => {
+    it("does not insert into a hierarchy child page cached for a different parent", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1, parent_task_id: "root" });
+      qc.setQueryData(rowsKey("status:todo", { hierarchy: true, parentId: "root" }), rowsPage([A]));
+      const otherParentDone = rowsKey("status:done", { hierarchy: true, parentId: "other-parent" });
+      const before = rowsPage([]);
+      qc.setQueryData(otherParentDone, before);
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryData(otherParentDone)).toBe(before);
+    });
+
+    it("does not insert into the hierarchy root page when the task has a parent", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1, parent_task_id: "root" });
+      qc.setQueryData(rowsKey("status:todo", { hierarchy: true, parentId: "root" }), rowsPage([A]));
+      const rootDone = rowsKey("status:done", { hierarchy: true, parentId: null });
+      const before = rowsPage([]);
+      qc.setQueryData(rootDone, before);
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryData(rootDone)).toBe(before);
+    });
+
+    it("inserts into the hierarchy child page cached for the task's own parent", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1, parent_task_id: "root" });
+      qc.setQueryData(rowsKey("status:todo", { hierarchy: true, parentId: "root" }), rowsPage([A]));
+      const ownParentDone = rowsKey("status:done", { hierarchy: true, parentId: "root" });
+      qc.setQueryData(ownParentDone, rowsPage([]));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(idsOf(qc, ownParentDone)).toEqual(["A"]);
+    });
+
+    it("inserts into the hierarchy root page when the task itself has no parent", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1, parent_task_id: null });
+      qc.setQueryData(rowsKey("status:todo", { hierarchy: true, parentId: null }), rowsPage([A]));
+      const rootDone = rowsKey("status:done", { hierarchy: true, parentId: null });
+      qc.setQueryData(rootDone, rowsPage([]));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(idsOf(qc, rootDone)).toEqual(["A"]);
+    });
+  });
+
+  describe("search", () => {
+    it("does not insert into a first page filtered by search, even when it would otherwise admit the task", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      const searchedDone = rowsKey("status:done", { search: "foo" });
+      const before = rowsPage([]);
+      qc.setQueryData(searchedDone, before);
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryData(searchedDone)).toBe(before);
+    });
+
+    it("does not patch a status groups entry filtered by search", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      const searchedBoard = groupsKey({ search: "foo" });
+      const before = groupsResult({ todo: 1 });
+      qc.setQueryData(searchedBoard, before);
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryData(searchedBoard)).toBe(before);
+    });
+
+    it("still updates a row in place on a search-filtered page that already holds it (search only blocks insertion and group counts)", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      const key = rowsKey("status:todo", { search: "foo" });
+      qc.setQueryData(key, rowsPage([A]));
+
+      patchTableCaches(qc, WS, "A", { position: 5 });
+
+      expect(rowsOf(qc, key)?.rows[0]?.task.position).toBe(5);
+    });
+  });
+
+  describe("malformed cached bodies (missing query)", () => {
+    it("does not throw and skips a rows page whose body has no query", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      const malformedHash = JSON.stringify({
+        group_by: "status",
+        group_key: "status:done",
+        hierarchy: false,
+        parent_id: null,
+        limit: 50,
+      });
+      const malformedKey = taskKeys.tableRows(WS, malformedHash, "");
+      const before = rowsPage([]);
+      qc.setQueryData(malformedKey, before);
+
+      expect(() => patchTableCaches(qc, WS, "A", { status: "done", position: 1 })).not.toThrow();
+      expect(qc.getQueryData(malformedKey)).toBe(before);
+    });
+
+    it("does not throw on a page holding the task whose body has no query — it still updates in place", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      const malformedHash = JSON.stringify({
+        group_by: "status",
+        group_key: "status:todo",
+        hierarchy: false,
+        parent_id: null,
+        limit: 50,
+      });
+      const malformedKey = taskKeys.tableRows(WS, malformedHash, "");
+      qc.setQueryData(malformedKey, rowsPage([A]));
+
+      expect(() => patchTableCaches(qc, WS, "A", { position: 5 })).not.toThrow();
+      expect(rowsOf(qc, malformedKey)?.rows[0]?.task.position).toBe(5);
+    });
+
+    it("does not throw and skips a groups entry whose body has no query", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      const malformedGroupsKey = taskKeys.tableGroups(WS, JSON.stringify({ group_by: "status" }));
+      const before = groupsResult({ todo: 1 });
+      qc.setQueryData(malformedGroupsKey, before);
+
+      expect(() => patchTableCaches(qc, WS, "A", { status: "done", position: 1 })).not.toThrow();
+      expect(qc.getQueryData(malformedGroupsKey)).toBe(before);
+    });
+  });
+
+  describe("seeding a brand-new first page for an empty target status", () => {
+    it("seeds one when a sibling first page and a confirming groups cache (target absent) both exist", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      qc.setQueryData(groupsKey(), groupsResult({ todo: 1 })); // "done" absent
+
+      const writes = patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      const seededKey = rowsKey("status:done");
+      expect(idsOf(qc, seededKey)).toEqual(["A"]);
+      expect(rowsOf(qc, seededKey)).toMatchObject({
+        group_key: "status:done",
+        parent_id: null,
+        total: 1,
+        next_cursor: null,
+      });
+      const seededWrite = writes.find((w) => JSON.stringify(w.key) === JSON.stringify(seededKey));
+      expect(seededWrite?.before).toBeUndefined();
+    });
+
+    it("seeds one when the groups cache explicitly shows the target status at count 0", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      qc.setQueryData(groupsKey(), groupsResult({ todo: 1, done: 0 }));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(idsOf(qc, rowsKey("status:done"))).toEqual(["A"]);
+    });
+
+    it("does not seed when the groups cache shows the target status already has tasks (unloaded, not empty)", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      qc.setQueryData(groupsKey(), groupsResult({ todo: 1, done: 3 }));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryState(rowsKey("status:done"))).toBeUndefined();
+    });
+
+    it("does not seed when there is no groups cache entry to confirm the target status is empty", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryState(rowsKey("status:done"))).toBeUndefined();
+    });
+
+    it("does not seed when no sibling first page (any status) is cached to template from", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", assignee_id: "u1", position: 1 });
+      qc.setQueryData(rowsKey("assignee:human:u1", { groupBy: "assignee" }), rowsPage([A]));
+      qc.setQueryData(groupsKey(), groupsResult({}));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryState(rowsKey("status:done"))).toBeUndefined();
+    });
+
+    it("does not seed when the family already has a page (even a later, non-first one) for the target status", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
+      const laterDone = rowsKey("status:done", { cursor: "c1" });
+      const laterBefore = rowsPage([task("d0", { status: "done", position: 5 })]);
+      qc.setQueryData(laterDone, laterBefore);
+      qc.setQueryData(groupsKey(), groupsResult({ todo: 1 }));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryState(rowsKey("status:done"))).toBeUndefined();
+      expect(qc.getQueryData(laterDone)).toBe(laterBefore);
+    });
+
+    it("does not seed for a search-filtered family, even with a sibling and a confirming groups cache", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1 });
+      qc.setQueryData(rowsKey("status:todo", { search: "foo" }), rowsPage([A]));
+      qc.setQueryData(groupsKey({ search: "foo" }), groupsResult({ todo: 1 }));
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryState(rowsKey("status:done", { search: "foo" }))).toBeUndefined();
+    });
+
+    it("does not seed a hierarchy child page for a task that has no parent (only the root scope may seed)", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1, parent_task_id: null });
+      qc.setQueryData(rowsKey("status:todo", { hierarchy: true, parentId: "some-parent" }), rowsPage([A]));
+      qc.setQueryData(
+        taskKeys.tableGroups(WS, JSON.stringify(tableGroupsBody({ query: {}, groupBy: "status" }))),
+        groupsResult({ todo: 1 }),
+      );
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(qc.getQueryState(rowsKey("status:done", { hierarchy: true, parentId: "some-parent" }))).toBeUndefined();
+    });
+
+    it("seeds the hierarchy root scope's empty target status when the task itself has no parent", () => {
+      const qc = new QueryClient();
+      const A = task("A", { status: "todo", position: 1, parent_task_id: null });
+      qc.setQueryData(rowsKey("status:todo", { hierarchy: true, parentId: null }), rowsPage([A]));
+      qc.setQueryData(
+        taskKeys.tableGroups(WS, JSON.stringify(tableGroupsBody({ query: {}, groupBy: "status" }))),
+        groupsResult({ todo: 1 }),
+      );
+
+      patchTableCaches(qc, WS, "A", { status: "done", position: 0.5 });
+
+      expect(idsOf(qc, rowsKey("status:done", { hierarchy: true, parentId: null }))).toEqual(["A"]);
+    });
   });
 });

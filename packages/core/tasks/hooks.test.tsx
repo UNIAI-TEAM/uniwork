@@ -277,6 +277,26 @@ describe("useUpdateTask optimistic table caches (cursor contract)", () => {
     release(json({ task: { ...A, position: 3 } }));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
+
+  it("seeds an empty target column's first page (no page cached there yet) and removes it when the server rejects the move", async () => {
+    const qc = newClient();
+    qc.setQueryData(todoKey, rowsPage([A, B]));
+    const board = groupsKey();
+    qc.setQueryData(board, groupsResult({ todo: 2 })); // "done" absent from the board's counts: an empty column
+    const release = holdTaskPatch();
+    const result = mount(qc);
+
+    act(() => result.current.mutate({ taskId: "A", patch: { status: "done", position: 0.5 } }));
+
+    await waitFor(() => expect(idsOf(qc, doneKey)).toEqual(["A"]));
+    expect(rowsOf(qc, doneKey)).toMatchObject({ group_key: "status:done", total: 1, next_cursor: null });
+
+    release(failure());
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(qc.getQueryState(doneKey)).toBeUndefined();
+    expect(idsOf(qc, todoKey)).toEqual(["A", "B"]);
+  });
 });
 
 describe("useUpdateTask optimistic list", () => {

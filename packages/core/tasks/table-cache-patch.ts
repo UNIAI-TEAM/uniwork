@@ -12,6 +12,7 @@ import type {
 } from "../api/endpoints/tasks-table";
 import type { Task } from "../types/task";
 import { taskKeys } from "./keys";
+import { tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
 
 /**
  * Optimistic cache placement for `useUpdateTask` (the board drag), on the
@@ -71,6 +72,23 @@ function filterAdmits(filter: TableFilter | undefined, task: Task): boolean {
 /** The server default (and the only order this client can place a row within): `position asc`. */
 function isPositionAsc(query: TableQuery | undefined): boolean {
   return !query?.sort || (query.sort.field === "position" && query.sort.direction === "asc");
+}
+
+/**
+ * Whether a `hierarchy: true` page's `parent_id` scope still matches
+ * `after`'s parent: `parent_id: null` is the root scope (admits only a
+ * parentless task), any other `parent_id` admits only a task whose
+ * `parent_task_id` equals it. A `hierarchy: false` page carries no such
+ * scope and always admits. `parent_task_id` is not a `TaskPatch` field, so a
+ * status move never changes it — this only ever excludes a hierarchy branch
+ * that was never the task's parent scope (an unrelated expanded parent, or
+ * the root scope when the task has a parent), never the task's own current
+ * parent's page.
+ */
+function hierarchyAdmits(body: RowsPageBody, after: Task): boolean {
+  if (!body.hierarchy) return true;
+  const parent = after.parent_task_id ?? null;
+  return body.parent_id === null ? parent === null : body.parent_id === parent;
 }
 
 /**
@@ -185,11 +203,16 @@ function readRowsPages(qc: QueryClient, workspaceId: string): ParsedRowsPage[] {
 /**
  * Insert the moved task into every already-cached first page (`cursor:
  * null`) of a branch keyed `status:<after.status>` — one per distinct
- * filter/sort/limit combination cached simultaneously — provided: the task
- * is not already in any cached page of that specific branch; the page's
- * filter admits `after`; the page is sorted `position asc` (the only order
- * this client can place a row within); and the position falls inside the
- * page (the page is the whole branch — `next_cursor: null` — or the
+ * filter/sort/hierarchy/parent/limit combination cached simultaneously —
+ * provided: the task is not already in any cached page of that specific
+ * branch; the page carries no `query.search` (a search-filtered page's match
+ * is not something this client can evaluate, so it is left to the settle
+ * refetch); a `hierarchy: true` page's `parent_id` scope is the task's own
+ * current parent (`hierarchyAdmits`) — an unrelated expanded parent's child
+ * page, or the root page when the task has a parent, never gets a row; the
+ * page's filter admits `after`; the page is sorted `position asc` (the only
+ * order this client can place a row within); and the position falls inside
+ * the page (the page is the whole branch — `next_cursor: null` — or the
  * position does not exceed the last loaded row's). A branch with no first
  * page cached is left alone: this never fabricates a new query entry, only
  * patches ones already sitting in the cache. Later pages of the branch are
@@ -216,7 +239,10 @@ function insertIntoTargetFirstPages(
     if (branchPages.some((page) => page.data.rows.some((row) => row.task.id === taskId))) continue;
     const firstPage = branchPages.find((page) => page.cursor === null);
     if (!firstPage) continue;
-    if (!isPositionAsc(firstPage.body.query) || !filterAdmits(firstPage.body.query.filter, after)) continue;
+    const query = firstPage.body.query;
+    if (!query || query.search) continue;
+    if (!hierarchyAdmits(firstPage.body, after)) continue;
+    if (!isPositionAsc(query) || !filterAdmits(query.filter, after)) continue;
 
     const rows = firstPage.data.rows;
     const lastRow = rows[rows.length - 1];
@@ -227,6 +253,100 @@ function insertIntoTargetFirstPages(
     const newRow = { task: after, direct_child_count: found.direct_child_count, labels: found.labels };
     const nextRows = insertAt === -1 ? [...rows, newRow] : rows.toSpliced(insertAt, 0, newRow);
     write(firstPage.key, firstPage.data, { ...firstPage.data, rows: nextRows, total: firstPage.data.total + 1 });
+  }
+}
+
+/** The family a rows page belongs to for seeding purposes: same query/hierarchy/parent/limit, any `group_key`. */
+function familyHash(body: RowsPageBody): string {
+  return JSON.stringify({
+    query: body.query,
+    group_by: body.group_by,
+    hierarchy: body.hierarchy,
+    parent_id: body.parent_id,
+    limit: body.limit,
+  });
+}
+
+/**
+ * Whether a family's scope may template a brand-new first page seeded for a
+ * status it has no page for at all. Narrower than `hierarchyAdmits`: seeding
+ * is only safe for a flat query (`hierarchy: false`) or the hierarchy root
+ * scope for a task that itself has no parent — never a specific non-root
+ * parent's child scope, even the task's own parent's, since that would need
+ * the parent subtree's own context this sibling page does not carry.
+ */
+function canSeedFrom(body: RowsPageBody, after: Task): boolean {
+  if (!body.hierarchy) return true;
+  return body.parent_id === null && (after.parent_task_id ?? null) === null;
+}
+
+/**
+ * Seed a brand-new first page for a status branch the cache has no page for
+ * at all — one family (same query/hierarchy/parent_id/limit, any
+ * `group_key`) at a time — restoring the pre-cursor board's "drop into an
+ * empty column" behaviour, narrowly: only when a sibling first page (any
+ * other status, `cursor: null`) already sits in the cache to copy
+ * `query_fingerprint` from; the family passes `canSeedFrom`; its query
+ * carries no `search` (an unevaluable match without the server); and its
+ * groups cache entry — looked up by the sibling's own `query` alone, since
+ * `TableGroupsBody` carries neither `hierarchy` nor `parent_id` — exists and
+ * shows the target status at count 0 or missing (a groups entry that does
+ * not exist proves nothing, so that family is left alone). A family that
+ * already has a page for the target status, at any cursor, is left to
+ * `insertIntoTargetFirstPages` instead — never both. The write is recorded
+ * with `before: undefined`, so a rejected move removes the seeded entry
+ * rather than trying to restore a "before" that never existed.
+ */
+function seedEmptyTargetFirstPages(
+  qc: QueryClient,
+  workspaceId: string,
+  statusPages: ParsedRowsPage[],
+  after: Task,
+  found: { direct_child_count: number; labels: TableRowLabel[] },
+  write: (key: QueryKey, before: undefined, next: TableRowsResult) => void,
+) {
+  const targetKey = statusGroupKey(after.status);
+  const families = new Map<string, ParsedRowsPage[]>();
+  for (const page of statusPages) {
+    const fam = familyHash(page.body);
+    const list = families.get(fam) ?? [];
+    list.push(page);
+    families.set(fam, list);
+  }
+
+  for (const family of families.values()) {
+    if (family.some((page) => page.body.group_key === targetKey)) continue;
+    const sibling = family.find((page) => page.cursor === null);
+    if (!sibling) continue;
+    const query = sibling.body.query;
+    if (!query || query.search) continue;
+    if (!canSeedFrom(sibling.body, after)) continue;
+
+    const groupsData = qc.getQueryData<TableGroupsResult>(
+      taskKeys.tableGroups(workspaceId, JSON.stringify({ query, group_by: "status" })),
+    );
+    if (!groupsData || !Array.isArray(groupsData.groups)) continue;
+    const existing = groupsData.groups.find((group) => group.key === targetKey);
+    if (existing && existing.count > 0) continue;
+
+    const seededBody = tableRowsPageBody({
+      query,
+      groupBy: sibling.body.group_by,
+      hierarchy: sibling.body.hierarchy,
+      groupKey: targetKey,
+      parentId: sibling.body.parent_id,
+      cursor: null,
+      limit: sibling.body.limit,
+    });
+    const { queryKey } = tableRowsPageQuery(workspaceId, seededBody);
+    write(queryKey, undefined, {
+      query_fingerprint: sibling.data.query_fingerprint,
+      group_key: targetKey,
+      parent_id: null,
+      total: 1,
+      rows: [{ task: after, direct_child_count: found.direct_child_count, labels: found.labels }],
+      next_cursor: null,
+    });
   }
 }
 
@@ -269,7 +389,7 @@ export function patchTableCaches(
   for (const { key, data, body } of pages) {
     const index = data.rows.findIndex((row) => row.task.id === taskId);
     if (index === -1) continue;
-    if (!branchAdmits(body, after) || !filterAdmits(body.query.filter, after)) {
+    if (!branchAdmits(body, after) || !filterAdmits(body.query?.filter, after)) {
       write(key, data, { ...data, rows: data.rows.toSpliced(index, 1), total: data.total - 1 });
       continue;
     }
@@ -281,12 +401,23 @@ export function patchTableCaches(
   const statusChanged = typeof patch.status === "string" && patch.status !== before.status;
   if (statusChanged) {
     insertIntoTargetFirstPages(pages, after, found, taskId, write);
+    // Reads groups caches at their pre-patch counts, so it runs before the
+    // groups loop below adjusts them — otherwise a just-incremented target
+    // count would look non-empty to this pass.
+    seedEmptyTargetFirstPages(
+      qc,
+      workspaceId,
+      pages.filter((page) => page.body.group_by === "status"),
+      after,
+      found,
+      write,
+    );
 
     const groupsEntries = qc.getQueriesData<TableGroupsResult>({ queryKey: taskKeys.tableRoot(workspaceId) });
     for (const [key, data] of groupsEntries) {
       if (!data || !Array.isArray(data.groups)) continue;
       const body = parseGroupsKey(key);
-      if (!body || body.group_by !== "status") continue;
+      if (!body || body.group_by !== "status" || !body.query || body.query.search) continue;
       const next = patchStatusGroups(data, body.query.filter, before, after);
       if (next) write(key, data, next);
     }
