@@ -162,6 +162,8 @@ Quy tắc bắt buộc của khung:
 ```mermaid
 stateDiagram-v2
     [*] --> loading
+    loading --> empty: thư viện/cây chưa có tài liệu
+    empty --> loading: tạo trang hoặc tải tệp xong
     loading --> ready: tải xong, có quyền edit
     loading --> readonly: tải xong, chỉ có view
     loading --> ready_foreign: tài liệu thuộc Work Product đủ quyền
@@ -183,6 +185,7 @@ stateDiagram-v2
 
 | Trạng thái | Người dùng thấy | Hành động cho phép | Ghi chú |
 | --- | --- | --- | --- |
+| `empty` | Empty state thật, hai nút (tạo trang / tải tệp); không dữ liệu hay số dung lượng giả | Tạo trang, tải tệp | Chỉ ở thư viện/cây, không ở khung chi tiết; §5.1 |
 | `loading` | Skeleton đúng khung (≤500ms có cảm giác tải); không spinner toàn màn hình | Điều hướng cây | PRODUCT: spinner là trạng thái lỗi |
 | `ready` | Không có chỉ báo lưu (đã sạch) | Sửa, chia sẻ, phiên bản, tải | Không hiện "Đã lưu" khi chưa từng sửa |
 | `dirty` | "Chưa lưu" nhạt | Sửa, ⌘S | Không chặn điều hướng rời trang ngầm |
@@ -432,7 +435,7 @@ chứng DOC-003/004. Bước **1b.1** mới lấy số ADR trống, đổi 0018 
 | Mỗi màn/flow có nguồn yêu cầu và nơi thực thi | §3 cột "Trạng thái", §5, §6 nêu nhóm nhận | Đạt ở mức tài liệu 1a |
 | Đường chia sẻ/phục hồi không vượt quyền | §5.7, §6.1 bước 3, §6.2 bước 5, §6.4 | Đạt ở mức tài liệu 1a |
 | BRAND-01 có ma trận riêng, gồm desktop packaging | File brand riêng, cột owner + phép kiểm | Đạt ở mức tài liệu 1a |
-| Link/ADR number/status/plan status | `node --test scripts/governance.test.mjs` | Chạy khi mở PR 1a |
+| Link/ADR number/status/plan status | `node --test scripts/governance.test.mjs` | 15/15 pass tại commit 1a; chạy lại khi mở PR |
 | Checklist workspace không bị tick trước | Không sửa `DOCUMENTS_OFFICE_CHECKLIST.md` ở 1a | Đạt |
 
 **Không đòi:** test UI runtime cho wireframe chưa có code; bằng chứng chạy editor; tick
@@ -447,3 +450,6 @@ wireframe/state map + khác biệt sáu editor (1a.3), phạm vi pilot + ADR dra
 brand FE (1a.5). Chưa làm, thuộc 1b và các task khác: ADR thay thế chính thức +
 `docs/adr/README.md`, sửa C-01/roadmap, đồng bộ issue UNI-635/UNI-636, và mọi
 bằng chứng runtime. DOC-001 chỉ đóng khi 1b xong.
+
+Nhánh `docs/UNI-665-office-scope-fe` đã đẩy lên `origin`; máy này không có `gh`
+nên PR do người sở hữu mở. Theo dõi ở UNI-665; chỉ người mới đặt `done`.
