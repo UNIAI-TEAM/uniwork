@@ -571,3 +571,53 @@ describe("bảng: chọn hàng chỉ render lại ô chọn", () => {
     expect(rowCheckbox("Task 5").checked).toBe(false);
   });
 });
+
+describe("bảng: vùng cuộn về đầu khi truy vấn đổi", () => {
+  function serveParentWithChild() {
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string; body?: { parent_id?: string | null } }) => {
+        if (path.includes("/tasks/table/rows")) {
+          const child = init?.body?.parent_id === "t1";
+          return {
+            query_fingerprint: "fp-rows",
+            group_key: null,
+            parent_id: child ? "t1" : null,
+            total: 1,
+            rows: child
+              ? [{ task: { ...task, id: "c1", title: "Con 1", parent_task_id: "t1" }, direct_child_count: 0, labels: [] }]
+              : [{ task, direct_child_count: 1, labels: [] }],
+            next_cursor: null,
+          };
+        }
+        return base(path, init);
+      },
+    );
+  }
+
+  function scrolledSurface() {
+    const scroll = document.querySelector<HTMLElement>('[data-slot="data-table-scroll"]')!;
+    // jsdom keeps no scroll position; give the element a writable one.
+    Object.defineProperty(scroll, "scrollTop", { value: 300, writable: true });
+    return scroll;
+  }
+
+  it("đổi chiều sắp xếp đưa vùng cuộn về đầu", async () => {
+    const { store } = await renderTable();
+    const scroll = scrolledSurface();
+    const header = await screen.findByRole("columnheader", { name: /Tiêu đề/ });
+    fireEvent.click(within(header).getByRole("button", { name: /^Tiêu đề/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Giảm dần/i }));
+    expect(store.getState().sortDirection).toBe("desc");
+    await waitFor(() => expect(scroll.scrollTop).toBe(0));
+  });
+
+  it("mở việc con không đổi vị trí cuộn", async () => {
+    serveParentWithChild();
+    await renderTable();
+    const scroll = scrolledSurface();
+    fireEvent.click(await screen.findByRole("button", { name: "Mở công việc con" }));
+    await screen.findByText("Con 1");
+    expect(scroll.scrollTop).toBe(300);
+  });
+});

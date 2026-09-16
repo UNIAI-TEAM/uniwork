@@ -387,6 +387,8 @@ export function TableView({
             className="min-h-0 flex-1"
             virtualizeRows={data.displayRows.length > 40}
             virtualRowHeight={40}
+            // A new sort, search, grouping or filter opens at the first row.
+            scrollResetKey={data.queryIdentity}
             // 40px exactly: the 28px cell controls fill the row without the
             // default py-2, which would make it 45px and drift from the estimate.
             rowClassName="h-10 [&>td]:py-0"

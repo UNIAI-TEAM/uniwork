@@ -37,6 +37,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 const UNSUPPORTED_GROUP = "unsupported_group";
 
 export interface UseTableViewDataResult {
+  /** Changes only when sort, debounced search, filter or grouping change. */
+  queryIdentity: string;
   displayRows: TaskTableDisplayRow[];
   loadedTasks: Task[];
   total: number;
@@ -97,6 +99,13 @@ export function useTableViewData({
         sort: { field: sortBy, direction: sortDirection },
       }),
     [debouncedSearch, filter, sortBy, sortDirection],
+  );
+
+  // What the reader asked for: sort, debounced search, filter and grouping.
+  // Refetches, edits, expanded parents and loaded pages leave it unchanged.
+  const queryIdentity = useMemo(
+    () => JSON.stringify({ query, groupBy }),
+    [groupBy, query],
   );
 
   const groupsQuery = useTableGroups(
@@ -226,6 +235,7 @@ export function useTableViewData({
   }, [grouped, refetchGroups, retryUngrouped]);
 
   return {
+    queryIdentity,
     displayRows,
     loadedTasks,
     total,

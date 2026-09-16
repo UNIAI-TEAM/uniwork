@@ -109,6 +109,10 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   // Extra classes for standard data rows (not rows from renderRow). A caller
   // that virtualizes pins the row height here to match `virtualRowHeight`.
   rowClassName?: string;
+  // The scroll surface returns to the top whenever this changes — callers
+  // pass their query's identity (sort, search, grouping, filter) so a new
+  // result opens at its first row. Undefined never scrolls.
+  scrollResetKey?: string;
 }
 
 type DataTableGridLines = "full" | "horizontal";
@@ -154,6 +158,7 @@ export function DataTable<TData>({
   reorderHandleLabel,
   gridLines = "full",
   rowClassName,
+  scrollResetKey,
   className,
   ...props
 }: DataTableProps<TData>) {
@@ -395,6 +400,17 @@ export function DataTable<TData>({
 
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
+  // Only a change resets: the first render has nothing to reset, and a
+  // re-render with the same key (a refetch, an edit, a load-more) keeps the
+  // reader where they are. A layout effect, so the new result never paints
+  // at the old offset.
+  const lastScrollResetKey = React.useRef(scrollResetKey);
+  React.useLayoutEffect(() => {
+    if (lastScrollResetKey.current === scrollResetKey) return;
+    lastScrollResetKey.current = scrollResetKey;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [scrollResetKey]);
+
   // Drives the pinned columns' trailing shadow. It only means something once
   // content is passing beneath them, so it stays off at rest. The state is a
   // boolean rather than the offset: it flips twice per scroll excursion
@@ -477,6 +493,7 @@ export function DataTable<TData>({
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
+        data-slot="data-table-scroll"
         className="flex min-h-0 flex-1 flex-col overflow-auto bg-background"
       >
         {/* Wraps the whole <table>, not just the header row: DndContext
