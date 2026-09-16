@@ -550,7 +550,7 @@ export function DataTable<TData>({
                       // muted with background to preserve the same visual tone
                       // as muted/30 without introducing alpha.
                       className={cn(
-                        "relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0",
+                        "relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0 pointer-coarse:h-11",
                         isPinned &&
                           "bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]",
                       )}
@@ -769,7 +769,7 @@ function DataTableSortableHeadCell<TData>({
           : undefined
       }
       className={cn(
-        "group/reorder relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0",
+        "group/reorder relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0 pointer-coarse:h-11",
         isPinned &&
           "bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]",
         isDragging && "z-20 bg-accent",
@@ -791,13 +791,21 @@ function DataTableSortableHeadCell<TData>({
         *
         * The visible button is 16px (w-4) — too small a touch target on its
         * own. `after:` adds an invisible hit area, coarse pointers only, that
-        * grows it without changing anything paintable. It's a fixed 32px
-        * (w-8), not the full 44px target: it shares this edge of the header
-        * cell with the resize handle (8px, flush right), and 44px would
-        * overlap that handle on a column at the default 48px minimum width.
-        * 32px leaves a buffer even at that floor while still being double
-        * the original target — the same trade every column width would force
-        * on a literal 44px box here. */}
+        * grows it to the full 44px (w-11) without changing anything
+        * paintable; `pointer-coarse:h-11` on the <TableHead> above (both this
+        * branch and the plain one) grows the header row to 44px on the same
+        * pointers so the hit area covers the full cell height, not just the
+        * 32px (h-8) fine-pointer row.
+        *
+        * A 44px-wide area at this cell's left edge can still reach into the
+        * resize handle's 8px hit area, flush at the cell's right edge, on a
+        * narrow enough column. The task table's reorderable columns are all
+        * ≥80px (`dataCols` in table-view-columns.tsx), which leaves a 28px
+        * gap — safe. A generic caller of this primitive with narrower
+        * reorderable + resizable columns (< ~52px) could see the two hit
+        * areas overlap; that's a caller-configuration concern, not something
+        * fixed-width geometry here can rule out for every possible column
+        * width. */}
       <button
         type="button"
         {...attributes}
@@ -806,7 +814,7 @@ function DataTableSortableHeadCell<TData>({
         data-slot="data-table-reorder-handle"
         className={cn(
           "absolute inset-y-0 left-0 z-10 flex w-4 cursor-grab items-center justify-center opacity-0 transition-opacity",
-          "after:absolute after:inset-y-0 after:left-0 after:w-4 pointer-coarse:after:w-8",
+          "after:absolute after:inset-y-0 after:left-0 after:w-4 pointer-coarse:after:w-11",
           "hover:text-foreground focus-visible:opacity-100 group-hover/reorder:opacity-100 group-focus-within/reorder:opacity-100",
           isDragging && "cursor-grabbing opacity-100 text-foreground",
         )}

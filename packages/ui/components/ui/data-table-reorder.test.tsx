@@ -126,6 +126,32 @@ describe("DataTable column reorder", () => {
     expect(grip).toHaveClass("focus-visible:opacity-100");
   });
 
+  it("meets the 44px coarse-pointer touch target: header cell height and grip hit area", () => {
+    render(
+      <TestTable
+        reorderableColumnIds={["a", "b", "c"]}
+        onColumnReorder={() => {}}
+        reorderHandleLabel={(id) => `Reorder ${id} column`}
+      />,
+    );
+
+    const grip = screen.getByRole("button", { name: "Reorder a column" });
+    // The invisible hit area behind the 16px/14px visible grip grows to 44px
+    // (w-11) on a coarse pointer only; the fine-pointer size is untouched.
+    expect(grip).toHaveClass("pointer-coarse:after:w-11");
+
+    // The header cell itself grows to 44px (h-11) tall on a coarse pointer so
+    // the grip's hit area covers the full row, not just the 32px fine-pointer
+    // row height.
+    const headerCell = grip.closest("th");
+    expect(headerCell).toHaveClass("pointer-coarse:h-11");
+
+    // The plain (non-reorderable) branch grows the same way, so the header
+    // row doesn't end up with mismatched cell heights on a coarse pointer.
+    const titleCell = screen.getByText("Title").closest("th");
+    expect(titleCell).toHaveClass("pointer-coarse:h-11");
+  });
+
   it("reorders columns from the keyboard: pick up, move right, drop", async () => {
     const onColumnReorder = vi.fn();
     const restoreRects = stubColumnRects();
