@@ -75,9 +75,18 @@ export function TableHeaderSortMenu({
     // (a 16px content box), and a reorderable column wraps this in an
     // overflow-hidden span exactly one line tall. Anything taller grows the
     // row and clips the label's top, diacritics first.
+    //
+    // On coarse pointers the row is 44px (pointer-coarse:h-11) and the
+    // trigger stays 16px, so an invisible `after:` hit area spans the cell's
+    // full height. Nothing between the trigger and the <th> is positioned, so
+    // the pseudo-element's containing block is DataTable's `relative` header
+    // cell — which also keeps it outside the overflow-hidden label span that
+    // would otherwise clip it (and its hit testing) to one line. Horizontally
+    // it starts after the grip's 44px coarse hit area and stops before the
+    // 8px resize handle.
     <div className="flex min-w-0 items-center">
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex min-w-0 items-center gap-1 rounded px-1.5 hover:bg-accent">
+        <DropdownMenuTrigger className="flex min-w-0 items-center gap-1 rounded px-1.5 hover:bg-accent pointer-coarse:after:absolute pointer-coarse:after:inset-y-0 pointer-coarse:after:right-2 pointer-coarse:after:left-11">
           <span className="truncate">{label}</span>
           {active ? (
             sortDirection === "asc" ? (
