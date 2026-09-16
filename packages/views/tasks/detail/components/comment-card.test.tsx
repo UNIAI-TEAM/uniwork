@@ -34,6 +34,16 @@ describe("TaskCommentCard", () => {
     });
   });
 
+  it("dùng viền nhẹ và shadow để tách card khỏi nền trang", () => {
+    const { container } = render(
+      <TaskCommentCard comment={base} onToggleReaction={vi.fn()} />,
+    );
+
+    const card = container.querySelector("article");
+    expect(card).toHaveClass("border-border/50");
+    expect(card).toHaveClass("shadow-[var(--surface-shadow)]");
+  });
+
   it("hiển thị reaction mà server trả về", () => {
     render(
       <TaskCommentCard

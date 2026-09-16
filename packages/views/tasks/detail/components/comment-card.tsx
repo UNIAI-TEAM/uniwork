@@ -183,7 +183,7 @@ export function TaskCommentCard({
     : replies;
 
   return (
-    <article className="overflow-clip rounded-lg border border-border bg-card">
+    <article className="overflow-clip rounded-lg border border-border/50 bg-card shadow-[var(--surface-shadow)]">
       <CommentEntry
         taskId={taskId ?? comment.task_id}
         comment={comment}
@@ -201,14 +201,14 @@ export function TaskCommentCard({
             <button
               type="button"
               onClick={() => setResolvedRepliesOpen(true)}
-              className="flex w-full items-center gap-2 border-t border-border/60 bg-muted/40 px-3 py-2.5 text-left text-caption text-muted-foreground hover:bg-muted"
+              className="flex w-full items-center gap-2 border-t border-border/50 bg-muted/40 px-3 py-2.5 text-left text-caption text-muted-foreground hover:bg-muted"
             >
               <ChevronRight className="size-3.5 rotate-90" aria-hidden />
               {t("tasks.detail.comment_resolved_fold", { count: foldedReplies.length })}
             </button>
           ) : null}
           {visibleReplies.map((reply) => (
-            <div key={reply.id} className="border-t border-border/60">
+            <div key={reply.id} className="border-t border-border/50">
               <CommentEntry taskId={taskId ?? comment.task_id} comment={reply} attachments={attachments} uploadFile={uploadFile} highlighted={highlightedId === reply.id} canModerate={canModerate} getActorName={getActorName} callbacks={callbacks} />
             </div>
           ))}
@@ -216,12 +216,12 @@ export function TaskCommentCard({
             <button
               type="button"
               onClick={() => setResolvedRepliesOpen(false)}
-              className="w-full border-t border-border/60 px-3 py-2 text-left text-caption text-muted-foreground hover:bg-muted/50"
+              className="w-full border-t border-border/50 px-3 py-2 text-left text-caption text-muted-foreground hover:bg-muted/50"
             >
               {t("tasks.detail.comment_resolved_fold_close")}
             </button>
           ) : null}
-          {replyComposer ? <div className="border-t border-border/60 px-3 py-2">{replyComposer}</div> : null}
+          {replyComposer ? <div className="border-t border-border/50 px-3 py-2">{replyComposer}</div> : null}
         </div>
       ) : null}
     </article>
