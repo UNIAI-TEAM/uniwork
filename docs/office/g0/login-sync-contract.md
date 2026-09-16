@@ -81,9 +81,9 @@ Ba đơn vị tách biệt — lẫn chúng là nguồn gốc của "mất chữ
 Save là **hai pha**, vì payload Office lớn không đi trong body JSON 1 MiB
 (CLAUDE.md § Backend HTTP Rules):
 
-1. `POST /documents/{id}/uploads` — client gửi byte tới object tạm, nhận Qupload_id`
+1. `POST /documents/{id}/uploads` — client gửi byte tới object tạm, nhận `upload_id`
    + `checksum`. Server kiểm quyền `edit` tại đây.
-2. `POST /documents/{id}/versions/commit` — tham chiếu Qupload_id` + `base_revision`
+2. `POST /documents/{id}/versions/commit` — tham chiếu `upload_id` + `base_revision`
    + `Idempotency-Key`. **Mọi thứ có thể từ chối save được quyết ở đây**: quyền,
    quota, engine tương thích, base revision, idempotency.
 
@@ -211,7 +211,7 @@ Chuyển đổi có thể mất thành phần **không bao giờ ghi đè nguồ
 
 1. Ước lượng độ trung thực và **cảnh báo đúng phần sẽ đổi**.
 2. Người dùng **chủ động chọn** tạo bản sao.
-3. Sinh **Document mới** (không phải version mới của nguồn), liên kết ```sourceDocumentId`
+3. Sinh **Document mới** (không phải version mới của nguồn), liên kết `sourceDocumentId`
    + `sourceVersion`, giữ nguyên byte gốc, lịch sử, quyền và nguồn gốc.
 4. Nguồn thuộc Work Product thì **bản sao thuộc cùng Work Product**; quyền tiếp tục đi
    qua uỷ quyền sở hữu của C-01 §13, **không** mở cửa thứ hai.
