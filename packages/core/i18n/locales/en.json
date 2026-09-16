@@ -1040,7 +1040,6 @@
         "trigger": "Columns",
         "add": "Add column",
         "hide": "Hide column",
-        "reorder": "Reorder {{column}} column",
         "search_placeholder": "Search columns…",
         "system_section": "System",
         "property_section": "Properties",

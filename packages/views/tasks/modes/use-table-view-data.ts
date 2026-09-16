@@ -42,6 +42,8 @@ export interface UseTableViewDataResult {
   total: number;
   isLoading: boolean;
   isRefreshing: boolean;
+  /** Rows or groups on screen are the previous query's, while a changed query loads. */
+  isShowingPrevious: boolean;
   isEmpty: boolean;
   /** The search the shown rows answer, trimmed; empty when there is none. */
   search: string;
@@ -135,7 +137,11 @@ export function useTableViewData({
     expandedParents: parentsInView,
     baseBody: { query, group_by: groupBy, hierarchy, limit: TABLE_PAGE_SIZE },
   });
-  const { byKey, isRefreshing: branchesRefreshing } = useCursorBranches(workspaceId, branches, {
+  const {
+    byKey,
+    isRefreshing: branchesRefreshing,
+    isShowingPrevious: branchesShowingPrevious,
+  } = useCursorBranches(workspaceId, branches, {
     keepPreviousFirstPage: true,
   });
 
@@ -225,11 +231,13 @@ export function useTableViewData({
     total,
     isLoading,
     isRefreshing,
+    isShowingPrevious: (grouped && groupsQuery.isPlaceholderData) || branchesShowingPrevious,
     isEmpty,
     search: query.search ?? "",
     groupBy,
     groupsError: grouped
-      ? groupsQuery.isError && !unsupportedGroup
+      ? // A failed background refetch keeps the groups it had: rows stay on screen.
+        groupsQuery.isError && !groupsQuery.data && !unsupportedGroup
       : !!ungrouped?.isError && ungrouped.rows.length === 0,
     retry,
   };

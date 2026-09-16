@@ -257,6 +257,36 @@ describe("useCursorBranches", () => {
     expect(server.rowRequests()).toHaveLength(2);
   });
 
+  it("with keepPreviousFirstPage, shows the old first page under a changed query but offers no next page from it", async () => {
+    const server = serveTableCursor({
+      count: () => 5,
+      hold: (body) => (body.query as { search?: string }).search === "x",
+    });
+    const { Wrapper } = setup();
+    const { result, rerender } = renderHook(
+      (props: { search?: string }) =>
+        useCursorBranches("w1", [branch("todo", props)], { keepPreviousFirstPage: true }),
+      { wrapper: Wrapper, initialProps: {} as { search?: string } },
+    );
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: true, isShowingPrevious: false });
+    expect(result.current.isShowingPrevious).toBe(false);
+
+    rerender({ search: "x" });
+    await waitFor(() => expect(result.current.byKey.get("todo")?.isShowingPrevious).toBe(true));
+    expect(result.current.isShowingPrevious).toBe(true);
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: false, isLoading: false });
+    expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await settle();
+    expect(server.rowRequests()).toEqual(["todo@null", "todo@null"]);
+
+    server.release();
+    await waitFor(() => expect(result.current.byKey.get("todo")?.isShowingPrevious).toBe(false));
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: true });
+    expect(result.current.isShowingPrevious).toBe(false);
+  });
+
   it("asks nothing for a disabled branch", async () => {
     const server = serveTableCursor({ count: () => 5 });
     const { Wrapper } = setup();

@@ -41,7 +41,7 @@ export function serveTableCursor(options: TableCursorServerOptions) {
   // Bumped by `change()`: every row's title then differs, as after an edit.
   let version = 0;
   let release = () => {};
-  const held = new Promise<void>((resolve) => {
+  let held = new Promise<void>((resolve) => {
     release = resolve;
   });
 
@@ -110,8 +110,14 @@ export function serveTableCursor(options: TableCursorServerOptions) {
     groupBodies,
     /** Every rows request as `group_key@cursor`, `null` for the first page. */
     rowRequests: () => rowBodies.map((body) => `${String(body.group_key)}@${String(body.cursor)}`),
-    /** Lets every held request answer. */
-    release: () => release(),
+    /** Lets every held request answer; requests after it are held again. */
+    release: () => {
+      const releaseHeld = release;
+      held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      releaseHeld();
+    },
     change: () => {
       version += 1;
     },

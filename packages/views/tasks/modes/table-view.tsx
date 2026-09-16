@@ -380,7 +380,7 @@ export function TableView({
         <TableLoadErrorState onRetry={data.retry} />
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col">
-          {data.isRefreshing ? <TableRefreshingBar /> : null}
+          {data.isShowingPrevious ? <TableRefreshingBar /> : null}
           <DataTable
             table={table}
             className="min-h-0 flex-1"

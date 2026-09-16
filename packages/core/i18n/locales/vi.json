@@ -1039,7 +1039,6 @@
         "trigger": "Cột",
         "add": "Thêm cột",
         "hide": "Ẩn cột",
-        "reorder": "Sắp xếp lại cột {{column}}",
         "search_placeholder": "Tìm cột…",
         "system_section": "Hệ thống",
         "property_section": "Thuộc tính",

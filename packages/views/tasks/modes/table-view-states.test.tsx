@@ -1,10 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
+import { taskKeys } from "@uniwork/core/tasks";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import type { TableGrouping } from "@uniwork/core/tasks/stores/view-store";
 import type { User, Workspace } from "@uniwork/core/types";
-import { wrap } from "../../test/api-mock";
+import { localeAdapter, wrap } from "../../test/api-mock";
 import { serveTableCursor } from "../../test/table-cursor-server";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
@@ -55,23 +58,30 @@ const statusGroups = () => [
 
 let renderIndex = 0;
 
-function renderTable(grouping: TableGrouping) {
+function renderTable(grouping: TableGrouping, client?: QueryClient) {
   renderIndex += 1;
   const surfaceKey = `table-view-states-${renderIndex}`;
   const store = getTaskSurfaceViewStore(surfaceKey);
   store.getState().setTableGrouping(grouping);
+  const surface = (
+    <NavigationProvider value={nav}>
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["table"]}
+          surfaceKey={surfaceKey}
+        />
+      </WorkspaceProvider>
+    </NavigationProvider>
+  );
   render(
-    wrap(
-      <NavigationProvider value={nav}>
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <TaskSurface
-            workspaceId="w1"
-            scope={{ type: "workspace" }}
-            modes={["table"]}
-            surfaceKey={surfaceKey}
-          />
-        </WorkspaceProvider>
-      </NavigationProvider>,
+    client ? (
+      <QueryClientProvider client={client}>
+        <LocaleAdapterProvider adapter={localeAdapter}>{surface}</LocaleAdapterProvider>
+      </QueryClientProvider>
+    ) : (
+      wrap(surface)
     ),
   );
   return { store };
@@ -149,5 +159,24 @@ describe("bảng: lỗi, thử lại, rỗng khi tìm", () => {
 
     server.release();
     await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Đang làm mới bảng" })).toBeNull(), LONG);
+  });
+
+  it("làm mới sau khi sửa (invalidate) không hiện thanh đang làm mới", async () => {
+    let holding = false;
+    const server = serveTableCursor({ count: () => 2, hold: () => holding });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
+    renderTable("none", client);
+    await screen.findByText("null 0 v0", {}, LONG);
+
+    holding = true;
+    const before = server.rowBodies.length;
+    act(() => {
+      void client.invalidateQueries({ queryKey: taskKeys.tableRoot("w1") });
+    });
+    await waitFor(() => expect(server.rowBodies.length).toBeGreaterThan(before), LONG);
+    expect(screen.queryByRole("progressbar", { name: "Đang làm mới bảng" })).toBeNull();
+    expect(screen.getByText("null 0 v0")).toBeInTheDocument();
+    holding = false;
+    server.release();
   });
 });

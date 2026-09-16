@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
+import { taskKeys } from "@uniwork/core/tasks";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
@@ -304,6 +305,50 @@ describe("useTableViewData", () => {
     expect(result.current.displayRows.map((row) => row.kind)).toEqual(["group", "task"]);
     server.release();
     await waitFor(() => expect(result.current.isRefreshing).toBe(false));
+  });
+
+  it("says it shows previous rows only for a changed query, not for a refetch after an edit", async () => {
+    let holding = false;
+    const server = serveTableCursor({
+      count: () => 2,
+      groups: () => [{ key: "status:todo", value: { kind: "status", status: "todo" }, count: 2 }],
+      hold: (body) => holding || (body.query as { search?: string }).search === "x",
+    });
+    const { result, client, rerender } = renderTableData("status");
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
+
+    holding = true;
+    act(() => {
+      void client.invalidateQueries({ queryKey: taskKeys.tableRoot("w1") });
+    });
+    await waitFor(() => expect(result.current.isRefreshing).toBe(true));
+    expect(result.current.isShowingPrevious).toBe(false);
+    server.release();
+    await waitFor(() => expect(result.current.isRefreshing).toBe(false));
+    holding = false;
+
+    rerender({ search: "x" });
+    await waitFor(() => expect(result.current.isShowingPrevious).toBe(true), { timeout: 1500 });
+    expect(result.current.displayRows.map((row) => row.kind)).toEqual(["group", "task", "task"]);
+    server.release();
+    await waitFor(() => expect(result.current.isShowingPrevious).toBe(false));
+  });
+
+  it("keeps the rows when a background refetch of the groups fails", async () => {
+    let failing = false;
+    serveTableCursor({
+      count: () => 1,
+      groups: () =>
+        failing ? new Error("groups down") : [{ key: "status:todo", value: { kind: "status", status: "todo" }, count: 1 }],
+    });
+    const { result, client } = renderTableData("status");
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(1));
+
+    failing = true;
+    await act(() => client.refetchQueries({ queryKey: [...taskKeys.tableRoot("w1"), "groups"] }));
+    await waitFor(() => expect(client.getQueryCache().findAll({ queryKey: [...taskKeys.tableRoot("w1"), "groups"] })[0]?.state.status).toBe("error"));
+    expect(result.current.groupsError).toBe(false);
+    expect(result.current.displayRows.map((row) => row.kind)).toEqual(["group", "task"]);
   });
 
   it("starts a changed grouping from skeletons, not the old grouping's groups", async () => {

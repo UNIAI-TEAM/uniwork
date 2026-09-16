@@ -26,8 +26,13 @@ export interface CursorBranchState {
   isFetchingMore: boolean;
   /** The last page failed and has no data. */
   isError: boolean;
-  /** The last page has a `next_cursor`. */
+  /**
+   * The last page has a `next_cursor`. Never while the first page is the
+   * previous query's: its cursor belongs to that query.
+   */
   hasMore: boolean;
+  /** The first page shown is the previous query's, kept while the changed query loads. */
+  isShowingPrevious: boolean;
   /** Asks the next page; a no-op while one is on its way, a retry when the last page failed. */
   loadMore: () => void;
   /** Refetches the failed page. */
@@ -112,7 +117,13 @@ export function useCursorBranches(
      */
     keepPreviousFirstPage?: boolean;
   } = {},
-): { byKey: ReadonlyMap<string, CursorBranchState>; isRefreshing: boolean } {
+): {
+  byKey: ReadonlyMap<string, CursorBranchState>;
+  /** Some page with data is fetching again: a changed query, an invalidation, a refocus. */
+  isRefreshing: boolean;
+  /** Some branch shows the previous query's first page (only with `keepPreviousFirstPage`). */
+  isShowingPrevious: boolean;
+} {
   const [cursorsByBranch, setCursorsByBranch] = useState<Cursors>({});
   const keepPreviousFirstPage = options.keepPreviousFirstPage ?? false;
   // `workspace|branch key` → the branch's last first page that was real data.
@@ -216,7 +227,8 @@ export function useCursorBranches(
       const first = pages[0];
       const last = pages[pages.length - 1];
       const cursors = b.bodies.map((body) => body.cursor);
-      const nextCursor = last?.data?.next_cursor ?? null;
+      const showingPrevious = !!first?.isPlaceholderData;
+      const nextCursor = showingPrevious ? null : (last?.data?.next_cursor ?? null);
       const rows = mergeRows(pages);
       const retry = () => {
         for (const page of pages) {
@@ -232,7 +244,10 @@ export function useCursorBranches(
         isFetchingMore: pages.length > 1 && !!last?.isFetching,
         isError: !!last?.isError && last.data === undefined,
         hasMore: nextCursor !== null,
+        isShowingPrevious: showingPrevious,
         loadMore: () => {
+          // The previous query's first page: its cursor would not match this query.
+          if (showingPrevious) return;
           // Only a page still on its way blocks: a background refetch of a
           // loaded last page keeps its cursor, so the next page starts at once.
           if (!b.enabled || !last || (last.isFetching && last.data === undefined)) return;
@@ -254,6 +269,7 @@ export function useCursorBranches(
   }, [prepared, pagesOf]);
 
   const isRefreshing = pageStates.some((page) => page.isFetching && page.data !== undefined);
+  const isShowingPrevious = pageStates.some((page) => page.isPlaceholderData);
 
-  return { byKey, isRefreshing };
+  return { byKey, isRefreshing, isShowingPrevious };
 }

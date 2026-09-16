@@ -58,6 +58,7 @@ function branch(
     isFetchingMore: false,
     isError: false,
     hasMore: false,
+    isShowingPrevious: false,
     loadMore: () => {},
     retry: () => {},
     ...over,
