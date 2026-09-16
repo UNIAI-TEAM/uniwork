@@ -3,7 +3,7 @@
 import {
   createContext,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -98,13 +98,20 @@ export function useCreateTaskSurfaceSelection(
   const [committedResetKey, setCommittedResetKey] = useState(resetKey);
 
   // Render-phase reset when the data window changes — avoid one frame of
-  // stale selection over a new membership. Listeners hear about it after
-  // commit: notifying during render would update other components mid-render.
+  // stale selection over a new membership. Mutating the store here is safe:
+  // the store is private to this owner, the reset is idempotent (a re-run of
+  // this render, as StrictMode or an interrupted render does, finds the set
+  // already empty), and nothing is notified during render — every subscriber
+  // below re-reads the snapshot when it renders in this same pass, and the
+  // ones that bail out hear about it in the layout effect.
   if (committedResetKey !== resetKey) {
     setCommittedResetKey(resetKey);
     handle.resetSilently();
   }
-  useEffect(() => {
+  // A layout effect, not a passive one: a subscriber that bailed out of this
+  // render (a memoized row checkbox) re-renders synchronously before paint,
+  // so no frame shows it still ticked over the new data window.
+  useLayoutEffect(() => {
     handle.notify();
   }, [handle, committedResetKey]);
 
