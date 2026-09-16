@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -65,4 +67,62 @@ func DecodeCursor(s string) (Cursor, error) {
 	}
 
 	return c, nil
+}
+
+// numericText matches what Postgres' float8 and numeric inputs accept from
+// their own text output: a decimal with optional exponent, NaN or infinity.
+var numericText = regexp.MustCompile(`^[+-]?((\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?|(?i:nan|inf|infinity))$`)
+
+// timestampLayouts cover the ISO text output of timestamptz (offsets as
+// +hh, +hh:mm or +hh:mm:ss) and RFC 3339.
+var timestampLayouts = []string{
+	"2006-01-02 15:04:05.999999999Z07",
+	"2006-01-02 15:04:05.999999999Z07:00",
+	"2006-01-02 15:04:05.999999999Z07:00:00",
+	time.RFC3339Nano,
+}
+
+// ValidateCursorSortValue reports ErrInvalidCursor when c carries a sort
+// value that q's sort expression cannot cast. The value is bound as a
+// parameter and cast in SQL, so without this a tampered or stale cursor with
+// a matching fingerprint fails the whole statement instead of the request.
+func ValidateCursorSortValue(q Query, c Cursor) error {
+	if c.SortNull || c.SortValue == nil {
+		return nil
+	}
+	v := *c.SortValue
+	var ok bool
+	switch cast := newBuilder(q).sortExpr().cast; cast {
+	case "::float8":
+		_, err := strconv.ParseFloat(v, 64)
+		ok = numericText.MatchString(v) && err == nil
+	case "::numeric":
+		ok = numericText.MatchString(v)
+	case "::int":
+		_, err := strconv.ParseInt(v, 10, 32)
+		ok = err == nil
+	case "::date":
+		_, err := time.Parse("2006-01-02", v)
+		ok = err == nil || isInfinity(v)
+	case "::timestamptz":
+		ok = isInfinity(v)
+		for _, layout := range timestampLayouts {
+			if _, err := time.Parse(layout, v); err == nil {
+				ok = true
+				break
+			}
+		}
+	case "::text":
+		ok = true
+	default:
+		return fmt.Errorf("%w: unknown sort cast %s", ErrInvalidCursor, cast)
+	}
+	if !ok {
+		return fmt.Errorf("%w: sort_value %q does not cast", ErrInvalidCursor, v)
+	}
+	return nil
+}
+
+func isInfinity(v string) bool {
+	return v == "infinity" || v == "-infinity"
 }

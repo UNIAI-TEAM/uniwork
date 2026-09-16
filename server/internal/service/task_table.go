@@ -178,6 +178,9 @@ func (s *TaskService) TableRows(ctx context.Context, actor Actor, workspaceID st
 		if c.FP != r.fingerprint || !equalStringPtr(c.GroupKey, in.GroupKey) || !equalStringPtr(c.ParentID, in.ParentID) {
 			return TableRowsResult{}, coded(http.StatusConflict, "cursor_query_mismatch", "cursor belongs to a different query")
 		}
+		if err := tablequery.ValidateCursorSortValue(r.query, c); err != nil {
+			return TableRowsResult{}, coded(http.StatusBadRequest, "invalid_cursor", "cursor is invalid")
+		}
 		after = &c
 	}
 
