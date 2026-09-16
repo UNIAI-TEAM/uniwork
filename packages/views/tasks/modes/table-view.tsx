@@ -69,7 +69,7 @@ export function TableView({
   childProgress = EMPTY_CHILD_PROGRESS,
   projectGroupingDisabled = false,
   projectGroupingReasonKey = "capabilities.unknown",
-  propertiesDisabled = true,
+  propertiesDisabled = false,
   propertiesDisabledReasonKey = "capabilities.unknown",
   editingDisabled = false,
   editingDisabledReasonKey = "capabilities.unknown",
