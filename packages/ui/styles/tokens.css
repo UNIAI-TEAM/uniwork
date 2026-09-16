@@ -2,23 +2,57 @@
    any subtree, e.g. the onboarding rail). Views never hardcode a colour —
    they use the semantic slots below through their Tailwind aliases.
 
-   Source of the palette (2026-09-10): the ClickUp marketing system — ink-black
-   CTAs, violet #7612FA as the single brand signal, white cards on a #F8F9FA
-   canvas with thin grey borders, Plus Jakarta Sans headings over Inter copy.
-   ClickUp publishes light values only; every dark value here is derived from
-   its deep-panel (#1E1E1E) and dark-footer (#111111) greys and measured.
+   ARCHITECTURE (2026-09-14). One semantic layer, no separate primitive sheet
+   (decided 2026-09-10: a second sheet would be a second place for a value to
+   drift). Inside it the slots are grouped by JOB, and every job has exactly
+   one owner:
+
+   1. Planes — app-shell → sidebar = page-canvas = background → surface →
+      surface-raised. The order is the same in both themes: the shell is the
+      deepest plane, the sidebar and the page share one plane (the reference
+      layout has a white sidebar flush with a white page, separated by a
+      hairline), cards sit on it, menus and dialogs float above it.
+   2. Ink — foreground / muted-foreground / faint-foreground, a three-step
+      ramp; the third step is for non-text marks only.
+   3. Brand — one hue, moved by the accent axis. `--primary` IS the brand
+      fill: the conversion CTA, the unread count, the selected dot all carry
+      the product colour (the ink-black CTA of the ClickUp pass is retired;
+      the reference layout uses a brand-filled "+ New"). `--brand-subtle` is
+      the brand as a wash: selected nav rows, the AI entry point, a chip
+      that is ON.
+   4. Signals — success / warning / info / destructive report STATE. Each is
+      a triple: the text-safe colour, a `-soft` fill with its own
+      `-soft-foreground`, and a `-solid` fill for a white label. Views use
+      the triple instead of an alpha of the text colour, so a badge on a
+      card and a badge on the muted band measure the same.
+   5. Tints — nine hues that IDENTIFY a module or a category (tasks green,
+      meetings violet, chat blue…). Same triple shape as a signal, but a
+      tint never means ok / danger and a signal never decorates.
+   6. Geometry & motion — the radius ramp, the type scale, the shadow set,
+      the duration / easing set. Motion lives here AND in lib/motion.ts;
+      tokens.test.ts holds the two to the same numbers.
+
+   Source of the palette (2026-09-10): the ClickUp marketing system — violet
+   #7612FA as the single brand signal, white cards on a white page with thin
+   grey borders, Plus Jakarta Sans headings over Inter copy. ClickUp
+   publishes light values only; every dark value here is derived from its
+   deep-panel (#1E1E1E) and dark-footer (#111111) greys and measured.
 
    Every themed slot is declared in BOTH `:root` and `.dark`. Custom
    properties are computed and then inherited, so a slot missing from `.dark`
    silently carries its light value into every dark subtree; the token
-   contract test (tokens.test.ts) fails when the two blocks drift. */
+   contract test (tokens.test.ts) fails when the two blocks drift. Every
+   colour pair carries its measured WCAG ratio in the comment beside it. */
 :root {
-  /* Shell and canvas. ClickUp: canvas white for cards, surface #F8F9FA for
-     bands, surfaceAlt #F1F1F9 for utility panels. The app maps those to
-     card → page → shell so the sidebar sits one step below the content. */
-  --app-shell: #f1f1f9;
-  --page-canvas: #f8f9fa;
-  --background: #f8f9fa;
+  /* Planes. The shell is the one grey plane (#F4F4F8, ClickUp's utility
+     grey pulled one step lighter so the gutter between sidebar and page
+     reads as a gap, 1.09:1 on white, not as a band). Sidebar, page and
+     surface are all white: the reference layout is a single white sheet
+     with hairlines, and every dark-ink ratio below is measured on white,
+     the lightest of them, so it holds on the bands too. */
+  --app-shell: #f4f4f8;
+  --page-canvas: #ffffff;
+  --background: #ffffff;
   --foreground: #202020;
 
   --surface: #ffffff;
@@ -34,10 +68,11 @@
   --popover: #ffffff;
   --popover-foreground: #202020;
 
-  /* shadcn's "primary" is the high-contrast neutral used by solid buttons,
-     not the brand hue. ClickUp's conversion CTA is this same ink black, so
-     the two systems agree here. Brand keeps its own slot. */
-  --primary: #202020;
+  /* `--primary` is the brand FILL — the CTA, the unread count, the selected
+     dot. It equals `--brand` in every theme and accent (the accent blocks
+     below re-derive both), so a view that writes `bg-primary` and one that
+     writes `bg-brand` paint the same pixel. White on #7612fa: 6.49. */
+  --primary: #7612fa;
   --primary-foreground: #ffffff;
   --secondary: #f1f1f9;
   --secondary-foreground: #202020;
@@ -65,10 +100,34 @@
      5.77 on --muted, and still 4.89 on its own /10 tint over muted. */
   --brand: #7612fa;
   --brand-foreground: #ffffff;
+  /* The brand as a wash: selected nav row, the AI entry point, a chip that
+     is ON. Brand text on the wash: 5.62. The accent blocks derive the fill
+     as an 11% mix of the brand into white, the same recipe as
+     --surface-selected, so the two never disagree. */
+  --brand-subtle: #efedfd;
+  --brand-subtle-foreground: #7612fa;
   --destructive: #ad1a1a;
   --success: #137046;
   --warning: #8a4f04;
   --info: #0a66bc;
+  /* Signal triples. `-soft` is the pale fill with its own text colour
+     (destructive 6.25, success 5.51, warning 6.06, info 5.02 on the fill);
+     `-solid` is the saturated fill under --on-solid (5.33 / 4.85 / 4.68 /
+     5.49). They share hue and value with tint-red / green / yellow / blue
+     on purpose — the eye needs one red — but a view names the JOB: a status
+     badge reads `bg-success-soft`, a module tile reads `bg-tint-green`. */
+  --destructive-soft: #fdecec;
+  --destructive-soft-foreground: #ad1a1a;
+  --destructive-solid: #cc2a2f;
+  --success-soft: #e6f7ee;
+  --success-soft-foreground: #137046;
+  --success-solid: #16824b;
+  --warning-soft: #fff6d6;
+  --warning-soft-foreground: #8a4f04;
+  --warning-solid: #a86400;
+  --info-soft: #e6f0ff;
+  --info-soft-foreground: #0a66bc;
+  --info-solid: #0d66d0;
 
   /* --border is the quiet divider (1.56:1 on surface — separators and card
      edges only; ClickUp's own #CFCFCF). --input outlines EVERY control
@@ -92,11 +151,13 @@
      whole app is dark. */
   --rail: #1e1e1e;
 
-  --sidebar: #f1f1f9;
+  /* The sidebar shares the page plane (white) and separates by
+     --sidebar-border; hover is the utility grey. */
+  --sidebar: #ffffff;
   --sidebar-foreground: #202020;
   --sidebar-primary: #7612fa;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9e9f6;
+  --sidebar-accent: #f1f1f9;
   --sidebar-accent-foreground: #202020;
   --sidebar-border: #cfcfcf;
   --sidebar-ring: #7612fa;
@@ -202,10 +263,11 @@
 }
 
 .dark {
-  /* dark-footer #111111 as the page, one step up for cards, deep-panel
-     #1E1E1E for the shell — the same card → page → shell order as light,
-     mirrored. */
-  --app-shell: #1e1e1e;
+  /* Same plane order as light: shell deepest (#0a0a0a), sidebar = page on
+     dark-footer #111111, cards one step up (#181818), menus and dialogs on
+     the deep-panel grey. The old dark shell sat ABOVE the page (#1E1E1E on
+     #111111), which inverted the elevation the light theme draws. */
+  --app-shell: #0a0a0a;
   --page-canvas: #111111;
   --background: #111111;
   --foreground: #f8f9fa;
@@ -223,8 +285,13 @@
   --popover: #181818;
   --popover-foreground: #f8f9fa;
 
-  --primary: #f8f9fa;
-  --primary-foreground: #202020;
+  /* Brand fill in the dark: the pastel brand under near-ink (7.51), the
+     same pair --sidebar-primary carries, so a CTA and a selected row agree.
+     A saturated violet with white text was tried and dropped — #7f3ffa is
+     5.26 under white but only 3.59 against the page, and the pastel keeps
+     the fill legible as a SHAPE, not just its label. */
+  --primary: #b38cff;
+  --primary-foreground: #0d0a1f;
   --secondary: #262626;
   --secondary-foreground: #f8f9fa;
   --accent: #262626;
@@ -238,10 +305,28 @@
      foreground is a near-black violet (7.51 on the brand fill). */
   --brand: #b38cff;
   --brand-foreground: #0d0a1f;
+  /* 5.82 on the wash; derived as a 24% mix into #111111 under an accent. */
+  --brand-subtle: #2a1f4a;
+  --brand-subtle-foreground: #b38cff;
   --destructive: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
   --info: #5db4ff;
+  /* Dark soft fills are the hue mixed into the surface grey (destructive
+     5.58, success 8.16, warning 7.89, info 6.79 on the fill). Solids keep
+     the light values: the white label measures the same either side. */
+  --destructive-soft: #3d1a1a;
+  --destructive-soft-foreground: #f87171;
+  --destructive-solid: #cc2a2f;
+  --success-soft: #16301f;
+  --success-soft-foreground: #4ade80;
+  --success-solid: #16824b;
+  --warning-soft: #3a2f10;
+  --warning-soft-foreground: #fbbf24;
+  --warning-solid: #a86400;
+  --info-soft: #182640;
+  --info-soft-foreground: #5db4ff;
+  --info-solid: #0d66d0;
 
   --border: #2e2e2e;
   /* Resting controls stay within a 3–4:1 contrast band: 3.85 background / 3.62
@@ -253,11 +338,11 @@
   --selection: #2a1f4a;
   --selection-foreground: #f8f9fa;
 
-  --sidebar: #1e1e1e;
+  --sidebar: #111111;
   --sidebar-foreground: #f8f9fa;
   --sidebar-primary: #b38cff;
   --sidebar-primary-foreground: #0d0a1f;
-  --sidebar-accent: #181818;
+  --sidebar-accent: #1e1e1e;
   --sidebar-accent-foreground: #f8f9fa;
   --sidebar-border: #2e2e2e;
   --sidebar-ring: #b38cff;
@@ -361,10 +446,14 @@
    rather than a second oklch() so they cannot drift out of step with it. */
 html:not(.dark)[data-accent] {
   --brand: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
   --ring: var(--brand);
   --sidebar-primary: var(--brand);
   --sidebar-ring: var(--brand);
   --surface-selected: color-mix(in oklab, var(--brand) 11%, #ffffff);
+  --brand-subtle: var(--surface-selected);
+  --brand-subtle-foreground: var(--brand);
   --selection: var(--surface-selected);
   --sidebar-accent: color-mix(in oklab, var(--brand) 9%, var(--sidebar));
 }
@@ -373,15 +462,19 @@ html:not(.dark)[data-accent] {
 html.dark[data-accent] {
   --brand: oklch(var(--accent-l-dark) calc(var(--accent-c) * 0.55) var(--accent-h));
   --brand-foreground: oklch(0.17 calc(var(--accent-c) * 0.3) var(--accent-h));
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
   --ring: var(--brand);
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
   --surface-selected: color-mix(in oklab, var(--brand) 24%, #111111);
+  --brand-subtle: var(--surface-selected);
+  --brand-subtle-foreground: var(--brand);
   --selection: var(--surface-selected);
   /* Light lifts the sidebar hover toward the accent, dark deepens it; keeping
-     the #181818 base preserves that direction instead of inverting it. */
-  --sidebar-accent: color-mix(in oklab, var(--brand) 7%, #181818);
+     the #1e1e1e base preserves that direction instead of inverting it. */
+  --sidebar-accent: color-mix(in oklab, var(--brand) 7%, #1e1e1e);
 }
 
 /* Tailwind mapping. Lives beside the tokens it maps so that any consumer —
@@ -415,10 +508,24 @@ html.dark[data-accent] {
   --color-faint-foreground: var(--faint-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-brand-subtle-foreground: var(--brand-subtle-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-soft-foreground: var(--destructive-soft-foreground);
+  --color-destructive-solid: var(--destructive-solid);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
+  --color-success-solid: var(--success-solid);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-warning-solid: var(--warning-solid);
   --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-soft-foreground: var(--info-soft-foreground);
+  --color-info-solid: var(--info-solid);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -481,14 +588,28 @@ html.dark[data-accent] {
   --color-meeting-bar-chip-hover: var(--meeting-bar-chip-hover);
   --color-meeting-tile-name-bg: var(--meeting-tile-name-bg);
   --color-meeting-tile-name-foreground: var(--meeting-tile-name-foreground);
-  /* ClickUp radius ramp, explicit per step: chips and inputs 6–8, cards 12–14,
-     panels 20, section media 32. Pill stays Tailwind's rounded-full. */
+  /* Elevation as Tailwind utilities (shadow-surface / shadow-menu /
+     shadow-floating) beside the raw slots the primitives already read. */
+  --shadow-surface: var(--surface-shadow);
+  --shadow-menu: var(--menu-shadow);
+  --shadow-floating: var(--floating-shadow);
+  /* Radius ramp, explicit per step: chips and inputs 6–8, cards 12, dialogs
+     and popovers 16, panels 20, section media 32. Pill stays rounded-full. */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
-  --radius-xl: 14px;
+  --radius-xl: 16px;
   --radius-2xl: 20px;
   --radius-3xl: 32px;
+  /* Motion. One curve (the quartic ease-out lib/motion.ts exports as
+     UI_EASE_OUT) and three durations — micro for colour, fast for popovers,
+     standard for panels and page transitions. The right-sidebar and the
+     glyph pops in base.css read these; tokens.test.ts holds them equal to
+     UI_MOTION_DURATION so CSS and motion/react never drift apart. */
+  --ease-out-quart: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-micro: 100ms;
+  --duration-fast: 150ms;
+  --duration-standard: 200ms;
   /* Three families. Plus Jakarta Sans for headings (bound to the title /
      display / hero utilities below), Inter for copy and controls, JetBrains
      Mono for taxonomy labels — Sometype Mono, ClickUp's own, ships no
@@ -501,6 +622,10 @@ html.dark[data-accent] {
      follow ClickUp's ratios — body copy loose and untracked, headings tighter
      the larger they get (-0.02em at title, -0.035em at hero). */
   --text-micro: 11px;      --text-micro--line-height: 15px;
+  /* Eyebrow / section label: the small tracked capital the reference layout
+     puts above a title and over a nav group. Uppercase and the mono family
+     ride on the utility below. */
+  --text-overline: 11px;   --text-overline--line-height: 16px; --text-overline--letter-spacing: 0.08em;
   --text-caption: 12px;    --text-caption--line-height: 16px;
   --text-label: 13px;      --text-label--line-height: 18px;
   --text-body: 14px;       --text-body--line-height: 20px;
@@ -529,5 +654,12 @@ html.dark[data-accent] {
   .text-display-sm, .text-display,
   .text-hero-sm, .text-hero, .text-hero-lg {
     font-family: var(--font-display);
+  }
+  /* The overline is a complete role: family, case and weight travel with
+     the size so an eyebrow reads the same on every screen. */
+  .text-overline {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    text-transform: uppercase;
   }
 }

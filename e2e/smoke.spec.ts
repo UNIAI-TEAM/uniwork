@@ -25,7 +25,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByRole("button", { name: `Tạo Đội E2E ${stamp}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(new RegExp(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`), { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
   await page.goto(`/org-e2e-${stamp}/doi-e2e-${stamp}/tasks`);
 
   // tạo task

@@ -1047,6 +1047,8 @@ type TaskSubscriber struct {
 	ActorID        string             `json:"actor_id"`
 	Reason         string             `json:"reason"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UnsubscribedAt pgtype.Timestamptz `json:"unsubscribed_at"`
+	OptOutScope    pgtype.Text        `json:"opt_out_scope"`
 }
 
 type TaskView struct {

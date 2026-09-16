@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -85,32 +85,6 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
   );
 }
 
-function IconTooltipButton({
-  label,
-  children,
-  ...props
-}: ComponentProps<typeof Button> & { label: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="h-8 w-8"
-            aria-label={label}
-            {...props}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function WorkspaceTopBar({
   createOpen,
   onCreateOpenChange,
@@ -157,9 +131,23 @@ export function WorkspaceTopBar({
       <div className="flex-1" />
       <AskUniButton />
       <NotificationBell />
-      <IconTooltipButton label={createLabel} onClick={() => onCreateOpenChange(true)}>
-        <Plus aria-hidden className="size-4" />
-      </IconTooltipButton>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8"
+              aria-label={createLabel}
+              onClick={() => onCreateOpenChange(true)}
+            />
+          }
+        >
+          <Plus aria-hidden className="size-4 text-muted-foreground" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{createLabel}</TooltipContent>
+      </Tooltip>
       <DropdownMenu>
         <Tooltip>
           <TooltipTrigger
@@ -187,7 +175,9 @@ export function WorkspaceTopBar({
             onValueChange={(next) => {
               if (!next || next === themeValue) return;
               setTheme(next as ThemeValue);
-              toast.success(t("settings.preferences.toastSaved"), { id: "settings-auto-save" });
+              toast.success(t("settings.preferences.toastSaved"), {
+                id: "settings-auto-save",
+              });
             }}
           >
             {themeOptions.map((option) => {

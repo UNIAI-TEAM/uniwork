@@ -371,12 +371,17 @@ export function useTaskFind(options: {
   }, [activeIndex, open, applyActive]);
 
   // Every open (including ⌘F again while open) focuses and selects the query.
+  // TipTap may reclaim focus on the same tick after a title/description ready
+  // callback; one animation frame is enough for the find input to win.
   useEffect(() => {
     if (focusRequest === 0) return;
     const input = inputRef.current;
     if (!input) return;
-    input.focus();
-    input.select();
+    const raf = requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [focusRequest]);
 
   // Drop highlights on unmount so a stale tint cannot outlive the page.

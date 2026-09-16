@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
-import { CommentReactionSchema } from "./task-collaboration";
+import { CommentReactionSchema, TaskReactionSchema } from "./task-collaboration";
 
 // The closed vocabularies the UI reasons about. Used to type requests and
 // UI state; response schemas below deliberately do NOT use them.
@@ -58,17 +58,29 @@ export const TaskSchema = z.object({
   start_date: z.string().optional(),
   project_id: z.string().nullable().optional(),
   parent_task_id: z.string().nullable().optional(),
+  stage: z.number().nullable().optional(),
+  properties: z.record(z.string(), z.unknown()).optional().default({}),
   position: z.number(),
   kind: z.string().optional().default("normal"),
   created_by: z.string(),
   created_by_kind: z.string().optional().default("human"),
   created_at: z.string(),
   updated_at: z.string(),
+  reactions: z
+    .array(TaskReactionSchema)
+    .catch([])
+    .nullish()
+    .transform((v) => v ?? []),
 });
-export type Task = Omit<z.infer<typeof TaskSchema>, "status" | "priority" | "kind"> & {
+export type Task = Omit<
+  z.infer<typeof TaskSchema>,
+  "status" | "priority" | "kind" | "properties" | "reactions"
+> & {
   status: TaskStatus;
   priority: TaskPriority;
   kind: TaskKind;
+  properties?: Record<string, unknown>;
+  reactions?: z.infer<typeof TaskReactionSchema>[];
 };
 
 // Comments come straight off the sqlc row (snake_case); only the fields the

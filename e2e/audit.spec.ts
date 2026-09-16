@@ -33,7 +33,7 @@ test("a task edit shows up in the organization's audit log", async ({ page }) =>
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/doi-audit/tasks$`), { timeout: 15_000 });
   await Promise.all([
     page.waitForURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 30_000 }),
-    page.getByRole("button", { name: "Đã hiểu" }).click(),
+    page.getByRole("button", { name: "Để sau" }).click(),
   ]);
 
   // An ordinary edit. Suite title is lazy: click to activate the TipTap textbox.

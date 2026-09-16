@@ -1,22 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import { useMembers } from "@uniwork/core/workspaces";
+import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useResourceHistory } from "@uniwork/core/audit";
-import type { AuditEvent, TaskComment } from "@uniwork/core/types";
+import type { AuditEvent } from "@uniwork/core/types";
 import {
   useAddCommentReaction,
   useComments,
   useCreateCommentSuite,
   useDeleteComment,
   useRemoveCommentReaction,
+  useProjects,
   useResolveComment,
   useSubscribeTask,
+  useTaskAttachments,
   useTaskSubscribers,
   useUnresolveComment,
   useUnsubscribeTask,
+  useUploadTaskAttachment,
   useUpdateComment,
 } from "@uniwork/core/tasks";
 import {
@@ -24,17 +29,38 @@ import {
   useTaskDetailUiStore,
 } from "@uniwork/core/tasks/stores/task-detail-ui-store";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import {
+  AvatarGroup,
+  AvatarGroupCount,
+} from "@uniwork/ui/components/ui/avatar";
 import { toastApiError } from "../../../toast-api-error";
 import { useFindExpandedThreads } from "../find/find-expanded-threads";
 import { useTaskFindQuery } from "../find/find-query-context";
-import { TaskActivityRow, isTimelineActivity } from "./activity-row";
+import { useTaskThreadNavOptional } from "../thread-nav-context";
+import { isTimelineActivity } from "./activity-row";
+import { TaskActivityGroup } from "./activity-group";
 import { TaskCommentCard } from "./comment-card";
 import { TaskCommentComposer } from "./comment-composer";
 import { buildCommentThreads, type CommentThread } from "./comment-thread";
-import { commentPreviewOrFallback } from "./comment-preview-text";
 import { TaskReplyComposer } from "./reply-composer";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
-import { ThreadNavPanel, type ThreadNavItem } from "./thread-nav-panel";
+import { scrollCommentIntoContainer } from "./thread-nav-helpers";
+import { groupTimelineEntries } from "./timeline-entries";
+
+const MAX_VISIBLE_FOLLOWERS = 4;
+
+function avatarInitials(name: string): string {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?"
+  );
+}
 
 function isThreadResolved(thread: CommentThread): boolean {
   return !!thread.root.resolved_at;
@@ -68,7 +94,10 @@ export function TaskDetailTimeline({
   const findQuery = useTaskFindQuery();
   const errFallback = t("common.error");
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const threadNav = useTaskThreadNavOptional();
   const { data: comments, isLoading } = useComments(taskId);
+  const attachments = useTaskAttachments(workspaceId, taskId);
+  const { mutateAsync: uploadTaskAttachment } = useUploadTaskAttachment(workspaceId, taskId);
   const history = useResourceHistory(workspaceId, "task", taskId);
   const createComment = useCreateCommentSuite(taskId);
   const updateComment = useUpdateComment(taskId);
@@ -80,21 +109,28 @@ export function TaskDetailTimeline({
   const subscribers = useTaskSubscribers(taskId);
   // Best effort: an actor outside this workspace still shows as a short id.
   const members = useMembers(workspaceId);
+  const agents = useWorkspaceAgents(workspaceId);
+  const projects = useProjects(workspaceId);
   const subscribe = useSubscribeTask(taskId);
   const unsubscribe = useUnsubscribeTask(taskId);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const currentMember = useCurrentMember(workspaceId);
   // Remembered per task, so an opened resolved thread is still open when the
   // person comes back. The store hands back a stable array (a shared empty
   // one when nothing is open); the Set is derived below, never in the
   // selector, or every render would produce a new identity and re-run the
   // scroll effect below.
   const expandedResolvedIds = useResolvedExpandedThreads(taskId);
+  const uploadCommentFile = useCallback(async (file: File) => {
+    const attachment = await uploadTaskAttachment(file);
+    if (!attachment) throw new Error("upload failed");
+    return attachment;
+  }, [uploadTaskAttachment]);
   // The single source of truth for "which comment should the page scroll to
   // and highlight". Seeded from the URL hash on mount, and re-pointed by the
-  // thread-nav chips (via jumpToComment) — one mechanism, two triggers. The
-  // nonce forces the effect below to rerun even when a chip is clicked twice
-  // in a row for the same thread.
+  // header thread-nav (via registerJump) — one mechanism, two triggers. The
+  // nonce forces the effect below to rerun even when the same thread is
+  // requested twice in a row.
   const [scrollRequest, setScrollRequest] = useState<{
     target: string;
     nonce: number;
@@ -114,20 +150,6 @@ export function TaskDetailTimeline({
     [expandedResolvedIds, findExpanded.ids],
   );
 
-  const navThreads = useMemo<ThreadNavItem[]>(
-    () =>
-      threads.map((thread) => ({
-        id: thread.root.id,
-        preview: commentPreviewOrFallback(
-          thread.root.body,
-          t("tasks.detail.comment_preview_empty"),
-        ),
-        replyCount: thread.replies.length,
-        resolved: isThreadResolved(thread),
-      })),
-    [threads, t],
-  );
-
   // The highlight fade lives in a ref, not in the scroll effect's cleanup.
   // The effect clears `scrollRequest` as its last act, which re-runs it
   // immediately; a cleanup-owned timer would be cancelled by that very
@@ -142,8 +164,18 @@ export function TaskDetailTimeline({
     [],
   );
 
-  const jumpToComment = (id: string) =>
+  const jumpToComment = useCallback((id: string) => {
     setScrollRequest((prev) => ({ target: id, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
+
+  // Header panel jumps through the page-owned context; absent when the
+  // timeline is mounted alone in a test without the suite provider.
+  const registerJump = threadNav?.registerJump;
+  useEffect(() => {
+    if (!registerJump) return;
+    registerJump(jumpToComment);
+    return () => registerJump(null);
+  }, [registerJump, jumpToComment]);
 
   const entries = useMemo(() => {
     const commentRows = threads.map((thread) => ({
@@ -165,11 +197,36 @@ export function TaskDetailTimeline({
 
   const actorNames = useMemo(
     () =>
-      new Map(
-        (members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
-      ),
-    [members.data],
+      new Map([
+        ...(members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
+        ...(agents.data ?? []).map((a) => [a.id, a.name] as const),
+      ]),
+    [members.data, agents.data],
   );
+  const actorAvatarUrls = useMemo(
+    () =>
+      new Map([
+        ...(members.data ?? []).flatMap((member) =>
+          typeof member.avatar_url === "string"
+            ? [[member.user_id, member.avatar_url] as const]
+            : [],
+        ),
+        ...(agents.data ?? []).flatMap((agent) =>
+          agent.avatar_url ? [[agent.id, agent.avatar_url] as const] : [],
+        ),
+      ]),
+    [members.data, agents.data],
+  );
+  const valueNames = useMemo(
+    () =>
+      new Map([
+        ...(members.data ?? []).map((m) => [m.user_id, m.display_name] as const),
+        ...(agents.data ?? []).map((a) => [a.id, a.name] as const),
+        ...(projects.data?.projects ?? []).map((p) => [p.id, p.title] as const),
+      ]),
+    [members.data, agents.data, projects.data?.projects],
+  );
+  const displayEntries = useMemo(() => groupTimelineEntries(entries), [entries]);
 
   const watching = useMemo(() => {
     if (!currentUserId) return false;
@@ -177,6 +234,20 @@ export function TaskDetailTimeline({
       (s) => s.actor_id === currentUserId && s.actor_type === "member",
     );
   }, [subscribers.data, currentUserId]);
+  const followerActors = useMemo(
+    () =>
+      (subscribers.data ?? []).map((subscriber) => {
+        const name = actorNames.get(subscriber.actor_id) ?? subscriber.actor_id;
+        return {
+          id: `${subscriber.actor_type}:${subscriber.actor_id}`,
+          name,
+          initials: avatarInitials(name),
+          avatarUrl: actorAvatarUrls.get(subscriber.actor_id),
+          isAgent: subscriber.actor_type === "agent",
+        };
+      }),
+    [subscribers.data, actorNames, actorAvatarUrls],
+  );
 
   useEffect(() => {
     const target = scrollRequest?.target ?? null;
@@ -185,9 +256,9 @@ export function TaskDetailTimeline({
     // so the target renders, then a later run of this effect (triggered by
     // the expandedResolved change) finds the element and scrolls to it. A
     // link wins over memory: a thread the person collapsed last visit still
-    // opens for it, and stays remembered as open afterwards. The
-    // thread-nav chips point at this same target/effect pair instead of
-    // scrolling on their own, so the two triggers never fight each other.
+    // opens for it, and stays remembered as open afterwards. The header
+    // thread-nav points at this same target/effect pair instead of scrolling
+    // on its own, so the two triggers never fight each other.
     const thread = threads.find(
       (th) => th.root.id === target || th.replies.some((r) => r.id === target),
     );
@@ -206,8 +277,11 @@ export function TaskDetailTimeline({
       if (!expandedResolved.has(thread.root.id)) return;
     }
     const el = document.getElementById(`comment-${target}`);
-    if (!el) return;
-    el.scrollIntoView({ block: "nearest" });
+    const container = threadNav?.scrollContainerEl;
+    if (!el || !container) return;
+    // Drive scrollTop on the page scroller only — never native scrollIntoView,
+    // which also scrolls every scrollable ancestor (desktop shell included).
+    scrollCommentIntoContainer(el, container);
     setHighlightedId(target);
     if (fadeTimerRef.current !== undefined) {
       window.clearTimeout(fadeTimerRef.current);
@@ -224,7 +298,14 @@ export function TaskDetailTimeline({
     // identity and re-scrolls to the stale hash target with a fresh
     // highlight.
     setScrollRequest(null);
-  }, [scrollRequest, threads, taskId, expandedResolved, expandedResolvedIds]);
+  }, [
+    scrollRequest,
+    threads,
+    taskId,
+    expandedResolved,
+    expandedResolvedIds,
+    threadNav?.scrollContainerEl,
+  ]);
 
   const onCompose = async (body: string): Promise<boolean> => {
     try {
@@ -239,7 +320,6 @@ export function TaskDetailTimeline({
   const onReplySubmit = async (parentId: string, body: string): Promise<boolean> => {
     try {
       const created = await createComment.mutateAsync({ body: { body, parent_id: parentId } });
-      setReplyingTo(null);
       return !!created;
     } catch (err) {
       toastApiError(err, errFallback);
@@ -247,46 +327,64 @@ export function TaskDetailTimeline({
     }
   };
 
-  const renderCommentCard = (comment: TaskComment, onReply?: () => void) => (
+  const renderCommentThread = (thread: CommentThread) => (
     <TaskCommentCard
-      key={comment.id}
-      comment={comment}
-      highlighted={highlightedId === comment.id}
-      onReply={onReply}
-      onToggleReaction={(emoji) => {
-        addReaction.mutate(
-          { commentId: comment.id, emoji },
-          {
-            onError: () => {
-              removeReaction.mutate(
-                { commentId: comment.id, emoji },
-                {
-                  onError: (err) => toastApiError(err, errFallback),
-                },
-              );
-            },
-          },
+      key={thread.root.id}
+      taskId={taskId}
+      comment={thread.root}
+      replies={thread.replies}
+      attachments={attachments.data}
+      uploadFile={uploadCommentFile}
+      highlighted={threadNav?.hoverThreadId === thread.root.id}
+      highlightedId={highlightedId}
+      canModerate={currentMember.role === "owner" || currentMember.role === "admin"}
+      getActorName={(_type, id) => actorNames.get(id) ?? id}
+      replyComposer={
+        <TaskReplyComposer
+          taskId={taskId}
+          parent={thread.root}
+          inline
+          attachments={attachments.data}
+          uploadFile={uploadCommentFile}
+          onSubmit={(body) => onReplySubmit(thread.root.id, body)}
+          onCancel={() => undefined}
+        />
+      }
+      onToggleReaction={(commentId, emoji) => {
+        const target = commentId === thread.root.id
+          ? thread.root
+          : thread.replies.find((reply) => reply.id === commentId);
+        const reacted = target?.reactions?.some(
+          (reaction) => reaction.actor_type === "member" && reaction.actor_id === currentUserId && reaction.emoji === emoji,
         );
-      }}
-      onEdit={(body) => {
-        updateComment.mutate(
-          { commentId: comment.id, body: { body } },
+        const mutation = reacted ? removeReaction : addReaction;
+        mutation.mutate(
+          { commentId, emoji },
           { onError: (err) => toastApiError(err, errFallback) },
         );
       }}
-      onResolveToggle={(resolved) => {
+      onEdit={async (commentId, body) => {
+        try {
+          const updated = await updateComment.mutateAsync({ commentId, body: { body } });
+          return !!updated;
+        } catch (err) {
+          toastApiError(err, errFallback);
+          return false;
+        }
+      }}
+      onResolveToggle={(commentId, resolved) => {
         if (resolved) {
-          resolveComment.mutate(comment.id, {
+          resolveComment.mutate(commentId, {
             onError: (err) => toastApiError(err, errFallback),
           });
         } else {
-          unresolveComment.mutate(comment.id, {
+          unresolveComment.mutate(commentId, {
             onError: (err) => toastApiError(err, errFallback),
           });
         }
       }}
-      onDelete={() => {
-        deleteComment.mutate(comment.id, {
+      onDelete={(commentId) => {
+        deleteComment.mutate(commentId, {
           onError: (err) => toastApiError(err, errFallback),
         });
       }}
@@ -294,6 +392,9 @@ export function TaskDetailTimeline({
   );
 
   return (
+    <>
+    {/* Activity section only — the composer sits outside so sticky can pin
+        across the content column (baseline issue-detail). */}
     <section
       aria-label={t("tasks.detail.timeline_section")}
       className="mt-8 border-t border-border pt-6"
@@ -303,31 +404,56 @@ export function TaskDetailTimeline({
         <h2 className="text-body font-semibold text-foreground">
           {t("tasks.detail.timeline_section")}
         </h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-disabled={subscribe.isPending || unsubscribe.isPending || undefined}
-          onClick={() => {
-            if (subscribe.isPending || unsubscribe.isPending) return;
-            if (watching) {
-              unsubscribe.mutate(undefined, {
-                onError: (err) => toastApiError(err, errFallback),
-              });
-            } else {
-              subscribe.mutate(undefined, {
-                onError: (err) => toastApiError(err, errFallback),
-              });
-            }
-          }}
-        >
-          {watching
-            ? t("tasks.detail.unsubscribe")
-            : t("tasks.detail.subscribe")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-disabled={subscribe.isPending || unsubscribe.isPending || undefined}
+            onClick={() => {
+              if (subscribe.isPending || unsubscribe.isPending) return;
+              if (watching) {
+                unsubscribe.mutate(undefined, {
+                  onError: (err) => toastApiError(err, errFallback),
+                });
+              } else {
+                subscribe.mutate(undefined, {
+                  onError: (err) => toastApiError(err, errFallback),
+                });
+              }
+            }}
+          >
+            {watching
+              ? t("tasks.detail.unsubscribe")
+              : t("tasks.detail.subscribe")}
+          </Button>
+          {followerActors.length > 0 ? (
+            <AvatarGroup
+              aria-label={t("tasks.detail.followers", {
+                names: followerActors.map((actor) => actor.name).join(", "),
+              })}
+            >
+              {followerActors.slice(0, MAX_VISIBLE_FOLLOWERS).map((actor) => (
+                <ActorAvatar
+                  key={actor.id}
+                  name={actor.name}
+                  initials={actor.initials}
+                  avatarUrl={actor.avatarUrl}
+                  isAgent={actor.isAgent}
+                  size="md"
+                />
+              ))}
+              {followerActors.length > MAX_VISIBLE_FOLLOWERS ? (
+                <AvatarGroupCount aria-hidden="true">
+                  {t("tasks.detail.more_followers_short", {
+                    count: followerActors.length - MAX_VISIBLE_FOLLOWERS,
+                  })}
+                </AvatarGroupCount>
+              ) : null}
+            </AvatarGroup>
+          ) : null}
+        </div>
       </div>
-
-      <ThreadNavPanel threads={navThreads} onJump={jumpToComment} />
 
       <div className="mt-4 space-y-3">
         {history.isError ? (
@@ -349,12 +475,14 @@ export function TaskDetailTimeline({
             </p>
           )
         ) : (
-          entries.map((entry) =>
-            entry.kind === "activity" ? (
-              <TaskActivityRow
-                key={entry.event.id}
-                event={entry.event}
-                actorName={actorNames.get(entry.event.actor_id)}
+          displayEntries.map((entry) =>
+            entry.kind === "activity-group" ? (
+              <TaskActivityGroup
+                key={`activity-${entry.events[0]?.id ?? "empty"}`}
+                events={entry.events}
+                actorNames={actorNames}
+                actorAvatarUrls={actorAvatarUrls}
+                valueNames={valueNames}
               />
             ) : (
               <div
@@ -380,28 +508,7 @@ export function TaskDetailTimeline({
                 {!isThreadResolved(entry.thread) ||
                 expandedResolved.has(entry.thread.root.id) ? (
                   <>
-                    {renderCommentCard(entry.thread.root, () =>
-                      setReplyingTo(entry.thread.root.id),
-                    )}
-                    {entry.thread.replies.length > 0 ? (
-                      <div className="ml-6 border-l border-border pl-3">
-                        {entry.thread.replies.map((reply) =>
-                          renderCommentCard(reply),
-                        )}
-                      </div>
-                    ) : null}
-                    {replyingTo === entry.thread.root.id ? (
-                      <div className="ml-6 border-l border-border pl-3">
-                        <TaskReplyComposer
-                          taskId={taskId}
-                          parent={entry.thread.root}
-                          onSubmit={(body) =>
-                            onReplySubmit(entry.thread.root.id, body)
-                          }
-                          onCancel={() => setReplyingTo(null)}
-                        />
-                      </div>
-                    ) : null}
+                    {renderCommentThread(entry.thread)}
                   </>
                 ) : null}
               </div>
@@ -409,13 +516,31 @@ export function TaskDetailTimeline({
           )
         )}
       </div>
-
-      <div
-        data-testid="task-comment-composer-dock"
-        className="sticky bottom-0 z-10 mt-4 border-t border-border bg-background pt-3"
-      >
-        <TaskCommentComposer taskId={taskId} onSubmit={onCompose} />
-      </div>
     </section>
+
+    {/* Bottom comment input — direct child of the content column (not the
+        Activity section): a sticky box can't leave its containing block, and
+        the Activity section only spans the timeline — at column level
+        `sticky bottom-0` pins across the whole scroll range (baseline).
+
+        Opaque bg-background under the card, a 16px gradient fade above
+        (covers the mt-4 gap at rest), and pb-4 so the card floats off the
+        viewport edge — with -mb-4 giving the padding back to the column's
+        py-8 so the at-rest layout doesn't shift. */}
+    <div
+      data-testid="task-comment-composer-dock"
+      className="relative sticky bottom-0 z-10 mt-4 -mb-4 bg-background pb-4 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-gradient-to-t before:from-background before:to-transparent"
+    >
+      <div className="rounded-lg border border-border bg-card px-3 py-2">
+        <TaskCommentComposer
+          taskId={taskId}
+          attachments={attachments.data}
+          uploadFile={uploadCommentFile}
+          compact
+          onSubmit={onCompose}
+        />
+      </div>
+    </div>
+    </>
   );
 }

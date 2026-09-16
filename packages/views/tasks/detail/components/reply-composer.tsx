@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import type { TaskComment } from "@uniwork/core/types";
+import type { UploadFileFn } from "@uniwork/core/hooks/use-file-upload";
+import type { Attachment, TaskComment } from "@uniwork/core/types";
 import { TaskCommentReplyQuote } from "./comment-reply-quote";
 import { TaskCommentComposer } from "./comment-composer";
 
@@ -15,16 +16,22 @@ export function TaskReplyComposer({
   parent,
   onSubmit,
   onCancel,
+  inline = false,
+  attachments,
+  uploadFile,
 }: {
   taskId: string;
   parent: TaskComment;
   onSubmit: (body: string) => Promise<boolean>;
   onCancel: () => void;
+  inline?: boolean;
+  attachments?: Attachment[];
+  uploadFile?: UploadFileFn;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="mt-2 space-y-2" data-testid={`reply-composer-${parent.id}`}>
-      <div className="flex items-center justify-between gap-2">
+    <div className={inline ? undefined : "mt-2 space-y-2"} data-testid={`reply-composer-${parent.id}`}>
+      {!inline ? <div className="flex items-center justify-between gap-2">
         <TaskCommentReplyQuote comment={parent} className="min-w-0 flex-1" />
         <button
           type="button"
@@ -34,8 +41,16 @@ export function TaskReplyComposer({
         >
           {t("tasks.detail.reply_cancel")}
         </button>
-      </div>
-      <TaskCommentComposer taskId={taskId} composerKey={`${taskId}:${parent.id}`} onSubmit={onSubmit} />
+      </div> : null}
+      <TaskCommentComposer
+        taskId={taskId}
+        composerKey={`${taskId}:${parent.id}`}
+        attachments={attachments}
+        uploadFile={uploadFile}
+        compact={inline}
+        refocusAfterSend
+        onSubmit={onSubmit}
+      />
     </div>
   );
 }

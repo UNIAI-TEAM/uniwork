@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TaskComment } from "@uniwork/core/types";
-import { buildCommentThreads } from "./comment-thread";
+import { buildCommentThreads, deriveThreadResolution } from "./comment-thread";
 
 const c = (over: Partial<TaskComment> & { id: string }): TaskComment => ({
   task_id: "t1",
@@ -11,6 +11,26 @@ const c = (over: Partial<TaskComment> & { id: string }): TaskComment => ({
   revision: 1,
   reactions: [],
   ...over,
+});
+
+describe("deriveThreadResolution", () => {
+  it("coi reply đã resolve là resolution của cả thread", () => {
+    expect(deriveThreadResolution(
+      c({ id: "root" }),
+      [c({ id: "reply", parent_id: "root", resolved_at: "2026-09-15T03:00:00Z" })],
+    )).toEqual({ kind: "reply", resolutionId: "reply" });
+  });
+
+  it("ưu tiên root và nếu nhiều reply thì lấy resolution mới nhất", () => {
+    expect(deriveThreadResolution(
+      c({ id: "root" }),
+      [
+        c({ id: "early", resolved_at: "2026-09-15T02:00:00Z" }),
+        c({ id: "late", resolved_at: "2026-09-15T04:00:00Z" }),
+      ],
+    )).toEqual({ kind: "reply", resolutionId: "late" });
+    expect(deriveThreadResolution(c({ id: "root", resolved_at: "2026-09-15T05:00:00Z" }), [])).toEqual({ kind: "root" });
+  });
 });
 
 /** Total comments rendered across every thread — must always equal the input count. */

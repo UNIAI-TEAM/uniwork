@@ -20,8 +20,14 @@ const base: AuditEvent = {
   occurred_at: "2026-09-12T09:00:00Z",
 };
 
-function row(event: Partial<AuditEvent>, actorName?: string) {
-  render(<TaskActivityRow event={{ ...base, ...event }} actorName={actorName} />);
+function row(event: Partial<AuditEvent>, actorName?: string, actorAvatarUrl?: string) {
+  render(
+    <TaskActivityRow
+      event={{ ...base, ...event }}
+      actorName={actorName}
+      actorAvatarUrl={actorAvatarUrl}
+    />,
+  );
   return screen.getByTestId(`task-timeline-activity-${event.id ?? base.id}`);
 }
 
@@ -52,8 +58,17 @@ describe("TaskActivityRow", () => {
     );
     expect(el).toHaveTextContent("Cập nhật task");
     expect(el).toHaveTextContent("Lan");
-    expect(el).toHaveTextContent("todo");
-    expect(el).toHaveTextContent("in_progress");
+    expect(el).toHaveTextContent("Cần làm");
+    expect(el).toHaveTextContent("Đang làm");
+    expect(el).not.toHaveTextContent("in_progress");
+  });
+
+  it("hiển thị avatar tài khoản của người thực hiện", () => {
+    row({}, "Lan", "/uploads/avatars/lan.png");
+    expect(screen.getByRole("img", { name: "Lan" })).toHaveAttribute(
+      "src",
+      "/uploads/avatars/lan.png",
+    );
   });
 
   it("không có tên thành viên thì hiện id rút gọn thay vì bỏ trống người thực hiện", () => {

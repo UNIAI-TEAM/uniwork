@@ -103,7 +103,7 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   from { transform: scale(0.92); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
-.animate-welcome-glyph-pop { animation: welcome-glyph-pop 0.2s cubic-bezier(0.23, 1, 0.32, 1) 80ms both; }
+.animate-welcome-glyph-pop { animation: welcome-glyph-pop var(--duration-standard) var(--ease-out-quart) 80ms both; }
 
 /* A reaction landing on a meeting tile: quick scale-in, no bounce. */
 @keyframes reaction-pop {
@@ -135,10 +135,10 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   /* A single truncated blink would end on the invisible frame; keep it lit. */
   .animate-caret-blink { animation: none; }
   *, *::before, *::after {
-    animation-duration: 0.15s !important;
+    animation-duration: var(--duration-fast) !important;
     animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.15s !important;
+    transition-duration: var(--duration-fast) !important;
   }
   html { scroll-behavior: auto !important; }
   /* Glyph pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
@@ -174,8 +174,8 @@ html[data-sidebar-resizing="true"] * {
 [data-right-sidebar-layout][data-right-sidebar-motion="enabled"]
   > [data-panel] {
   transition-property: flex-grow;
-  transition-duration: 220ms;
-  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  transition-duration: var(--duration-standard);
+  transition-timing-function: var(--ease-out-quart);
 }
 
 [data-right-sidebar-layout]:has(> [data-separator="active"])

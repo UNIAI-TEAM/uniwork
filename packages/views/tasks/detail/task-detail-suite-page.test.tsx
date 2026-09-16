@@ -49,6 +49,16 @@ const task = {
   created_by: "u1",
   created_at: "2026-09-01T00:00:00Z",
   updated_at: "2026-09-01T00:00:00Z",
+  reactions: [
+    {
+      id: "r1",
+      task_id: "t1",
+      actor_type: "member",
+      actor_id: "u1",
+      emoji: "❤️",
+      created_at: "2026-09-01T00:00:00Z",
+    },
+  ],
 };
 
 function shell(ui: React.ReactElement) {
@@ -88,12 +98,50 @@ describe("TaskDetailSuitePage", () => {
       expect(screen.getByText("Ship detail shell")).toBeInTheDocument();
     });
 
+    expect(screen.getByText("TEAM-12 Ship detail shell")).toBeInTheDocument();
+    // ThreadNav replaces the old scroll-to-comments button; with zero threads
+    // the trigger stays unmounted (MIN_THREADS = 1).
+    expect(
+      screen.queryByRole("button", { name: /bình luận \(\d+\)|comments \(\d+\)/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("task-thread-nav-trigger")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /ghim công việc|pin task/i }),
+    ).toBeInTheDocument();
+    const actions = screen.getByRole("button", {
+      name: /thao tác công việc|task actions/i,
+    });
+    expect(actions).toBeInTheDocument();
+    fireEvent.click(actions);
+    expect(
+      await screen.findByText(/đổi trạng thái|change status/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /ghim công việc|pin task/i }),
+    ).not.toBeInTheDocument();
+    expect(document.body).not.toHaveStyle({ overflow: "hidden" });
+
     expect(
       screen.getByRole("region", { name: /tiêu đề|title/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("complementary", { name: /thuộc tính|properties/i }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("task-detail-main-pane")).toContainElement(
+      screen.getByText("TEAM-12 Ship detail shell"),
+    );
+    const reaction = screen.getByRole("button", { name: /❤️\s*1/ });
+    expect(reaction).toBeInTheDocument();
+    fireEvent.click(reaction);
+    await waitFor(() => {
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/tasks/t1/reactions",
+        expect.objectContaining({ method: "DELETE", body: { emoji: "❤️" } }),
+      );
+    });
+    expect(
+      screen.getAllByRole("button", { name: /đính kèm tệp|attach file/i }),
+    ).toHaveLength(2);
 
     const sidebarToggle = screen.getByRole("button", {
       name: /hiện hoặc ẩn thuộc tính|show or hide properties/i,

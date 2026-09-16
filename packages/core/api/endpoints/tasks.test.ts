@@ -52,6 +52,31 @@ describe("tasks endpoints", () => {
     await expect(getTask("t1")).resolves.toBeNull();
   });
 
+  it("getTask keeps task reactions and defaults an absent list", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        json({
+          task: {
+            ...validTask,
+            reactions: [
+              {
+                id: "r1",
+                task_id: "t1",
+                actor_type: "member",
+                actor_id: "u1",
+                emoji: "❤️",
+                created_at: "2026-09-15T00:00:00Z",
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(json({ task: validTask }));
+
+    expect((await getTask("t1"))?.reactions).toHaveLength(1);
+    expect((await getTask("t1"))?.reactions).toEqual([]);
+  });
+
   it("createTask / updateTask post the body and return the task", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ task: validTask }))

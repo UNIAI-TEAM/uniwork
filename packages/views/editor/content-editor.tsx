@@ -97,6 +97,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       defaultValue,
       value,
       onUpdate,
+      onDocumentChange,
       placeholder: placeholderText = "",
       className,
       debounceMs = 300,
@@ -128,6 +129,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const pendingFlushRef = useRef<string | null>(null);
     const pendingBaseRef = useRef<string | null>(null);
     const onUpdateRef = useRef(onUpdate);
+    const onDocumentChangeRef = useRef(onDocumentChange);
     const onSubmitRef = useRef(onSubmit);
     const onBlurRef = useRef(onBlur);
     const onReadyRef = useRef(onReady);
@@ -245,6 +247,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
 
     // Keep refs in sync without recreating editor
     onUpdateRef.current = onUpdate;
+    onDocumentChangeRef.current = onDocumentChange;
     onSubmitRef.current = onSubmit;
     onBlurRef.current = onBlur;
     onReadyRef.current = onReady;
@@ -350,10 +353,17 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
         resolveTaskIdentifierRef,
       }),
       onUpdate: ({ editor: ed }) => {
+        const liveMarkdown =
+          onDocumentChangeRef.current || flushPendingOnUnmountRef.current
+            ? normalizeEditorMarkdown(ed)
+            : null;
+        if (liveMarkdown !== null) {
+          onDocumentChangeRef.current?.(liveMarkdown);
+        }
         if (!onUpdateRef.current) return;
         pendingBaseRef.current = documentBaseRef.current;
         if (flushPendingOnUnmountRef.current) {
-          pendingFlushRef.current = normalizeEditorMarkdown(ed);
+          pendingFlushRef.current = liveMarkdown ?? normalizeEditorMarkdown(ed);
         }
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {

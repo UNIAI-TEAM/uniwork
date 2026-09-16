@@ -11,6 +11,64 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const autoSubscribeTaskActor = `-- name: AutoSubscribeTaskActor :execrows
+WITH RECURSIVE ancestors AS (
+  SELECT t.id, t.parent_task_id, 0 AS depth
+  FROM tasks t
+  WHERE t.id = $3
+    AND t.organization_id = $1
+    AND t.workspace_id = $2
+  UNION ALL
+  SELECT parent.id, parent.parent_task_id, child.depth + 1
+  FROM tasks parent
+  INNER JOIN ancestors child ON child.parent_task_id = parent.id
+  WHERE parent.organization_id = $1
+    AND parent.workspace_id = $2
+)
+INSERT INTO task_subscribers (
+  organization_id, workspace_id, task_id, actor_type, actor_id, reason
+)
+SELECT
+  $1, $2, $3,
+  $4, $5, $6
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM task_subscribers subscriber
+  INNER JOIN ancestors ON ancestors.id = subscriber.task_id
+  WHERE subscriber.organization_id = $1
+    AND subscriber.workspace_id = $2
+    AND subscriber.actor_type = $4
+    AND subscriber.actor_id = $5
+    AND subscriber.unsubscribed_at IS NOT NULL
+    AND (ancestors.depth = 0 OR subscriber.opt_out_scope = 'subtree')
+)
+ON CONFLICT (workspace_id, task_id, actor_type, actor_id) DO NOTHING
+`
+
+type AutoSubscribeTaskActorParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	TaskID         string `json:"task_id"`
+	ActorType      string `json:"actor_type"`
+	ActorID        string `json:"actor_id"`
+	Reason         string `json:"reason"`
+}
+
+func (q *Queries) AutoSubscribeTaskActor(ctx context.Context, arg AutoSubscribeTaskActorParams) (int64, error) {
+	result, err := q.db.Exec(ctx, autoSubscribeTaskActor,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.ActorType,
+		arg.ActorID,
+		arg.Reason,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createTaskCommentThreaded = `-- name: CreateTaskCommentThreaded :one
 INSERT INTO task_comments (
   id, organization_id, workspace_id, task_id, author_id, author_kind, body, origin,
@@ -152,37 +210,6 @@ func (q *Queries) DeleteTaskReaction(ctx context.Context, arg DeleteTaskReaction
 		arg.ActorType,
 		arg.ActorID,
 		arg.Emoji,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteTaskSubscriber = `-- name: DeleteTaskSubscriber :execrows
-DELETE FROM task_subscribers
-WHERE task_id = $1
-  AND organization_id = $2
-  AND workspace_id = $3
-  AND actor_type = $4
-  AND actor_id = $5
-`
-
-type DeleteTaskSubscriberParams struct {
-	TaskID         string `json:"task_id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	ActorType      string `json:"actor_type"`
-	ActorID        string `json:"actor_id"`
-}
-
-func (q *Queries) DeleteTaskSubscriber(ctx context.Context, arg DeleteTaskSubscriberParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteTaskSubscriber,
-		arg.TaskID,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.ActorType,
-		arg.ActorID,
 	)
 	if err != nil {
 		return 0, err
@@ -558,12 +585,43 @@ func (q *Queries) ListTaskReactions(ctx context.Context, arg ListTaskReactionsPa
 }
 
 const listTaskSubscribers = `-- name: ListTaskSubscribers :many
-SELECT organization_id, workspace_id, task_id, actor_type, actor_id, reason, created_at
-FROM task_subscribers
-WHERE task_id = $1
-  AND organization_id = $2
-  AND workspace_id = $3
-ORDER BY created_at
+WITH RECURSIVE ancestors AS (
+  SELECT parent.id, parent.parent_task_id
+  FROM tasks child
+  INNER JOIN tasks parent ON parent.id = child.parent_task_id
+  WHERE child.id = $1
+    AND child.organization_id = $2
+    AND child.workspace_id = $3
+    AND parent.organization_id = $2
+    AND parent.workspace_id = $3
+  UNION ALL
+  SELECT parent.id, parent.parent_task_id
+  FROM tasks parent
+  INNER JOIN ancestors child ON child.parent_task_id = parent.id
+  WHERE parent.organization_id = $2
+    AND parent.workspace_id = $3
+)
+SELECT subscriber.organization_id, subscriber.workspace_id, subscriber.task_id, subscriber.actor_type, subscriber.actor_id, subscriber.reason, subscriber.created_at, subscriber.unsubscribed_at, subscriber.opt_out_scope
+FROM task_subscribers subscriber
+WHERE subscriber.task_id = $1
+  AND subscriber.organization_id = $2
+  AND subscriber.workspace_id = $3
+  AND subscriber.unsubscribed_at IS NULL
+  AND (
+    subscriber.reason = 'manual'
+    OR NOT EXISTS (
+      SELECT 1
+      FROM task_subscribers opt_out
+      INNER JOIN ancestors ON ancestors.id = opt_out.task_id
+      WHERE opt_out.organization_id = $2
+        AND opt_out.workspace_id = $3
+        AND opt_out.actor_type = subscriber.actor_type
+        AND opt_out.actor_id = subscriber.actor_id
+        AND opt_out.unsubscribed_at IS NOT NULL
+        AND opt_out.opt_out_scope = 'subtree'
+    )
+  )
+ORDER BY subscriber.created_at
 `
 
 type ListTaskSubscribersParams struct {
@@ -589,6 +647,8 @@ func (q *Queries) ListTaskSubscribers(ctx context.Context, arg ListTaskSubscribe
 			&i.ActorID,
 			&i.Reason,
 			&i.CreatedAt,
+			&i.UnsubscribedAt,
+			&i.OptOutScope,
 		); err != nil {
 			return nil, err
 		}
@@ -598,6 +658,51 @@ func (q *Queries) ListTaskSubscribers(ctx context.Context, arg ListTaskSubscribe
 		return nil, err
 	}
 	return items, nil
+}
+
+const optOutTaskSubscriber = `-- name: OptOutTaskSubscriber :execrows
+INSERT INTO task_subscribers (
+  organization_id, workspace_id, task_id, actor_type, actor_id, reason,
+  unsubscribed_at, opt_out_scope
+) VALUES (
+  $1, $2, $3, $4, $5, 'manual', now(), $6
+)
+ON CONFLICT (workspace_id, task_id, actor_type, actor_id) DO UPDATE
+SET unsubscribed_at = now(),
+    opt_out_scope = CASE
+      WHEN task_subscribers.opt_out_scope = 'subtree'
+        OR EXCLUDED.opt_out_scope = 'subtree' THEN 'subtree'
+      ELSE 'task'
+    END
+WHERE task_subscribers.unsubscribed_at IS NULL
+   OR (
+     task_subscribers.opt_out_scope IS DISTINCT FROM 'subtree'
+     AND EXCLUDED.opt_out_scope = 'subtree'
+   )
+`
+
+type OptOutTaskSubscriberParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	TaskID         string      `json:"task_id"`
+	ActorType      string      `json:"actor_type"`
+	ActorID        string      `json:"actor_id"`
+	OptOutScope    pgtype.Text `json:"opt_out_scope"`
+}
+
+func (q *Queries) OptOutTaskSubscriber(ctx context.Context, arg OptOutTaskSubscriberParams) (int64, error) {
+	result, err := q.db.Exec(ctx, optOutTaskSubscriber,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.ActorType,
+		arg.ActorID,
+		arg.OptOutScope,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const resolveTaskComment = `-- name: ResolveTaskComment :one
@@ -651,6 +756,44 @@ func (q *Queries) ResolveTaskComment(ctx context.Context, arg ResolveTaskComment
 		&i.ChatMessageID,
 	)
 	return i, err
+}
+
+const subscribeToTaskExplicitly = `-- name: SubscribeToTaskExplicitly :execrows
+INSERT INTO task_subscribers (
+  organization_id, workspace_id, task_id, actor_type, actor_id, reason
+) VALUES (
+  $1, $2, $3, $4, $5, $6
+)
+ON CONFLICT (workspace_id, task_id, actor_type, actor_id) DO UPDATE
+SET reason = EXCLUDED.reason,
+    unsubscribed_at = NULL,
+    opt_out_scope = NULL
+WHERE task_subscribers.reason <> EXCLUDED.reason
+   OR task_subscribers.unsubscribed_at IS NOT NULL
+`
+
+type SubscribeToTaskExplicitlyParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	TaskID         string `json:"task_id"`
+	ActorType      string `json:"actor_type"`
+	ActorID        string `json:"actor_id"`
+	Reason         string `json:"reason"`
+}
+
+func (q *Queries) SubscribeToTaskExplicitly(ctx context.Context, arg SubscribeToTaskExplicitlyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, subscribeToTaskExplicitly,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.ActorType,
+		arg.ActorID,
+		arg.Reason,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const unresolveTaskComment = `-- name: UnresolveTaskComment :one
@@ -742,48 +885,6 @@ func (q *Queries) UpdateTaskCommentBody(ctx context.Context, arg UpdateTaskComme
 		&i.Revision,
 		&i.UpdatedAt,
 		&i.ChatMessageID,
-	)
-	return i, err
-}
-
-const upsertTaskSubscriber = `-- name: UpsertTaskSubscriber :one
-INSERT INTO task_subscribers (
-  organization_id, workspace_id, task_id, actor_type, actor_id, reason
-) VALUES (
-  $1, $2, $3, $4, $5, $6
-)
-ON CONFLICT (workspace_id, task_id, actor_type, actor_id) DO UPDATE
-SET reason = EXCLUDED.reason
-RETURNING organization_id, workspace_id, task_id, actor_type, actor_id, reason, created_at
-`
-
-type UpsertTaskSubscriberParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	TaskID         string `json:"task_id"`
-	ActorType      string `json:"actor_type"`
-	ActorID        string `json:"actor_id"`
-	Reason         string `json:"reason"`
-}
-
-func (q *Queries) UpsertTaskSubscriber(ctx context.Context, arg UpsertTaskSubscriberParams) (TaskSubscriber, error) {
-	row := q.db.QueryRow(ctx, upsertTaskSubscriber,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.TaskID,
-		arg.ActorType,
-		arg.ActorID,
-		arg.Reason,
-	)
-	var i TaskSubscriber
-	err := row.Scan(
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.TaskID,
-		&i.ActorType,
-		&i.ActorID,
-		&i.Reason,
-		&i.CreatedAt,
 	)
 	return i, err
 }

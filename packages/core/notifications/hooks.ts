@@ -21,10 +21,15 @@ export const notificationKeys = {
   pushConfig: () => ["notifications", "push-config"] as const,
 };
 
-export function useNotifications(opts: { workspaceId?: string; unreadOnly?: boolean; limit?: number } = {}) {
+/** `enabled: false` keeps the query cold — the bell uses it until opened. */
+export function useNotifications({
+  enabled = true,
+  ...opts
+}: { workspaceId?: string; unreadOnly?: boolean; limit?: number; enabled?: boolean } = {}) {
   return useQuery({
     queryKey: notificationKeys.list(opts.workspaceId, !!opts.unreadOnly, opts.limit),
     queryFn: () => api.listNotifications(opts),
+    enabled,
   });
 }
 

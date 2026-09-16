@@ -15,7 +15,7 @@ const PAGE_ACTIONS: readonly ShortcutActionId[] = ["findInTask", "openThreadNav"
 
 /**
  * The task detail page's one keydown listener, for the two actions that only
- * mean something here: find in the task and move into thread navigation.
+ * mean something here: find in the task and open/pin the thread navigator.
  * Mounted by the find scope, which only exists once the task has loaded.
  *
  * Not in GlobalShortcuts on purpose. The chat page owns Ctrl/Cmd+F for its own
@@ -27,12 +27,18 @@ export function useTaskDetailShortcuts({
   container,
   findBarRef,
   onFind,
+  onToggleThreadNav,
 }: {
   /** The page's scroll container: the searched region and the visibility probe. */
   container: HTMLElement | null;
   /** The find bar sits outside the container; ⌘F from its input re-selects the query. */
   findBarRef: RefObject<HTMLElement | null>;
   onFind: () => void;
+  /**
+   * Opens or closes the header thread-nav panel. False when the trigger is
+   * absent (no threads) so the key is left alone.
+   */
+  onToggleThreadNav: (() => boolean) | null;
 }): void {
   useEffect(() => {
     if (!container) return;
@@ -57,15 +63,11 @@ export function useTaskDetailShortcuts({
         onFind();
         return;
       }
-      // Marked in thread-nav-panel.tsx. Below four threads the panel does not
-      // render; then the key is left alone.
-      const firstChip = container.querySelector<HTMLElement>("[data-thread-nav] button");
-      if (!firstChip) return;
+      if (!onToggleThreadNav?.()) return;
       event.preventDefault();
-      firstChip.focus();
     };
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [container, findBarRef, onFind]);
+  }, [container, findBarRef, onFind, onToggleThreadNav]);
 }

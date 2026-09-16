@@ -11,12 +11,14 @@ import {
 } from "../../layout/animated-right-sidebar";
 import { useWorkspace } from "../../layout/workspace-context";
 import { TaskDetailEditors } from "./components/task-detail-editors";
+import { TaskDetailHeaderActions } from "./components/task-detail-header-actions";
 import { TaskDetailResizableLayout } from "./components/task-detail-layout";
 import { TaskDetailPropertiesSidebarSlot } from "./components/task-detail-properties-slot";
 import { TaskFindScope } from "./find/task-find-scope";
 import { useRecordTaskVisit } from "./hooks/use-record-task-visit";
 import { useTaskDetailScrollRestore } from "./hooks/use-task-detail-scroll-restore";
 import { useTaskFieldSave } from "./hooks/use-task-field-save";
+import { TaskThreadNavProvider } from "./thread-nav-context";
 
 /**
  * Suite task detail shell mounted from the web task detail route.
@@ -28,7 +30,7 @@ export function TaskDetailSuitePage(props: {
   /** Wired when the actions menu lands (Task 7+). */
   onDeleted?: () => void;
 }) {
-  const { workspaceId, taskId } = props;
+  const { workspaceId, taskId, onDeleted } = props;
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
   const { data: task, isLoading, isError, error, refetch } = useTask(taskId);
@@ -73,46 +75,59 @@ export function TaskDetailSuitePage(props: {
     );
   }
 
-  const leaf =
-    task.identifier?.trim() ||
-    task.title ||
-    t("tasks.detail.title_placeholder");
+  const identifier = task.identifier?.trim();
+  const leaf = [identifier, task.title].filter(Boolean).join(" ") || t("tasks.detail.title_placeholder");
 
   return (
     <div
       className="flex h-full min-h-0 flex-col overflow-hidden"
       data-testid="task-detail-suite"
     >
-      <BreadcrumbHeader
-        segments={segments}
-        leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
-        actions={
-          <RightSidebarToggle
-            controller={sidebarController}
-            label={t("tasks.detail.sidebar_toggle")}
-          />
-        }
-      />
       <TaskDetailResizableLayout
         sidebarController={sidebarController}
         sidebarLabel={t("tasks.detail.sidebar_toggle")}
         main={
-          // The editors element is created here and handed to the find scope
-          // as children, so find state changing inside the scope (every
-          // keystroke) never re-renders them.
-          <TaskFindScope
-            taskId={taskId}
-            container={scrollEl}
-            description={task.description ?? ""}
+          <div
+            className="flex h-full min-h-0 flex-col"
+            data-testid="task-detail-main-pane"
           >
-            <TaskDetailEditors
-              task={task}
-              workspaceId={workspaceId}
-              scrollContainerRef={attachScroll}
-              onSaveTitle={(title) => saveField({ title })}
-              onSaveDescription={(description) => saveField({ description })}
-            />
-          </TaskFindScope>
+            <TaskThreadNavProvider scrollContainerEl={scrollEl}>
+              <BreadcrumbHeader
+                segments={segments}
+                leaf={<span className="truncate font-medium text-foreground">{leaf}</span>}
+                actions={
+                  <>
+                    <TaskDetailHeaderActions
+                      workspaceId={workspaceId}
+                      task={task}
+                      tasksHref={tasksHref}
+                      onDeleted={onDeleted}
+                    />
+                    <RightSidebarToggle
+                      controller={sidebarController}
+                      label={t("tasks.detail.sidebar_toggle")}
+                    />
+                  </>
+                }
+              />
+              {/* The editors element is created here and handed to the find scope
+                  as children, so find state changing inside the scope (every
+                  keystroke) never re-renders them. */}
+              <TaskFindScope
+                taskId={taskId}
+                container={scrollEl}
+                description={task.description ?? ""}
+              >
+                <TaskDetailEditors
+                  task={task}
+                  workspaceId={workspaceId}
+                  scrollContainerRef={attachScroll}
+                  onSaveTitle={(title) => saveField({ title })}
+                  onSaveDescription={(description) => saveField({ description })}
+                />
+              </TaskFindScope>
+            </TaskThreadNavProvider>
+          </div>
         }
         sidebar={
           <TaskDetailPropertiesSidebarSlot

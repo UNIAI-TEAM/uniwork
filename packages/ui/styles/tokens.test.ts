@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { UI_EASE_OUT, UI_MOTION_DURATION } from "../lib/motion";
 
 // Resolved from the package root rather than `import.meta.url`: the jsdom
 // environment rewrites module URLs to a non-file scheme, and vitest always runs
@@ -93,12 +94,12 @@ describe("token contract", () => {
   });
 
   it("pins the radius ramp to explicit values", () => {
-    // sm 6 / md 8 / lg 12 / xl 14 / 2xl 20 / 3xl 32. A calc() ramp off one
+    // sm 6 / md 8 / lg 12 / xl 16 / 2xl 20 / 3xl 32. A calc() ramp off one
     // base drifts every step when the base moves; explicit stops do not.
     const theme = block("@theme inline");
     for (const [step, px] of [
       ["sm", "6px"], ["md", "8px"], ["lg", "12px"],
-      ["xl", "14px"], ["2xl", "20px"], ["3xl", "32px"],
+      ["xl", "16px"], ["2xl", "20px"], ["3xl", "32px"],
     ]) {
       expect(theme).toMatch(new RegExp(`--radius-${step}:\\s*${px};`));
     }
@@ -131,6 +132,63 @@ describe("token contract", () => {
     }
     expect(light).toContain("--on-solid");
     expect(theme).toContain("--color-on-solid");
+  });
+
+  it("defines every signal as a text / soft / solid triple", () => {
+    // A signal without its soft pair sends a view back to `bg-success/10`,
+    // an alpha that measures differently on every surface it lands on.
+    const light = definedVars(block(":root"));
+    const dark = definedVars(block(".dark"));
+    const theme = definedVars(block("@theme inline"));
+    for (const signal of ["destructive", "success", "warning", "info"]) {
+      for (const suffix of ["", "-soft", "-soft-foreground", "-solid"]) {
+        const name = `--${signal}${suffix}`;
+        expect(light, `missing ${name}`).toContain(name);
+        expect(dark, `missing ${name} in .dark`).toContain(name);
+        expect(theme, `no Tailwind alias for ${name}`).toContain(`--color-${signal}${suffix}`);
+      }
+    }
+    for (const name of ["--brand-subtle", "--brand-subtle-foreground"]) {
+      expect(light).toContain(name);
+      expect(dark).toContain(name);
+      expect(theme).toContain(`--color${name.slice(1)}`);
+    }
+  });
+
+  it("keeps --primary equal to --brand in both themes and under every accent", () => {
+    // The CTA, the unread count and the selected dot are the brand fill.
+    // Two slots can only stay one colour if every block that moves one
+    // moves the other.
+    for (const selector of [":root", ".dark"]) {
+      const b = block(selector);
+      const primary = /--primary:\s*([^;]+);/.exec(b)?.[1];
+      const brand = /--brand:\s*([^;]+);/.exec(b)?.[1];
+      expect(primary, `${selector} primary`).toBe(brand);
+    }
+    for (const selector of ["html:not(.dark)[data-accent]", ":where([data-accent]) .dark,\nhtml.dark[data-accent]"]) {
+      const b = block(selector);
+      expect(b, `${selector} does not re-derive --primary`).toMatch(/--primary:\s*var\(--brand\);/);
+      expect(b, `${selector} does not re-derive --primary-foreground`).toMatch(/--primary-foreground:\s*var\(--brand-foreground\);/);
+    }
+  });
+
+  it("holds the CSS motion set to lib/motion.ts", () => {
+    // base.css animates with these; motion/react animates with the JS
+    // constants. Equal numbers or the two halves of the app move at
+    // different speeds.
+    const theme = block("@theme inline");
+    for (const [name, seconds] of Object.entries(UI_MOTION_DURATION)) {
+      expect(theme).toMatch(new RegExp(`--duration-${name}:\\s*${Math.round(seconds * 1000)}ms;`));
+    }
+    expect(theme).toContain(`--ease-out-quart: cubic-bezier(${UI_EASE_OUT.join(", ")});`);
+  });
+
+  it("binds the overline role to case, weight and the mono family", () => {
+    const theme = definedVars(block("@theme inline"));
+    expect(theme).toContain("--text-overline");
+    expect(theme).toContain("--text-overline--letter-spacing");
+    expect(css).toMatch(/\.text-overline\s*\{[^}]*font-family:\s*var\(--font-mono\)/);
+    expect(css).toMatch(/\.text-overline\s*\{[^}]*text-transform:\s*uppercase/);
   });
 
   it("defines every semantic slot the shadcn primitives consume", () => {

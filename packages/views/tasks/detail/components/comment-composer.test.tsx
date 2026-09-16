@@ -108,6 +108,7 @@ vi.mock("../../../editor", () => {
       onUploadingChange: () => {},
       isBlocked: () => false,
     }),
+    useEditorUpload: () => ({ upload: vi.fn(), uploading: false }),
     useComposerSubmit: ({
       editorRef,
       onSubmit,

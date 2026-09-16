@@ -31,6 +31,12 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 	out.Title = t.Title
 	out.Description = t.Description
 	out.Status = t.Status
+	if len(t.Properties) > 0 {
+		var properties map[string]any
+		if json.Unmarshal(t.Properties, &properties) == nil {
+			out.Properties = properties
+		}
+	}
 	out.Priority = t.Priority
 	out.AssigneeKind = t.AssigneeKind
 	out.Position = t.Position
@@ -58,6 +64,10 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 	if t.ParentTaskID.Valid {
 		s := t.ParentTaskID.String
 		out.ParentTaskID = &s
+	}
+	if t.Stage.Valid {
+		stage := t.Stage.Int32
+		out.Stage = &stage
 	}
 	return out
 }
@@ -122,12 +132,31 @@ func (h *handlers) listTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getTask(w http.ResponseWriter, r *http.Request) {
-	t, err := h.Tasks.GetByRef(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "taskID"))
+	actor := service.Human(middleware.UserID(r.Context()))
+	t, err := h.Tasks.GetByRef(r.Context(), actor, chi.URLParam(r, "taskID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	h.respondTask(w, r, 200, t)
+	dtos, err := h.taskDTOs(r, []db.Task{t})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	reactions, err := h.Tasks.TaskReactions(r.Context(), actor, t.ID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	dtos[0].Reactions = make([]sdo.TaskReactionDTO, 0, len(reactions))
+	for _, reaction := range reactions {
+		dtos[0].Reactions = append(dtos[0].Reactions, sdo.TaskReactionDTO{
+			ID: reaction.ID, TaskID: reaction.TaskID, ActorType: reaction.ActorType,
+			ActorID: reaction.ActorID, Emoji: reaction.Emoji,
+			CreatedAt: reaction.CreatedAt.Time.Format(time.RFC3339),
+		})
+	}
+	respondJSON(w, http.StatusOK, sdo.TaskSDO{Task: dtos[0]})
 }
 
 // PATCH body: field vắng mặt = không đổi; assignee_id/due_date gửi null = xóa.
