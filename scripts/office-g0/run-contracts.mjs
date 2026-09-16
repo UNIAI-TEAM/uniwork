@@ -1515,6 +1515,48 @@ export const FAULT_CASES = [
       sourceVersions: 1,
     },
   },
+  {
+    id: "unknown-resource-is-typed",
+    requirement: "Tài nguyên không tồn tại trả lỗi có mã/status/errorClass, không phải stack trace",
+    run({ model, base }) {
+      // A client that asks for a document or an upload that never existed must be
+      // able to switch on a code, not catch a bare Error. Both paths raise
+      // not_found, and both must carry the declared status, class and kind.
+      const absentDoc = model.state.documents.has("doc-absent") ? "present" : "absent";
+      let unknownDocument;
+      try {
+        model.openDocument({ sessionId: base.sessionId, docId: "doc-absent" });
+        unknownDocument = { outcome: "opened" };
+      } catch (error) {
+        unknownDocument = {
+          outcome: "error",
+          code: error.code,
+          status: error.status,
+          errorClass: error.errorClass,
+          kind: error.kind,
+        };
+      }
+      let unknownUpload;
+      try {
+        model.commitSave({ ...base, uploadId: "upload-never-existed", payload: "x" });
+        unknownUpload = { outcome: "committed" };
+      } catch (error) {
+        unknownUpload = { outcome: "error", code: error.code, status: error.status };
+      }
+      return { absentDoc, unknownDocument, unknownUpload };
+    },
+    expect: {
+      absentDoc: "absent",
+      unknownDocument: {
+        outcome: "error",
+        code: "not_found",
+        status: 404,
+        errorClass: "missing",
+        kind: "unknown_resource",
+      },
+      unknownUpload: { outcome: "error", code: "not_found", status: 404 },
+    },
+  },
 ];
 
 /** Every case id the plan's mandatory list ("Ca bắt buộc") requires. */
@@ -1543,6 +1585,7 @@ export const REQUIRED_CASE_IDS = [
   "upload-owner-and-single-commit",
   "ledger-scoped-and-rechecked",
   "conversion-respects-quota",
+  "unknown-resource-is-typed",
 ];
 /**
  * Run every case against a fresh model. The fixture is identical for all cases,

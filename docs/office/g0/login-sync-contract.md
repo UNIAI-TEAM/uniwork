@@ -5,7 +5,7 @@
 > **Nguồn:** spec [Documents + UniWork Office G0](../../superpowers/specs/2026-09-16-documents-office-g0-design.md) §9;
 > plan [G0](../../superpowers/plans/2026-09-16-documents-office-g0.md) Task 5;
 > C-01 §2/§3/§5/§13; Q5-A, Q7-B, Q8-A.
-> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 24/24 ca khớp oracle,
+> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 25/25 ca khớp oracle,
 > xuất `.go-tmp/office-g0/run-contracts.json`. Đây là **model tham chiếu**, không phải
 > E2E sản phẩm. Xem §8 để biết chính xác mức bằng chứng.
 
@@ -143,6 +143,9 @@ thêm `errorClass`:
 | `engine_incompatible` | 409 | `incompatible` | chặn mở/sửa, yêu cầu cập nhật |
 | `upload_already_committed` | 409 | `conflict` | upload đã tiêu; retry bằng cùng key hoặc upload mới |
 | `token_expired` | 401 | `session` | refresh; thất bại thì giữ nháp |
+| `not_found` | 404 | `missing` | tài nguyên không tồn tại; rời màn hình, không retry mù |
+| `authorization_code_expired` | 400 | `session` | mở lại luồng login desktop từ đầu |
+| `authorization_code_reused` | 400 | `session` | code dùng một lần; mở lại luồng login |
 
 Bảng này là hằng số trong `run-contracts.mjs` (`ERROR_CODES`) và có test khẳng định
 hai mã conflict chia **một** `errorClass`.
@@ -244,13 +247,13 @@ và tài khoản ngoài Work Product đọc bản sao nhận `forbidden`.
 ## 8. Bằng chứng chạy
 
 ```sh
-node scripts/office-g0/run-contracts.mjs                    # 24/24, ghi JSON
+node scripts/office-g0/run-contracts.mjs                    # 25/25, ghi JSON
 node scripts/office-g0/run-contracts.mjs --legacy-idempotency --out <path>
 node --test scripts/office-g0/run-contracts.test.mjs
 ```
 
 Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON ghi `gitHead` để
-đối chiếu): **24/24 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
+đối chiếu): **25/25 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
 
 | Ca trong plan | id | Kết quả |
 | --- | --- | --- |
@@ -278,9 +281,10 @@ Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON g
 | Upload thuộc người tạo, commit một lần | `upload-owner-and-single-commit` | người khác commit → `forbidden`; tái dùng upload đã commit → `upload_already_committed`; retry cùng key → replay |
 | Ledger idempotency theo scope và kiểm lại quyền | `ledger-scoped-and-rechecked` | cùng key ở workspace khác không xung đột; replay sau khi thu quyền → `forbidden` |
 | Bản sao chuyển đổi tiêu quota | `conversion-respects-quota` | quota đầy → `quota_exceeded`, nguồn không đổi |
+| Tài nguyên không tồn tại trả lỗi có kiểu | `unknown-resource-is-typed` | doc/upload lạ → `not_found` 404, `missing`, `unknown_resource` |
 
-Năm ca cuối được thêm ở vòng sửa sau review: chúng đóng khoảng trống mà bộ 16 ca
-ban đầu còn để lọt (§8.2).
+Tám ca cuối được thêm ở các vòng sửa sau review: chúng đóng khoảng trống mà bộ 16 ca
+ban đầu còn để lọt (§8.2-§8.5).
 
 ### 8.1 Giới hạn — đọc trước khi trích dẫn bằng chứng
 
@@ -369,6 +373,18 @@ Kiểm chứng bằng mutation (bản sao trong `../.uniwork-dev/office-g0/mutan
 | Bỏ kiểm quyền ở nhánh replay | 1 | `ledger-scoped-and-rechecked` (23/24) |
 | Ledger key bỏ scope tài liệu | 1 | `idempotency-in-flight` và `ledger-scoped-and-rechecked` (22/24) |
 | Bỏ kiểm quota khi tạo bản sao | 1 | `conversion-respects-quota` (23/24) |
+
+### 8.5 Vòng sửa 4
+
+`not_found` đã được khai trong `ERROR_CODES` từ trước nhưng **không ca nào phụ thuộc
+vào nó**: xoá dòng khai báo vẫn để 24/24 ca (lúc đó) và 12/12 self-test xanh. Một khai báo
+không có ca chứng minh thì không phải bằng chứng, nên ca `unknown-resource-is-typed`
+được thêm: mở một document không tồn tại và commit một `uploadId` không tồn tại đều
+phải trả `not_found` kèm status/errorClass/kind, không phải `Error` trần.
+
+| Bản hoàn lại fix | Exit | Ca thất bại |
+| --- | --- | --- |
+| Bỏ khai báo `not_found` trong `ERROR_CODES` | 1 | `unknown-resource-is-typed` (24/25) |
 
 ## 9. Việc tiếp theo
 

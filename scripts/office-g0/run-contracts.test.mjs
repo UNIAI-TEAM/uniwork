@@ -38,7 +38,7 @@ test("the plan's mandatory list is covered", () => {
   // expired or reused token/code. The in-flight case pins the other half of the
   // idempotency contract — the same key while the first request is still
   // running — which the plan requires of the reference harness.
-  assert.equal(REQUIRED_CASE_IDS.length, 24);
+  assert.equal(REQUIRED_CASE_IDS.length, 25);
   for (const id of [
     "two-saves-same-base",
     "retry-same-payload",
@@ -68,6 +68,9 @@ test("the plan's mandatory list is covered", () => {
     "upload-owner-and-single-commit",
     "ledger-scoped-and-rechecked",
     "conversion-respects-quota",
+    // not_found was declared in ERROR_CODES before anything pinned it: deleting
+    // the declaration left every case green, so the declaration had no evidence.
+    "unknown-resource-is-typed",
   ]) {
     assert.ok(REQUIRED_CASE_IDS.includes(id), id + " is missing from the mandatory list");
   }
