@@ -87,6 +87,7 @@ var catalogue = []EventDef{
 	{Topic: "task.subscribed", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.unsubscribed", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "attachment.uploaded", Version: 1, Payload: []string{"attachment_id", "task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "attachment.staged", Version: 1, Payload: []string{"attachment_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "attachment.deleted", Version: 1, Payload: []string{"attachment_id", "task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_label.created", Version: 1, Payload: []string{"label_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task_label.deleted", Version: 1, Payload: []string{"label_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

@@ -7,6 +7,7 @@ import {
   deleteAttachment,
   getAttachment,
   listTaskAttachments,
+  uploadWorkspaceAttachment,
   uploadTaskAttachment,
 } from "./task-attachments";
 
@@ -60,6 +61,19 @@ describe("task-attachments endpoints", () => {
     const form = init.body as FormData;
     expect(form.get("file")).toBeTruthy();
     await expect(uploadTaskAttachment("t1", file)).resolves.toBeNull();
+  });
+
+  it("uploads an unbound attachment in workspace scope before task creation", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ ...attachment, task_id: null }))
+      .mockResolvedValueOnce(json({ id: 1 }));
+    const file = new File(["# hi"], "note.md", { type: "text/markdown" });
+
+    expect((await uploadWorkspaceAttachment("ws1", file))?.task_id).toBeNull();
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(
+      "http://api.test/api/v1/workspaces/ws1/attachments",
+    );
+    await expect(uploadWorkspaceAttachment("ws1", file)).resolves.toBeNull();
   });
 
   it("deleteAttachment tolerates 204", async () => {

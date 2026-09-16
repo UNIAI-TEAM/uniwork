@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -183,6 +184,219 @@ func TestCreateTaskSuiteRetriesAfterFailedCreate(t *testing.T) {
 	}
 	if len(list) != 1 {
 		t.Fatalf("rows: got %d want 1", len(list))
+	}
+}
+
+func TestCreateTaskSuitePersistsWorkManagementContextAtTheHeadOfStatus(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	existing, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Existing review task", Status: "in_review",
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if existing.Priority != "none" {
+		t.Fatalf("default priority = %q, want none", existing.Priority)
+	}
+	project, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Release"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	label, err := s.CreateTaskLabel(ctx, actor, w.ID, CreateTaskLabelInput{Name: "Urgent", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{Title: "Parent"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, due := "2026-09-17", "2026-09-20"
+	stage := int32(2)
+
+	created, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title:        "Child",
+		Description:  "Created with its complete context",
+		Status:       "in_review",
+		Priority:     "none",
+		StartDate:    &start,
+		DueDate:      &due,
+		ProjectID:    &project.ID,
+		ParentTaskID: &parent.ID,
+		Stage:        &stage,
+		LabelIDs:     []string{label.ID},
+	}, "create-with-context")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Status != "in_review" || created.Priority != "none" {
+		t.Fatalf("status/priority = %q/%q", created.Status, created.Priority)
+	}
+	if created.Position >= existing.Position {
+		t.Fatalf("position = %v, want before existing %v", created.Position, existing.Position)
+	}
+	if !created.ProjectID.Valid || created.ProjectID.String != project.ID {
+		t.Fatalf("project_id = %+v, want %s", created.ProjectID, project.ID)
+	}
+	if !created.ParentTaskID.Valid || created.ParentTaskID.String != parent.ID {
+		t.Fatalf("parent_task_id = %+v, want %s", created.ParentTaskID, parent.ID)
+	}
+	if !created.StartDate.Valid || created.StartDate.Time.Format("2006-01-02") != start {
+		t.Fatalf("start_date = %+v, want %s", created.StartDate, start)
+	}
+	if !created.DueDate.Valid || created.DueDate.Time.Format("2006-01-02") != due {
+		t.Fatalf("due_date = %+v, want %s", created.DueDate, due)
+	}
+	if !created.Stage.Valid || created.Stage.Int32 != stage {
+		t.Fatalf("stage = %+v, want %d", created.Stage, stage)
+	}
+	labels, err := s.ListTaskLabelsOnTask(ctx, actor, created.ID)
+	if err != nil || len(labels) != 1 || labels[0].ID != label.ID {
+		t.Fatalf("labels = %+v err=%v", labels, err)
+	}
+}
+
+func TestCreateTaskSuitePersistsCustomPropertiesAtomically(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	property, err := s.CreateTaskProperty(ctx, actor, w.ID, CreateTaskPropertyInput{
+		Name: "Story points", Type: "number",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Estimated", Properties: map[string]json.RawMessage{property.ID: json.RawMessage(`5`)},
+	}, "create-with-properties")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var values map[string]any
+	if err := json.Unmarshal(created.Properties, &values); err != nil {
+		t.Fatal(err)
+	}
+	if values[property.ID] != float64(5) {
+		t.Fatalf("properties = %#v", values)
+	}
+}
+
+func TestCreateTaskSuiteRejectsForeignCustomPropertyWithoutCreatingTask(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	other, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Other properties", "other-properties")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := s.CreateTaskProperty(ctx, actor, other.Workspace.ID, CreateTaskPropertyInput{
+		Name: "Foreign score", Type: "number",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := s.List(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Must roll back", Properties: map[string]json.RawMessage{foreign.ID: json.RawMessage(`5`)},
+	}, "create-with-foreign-property")
+	if err == nil {
+		t.Fatal("expected foreign property to fail")
+	}
+	after, err := s.List(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("create was not atomic: before=%d after=%d", len(before), len(after))
+	}
+}
+
+func TestCreateTaskSuiteRejectsCrossWorkspaceContextWithoutCreatingTask(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	other, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Other", "other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignParent, err := s.CreateTaskSuite(ctx, actor, other.Workspace.ID, CreateTaskInput{Title: "Foreign parent"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignProject, err := s.CreateProject(ctx, actor, other.Workspace.ID, CreateProjectInput{Title: "Foreign project"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignLabel, err := s.CreateTaskLabel(ctx, actor, other.Workspace.ID, CreateTaskLabelInput{Name: "Foreign", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, in := range map[string]CreateTaskInput{
+		"parent":  {Title: "Invalid child", ParentTaskID: &foreignParent.ID},
+		"project": {Title: "Invalid project task", ProjectID: &foreignProject.ID},
+		"label":   {Title: "Invalid label task", LabelIDs: []string{foreignLabel.ID}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			before, err := s.List(ctx, ua.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.CreateTaskSuite(ctx, actor, w.ID, in, "invalid-"+name); err == nil {
+				t.Fatal("expected cross-workspace reference to fail")
+			}
+			after, err := s.List(ctx, ua.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(after) != len(before) {
+				t.Fatalf("create was not atomic: before=%d after=%d", len(before), len(after))
+			}
+		})
+	}
+}
+
+func TestCreateTaskSuiteUsesActiveWorkspaceStatusCatalog(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+
+	custom, err := s.CreateTaskStatus(ctx, actor, w.ID, CreateTaskStatusInput{
+		Name: "Ready for QA", Category: "in_review", Color: "#334455",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Catalog task", Status: custom.Key,
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Status != custom.Key {
+		t.Fatalf("status = %q, want %q", created.Status, custom.Key)
+	}
+
+	if err := s.DeleteTaskStatus(ctx, actor, w.ID, custom.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Archived status", Status: custom.Key,
+	}, ""); err == nil {
+		t.Fatal("expected archived status to be rejected")
+	}
+	if _, err := s.CreateTaskSuite(ctx, actor, w.ID, CreateTaskInput{
+		Title: "Unknown status", Status: "not_a_status",
+	}, ""); err == nil {
+		t.Fatal("expected unknown status to be rejected")
 	}
 }
 

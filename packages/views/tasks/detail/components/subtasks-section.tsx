@@ -12,7 +12,6 @@ import { paths } from "@uniwork/core/paths";
 import {
   useChildTaskProgress,
   useCreateTask,
-  useSetTaskParent,
   useTaskChildren,
   useTaskProperties,
 } from "@uniwork/core/tasks";
@@ -53,7 +52,6 @@ export function TaskDetailSubtasksSection({
   const { data: progressRows = [] } = useChildTaskProgress(workspaceId);
   const propertyCatalog = useTaskProperties(workspaceId).data?.properties ?? [];
   const create = useCreateTask(workspaceId);
-  const setParent = useSetTaskParent(workspaceId);
   const [title, setTitle] = useState("");
   const [pending, setPending] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -97,12 +95,7 @@ export function TaskDetailSubtasksSection({
     if (!trimmed || pending) return;
     setPending(true);
     try {
-      const created = await create.mutateAsync({ title: trimmed });
-      if (!created) throw new Error("create failed");
-      await setParent.mutateAsync({
-        taskId: created.id,
-        body: { parent_task_id: taskId },
-      });
+      await create.mutateAsync({ title: trimmed, parent_task_id: taskId });
       setTitle("");
       setCreating(false);
     } catch (error) {

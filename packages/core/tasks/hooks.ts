@@ -15,6 +15,7 @@ import type {
 } from "../api/endpoints/tasks-table";
 import type { Task } from "../types/task";
 import { taskKeys } from "./keys";
+import { useRecentTasksStore } from "./stores/recent-tasks-store";
 import { tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
 
 export type { CreateTaskBody, TaskPatch } from "../api/endpoints/tasks";
@@ -59,12 +60,22 @@ function invalidatePagedTaskLists(qc: QueryClient, workspaceId: string) {
 export function useCreateTask(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: tasks.CreateTaskBody & { idempotencyKey?: string }) => {
+    mutationFn: async (body: tasks.CreateTaskBody & { idempotencyKey?: string }) => {
       const { idempotencyKey, ...rest } = body;
-      return tasks.createTask(workspaceId, rest, { idempotencyKey });
+      const task = await tasks.createTask(workspaceId, rest, { idempotencyKey });
+      // A create command cannot degrade to a false success: callers must keep
+      // their draft open when the server answered with a malformed task.
+      if (!task) throw new Error("task_create_response_invalid");
+      return task;
     },
-    onSuccess: () => {
+    onSuccess: (task) => {
+      useRecentTasksStore.getState().recordVisit(workspaceId, {
+        id: task.id,
+        identifier: task.identifier,
+        title: task.title,
+      });
       invalidatePagedTaskLists(qc, workspaceId);
+      void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
       return qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
     },
   });

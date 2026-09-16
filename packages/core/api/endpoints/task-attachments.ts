@@ -38,6 +38,21 @@ export async function uploadTaskAttachment(
   });
 }
 
+export async function uploadWorkspaceAttachment(
+  workspaceId: string,
+  file: File,
+): Promise<Attachment | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/attachments`, {
+    method: "POST",
+    body: form,
+  });
+  return parseWithFallback<Attachment | null>(raw, AttachmentSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{workspaceID}/attachments",
+  });
+}
+
 export async function getAttachment(id: string): Promise<Attachment | null> {
   const raw = await request(`/api/v1/attachments/${enc(id)}`);
   return parseWithFallback<Attachment | null>(raw, AttachmentSchema, null, {

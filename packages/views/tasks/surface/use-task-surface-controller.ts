@@ -129,6 +129,7 @@ export interface TaskSurfaceController {
   actions: TaskSurfaceActions;
   selection: TaskSurfaceSelection;
   openCreateTask: (defaults?: TaskCreateDefaults) => void;
+  createDefaults: TaskCreateDefaults | undefined;
   createOpen: boolean;
   setCreateOpen: (open: boolean) => void;
   retry: () => void;
@@ -282,10 +283,26 @@ export function useTaskSurfaceController({
     `${workspaceId}:${scopeKey}:${effectiveViewMode}`,
   );
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpenState] = useState(false);
+  const [createDefaults, setCreateDefaults] = useState<
+    TaskCreateDefaults | undefined
+  >(undefined);
 
-  const openCreateTask = useCallback((_defaults?: TaskCreateDefaults) => {
-    setCreateOpen(true);
+  const openCreateTask = useCallback(
+    (defaults?: TaskCreateDefaults) => {
+      const scopedDefaults =
+        scope.type === "project"
+          ? { project_id: scope.projectId, ...defaults }
+          : defaults;
+      setCreateDefaults(scopedDefaults);
+      setCreateOpenState(true);
+    },
+    [scope],
+  );
+
+  const setCreateOpen = useCallback((open: boolean) => {
+    setCreateOpenState(open);
+    if (!open) setCreateDefaults(undefined);
   }, []);
 
   const moveTask = useCallback(
@@ -504,6 +521,7 @@ export function useTaskSurfaceController({
     actions,
     selection,
     openCreateTask,
+    createDefaults,
     createOpen,
     setCreateOpen,
     retry,

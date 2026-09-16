@@ -16,13 +16,18 @@ function wrap(ui: ReactNode) {
 
 describe("ContentEditor", () => {
   it("mounts a contenteditable surface", async () => {
-    const { container } = render(wrap(<ContentEditor defaultValue="Body" disableMentions />));
+    const { container } = render(
+      wrap(<ContentEditor defaultValue="Body" ariaLabel="Description" disableMentions />),
+    );
     const surface = await waitFor(() => {
       const el = container.querySelector(".ProseMirror[contenteditable='true']");
       expect(el).toBeTruthy();
       return el as HTMLElement;
     });
     expect(surface).toHaveAttribute("contenteditable", "true");
+    expect(surface).toHaveAttribute("role", "textbox");
+    expect(surface).toHaveAttribute("aria-label", "Description");
+    expect(surface).toHaveAttribute("aria-multiline", "true");
     expect(screen.getByText("Body")).toBeInTheDocument();
   });
 

@@ -1,6 +1,6 @@
 # UniWork — Documents (soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage)
 
-> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11).
+> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11). **Bổ sung 2026-09-16 (§13):** tài liệu thuộc sở hữu của một Kết quả công việc — hệ quả của ADR 0016, điều kiện để C-14 (UNI-634) khởi động. Phần đã duyệt không đổi.
 
 **Ngày:** 2026-09-08
 **Issue:** UNI-437 · C-01 · Bounded context Document · P0
@@ -48,6 +48,7 @@ Tính chất đo được:
 | 13 | **Xóa hai bước:** archive (ẩn, khôi phục được, 30 ngày) → purge bởi job (xóa row + object) | Không có nút xóa vĩnh viễn ngay trên UI; audit giữ |
 | 14 | **Feature flag `documents`** theo org (mặc định tắt), route và nav ẩn khi tắt; entitlement flag `documents.public_links`, quota `storage.bytes` | Đúng luật rollout (FEATURE_WORKFLOW bước 4, bước 7) |
 | 15 | **Không port mã bản cũ.** Kế thừa: mô hình quyền (user/workspace/tenant share), 9 case cách ly, nhật ký truy cập, `storage_ref` chỉ là con trỏ. Bỏ: textarea markdown, comments client-side, "lịch sử" trong bộ nhớ, `DocumentApi` NOT_IMPLEMENTED, quota giả | §10 |
+| 16 | **Tài liệu có thể thuộc sở hữu của một Kết quả công việc** (`owner_kind` + `owner_id`). Khi thuộc sở hữu: không đứng trong cây tài liệu của workspace, không có chia sẻ và liên kết công khai riêng, mức quyền **ủy quyền** sang Work Product | ADR 0016 chốt Document là kho duy nhất. Nếu tài liệu của một deliverable vẫn tự chia sẻ được thì có **hai cửa vào cùng một nội dung** — đúng cái mà "một kho duy nhất" muốn tránh. Bổ sung 2026-09-16, chi tiết §13 |
 
 ## 3. Dữ liệu
 
@@ -260,7 +261,7 @@ trong 5 phút không ghi thêm dòng (kiểm ở service bằng query dòng cu�
 | `paragraph`, `heading{level 1..3}`, `bulletList`, `orderedList{start}`, `listItem`, `taskList`, `taskItem{checked}`, `blockquote`, `codeBlock{language}`, `horizontalRule`, `hardBreak` | như ghi |
 | `image{src, alt, width}` | `src` **phải** là `asset://{ulid}` — URL ngoài bị loại |
 | `table`, `tableRow`, `tableCell{colspan,rowspan}`, `tableHeader` | ≤ 200 hàng × 20 cột |
-| `mention{kind:'user'|'task'|'document'|'meeting', id, label}` | id ULID; label là snapshot, client re-resolve theo quyền |
+| `mention{kind:'user'\|'task'\|'document'\|'meeting', id, label}` | id ULID; label là snapshot, client re-resolve theo quyền |
 | `text` với mark `bold`, `italic`, `underline`, `strike`, `code`, `link{href}` | `href` chỉ `https://`, `mailto:`, hoặc đường dẫn nội bộ từ `paths` |
 
 Server: `document.Sanitize(raw) (content, text, err)` — node/mark/attr lạ bị **loại** (không lỗi),
@@ -391,7 +392,9 @@ Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/document
 
 `revision_conflict` (422), `document_too_large` (413), `document_cycle`, `document_too_deep`,
 `cross_workspace_reference`, `principal_not_in_organization`, `document_link_limit`,
-`document_version_unchanged` (409), `unsupported_media_type` (415 — MIME ngoài allowlist hoặc
+`document_version_unchanged` (409), `document_owned_by_work_product` (409 — thao tác chia sẻ,
+liên kết công khai, đổi visibility, di chuyển cây hoặc archive trên tài liệu thuộc sở hữu; §13),
+`unsupported_media_type` (415 — MIME ngoài allowlist hoặc
 không khớp magic bytes), `file_too_large` (413), `quota_exceeded` / `entitlement_required`
 (từ entitlement), `feature_disabled` (404), `forbidden` / `not_found`. Thêm một lần ở
 `mapServiceError`.
@@ -617,3 +620,209 @@ tắt flag; migration forward-compatible.
 6. **Retention nhật ký truy cập**: giữ mãi (như audit) hay 365 ngày? Ảnh hưởng C-06 export. Đề xuất: giữ mãi ở C, chính sách retention làm cùng C-06.
 7. **Trần tệp 50 MiB** đủ cho pilot (bản vẽ, video ngắn)? Đề xuất: 50 MiB mặc định, entitlement `documents.max_file_bytes` nếu có khách cần hơn.
 8. **Tên nav**: "Tài liệu" (đề xuất) hay "Docs" như IA V2? Ảnh hưởng glossary.
+
+---
+
+## 13. Bổ sung 2026-09-16 — tài liệu thuộc sở hữu của một Kết quả công việc
+
+> Viết 2026-09-16 sau đợt đối chiếu bản nháp `unidigiwork` (commit `9f07c85a`). Nguồn:
+> **ADR 0016** — Work Product là bounded context riêng, Document là kho duy nhất.
+> Điều kiện để C-14 (UNI-634) khởi động.
+>
+> **§13 SỬA các mục đã duyệt sau đây — chúng cần được duyệt lại cùng §13:**
+> §2 (thêm quyết định 16) · §3.1 (thêm hai cột, ba constraint, đổi mệnh đề `WHERE` của
+> index `160` và `161`) · §4 (thêm một nhánh vào `effectiveLevel`) · §5.3 (chặn năm thao
+> tác) · §5.5 (thêm một mã lỗi) · §9.1 (thêm test) · §11 (đổi nội dung lát cắt 1).
+> Nói cách khác đây **không** phải "chỉ thêm một khái niệm" — đừng đọc §1–§12 như thể
+> chúng còn nguyên trạng ngày 2026-09-08.
+
+### 13.1 Vì sao
+
+C-14 "Kết quả công việc" là deliverable nghiệp vụ: thứ người ta soạn, duyệt và giao. Một
+deliverable tồn tại đồng thời ở nhiều biểu diễn — bản soạn trong ứng dụng, bản DOCX, bản PDF.
+
+ADR 0016 chốt: **Work Product không sở hữu byte.** Mọi tệp và phiên bản nhị phân nằm ở
+Document. Nghĩa là mỗi biểu diễn của một Kết quả công việc **là một tài liệu** trong spec này.
+
+Điều đó sinh ra đúng một vấn đề. Nếu tài liệu ấy vẫn là một tài liệu bình thường thì nó
+đứng trong cây tài liệu của workspace, tự chia sẻ được, tự tạo liên kết công khai được —
+tức có **hai cửa vào cùng một nội dung**, mỗi cửa một bộ quyền và một nút thu hồi. Đó đúng
+là thứ mà quyết định "một kho duy nhất" muốn tránh.
+
+Lời giải là quyền sở hữu: tài liệu thuộc một Kết quả công việc thì **ủy quyền toàn bộ
+quyết định quyền** cho Kết quả công việc đó.
+
+### 13.2 Hai điều C-01 đã đáp ứng, không phải làm lại
+
+Ghi lại để người viết plan không mở lại câu hỏi đã đóng:
+
+1. **Phiên bản nhị phân đã có.** `document_versions` (§3.2) mang `object_key`, `mime_type`,
+   `size_bytes`, `checksum_sha256`, và `documents.file_version_id` trỏ bản hiện hành. C-15
+   (nhập DOCX) và C-16 (Office Bridge) dùng thẳng, không cần bảng mới.
+2. **Nhiều định dạng không cần một tài liệu ôm nhiều định dạng.** Một Kết quả công việc có
+   **N tài liệu thuộc sở hữu**, mỗi tài liệu một định dạng, mỗi tài liệu giữ lịch sử phiên
+   bản riêng. Bản soạn trong ứng dụng là `kind = page`; bản DOCX và PDF là `kind = file`.
+
+### 13.3 Schema — hai cột trên `documents` (§3.1)
+
+```sql
+-- thêm vào CREATE TABLE documents
+owner_kind  TEXT,   -- NULL | 'work_product'  (mở rộng về sau nếu có chủ sở hữu loại khác)
+owner_id    TEXT,   -- NULL | id Kết quả công việc
+CONSTRAINT documents_owner_pair_check
+  CHECK ((owner_kind IS NULL AND owner_id IS NULL) OR (owner_kind IS NOT NULL AND owner_id IS NOT NULL)),
+CONSTRAINT documents_owner_kind_check
+  CHECK (owner_kind IS NULL OR owner_kind IN ('work_product')),
+-- tài liệu thuộc sở hữu không đứng trong cây
+CONSTRAINT documents_owned_no_parent_check
+  CHECK (owner_kind IS NULL OR parent_id IS NULL)
+```
+
+Index bổ sung (một câu lệnh một file, `CONCURRENTLY` — ADR 0001):
+
+```sql
+-- liệt kê biểu diễn của một Kết quả công việc
+CREATE INDEX CONCURRENTLY idx_documents_owner
+  ON documents (owner_kind, owner_id) WHERE owner_id IS NOT NULL AND archived_at IS NULL;
+```
+
+**Không** thêm khóa ngoại tới bảng Work Product (ADR 0001); C-14 giữ tính toàn vẹn ở tầng
+service, trong cùng transaction với lệnh tạo biểu diễn.
+
+**`documents.owner_id` là nguồn sự thật của quyền sở hữu.** C-14 có một bảng
+`work_product_representations` mang `role` và `format`, nhưng bảng đó là **thuộc tính hiển
+thị**, không phải sổ quyền. Mọi quyết định về quyền đọc cùng một cột duy nhất ở đây. Bất
+biến bắt buộc, có test hai chiều ở §13.7:
+
+> Với mọi `documents` có `owner_id IS NOT NULL` và `archived_at IS NULL`, tồn tại **đúng
+> một** biểu diễn sống trỏ về đúng work product đó, cùng `organization_id` và
+> `workspace_id`. Và ngược lại.
+
+Không có đường biến một tài liệu đang thuộc sở hữu thành tài liệu của một Work Product
+khác: gắn lại bị từ chối (index duy nhất của C-14 §4.2 không có mệnh đề
+`WHERE archived_at IS NULL` chính vì lý do này).
+
+Hai index cây hiện có (`160`, `161`) phải thêm `AND owner_id IS NULL` vào mệnh đề `WHERE`, và
+mọi truy vấn cây/danh sách/sidebar/"gần đây" lọc `owner_id IS NULL`. Index tìm kiếm (`162`)
+**giữ nguyên** — nội dung của biểu diễn vẫn phải tìm được, nhưng kết quả trả về qua đường
+Kết quả công việc, không phải qua danh sách tài liệu (§13.5).
+
+### 13.4 Quyền — ủy quyền, không cộng thêm
+
+`DocumentService.effectiveLevel` (§4) thêm một nhánh **đặt trước mọi nhánh khác**:
+
+```
+nếu doc.owner_kind = 'work_product':
+    trả về  ownerLevel.Resolve(ctx, actor, doc.owner_id)   via=owner
+    — không đọc documents.shares, không xét visibility, không xét created_by
+```
+
+**Hợp đồng interface và chiều phụ thuộc.** Work Product gọi Document (ADR 0016: Document là
+kho), và Document cần hỏi Work Product để tính quyền — nếu viết ngây thơ thì hai gói import
+chéo nhau. Chốt:
+
+- Interface `OwnerLevelResolver` **do gói Document khai**:
+  `Resolve(ctx, actor Actor, ownerID string) (Level, error)`. Nhận **id**, không nhận object.
+- Gói Work Product **cài** nó và đăng ký lúc dựng service. Gói Document **không bao giờ**
+  import gói Work Product.
+- Bản cài đặt của C-14 **không được đọc bảng `documents`** — nếu nó đọc thì sinh vòng lặp
+  runtime qua `effectiveLevel`.
+- Arch test giữ cả hai chiều (§13.7 test 7).
+
+Hai bất biến:
+
+- **Không bao giờ rộng hơn Work Product.** Tài liệu thuộc sở hữu không thể được xem bởi
+  người không xem được Kết quả công việc, bằng bất kỳ đường nào.
+- **Không có đường vòng.** Người có `manage` trên Kết quả công việc không vì thế mà có
+  `manage` trên các tài liệu **không** thuộc sở hữu của nó.
+
+Các thao tác sau bị từ chối với `document_owned_by_work_product` (409) khi tài liệu thuộc
+sở hữu — với mọi mức quyền, kể cả ws owner/admin:
+
+| Thao tác | Vì sao chặn |
+|---|---|
+| Tạo / thu hồi chia sẻ (§5.3) | Cửa thứ hai vào nội dung |
+| Tạo / thu hồi liên kết công khai | Như trên, và là bề mặt ẩn danh |
+| Đổi `visibility` | Quyền do Work Product quyết |
+| Đặt `parent_id` (di chuyển vào cây) | Tài liệu thuộc sở hữu không đứng trong cây |
+| Archive / khôi phục archive trực tiếp | Vòng đời theo Work Product (§13.6) |
+
+Vẫn cho phép bình thường: mở, sửa nội dung và tiêu đề, tạo phiên bản, khôi phục, tải phiên
+bản tệp mới, dán ảnh, xem nhật ký truy cập, tải về — tất cả theo mức mà `workProductLevel`
+trả về.
+
+Agent: không đổi. `RequireAgentMember` cho đọc, tối đa `view`, ghi qua proposal (§8).
+
+### 13.5 Bề mặt người dùng
+
+- **Cây tài liệu và danh sách** không hiện tài liệu thuộc sở hữu. Chúng xuất hiện ở trang
+  chi tiết Kết quả công việc, dưới dạng danh sách biểu diễn.
+- **Tìm kiếm.** Endpoint danh sách tài liệu (`GET …/documents?q=`, §5.1) **loại** tài liệu
+  thuộc sở hữu cùng với phần lọc `owner_id IS NULL` — nó là endpoint danh sách, không phải
+  endpoint tìm kiếm riêng. Nội dung của biểu diễn vẫn tìm được, nhưng **qua endpoint tìm
+  kiếm của C-14**, không qua đây: C-14 sở hữu truy vấn join
+  `documents.search_text` (owned) → biểu diễn → Kết quả công việc, lọc bằng
+  `WorkProductService.EffectiveLevel`, và trả về **Kết quả công việc** chứ không trả tài
+  liệu trần. Index `162` giữ nguyên chính là để truy vấn đó chạy được.
+- **Nhật ký truy cập** (§3.6) giữ nguyên trên tài liệu. Nhờ vậy "ai đã xem deliverable này"
+  vẫn tra được, và C-14 đọc lại nhật ký của các biểu diễn để hiển thị ở một chỗ.
+
+### 13.6 Vòng đời
+
+- **Tạo biểu diễn:** C-14 gọi lệnh của Document trong **cùng transaction** với lệnh nghiệp
+  vụ của mình; tài liệu sinh ra đã mang `owner_kind` + `owner_id` ngay từ INSERT — không có
+  khoảnh khắc nào nó là tài liệu tự do.
+- **Gỡ một biểu diễn = archive *cả hai* trong một transaction**: dòng biểu diễn của C-14
+  **và** tài liệu (đặt `archived_at` + `purge_after`). Archive một bên thôi sẽ tạo ra tài
+  liệu mồ côi — biến mất khỏi cây (bị lọc `owner_id IS NULL`), biến mất khỏi trang Kết quả
+  công việc (không còn biểu diễn sống), không ai mở được, `purge_after` NULL nên không bao
+  giờ bị dọn, mà vẫn tính vào quota `storage.bytes`. Đây là lỗi phải có test (§13.7 test 6).
+- **Archive Kết quả công việc** → archive mọi tài liệu thuộc sở hữu (cùng `purge_after`).
+  Khôi phục → khôi phục theo.
+- Cascade này đi qua **đường service nội bộ**, không qua lệnh công khai — nếu không thì luật
+  "archive trực tiếp bị chặn" ở §13.4 sẽ tự chặn chính nó.
+- **Purge: một job, hai lệnh, đúng thứ tự.** Job của Document (§6.3) gọi
+  `WorkProductService.PurgeExpired()` **trước**, rồi `DocumentService.PurgeExpired()`. Mỗi
+  service chỉ xóa bảng của mình — gói Document không được xóa bảng của Work Product, vì đó
+  là đảo chiều phụ thuộc mà ADR 0016 dựng lên. Thứ tự này cũng tránh việc mốc nghiệp vụ trỏ
+  vào phiên bản tài liệu đã bị xóa giữa chừng.
+- **Không** có đường chuyển một tài liệu thuộc sở hữu thành tài liệu tự do, và không có
+  đường gắn nó sang một Work Product khác. Cần thì mở câu hỏi mới.
+
+### 13.7 Kiểm thử bắt buộc (thêm vào §9.1 và §9.2)
+
+Go, Postgres thật:
+
+1. `effectiveLevel` trên tài liệu thuộc sở hữu trả đúng mức của Work Product và `via = owner`.
+   **Phiên bản đầy đủ** — chứng minh bằng share sống level=`manage` cho người không có quyền
+   trên Work Product → vẫn `none` → 404 — cần bảng `document_shares` (migration `168`–`176`),
+   **thuộc lát cắt 2**. Ở **lát cắt 1** chạy phiên bản yếu hơn: mức trả về khớp
+   `OwnerLevelResolver` cho cả bốn mức, và `visibility` cùng `created_by` của tài liệu không
+   ảnh hưởng kết quả. Test đầy đủ bổ sung ở lát cắt 2, ghi vào plan của lát đó.
+2. Năm thao tác ở bảng §13.4 trả `document_owned_by_work_product` (409), kể cả khi actor là
+   ws owner.
+3. Tài liệu thuộc sở hữu không xuất hiện trong truy vấn cây, danh sách, sidebar, "gần đây".
+4. Archive Work Product → mọi tài liệu thuộc sở hữu có `archived_at` và `purge_after`.
+5. Cách ly tổ chức: Work Product của tổ chức A không sở hữu được tài liệu của tổ chức B
+   (kiểm ở tầng service, vì không có FK).
+6. **Bất biến hai chiều giữa hai bảng** (§13.3): với mọi tài liệu sống có `owner_id`, tồn tại
+   đúng một biểu diễn sống trỏ đúng work product đó, cùng `organization_id` và `workspace_id`;
+   và với mọi biểu diễn sống, tài liệu tương ứng có `owner_id` khớp. Gỡ biểu diễn → **cả hai**
+   có `archived_at` và `purge_after`. Đây là loại lỗi mà "không FK" (ADR 0001) đánh đổi lấy tốc
+   độ, và cách trả giá đúng là một test.
+7. **Arch test hai chiều cho interface** (§13.4): gói Document không import gói Work Product;
+   bản cài `OwnerLevelResolver` của Work Product không đọc bảng `documents`.
+8. Migration lint xanh với hai cột và ba constraint mới.
+
+Frontend: `canViewDocument` / `canEditDocument` / `canManageDocument` trong
+`packages/core/permissions/rules.ts` mirror nhánh ủy quyền và cite dòng Go tương ứng.
+
+### 13.8 Ảnh hưởng tới §11 phân rã delivery
+
+Hai cột, ba constraint, một index, nhánh `effectiveLevel` và năm thao tác bị chặn thuộc
+**lát cắt 1**. Chúng phải xong trước khi C-14 lát cắt 1 (UNI-639) bắt đầu.
+
+`workProductLevel` là hàm do C-14 cung cấp. Trong lát cắt 1 của C-01, khi C-14 chưa tồn
+tại, nhánh ủy quyền được viết sau một interface và có một bản cài đặt trả `none` cho mọi
+actor — nghĩa là **không tài liệu nào thuộc sở hữu tồn tại được cho tới khi C-14 cắm vào**.
+Fail-closed, không fail-open.

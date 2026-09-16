@@ -45,6 +45,7 @@ function parseAssignee(v: string): {
 }
 
 const priorityTone: Record<TaskPriority, string> = {
+  none: "text-muted-foreground",
   low: "text-muted-foreground",
   medium: "text-foreground",
   high: "text-warning",

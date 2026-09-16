@@ -119,6 +119,40 @@ describe("TaskSurface board columns on the table API", () => {
     vi.unstubAllGlobals();
   });
 
+  it("carries board-column and project-scope defaults into the create command", async () => {
+    serveBoardTable({ counts: { todo: 1 } });
+    renderBoard("board-create-defaults", { type: "project", projectId: "p1" });
+
+    await waitFor(() => expect(cardsIn("todo")).toBe(1), LONG);
+    fireEvent.click(
+      within(column("todo")).getByRole("button", {
+        name: i18n.t("tasks.surface.add_task"),
+      }),
+    );
+    fireEvent.change(await screen.findByLabelText(i18n.t("tasks.taskTitle")), {
+      target: { value: "Created in todo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("common.create") }));
+
+    await waitFor(() => {
+      const createCall = requestMock.mock.calls.find(
+        ([path, init]) =>
+          typeof path === "string" &&
+          path.endsWith("/tasks") &&
+          (init as { method?: string } | undefined)?.method === "POST",
+      );
+      expect(createCall?.[1]).toEqual(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            title: "Created in todo",
+            status: "todo",
+            project_id: "p1",
+          }),
+        }),
+      );
+    });
+  });
+
   it("loads each column's first page on its own and heads it with the column total, not the cards loaded", async () => {
     const server = serveBoardTable({ counts: { todo: 120, in_progress: 3, done: 0 } });
     renderBoard("board-first-pages");

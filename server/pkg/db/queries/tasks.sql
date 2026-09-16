@@ -7,15 +7,19 @@ RETURNING task_counter;
 
 -- name: CreateTask :one
 INSERT INTO tasks (
-  id, organization_id, workspace_id, number, title, description, priority,
-  assignee_id, assignee_kind, assignee_type, due_date, position,
+  id, organization_id, workspace_id, number, title, description, status, priority,
+  assignee_id, assignee_kind, assignee_type, start_date, due_date, position,
   created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
-  origin_type, origin_id, project_id
+  origin_type, origin_id, project_id, parent_task_id, stage, properties
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12,
-  $13, $14, $15, $16, $17, $18,
-  $19, $20, $21
+  sqlc.arg('id'), sqlc.arg('organization_id'), sqlc.arg('workspace_id'), sqlc.arg('number'),
+  sqlc.arg('title'), sqlc.arg('description'), sqlc.arg('status'), sqlc.arg('priority'),
+  sqlc.narg('assignee_id'), sqlc.arg('assignee_kind'), sqlc.narg('assignee_type'),
+  sqlc.narg('start_date'), sqlc.narg('due_date'), sqlc.arg('position'),
+  sqlc.arg('created_by'), sqlc.arg('created_by_kind'), sqlc.arg('creator_id'),
+  sqlc.arg('creator_type'), sqlc.arg('revision'), sqlc.arg('last_activity_at'),
+  sqlc.narg('origin_type'), sqlc.narg('origin_id'), sqlc.narg('project_id'),
+  sqlc.narg('parent_task_id'), sqlc.narg('stage'), sqlc.arg('properties')::jsonb
 )
 RETURNING *;
 
@@ -91,6 +95,10 @@ WHERE id = $1
 
 -- name: MaxTaskPosition :one
 SELECT COALESCE(MAX(position), 0)::float8 FROM tasks
+WHERE organization_id = $1 AND workspace_id = $2 AND status = $3;
+
+-- name: MinTaskPosition :one
+SELECT COALESCE(MIN(position), 0)::float8 FROM tasks
 WHERE organization_id = $1 AND workspace_id = $2 AND status = $3;
 
 -- name: CreateTaskComment :one

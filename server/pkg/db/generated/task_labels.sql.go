@@ -60,6 +60,41 @@ func (q *Queries) AttachTaskLabel(ctx context.Context, arg AttachTaskLabelParams
 	return label_id, err
 }
 
+const attachTaskLabelOnCreate = `-- name: AttachTaskLabelOnCreate :one
+INSERT INTO task_label_links (organization_id, workspace_id, task_id, label_id)
+SELECT $1, $2, $3, $4
+WHERE EXISTS (
+  SELECT 1 FROM tasks t
+  WHERE t.id = $3 AND t.organization_id = $1 AND t.workspace_id = $2
+)
+AND EXISTS (
+  SELECT 1 FROM task_labels l
+  WHERE l.id = $4 AND l.organization_id = $1 AND l.workspace_id = $2
+    AND l.archived_at IS NULL
+)
+ON CONFLICT DO NOTHING
+RETURNING label_id
+`
+
+type AttachTaskLabelOnCreateParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	TaskID         string `json:"task_id"`
+	LabelID        string `json:"label_id"`
+}
+
+func (q *Queries) AttachTaskLabelOnCreate(ctx context.Context, arg AttachTaskLabelOnCreateParams) (string, error) {
+	row := q.db.QueryRow(ctx, attachTaskLabelOnCreate,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.LabelID,
+	)
+	var label_id string
+	err := row.Scan(&label_id)
+	return label_id, err
+}
+
 const createTaskLabel = `-- name: CreateTaskLabel :one
 INSERT INTO task_labels (
   id, organization_id, workspace_id, name, color, description,

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-var validPriority = map[string]bool{"low": true, "medium": true, "high": true, "urgent": true}
+var validPriority = map[string]bool{"none": true, "low": true, "medium": true, "high": true, "urgent": true}
 
 // TaskService owns task commands. Each one runs in a transaction that also
 // carries its audit row and the events it publishes (ADR 0009), which is why
@@ -41,15 +42,22 @@ func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, sto
 }
 
 type CreateTaskInput struct {
-	Title        string
-	Description  string
-	Priority     string
-	AssigneeID   *string
-	AssigneeKind string // "" or human | agent (ADR 0007)
-	DueDate      *string
-	OriginType   string
-	OriginID     *string
-	ProjectID    *string // optional; must belong to the same workspace
+	Title         string
+	Description   string
+	Status        string
+	Priority      string
+	AssigneeID    *string
+	AssigneeKind  string // "" or human | agent (ADR 0007)
+	StartDate     *string
+	DueDate       *string
+	OriginType    string
+	OriginID      *string
+	ProjectID     *string // optional; must belong to the same workspace
+	ParentTaskID  *string // optional; must belong to the same workspace
+	Stage         *int32
+	LabelIDs      []string
+	AttachmentIDs []string
+	Properties    map[string]json.RawMessage
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate/ProjectID con trỏ
@@ -127,6 +135,13 @@ func optFloat(f *float64) pgtype.Float8 {
 	return pgtype.Float8{Float64: *f, Valid: true}
 }
 
+func optInt4(n *int32) pgtype.Int4 {
+	if n == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: *n, Valid: true}
+}
+
 func nowTz() pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 }
@@ -162,14 +177,17 @@ func normalizedAssigneeType(assigneeID *string, kind string) pgtype.Text {
 // makes the set a reviewer reads rather than infers.
 func taskAuditFields(t db.Task) map[string]any {
 	return map[string]any{
-		"title":         t.Title,
-		"status":        t.Status,
-		"priority":      t.Priority,
-		"assignee_id":   audit.Text(t.AssigneeID.Valid, t.AssigneeID.String),
-		"assignee_kind": t.AssigneeKind,
-		"due_date":      dateOrNil(t.DueDate),
-		"position":      t.Position,
-		"project_id":    audit.Text(t.ProjectID.Valid, t.ProjectID.String),
+		"title":          t.Title,
+		"status":         t.Status,
+		"priority":       t.Priority,
+		"assignee_id":    audit.Text(t.AssigneeID.Valid, t.AssigneeID.String),
+		"assignee_kind":  t.AssigneeKind,
+		"start_date":     dateOrNil(t.StartDate),
+		"due_date":       dateOrNil(t.DueDate),
+		"position":       t.Position,
+		"project_id":     audit.Text(t.ProjectID.Valid, t.ProjectID.String),
+		"parent_task_id": audit.Text(t.ParentTaskID.Valid, t.ParentTaskID.String),
+		"stage":          int4OrNil(t.Stage),
 	}
 }
 
@@ -178,6 +196,13 @@ func dateOrNil(d pgtype.Date) any {
 		return nil
 	}
 	return d.Time.Format("2006-01-02")
+}
+
+func int4OrNil(n pgtype.Int4) any {
+	if !n.Valid {
+		return nil
+	}
+	return n.Int32
 }
 
 // taskUpdatedPayload is the task.updated frame of one updateTaskInTx call
@@ -274,26 +299,49 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if strings.TrimSpace(in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
 	}
+	status, err := normalizeCreateTaskStatus(ctx, q, ws.OrganizationID, workspaceID, in.Status)
+	if err != nil {
+		return db.Task{}, err
+	}
 	if in.Priority == "" {
-		in.Priority = "medium"
+		in.Priority = "none"
 	}
 	if !validPriority[in.Priority] {
 		return db.Task{}, Invalid("priority không hợp lệ")
+	}
+	start, err := parseDate(in.StartDate)
+	if err != nil {
+		return db.Task{}, err
 	}
 	due, err := parseDate(in.DueDate)
 	if err != nil {
 		return db.Task{}, err
 	}
+	if in.Stage != nil && *in.Stage < 1 {
+		return db.Task{}, Invalid("stage phải từ 1 trở lên")
+	}
 	assigneeKind, err := s.assigneeKind(ctx, workspaceID, in.AssigneeID, in.AssigneeKind)
 	if err != nil {
 		return db.Task{}, err
 	}
-	projectID, err := s.normalizeProjectID(ctx, ws.OrganizationID, workspaceID, in.ProjectID)
+	projectID, err := s.normalizeProjectID(ctx, q, ws.OrganizationID, workspaceID, in.ProjectID)
 	if err != nil {
 		return db.Task{}, err
 	}
-	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: "todo",
+	parentTaskID, err := normalizeParentTaskID(ctx, q, ws.OrganizationID, workspaceID, in.ParentTaskID)
+	if err != nil {
+		return db.Task{}, err
+	}
+	labelIDs, err := normalizeCreateTaskLabelIDs(ctx, q, ws.OrganizationID, workspaceID, in.LabelIDs)
+	if err != nil {
+		return db.Task{}, err
+	}
+	properties, err := normalizeCreateTaskProperties(ctx, q, ws.OrganizationID, workspaceID, in.Properties)
+	if err != nil {
+		return db.Task{}, err
+	}
+	minPos, err := q.MinTaskPosition(ctx, db.MinTaskPositionParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: status,
 	})
 	if err != nil {
 		return db.Task{}, err
@@ -307,16 +355,51 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	task, err := q.CreateTask(ctx, db.CreateTaskParams{
 		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Number: number, Title: strings.TrimSpace(in.Title), Description: in.Description,
-		Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
-		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), DueDate: due,
-		Position: maxPos + 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+		Status: status, Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
+		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), StartDate: start, DueDate: due,
+		Position: minPos - 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),
 		OriginType: originTypeText(in.OriginType), OriginID: optText(in.OriginID),
-		ProjectID: projectID,
+		ProjectID: projectID, ParentTaskID: parentTaskID, Stage: optInt4(in.Stage), Properties: properties,
 	})
 	if err != nil {
 		return db.Task{}, err
+	}
+	for _, labelID := range labelIDs {
+		if _, err := q.AttachTaskLabelOnCreate(ctx, db.AttachTaskLabelOnCreateParams{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, TaskID: task.ID, LabelID: labelID,
+		}); err != nil {
+			return db.Task{}, err
+		}
+	}
+	attachmentIDs := make([]string, 0, len(in.AttachmentIDs))
+	seenAttachmentIDs := make(map[string]struct{}, len(in.AttachmentIDs))
+	for _, id := range in.AttachmentIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, exists := seenAttachmentIDs[id]; exists {
+			continue
+		}
+		seenAttachmentIDs[id] = struct{}{}
+		attachmentIDs = append(attachmentIDs, id)
+	}
+	if len(attachmentIDs) > 20 {
+		return db.Task{}, Invalid("attachment_ids tối đa 20")
+	}
+	if len(attachmentIDs) > 0 {
+		bound, err := q.BindAttachmentsToTask(ctx, db.BindAttachmentsToTaskParams{
+			TaskID: pgtype.Text{String: task.ID, Valid: true}, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+			UploaderType: s.commentActorType(actor.Kind), UploaderID: actor.ID, AttachmentIds: attachmentIDs,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+		if len(bound) != len(attachmentIDs) {
+			return db.Task{}, coded(http.StatusUnprocessableEntity, "attachment_not_available", "đính kèm không tồn tại, đã hết hạn hoặc đã được sử dụng")
+		}
 	}
 	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)
 	if err != nil {
@@ -325,6 +408,11 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	emit := []audit.Event{{Topic: "task.created", Payload: map[string]string{
 		"task_id": task.ID, "workspace_id": workspaceID,
 	}}}
+	for _, attachmentID := range attachmentIDs {
+		emit = append(emit, audit.Event{Topic: "attachment.uploaded", Payload: map[string]string{
+			"attachment_id": attachmentID, "task_id": task.ID, "workspace_id": workspaceID,
+		}})
+	}
 	if autoSubscribed {
 		emit = append(emit, taskSubscriptionEvent(task))
 	}
@@ -338,6 +426,42 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		return db.Task{}, err
 	}
 	return task, nil
+}
+
+func normalizeCreateTaskProperties(
+	ctx context.Context,
+	q *db.Queries,
+	organizationID, workspaceID string,
+	values map[string]json.RawMessage,
+) ([]byte, error) {
+	if len(values) > maxActivePropertiesPerWorkspace {
+		return nil, Invalid("properties tối đa 20")
+	}
+	normalized := make(map[string]json.RawMessage, len(values))
+	for rawID, value := range values {
+		propertyID := strings.TrimSpace(rawID)
+		if propertyID == "" || len(value) == 0 || !json.Valid(value) {
+			return nil, Invalid("properties không hợp lệ")
+		}
+		property, err := q.GetTaskPropertyByID(ctx, db.GetTaskPropertyByIDParams{
+			OrganizationID: organizationID, WorkspaceID: workspaceID, ID: propertyID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && property.ArchivedAt.Valid) {
+			return nil, coded(http.StatusUnprocessableEntity, "property_not_available", "thuộc tính không tồn tại hoặc đã lưu trữ")
+		}
+		if err != nil {
+			return nil, err
+		}
+		normalized[propertyID] = value
+	}
+	encoded, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, Invalid("properties không hợp lệ")
+	}
+	if len(encoded) > 16*1024 {
+		return nil, Invalid("properties vượt quá giới hạn 16 KiB")
+	}
+	return encoded, nil
 }
 
 func (s *TaskService) List(ctx context.Context, userID, workspaceID string) ([]db.Task, error) {
@@ -453,7 +577,7 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		}
 	}
 	if in.ProjectID != nil {
-		projectID, perr := s.normalizeProjectID(ctx, before.OrganizationID, before.WorkspaceID, *in.ProjectID)
+		projectID, perr := s.normalizeProjectID(ctx, q, before.OrganizationID, before.WorkspaceID, *in.ProjectID)
 		if perr != nil {
 			return db.Task{}, perr
 		}
@@ -569,7 +693,7 @@ func parseDate(s *string) (pgtype.Date, error) {
 // normalizeProjectID returns a nullable project id after checking it belongs
 // to the workspace. A nil / empty input clears (Valid=false).
 func (s *TaskService) normalizeProjectID(
-	ctx context.Context, organizationID, workspaceID string, projectID *string,
+	ctx context.Context, q *db.Queries, organizationID, workspaceID string, projectID *string,
 ) (pgtype.Text, error) {
 	if projectID == nil {
 		return pgtype.Text{}, nil
@@ -578,7 +702,7 @@ func (s *TaskService) normalizeProjectID(
 	if id == "" {
 		return pgtype.Text{}, nil
 	}
-	if _, err := s.q.GetProject(ctx, db.GetProjectParams{
+	if _, err := q.GetProject(ctx, db.GetProjectParams{
 		ID: id, OrganizationID: organizationID, WorkspaceID: workspaceID,
 	}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -587,4 +711,72 @@ func (s *TaskService) normalizeProjectID(
 		return pgtype.Text{}, err
 	}
 	return pgtype.Text{String: id, Valid: true}, nil
+}
+
+func normalizeCreateTaskStatus(
+	ctx context.Context, q *db.Queries, organizationID, workspaceID, raw string,
+) (string, error) {
+	status := strings.TrimSpace(raw)
+	if status == "" {
+		status = "todo"
+	}
+	entry, err := q.GetTaskStatusByKey(ctx, db.GetTaskStatusByKeyParams{
+		OrganizationID: organizationID, WorkspaceID: workspaceID, Key: status,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && entry.ArchivedAt.Valid) {
+		return "", Invalid("status không hợp lệ")
+	}
+	if err != nil {
+		return "", err
+	}
+	return status, nil
+}
+
+func normalizeParentTaskID(
+	ctx context.Context, q *db.Queries, organizationID, workspaceID string, parentTaskID *string,
+) (pgtype.Text, error) {
+	if parentTaskID == nil {
+		return pgtype.Text{}, nil
+	}
+	id := strings.TrimSpace(*parentTaskID)
+	if id == "" {
+		return pgtype.Text{}, nil
+	}
+	if _, err := q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
+		ID: id, OrganizationID: organizationID, WorkspaceID: workspaceID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.Text{}, ErrNotFound
+		}
+		return pgtype.Text{}, err
+	}
+	return pgtype.Text{String: id, Valid: true}, nil
+}
+
+func normalizeCreateTaskLabelIDs(
+	ctx context.Context, q *db.Queries, organizationID, workspaceID string, raw []string,
+) ([]string, error) {
+	seen := make(map[string]struct{}, len(raw))
+	ids := make([]string, 0, len(raw))
+	for _, value := range raw {
+		id := strings.TrimSpace(value)
+		if id == "" {
+			return nil, Invalid("label_id không hợp lệ")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		label, err := q.GetTaskLabelByID(ctx, db.GetTaskLabelByIDParams{
+			OrganizationID: organizationID, WorkspaceID: workspaceID, ID: id,
+		})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && label.ArchivedAt.Valid) {
+			return nil, Invalid("label không hợp lệ")
+		}
+		if err != nil {
+			return nil, err
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

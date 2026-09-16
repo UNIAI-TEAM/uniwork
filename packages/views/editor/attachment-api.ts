@@ -6,6 +6,7 @@ import {
   attachmentContentPath,
   getAttachment,
   uploadTaskAttachment,
+  uploadWorkspaceAttachment,
 } from "@uniwork/core/api/endpoints/task-attachments";
 import { ApiError, requestBlob, requestText } from "@uniwork/core/api/http";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -76,13 +77,14 @@ export const api = {
   },
   async uploadFile(
     file: File,
-    ctx?: { taskId?: string; commentId?: string; chatSessionId?: string },
+    ctx?: { taskId?: string; workspaceId?: string; commentId?: string; chatSessionId?: string },
     _signal?: AbortSignal,
   ): Promise<Attachment> {
-    if (!ctx?.taskId) {
-      throw new Error("taskId required to upload attachment");
-    }
-    const att = await uploadTaskAttachment(ctx.taskId, file);
+    const att = ctx?.taskId
+      ? await uploadTaskAttachment(ctx.taskId, file)
+      : ctx?.workspaceId
+        ? await uploadWorkspaceAttachment(ctx.workspaceId, file)
+        : null;
     if (!att) throw new Error("upload failed");
     return att;
   },

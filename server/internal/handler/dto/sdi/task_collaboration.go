@@ -27,3 +27,7 @@ type SubscribeTaskSDI struct {
 type UploadTaskAttachmentSDI struct {
 	File []byte `formData:"file" description:"Tệp đính kèm (field file); tối đa 25 MiB; MIME allowlist (ảnh, PDF, markdown/plain, Office phổ biến)"`
 }
+
+type UploadWorkspaceAttachmentSDI struct {
+	File []byte `formData:"file" description:"Tệp tạm trước khi tạo task; tối đa 25 MiB"`
+}

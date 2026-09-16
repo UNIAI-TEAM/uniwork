@@ -32,9 +32,19 @@ export interface TaskPatch {
 export interface CreateTaskBody {
   title: string;
   description?: string;
+  /** Status catalogue key; create surfaces may receive server-defined keys. */
+  status?: string;
   priority?: TaskPriority;
-  assignee_id?: string;
+  assignee_id?: string | null;
   assignee_kind?: ActorKind;
+  due_date?: string | null;
+  start_date?: string | null;
+  project_id?: string | null;
+  parent_task_id?: string | null;
+  stage?: number | null;
+  label_ids?: string[];
+  attachment_ids?: string[];
+  properties?: Record<string, unknown>;
 }
 
 const enc = encodeURIComponent;

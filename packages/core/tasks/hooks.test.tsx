@@ -8,14 +8,26 @@ import {
   type TableRowsResult,
 } from "../api/endpoints/tasks-table";
 import { setAccessToken } from "../api/session";
+import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import type { Task, TaskQueryPage } from "../types/task";
+import type { User } from "../types/user";
 import { useCreateTask, useDeleteTask, useUpdateTask } from "./hooks";
 import { useInfiniteMyTasks, useInfiniteQueryTasks } from "./hooks-suite";
 import { taskKeys } from "./keys";
+import { useRecentTasksStore } from "./stores/recent-tasks-store";
 import { tableGroupsBody, tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
 
 const WS = "ws1";
+const USER: User = {
+  id: "u1",
+  email: "a@b.c",
+  display_name: "A",
+  onboarded_at: null,
+  email_verified_at: "2026-08-25T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -124,6 +136,9 @@ function holdTaskPatch() {
 
 beforeEach(() => {
   setAccessToken("tok");
+  resetAuthStoreForTests();
+  useAuthStore.getState().setUser(USER);
+  useRecentTasksStore.setState({ byWorkspace: {}, ownerId: null });
   vi.stubGlobal("fetch", vi.fn());
   configureRuntime({ apiUrl: "http://api.test" });
 });
@@ -131,6 +146,66 @@ afterEach(() => {
   vi.unstubAllGlobals();
   resetRuntimeConfig();
   setAccessToken(null);
+  resetAuthStoreForTests();
+});
+
+describe("useCreateTask", () => {
+  it("rejects a malformed create response so callers do not treat it as success", async () => {
+    serve((_path, method) =>
+      method === "POST" ? json({ task: { nope: true } }) : failure(),
+    );
+    const { result } = renderHook(() => useCreateTask(WS), {
+      wrapper: wrapperFor(newClient()),
+    });
+
+    await expect(
+      act(async () => result.current.mutateAsync({ title: "New task" })),
+    ).rejects.toThrow("task_create_response_invalid");
+    expect(useRecentTasksStore.getState().byWorkspace[WS]).toBeUndefined();
+  });
+
+  it("forwards idempotency without putting it in the body, invalidates every task root, and records the task", async () => {
+    const created = task("new", { identifier: "UNI-2", title: "New task" });
+    serve((_path, method) =>
+      method === "POST" ? json({ task: created }) : failure(),
+    );
+    const qc = newClient();
+    const roots = [
+      taskKeys.list(WS),
+      taskKeys.queryRoot(WS),
+      taskKeys.myTasks(WS),
+      taskKeys.tableRoot(WS),
+    ];
+    for (const key of roots) qc.setQueryData(key, { seeded: true });
+    const { result } = renderHook(() => useCreateTask(WS), {
+      wrapper: wrapperFor(qc),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        title: "New task",
+        status: "in_progress",
+        project_id: "p1",
+        idempotencyKey: "create-1",
+      });
+    });
+
+    const init = vi.mocked(fetch).mock.calls[0]![1]!;
+    expect(init.headers).toMatchObject({ "Idempotency-Key": "create-1" });
+    expect(JSON.parse(init.body as string)).toEqual({
+      title: "New task",
+      status: "in_progress",
+      project_id: "p1",
+    });
+    for (const key of roots) {
+      expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+    expect(useRecentTasksStore.getState().byWorkspace[WS]?.[0]).toMatchObject({
+      id: "new",
+      identifier: "UNI-2",
+      title: "New task",
+    });
+  });
 });
 
 describe("useUpdateTask optimistic table rows", () => {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/jackc/pgx/v5"
@@ -101,6 +102,14 @@ func (s *TaskService) loadAttachment(ctx context.Context, actor Actor, attachmen
 	if err := s.ws.requireActorMember(ctx, att.WorkspaceID, actor); err != nil {
 		return db.Attachment{}, err
 	}
+	if !att.TaskID.Valid && !att.CommentID.Valid {
+		if att.UploaderID != actor.ID || att.UploaderType != s.commentActorType(actor.Kind) {
+			return db.Attachment{}, ErrNotFound
+		}
+		if att.ExpiresAt.Valid && time.Now().After(att.ExpiresAt.Time) {
+			return db.Attachment{}, ErrNotFound
+		}
+	}
 	return att, nil
 }
 
@@ -126,6 +135,26 @@ func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, tas
 	if err != nil {
 		return db.Attachment{}, err
 	}
+	return s.uploadAttachment(ctx, actor, task.OrganizationID, task.WorkspaceID, &taskID, filename, contentType, size, r)
+}
+
+// UploadWorkspaceAttachment stages a file before its task exists. CreateTaskSuite
+// claims the returned id atomically; unclaimed rows expire after 24 hours.
+func (s *TaskService) UploadWorkspaceAttachment(ctx context.Context, actor Actor, workspaceID, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
+	if err := s.requireStorage(); err != nil {
+		return db.Attachment{}, err
+	}
+	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+		return db.Attachment{}, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return db.Attachment{}, err
+	}
+	return s.uploadAttachment(ctx, actor, ws.OrganizationID, workspaceID, nil, filename, contentType, size, r)
+}
+
+func (s *TaskService) uploadAttachment(ctx context.Context, actor Actor, organizationID, workspaceID string, taskID *string, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
 	if size < 0 || size > MaxAttachmentBytes {
 		return db.Attachment{}, coded(http.StatusRequestEntityTooLarge, "attachment_too_large", "tệp vượt quá giới hạn 25 MiB")
 	}
@@ -153,7 +182,7 @@ func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, tas
 	actualSize := int64(len(data))
 
 	id := util.NewID()
-	key := attachmentObjectKey(task.WorkspaceID, id, safeName)
+	key := attachmentObjectKey(workspaceID, id, safeName)
 	objectURL, err := s.storage.Upload(ctx, key, data, ct, safeName)
 	if err != nil {
 		return db.Attachment{}, err
@@ -169,9 +198,9 @@ func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, tas
 
 	att, err := q.InsertAttachment(ctx, db.InsertAttachmentParams{
 		ID:             id,
-		OrganizationID: task.OrganizationID,
-		WorkspaceID:    task.WorkspaceID,
-		TaskID:         pgtype.Text{String: taskID, Valid: true},
+		OrganizationID: organizationID,
+		WorkspaceID:    workspaceID,
+		TaskID:         optText(taskID),
 		CommentID:      pgtype.Text{},
 		UploaderType:   uploaderType,
 		UploaderID:     actor.ID,
@@ -181,19 +210,18 @@ func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, tas
 		ContentType:    ct,
 		Metadata:       []byte("{}"),
 		SizeBytes:      actualSize,
+		ExpiresAt:      pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: taskID == nil},
 	})
 	if err != nil {
 		_ = s.storage.DeleteObject(ctx, key)
 		return db.Attachment{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+		OrganizationID: organizationID, WorkspaceID: workspaceID,
 		Actor: actor, Action: audit.ActionAttachmentUploaded,
 		ResourceType: "attachment", ResourceID: att.ID,
-		Metadata: map[string]any{"task_id": taskID, "filename": safeName},
-	}, audit.Event{Topic: "attachment.uploaded", Payload: map[string]string{
-		"attachment_id": att.ID, "task_id": taskID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
+		Metadata: map[string]any{"task_id": taskID, "filename": safeName, "temporary": taskID == nil},
+	}, attachmentUploadEvent(att, taskID)); err != nil {
 		_ = s.storage.DeleteObject(ctx, key)
 		return db.Attachment{}, err
 	}
@@ -202,6 +230,17 @@ func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, tas
 		return db.Attachment{}, err
 	}
 	return att, nil
+}
+
+func attachmentUploadEvent(att db.Attachment, taskID *string) audit.Event {
+	if taskID == nil {
+		return audit.Event{Topic: "attachment.staged", Payload: map[string]string{
+			"attachment_id": att.ID, "workspace_id": att.WorkspaceID,
+		}}
+	}
+	return audit.Event{Topic: "attachment.uploaded", Payload: map[string]string{
+		"attachment_id": att.ID, "task_id": *taskID, "workspace_id": att.WorkspaceID,
+	}}
 }
 
 // GetAttachment returns metadata after membership check.
