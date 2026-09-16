@@ -7,7 +7,7 @@ import { encodeCursor, serveTableCursor } from "../../test/table-cursor-server";
 import { useCursorBranches, type CursorBranchSpec } from "./use-cursor-branches";
 
 function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   function Wrapper({ children }: { children: React.ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
@@ -217,7 +217,8 @@ describe("useCursorBranches", () => {
     act(() => result.current.byKey.get("todo")!.retry());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
     expect(result.current.byKey.get("todo")?.isError).toBe(false);
-    expect(server.rowRequests()).toEqual(["todo@null", "todo@null"]);
+    // The request, its one automatic retry, then the user's retry.
+    expect(server.rowRequests()).toEqual(["todo@null", "todo@null", "todo@null"]);
   });
 
   it("retries a failed later page from loadMore, keeping the rows before it", async () => {
@@ -226,14 +227,19 @@ describe("useCursorBranches", () => {
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
 
     act(() => result.current.byKey.get("todo")!.loadMore());
-    await waitFor(() => expect(server.rowRequests()).toHaveLength(2));
+    await waitFor(() => expect(server.rowRequests()).toHaveLength(3));
     await settle();
     expect(result.current.byKey.get("todo")).toMatchObject({ isFetchingMore: false });
     expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
 
     act(() => result.current.byKey.get("todo")!.loadMore());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
-    expect(server.rowRequests()).toEqual(["todo@null", `todo@${encodeCursor(2)}`, `todo@${encodeCursor(2)}`]);
+    expect(server.rowRequests()).toEqual([
+      "todo@null",
+      `todo@${encodeCursor(2)}`,
+      `todo@${encodeCursor(2)}`,
+      `todo@${encodeCursor(2)}`,
+    ]);
   });
 
   it("resets a branch to its first page once when a later cursor no longer matches the query", async () => {

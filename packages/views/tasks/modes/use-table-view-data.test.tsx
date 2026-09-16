@@ -23,12 +23,12 @@ function renderTableData(
   grouping: TableGrouping,
   initialSearch = "",
   before?: (store: ReturnType<typeof getTaskSurfaceViewStore>) => void,
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } }),
 ) {
   storeCount += 1;
   const store = getTaskSurfaceViewStore(`table-view-data-${storeCount}`);
   store.getState().setTableGrouping(grouping);
   before?.(store);
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={client}>
@@ -217,7 +217,7 @@ describe("useTableViewData", () => {
     storeCount += 1;
     const store = getTaskSurfaceViewStore(`table-view-data-${storeCount}`);
     store.getState().setTableGrouping("property:p1");
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
     const properties = new Map([
       [
         "p1",
@@ -264,8 +264,10 @@ describe("useTableViewData", () => {
       count: () => 2,
       groups: () => new ApiError("grouping needs an active select or checkbox property", "unsupported_group", 422),
     });
-    const { result, store } = renderTableData("property:gone");
-    await waitFor(() => expect(store.getState().tableGrouping).toBe("none"));
+    // The app's own retry defaults (a 1 s delay first): a 422 is not retried,
+    // so the grouping resets well inside that delay.
+    const { result, store } = renderTableData("property:gone", "", undefined, new QueryClient());
+    await waitFor(() => expect(store.getState().tableGrouping).toBe("none"), { timeout: 500 });
     await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
 
     expect(server.groupBodies).toEqual([{ query: {}, group_by: "property:gone" }]);

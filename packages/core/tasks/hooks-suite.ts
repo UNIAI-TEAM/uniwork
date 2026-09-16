@@ -5,6 +5,7 @@ import * as table from "../api/endpoints/tasks-table";
 import type { TaskQueryPage } from "../types/task";
 import { taskKeys } from "./keys";
 import type { MyTasksRelation } from "./surface/scope";
+import { tableQueryRetry } from "./surface/table-query";
 
 function stableHash(value: unknown): string {
   return JSON.stringify(value ?? null);
@@ -200,6 +201,7 @@ export function useTableGroups(workspaceId: string, body: table.TableGroupsBody 
     queryKey: taskKeys.tableGroups(workspaceId, hash),
     queryFn: () => table.tableGroups(workspaceId, body!),
     enabled: !!workspaceId && !!body,
+    retry: tableQueryRetry,
   });
 }
 

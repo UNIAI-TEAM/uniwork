@@ -19,7 +19,7 @@ initI18n();
 let storeCount = 0;
 
 function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   storeCount += 1;
   const store = getTaskSurfaceViewStore(`board-columns-data-${storeCount}`);
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -310,6 +310,7 @@ describe("useBoardColumnsData", () => {
     expect(result.current.columns.todo!.isError).toBe(false);
     expect(server.rowRequests().filter((page) => page.startsWith("status:todo@"))).toEqual([
       "status:todo@0",
+      "status:todo@50",
       "status:todo@50",
       "status:todo@50",
     ]);

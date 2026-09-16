@@ -5,7 +5,7 @@
 // is opaque and the client never reads it.
 import type { TableGroupDescriptor } from "@uniwork/core/api/endpoints/tasks-table";
 import { ApiError } from "@uniwork/core/api/http";
-import { boardTask } from "./board-table-server";
+import { FAILED_ATTEMPT_REQUESTS, boardTask } from "./board-table-server";
 import { requestMock } from "./request-mock";
 
 type Params = Record<string, unknown>;
@@ -15,7 +15,10 @@ interface TableCursorServerOptions {
   count: (groupKey: string | null, parentId: string | null) => number;
   /** What pages claim as the branch total, when it differs from the rows served. */
   claimed?: (groupKey: string | null, parentId: string | null) => number;
-  /** `group@offset` pages whose first request fails. */
+  /**
+   * `group@offset` pages whose first attempt fails with a 503: the request and
+   * the table queries' one automatic retry; the next request succeeds.
+   */
   failOnce?: string[];
   /** `group@offset` pages whose first request answers 409 `cursor_query_mismatch`. */
   mismatchOnce?: string[];
@@ -32,6 +35,7 @@ export function serveTableCursor(options: TableCursorServerOptions) {
   const rowBodies: Params[] = [];
   const groupBodies: Params[] = [];
   const failed = new Set<string>();
+  const requestsPerPage = new Map<string, number>();
   // Bumped by `change()`: every row's title then differs, as after an edit.
   let version = 0;
 
@@ -59,9 +63,10 @@ export function serveTableCursor(options: TableCursorServerOptions) {
     const offset = decodeCursor(body.cursor);
     const limit = Number(body.limit ?? 50);
     const page = `${String(groupKey)}@${offset}`;
-    if (options.failOnce?.includes(page) && !failed.has(`fail:${page}`)) {
-      failed.add(`fail:${page}`);
-      throw new Error("page failed");
+    const nth = (requestsPerPage.get(page) ?? 0) + 1;
+    requestsPerPage.set(page, nth);
+    if (options.failOnce?.includes(page) && nth <= FAILED_ATTEMPT_REQUESTS) {
+      throw new ApiError("page failed", "internal", 503);
     }
     if (options.mismatchOnce?.includes(page) && !failed.has(`409:${page}`)) {
       failed.add(`409:${page}`);

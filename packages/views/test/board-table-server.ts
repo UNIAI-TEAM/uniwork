@@ -2,7 +2,11 @@
 // per status column (`group_key` `status:<status>`), paged by `cursor` as the
 // real server pages them. The cursor is base64 of the offset string — for this
 // fake only; the client never reads it. Pages are named `status:<status>@<offset>`.
+import { ApiError } from "@uniwork/core/api/http";
 import { requestMock } from "./request-mock";
+
+/** Requests one failed attempt makes: the request and the table queries' one automatic retry. */
+export const FAILED_ATTEMPT_REQUESTS = 2;
 
 const STATUS_PREFIX = "status:";
 const encodeCursor = (offset: number) => btoa(String(offset));
@@ -33,9 +37,13 @@ interface BoardTableServerOptions {
   claimed?: Record<string, number>;
   /** Rows pages after the first start this many rows early, repeating ids across the boundary. */
   overlap?: number;
-  /** `status:<status>@offset` pages whose first request fails. */
+  /**
+   * `status:<status>@offset` pages whose first attempt fails with a 503: the
+   * request and the one automatic retry the table queries make (see
+   * `tableQueryRetry`); the next request, a user's retry, succeeds.
+   */
   failOnce?: string[];
-  /** The first groups request fails. */
+  /** The first groups attempt (the request and its automatic retry) fails with a 503. */
   failGroupsOnce?: boolean;
   /** `status:<status>@offset` page held until `release()`. */
   hold?: string;
@@ -50,7 +58,6 @@ export function serveBoardTable(options: BoardTableServerOptions) {
   const rowBodies: Params[] = [];
   const groupBodies: Params[] = [];
   const paths: string[] = [];
-  const failed = new Set<string>();
   const requestsPerPage = new Map<string, number>();
   let release = () => {};
   const held = new Promise<void>((resolve) => {
@@ -68,9 +75,8 @@ export function serveBoardTable(options: BoardTableServerOptions) {
     const body: Params = { ...(init?.body as Params | undefined) };
     if (path.includes("/tasks/table/groups")) {
       groupBodies.push(body);
-      if (options.failGroupsOnce && !failed.has("groups")) {
-        failed.add("groups");
-        throw new Error("groups failed");
+      if (options.failGroupsOnce && groupBodies.length <= FAILED_ATTEMPT_REQUESTS) {
+        throw new ApiError("groups failed", "internal", 503);
       }
       return {
         query_fingerprint: "fp-groups",
@@ -98,9 +104,8 @@ export function serveBoardTable(options: BoardTableServerOptions) {
       if (options.hold === page && (options.holdNth === undefined || options.holdNth === nth)) {
         await held;
       }
-      if (options.failOnce?.includes(page) && !failed.has(page)) {
-        failed.add(page);
-        throw new Error("page failed");
+      if (options.failOnce?.includes(page) && nth <= FAILED_ATTEMPT_REQUESTS) {
+        throw new ApiError("page failed", "internal", 503);
       }
       // Without a group key the server pages every status as one branch.
       const branchStatuses = status === null ? statuses : [status];

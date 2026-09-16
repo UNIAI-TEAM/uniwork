@@ -241,7 +241,7 @@ describe("TaskSurface board columns on the table API", () => {
     fireEvent.click(retry);
 
     await waitFor(() => expect(cardsIn("todo")).toBe(50), LONG);
-    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["status:todo@0", "status:todo@0"]);
+    expect(pagesOf(server.rowRequests(), "todo")).toEqual(["status:todo@0", "status:todo@0", "status:todo@0"]);
   }, 60_000);
 
   it("a project board asks the table API for that project's groups and rows only", async () => {
@@ -264,7 +264,8 @@ describe("TaskSurface board columns on the table API", () => {
     fireEvent.click(within(error).getByRole("button", { name: "Thử lại" }));
 
     await waitFor(() => expect(cardsIn("todo")).toBe(3), LONG);
-    expect(server.groupBodies).toHaveLength(2);
+    // The request and its automatic retry failed; the button asked a third time.
+    expect(server.groupBodies).toHaveLength(3);
   }, 60_000);
 
   it("refetches the column pages when a task.updated event's cache plan is applied", async () => {

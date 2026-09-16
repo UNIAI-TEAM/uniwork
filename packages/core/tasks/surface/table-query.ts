@@ -5,6 +5,7 @@ import {
   type TableQuery,
   type TableRowsBody,
 } from "../../api/endpoints/tasks-table";
+import { ApiError } from "../../api/http";
 import { taskKeys } from "../keys";
 
 /*
@@ -86,11 +87,24 @@ function branchBodyHash(body: TableRowsBody): string {
   return JSON.stringify(rest);
 }
 
-/** Key and fetcher for one rows page. The key hashes exactly the body that is sent. */
+/**
+ * Retry policy of the table API queries (rows pages and groups). A 4xx answer
+ * (a 422 grouping the server cannot do, a 409 stale cursor) would come back the
+ * same, and its handler — reset the grouping, restart the branch — should run
+ * at once, not after a retry delay; anything else (a 5xx, the network) gets one
+ * more try before the table shows its retry control.
+ */
+export function tableQueryRetry(failureCount: number, error: unknown): boolean {
+  if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false;
+  return failureCount < 1;
+}
+
+/** Key, fetcher and retry policy for one rows page. The key hashes exactly the body that is sent. */
 export function tableRowsPageQuery(workspaceId: string, body: TableRowsBody) {
   return {
     queryKey: taskKeys.tableRows(workspaceId, branchBodyHash(body), body.cursor ?? ""),
     queryFn: () => tableRows(workspaceId, body),
+    retry: tableQueryRetry,
   };
 }
 
