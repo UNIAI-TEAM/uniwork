@@ -181,7 +181,7 @@ func registerTasksSuite(r api, h Routes) {
 		})
 		suite.Post("/workspaces/{workspaceID}/tasks/table/groups", h.TableGroups, apiOp{
 			summary:     "Table groups",
-			description: "Nhóm công việc theo group_by (status|priority|assignee) với filter/columns.",
+			description: "Nhóm công việc theo group_by (none|status|priority|assignee|project|property:<id>) với filter/search/sort chung; query_fingerprint đổi khi query đổi.",
 			tags:        []string{"tasks"},
 			sdi:         sdi.TableGroupsSDI{},
 			sdo:         sdo.TableGroupsSDO{},
@@ -189,7 +189,7 @@ func registerTasksSuite(r api, h Routes) {
 		})
 		suite.Post("/workspaces/{workspaceID}/tasks/table/rows", h.TableRows, apiOp{
 			summary:     "Table rows",
-			description: "Hàng bảng trong một group_key; filter/group_by/columns.",
+			description: "Hàng bảng phân trang bằng cursor trong một group_key/parent_id; filter/search/sort/group_by chung, hierarchy bật cây việc con. Cursor tái sử dụng trên query khác → 409 cursor_query_mismatch.",
 			tags:        []string{"tasks"},
 			sdi:         sdi.TableRowsSDI{},
 			sdo:         sdo.TableRowsSDO{},
@@ -197,7 +197,7 @@ func registerTasksSuite(r api, h Routes) {
 		})
 		suite.Post("/workspaces/{workspaceID}/tasks/table/facets", h.TableFacets, apiOp{
 			summary:     "Table facets",
-			description: "Đếm facet (status|priority|assignee) theo filter.",
+			description: "Đếm facet (status|priority|assignee|project) theo filter/search chung.",
 			tags:        []string{"tasks"},
 			sdi:         sdi.TableFacetsSDI{},
 			sdo:         sdo.TableFacetsSDO{},
