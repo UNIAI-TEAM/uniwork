@@ -42,3 +42,21 @@ func TestGroupKeyRejectsMismatch(t *testing.T) {
 		t.Fatal("kind mismatch must be ErrInvalidGroupKey")
 	}
 }
+
+// TestGroupKeyStatusValueFollowsCatalogRule pins the status/priority value
+// regex to the same rule as the status catalog key
+// (server/internal/service/task_catalog.go: statusKeyRE): a leading
+// underscore is not a valid key, even though it is a valid [a-z0-9_] char.
+func TestGroupKeyStatusValueFollowsCatalogRule(t *testing.T) {
+	if _, err := DecodeGroupKey(Group{Kind: "status"}, "status:_todo"); !errors.Is(err, ErrInvalidGroupKey) {
+		t.Fatalf("status:_todo should be rejected (leading underscore), got err=%v", err)
+	}
+	got, err := DecodeGroupKey(Group{Kind: "status"}, "status:in_progress")
+	if err != nil {
+		t.Fatalf("status:in_progress should be accepted, got err=%v", err)
+	}
+	want := GroupPredicate{Kind: "status", Value: "in_progress"}
+	if got != want {
+		t.Fatalf("decode status:in_progress = %+v, want %+v", got, want)
+	}
+}

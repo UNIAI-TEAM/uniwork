@@ -13,8 +13,11 @@ import (
 var ErrInvalidGroupKey = errors.New("tablequery: invalid group key")
 
 // statusOrPriorityKeyRe matches the value segment of a status or priority
-// group key: lowercase snake-case keys, 1..32 chars.
-var statusOrPriorityKeyRe = regexp.MustCompile(`^[a-z0-9_]{1,32}$`)
+// group key. Kept identical to statusKeyRE in
+// server/internal/service/task_catalog.go so a group key can only ever
+// reference a value the status catalog itself would accept: lowercase
+// snake-case, 1..32 chars, no leading underscore.
+var statusOrPriorityKeyRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_]{0,31}$`)
 
 // GroupPredicate is one decoded group_key: which bucket of a Group a row
 // belongs to.
