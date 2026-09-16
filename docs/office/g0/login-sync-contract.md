@@ -5,7 +5,7 @@
 > **Nguồn:** spec [Documents + UniWork Office G0](../../superpowers/specs/2026-09-16-documents-office-g0-design.md) §9;
 > plan [G0](../../superpowers/plans/2026-09-16-documents-office-g0.md) Task 5;
 > C-01 §2/§3/§5/§13; Q5-A, Q7-B, Q8-A.
-> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 21/21 ca khớp oracle,
+> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 22/22 ca khớp oracle,
 > xuất `.go-tmp/office-g0/run-contracts.json`. Đây là **model tham chiếu**, không phải
 > E2E sản phẩm. Xem §8 để biết chính xác mức bằng chứng.
 
@@ -243,13 +243,13 @@ và tài khoản ngoài Work Product đọc bản sao nhận `forbidden`.
 ## 8. Bằng chứng chạy
 
 ```sh
-node scripts/office-g0/run-contracts.mjs                    # 21/21, ghi JSON
+node scripts/office-g0/run-contracts.mjs                    # 22/22, ghi JSON
 node scripts/office-g0/run-contracts.mjs --legacy-idempotency --out <path>
 node --test scripts/office-g0/run-contracts.test.mjs
 ```
 
 Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON ghi `gitHead` để
-đối chiếu): **21/21 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
+đối chiếu): **22/22 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
 
 | Ca trong plan | id | Kết quả |
 | --- | --- | --- |
@@ -274,6 +274,7 @@ Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON g
 | Bản sao giữ quyền người tạo | `copy-keeps-creator-access` | người tạo vẫn `manage`; người ngoài `forbidden` |
 | Phục hồi kiểm cả base version | `recovery-checks-base-version` | lệch version → `conflict`, giữ nháp |
 | Đọc nháp phải qua phiên | `draft-apis-require-matching-session` | đổi accountId → `forbidden`; logout → `token_expired`, byte còn |
+| Upload thuộc người tạo, commit một lần | `upload-owner-and-single-commit` | người khác commit → `forbidden`; tái dùng upload đã commit → `upload_already_committed`; retry cùng key → replay |
 
 Năm ca cuối được thêm ở vòng sửa sau review: chúng đóng khoảng trống mà bộ 16 ca
 ban đầu còn để lọt (§8.2).
@@ -322,6 +323,27 @@ implement/review không còn khe chạy; nội dung hợp đồng không đổi,
 
 Nghĩa là mỗi tính chất mới có ít nhất một ca thật sự phụ thuộc vào fix tương ứng,
 không phải ca trang trí luôn xanh.
+
+### 8.3 Vòng sửa 2
+
+Probe thứ hai của main trên cùng worktree tìm thêm hai lỗi trong save protocol:
+
+| Lỗi đã xác nhận | Bằng chứng trước khi sửa | Đã sửa |
+| --- | --- | --- |
+| Người sửa khác commit được upload của người khác | tài khoản B `edit` cùng tài liệu commit upload của A → `committed`, version 2 | `commitSave` từ chối khi `upload.accountId` không phải người gọi (`forbidden`) |
+| Upload đã commit bị tái dùng với key mới | cùng upload, key mới → `committed`, version 3 | upload đã commit trả `upload_already_committed` (409); retry cùng key vẫn replay |
+
+Hai lỗi này không hiện trong bộ 16 ca đầu vì các ca cũ chỉ đổi key/payload trên
+upload mới, và chỉ một tài khoản thao tác. Ca `upload-owner-and-single-commit`
+khẳng định cả ba vế: người khác `forbidden`, tái dùng bị chặn, retry cùng key replay.
+
+Kiểm chứng bằng mutation cho hai fix này (bản sao trong
+`../.uniwork-dev/office-g0/mutants-r2/`):
+
+| Bản hoàn lại fix | Exit | Kết quả |
+| --- | --- | --- |
+| Bỏ kiểm `upload.accountId` | 1 | ca crash bằng `ProtocolError: upload_already_committed` ngay khi A commit chính upload của mình sau khi B đã commit hộ |
+| Bỏ kiểm `upload.committed` | 1 | `upload-owner-and-single-commit` FAIL (21/22) |
 
 ## 9. Việc tiếp theo
 

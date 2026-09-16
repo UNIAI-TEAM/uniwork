@@ -38,7 +38,7 @@ test("the plan's mandatory list is covered", () => {
   // expired or reused token/code. The in-flight case pins the other half of the
   // idempotency contract — the same key while the first request is still
   // running — which the plan requires of the reference harness.
-  assert.equal(REQUIRED_CASE_IDS.length, 21);
+  assert.equal(REQUIRED_CASE_IDS.length, 22);
   for (const id of [
     "two-saves-same-base",
     "retry-same-payload",
@@ -65,6 +65,7 @@ test("the plan's mandatory list is covered", () => {
     "copy-keeps-creator-access",
     "recovery-checks-base-version",
     "draft-apis-require-matching-session",
+    "upload-owner-and-single-commit",
   ]) {
     assert.ok(REQUIRED_CASE_IDS.includes(id), id + " is missing from the mandatory list");
   }
@@ -122,6 +123,66 @@ test("draft reads go through the session, not through a caller-supplied account"
   model.revokeDevice(a.sessionId);
   assert.throws(() => model.listDrafts({ sessionId: a.sessionId }), /token_expired/);
   assert.equal(model.storageOnlyDrafts({ accountId: "account-a" }).length, 1);
+});
+
+test("an upload belongs to its creator and is committed exactly once", () => {
+  // The defect this pins: any editor of the document could commit another
+  // actor's upload, and a committed upload could be replayed under a fresh
+  // idempotency key to mint versions the client never sent.
+  const engine = { name: "uniwork-office", version: "1.0.0", status: "compatible" };
+  const model = createModel();
+  model.addDocument({ id: "doc-1", orgId: "org-1", wsId: "ws-1", checksum: "genesis" });
+  model.grant("doc-1", "account-a", "edit");
+  model.grant("doc-1", "account-b", "edit");
+  const a = model.loginAs({ accountId: "account-a", verifier: "verifier-a" });
+  const b = model.loginAs({ accountId: "account-b", verifier: "verifier-b" });
+
+  const upload = model.beginUpload({
+    sessionId: a.sessionId,
+    docId: "doc-1",
+    baseRevision: 1,
+    payload: "A-bytes",
+    engine,
+  });
+  assert.throws(
+    () =>
+      model.commitSave({
+        sessionId: b.sessionId,
+        docId: "doc-1",
+        uploadId: upload.uploadId,
+        baseRevision: 1,
+        payload: "A-bytes",
+        engine,
+      }),
+    /forbidden/,
+    "another editor must not commit someone else's upload",
+  );
+
+  const first = model.commitSave({
+    sessionId: a.sessionId,
+    docId: "doc-1",
+    uploadId: upload.uploadId,
+    baseRevision: 1,
+    payload: "A-bytes",
+    engine,
+    idempotencyKey: "k-1",
+  });
+  assert.equal(first.version, 2);
+  assert.throws(
+    () =>
+      model.commitSave({
+        sessionId: a.sessionId,
+        docId: "doc-1",
+        uploadId: upload.uploadId,
+        baseRevision: first.revision,
+        payload: "A-bytes",
+        engine,
+        idempotencyKey: "k-2",
+      }),
+    /upload_already_committed/,
+    "a spent upload must not mint another version",
+  );
+  assert.equal(model.versionsOf("doc-1"), 2, "no extra version from the replay");
 });
 
 test("every fault case passes against its literal oracle", () => {

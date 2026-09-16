@@ -72,6 +72,7 @@ export const ERROR_CODES = {
   forbidden: { status: 403, errorClass: "permission", kind: "acl" },
   quota_exceeded: { status: 413, errorClass: "quota", kind: "storage_bytes" },
   engine_incompatible: { status: 409, errorClass: "incompatible", kind: "engine_version" },
+  upload_already_committed: { status: 409, errorClass: "conflict", kind: "upload_consumed" },
   token_expired: { status: 401, errorClass: "session", kind: "token" },
   authorization_code_expired: { status: 400, errorClass: "session", kind: "auth_code_ttl" },
   authorization_code_reused: { status: 400, errorClass: "session", kind: "auth_code_replay" },
@@ -361,6 +362,12 @@ export function createModel({
       const doc = document(docId);
       const upload = state.uploads.get(uploadId);
       if (!upload || upload.docId !== docId) fail("not_found");
+      // The upload belongs to the actor who created it, and it may be committed
+      // once. Without the owner check a second editor can turn someone else's
+      // bytes into a version under their own name; without the consumed check a
+      // committed upload can be replayed with a fresh idempotency key, which
+      // mints versions the client never uploaded.
+      if (upload.accountId !== session.accountId) fail("forbidden");
 
       // Idempotency first: a retry of a request the server already answered is
       // not judged twice, and a reused key with other content is refused
@@ -376,6 +383,11 @@ export function createModel({
         }
         return { ...existing.response, replayed: true };
       }
+
+      // A committed upload is spent. The idempotent retry above is the only
+      // legitimate replay; reaching here with a new key means the client is
+      // trying to mint a second version from bytes that are already committed.
+      if (upload.committed) fail("upload_already_committed", { uploadId });
 
       // Permission is re-decided at commit, not trusted from beginUpload: a
       // share revoked while bytes were in flight must not commit.
@@ -1302,6 +1314,85 @@ export const FAULT_CASES = [
     },
     expect: { namesOtherAccount: "forbidden", afterLogout: "token_expired", bytesPreservedOnLogout: 1 },
   },
+  {
+    id: "upload-owner-and-single-commit",
+    requirement: "Upload thuộc người tạo và chỉ commit một lần",
+    run({ model, base }) {
+      model.addDocument({ id: "doc-shared", orgId: "org-1", wsId: "ws-1", checksum: "shared" });
+      model.grant("doc-shared", base.accountId, "edit");
+      model.grant("doc-shared", "account-b", "edit");
+      const other = model.loginAs({ accountId: "account-b", verifier: "verifier-b" });
+      const engine = base.engine;
+      const upload = model.beginUpload({
+        sessionId: base.sessionId,
+        docId: "doc-shared",
+        baseRevision: 1,
+        payload: "A-bytes",
+        engine,
+      });
+      // B has edit on the same document, but not on A's upload.
+      let otherCommits;
+      try {
+        model.commitSave({
+          sessionId: other.sessionId,
+          docId: "doc-shared",
+          uploadId: upload.uploadId,
+          baseRevision: 1,
+          payload: "A-bytes",
+          engine,
+        });
+        otherCommits = "allowed";
+      } catch (error) {
+        otherCommits = error.code;
+      }
+      const first = model.commitSave({
+        sessionId: base.sessionId,
+        docId: "doc-shared",
+        uploadId: upload.uploadId,
+        baseRevision: 1,
+        payload: "A-bytes",
+        engine,
+        idempotencyKey: "k-first",
+      });
+      // Same upload, new key, after the bytes are already a version.
+      let reuse;
+      try {
+        model.commitSave({
+          sessionId: base.sessionId,
+          docId: "doc-shared",
+          uploadId: upload.uploadId,
+          baseRevision: first.revision,
+          payload: "A-bytes",
+          engine,
+          idempotencyKey: "k-second",
+        });
+        reuse = "committed";
+      } catch (error) {
+        reuse = error.code;
+      }
+      const retry = model.commitSave({
+        sessionId: base.sessionId,
+        docId: "doc-shared",
+        uploadId: upload.uploadId,
+        baseRevision: 1,
+        payload: "A-bytes",
+        engine,
+        idempotencyKey: "k-first",
+      });
+      return {
+        otherCommits,
+        reuse,
+        idempotentRetryReplays: retry.replayed,
+        versions: model.versionsOf("doc-shared"),
+      };
+    },
+    expect: {
+      otherCommits: "forbidden",
+      reuse: "upload_already_committed",
+      idempotentRetryReplays: true,
+      versions: 2,
+    },
+  },
 ];
 
 /** Every case id the plan's mandatory list ("Ca bắt buộc") requires. */
@@ -1327,6 +1418,7 @@ export const REQUIRED_CASE_IDS = [
   "copy-keeps-creator-access",
   "recovery-checks-base-version",
   "draft-apis-require-matching-session",
+  "upload-owner-and-single-commit",
 ];
 /**
  * Run every case against a fresh model. The fixture is identical for all cases,
