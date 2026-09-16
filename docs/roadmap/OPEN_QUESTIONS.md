@@ -1,6 +1,6 @@
 # Câu hỏi mở cần chủ sở hữu sản phẩm quyết
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-09-04 · **Đã chốt:** 40/40 câu, quangpd (chủ sở hữu sản phẩm) quyết ngày 2026-09-04 trong phiên Giai đoạn 0 (UNI-419). Mọi câu chốt theo đề xuất mặc định; spec giữ nguyên nội dung tương ứng.
+> **Trạng thái:** shipped · **Cập nhật:** 2026-09-16 · **Đã chốt:** 40/40 câu của phiên Giai đoạn 0 (quangpd, 2026-09-04, UNI-419) và 10/10 câu của phiên đối chiếu bản nháp (quangpd, 2026-09-16 — mục cuối trang). Mọi câu chốt theo đề xuất mặc định trừ ba câu ghi rõ bên dưới.
 
 Cách dùng: trả lời ngay trong bảng (cột Quyết định), rồi người viết spec cập nhật spec
 tương ứng và đổi trạng thái sang **Đã duyệt**.
@@ -97,3 +97,24 @@ tương ứng và đổi trạng thái sang **Đã duyệt**.
 | O1 | Impersonation ở F? | Không | **Chốt:** theo đề xuất |
 | O2 | `support` thấy email member? | Không, chỉ id và tên | **Chốt:** theo đề xuất |
 | O3 | Sampling trace 10% hay 100% khi ≤ 5 tenant? | 100% đến khi > 5 tenant | **Chốt:** theo đề xuất |
+
+---
+
+## Phiên đối chiếu bản nháp 2026-09-16
+
+Nguồn: khảo sát bản nháp `unidigiwork` tại commit `9f07c85a`. Bảng đối chiếu đầy đủ ở
+`docs/DRAFT_MAPPING.md`; thứ tự làm ở `docs/DEVELOPMENT_PLAN.md`. Các câu D1, D5, D7, D9
+thành ADR 0016–0019.
+
+| # | Câu hỏi | Đề xuất mặc định | Quyết định |
+| --- | --- | --- | --- |
+| D1 | Bản nháp biến "Kết quả công việc" thành thực thể trung tâm. Nhận làm module lõi, để Documents gánh, hay hoãn? | Module lõi (C-14); A-09 đổi tên "Bán công việc" | **Chốt:** theo đề xuất → ADR 0016 |
+| D2 | Nội dung và tệp của một Kết quả công việc nằm ở đâu? | Một kho duy nhất: Documents | **Chốt:** theo đề xuất → ADR 0016. Hệ quả: spec C-01 đã duyệt phải được bổ sung |
+| D3 | "UniWork Office" — ứng dụng máy tính mở tài liệu qua `uniwork://` — là gì với team? | *(hỏi để lấy thông tin, không có đề xuất)* | **Chốt:** bản tùy biến từ `genspark-ai/genoffice` (Apache-2.0). C-16 Office Bridge là thật |
+| D4 | Máy chủ Go xử lý DOCX thế nào khi engine là TypeScript? | Dịch vụ Node sidecar dùng chung engine với bản desktop | **Chốt:** theo đề xuất → ADR 0018. Sidecar bắt buộc có trong bộ cài E-01 |
+| D5 | Người làm việc có sinh bản ghi lượt thực thi giống AI không? | Chung một bảng ngay từ đầu, phân biệt bằng `executor_type` | **Chốt:** theo đề xuất → ADR 0017 |
+| D6 | CEO Command Center trả lời "nguồn lực bỏ ra" bằng gì, khi không có chấm công? | Chỉ số đo thật; quy đổi giờ/tiền người là đơn giá tổ chức tự đặt, hiện kèm công thức | **Chốt:** theo đề xuất — **khác bản nháp**, bản nháp dùng hệ số ước tính chôn trong mã |
+| D7 | "Bộ não AI" nằm ở đâu trong roadmap? | A-12 riêng, sau A-01/A-02; job tự đào tạo lại tách ra | **Chốt:** theo đề xuất |
+| D8 | Mobile: giữ ADR 0011 (Expo) hay theo bản nháp (PWA)? | Giữ Expo | **Chốt:** theo đề xuất — **khác bản nháp**. Bản nháp chọn PWA vì chạy trên Lovable, đó là ràng buộc nền tảng |
+| D9 | Chia sẻ bản đồ công việc bằng liên kết ngoài? | Có, mặc định tắt | **Chốt: hoãn** — làm nền C-11 trước, tính lại sau khi biết pilot có cần |
+| D10 | Thêm ngôn ngữ `id` và `ms`? Nhập Excel nhân sự/bộ phận/lịch họp? | Thêm `id`/`ms` vào nhóm beta; nhập Excel ở F-03b P2 | **Chốt: không làm cả hai** — chờ nhu cầu thật; **khác đề xuất** |

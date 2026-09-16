@@ -1,6 +1,6 @@
 # UniWork — Feature Roadmap (bản đồ tính năng để phát triển bám theo)
 
-> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-04 · **Nguồn định hướng:** `docs/vision/PROJECT_VISION.md`
+> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-16 · **Nguồn định hướng:** `docs/vision/PROJECT_VISION.md` · **Thứ tự làm và phụ thuộc:** `docs/DEVELOPMENT_PLAN.md` · **Đối chiếu bản nháp:** `docs/DRAFT_MAPPING.md`
 
 Đây là **danh sách duy nhất** các tính năng cần xây lại từ bản Lovable (`unidigiwork`)
 sang UniWork. Mỗi tính năng có: trạng thái thật trong repo này, việc còn phải làm,
@@ -64,7 +64,7 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 
 | ID | Tính năng | Bounded context | Trạng thái | Spec | Ưu tiên |
 | --- | --- | --- | --- | --- | --- |
-| C-01 | Documents: soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage | Document | CHƯA | `2026-09-08-documents-design.md` (đã duyệt 2026-09-08, UNI-437) | P0 |
+| C-01 | Documents: soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage | Document | CHƯA | `2026-09-08-documents-design.md` (đã duyệt 2026-09-08, UNI-437). **Đã bổ sung §13 (2026-09-16, ADR 0016):** tài liệu thuộc sở hữu của một Kết quả công việc — không đứng trong cây workspace, không chia sẻ riêng, quyền ủy quyền sang Work Product. Thuộc lát cắt 1; điều kiện để C-14 khởi động | P0 |
 | C-02 | Calendar: lịch cá nhân, lịch nhóm, ICS, gộp meeting + task due | Calendar | CHƯA | `(cần viết)` calendar-design | P1 |
 | C-03 | Meeting intelligence nâng cao: STT server-side (LiveKit Agents), họp → task có người duyệt qua proposal | Meeting + AI | MỘT PHẦN | mở rộng `2026-08-29-meeting-world-class-design.md` | P0 |
 | C-04 | Billing thật: cổng nội địa + Stripe, hóa đơn, webhook | Tenant & Subscription | CHƯA | phần Billing của spec F-02 | P0 |
@@ -74,9 +74,12 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | C-08 | Ứng dụng mobile iOS (Expo + React Native) theo kiến trúc `usf`: app độc lập `apps/mobile`, chỉ dùng type + pure function từ `packages/core`, parity ngữ nghĩa với web, CI riêng, phát hành EAS; 5 tab Home · Chat · Work · Meet · More | Mobile | CHƯA | `2026-09-04-mobile-app-design.md` (đề xuất); ADR 0011 | P1 |
 | C-09 | Tài liệu người dùng + onboarding trong app | Cross-cutting | CHƯA | `(cần viết)` | P1 |
 | C-10 | Pentest bên thứ ba, đóng High/Critical | Security | CHƯA | checklist ASVS L2 | P0 |
-| C-11 | Work Graph foundation: bảng quan hệ giữa đối tượng công việc, từ vựng quan hệ có kiểm soát, nguồn gốc (người / AI suy ra), API đọc lân cận depth-1 | Work Graph | CHƯA | `(cần viết)` work-graph-design; kế thừa work_nodes/work_edges bản cũ | P1 |
+| C-11 | Work Graph foundation: bảng quan hệ giữa đối tượng công việc, từ vựng quan hệ có kiểm soát, nguồn gốc (người / AI suy ra), API đọc lân cận depth-1 | Work Graph | CHƯA | `(cần viết)` work-graph-design; kế thừa work_nodes/work_edges bản cũ. **ADR 0019 (2026-09-16):** đồ thị là projection qua outbox, projector idempotent, khóa duy nhất `(từ, loại, tới)`, **cấm suy diễn quan hệ**; đợt này **không** có node cho lượt thực thi (để A-01) và **không** có chia sẻ bằng liên kết ngoài. Sub P2: bàn gắn nhanh tài liệu ↔ việc | P1 |
 | C-12 | Decision record: thực thể quyết định hạng nhất sinh từ tóm tắt họp (`meeting_summaries.decisions`) và từ task, gắn Work Graph, có người xác nhận | Knowledge & Memory | CHƯA | `(cần viết)` decision-records-design | P1 |
 | C-13 | Chat đẳng cấp ClickUp: kênh gắn Project, thread hạng nhất, tin nhắn ↔ task, đính kèm tệp, Posts, FollowUps, AI CatchUp / Ask UNI trong kênh, tìm kiếm toàn cục | Chat & Collaboration | CHƯA (chat messenger đã có; thiếu lớp gắn công việc) | `2026-09-09-chat-work-hub-design.md` (lát 1–3, chờ duyệt), các lát sau có spec riêng; epic UNI-506, 10 lát cắt = UNI-507…516 theo thứ tự | P1 |
+| C-14 | **Kết quả công việc (Work Product)**: deliverable nghiệp vụ — loại nghiệp vụ tách khỏi định dạng, phiên bản có ảnh chụp nguồn gốc, bình luận, xem xét/duyệt, AI có bảng chọn nguồn ngữ cảnh tường minh | Work Product | CHƯA | `2026-09-16-work-products-design.md` (bản 2 sau review kiến trúc; Đề xuất — chờ duyệt, 5 câu hỏi mở §12). Thêm 2026-09-16 từ bản nháp; ADR 0016. Phụ thuộc **C-01 §13** (lát 1a) và **C-11** (lát 1b, 4). 6 lát: 1a dữ liệu+quyền+API · 1b projector Work Graph · danh sách+chi tiết+soạn native · phiên bản+xem xét/duyệt+người theo dõi · AI+nguồn ngữ cảnh · tích hợp. **Câu hỏi mở §12.1 (bình luận) nếu chốt hoãn thì dòng này và UNI-641 phải sửa theo** | P0 |
+| C-15 | **Nhập DOCX và AI sửa có người duyệt**: nhập giữ nguyên bản gốc bất biến, trích nội dung cho AI và tìm kiếm, AI đề xuất theo khối, người duyệt, sidecar vá đúng chỗ, sinh phiên bản mới | Work Product + Document | CHƯA | `(cần viết)` docx-import-design; ADR 0018. **Phạm vi thu hẹp so với bản nháp:** web không làm trình soạn thảo khối — sửa tay định dạng nặng dùng UniWork Office | P1 |
+| C-16 | **Office Bridge**: mở tài liệu bằng UniWork Office (bản tùy biến từ GenOffice), lưu ngược thành `document_versions`, khóa chống lặp, 409 khi lệch phiên bản, thu quyền giữa chừng thì chặn lưu | Document | CHƯA | `(cần viết)` office-bridge-design; ADR 0018. Không phụ thuộc C-14, chạy song song được | P1 |
 
 **Tiêu chí thoát**: 5 tenant pilot ≥ 30 ngày, ≥ 3 tiếp tục; 1 hóa đơn thật; ≥ 20 cuộc họp
 có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability ≥ 99,9% trong 60 ngày.
@@ -91,12 +94,14 @@ có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability �
 | A-02 | Tool registry + policy rủi ro; hành động tự động chỉ ở mức thấp | AI Platform | spec F-09 | P0 |
 | A-03 | Workflow & Automation: trigger, step, run, agent step | Workflow | `(cần viết)` | P1 |
 | A-04 | Knowledge (wiki) + Search toàn cục + RAG có quyền, đọc Work Graph và Decision record | Knowledge & Memory | `(cần viết)`; tham chiếu Universal Search V2 bản cũ; phụ thuộc C-11, C-12 | P1 |
-| A-05 | Insights: home brief, dashboard inline, work economics (rate có phiên bản, cohort) | Reporting | Lát 1 Trang chủ: `2026-09-14-home-trang-chu-design.md` (đề xuất, chờ duyệt; UNI-451; sau flag `home_page`, tóm tắt suy ra từ dữ liệu, chưa dùng LLM). Dashboard inline và work economics `(cần viết)`; kế thừa WE-1/2/3 bản cũ | P1 |
+| A-05 | Insights: home brief, dashboard inline, kéo thả + chỉnh kích thước card, **lịch sử bố cục có khôi phục**, work economics (rate có phiên bản, cohort) | Reporting | Lát 1 Trang chủ: `2026-09-14-home-trang-chu-design.md` (đề xuất, chờ duyệt; UNI-451; sau flag `home_page`, tóm tắt suy ra từ dữ liệu, chưa dùng LLM). Dashboard inline và work economics `(cần viết)`; kế thừa WE-1/2/3 bản cũ. **2026-09-16:** thu hẹp — bảng điều hành cấp tổ chức tách sang A-11; bổ sung lịch sử bố cục từ bản nháp | P1 |
 | A-06 | SSO SAML, SCIM chuẩn bị | Identity | `(cần viết)` | P1 |
 | A-07 | Webhook ký HMAC + SDK TypeScript sinh từ OpenAPI | API | `(cần viết)` | P1 |
 | A-08 | Self-serve: đăng ký, chọn gói, thanh toán, nâng cấp | Tenant & Subscription | spec F-02 | P0 |
-| A-09 | Work Products (bán công việc hoàn thành) — chỉ khi cohort PROVEN; lớp mỏng trên `work_contracts` đã có từ A-01 | AI Platform | `(cần viết)`; kế thừa SWP-1 bản cũ | P2 |
+| A-09 | **Bán công việc** (đổi tên 2026-09-16 từ "Work Products") — chỉ khi cohort PROVEN; lớp mỏng trên `work_contracts` đã có từ A-01 | AI Platform | `(cần viết)`; kế thừa SWP-1 bản cũ. Đổi tên để trả thuật ngữ "Work Product" cho deliverable nghiệp vụ ở C-14 (ADR 0016) | P2 |
 | A-10 | Email integration: Gmail / Microsoft Graph đọc + gửi, thread gắn Work Graph, không lưu hộp thư riêng | Email integration | `(cần viết)` email-integration-design; phụ thuộc C-11 | P1 |
+| A-11 | **CEO Command Center**: tổng quan theo kỳ có so kỳ trước và drill-down, chuyển dịch Người↔AI, bảng nhân sự người và AI đứng chung, chất lượng kết quả, theo bộ phận, vấn đề tự phát hiện; giao ban thực tế; lịch sử KPI và theo dõi đề xuất/việc; báo cáo bộ phận + xuất tệp + job nền | Reporting | `(cần viết)` ceo-command-center-design. Thêm 2026-09-16 từ bản nháp. Phụ thuộc A-01 (số người↔AI đối xứng) + A-05. **Chỉ hiện số đo thật**; quy đổi giờ/tiền người là đơn giá tổ chức tự đặt, hiện kèm công thức; không dựng doanh thu | P1 |
+| A-12 | **Bộ não AI**: một bề mặt điều hành AI — đề xuất chờ duyệt, hồ sơ nhân sự AI, nhật ký, bật/tắt kỹ năng theo mức rủi ro (rủi ro cao khóa "bắt buộc người duyệt"), theo dõi đề xuất đã giao | AI Platform | `(cần viết)` ai-brain-design. Thêm 2026-09-16 từ bản nháp. **Là bề mặt hợp nhất, không phải năng lực mới** — phụ thuộc A-01 và A-02. Job AI tự đào tạo lại **không** thuộc task này | P1 |
 
 **Tiêu chí thoát**: ≥ 200 lượt agent thật, chấp nhận ≥ 60%, 0 sự cố agent ghi không qua
 xác nhận; chi phí AI theo tenant đo được; ≥ 30 tenant trả phí, churn < 5%; SOC 2 Type I
@@ -119,7 +124,24 @@ có lịch.
 
 Email Hub nội bộ trong DB (email thật là A-10); AI Market dạng marketplace mở; Decision Hub như
 module riêng (Decision record là C-12); Blog/CMS; PWA như chiến lược mobile (mobile là app Expo,
-C-08); desktop native; microservice trước khi có nhu cầu đo được.
+C-08); microservice trước khi có nhu cầu đo được.
+
+Thêm sau đợt đối chiếu bản nháp 2026-09-16 — lý do đầy đủ ở `docs/DRAFT_MAPPING.md`:
+
+| Việc | Vì sao không làm |
+| --- | --- |
+| Kho tệp thứ hai bên cạnh Document | Work Product là lớp nghiệp vụ, không có bảng artifact riêng (ADR 0016) |
+| Bảng lưu "kết quả cuối cùng" | Suy ra từ trạng thái Work Product + lần xem xét gần nhất (ADR 0017) |
+| Nhập Excel nhân sự/bộ phận/lịch họp; màn quản lý lịch họp cấp tổ chức | Mời thành viên và CSV danh bạ của F-03 đã đủ; chờ pilot thật yêu cầu |
+| Ngôn ngữ `id`, `ms` | Chờ nhu cầu thật ở thị trường đó |
+| Chia sẻ bản đồ công việc bằng liên kết ngoài | Làm nền C-11 trước; tính lại sau |
+| Engine XLSX, PPTX, PDF | Chỉ DOCX đợt này (ADR 0018) |
+| Chấm công | Không dựng số giờ người bằng ước tính; xem A-11 |
+| Job AI tự đào tạo lại hằng ngày | Là năng lực thật, không núp trong task về màn hình; quyết sau khi có A-01 |
+| So sánh hai bộ máy Office | Công cụ nội bộ của đợt chọn engine, không phải tính năng người dùng |
+
+Ứng dụng desktop **không còn** nằm ngoài phạm vi: UniWork Office là bản tùy biến từ
+GenOffice (Apache-2.0) và C-16 là hợp đồng tích hợp với nó (ADR 0018).
 
 ## Thứ tự làm trong Giai đoạn F (đề xuất)
 
