@@ -112,6 +112,20 @@ describe("DataTable column reorder", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the global focus-visible outline on the grip (no outline-none)", () => {
+    render(
+      <TestTable
+        reorderableColumnIds={["a", "b", "c"]}
+        onColumnReorder={() => {}}
+        reorderHandleLabel={(id) => `Reorder ${id} column`}
+      />,
+    );
+
+    const grip = screen.getByRole("button", { name: "Reorder a column" });
+    expect(grip.className).not.toContain("outline-none");
+    expect(grip).toHaveClass("focus-visible:opacity-100");
+  });
+
   it("reorders columns from the keyboard: pick up, move right, drop", async () => {
     const onColumnReorder = vi.fn();
     const restoreRects = stubColumnRects();

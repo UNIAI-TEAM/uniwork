@@ -680,6 +680,15 @@ export function DataTable<TData>({
 // ternary around <TableHeader>) so the sensors and context genuinely don't
 // exist — not just go unused — for every table that never passes
 // onColumnReorder, matching the "render exactly as today" contract.
+//
+// `enabled` is read from `Boolean(onColumnReorder)`: toggling that prop
+// between defined and undefined flips this branch and remounts the whole
+// <table> subtree underneath it (DndContext unmounts/mounts), so callers
+// should treat `onColumnReorder` as stable across renders, not conditionally
+// passed. Also untested here: this wraps the table body too (see the call
+// site), so if a caller ever adds its own row-level dnd-kit (row drag/reorder)
+// inside the same DataTable, its interaction with this column-drag context
+// has no coverage.
 function DataTableHeaderShell({
   enabled,
   sensors,
@@ -776,7 +785,19 @@ function DataTableSortableHeadCell<TData>({
     >
       {/* Hidden at rest so it doesn't compete with the label; a real button
         * (not the whole header) so pointer/keyboard drag activation stays
-        * scoped to an explicit, discoverable control. */}
+        * scoped to an explicit, discoverable control. No outline-none: the
+        * global :focus-visible outline stays the focus indicator, per the
+        * primitive contract in CLAUDE.md.
+        *
+        * The visible button is 16px (w-4) — too small a touch target on its
+        * own. `after:` adds an invisible hit area, coarse pointers only, that
+        * grows it without changing anything paintable. It's a fixed 32px
+        * (w-8), not the full 44px target: it shares this edge of the header
+        * cell with the resize handle (8px, flush right), and 44px would
+        * overlap that handle on a column at the default 48px minimum width.
+        * 32px leaves a buffer even at that floor while still being double
+        * the original target — the same trade every column width would force
+        * on a literal 44px box here. */}
       <button
         type="button"
         {...attributes}
@@ -784,7 +805,8 @@ function DataTableSortableHeadCell<TData>({
         aria-label={gripLabel}
         data-slot="data-table-reorder-handle"
         className={cn(
-          "absolute inset-y-0 left-0 z-10 flex w-4 cursor-grab items-center justify-center opacity-0 outline-none transition-opacity",
+          "absolute inset-y-0 left-0 z-10 flex w-4 cursor-grab items-center justify-center opacity-0 transition-opacity",
+          "after:absolute after:inset-y-0 after:left-0 after:w-4 pointer-coarse:after:w-8",
           "hover:text-foreground focus-visible:opacity-100 group-hover/reorder:opacity-100 group-focus-within/reorder:opacity-100",
           isDragging && "cursor-grabbing opacity-100 text-foreground",
         )}
