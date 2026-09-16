@@ -308,6 +308,21 @@ Việc này là vòng sửa 1 sau review của DOC-005, được main thực hi�
 implement/review không còn khe chạy; nội dung hợp đồng không đổi, chỉ các bảo đảm
 được siết lại và có ca chứng minh.
 
+**Kiểm chứng các ca mới bằng mutation.** Năm bản sao của harness được tạo trong
+`../.uniwork-dev/office-g0/mutants/` (ngoài repo, không commit), mỗi bản hoàn lại
+đúng một fix. Kết quả chạy `node run-contracts.mjs` trên từng bản:
+
+| Bản hoàn lại fix | Exit | Ca thất bại |
+| --- | --- | --- |
+| Cursor quét theo vị trí | 1 | `feed-cursor-advances-past-unreadable` (20/21) |
+| Tombstone qua kiểm quyền | 1 | `tombstone-not-leaked-to-non-reader` (20/21) |
+| Bản sao cấp quyền người tạo | 1 | `copy-keeps-creator-access` (20/21) |
+| Phục hồi kiểm `baseVersion` | 1 | `recovery-checks-base-version` (20/21) |
+| API nháp qua phiên | 1 | 8 ca, gồm `draft-apis-require-matching-session` (13/21) |
+
+Nghĩa là mỗi tính chất mới có ít nhất một ca thật sự phụ thuộc vào fix tương ứng,
+không phải ca trang trí luôn xanh.
+
 ## 9. Việc tiếp theo
 
 | Việc | Giai đoạn | Ghi chú |
