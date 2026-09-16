@@ -19,6 +19,20 @@
 // DOC-004 extends this instead of writing a second harness: add engine
 // open/parse/serialize/convert cases to FAULT_CASES with the same oracle shape.
 //
+// Two properties of this harness are deliberate, because a reviewer found the
+// first version missing them:
+//
+//   1. A fault case is a REAL situation that the protocol must handle, not an
+//      impossible call the harness is free to answer with a crash. Every case
+//      below starts from a document the actor can legitimately open, and drives
+//      it through a reachable failure (a concurrent writer, a revoked share, a
+//      reused key, a tombstone, an expired cursor, a stale blob version). A case
+//      whose setup no client could reach proves nothing about the protocol.
+//   2. Every case ends by CONVERGING: after whatever failed, the client retries
+//      or resyncs and the model must answer, not throw. That is why the cases
+//      re-read state (openDocument, readChanges, listDrafts, recoverDraft)
+//      after the failure instead of only recording the error code.
+//
 //   node scripts/office-g0/run-contracts.mjs
 //   node scripts/office-g0/run-contracts.mjs --print --out <path>
 //   node scripts/office-g0/run-contracts.mjs --legacy-idempotency
@@ -61,6 +75,12 @@ export const ERROR_CODES = {
   token_expired: { status: 401, errorClass: "session", kind: "token" },
   authorization_code_expired: { status: 400, errorClass: "session", kind: "auth_code_ttl" },
   authorization_code_reused: { status: 400, errorClass: "session", kind: "auth_code_replay" },
+  // not_found is declared because the model raises it in two ordinary places
+  // (an unknown document, an unknown upload). Leaving it out of this table made
+  // ProtocolError itself throw a bare Error for it, which is exactly the
+  // ambiguity the table exists to remove: a client should be able to switch on
+  // a code, not on a stack trace.
+  not_found: { status: 404, errorClass: "missing", kind: "unknown_resource" },
 };
 
 export class ProtocolError extends Error {
@@ -87,6 +107,9 @@ export class ProtocolError extends Error {
 
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const fingerprintOf = (req) => sha256(JSON.stringify(req));
+
+/** Byte checksum of a payload, so a case can name the bytes a version holds. */
+export const checksumOf = (payload) => sha256(payload);
 
 /**
  * Reference model of the DOC-005 protocol. Every method returns plain data or
@@ -175,6 +198,20 @@ export function createModel({
     const effective = effectiveLevel(actorId, doc);
     if (!effective || !levels.includes(effective.level)) fail("forbidden");
     return effective;
+  }
+
+  /**
+   * Whether an actor may see a change event. A deleted document reports only its
+   * tombstone, and even that only to an actor who could read it: an id nobody
+   * had access to must not leak just because it was deleted.
+   */
+  function canReadChange(actorId, event) {
+    const doc = state.documents.get(event.documentId);
+    if (!doc) return false;
+    if (state.tombstones.has(event.documentId)) {
+      return event.kind === "deleted" && Boolean(effectiveLevel(actorId, doc));
+    }
+    return Boolean(effectiveLevel(actorId, doc));
   }
 
   function pushChange(kind, docId, revision) {
@@ -406,19 +443,20 @@ export function createModel({
           ? 1
           : state.changes[state.changes.length - 1].seq - changeRetention + 1;
       if (from > 0 && from < oldest - 1) fail("change_cursor_expired", { retainFrom: oldest });
-      const events = state.changes
-        .filter((event) => event.seq > from)
-        .slice(0, limit)
-        .filter((event) => {
-          const doc = state.documents.get(event.documentId);
-          // A deleted document reports only its tombstone, and every event is
-          // filtered by the actor's permission at read time, so a cursor can
-          // never replay another account's document.
-          if (state.tombstones.has(event.documentId)) return event.kind === "deleted";
-          return Boolean(effectiveLevel(session.accountId, doc));
-        });
-      const nextCursor = events.length ? String(events[events.length - 1].seq) : cursor;
-      return { events, nextCursor, accountId: session.accountId };
+      // Scan from the cursor and filter while scanning, instead of slicing first
+      // and filtering after. An event this actor may not read must still move the
+      // cursor past it, or the client asks for the same page forever and never
+      // reaches the events it can read. scannedTo is how far the scan got;
+      // events holds only what this actor may see.
+      const events = [];
+      let scannedTo = from;
+      for (const event of state.changes) {
+        if (event.seq <= from) continue;
+        if (events.length >= limit) break;
+        scannedTo = event.seq;
+        if (canReadChange(session.accountId, event)) events.push(event);
+      }
+      return { events, nextCursor: String(scannedTo), accountId: session.accountId };
     },
 
     tombstone(docId) {
@@ -432,10 +470,11 @@ export function createModel({
      * account, because "account B must not read A's draft" is a property of
      * where the bytes live, not of a runtime check someone can forget.
      */
-    saveDraft({ accountId, docId, payload, baseRevision, baseVersion = 1, state: draftState = "dirty", engine = null }) {
-      const all = readDrafts(accountId);
+    saveDraft({ sessionId, docId, payload, baseRevision, baseVersion = 1, state: draftState = "dirty", engine = null }) {
+      const session = requireSession(sessionId);
+      const all = readDrafts(session.accountId);
       all[docId] = {
-        accountId,
+        accountId: session.accountId,
         docId,
         payload,
         baseRevision,
@@ -444,18 +483,35 @@ export function createModel({
         state: draftState,
         updatedAt: now(),
       };
-      writeDrafts(accountId, all);
+      writeDrafts(session.accountId, all);
       return all[docId];
     },
 
-    listDrafts(accountId) {
-      return Object.values(readDrafts(accountId));
+    /**
+     * Reading drafts goes through the session, and a caller may not name another
+     * account. A path that accepted any accountId would make "account B cannot
+     * read A's draft" a convention instead of a check.
+     */
+    listDrafts({ sessionId, accountId }) {
+      const session = requireSession(sessionId);
+      if (accountId && accountId !== session.accountId) fail("forbidden");
+      return Object.values(readDrafts(session.accountId));
     },
 
-    discardDraft({ accountId, docId }) {
-      const all = readDrafts(accountId);
+    discardDraft({ sessionId, docId }) {
+      const session = requireSession(sessionId);
+      const all = readDrafts(session.accountId);
       delete all[docId];
-      writeDrafts(accountId, all);
+      writeDrafts(session.accountId, all);
+    },
+
+    /**
+     * Storage-only read of one account's draft file. This is an explicit test
+     * seam for filesystem-survival assertions; it is NOT a product path and no
+     * account-isolation case may rest on it.
+     */
+    storageOnlyDrafts({ accountId }) {
+      return Object.values(readDrafts(accountId));
     },
 
     /**
@@ -490,10 +546,19 @@ export function createModel({
           payloadPreserved: draft.payload.length > 0,
         };
       }
-      if (draft.baseRevision !== doc.revision) {
+      // Both halves of the base are compared. A draft whose revision matches but
+      // whose blob version moved describes a different document, and applying it
+      // silently is the "lost text" outcome Q8 exists to prevent.
+      if (draft.baseRevision !== doc.revision || draft.baseVersion !== doc.currentVersion) {
         all[docId] = { ...draft, state: "conflict" };
         writeDrafts(session.accountId, all);
-        return { status: "conflict", base: draft.baseRevision, current: doc.revision };
+        return {
+          status: "conflict",
+          base: draft.baseRevision,
+          current: doc.revision,
+          baseVersion: draft.baseVersion,
+          currentVersion: doc.currentVersion,
+        };
       }
       return { status: "recovered", payload: draft.payload, base: draft.baseRevision, via: effective.via };
     },
@@ -534,6 +599,10 @@ export function createModel({
         { version: 1, checksum: copyChecksum, reason: "agent", base: source.currentVersion },
       ]);
       state.acl.set(copyId, new Map());
+      // The converter keeps access to the copy it created (plan 5.4: the copy
+      // preserves the source's permissions). A Work Product copy keeps flowing
+      // through the single owner delegation instead, so no second door opens.
+      if (source.ownerKind === null) state.acl.get(copyId).set(session.accountId, "manage");
       pushChange("created", copyId, 1);
       return {
         copyId,
@@ -578,7 +647,7 @@ export const FAULT_CASES = [
         second = { outcome: "error", code: error.code, errorClass: error.errorClass, want: error.fields.want };
         // The client keeps both: the server's committed version and the local
         // edit as a conflict draft. Neither is destroyed.
-        model.saveDraft({ accountId: base.accountId, docId: base.docId, payload: "v2-B", baseRevision: 1, state: "conflict" });
+        model.saveDraft({ sessionId: base.sessionId, docId: base.docId, payload: "v2-B", baseRevision: 1, state: "conflict" });
       }
       return {
         first: first.replayed ? "replayed" : "committed",
@@ -588,7 +657,7 @@ export const FAULT_CASES = [
         secondSawCurrent: second.want ?? null,
         serverVersion: model.openDocument(base).version,
         versions: model.versionsOf(base.docId),
-        localConflictKept: model.listDrafts(base.accountId)[0]?.payload === "v2-B",
+        localConflictKept: model.listDrafts({ sessionId: base.sessionId })[0]?.payload === "v2-B",
       };
     },
     expect: {
@@ -704,13 +773,14 @@ export const FAULT_CASES = [
     id: "logout-restart-with-draft",
     requirement: "Logout/restart với nháp — phiên thu hồi, nháp còn; đăng nhập lại thấy lại",
     run({ model, base, restart }) {
-      model.saveDraft({ accountId: base.accountId, docId: base.docId, payload: "unsent", baseRevision: 1 });
+      model.saveDraft({ sessionId: base.sessionId, docId: base.docId, payload: "unsent", baseRevision: 1 });
       model.revokeDevice(base.sessionId);
 
       const second = restart();
-      // A restart has no session: the draft is read back from disk by account.
-      const afterRestart = second.listDrafts(base.accountId);
       const login = second.loginAs({ accountId: base.accountId, verifier: "verifier-1" });
+      // A restart has no memory: the draft is only there if its bytes reached
+      // the disk, and it is read back through a session for that account.
+      const afterRestart = second.listDrafts({ sessionId: login.sessionId });
       const recovered = second.recoverDraft({ sessionId: login.sessionId, docId: base.docId });
       return {
         sessionRevoked: (() => {
@@ -739,12 +809,20 @@ export const FAULT_CASES = [
     id: "account-b-cannot-reach-a-draft",
     requirement: "Tài khoản B không đọc/gửi được nháp của A",
     run({ model, base }) {
-      model.saveDraft({ accountId: "account-a", docId: base.docId, payload: "A-secret", baseRevision: 1 });
+      model.saveDraft({ sessionId: base.sessionId, docId: base.docId, payload: "A-secret", baseRevision: 1 });
       const bSession = model.loginAs({ accountId: "account-b", verifier: "verifier-b" });
       model.grant(base.docId, "account-b", "edit");
-      const bDraftsBeforeWrite = model.listDrafts("account-b").length;
-      model.saveDraft({ accountId: "account-b", docId: base.docId, payload: "B-own", baseRevision: 1 });
-      const aDraft = model.listDrafts("account-a");
+      const bDraftsBeforeWrite = model.listDrafts({ sessionId: bSession.sessionId }).length;
+      model.saveDraft({ sessionId: bSession.sessionId, docId: base.docId, payload: "B-own", baseRevision: 1 });
+      const aDraft = model.listDrafts({ sessionId: base.sessionId });
+      // B may not even name A's account on the draft path.
+      let bNamesA;
+      try {
+        model.listDrafts({ sessionId: bSession.sessionId, accountId: "account-a" });
+        bNamesA = "allowed";
+      } catch (error) {
+        bNamesA = error.code;
+      }
       let bCanOpen;
       try {
         model.openDocument({ sessionId: bSession.sessionId, docId: base.docId });
@@ -755,25 +833,26 @@ export const FAULT_CASES = [
       return {
         bSeesADraft: bDraftsBeforeWrite,
         aDraftStillOwned: aDraft[0]?.payload ?? null,
-        bDraftCount: model.listDrafts("account-b").length,
+        bDraftCount: model.listDrafts({ sessionId: bSession.sessionId }).length,
+        bNamesA,
         bCanOpen,
       };
     },
-    expect: { bSeesADraft: 0, aDraftStillOwned: "A-secret", bDraftCount: 1, bCanOpen: "allowed" },
+    expect: { bSeesADraft: 0, aDraftStillOwned: "A-secret", bDraftCount: 1, bNamesA: "forbidden", bCanOpen: "allowed" },
   },
   {
     id: "a-loses-permission",
     requirement: "A mất quyền — nháp bị khóa, không xuất, không tự xóa",
     run({ model, base }) {
-      model.saveDraft({ accountId: base.accountId, docId: base.docId, payload: "A-work", baseRevision: 1 });
+      model.saveDraft({ sessionId: base.sessionId, docId: base.docId, payload: "A-work", baseRevision: 1 });
       model.revoke(base.docId, base.accountId);
       const recovered = model.recoverDraft({ sessionId: base.sessionId, docId: base.docId });
       return {
         status: recovered.status,
         reason: recovered.reason,
         payloadPreserved: recovered.payloadPreserved,
-        draftStillOnDisk: model.listDrafts(base.accountId)[0]?.payload ?? null,
-        draftState: model.listDrafts(base.accountId)[0]?.state ?? null,
+        draftStillOnDisk: model.listDrafts({ sessionId: base.sessionId })[0]?.payload ?? null,
+        draftState: model.listDrafts({ sessionId: base.sessionId })[0]?.state ?? null,
       };
     },
     expect: {
@@ -788,7 +867,7 @@ export const FAULT_CASES = [
     id: "a-has-permission-base-changed",
     requirement: "A còn quyền nhưng base đã đổi — xung đột, hai bản còn nguyên",
     run({ model, base }) {
-      model.saveDraft({ accountId: base.accountId, docId: base.docId, payload: "A-edit", baseRevision: 1 });
+      model.saveDraft({ sessionId: base.sessionId, docId: base.docId, payload: "A-edit", baseRevision: 1 });
       const other = model.beginUpload({ ...base, payload: "server-move" });
       model.commitSave({ ...base, uploadId: other.uploadId, payload: "server-move" });
       const recovered = model.recoverDraft({ sessionId: base.sessionId, docId: base.docId });
@@ -796,7 +875,7 @@ export const FAULT_CASES = [
         status: recovered.status,
         draftBase: recovered.base,
         serverCurrent: recovered.current,
-        draftStillOnDisk: model.listDrafts(base.accountId)[0]?.payload ?? null,
+        draftStillOnDisk: model.listDrafts({ sessionId: base.sessionId })[0]?.payload ?? null,
         versions: model.versionsOf(base.docId),
       };
     },
@@ -818,12 +897,12 @@ export const FAULT_CASES = [
       }
       // The edit survives on the client as a dirty draft: a full quota must not
       // cost the person their unsent text.
-      model.saveDraft({ accountId: base.accountId, docId: base.docId, payload, baseRevision: 1, state: "dirty" });
+      model.saveDraft({ sessionId: base.sessionId, docId: base.docId, payload, baseRevision: 1, state: "dirty" });
       return {
         ...observed,
         currentVersion: model.openDocument(base).version,
-        draftKept: model.listDrafts(base.accountId).length,
-        draftState: model.listDrafts(base.accountId)[0]?.state ?? null,
+        draftKept: model.listDrafts({ sessionId: base.sessionId }).length,
+        draftState: model.listDrafts({ sessionId: base.sessionId })[0]?.state ?? null,
       };
     },
     expect: {
@@ -1058,6 +1137,171 @@ export const FAULT_CASES = [
     },
     expect: { outcome: "error", code: "idempotency_in_flight", errorClass: "conflict", versions: 1 },
   },
+  {
+    id: "feed-cursor-advances-past-unreadable",
+    requirement: "Cursor tiến qua sự kiện không đọc được — không kẹt phân trang",
+    run({ model, base }) {
+      // A document this actor has no level on: its events are unreadable.
+      model.addDocument({ id: "doc-2", orgId: "org-1", wsId: "ws-1", checksum: "doc2" });
+      const upload = model.beginUpload({ ...base, payload: "readable" });
+      model.commitSave({ ...base, uploadId: upload.uploadId, payload: "readable" });
+
+      const page1 = model.readChanges({ sessionId: base.sessionId, cursor: "0", limit: 1 });
+      const page2 = model.readChanges({ sessionId: base.sessionId, cursor: page1.nextCursor, limit: 1 });
+      const page3 = model.readChanges({ sessionId: base.sessionId, cursor: page2.nextCursor, limit: 1 });
+      return {
+        page1Events: page1.events.length,
+        page1Kind: page1.events[0]?.kind ?? null,
+        page2Events: page2.events.length,
+        page2Kind: page2.events[0]?.kind ?? null,
+        page2Cursor: page2.nextCursor,
+        lastCursor: page3.nextCursor,
+        page3Events: page3.events.length,
+      };
+    },
+    // The unreadable created:doc-2 sits between two readable events. The cursor
+    // must step over it: page2 still returns the readable version_created, and
+    // the cursor lands on 3 rather than repeating 1 forever.
+    expect: {
+      page1Events: 1,
+      page1Kind: "created",
+      page2Events: 1,
+      page2Kind: "version_created",
+      page2Cursor: "3",
+      lastCursor: "3",
+      page3Events: 0,
+    },
+  },
+  {
+    id: "tombstone-not-leaked-to-non-reader",
+    requirement: "Tombstone không rò rỉ cho người chưa từng có quyền",
+    run({ model, base }) {
+      model.addDocument({ id: "doc-owned", orgId: "org-1", wsId: "ws-1", checksum: "owned" });
+      model.grant("doc-owned", base.accountId, "view");
+      model.tombstone("doc-owned");
+      // An id this actor was never granted must stay invisible, deleted or not.
+      model.addDocument({ id: "doc-foreign", orgId: "org-1", wsId: "ws-1", checksum: "foreign" });
+      model.tombstone("doc-foreign");
+      const seen = model.readChanges({ sessionId: base.sessionId, cursor: "0", limit: 50 }).events;
+      return {
+        seesOwnTombstone: seen.some((e) => e.kind === "deleted" && e.documentId === "doc-owned"),
+        seesForeignTombstone: seen.some((e) => e.kind === "deleted" && e.documentId === "doc-foreign"),
+        seesForeignCreated: seen.some((e) => e.kind === "created" && e.documentId === "doc-foreign"),
+      };
+    },
+    expect: { seesOwnTombstone: true, seesForeignTombstone: false, seesForeignCreated: false },
+  },
+  {
+    id: "copy-keeps-creator-access",
+    requirement: "Bản sao chuyển đổi giữ quyền người tạo, không mở cửa cho người ngoài",
+    run({ model, base }) {
+      const copy = model.convertDocument({
+        sessionId: base.sessionId,
+        docId: base.docId,
+        targetFormat: "md",
+        mode: "copy",
+      });
+      let creatorOpens;
+      try {
+        model.openDocument({ sessionId: base.sessionId, docId: copy.copyId });
+        creatorOpens = "allowed";
+      } catch (error) {
+        creatorOpens = error.code;
+      }
+      let creatorEdits;
+      try {
+        model.beginUpload({
+          sessionId: base.sessionId,
+          docId: copy.copyId,
+          baseRevision: 1,
+          payload: "edit-copy",
+          engine: base.engine,
+        });
+        creatorEdits = "allowed";
+      } catch (error) {
+        creatorEdits = error.code;
+      }
+      const outsider = model.loginAs({ accountId: "account-z", verifier: "verifier-z" });
+      let outsiderRead;
+      try {
+        model.openDocument({ sessionId: outsider.sessionId, docId: copy.copyId });
+        outsiderRead = "allowed";
+      } catch (error) {
+        outsiderRead = error.code;
+      }
+      return {
+        creatorOpens,
+        creatorEdits,
+        outsiderRead,
+        copyLinksSource: copy.sourceDocumentId === base.docId,
+        sourceVersionsKept: copy.sourceUntouched.versions,
+      };
+    },
+    expect: {
+      creatorOpens: "allowed",
+      creatorEdits: "allowed",
+      outsiderRead: "forbidden",
+      copyLinksSource: true,
+      sourceVersionsKept: 1,
+    },
+  },
+  {
+    id: "recovery-checks-base-version",
+    requirement: "Phục hồi nháp kiểm cả base version, không chỉ base revision",
+    run({ model, base }) {
+      model.saveDraft({
+        sessionId: base.sessionId,
+        docId: base.docId,
+        payload: "A-edit",
+        baseRevision: 1,
+        baseVersion: 99,
+      });
+      const recovered = model.recoverDraft({ sessionId: base.sessionId, docId: base.docId });
+      return {
+        status: recovered.status,
+        draftBaseVersion: recovered.baseVersion ?? null,
+        serverCurrentVersion: recovered.currentVersion ?? null,
+        draftStillOnDisk: model.listDrafts({ sessionId: base.sessionId })[0]?.payload ?? null,
+        draftState: model.listDrafts({ sessionId: base.sessionId })[0]?.state ?? null,
+      };
+    },
+    expect: {
+      status: "conflict",
+      draftBaseVersion: 99,
+      serverCurrentVersion: 1,
+      draftStillOnDisk: "A-edit",
+      draftState: "conflict",
+    },
+  },
+  {
+    id: "draft-apis-require-matching-session",
+    requirement: "Đường đọc nháp phải qua phiên đúng tài khoản; logout không xoá byte",
+    run({ model, base }) {
+      model.saveDraft({ sessionId: base.sessionId, docId: base.docId, payload: "unsent", baseRevision: 1 });
+      const other = model.loginAs({ accountId: "account-b", verifier: "verifier-b" });
+      let namesOtherAccount;
+      try {
+        model.listDrafts({ sessionId: other.sessionId, accountId: base.accountId });
+        namesOtherAccount = "allowed";
+      } catch (error) {
+        namesOtherAccount = error.code;
+      }
+      model.revokeDevice(base.sessionId);
+      let afterLogout;
+      try {
+        model.listDrafts({ sessionId: base.sessionId });
+        afterLogout = "allowed";
+      } catch (error) {
+        afterLogout = error.code;
+      }
+      return {
+        namesOtherAccount,
+        afterLogout,
+        bytesPreservedOnLogout: model.storageOnlyDrafts({ accountId: base.accountId }).length,
+      };
+    },
+    expect: { namesOtherAccount: "forbidden", afterLogout: "token_expired", bytesPreservedOnLogout: 1 },
+  },
 ];
 
 /** Every case id the plan's mandatory list ("Ca bắt buộc") requires. */
@@ -1078,6 +1322,11 @@ export const REQUIRED_CASE_IDS = [
   "client-engine-incompatible",
   "auth-code-expired-or-reused",
   "idempotency-in-flight",
+  "feed-cursor-advances-past-unreadable",
+  "tombstone-not-leaked-to-non-reader",
+  "copy-keeps-creator-access",
+  "recovery-checks-base-version",
+  "draft-apis-require-matching-session",
 ];
 /**
  * Run every case against a fresh model. The fixture is identical for all cases,

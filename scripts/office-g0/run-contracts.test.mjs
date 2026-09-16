@@ -38,7 +38,7 @@ test("the plan's mandatory list is covered", () => {
   // expired or reused token/code. The in-flight case pins the other half of the
   // idempotency contract — the same key while the first request is still
   // running — which the plan requires of the reference harness.
-  assert.equal(REQUIRED_CASE_IDS.length, 16);
+  assert.equal(REQUIRED_CASE_IDS.length, 21);
   for (const id of [
     "two-saves-same-base",
     "retry-same-payload",
@@ -56,9 +56,72 @@ test("the plan's mandatory list is covered", () => {
     "client-engine-incompatible",
     "auth-code-expired-or-reused",
     "idempotency-in-flight",
+    // Closed gaps found in review of this artifact: a feed cursor that stalled
+    // on unreadable events, a tombstone that leaked to a non-reader, a copy that
+    // lost its creator's access, a recovery that ignored base version, and draft
+    // reads that bypassed the session.
+    "feed-cursor-advances-past-unreadable",
+    "tombstone-not-leaked-to-non-reader",
+    "copy-keeps-creator-access",
+    "recovery-checks-base-version",
+    "draft-apis-require-matching-session",
   ]) {
     assert.ok(REQUIRED_CASE_IDS.includes(id), id + " is missing from the mandatory list");
   }
+});
+
+test("a feed cursor steps over events the actor cannot read", () => {
+  // The defect this pins: when the first page consisted only of events the actor
+  // could not read, the cursor stayed put and the client re-asked for the same
+  // page forever. A cursor that does not advance is a hung sync, not a filter.
+  const model = createModel({ changeRetention: 100 });
+  model.addDocument({ id: "doc-1", orgId: "org-1", wsId: "ws-1", checksum: "genesis" });
+  model.grant("doc-1", "account-a", "edit");
+  const session = model.loginAs({ accountId: "account-a", verifier: "verifier-0" });
+  model.addDocument({ id: "doc-unreadable", orgId: "org-1", wsId: "ws-1", checksum: "hidden" });
+  const upload = model.beginUpload({
+    sessionId: session.sessionId,
+    docId: "doc-1",
+    baseRevision: 1,
+    payload: "visible",
+    engine: { name: "uniwork-office", version: "1.0.0", status: "compatible" },
+  });
+  model.commitSave({
+    sessionId: session.sessionId,
+    docId: "doc-1",
+    uploadId: upload.uploadId,
+    baseRevision: 1,
+    payload: "visible",
+    engine: { name: "uniwork-office", version: "1.0.0", status: "compatible" },
+  });
+
+  const first = model.readChanges({ sessionId: session.sessionId, cursor: "0", limit: 1 });
+  const second = model.readChanges({ sessionId: session.sessionId, cursor: first.nextCursor, limit: 1 });
+  assert.equal(first.events.length, 1);
+  assert.equal(second.events.length, 1);
+  assert.equal(second.events[0].kind, "version_created");
+  assert.notEqual(second.nextCursor, first.nextCursor, "the cursor must move past the unreadable event");
+});
+
+test("draft reads go through the session, not through a caller-supplied account", () => {
+  const model = createModel();
+  model.addDocument({ id: "doc-1", orgId: "org-1", wsId: "ws-1", checksum: "genesis" });
+  model.grant("doc-1", "account-a", "edit");
+  const a = model.loginAs({ accountId: "account-a", verifier: "verifier-a" });
+  const b = model.loginAs({ accountId: "account-b", verifier: "verifier-b" });
+  model.saveDraft({ sessionId: a.sessionId, docId: "doc-1", payload: "A-secret", baseRevision: 1 });
+
+  assert.throws(
+    () => model.listDrafts({ sessionId: b.sessionId, accountId: "account-a" }),
+    /forbidden/,
+    "B must not be able to name A's account on the draft path",
+  );
+  assert.equal(model.listDrafts({ sessionId: b.sessionId }).length, 0);
+
+  // Logout revokes the session and stops reads, but it never destroys the bytes.
+  model.revokeDevice(a.sessionId);
+  assert.throws(() => model.listDrafts({ sessionId: a.sessionId }), /token_expired/);
+  assert.equal(model.storageOnlyDrafts({ accountId: "account-a" }).length, 1);
 });
 
 test("every fault case passes against its literal oracle", () => {
@@ -95,17 +158,19 @@ test("draft persistence is real: a fresh model reads it back from disk", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "office-g0-draft-"));
   const first = createModel({ dir });
   first.addDocument({ id: "doc-1", orgId: "org-1", wsId: "ws-1", checksum: "genesis" });
-  first.saveDraft({ accountId: "account-a", docId: "doc-1", payload: "unsent", baseRevision: 1 });
+  first.grant("doc-1", "account-a", "edit");
+  const session = first.loginAs({ accountId: "account-a", verifier: "verifier-a" });
+  first.saveDraft({ sessionId: session.sessionId, docId: "doc-1", payload: "unsent", baseRevision: 1 });
 
   // One file per account, with the payload in it — not a memory map.
   const file = path.join(dir, "drafts", "account-a.json");
   assert.ok(fs.existsSync(file), "the draft must be a filesystem write");
   assert.match(fs.readFileSync(file, "utf8"), /unsent/);
-  assert.equal(first.listDrafts("account-b").length, 0, "account B must not see A's draft file");
+  assert.equal(first.storageOnlyDrafts({ accountId: "account-b" }).length, 0, "account B must not see A's draft file");
 
   // A new model with no in-memory state still sees it.
   const restarted = createModel({ dir });
-  assert.equal(restarted.listDrafts("account-a")[0].payload, "unsent");
+  assert.equal(restarted.storageOnlyDrafts({ accountId: "account-a" })[0].payload, "unsent");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -113,10 +178,12 @@ test("a draft is only removed by an explicit discard", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "office-g0-discard-"));
   const model = createModel({ dir });
   model.addDocument({ id: "doc-1", orgId: "org-1", wsId: "ws-1", checksum: "genesis" });
-  model.saveDraft({ accountId: "account-a", docId: "doc-1", payload: "keep-me", baseRevision: 1 });
-  assert.equal(model.listDrafts("account-a").length, 1);
-  model.discardDraft({ accountId: "account-a", docId: "doc-1" });
-  assert.equal(model.listDrafts("account-a").length, 0);
+  model.grant("doc-1", "account-a", "edit");
+  const session = model.loginAs({ accountId: "account-a", verifier: "verifier-a" });
+  model.saveDraft({ sessionId: session.sessionId, docId: "doc-1", payload: "keep-me", baseRevision: 1 });
+  assert.equal(model.listDrafts({ sessionId: session.sessionId }).length, 1);
+  model.discardDraft({ sessionId: session.sessionId, docId: "doc-1" });
+  assert.equal(model.listDrafts({ sessionId: session.sessionId }).length, 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

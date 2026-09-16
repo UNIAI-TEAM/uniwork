@@ -5,7 +5,7 @@
 > **Nguồn:** spec [Documents + UniWork Office G0](../../superpowers/specs/2026-09-16-documents-office-g0-design.md) §9;
 > plan [G0](../../superpowers/plans/2026-09-16-documents-office-g0.md) Task 5;
 > C-01 §2/§3/§5/§13; Q5-A, Q7-B, Q8-A.
-> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 16/16 ca khớp oracle,
+> **Bằng chứng chạy:** `scripts/office-g0/run-contracts.mjs` — 21/21 ca khớp oracle,
 > xuất `.go-tmp/office-g0/run-contracts.json`. Đây là **model tham chiếu**, không phải
 > E2E sản phẩm. Xem §8 để biết chính xác mức bằng chứng.
 
@@ -190,14 +190,34 @@ Ba bất biến cho FE, không thương lượng:
 Quy tắc chốt:
 
 1. **Nháp thuộc tài khoản, ở tầng lưu trữ.** Một file/namespace mỗi tài khoản — "B
-   không đọc được nháp A" là tính chất của nơi byte nằm, không phải một `if` có thể quên.
-2. **Logout thu hồi phiên nhưng KHÔNG xóa nháp.** Restart nạp lại theo tài khoản.
+   không đọc được nháp A" là tính chất của nơi byte nằm. Nhưng **đường đọc vẫn phải
+   qua phiên**: `saveDraft`/`listDrafts`/`discardDraft` nhận `sessionId` và từ
+   chối khi người gọi nêu `accountId` không phải tài khoản của phiên (`forbidden`).
+   Nếu chỉ dựa vào nơi byte nằm, việc "B không đọc được nháp A" thành quy ước chứ
+   không phải kiểm tra.
+2. **Logout thu hồi phiên nhưng KHÔNG xóa nháp.** Sau logout, đường đọc qua phiên
+   trả `token_expired`; byte vẫn còn trên đĩa và chỉ đọc lại được sau khi đăng nhập
+   đúng tài khoản. Restart nạp lại theo tài khoản.
 3. **Đăng nhập lại kiểm lại**: tài khoản, quyền hiện tại, document, base version.
    - Cùng tài khoản + còn quyền + base khớp thì `recovered`.
    - Mất quyền thì `blocked`, **giữ byte**, khoá trong app, **không** xuất nơi khác.
-   - Base đã đổi thì `conflict`, giữ cả hai, không tự merge nhị phân.
+   - Base đã đổi thì `conflict`, giữ cả hai, không tự merge nhị phân. **"Base khớp"
+     nghĩa là khớp cả `baseRevision` và `baseVersion`**: revision khớp mà blob version
+     đã đổi là mô tả một tài liệu khác, và áp nháp vào đó chính là kiểu "mất chữ" mà
+     Q8 tồn tại để ngăn.
 4. **Chỉ xóa nháp sau commit được xác nhận hoặc hành động bỏ rõ ràng.** Lỗi lưu/quota/
    mất mạng đều giữ nháp `dirty`.
+
+### 6.1 Trạng thái và điểm kiểm của harness
+
+| Tình huống | Ca | Kỳ vọng |
+| --- | --- | --- |
+| B đọc nháp A bằng accountId của A | `draft-apis-require-matching-session` | `forbidden` |
+| Logout rồi đọc nháp qua phiên cũ | `draft-apis-require-matching-session` | `token_expired`, byte còn 1 |
+| Nháp lệch `baseVersion` | `recovery-checks-base-version` | `conflict`, giữ nháp |
+| Người chưa từng có quyền với document đã xoá | `tombstone-not-leaked-to-non-reader` | không thấy tombstone |
+| Cursor gặp sự kiện không đọc được | `feed-cursor-advances-past-unreadable` | cursor tiến, không lặp |
+| Bản sao chuyển đổi của Document thường | `copy-keeps-creator-access` | người tạo `manage`, người ngoài `forbidden` |
 
 Ánh xạ sang mã hiện có: `packages/core/drafts/cleanup-registry.ts` đã có mẫu
 "người sở hữu ghi kèm dữ liệu" (`draftWriteOwner`) và `releaseDraftsNotOwnedBy`;
@@ -223,13 +243,13 @@ và tài khoản ngoài Work Product đọc bản sao nhận `forbidden`.
 ## 8. Bằng chứng chạy
 
 ```sh
-node scripts/office-g0/run-contracts.mjs                    # 16/16, ghi JSON
+node scripts/office-g0/run-contracts.mjs                    # 21/21, ghi JSON
 node scripts/office-g0/run-contracts.mjs --legacy-idempotency --out <path>
 node --test scripts/office-g0/run-contracts.test.mjs
 ```
 
 Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON ghi `gitHead` để
-đối chiếu): **16/16 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
+đối chiếu): **21/21 ca khớp oracle**. Ca bắt buộc của plan so với id ca:
 
 | Ca trong plan | id | Kết quả |
 | --- | --- | --- |
@@ -249,6 +269,14 @@ Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON g
 | Client/engine không tương thích | `client-engine-incompatible` | từ chối trước khi ghi |
 | Token/code hết hạn/dùng lại | `auth-code-expired-or-reused` | PKCE + dùng một lần |
 | Cùng key khi request đang chạy | `idempotency-in-flight` | 409, không chạy lệnh hai lần |
+| Cursor tiến qua sự kiện không đọc được | `feed-cursor-advances-past-unreadable` | cursor nhảy qua sự kiện bị lọc, không lặp vô hạn |
+| Tombstone không rò rỉ cho người ngoài | `tombstone-not-leaked-to-non-reader` | người chưa từng có quyền không thấy `deleted` |
+| Bản sao giữ quyền người tạo | `copy-keeps-creator-access` | người tạo vẫn `manage`; người ngoài `forbidden` |
+| Phục hồi kiểm cả base version | `recovery-checks-base-version` | lệch version → `conflict`, giữ nháp |
+| Đọc nháp phải qua phiên | `draft-apis-require-matching-session` | đổi accountId → `forbidden`; logout → `token_expired`, byte còn |
+
+Năm ca cuối được thêm ở vòng sửa sau review: chúng đóng khoảng trống mà bộ 16 ca
+ban đầu còn để lọt (§8.2).
 
 ### 8.1 Giới hạn — đọc trước khi trích dẫn bằng chứng
 
@@ -261,6 +289,24 @@ Kết quả thật (chạy tại `feature/UNI-669-office-sync-contracts`; JSON g
 - Nháp là ghi đĩa thật; phục hồi kiểm bằng model mới đọc lại byte.
 - E2E web–server–desktop vẫn thuộc G5/G7.
 - QA-01: macOS/Safari thật chờ UNI-671; kết quả ở đây là dev, không phải nghiệm thu Mac.
+
+### 8.2 Vòng sửa sau review
+
+Bộ 16 ca đầu tiên không chứng minh được năm tính chất dưới đây: chúng đã xanh vì
+implementation làm sai theo cách oracle không hỏi tới. Một probe độc lập của main
+trên chính worktree này phát hiện, rồi cả implementation và bộ ca được sửa cùng lúc:
+
+| Lỗi đã xác nhận | Bằng chứng trước khi sửa | Đã sửa |
+| --- | --- | --- |
+| Cursor kẹt khi trang đầu toàn sự kiện không đọc được | `{ events: 0, nextCursor: "0" }` → lặp vô hạn | `nextCursor` đi theo vị trí đã quét |
+| Bản sao Document thường mất quyền người tạo | `openDocument(copy)` → `forbidden` cho chính người tạo | bản sao cấp `manage` cho người tạo |
+| Tombstone rò rỉ sang người không có quyền | B thấy `deleted:doc-a` dù chưa từng có quyền | tombstone qua kiểm quyền lúc đọc |
+| Phục hồi bỏ qua `baseVersion` | nháp `baseVersion: 99` → `recovered` | lệch version → `conflict` |
+| Đường đọc nháp không qua phiên | `listDrafts("account-a")` đọc được ngay cả sau logout | API nháp nhận `sessionId`, `forbidden` khi lệch |
+
+Việc này là vòng sửa 1 sau review của DOC-005, được main thực hiện khi các agent
+implement/review không còn khe chạy; nội dung hợp đồng không đổi, chỉ các bảo đảm
+được siết lại và có ca chứng minh.
 
 ## 9. Việc tiếp theo
 
