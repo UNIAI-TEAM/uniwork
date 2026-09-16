@@ -1,4 +1,4 @@
-import type { TableGroupValue } from "@uniwork/core/api/endpoints/tasks-table";
+import type { TableGroupValue, TableRowLabel } from "@uniwork/core/api/endpoints/tasks-table";
 import {
   propertyIdFromViewKey,
   type TableCalculation,
@@ -23,6 +23,8 @@ export type TaskTableDisplayRow =
       depth: number;
       hasChildren: boolean;
       collapsed: boolean;
+      /** The row's labels, as the rows API paged them — no per-row fetch. */
+      labels: TableRowLabel[];
     }
   | { kind: "skeleton"; key: string; depth?: number }
   | {

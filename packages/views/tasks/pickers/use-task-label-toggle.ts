@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useAttachTaskLabel, useDetachTaskLabel } from "@uniwork/core/tasks";
+import { taskKeys, useAttachTaskLabel, useDetachTaskLabel } from "@uniwork/core/tasks";
 import { toastApiError } from "../../toast-api-error";
 
 function without(set: ReadonlySet<string>, id: string): Set<string> {
@@ -23,9 +24,15 @@ function without(set: ReadonlySet<string>, id: string): Set<string> {
  *
  * `pendingIds` tracks in-flight toggles per label, so a label mid-request can't
  * be double-toggled while the other labels in the same menu stay clickable.
+ *
+ * A successful toggle also invalidates `taskKeys.tableRoot(workspaceId)`: the
+ * table cell reads its row's `labels` straight off the table-rows cache (no
+ * per-row query), so that cache is what has to refresh for the picker and the
+ * chips to catch up.
  */
 export function useTaskLabelToggle(workspaceId: string, taskId: string) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const attach = useAttachTaskLabel(workspaceId, taskId);
   const detach = useDetachTaskLabel(workspaceId, taskId);
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -35,10 +42,13 @@ export function useTaskLabelToggle(workspaceId: string, taskId: string) {
       setPendingIds((prev) => new Set(prev).add(labelId));
       const run = checked ? attach.mutateAsync : detach.mutateAsync;
       void run(labelId)
+        .then(() => {
+          void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
+        })
         .catch((err: unknown) => toastApiError(err, t("common.error")))
         .finally(() => setPendingIds((prev) => without(prev, labelId)));
     },
-    [attach.mutateAsync, detach.mutateAsync, t],
+    [attach.mutateAsync, detach.mutateAsync, qc, t, workspaceId],
   );
 
   return { toggle, pendingIds };

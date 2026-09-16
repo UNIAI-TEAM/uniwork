@@ -8,7 +8,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@uniwork/core/types";
-import { useLabelsOnTask } from "@uniwork/core/tasks";
+import type { TableRowLabel } from "@uniwork/core/api/endpoints/tasks-table";
 import {
   Avatar,
   AvatarFallback,
@@ -261,25 +261,25 @@ export function TableLabelsCell({
   workspaceId,
   taskId,
   labels,
+  attached,
 }: {
   workspaceId: string;
   taskId: string;
+  /** The workspace label catalog — the picker's choices. */
   labels: TaskLabel[];
+  /** The task's attached labels, as the table row already carries them: no per-row query. */
+  attached: TableRowLabel[];
 }) {
   const { t } = useTranslation();
-  // One per-row query, unchanged from before this picker existed; the
-  // workspace catalog still arrives through `labels` (see task-4 brief).
-  const attached = useLabelsOnTask(taskId);
   const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId);
-  const selected = attached.data?.labels ?? [];
-  const selectedIds = new Set(selected.map((label) => label.id));
+  const selectedIds = new Set(attached.map((label) => label.id));
   // Mirrors the chips below: two names, then "+N", or the empty placeholder.
   const shownLabels =
-    selected.length === 0
+    attached.length === 0
       ? t("tasks.table.empty_value")
       : [
-          ...selected.slice(0, 2).map((label) => label.name),
-          ...(selected.length > 2 ? [`+${selected.length - 2}`] : []),
+          ...attached.slice(0, 2).map((label) => label.name),
+          ...(attached.length > 2 ? [`+${attached.length - 2}`] : []),
         ].join(", ");
 
   return (
@@ -294,13 +294,13 @@ export function TableLabelsCell({
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"
     >
-      {selected.length === 0 ? (
+      {attached.length === 0 ? (
         <span className="text-muted-foreground">
           {t("tasks.table.empty_value")}
         </span>
       ) : (
         <>
-          {selected.slice(0, 2).map((label) => (
+          {attached.slice(0, 2).map((label) => (
             <span
               key={label.id}
               className={cn(
@@ -311,9 +311,9 @@ export function TableLabelsCell({
               {label.name}
             </span>
           ))}
-          {selected.length > 2 ? (
+          {attached.length > 2 ? (
             <span className="tabular-nums text-muted-foreground">
-              +{selected.length - 2}
+              +{attached.length - 2}
             </span>
           ) : null}
         </>

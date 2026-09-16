@@ -210,6 +210,35 @@ function stubColumnRects(): () => void {
   };
 }
 
+describe("bảng: nhãn theo hàng, không N+1", () => {
+  it("bảng 30 hàng không gửi yêu cầu nào tới đường dẫn kết thúc bằng /labels", async () => {
+    const base = requestMock.getMockImplementation()!;
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({
+      task: { ...task, id: `t${i + 1}`, title: `Task ${i + 1}` },
+      direct_child_count: 0,
+      labels: [{ id: "l1", name: "Bug", color: "#ef4444" }],
+    }));
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.includes("/tasks/table/rows")) {
+        return {
+          query_fingerprint: "fp-rows",
+          group_key: null,
+          parent_id: null,
+          total: manyRows.length,
+          rows: manyRows,
+          next_cursor: null,
+        };
+      }
+      return base(path, init);
+    });
+    await renderTable();
+    await screen.findByText("Task 30");
+    expect(
+      requestMock.mock.calls.filter(([path]) => (path as string).endsWith("/labels")),
+    ).toHaveLength(0);
+  });
+});
+
 describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () => {
   it("ô thuộc tính select gửi PUT giá trị với id lựa chọn", async () => {
     const { row } = await renderTable(["property:p1"]);

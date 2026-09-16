@@ -139,6 +139,7 @@ function walkTable(
         depth,
         hasChildren,
         collapsed: hasChildren && !expanded,
+        labels: row.labels,
       };
       rows.push(taskRow);
       if (!expanded) continue;

@@ -48,6 +48,7 @@ describe("table-view-model", () => {
         depth: 0,
         hasChildren: false,
         collapsed: false,
+        labels: [],
       },
     ];
     const live = { ...sample, title: "Beta" };
@@ -79,6 +80,7 @@ describe("table-view-model", () => {
         depth: 0,
         hasChildren: false,
         collapsed: false,
+        labels: [],
       },
       { kind: "skeleton", key: "s1" },
     ];

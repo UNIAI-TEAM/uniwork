@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import type { TableRowLabel } from "@uniwork/core/api/endpoints/tasks-table";
 import type { TaskLabel } from "@uniwork/core/types";
 import { requestMock, wrap } from "../../test/api-mock";
 import { renderInTableRow } from "../../test/table-row";
@@ -30,10 +31,12 @@ const catalog = [
   label("l3", "Backend", "#22c55e"),
 ];
 
-function serveAttached(attached: TaskLabel[]) {
-  requestMock.mockImplementation((_path: string, init?: { method?: string }) =>
-    Promise.resolve(init?.method ? undefined : { labels: attached, total: attached.length }),
-  );
+/** Rows carry only the row-label shape: id, name, color — never the full catalog record. */
+const attachedAll: TableRowLabel[] = catalog.map(({ id, name, color }) => ({ id, name, color }));
+
+/** Every request made under the mocked transport, path + method, for asserting no per-row fetch. */
+function requestPaths(): string[] {
+  return requestMock.mock.calls.map(([path]) => path as string);
 }
 
 beforeAll(() => {
@@ -42,29 +45,28 @@ beforeAll(() => {
 
 beforeEach(() => {
   requestMock.mockReset();
+  requestMock.mockResolvedValue(undefined);
 });
 
 describe("TableLabelsCell", () => {
-  it("hiện tối đa hai chip có màu rồi +N", async () => {
-    serveAttached(catalog);
-    render(wrap(<TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} />));
+  it("hiện tối đa hai chip có màu rồi +N, từ nhãn của hàng — không tự lấy nhãn theo hàng", async () => {
+    render(wrap(<TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} attached={attachedAll} />));
     const bug = await screen.findByText("Bug");
     expect(bug.className).toMatch(/bg-tint-red/);
     expect(screen.getByText("Frontend").className).toMatch(/bg-tint-blue/);
     expect(screen.queryByText("Backend")).not.toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nhãn: Bug, Frontend, +1" })).toBeInTheDocument();
+    expect(requestPaths().some((path) => path.endsWith("/labels"))).toBe(false);
   });
 
   it("không có nhãn thì tên truy cập nói giá trị Trống đang hiển thị", async () => {
-    serveAttached([]);
-    render(wrap(<TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} />));
+    render(wrap(<TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} attached={[]} />));
     const trigger = await screen.findByRole("button", { name: "Nhãn: Trống" });
     expect(trigger).toHaveTextContent("Trống");
   });
 
   it("bấm trigger hay bấm một nhãn trong menu đều không điều hướng hàng", async () => {
-    serveAttached([]);
     const onRowClick = vi.fn();
     render(
       wrap(
@@ -75,7 +77,7 @@ describe("TableLabelsCell", () => {
             onRowClick();
           }}
         >
-          <TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} />
+          <TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} attached={[]} />
         </div>,
       ),
     );
@@ -92,9 +94,8 @@ describe("TableLabelsCell", () => {
   });
 
   it("trong hàng bảng thật: bấm trigger, bấm hay middle-click một nhãn đều không mở task", async () => {
-    serveAttached([]);
     const { onOpenRow } = renderInTableRow(
-      <TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} />,
+      <TableLabelsCell workspaceId="w1" taskId="t1" labels={catalog} attached={[]} />,
       { wrapper: wrap },
     );
     fireEvent.click(screen.getByRole("button", { name: /nhãn|labels/i }));

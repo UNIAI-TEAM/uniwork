@@ -194,6 +194,7 @@ export function TaskCellContent({
           workspaceId={meta.workspaceId}
           taskId={task.id}
           labels={meta.labels}
+          attached={row.labels}
         />
       );
     default:
