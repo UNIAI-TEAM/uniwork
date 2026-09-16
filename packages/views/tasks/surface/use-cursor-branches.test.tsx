@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { tableRowsBranchPrefix, tableRowsPageBody } from "@uniwork/core/tasks/surface/table-query";
+import { requestMock } from "../../test/request-mock";
 import { encodeCursor, serveTableCursor } from "../../test/table-cursor-server";
 import { useCursorBranches, type CursorBranchSpec } from "./use-cursor-branches";
 
@@ -149,6 +150,35 @@ describe("useCursorBranches", () => {
     act(() => result.current.byKey.get("todo")!.loadMore());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(6));
     expect(server.rowRequests()).toEqual([`todo@${encodeCursor(4)}`]);
+  });
+
+  it("asks the next page at once when loadMore lands during a background refetch of the last page", async () => {
+    const server = serveTableCursor({ count: () => 6 });
+    const { client, result } = renderBranches({});
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+
+    // Park the refetch (a realtime invalidation) so the click lands while it is out.
+    const serve = requestMock.getMockImplementation()!;
+    let open = () => {};
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    requestMock.mockImplementation(async (...args: Parameters<typeof serve>) => {
+      await gate;
+      return serve(...args);
+    });
+    act(() => void client.invalidateQueries({ queryKey: tableRowsBranchPrefix("w1", branch("todo").body) }));
+    await waitFor(() => expect(result.current.isRefreshing).toBe(true));
+    requestMock.mockImplementation(serve);
+
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
+    open();
+    await settle();
+
+    // The parked refetch reaches the server after the next page, so compare as a set.
+    expect([...server.rowRequests()].sort()).toEqual(["todo@null", "todo@null", `todo@${encodeCursor(2)}`].sort());
+    expect(result.current.byKey.get("todo")?.rows).toHaveLength(4);
   });
 
   it("follows the first page's total down after deletions", async () => {

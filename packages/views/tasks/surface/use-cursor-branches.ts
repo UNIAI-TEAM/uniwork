@@ -28,7 +28,7 @@ export interface CursorBranchState {
   isError: boolean;
   /** The last page has a `next_cursor`. */
   hasMore: boolean;
-  /** Asks the next page; a no-op while one is in flight, a retry when the last page failed. */
+  /** Asks the next page; a no-op while one is on its way, a retry when the last page failed. */
   loadMore: () => void;
   /** Refetches the failed page. */
   retry: () => void;
@@ -213,7 +213,9 @@ export function useCursorBranches(
         isError: !!last?.isError && last.data === undefined,
         hasMore: nextCursor !== null,
         loadMore: () => {
-          if (!b.enabled || !last || last.isFetching) return;
+          // Only a page still on its way blocks: a background refetch of a
+          // loaded last page keeps its cursor, so the next page starts at once.
+          if (!b.enabled || !last || (last.isFetching && last.data === undefined)) return;
           if (last.isError) {
             void last.refetch();
             return;
