@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { UseQueryResult } from "@tanstack/react-query";
-import type { TableQuery, TableRowsResult } from "@uniwork/core/api/endpoints/tasks-table";
+import type { TableQuery } from "@uniwork/core/api/endpoints/tasks-table";
 import { useTableGroups } from "@uniwork/core/tasks";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import {
@@ -39,30 +38,6 @@ interface BoardColumnState extends BoardColumnPaging {
   tasks: Task[];
   /** The first page has not arrived yet. */
   isLoading: boolean;
-}
-
-/**
- * Kept for the table view (use-table-view-data.ts), which still pages on its
- * own until it moves onto `useCursorBranches`; the board no longer uses it.
- */
-export type PageState = Pick<
-  UseQueryResult<TableRowsResult>,
-  "data" | "isError" | "isLoading" | "isFetching" | "refetch"
->;
-
-/**
- * The page fields a `useQueries` reader keeps, as plain objects. Passed as
- * `combine` (a stable function), the result keeps its identity until one of
- * these fields changes.
- */
-export function pickPageStates(results: readonly PageState[]): PageState[] {
-  return results.map(({ data, isError, isLoading, isFetching, refetch }) => ({
-    data,
-    isError,
-    isLoading,
-    isFetching,
-    refetch,
-  }));
 }
 
 /**

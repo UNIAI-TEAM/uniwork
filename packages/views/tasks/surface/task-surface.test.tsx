@@ -49,9 +49,10 @@ beforeEach(() => {
       };
     }
     if (typeof path === "string" && path.includes("/tasks/table/rows")) {
-      const body = (init?.body ?? {}) as { limit?: number; offset?: number };
+      const body = (init?.body ?? {}) as { limit?: number; cursor?: string | null };
       const limit = body.limit ?? 50;
-      const offset = body.offset ?? 0;
+      // Fake cursor: base64 of the offset; the client never reads it.
+      const offset = body.cursor ? Number(atob(body.cursor)) : 0;
       // Cap page size in the truncated fixture so the table stays under the
       // virtualization threshold in jsdom (no scroll height → empty window).
       const pageLimit =
@@ -64,16 +65,17 @@ beforeEach(() => {
             title: `Task ${offset + i + 1}`,
           }),
           direct_child_count: i === 0 && offset === 0 ? tableChildCount : 0,
+          labels: [],
         }),
       );
+      const end = offset + rows.length;
       return {
         query_fingerprint: "fp-rows",
         group_key: "status:todo",
         parent_id: null,
         total: tableRowsTotal,
         rows,
-        branch_total: tableRowsTotal,
-        next_cursor: null,
+        next_cursor: end < tableRowsTotal ? btoa(String(end)) : null,
       };
     }
     if (typeof path === "string" && path.includes("/tasks/table/facets")) {
@@ -153,9 +155,9 @@ describe("TaskSurface", () => {
       );
       expect(groupsCall).toBeDefined();
       const init = groupsCall?.[1] as
-        | { body?: { filter?: { project_ids?: string[] } } }
+        | { body?: { query?: { filter?: { project_ids?: string[] } } } }
         | undefined;
-      expect(init?.body?.filter?.project_ids).toEqual(["p1"]);
+      expect(init?.body?.query?.filter?.project_ids).toEqual(["p1"]);
     });
   });
 
@@ -214,7 +216,7 @@ describe("TaskSurface", () => {
     expect(chevron).toBeEnabled();
   });
 
-  it("loads the next offset page when group rows are truncated", async () => {
+  it("loads the next cursor page when group rows are truncated", async () => {
     tableRowsTotal = 51;
     render(
       wrap(
@@ -228,22 +230,23 @@ describe("TaskSurface", () => {
     );
 
     expect(await screen.findByText("Task 1")).toBeInTheDocument();
-    expect(screen.queryByText("Task 51")).not.toBeInTheDocument();
+    expect(screen.queryByText("Task 6")).not.toBeInTheDocument();
     expect(
       await screen.findByText(/Hiển thị 5\/51|Showing 5 of 51/),
     ).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: /tải thêm|load more/i }));
 
-    expect(await screen.findByText("Task 51")).toBeInTheDocument();
+    expect(await screen.findByText("Task 6")).toBeInTheDocument();
+    expect(await screen.findByText(/Hiển thị 10\/51|Showing 10 of 51/)).toBeInTheDocument();
     await waitFor(() => {
       const rowCalls = requestMock.mock.calls.filter(
         ([path]) => typeof path === "string" && path.includes("/tasks/table/rows"),
       );
       expect(
         rowCalls.some(([, init]) => {
-          const body = (init as { body?: { offset?: number } } | undefined)?.body;
-          return body?.offset === 50;
+          const body = (init as { body?: { cursor?: string | null } } | undefined)?.body;
+          return body?.cursor === btoa("5");
         }),
       ).toBe(true);
     });

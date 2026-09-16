@@ -11,6 +11,7 @@ import {
   tableRowsPageQuery,
 } from "@uniwork/core/tasks/surface/table-query";
 import { serveBoardTable } from "../../test/board-table-server";
+import { useTableViewData } from "../modes/use-table-view-data";
 import { useBoardColumnsData } from "./use-board-columns-data";
 
 initI18n();
@@ -89,6 +90,37 @@ describe("useBoardColumnsData", () => {
       limit: 50,
     });
     expect(server.rowRequests()).toEqual(["status:todo@0"]);
+  });
+
+  it("shares its rows and groups cache entries with a table grouped by status on the same parameters", async () => {
+    serveBoardTable({ counts: { todo: 3, done: 2 } });
+    const { client, store, Wrapper } = setup();
+    store.getState().setTableGrouping("status");
+    const { result } = renderHook(
+      () => ({
+        board: useBoardColumnsData({
+          workspaceId: "w1",
+          projectId: "p1",
+          categories: ["todo", "done"],
+          enabled: true,
+        }),
+        table: useTableViewData({ workspaceId: "w1", filter: { project_ids: ["p1"] } }),
+      }),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => {
+      expect(result.current.board.tasks).toHaveLength(5);
+      expect(result.current.table.loadedTasks).toHaveLength(5);
+    });
+
+    const entries = client.getQueryCache().findAll({ queryKey: taskKeys.tableRoot("w1") });
+    const rows = entries.filter((entry) => entry.queryKey[2] === "rows");
+    const groups = entries.filter((entry) => entry.queryKey[2] === "groups");
+    expect(rows).toHaveLength(2);
+    expect(groups).toHaveLength(1);
+    for (const entry of [...rows, ...groups]) {
+      expect(entry.getObserversCount()).toBe(2);
+    }
   });
 
   it("merges a column's pages in order and keeps the first copy of an id that crosses a page boundary", async () => {

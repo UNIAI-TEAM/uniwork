@@ -6,7 +6,6 @@ import {
   getTaskTableSelectionRange,
   groupLabelFromDescriptor,
   refreshFrozenTableRows,
-  sortTasksForTable,
   tableGroupBy,
   tableUsesServerGrouping,
   type TaskTableDisplayRow,
@@ -39,12 +38,12 @@ function task(over: Partial<Task> & { id: string; title: string }): Task {
 
 describe("table-view-model", () => {
   it("maps grouping to the group_by values supported by the table API", () => {
-    // Ungrouped rows still use a supported server sort key without group_key.
-    expect(tableGroupBy("none")).toBe("status");
+    // Groupings the server does not group by page as one ungrouped branch.
+    expect(tableGroupBy("none")).toBe("none");
     expect(tableGroupBy("status")).toBe("status");
     expect(tableGroupBy("assignee")).toBe("assignee");
-    expect(tableGroupBy("project")).toBe("status");
-    expect(tableGroupBy("property:abc")).toBe("status");
+    expect(tableGroupBy("project")).toBe("none");
+    expect(tableGroupBy("property:abc")).toBe("none");
     expect(tableUsesServerGrouping("none")).toBe(false);
     expect(tableUsesServerGrouping("status")).toBe(true);
     expect(tableUsesServerGrouping("assignee")).toBe(true);
@@ -103,50 +102,6 @@ describe("table-view-model", () => {
     const csv = buildTaskTableCsv(["Title"], [["=1+1"], ["ok"]]);
     expect(csv).toContain("'=1+1");
     expect(csv).toContain("ok");
-  });
-
-  it("client-sorts loaded rows by title status priority and due date", () => {
-    const rows = [
-      task({
-        id: "b",
-        title: "Bravo",
-        status: "done",
-        priority: "low",
-        due_date: "2026-09-10",
-      }),
-      task({
-        id: "a",
-        title: "Alpha",
-        status: "todo",
-        priority: "high",
-        due_date: "2026-09-01",
-      }),
-    ];
-    expect(sortTasksForTable(rows, "title", "asc").map((r) => r.id)).toEqual([
-      "a",
-      "b",
-    ]);
-    expect(sortTasksForTable(rows, "title", "desc").map((r) => r.id)).toEqual([
-      "b",
-      "a",
-    ]);
-    // Catalog order: done after todo; low before high.
-    expect(sortTasksForTable(rows, "status", "asc").map((r) => r.id)).toEqual([
-      "a",
-      "b",
-    ]);
-    expect(sortTasksForTable(rows, "priority", "asc").map((r) => r.id)).toEqual([
-      "b",
-      "a",
-    ]);
-    expect(sortTasksForTable(rows, "due_date", "asc").map((r) => r.id)).toEqual([
-      "a",
-      "b",
-    ]);
-    expect(sortTasksForTable(rows, "position", "asc").map((r) => r.id)).toEqual([
-      "b",
-      "a",
-    ]);
   });
 
   it("returns null selection without anchor or unknown ids", () => {
@@ -257,16 +212,17 @@ describe("table-view-model", () => {
     expect(
       groupLabelFromDescriptor(
         "assignee:human:u1",
-        { kind: "assignee" },
+        { kind: "assignee", actor: { type: "human", id: "u1" }, label: "Vinh (server)" },
         (s) => s,
         (p) => p,
         "Unassigned",
+        () => "Nguyen Ba Vinh",
       ),
-    ).toBe("human:u1");
+    ).toBe("Vinh (server)");
     expect(
       groupLabelFromDescriptor(
-        "u1",
-        { kind: "assignee", actor: { id: "u1" } },
+        "assignee:human:u1",
+        { kind: "assignee", actor: { type: "human", id: "u1" } },
         (s) => s,
         (p) => p,
         "Unassigned",
@@ -275,11 +231,22 @@ describe("table-view-model", () => {
     ).toBe("Nguyen Ba Vinh");
     expect(
       groupLabelFromDescriptor(
-        "assignee",
+        "assignee:human:u9",
+        { kind: "assignee", actor: { type: "human", id: "u9" } },
+        (s) => s,
+        (p) => p,
+        "Unassigned",
+        () => undefined,
+      ),
+    ).toBe("u9");
+    expect(
+      groupLabelFromDescriptor(
+        "assignee:none",
         { kind: "assignee" },
         (s) => s,
         (p) => p,
         "Unassigned",
+        () => "never",
       ),
     ).toBe("Unassigned");
     expect(
@@ -293,41 +260,7 @@ describe("table-view-model", () => {
     ).toBe("raw-key");
   });
 
-  it("sorts by created/updated/start and keeps unknown fields stable", () => {
-    const rows = [
-      task({
-        id: "b",
-        title: "B",
-        created_at: "2026-09-02T00:00:00Z",
-        updated_at: "2026-09-04T00:00:00Z",
-        start_date: "2026-09-10",
-      }),
-      task({
-        id: "a",
-        title: "A",
-        created_at: "2026-09-01T00:00:00Z",
-        updated_at: "2026-09-05T00:00:00Z",
-        start_date: undefined,
-      }),
-    ];
-    expect(sortTasksForTable(rows, "created_at", "asc").map((r) => r.id)).toEqual([
-      "a",
-      "b",
-    ]);
-    expect(sortTasksForTable(rows, "updated_at", "desc").map((r) => r.id)).toEqual([
-      "a",
-      "b",
-    ]);
-    expect(sortTasksForTable(rows, "start_date", "asc").map((r) => r.id)).toEqual([
-      "b",
-      "a",
-    ]);
-    expect(
-      sortTasksForTable(rows, "property:x" as never, "asc").map((r) => r.id),
-    ).toEqual(["b", "a"]);
-  });
-
-  it("maps unknown grouping strings to status", () => {
-    expect(tableGroupBy("something-else")).toBe("status");
+  it("pages unknown grouping strings ungrouped", () => {
+    expect(tableGroupBy("something-else")).toBe("none");
   });
 });

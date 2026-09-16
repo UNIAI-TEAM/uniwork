@@ -80,8 +80,7 @@ beforeEach(() => {
         group_key: "status:todo",
         parent_id: null,
         total: 1,
-        rows: [{ task: task({}), direct_child_count: 0 }],
-        branch_total: 1,
+        rows: [{ task: task({}), direct_child_count: 0, labels: [] }],
         next_cursor: null,
       };
     }
