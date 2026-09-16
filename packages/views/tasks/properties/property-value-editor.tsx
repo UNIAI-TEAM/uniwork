@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useEffect, useId, useRef, useState, type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import type { TaskProperty } from "@uniwork/core/types";
@@ -162,7 +162,8 @@ function PropertyDateEditor({
   triggerClassName,
   onTriggerNavigationGuard,
 }: PropertyValueEditorProps) {
-  const id = `property-date-${property.id}`;
+  // One per rendered editor: a table column renders this once per row.
+  const id = useId();
   const stored = (readPropertyValue(property, value) as string | undefined) ?? "";
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stops row nav; child control is interactive

@@ -206,6 +206,57 @@ describe("useTableViewData", () => {
     expect(server.rowRequests().sort()).toEqual(["project:none@null", "project:p1@null"]);
   });
 
+  it("colours a select property's groups with their option colour", async () => {
+    serveTableCursor({
+      count: () => 1,
+      groups: () => [
+        { key: "property:p1:o1", value: { kind: "property", property_id: "p1", option: "o1", label: "Cao" }, count: 1 },
+        { key: "property:p1:none", value: { kind: "property", property_id: "p1" }, count: 1 },
+      ],
+    });
+    storeCount += 1;
+    const store = getTaskSurfaceViewStore(`table-view-data-${storeCount}`);
+    store.getState().setTableGrouping("property:p1");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const properties = new Map([
+      [
+        "p1",
+        {
+          id: "p1",
+          organization_id: "o1",
+          workspace_id: "w1",
+          name: "Mức độ",
+          type: "select",
+          description: "",
+          config: { options: [{ id: "o1", name: "Cao", color: "#ef4444" }] },
+          position: 0,
+          usage_count: 0,
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+      ],
+    ]);
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>
+          <ViewStoreProvider store={store}>{children}</ViewStoreProvider>
+        </QueryClientProvider>
+      );
+    }
+    const { result } = renderHook(() => useTableViewData({ workspaceId: "w1", properties }), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(result.current.loadedTasks).toHaveLength(2));
+    expect(
+      result.current.displayRows
+        .filter((row) => row.kind === "group")
+        .map((row) => [row.label, row.color]),
+    ).toEqual([
+      ["Cao", "#ef4444"],
+      ["Chưa có giá trị", undefined],
+    ]);
+  });
+
   it("falls back to no grouping with one notice when the server cannot group by a property", async () => {
     const infoMock = vi.mocked(toast.info);
     infoMock.mockClear();

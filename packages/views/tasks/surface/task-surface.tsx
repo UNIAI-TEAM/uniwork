@@ -7,6 +7,7 @@ import { ListTodo, Plus } from "lucide-react";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
+import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useChildTaskProgress, useProjects } from "@uniwork/core/tasks";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -91,6 +92,10 @@ function TaskSurfaceContent({
   const reduceMotion = useReducedMotion() ?? false;
   const { data: membersData } = useMembers(workspaceId);
   const { data: projectsData } = useProjects(workspaceId);
+  // Only the table's assignee cell offers agents; other modes skip the request.
+  const { data: agentsData } = useWorkspaceAgents(
+    controller.viewMode === "table" ? workspaceId : "",
+  );
   const { data: childProgressData } = useChildTaskProgress(workspaceId);
   const batchMembers = useMemo(
     () =>
@@ -231,8 +236,10 @@ function TaskSurfaceContent({
                       workspaceId={workspaceId}
                       filter={controller.tableFilter}
                       members={tableMembers}
+                      agents={agentsData}
                       projects={projectsData?.projects}
                       childProgress={childProgressData}
+                      propertiesDisabled={false}
                       projectGroupingDisabled={controller.projectGroupingDisabled}
                       projectGroupingReasonKey={controller.projectGroupingReasonKey}
                       onOpenTask={onOpenTask}

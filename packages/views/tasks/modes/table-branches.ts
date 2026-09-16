@@ -105,6 +105,7 @@ interface WalkInput {
 function walkTable(
   input: WalkInput,
   groupLabel: ((group: TableGroup) => string) | null,
+  groupColor?: (group: TableGroup) => string | undefined,
 ): { rows: TaskTableDisplayRow[]; parents: TableParentRef[] } {
   const rows: TaskTableDisplayRow[] = [];
   const parents: TableParentRef[] = [];
@@ -120,7 +121,7 @@ function walkTable(
     const branch = input.branches.get(key);
     if (!branch || branch.isLoading) {
       for (let i = 0; i < skeletons; i += 1) {
-        rows.push({ kind: "skeleton", key: `skeleton:${key}:${i}` });
+        rows.push({ kind: "skeleton", key: `skeleton:${key}:${i}`, depth });
       }
       return;
     }
@@ -170,12 +171,14 @@ function walkTable(
   }
   for (const group of input.groups) {
     const collapsed = input.collapsedGroups.has(group.key);
+    const color = groupColor?.(group);
     rows.push({
       kind: "group",
       key: group.key,
       label: groupLabel ? groupLabel(group) : group.key,
       count: group.count,
       collapsed,
+      ...(color ? { color } : {}),
     });
     if (collapsed) continue;
     appendBranch(group.key, null, 0, Math.min(group.count || GROUP_SKELETON_ROWS, GROUP_SKELETON_ROWS));
@@ -184,9 +187,12 @@ function walkTable(
 }
 
 export function buildDisplayRows(
-  input: WalkInput & { groupLabel: (group: TableGroup) => string },
+  input: WalkInput & {
+    groupLabel: (group: TableGroup) => string;
+    groupColor?: (group: TableGroup) => string | undefined;
+  },
 ): TaskTableDisplayRow[] {
-  return walkTable(input, input.groupLabel).rows;
+  return walkTable(input, input.groupLabel, input.groupColor).rows;
 }
 
 /**

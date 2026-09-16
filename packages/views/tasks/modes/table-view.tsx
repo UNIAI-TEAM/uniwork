@@ -16,18 +16,21 @@ import {
 } from "@uniwork/core/tasks/stores/view-store";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { DataTable } from "@uniwork/ui/components/ui/data-table";
-import type { ChildProgress, Project } from "@uniwork/core/types";
-import { useTaskLabels, useTaskProperties } from "@uniwork/core/tasks";
+import type { Agent, ChildProgress, Project, TaskProperty } from "@uniwork/core/types";
+import {
+  useSetTaskPropertyValue,
+  useTaskLabels,
+  useTaskProperties,
+  useUnsetTaskPropertyValue,
+} from "@uniwork/core/tasks";
 import { toastApiError } from "../../toast-api-error";
 import { BatchActionToolbar } from "../views/batch-action-toolbar";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
 import { TaskTableGroupRow } from "./table-group-row";
 import { TaskTableLoadMoreRow } from "./table-load-more-row";
-import {
-  useTableColumnDefs,
-  type TableViewMeta,
-} from "./table-view-columns";
+import { useTableColumnDefs } from "./table-view-columns";
+import type { TableViewMeta } from "./table-view-meta";
 import { isRowControlTarget } from "./row-navigation";
 import { TableViewToolbar, type TablePropertyGrouping } from "./table-view-toolbar";
 import {
@@ -36,10 +39,13 @@ import {
 } from "./table-view-model";
 import { useTableViewData } from "./use-table-view-data";
 import type { TableMember } from "./table-cell-editors";
+import type { AssigneeOption } from "../pickers";
 
 const EMPTY_MEMBERS: TableMember[] = [];
 const EMPTY_PROJECTS: Project[] = [];
 const EMPTY_CHILD_PROGRESS: ChildProgress[] = [];
+const EMPTY_AGENTS: Agent[] = [];
+const EMPTY_PROPERTIES: TaskProperty[] = [];
 const GROUPABLE_PROPERTY_TYPES = new Set(["select", "checkbox"]);
 
 /**
@@ -47,13 +53,14 @@ const GROUPABLE_PROPERTY_TYPES = new Set(["select", "checkbox"]);
  * DataTable, column picker, selection) on suite table APIs.
  *
  * Groups by status, priority, assignee, project or an active select/checkbox
- * property on the server. Custom-property editors stay visible-disabled until
- * their table API contracts ship. Agent chrome is not mounted after cutover.
+ * property on the server. Custom-property columns edit in place unless
+ * `propertiesDisabled`; the assignee cell offers members and agents.
  */
 export function TableView({
   workspaceId,
   filter,
   members = EMPTY_MEMBERS,
+  agents = EMPTY_AGENTS,
   projects = EMPTY_PROJECTS,
   childProgress = EMPTY_CHILD_PROGRESS,
   projectGroupingDisabled = false,
@@ -67,6 +74,7 @@ export function TableView({
   workspaceId: string;
   filter?: TableFilter;
   members?: TableMember[];
+  agents?: Agent[];
   projects?: Project[];
   childProgress?: ChildProgress[];
   projectGroupingDisabled?: boolean;
@@ -84,6 +92,9 @@ export function TableView({
   const selectionAnchorRef = useRef<string | null>(null);
   const [search, setSearch] = useState("");
   const propertiesQuery = useTaskProperties(workspaceId);
+  const { mutate: setPropertyValue } = useSetTaskPropertyValue(workspaceId);
+  const { mutate: unsetPropertyValue } = useUnsetTaskPropertyValue(workspaceId);
+  const propertyCatalog = propertiesQuery.data?.properties ?? EMPTY_PROPERTIES;
 
   const tableColumns = useViewStore((s) => s.tableColumns);
   const setTableColumnWidth = useViewStore((s) => s.setTableColumnWidth);
@@ -114,9 +125,27 @@ export function TableView({
     [propertiesQuery.data?.properties],
   );
 
-  const projectNames = useMemo(
-    () => new Map(projects.map((project) => [project.id, project.title])),
-    [projects],
+  const properties = useMemo(
+    () => new Map(propertyCatalog.map((property) => [property.id, property])),
+    [propertyCatalog],
+  );
+  // Mirrors the properties sidebar: members first, then the workspace's agents.
+  const assigneeOptions = useMemo<AssigneeOption[]>(
+    () => [
+      ...members.map((member) => ({
+        id: member.id,
+        kind: "human" as const,
+        name: member.name,
+        ...(member.avatarUrl ? { avatarUrl: member.avatarUrl } : {}),
+      })),
+      ...agents.map((agent) => ({
+        id: agent.id,
+        kind: "agent" as const,
+        name: agent.name,
+        ...(agent.avatar_url ? { avatarUrl: agent.avatar_url } : {}),
+      })),
+    ],
+    [agents, members],
   );
   const childProgressByTask = useMemo(
     () =>
@@ -135,13 +164,11 @@ export function TableView({
     filter,
     search,
     assigneeNames,
+    properties,
   });
 
   const columnKeys = useMemo(
-    () =>
-      tableColumns
-        .map((column) => column.key)
-        .filter((key) => !propertyIdFromViewKey(key)),
+    () => tableColumns.map((column) => column.key),
     [tableColumns],
   );
 
@@ -189,10 +216,12 @@ export function TableView({
   const columnLabel = useCallback(
     (key: TableColumnKey) => {
       const propertyId = propertyIdFromViewKey(key);
-      if (propertyId) return t("tasks.table.unavailable_cell");
+      if (propertyId) {
+        return properties.get(propertyId)?.name ?? t("tasks.table.unavailable_cell");
+      }
       return t(`tasks.table.columns.${key}`);
     },
-    [t],
+    [properties, t],
   );
 
   const onSort = useCallback(
@@ -220,8 +249,10 @@ export function TableView({
       hierarchyDisabled: !showSubTasks,
       workspaceId,
       members,
+      assigneeOptions,
       labels: labelsQuery.data?.labels ?? [],
-      projectNames,
+      projects,
+      properties,
       childProgress: childProgressByTask,
       columnLabel,
       sortBy,
@@ -235,6 +266,18 @@ export function TableView({
           onError: (error) => toastApiError(error, t("common.error")),
         });
       },
+      setPropertyValue: (taskId, propertyId, value) => {
+        setPropertyValue(
+          { taskId, propertyId, value },
+          { onError: (error) => toastApiError(error, t("common.error")) },
+        );
+      },
+      clearPropertyValue: (taskId, propertyId) => {
+        unsetPropertyValue(
+          { taskId, propertyId },
+          { onError: (error) => toastApiError(error, t("common.error")) },
+        );
+      },
       openTask: onOpenTask,
       toggleTableParentExpanded,
       toggleTableColumn,
@@ -245,6 +288,7 @@ export function TableView({
     [
       clearVisibleSelection,
       actions,
+      assigneeOptions,
       childProgressByTask,
       columnLabel,
       editingDisabled,
@@ -254,11 +298,14 @@ export function TableView({
       members,
       onOpenTask,
       onSort,
-      projectNames,
+      projects,
+      properties,
       propertiesDisabled,
       propertiesDisabledReasonKey,
       selectAllVisible,
       selection.selectedIds,
+      setPropertyValue,
+      unsetPropertyValue,
       showSubTasks,
       sortBy,
       sortDirection,
@@ -307,6 +354,7 @@ export function TableView({
         projectGroupingDisabled={projectGroupingDisabled}
         projectGroupingReason={projectGroupingReasonKey}
         propertyGroupings={propertyGroupings}
+        properties={properties}
         propertiesDisabled={propertiesDisabled}
         propertiesDisabledReason={t(propertiesDisabledReasonKey)}
       />
@@ -335,6 +383,7 @@ export function TableView({
               return (
                 <TaskTableGroupRow
                   group={row.original}
+                  color={row.original.color}
                   colSpan={table.getVisibleLeafColumns().length}
                   onToggle={() => toggleTableGroupCollapsed(row.original.key)}
                 />

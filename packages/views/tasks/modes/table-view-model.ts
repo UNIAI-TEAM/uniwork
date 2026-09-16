@@ -13,6 +13,8 @@ export type TaskTableDisplayRow =
       label: string;
       count: number;
       collapsed: boolean;
+      /** A property option's stored colour, for a select property's groups. */
+      color?: string;
     }
   | {
       kind: "task";
@@ -22,7 +24,7 @@ export type TaskTableDisplayRow =
       hasChildren: boolean;
       collapsed: boolean;
     }
-  | { kind: "skeleton"; key: string }
+  | { kind: "skeleton"; key: string; depth?: number }
   | {
       kind: "load_more";
       key: string;

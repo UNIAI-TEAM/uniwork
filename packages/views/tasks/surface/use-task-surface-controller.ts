@@ -95,6 +95,9 @@ function taskPatchFromSurfaceUpdates(
   if (updates.due_date === null || typeof updates.due_date === "string") {
     patch.due_date = updates.due_date;
   }
+  if (updates.project_id === null || typeof updates.project_id === "string") {
+    patch.project_id = updates.project_id;
+  }
   return patch;
 }
 

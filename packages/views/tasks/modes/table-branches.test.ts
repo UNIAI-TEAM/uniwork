@@ -205,6 +205,34 @@ describe("buildDisplayRows", () => {
     ).toEqual(["task", "skeleton"]);
   });
 
+  it("indents a child branch's placeholder at the branch depth", () => {
+    const branches = new Map([["__ungrouped::root", branch("__ungrouped::root", [["p1", 1]])]]);
+    const rows = buildDisplayRows({
+      groupBy: "none",
+      groups: undefined,
+      branches,
+      collapsedGroups: new Set<string>(),
+      hierarchy: true,
+      expandedParents: new Set(["p1"]),
+      groupLabel: label,
+    });
+    expect(rows[1]).toMatchObject({ kind: "skeleton", depth: 1 });
+  });
+
+  it("gives a group header the colour its callback resolves", () => {
+    const rows = buildDisplayRows({
+      groupBy: "status",
+      groups: groups.slice(0, 1),
+      branches: new Map(),
+      collapsedGroups: new Set(["status:todo"]),
+      hierarchy: true,
+      expandedParents: new Set(),
+      groupLabel: label,
+      groupColor: (group) => (group.key === "status:todo" ? "#22c55e" : undefined),
+    });
+    expect(rows[0]).toMatchObject({ kind: "group", color: "#22c55e" });
+  });
+
   it("renders a task id once", () => {
     const branches = new Map([
       ["__ungrouped::root", branch("__ungrouped::root", [["p1", 1], ["c1", 0]])],

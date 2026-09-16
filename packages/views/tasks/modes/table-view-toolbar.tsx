@@ -3,6 +3,7 @@
 import { useTranslation } from "react-i18next";
 import { Columns3, Layers } from "lucide-react";
 import type { TableGrouping } from "@uniwork/core/tasks/stores/view-store";
+import type { TaskProperty } from "@uniwork/core/types";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -31,6 +32,7 @@ export function TableViewToolbar({
   propertiesDisabled,
   propertiesDisabledReason,
   propertyGroupings = [],
+  properties,
 }: {
   search: string;
   onSearchChange: (value: string) => void;
@@ -39,6 +41,7 @@ export function TableViewToolbar({
   propertiesDisabled: boolean;
   propertiesDisabledReason: string;
   propertyGroupings?: TablePropertyGrouping[];
+  properties?: ReadonlyMap<string, TaskProperty>;
 }) {
   const { t } = useTranslation();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
@@ -107,6 +110,7 @@ export function TableViewToolbar({
         </DropdownMenuContent>
       </DropdownMenu>
       <TableColumnPicker
+        properties={properties}
         propertiesDisabled={propertiesDisabled}
         propertiesDisabledReason={propertiesDisabledReason}
         trigger={

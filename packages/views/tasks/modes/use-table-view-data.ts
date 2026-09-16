@@ -12,7 +12,8 @@ import { ApiError } from "@uniwork/core/api/http";
 import { useTableGroups } from "@uniwork/core/tasks";
 import { normalizeTableQuery, tableGroupsBody } from "@uniwork/core/tasks/surface/table-query";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
-import type { Task } from "@uniwork/core/types";
+import type { Task, TaskProperty } from "@uniwork/core/types";
+import { propertyOptions } from "../properties/property-value";
 import { useCursorBranches } from "../surface/use-cursor-branches";
 import {
   buildDisplayRows,
@@ -59,11 +60,14 @@ export function useTableViewData({
   filter,
   search = "",
   assigneeNames,
+  properties,
 }: {
   workspaceId: string;
   filter?: TableFilter;
   search?: string;
   assigneeNames?: ReadonlyMap<string, string>;
+  /** The property catalog by id; a select property's groups take their option colour. */
+  properties?: ReadonlyMap<string, TaskProperty>;
 }): UseTableViewDataResult {
   const { t } = useTranslation();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
@@ -156,9 +160,20 @@ export function useTableViewData({
     [assigneeNames, t],
   );
 
+  const groupColor = useCallback(
+    (group: TableGroupsResult["groups"][number]) => {
+      const { property_id: propertyId, option } = group.value;
+      if (group.value.kind !== "property" || !propertyId || !option) return undefined;
+      const property = properties?.get(propertyId);
+      if (property?.type !== "select") return undefined;
+      return propertyOptions(property).find((candidate) => candidate.id === option)?.color;
+    },
+    [properties],
+  );
+
   const displayRows = useMemo(
-    () => buildDisplayRows({ ...walkInput, groupLabel }),
-    [groupLabel, walkInput],
+    () => buildDisplayRows({ ...walkInput, groupLabel, groupColor }),
+    [groupColor, groupLabel, walkInput],
   );
 
   const loadedTasks = useMemo(() => {
