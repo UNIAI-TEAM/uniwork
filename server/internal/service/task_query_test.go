@@ -11,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/db/tablequery"
 )
 
 func TestQueryTasksFiltersByStatusAndPaginates(t *testing.T) {
@@ -112,8 +113,8 @@ func TestQueryAndTableFilterByProjectID(t *testing.T) {
 		t.Fatalf("QueryTasks = %+v, want only task A %s", page.Tasks, taskA.ID)
 	}
 
-	groups, err := s.TableGroups(ctx, actor, w.ID, TableInput{
-		Filter:  TableFilter{ProjectIDs: []string{projectA.ID}},
+	groups, err := s.TableGroups(ctx, actor, w.ID, TableQueryInput{
+		Filter:  tablequery.Filter{ProjectIDs: []string{projectA.ID}},
 		GroupBy: "status",
 	})
 	if err != nil {

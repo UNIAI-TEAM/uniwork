@@ -118,3 +118,11 @@ WITH deleted AS (
   RETURNING id
 )
 SELECT deleted.label_id FROM deleted;
+
+-- name: ListLabelsForTasks :many
+SELECT l.task_id, lb.id, lb.name, lb.color
+FROM task_label_links l
+JOIN task_labels lb ON lb.organization_id = l.organization_id AND lb.workspace_id = l.workspace_id AND lb.id = l.label_id
+WHERE l.organization_id = $1 AND l.workspace_id = $2 AND l.task_id = ANY(sqlc.arg('task_ids')::text[])
+  AND lb.archived_at IS NULL
+ORDER BY l.task_id, LOWER(lb.name), lb.id;

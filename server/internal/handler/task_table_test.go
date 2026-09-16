@@ -52,13 +52,13 @@ func TestTableGroupsRowsFacetsHTTPFixtureCounts(t *testing.T) {
 		g := raw.(map[string]any)
 		byKey[g["key"].(string)] = g["count"].(float64)
 	}
-	if byKey["todo"] != 3 || byKey["in_progress"] != 2 || byKey["done"] != 1 {
+	if byKey["status:todo"] != 3 || byKey["status:in_progress"] != 2 || byKey["status:done"] != 1 {
 		t.Fatalf("group counts = %+v", byKey)
 	}
 
 	res, body = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks/table/rows", token, map[string]any{
 		"group_by":  "status",
-		"group_key": "todo",
+		"group_key": "status:todo",
 		"columns":   []string{"title", "status"},
 	})
 	if res.StatusCode != 200 {

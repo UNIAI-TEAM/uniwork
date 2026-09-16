@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// taskColumns mirrors the select list of ListTableTaskRows
-// (server/pkg/db/queries/tasks.sql); exec.go scans in this exact order.
+// taskColumns lists every tasks column in db.Task field order; exec.go scans
+// in this exact order.
 const taskColumns = `t.id, t.workspace_id, t.title, t.description, t.status, t.priority,
        t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at,
        t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number,

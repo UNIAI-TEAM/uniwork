@@ -18,7 +18,7 @@ func (h *handlers) tableGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := h.Tasks.TableGroups(r.Context(), service.Human(middleware.UserID(r.Context())),
-		chi.URLParam(r, "workspaceID"), tableInputFromSDI(in.Filter, in.GroupBy, nil, in.Columns, nil, in.Limit, in.Offset))
+		chi.URLParam(r, "workspaceID"), tableQueryInputFromSDI(in.Filter, in.GroupBy))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -27,7 +27,7 @@ func (h *handlers) tableGroups(w http.ResponseWriter, r *http.Request) {
 		QueryFingerprint: result.QueryFingerprint,
 		Total:            result.Total,
 		Groups:           tableGroupDTOs(result.Groups),
-		NextCursor:       result.NextCursor,
+		NextCursor:       nil,
 	})
 }
 
@@ -37,7 +37,11 @@ func (h *handlers) tableRows(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := h.Tasks.TableRows(r.Context(), service.Human(middleware.UserID(r.Context())),
-		chi.URLParam(r, "workspaceID"), tableInputFromSDI(in.Filter, in.GroupBy, in.GroupKey, in.Columns, nil, in.Limit, in.Offset))
+		chi.URLParam(r, "workspaceID"), service.TableRowsInput{
+			TableQueryInput: tableQueryInputFromSDI(in.Filter, in.GroupBy),
+			GroupKey:        in.GroupKey,
+			Limit:           in.Limit,
+		})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -61,7 +65,7 @@ func (h *handlers) tableRows(w http.ResponseWriter, r *http.Request) {
 		ParentID:         result.ParentID,
 		Total:            result.Total,
 		Rows:             rows,
-		BranchTotal:      result.BranchTotal,
+		BranchTotal:      result.Total,
 		NextCursor:       result.NextCursor,
 	})
 }
@@ -72,7 +76,10 @@ func (h *handlers) tableFacets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := h.Tasks.TableFacets(r.Context(), service.Human(middleware.UserID(r.Context())),
-		chi.URLParam(r, "workspaceID"), tableInputFromSDI(in.Filter, "", nil, in.Columns, in.Facets, 0, 0))
+		chi.URLParam(r, "workspaceID"), service.TableFacetsInput{
+			TableQueryInput: tableQueryInputFromSDI(in.Filter, ""),
+			Facets:          in.Facets,
+		})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -92,21 +99,20 @@ func (h *handlers) tableFacets(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func tableInputFromSDI(filter sdi.TableFilterSDI, groupBy string, groupKey *string, columns, facets []string, limit, offset int32) service.TableInput {
-	return service.TableInput{
-		Filter: service.TableFilter{
-			Statuses:    filter.Statuses,
-			Priorities:  filter.Priorities,
-			AssigneeIDs: filter.AssigneeIDs,
-			ProjectIDs:  filter.ProjectIDs,
-		},
-		GroupBy:  groupBy,
-		GroupKey: groupKey,
-		Columns:  columns,
-		Facets:   facets,
-		Limit:    limit,
-		Offset:   offset,
+// tableQueryInputFromSDI maps the current request body onto the service
+// input; an empty group_by means no grouping.
+func tableQueryInputFromSDI(filter sdi.TableFilterSDI, groupBy string) service.TableQueryInput {
+	if groupBy == "" {
+		groupBy = "none"
 	}
+	// Fill the filter field by field so the handler never imports tablequery.
+	var in service.TableQueryInput
+	in.Filter.Statuses = filter.Statuses
+	in.Filter.Priorities = filter.Priorities
+	in.Filter.AssigneeIDs = filter.AssigneeIDs
+	in.Filter.ProjectIDs = filter.ProjectIDs
+	in.GroupBy = groupBy
+	return in
 }
 
 func tableGroupDTOs(groups []service.TableGroupDescriptor) []sdo.TableGroupDescriptorDTO {
