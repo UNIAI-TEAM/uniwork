@@ -31,6 +31,11 @@ catalog:
   # State management — Zustand giữ client/view state; React Query giữ server state
   zustand: "^5.0.0"
 
+  # Kéo-thả — board/swimlane (views) và kéo đổi thứ tự cột (ui) đều dùng
+  "@dnd-kit/core": "^6.3.1"
+  "@dnd-kit/sortable": "^10.0.0"
+  "@dnd-kit/utilities": "^3.2.2"
+
   # Bảng và danh sách ảo hoá
   "@tanstack/react-table": "^8.21.3"
   "@tanstack/react-virtual": "^3.13.0"
