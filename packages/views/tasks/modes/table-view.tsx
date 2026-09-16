@@ -262,6 +262,9 @@ export function TableView({
     columns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.key,
+    // No pagination row model here. Left on, every row-model rebuild writes a
+    // fresh pagination object into useReactTable's own state and renders again.
+    autoResetPageIndex: false,
     columnResizeMode: "onChange",
     state: {
       columnSizing,

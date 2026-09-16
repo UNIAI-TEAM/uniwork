@@ -54,9 +54,10 @@ type PageState = Pick<
 /**
  * The page fields the board reads, as plain objects. Passed to `useQueries`
  * as `combine` (a stable function), the result keeps its identity until one of
- * these fields changes, so the columns are not rebuilt on every render.
+ * these fields changes, so the columns are not rebuilt on every render. The
+ * table view relies on the same identity (see use-table-view-data.ts).
  */
-function pickPageStates(results: readonly PageState[]): PageState[] {
+export function pickPageStates(results: readonly PageState[]): PageState[] {
   return results.map(({ data, isError, isLoading, isFetching, refetch }) => ({
     data,
     isError,

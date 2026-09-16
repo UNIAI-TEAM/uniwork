@@ -31,6 +31,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0017](0017-mot-bang-execution-cho-nguoi-va-ai.md) | Một bảng execution cho người và AI; nguồn gốc là bảng nối, cấm suy diễn; hai cổng duyệt tách |
 | [0018](0018-engine-office-chay-o-sidecar-node.md) | Engine Office chạy ở sidecar Node dùng chung với UniWork Office; chỉ DOCX |
 | [0019](0019-do-thi-cong-viec-la-projection.md) | Đồ thị công việc là projection qua outbox; cấm suy diễn quan hệ |
+| [0020](0020-truy-van-bang-cong-viec-dung-sql-dong-trong-tablequery.md) | View Bảng dựng SQL động trong `pkg/db/tablequery` (whitelist, tham số hóa, luôn lọc tenant); sqlc vẫn là mặc định |
 
 ## Bản nháp
 

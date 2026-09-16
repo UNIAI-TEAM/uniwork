@@ -16,6 +16,7 @@ import {
 } from "@uniwork/core/tasks/surface/table-query";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import type { Task } from "@uniwork/core/types";
+import { pickPageStates } from "../surface/use-board-columns-data";
 import {
   TABLE_PAGE_SIZE,
   buildTaskTableHierarchy,
@@ -141,6 +142,10 @@ export function useTableViewData({
       ),
       enabled: !!workspaceId,
     })),
+    // Without a stable combine, useQueries returns a new array on every render,
+    // displayRows is rebuilt, and TanStack Table's pagination auto-reset writes
+    // its own state on each row-model rebuild — a render loop that froze the app.
+    combine: pickPageStates,
   });
 
   const loadMore = useCallback((groupKey: string) => {
