@@ -10,6 +10,7 @@ import type {
   TableRowsBody,
   TableRowsResult,
 } from "../api/endpoints/tasks-table";
+import type { TaskStatusList } from "../api/endpoints/task-catalog";
 import type { Task } from "../types/task";
 import { taskKeys } from "./keys";
 import { tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
@@ -42,7 +43,8 @@ export function applyTaskPatch(task: Task, patch: TaskPatch): Task {
   } as Task;
 }
 
-const statusGroupKey = (status: string) => `status:${status}`;
+const STATUS_GROUP_PREFIX = "status:";
+const statusGroupKey = (status: string) => `${STATUS_GROUP_PREFIX}${status}`;
 
 const FILTER_FIELD = {
   statuses: "status",
@@ -141,20 +143,48 @@ function parseGroupsKey(key: QueryKey): TableGroupsBody | null {
 }
 
 /**
+ * A status group's place in the server's order (`ORDER BY rank, key`, rank
+ * being the status's position in the workspace catalog, archived or unknown
+ * statuses last), or `undefined` when the catalog is not cached.
+ */
+type StatusRank = ((status: string) => number) | undefined;
+
+function statusRankFromCatalog(qc: QueryClient, workspaceId: string): StatusRank {
+  const catalog = qc.getQueryData<TaskStatusList>(taskKeys.statuses(workspaceId));
+  if (!catalog || !Array.isArray(catalog.statuses)) return undefined;
+  const positions = new Map<string, number>();
+  for (const status of catalog.statuses) {
+    if (!status.archived_at) positions.set(status.key, status.position);
+  }
+  return (status) => positions.get(status) ?? Number.POSITIVE_INFINITY;
+}
+
+/**
  * One status `group` counting one task more or less. A group missing from
- * the result joins it in server order (`ORDER BY status`; keys are
- * `status:<value>`, so string order over the whole key matches string order
- * over the bare status); a group that empties leaves, as the server leaves
+ * the result joins it where the server would list it — by catalog position,
+ * then key — when `rank` is known, and at the end otherwise (a guess the
+ * settle refetch corrects); a group that empties leaves, as the server leaves
  * out a status with no tasks.
  */
-function countInGroup(groups: TableGroupDescriptor[], status: string, delta: 1 | -1): TableGroupDescriptor[] {
+function countInGroup(
+  groups: TableGroupDescriptor[],
+  status: string,
+  delta: 1 | -1,
+  rank: StatusRank,
+): TableGroupDescriptor[] {
   const key = statusGroupKey(status);
   const index = groups.findIndex((group) => group.key === key);
   const group = groups[index];
   if (!group) {
     if (delta < 0) return groups;
     const added: TableGroupDescriptor = { key, value: { kind: "status", status }, count: 1 };
-    const at = groups.findIndex((other) => other.key > key);
+    const at = rank
+      ? groups.findIndex((other) => {
+          const otherRank = rank(other.key.slice(STATUS_GROUP_PREFIX.length));
+          const ownRank = rank(status);
+          return otherRank > ownRank || (otherRank === ownRank && other.key > key);
+        })
+      : -1;
     return at === -1 ? [...groups, added] : groups.toSpliced(at, 0, added);
   }
   const count = group.count + delta;
@@ -171,13 +201,14 @@ function patchStatusGroups(
   filter: TableFilter | undefined,
   before: Task,
   after: Task,
+  rank: StatusRank,
 ): TableGroupsResult | undefined {
   const wasIn = filterAdmits(filter, before);
   const isIn = filterAdmits(filter, after);
   if (wasIn === isIn && (!wasIn || before.status === after.status)) return undefined;
   let groups = data.groups;
-  if (wasIn) groups = countInGroup(groups, before.status, -1);
-  if (isIn) groups = countInGroup(groups, after.status, 1);
+  if (wasIn) groups = countInGroup(groups, before.status, -1, rank);
+  if (isIn) groups = countInGroup(groups, after.status, 1, rank);
   return { ...data, groups, total: data.total + Number(isIn) - Number(wasIn) };
 }
 
@@ -413,12 +444,13 @@ export function patchTableCaches(
       write,
     );
 
+    const rank = statusRankFromCatalog(qc, workspaceId);
     const groupsEntries = qc.getQueriesData<TableGroupsResult>({ queryKey: taskKeys.tableRoot(workspaceId) });
     for (const [key, data] of groupsEntries) {
       if (!data || !Array.isArray(data.groups)) continue;
       const body = parseGroupsKey(key);
       if (!body || body.group_by !== "status" || !body.query || body.query.search) continue;
-      const next = patchStatusGroups(data, body.query.filter, before, after);
+      const next = patchStatusGroups(data, body.query.filter, before, after, rank);
       if (next) write(key, data, next);
     }
   }
