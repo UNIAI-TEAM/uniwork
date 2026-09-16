@@ -101,6 +101,25 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   // onColumnReorder is set — undocumented columns fall back to a generic
   // label built from the column id.
   reorderHandleLabel?: (columnId: string) => string;
+  // "full" rules every cell on both axes. "horizontal" drops the vertical
+  // rules — a dense list reads along the row, and a rule between every
+  // column competes with the content — and lightens the row rules; the frozen
+  // block keeps its trailing edge so the boundary stays visible.
+  gridLines?: DataTableGridLines;
+  // Extra classes for standard data rows (not rows from renderRow). A caller
+  // that virtualizes pins the row height here to match `virtualRowHeight`.
+  rowClassName?: string;
+}
+
+type DataTableGridLines = "full" | "horizontal";
+
+// The vertical rule on a header or body cell. Pinned-edge cells keep theirs in
+// every mode: it is the one line that says where the frozen block ends.
+function cellRuleClass(gridLines: DataTableGridLines, isPinnedEdge: boolean) {
+  if (gridLines === "full") return "border-r last:border-r-0";
+  // The semantic token, not the inherited currentColor a bare `border-r`
+  // resolves to, which reads as a near-black rule.
+  return isPinnedEdge ? "border-r border-border" : undefined;
 }
 
 // Headless data-table shell — adapted from Dice UI's data-table
@@ -133,6 +152,8 @@ export function DataTable<TData>({
   reorderableColumnIds,
   onColumnReorder,
   reorderHandleLabel,
+  gridLines = "full",
+  rowClassName,
   className,
   ...props
 }: DataTableProps<TData>) {
@@ -444,6 +465,8 @@ export function DataTable<TData>({
     virtualItems,
     virtualPaddingTop,
     virtualPaddingBottom,
+    gridLines,
+    rowClassName,
   };
 
   return (
@@ -481,7 +504,12 @@ export function DataTable<TData>({
             * strip flickers black. The mix resolves to the same colour
             * bg-muted/30 composited to, and a header that scrolled content
             * passes behind has no reason to show it through anyway. */}
-            <TableHeader className="sticky top-0 z-10 bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]">
+            <TableHeader
+              className={cn(
+                "sticky top-0 z-10 bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]",
+                gridLines === "horizontal" && "[&_tr]:border-border",
+              )}
+            >
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="hover:bg-transparent">
                   {headerGroup.headers.map((header) => {
@@ -489,6 +517,9 @@ export function DataTable<TData>({
                   const columnHasExplicitSize = hasExplicitSize(
                     header.column.id,
                   );
+                  const isPinnedEdge =
+                    isPinned === "left" &&
+                    header.column.getIsLastColumn("left");
                   const headerLabel =
                     typeof header.column.columnDef.header === "string"
                       ? header.column.columnDef.header
@@ -510,6 +541,7 @@ export function DataTable<TData>({
                         columnHasExplicitSize={columnHasExplicitSize}
                         resizingColumnId={resizingColumnId}
                         reorderHandleLabel={reorderHandleLabel}
+                        gridLines={gridLines}
                         beginColumnResize={beginColumnResize}
                         autoFitColumn={autoFitColumn}
                         handleResizeKeyDown={handleResizeKeyDown}
@@ -528,12 +560,7 @@ export function DataTable<TData>({
                       // shadow to measure against. Rendered widths differ from
                       // configured ones under fixed table-layout, so the
                       // boundary has to be read off the DOM, not summed.
-                      data-pinned-edge={
-                        isPinned === "left" &&
-                        header.column.getIsLastColumn("left")
-                          ? ""
-                          : undefined
-                      }
+                      data-pinned-edge={isPinnedEdge ? "" : undefined}
                       // Header typography overrides for a "spreadsheet
                       // header" look: smaller, all-caps, wider letter
                       // spacing, muted colour. shadcn's <TableHead>
@@ -550,7 +577,8 @@ export function DataTable<TData>({
                       // muted with background to preserve the same visual tone
                       // as muted/30 without introducing alpha.
                       className={cn(
-                        "relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0 pointer-coarse:h-11",
+                        "relative h-8 overflow-hidden px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground pointer-coarse:h-11",
+                        cellRuleClass(gridLines, isPinnedEdge),
                         isPinned &&
                           "bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]",
                       )}
@@ -732,6 +760,7 @@ function DataTableSortableHeadCell<TData>({
   columnHasExplicitSize,
   resizingColumnId,
   reorderHandleLabel,
+  gridLines,
   beginColumnResize,
   autoFitColumn,
   handleResizeKeyDown,
@@ -742,6 +771,7 @@ function DataTableSortableHeadCell<TData>({
   columnHasExplicitSize: boolean;
   resizingColumnId: string | null;
   reorderHandleLabel?: (columnId: string) => string;
+  gridLines: DataTableGridLines;
   beginColumnResize: (
     header: TanstackHeader<TData, unknown>,
     event: React.PointerEvent<HTMLDivElement>,
@@ -754,6 +784,8 @@ function DataTableSortableHeadCell<TData>({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: header.column.id });
+  const isPinnedEdge =
+    isPinned === "left" && header.column.getIsLastColumn("left");
   const gripLabel = reorderHandleLabel
     ? reorderHandleLabel(header.column.id)
     : `Reorder ${headerLabel} column`;
@@ -763,13 +795,10 @@ function DataTableSortableHeadCell<TData>({
       ref={setNodeRef}
       colSpan={header.colSpan}
       data-column-id={header.column.id}
-      data-pinned-edge={
-        isPinned === "left" && header.column.getIsLastColumn("left")
-          ? ""
-          : undefined
-      }
+      data-pinned-edge={isPinnedEdge ? "" : undefined}
       className={cn(
-        "group/reorder relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0 pointer-coarse:h-11",
+        "group/reorder relative h-8 overflow-hidden px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground pointer-coarse:h-11",
+        cellRuleClass(gridLines, isPinnedEdge),
         isPinned &&
           "bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]",
         isDragging && "z-20 bg-accent",
@@ -867,6 +896,8 @@ interface DataTableBodyProps<TData> {
   virtualItems: VirtualItem[];
   virtualPaddingTop: number;
   virtualPaddingBottom: number;
+  gridLines: DataTableGridLines;
+  rowClassName?: string;
 }
 
 function DataTableBody<TData>({
@@ -881,6 +912,8 @@ function DataTableBody<TData>({
   virtualItems,
   virtualPaddingTop,
   virtualPaddingBottom,
+  gridLines,
+  rowClassName,
 }: DataTableBodyProps<TData>) {
   const renderDataRow = (row: Row<TData>, index?: number) => {
     // The virtualizer reads an element's own height off `data-index`, so a row
@@ -928,10 +961,12 @@ function DataTableBody<TData>({
         // `group` lets pinned cells track row hover via group-hover (their bg
         // is in className, not on the row, so they stay opaque enough to cover
         // content scrolling beneath them).
-        className={cn("group", onRowClick && "cursor-pointer")}
+        className={cn("group", onRowClick && "cursor-pointer", rowClassName)}
       >
         {row.getVisibleCells().map((cell) => {
           const isPinned = cell.column.getIsPinned();
+          const isPinnedEdge =
+            isPinned === "left" && cell.column.getIsLastColumn("left");
           const columnHasExplicitSize = hasExplicitSize(cell.column.id);
           return (
             <TableCell
@@ -943,7 +978,8 @@ function DataTableBody<TData>({
               // Pinned cells need an opaque bg + group-hover so they cover
               // content scrolling beneath them and follow row hover state.
               className={cn(
-                "overflow-hidden border-r px-4 py-2 last:border-r-0",
+                "overflow-hidden px-4 py-2",
+                cellRuleClass(gridLines, isPinnedEdge),
                 isPinned &&
                   "bg-background group-hover:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]",
               )}
@@ -975,7 +1011,9 @@ function DataTableBody<TData>({
     ) : null;
 
   return (
-    <TableBody>
+    <TableBody
+      className={cn(gridLines === "horizontal" && "[&>tr]:border-border/60")}
+    >
       {rows.length ? (
         virtualizeRows ? (
           <>

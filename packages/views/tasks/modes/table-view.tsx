@@ -26,7 +26,10 @@ import {
 import { toastApiError } from "../../toast-api-error";
 import { BatchActionToolbar } from "../views/batch-action-toolbar";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
-import { useTaskSurfaceSelectionHandle } from "../surface/selection-context";
+import {
+  useHasTaskSelection,
+  useTaskSurfaceSelectionHandle,
+} from "../surface/selection-context";
 import { TaskTableGroupRow } from "./table-group-row";
 import { TaskTableLoadMoreRow } from "./table-load-more-row";
 import { useTableColumnDefs } from "./table-view-columns";
@@ -384,6 +387,15 @@ export function TableView({
             className="min-h-0 flex-1"
             virtualizeRows={data.displayRows.length > 40}
             virtualRowHeight={40}
+            // 40px exactly: the 28px cell controls fill the row without the
+            // default py-2, which would make it 45px and drift from the estimate.
+            rowClassName="h-10 [&>td]:py-0"
+            gridLines="horizontal"
+            footer={
+              <SelectionToolbarSpacer
+                colSpan={table.getVisibleLeafColumns().length}
+              />
+            }
             reorderableColumnIds={reorderableColumnIds}
             onColumnReorder={onColumnReorder}
             reorderHandleLabel={reorderHandleLabel}
@@ -429,5 +441,23 @@ export function TableView({
         members={members}
       />
     </div>
+  );
+}
+
+/**
+ * Room at the end of the scroll surface for the floating batch toolbar, so
+ * the last rows and "Tải thêm" can scroll clear of it. Its own subscriber:
+ * reading the selection in TableView would re-render every cell on a tick.
+ */
+function SelectionToolbarSpacer({ colSpan }: { colSpan: number }) {
+  const hasSelection = useHasTaskSelection();
+  if (!hasSelection) return null;
+  return (
+    <tfoot aria-hidden data-slot="task-table-selection-spacer">
+      <tr>
+        {/* h-20: the toolbar (46px) plus its bottom-6 offset, and a gap. */}
+        <td colSpan={colSpan} className="h-20 p-0" />
+      </tr>
+    </tfoot>
   );
 }

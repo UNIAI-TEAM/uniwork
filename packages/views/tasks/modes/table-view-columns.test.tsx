@@ -211,6 +211,45 @@ function stubColumnRects(): () => void {
   };
 }
 
+describe("bảng: độ rộng mặc định đọc được", () => {
+  it("mỗi cột có độ rộng mặc định theo loại", async () => {
+    await renderTable(["identifier", "project", "start_date", "created_at", "property:p1"]);
+    const table = document.querySelector("table") as HTMLTableElement;
+    const width = (id: string) =>
+      table.style.getPropertyValue(`--col-${id.replace(/[^a-zA-Z0-9_-]/g, "_")}-size`);
+    expect({
+      status: width("status"),
+      priority: width("priority"),
+      assignee: width("assignee"),
+      due_date: width("due_date"),
+      labels: width("labels"),
+      identifier: width("identifier"),
+      project: width("project"),
+      start_date: width("start_date"),
+      created_at: width("created_at"),
+      property: width("property:p1"),
+    }).toEqual({
+      status: "148px",
+      priority: "152px",
+      assignee: "176px",
+      due_date: "152px",
+      labels: "180px",
+      identifier: "96px",
+      project: "168px",
+      start_date: "152px",
+      created_at: "152px",
+      property: "160px",
+    });
+  });
+
+  it("dòng dữ liệu cao 40px, lưới chỉ kẻ ngang trừ mép cột ghim", async () => {
+    const { row } = await renderTable();
+    expect(row).toHaveClass("h-10");
+    expect(cell(row, "title")).toHaveClass("border-r");
+    expect(cell(row, "status")).not.toHaveClass("border-r");
+  });
+});
+
 describe("bảng: nhãn theo hàng, không N+1", () => {
   it("bảng 30 hàng không gửi yêu cầu nào tới đường dẫn kết thúc bằng /labels", async () => {
     const base = requestMock.getMockImplementation()!;
@@ -496,6 +535,25 @@ describe("bảng: chọn hàng chỉ render lại ô chọn", () => {
     for (const title of ["Task 1", "Task 2", "Task 3"]) {
       expect(rowCheckbox(title).checked).toBe(false);
     }
+  });
+
+  it("đang chọn hàng thì cuối vùng cuộn có khoảng đệm cho thanh thao tác, không render lại ô", async () => {
+    serveRows(3);
+    await renderTable();
+    await screen.findByText("Task 3");
+    const spacer = () =>
+      document.querySelector('[data-slot="task-table-selection-spacer"]');
+    expect(spacer()).toBeNull();
+
+    const before = tableCellRenderCounter.count;
+    fireEvent.click(rowCheckbox("Task 1"));
+    await waitFor(() => expect(spacer()).not.toBeNull());
+    // Inside the scroll surface, after the rows, so "Tải thêm" scrolls clear.
+    expect(spacer()!.closest("table")).not.toBeNull();
+    expect(tableCellRenderCounter.count).toBe(before);
+
+    fireEvent.click(rowCheckbox("Task 1"));
+    await waitFor(() => expect(spacer()).toBeNull());
   });
 
   it("shift-click chọn cả dải từ hàng neo", async () => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -62,11 +62,18 @@ export function InlineTitle({
       style={{ paddingLeft: depth * 16 }}
     >
       {hasChildren && !hierarchyDisabled ? (
-        <Button
+        // A plain button rather than the Button primitive: its coarse-pointer
+        // min-h-11 would grow the 40px row the virtualizer is sized for, and
+        // its ghost variant paints `aria-expanded` as a pressed background,
+        // which would mark every open parent as active. The 44px coarse target
+        // is an invisible `after:` hit area instead, like the header's reorder
+        // grip; the global :focus-visible outline stays the focus indicator.
+        <button
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-6 shrink-0"
+          className={cn(
+            "relative flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            "after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 pointer-coarse:after:size-11",
+          )}
           aria-expanded={!collapsed}
           aria-label={
             collapsed
@@ -78,10 +85,12 @@ export function InlineTitle({
             onToggleChildren?.();
           }}
         >
-          <span className="text-caption" aria-hidden>
-            {collapsed ? "▸" : "▾"}
-          </span>
-        </Button>
+          {collapsed ? (
+            <ChevronRight className="size-3.5" aria-hidden />
+          ) : (
+            <ChevronDown className="size-3.5" aria-hidden />
+          )}
+        </button>
       ) : (
         <span className="inline-block size-6 shrink-0" aria-hidden />
       )}

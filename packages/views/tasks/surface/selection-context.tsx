@@ -181,6 +181,13 @@ export function useIsTaskSelected(id: string): boolean {
   return useSyncExternalStore(store.subscribe, isSelected, isSelected);
 }
 
+/** Re-renders only when the selection goes from empty to non-empty or back. */
+export function useHasTaskSelection(): boolean {
+  const { store } = useTaskSurfaceSelectionHandle();
+  const hasSelection = () => store.getSnapshot().size > 0;
+  return useSyncExternalStore(store.subscribe, hasSelection, hasSelection);
+}
+
 /** Re-renders only when the summary over `ids` changes. */
 export function useSelectionSummary(
   ids: readonly string[],

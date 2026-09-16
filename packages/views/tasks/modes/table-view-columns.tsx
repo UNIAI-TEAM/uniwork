@@ -25,6 +25,31 @@ import {
   useRowActionModel,
 } from "../row-actions-menu";
 
+// Wide enough that the common values of each kind fit untruncated inside the
+// cell's px-4, measured in the browser: "Trung bình" and "Không ưu tiên" need
+// 152px, a full date ("30 thg 9, 2026") 152px, "Chưa giao" with its avatar and
+// chevron 176px. The user can still resize any of them.
+const DEFAULT_COLUMN_WIDTHS: Partial<Record<TableColumnKey, number>> = {
+  title: 360,
+  identifier: 96,
+  status: 148,
+  priority: 152,
+  assignee: 176,
+  labels: 180,
+  project: 168,
+  start_date: 152,
+  due_date: 152,
+  created_at: 152,
+  updated_at: 152,
+};
+const DEFAULT_PROPERTY_COLUMN_WIDTH = 160;
+const DEFAULT_COLUMN_WIDTH = 140;
+
+function defaultColumnWidth(columnKey: TableColumnKey): number {
+  if (columnKey.startsWith("property:")) return DEFAULT_PROPERTY_COLUMN_WIDTH;
+  return DEFAULT_COLUMN_WIDTHS[columnKey] ?? DEFAULT_COLUMN_WIDTH;
+}
+
 function stopRowNavigation(event: SyntheticEvent) {
   event.stopPropagation();
 }
@@ -156,7 +181,7 @@ export function useTableColumnDefs(
       (columnKey) => ({
         id: columnKey,
         accessorFn: () => columnKey,
-        size: columnKey === "title" ? 360 : 140,
+        size: defaultColumnWidth(columnKey),
         minSize: 80,
         header: ({ table }) => (
           <HeaderLabel columnKey={columnKey} table={table} />
