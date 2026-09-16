@@ -110,7 +110,7 @@ function commentsResponse() {
 }
 
 const FIND_LABEL = /tìm trong công việc|find in task/i;
-const THREAD_NAV = /điều hướng luồng|thread navigation/i;
+const THREAD_NAV_SEARCH = /search threads|tìm luồng/i;
 
 function shell(ui: ReactNode) {
   return wrapWithNav(
@@ -488,10 +488,11 @@ describe("tìm trong trang chi tiết task", () => {
       await waitFor(() => expect(findCount()).toHaveTextContent("1/2"));
     });
 
-    // A chip jump is the person going to a thread, which the store remembers.
-    // While find had the thread open, the jump read the merged set, skipped the
-    // store write, and closing the bar folded the thread again.
-    it("bấm chip tới luồng đang mở vì tìm thì luồng được nhớ: đóng thanh tìm vẫn mở", async () => {
+    // A header thread-nav jump is the person going to a thread, which the
+    // store remembers. While find had the thread open, the jump read the
+    // merged set, skipped the store write, and closing the bar folded the
+    // thread again.
+    it("nhảy tới luồng đang mở vì tìm qua header thread-nav thì luồng được nhớ: đóng thanh tìm vẫn mở", async () => {
       comments = [
         { id: "c1", body: "luồng một", at: "00" },
         { id: "c2", body: "luồng hai đã giải quyết", at: "01", resolved: true },
@@ -500,7 +501,7 @@ describe("tìm trong trang chi tiết task", () => {
         { id: "c5", body: "luồng bốn", at: "04" },
       ];
       await renderPage();
-      await screen.findByRole("navigation", { name: THREAD_NAV });
+      const trigger = await screen.findByTestId("task-thread-nav-trigger");
       expect(screen.queryByText("trả lời cần tìm")).toBeNull();
 
       const input = await openFind();
@@ -508,7 +509,8 @@ describe("tìm trong trang chi tiết task", () => {
       expect(await screen.findByText("trả lời cần tìm")).toBeInTheDocument();
       expect(useTaskDetailUiStore.getState().tasks).toEqual({});
 
-      fireEvent.click(screen.getByTestId("thread-nav-c2"));
+      fireEvent.click(trigger);
+      fireEvent.click(await screen.findByTestId("thread-nav-c2"));
       fireEvent.keyDown(input, { key: "Escape" });
 
       expect(screen.queryByRole("search")).toBeNull();
@@ -557,11 +559,8 @@ describe("tìm trong trang chi tiết task", () => {
     const chord = createShortcutChord("E", { primary: true, shift: true });
     const pressThreadNav = (target: Element = document.body) =>
       fireEvent.keyDown(target, { key: "E", metaKey: true, shiftKey: true });
-    const fourThreads: CommentFixture[] = [
+    const oneThread: CommentFixture[] = [
       { id: "c1", body: "luồng một", at: "00" },
-      { id: "c2", body: "luồng hai", at: "01" },
-      { id: "c3", body: "luồng ba", at: "02" },
-      { id: "c4", body: "luồng bốn", at: "03" },
     ];
 
     beforeEach(() => {
@@ -569,20 +568,23 @@ describe("tìm trong trang chi tiết task", () => {
       expect(getShortcut("openThreadNav")).toEqual(chord);
     });
 
-    it("gán phím rồi nhấn trên trang chi tiết thì focus vào mục đầu của bảng điều hướng luồng", async () => {
-      comments = fourThreads;
+    it("gán phím rồi nhấn trên trang chi tiết thì mở bảng và focus ô tìm luồng", async () => {
+      comments = oneThread;
       await renderPage();
-      const nav = await screen.findByRole("navigation", { name: THREAD_NAV });
+      await screen.findByTestId("task-thread-nav-trigger");
 
       expect(pressThreadNav()).toBe(false);
 
-      expect(within(nav).getAllByRole("button")[0]).toHaveFocus();
+      const panel = await screen.findByTestId("task-thread-nav-panel");
+      const search = within(panel).getByPlaceholderText(THREAD_NAV_SEARCH);
+      await waitFor(() => expect(search).toHaveFocus());
     });
 
-    it("bảng tự ẩn khi dưới bốn luồng thì phím không làm gì và không ném lỗi", async () => {
-      comments = fourThreads.slice(0, 3);
+    it("không có luồng thì không có nút trigger và phím không làm gì", async () => {
+      comments = [];
       await renderPage();
-      await screen.findByText("luồng ba");
+      await screen.findByText(/chưa có bình luận|no comments yet/i);
+      expect(screen.queryByTestId("task-thread-nav-trigger")).toBeNull();
       const before = document.activeElement;
 
       expect(pressThreadNav()).toBe(true);
@@ -590,22 +592,33 @@ describe("tìm trong trang chi tiết task", () => {
       expect(document.activeElement).toBe(before);
     });
 
-    it("không phản ứng khi đích là ô soạn thảo hay lớp popup", async () => {
-      comments = fourThreads;
+    it("trong editor mô tả vẫn mở bảng (allowInEditable)", async () => {
+      comments = oneThread;
+      await renderPage();
+      await screen.findByTestId("task-thread-nav-trigger");
+      const surface = await descriptionSurface();
+
+      expect(pressThreadNav(surface)).toBe(false);
+
+      const panel = await screen.findByTestId("task-thread-nav-panel");
+      await waitFor(() =>
+        expect(within(panel).getByPlaceholderText(THREAD_NAV_SEARCH)).toHaveFocus(),
+      );
+    });
+
+    it("trong lớp popup thì không mở bảng", async () => {
+      comments = oneThread;
       await renderPage(
         <div role="menu">
           <button type="button">mục menu</button>
         </div>,
       );
-      const nav = await screen.findByRole("navigation", { name: THREAD_NAV });
-      const first = within(nav).getAllByRole("button")[0]!;
-
-      expect(pressThreadNav(await descriptionSurface())).toBe(true);
-      expect(first).not.toHaveFocus();
+      await screen.findByTestId("task-thread-nav-trigger");
 
       const menuItem = screen.getByRole("button", { name: "mục menu" });
       menuItem.focus();
       expect(pressThreadNav(menuItem)).toBe(true);
+      expect(screen.queryByTestId("task-thread-nav-panel")).toBeNull();
       expect(menuItem).toHaveFocus();
     });
   });

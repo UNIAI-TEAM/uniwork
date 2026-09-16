@@ -639,7 +639,7 @@
         "open_search": { "label": "Open search", "description": "Search and run commands from anywhere." },
         "create_task": { "label": "Create task", "description": "Open the new task dialog." },
         "find_in_task": { "label": "Find in task", "description": "Search text on the open task page." },
-        "open_thread_nav": { "label": "Thread navigation", "description": "Move focus to the discussion threads of the open task." },
+        "open_thread_nav": { "label": "Thread navigation", "description": "Open or pin the thread navigation panel on the open task." },
         "send": { "label": "Send", "description": "Send comments and replies from the editor." },
         "go_back": { "label": "Go back", "description": "Navigate back through history, like a browser." },
         "go_forward": { "label": "Go forward", "description": "Navigate forward through history, like a browser." },
@@ -1111,9 +1111,26 @@
       "activity_error": "Could not load activity. Try again later.",
       "thread_resolved_one": "Resolved thread · {{count}} reply",
       "thread_resolved_other": "Resolved thread · {{count}} replies",
-      "thread_nav": "Thread navigation",
-      "thread_nav_replies_one": "· {{count}} reply",
-      "thread_nav_replies_other": "· {{count}} replies",
+      "thread_nav": {
+        "button_label_one": "Comment threads ({{count}})",
+        "button_label_other": "Comment threads ({{count}})",
+        "search_placeholder": "Search threads or authors",
+        "match_count_one": "{{count}} match",
+        "match_count_other": "{{count}} matches",
+        "filter_all": "All",
+        "filter_unresolved": "Unresolved",
+        "filter_resolved": "Resolved",
+        "filter_mine": "@me",
+        "group": {
+          "today": "Today",
+          "yesterday": "Yesterday",
+          "earlier": "Earlier"
+        },
+        "empty": "No threads match",
+        "hint_select": "select",
+        "hint_jump": "jump",
+        "hint_close": "close"
+      },
       "find": {
         "label": "Find in task",
         "placeholder": "Find in task…",

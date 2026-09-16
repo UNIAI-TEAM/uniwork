@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, MoreHorizontal, Pin, PinOff } from "lucide-react";
+import { MoreHorizontal, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  useComments,
   useCreatePin,
   useDeletePin,
   useDeleteTask,
@@ -38,6 +37,7 @@ import {
   RowActionItems,
   type TaskUpdates,
 } from "../../row-actions-items";
+import { TaskDetailThreadNav } from "./task-detail-thread-nav";
 
 export function TaskDetailHeaderActions({
   workspaceId,
@@ -52,7 +52,6 @@ export function TaskDetailHeaderActions({
 }) {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const comments = useComments(task.id);
   const pins = usePins(workspaceId);
   const createPin = useCreatePin(workspaceId);
   const deletePin = useDeletePin(workspaceId);
@@ -118,21 +117,7 @@ export function TaskDetailHeaderActions({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="gap-1.5 text-muted-foreground"
-        aria-label={t("tasks.detail.comments_count", { count: comments.data?.length ?? 0 })}
-        onClick={() =>
-          document
-            .querySelector<HTMLElement>("[data-testid='task-detail-timeline']")
-            ?.scrollIntoView({ block: "start" })
-        }
-      >
-        <MessageSquare aria-hidden />
-        <span className="tabular-nums">{comments.data?.length ?? 0}</span>
-      </Button>
+      <TaskDetailThreadNav workspaceId={workspaceId} taskId={task.id} />
       <Button
         type="button"
         variant="ghost"
