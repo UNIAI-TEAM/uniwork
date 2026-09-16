@@ -240,9 +240,8 @@ export function useTaskSurfaceController({
   const facetsBody = useMemo(() => {
     if (!tableEnabled || !activeTableFacet) return null;
     return {
-      filter: tableFilter,
+      query: { filter: tableFilter },
       facets: [activeTableFacet.kind],
-      columns: undefined,
     };
   }, [activeTableFacet, tableEnabled, tableFilter]);
 
