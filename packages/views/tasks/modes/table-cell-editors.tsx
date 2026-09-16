@@ -271,7 +271,7 @@ export function TableLabelsCell({
   attached: TableRowLabel[];
 }) {
   const { t } = useTranslation();
-  const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId);
+  const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId, labels);
   const selectedIds = new Set(attached.map((label) => label.id));
   // Mirrors the chips below: two names, then "+N", or the empty placeholder.
   const shownLabels =

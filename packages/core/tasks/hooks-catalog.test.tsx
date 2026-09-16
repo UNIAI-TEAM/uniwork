@@ -4,10 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import type { Task } from "../types/task";
-import { useSetTaskPropertyValue, useUnsetTaskPropertyValue } from "./hooks-catalog";
+import {
+  patchTaskLabelCaches,
+  rollbackTaskCacheWrites,
+  useSetTaskPropertyValue,
+  useUnsetTaskPropertyValue,
+  withLabelSorted,
+  withoutLabelId,
+} from "./hooks-catalog";
 import { taskKeys } from "./keys";
 import { tableRowsPageBody, tableRowsPageQuery } from "./surface/table-query";
-import type { TableRowsResult } from "../api/endpoints/tasks-table";
+import type { TableRowLabel, TableRowsResult } from "../api/endpoints/tasks-table";
 
 const WS = "ws1";
 
@@ -206,5 +213,73 @@ describe("useUnsetTaskPropertyValue", () => {
 
     expect(rowsOf(qc, key)).toStrictEqual(before);
     expect(qc.getQueryData<Task>(taskKeys.detail("A"))).toStrictEqual(A);
+  });
+});
+
+describe("withLabelSorted / withoutLabelId", () => {
+  it("inserts a label kept sorted by name, case-insensitively", () => {
+    const zulu: TableRowLabel = { id: "l2", name: "Zulu", color: "#000000" };
+    const bug: TableRowLabel = { id: "l1", name: "bug", color: "#ef4444" };
+    expect(withLabelSorted([zulu], bug)).toEqual([bug, zulu]);
+  });
+
+  it("replaces an existing entry with the same id instead of duplicating it", () => {
+    const before: TableRowLabel = { id: "l1", name: "Bug", color: "#ef4444" };
+    const renamed: TableRowLabel = { id: "l1", name: "Bug (renamed)", color: "#ef4444" };
+    expect(withLabelSorted([before], renamed)).toEqual([renamed]);
+  });
+
+  it("removes a label by id", () => {
+    const bug: TableRowLabel = { id: "l1", name: "Bug", color: "#ef4444" };
+    const frontend: TableRowLabel = { id: "l2", name: "Frontend", color: "#3b82f6" };
+    expect(withoutLabelId([bug, frontend], "l1")).toEqual([frontend]);
+  });
+});
+
+describe("patchTaskLabelCaches / rollbackTaskCacheWrites", () => {
+  const A = task("A");
+  const key = rowsKey();
+  const bug: TableRowLabel = { id: "l1", name: "Bug", color: "#ef4444" };
+
+  it("writes the task's labels in every cached rows page that holds it", () => {
+    const qc = newClient();
+    qc.setQueryData(key, rowsPage([A]));
+
+    patchTaskLabelCaches(qc, WS, "A", (current) => withLabelSorted(current, bug));
+
+    expect(rowsOf(qc, key)?.rows[0]?.labels).toEqual([bug]);
+  });
+
+  it("leaves another task's row in the same page untouched", () => {
+    const qc = newClient();
+    const B = task("B");
+    qc.setQueryData(key, rowsPage([A, B]));
+
+    patchTaskLabelCaches(qc, WS, "A", (current) => withLabelSorted(current, bug));
+
+    expect(rowsOf(qc, key)?.rows[1]?.labels).toEqual([]);
+  });
+
+  it("restores a page nothing else has rewritten since", () => {
+    const qc = newClient();
+    const before = rowsPage([A]);
+    qc.setQueryData(key, before);
+
+    const writes = patchTaskLabelCaches(qc, WS, "A", (current) => withLabelSorted(current, bug));
+    rollbackTaskCacheWrites(qc, writes);
+
+    expect(rowsOf(qc, key)).toStrictEqual(before);
+  });
+
+  it("is a no-op once a later write has already replaced the page", () => {
+    const qc = newClient();
+    qc.setQueryData(key, rowsPage([A]));
+    const writes = patchTaskLabelCaches(qc, WS, "A", (current) => withLabelSorted(current, bug));
+
+    const settled = rowsPage([task("A", { title: "Renamed" })]);
+    qc.setQueryData(key, settled);
+    rollbackTaskCacheWrites(qc, writes);
+
+    expect(rowsOf(qc, key)).toStrictEqual(settled);
   });
 });

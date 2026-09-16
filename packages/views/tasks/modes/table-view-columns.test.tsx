@@ -233,6 +233,9 @@ describe("bảng: nhãn theo hàng, không N+1", () => {
     });
     await renderTable();
     await screen.findByText("Task 30");
+    // `endsWith("/labels")` only catches GET-list and POST-attach
+    // (`/tasks/{id}/labels`); a DELETE detach is `/tasks/{id}/labels/{labelId}`
+    // and would not match — this render never toggles, so it doesn't matter here.
     expect(
       requestMock.mock.calls.filter(([path]) => (path as string).endsWith("/labels")),
     ).toHaveLength(0);

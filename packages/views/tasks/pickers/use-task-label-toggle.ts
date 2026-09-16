@@ -3,7 +3,17 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { taskKeys, useAttachTaskLabel, useDetachTaskLabel } from "@uniwork/core/tasks";
+import {
+  patchTaskLabelCaches,
+  rollbackTaskCacheWrites,
+  taskKeys,
+  useAttachTaskLabel,
+  useDetachTaskLabel,
+  withLabelSorted,
+  withoutLabelId,
+  type TaskCacheWrite,
+} from "@uniwork/core/tasks";
+import type { TaskLabel } from "@uniwork/core/types";
 import { toastApiError } from "../../toast-api-error";
 
 function without(set: ReadonlySet<string>, id: string): Set<string> {
@@ -25,12 +35,20 @@ function without(set: ReadonlySet<string>, id: string): Set<string> {
  * `pendingIds` tracks in-flight toggles per label, so a label mid-request can't
  * be double-toggled while the other labels in the same menu stay clickable.
  *
- * A successful toggle also invalidates `taskKeys.tableRoot(workspaceId)`: the
- * table cell reads its row's `labels` straight off the table-rows cache (no
- * per-row query), so that cache is what has to refresh for the picker and the
- * chips to catch up.
+ * `labels` is the workspace label catalog (the table cell and the detail
+ * sidebar both already hold it, for the picker's own choices) — it is where
+ * an attach's optimistic `{id, name, color}` comes from. Before the request
+ * goes out, `toggle` patches the task's row in every cached
+ * `taskKeys.tableRoot(workspaceId)` table-rows page (`patchTaskLabelCaches`
+ * in core, mirroring `patchTaskPropertyCaches`): the table cell reads a row's
+ * `labels` straight off that cache, no per-row query (task 18), so that's
+ * what has to change for the chip to update without waiting on a round trip.
+ * A failure rolls the patch back (`rollbackTaskCacheWrites`) before toasting.
+ * Either way, `taskKeys.tableRoot(workspaceId)` is invalidated once the
+ * request settles, so the optimistic write is only ever a bridge to the
+ * server's answer.
  */
-export function useTaskLabelToggle(workspaceId: string, taskId: string) {
+export function useTaskLabelToggle(workspaceId: string, taskId: string, labels: TaskLabel[]) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const attach = useAttachTaskLabel(workspaceId, taskId);
@@ -40,15 +58,32 @@ export function useTaskLabelToggle(workspaceId: string, taskId: string) {
   const toggle = useCallback(
     (labelId: string, checked: boolean) => {
       setPendingIds((prev) => new Set(prev).add(labelId));
+
+      let writes: TaskCacheWrite[] = [];
+      if (checked) {
+        const catalogLabel = labels.find((label) => label.id === labelId);
+        if (catalogLabel) {
+          const { id, name, color } = catalogLabel;
+          writes = patchTaskLabelCaches(qc, workspaceId, taskId, (current) =>
+            withLabelSorted(current, { id, name, color }),
+          );
+        }
+      } else {
+        writes = patchTaskLabelCaches(qc, workspaceId, taskId, (current) => withoutLabelId(current, labelId));
+      }
+
       const run = checked ? attach.mutateAsync : detach.mutateAsync;
       void run(labelId)
-        .then(() => {
-          void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
+        .catch((err: unknown) => {
+          rollbackTaskCacheWrites(qc, writes);
+          toastApiError(err, t("common.error"));
         })
-        .catch((err: unknown) => toastApiError(err, t("common.error")))
-        .finally(() => setPendingIds((prev) => without(prev, labelId)));
+        .finally(() => {
+          setPendingIds((prev) => without(prev, labelId));
+          void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
+        });
     },
-    [attach.mutateAsync, detach.mutateAsync, qc, t, workspaceId],
+    [attach.mutateAsync, detach.mutateAsync, labels, qc, t, taskId, workspaceId],
   );
 
   return { toggle, pendingIds };
