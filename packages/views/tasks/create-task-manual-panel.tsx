@@ -1,18 +1,35 @@
 "use client";
 
-import { useRef } from "react";
-import { Maximize2, Minimize2, Paperclip, X } from "lucide-react";
+import { useRef, type ReactNode } from "react";
+import {
+  ArrowLeftRight,
+  Maximize2,
+  Minimize2,
+  Paperclip,
+  Tag,
+  UserRound,
+  X,
+} from "lucide-react";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import type { CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { Select } from "@uniwork/ui/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { PillButton } from "../common/pill-button";
 import { ContentEditor } from "../editor";
 import { ShortcutKeycaps } from "../editor/shortcut-keycaps";
+import { ProjectIcon } from "../projects/components/project-icon";
+import { PriorityIcon } from "./icons/priority-icon";
+import { StatusIcon } from "./icons/status-icon";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
 import { AssigneePicker } from "./pickers/assignee-picker";
 import { LabelPicker } from "./pickers/label-picker";
@@ -29,7 +46,39 @@ export type CreateTaskManualPanelProps = {
 };
 
 const pillTriggerClass =
-  "h-8 max-w-56 justify-start rounded-full border border-border/80 bg-muted/40 px-2.5 text-caption font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground";
+  "h-7 max-w-56 min-w-0 justify-start rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-caption font-medium text-muted-foreground shadow-none hover:bg-accent/60 hover:text-foreground";
+
+type CompactSelectProps = {
+  id: string;
+  label: string;
+  items: { value: string; label: string }[];
+  value: string;
+  onValueChange: (value: string | null) => void;
+  icon: ReactNode;
+};
+
+function CompactSelect({ id, label, items, value, onValueChange, icon }: CompactSelectProps) {
+  return (
+    <Select items={items} value={value} onValueChange={onValueChange}>
+      <SelectTrigger
+        id={id}
+        aria-label={label}
+        size="sm"
+        className={pillTriggerClass}
+      >
+        {icon}
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start">
+        {items.map((item) => (
+          <SelectItem key={item.value} value={item.value}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function CreateTaskManualPanel({
   workspaceId,
@@ -80,7 +129,7 @@ export function CreateTaskManualPanel({
         submit();
       }}
     >
-      <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
         <div className="min-w-0">
           <DialogTitle className="truncate text-body font-medium">
             {workspaceName}
@@ -107,8 +156,9 @@ export function CreateTaskManualPanel({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+      <div className="shrink-0 px-5 pb-2">
         <Input
+          aria-label={t("tasks.create.title_placeholder")}
           value={draft.title}
           onChange={(event) => updateDraft({ title: event.target.value })}
           onKeyDown={(event) => {
@@ -121,9 +171,12 @@ export function CreateTaskManualPanel({
           required
           maxLength={200}
           autoFocus
-          className="border-0 bg-transparent px-0 text-title shadow-none focus-visible:ring-0"
+          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-title font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0 md:text-title dark:bg-transparent"
         />
-        <div className="min-h-24">
+      </div>
+
+      <div data-testid="create-task-composer-body" className="flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 overflow-y-auto px-5">
           <ContentEditor
             key={draft.idempotencyKey}
             defaultValue={draft.description ?? ""}
@@ -134,24 +187,27 @@ export function CreateTaskManualPanel({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
+        <div
+          data-testid="create-task-property-toolbar"
+          className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 py-2"
+        >
+          <CompactSelect
             id="task-status"
-            aria-label={t("tasks.status")}
+            label={t("tasks.status")}
             items={statusItems}
             value={draft.status ?? "todo"}
             onValueChange={(value) => updateDraft({ status: value ?? "todo" })}
-            triggerVariant="subtle"
+            icon={<StatusIcon status={draft.status ?? "todo"} className="size-3.5" />}
           />
-          <Select
+          <CompactSelect
             id="task-priority"
-            aria-label={t("tasks.priority")}
+            label={t("tasks.priority")}
             items={priorityItems}
             value={draft.priority ?? "none"}
             onValueChange={(value) =>
               updateDraft({ priority: (value as CreateTaskDraft["priority"]) ?? "none" })
             }
-            triggerVariant="subtle"
+            icon={<PriorityIcon priority={draft.priority ?? "none"} />}
           />
           <AssigneePicker
             value={assignee}
@@ -164,6 +220,7 @@ export function CreateTaskManualPanel({
             noResultsLabel={t("tasks.assignee_no_results")}
             triggerClassName={pillTriggerClass}
           >
+            <UserRound className="size-3.5 shrink-0" aria-hidden />
             <span className="truncate">{assigneeLabel}</span>
           </AssigneePicker>
           <LabelPicker
@@ -180,19 +237,20 @@ export function CreateTaskManualPanel({
             emptyLabel={t("tasks.table.labels_empty")}
             triggerClassName={pillTriggerClass}
           >
+            <Tag className="size-3.5 shrink-0" aria-hidden />
             <span className="truncate">
               {t("tasks.create.labels_selected", { count: draft.labelIds?.length ?? 0 })}
             </span>
           </LabelPicker>
-          <Select
+          <CompactSelect
             id="task-project"
-            aria-label={t("tasks.create.project")}
+            label={t("tasks.create.project")}
             items={projectItems}
             value={draft.projectId || "__none__"}
             onValueChange={(value) =>
               updateDraft({ projectId: !value || value === "__none__" ? undefined : value })
             }
-            triggerVariant="subtle"
+            icon={<ProjectIcon />}
           />
           <CreateTaskManualOverflow
             moreFieldsLabel={t("tasks.create.more_fields")}
@@ -220,14 +278,14 @@ export function CreateTaskManualPanel({
         </div>
 
         {uploadAttachment.isPending ? (
-          <p className="text-caption text-muted-foreground" aria-live="polite">
+          <p className="px-5 py-1 text-caption text-muted-foreground" aria-live="polite">
             {t("tasks.detail.attachments_uploading", {
               filename: uploadAttachment.variables?.name ?? "",
             })}
           </p>
         ) : null}
         {failedFile ? (
-          <div className="flex items-center justify-between gap-2 text-body" role="alert">
+          <div className="flex items-center justify-between gap-2 px-5 py-1 text-body" role="alert">
             <span>{t("editor.upload.failed_label", { filename: failedFile.name })}</span>
             <Button type="button" variant="outline" size="sm" onClick={() => uploadFile(failedFile)}>
               {t("common.retry")}
@@ -235,7 +293,7 @@ export function CreateTaskManualPanel({
           </div>
         ) : null}
         {(draft.attachments ?? []).map((attachment) => (
-          <div key={attachment.id} className="flex items-center justify-between gap-2 text-body">
+          <div key={attachment.id} className="flex items-center justify-between gap-2 px-5 py-1 text-body">
             <span className="truncate">{attachment.filename}</span>
             <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(attachment.id)}>
               {t("editor.upload.remove")}
@@ -244,8 +302,11 @@ export function CreateTaskManualPanel({
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <div
+        data-testid="create-task-footer"
+        className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t px-4 py-3 sm:flex sm:flex-wrap"
+      >
+        <div className="flex min-h-7 items-center gap-2 sm:mr-auto">
           <input
             ref={fileInputRef}
             id="task-attachments"
@@ -266,30 +327,35 @@ export function CreateTaskManualPanel({
           >
             <Paperclip className="size-3.5" aria-hidden />
           </PillButton>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-disabled={busy || undefined}
-            onClick={() => onSwitchMode({ project_id: draft.projectId })}
-          >
-            {t("tasks.create.switch_to_agent")}
-          </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-caption text-muted-foreground">
-            <Switch
-              checked={createAnother}
-              onCheckedChange={setCreateAnother}
-              aria-label={t("tasks.create.create_another_short")}
-            />
-            <span aria-hidden>{t("tasks.create.create_another_short")}</span>
-          </label>
-          <Button type="submit" aria-disabled={!canSubmit || undefined} className="gap-2">
-            {busy ? t("tasks.create.creating") : t("common.create")}
-            {!busy && sendShortcut ? <ShortcutKeycaps shortcut={sendShortcut} decorative /> : null}
-          </Button>
-        </div>
+        <button
+          type="button"
+          aria-disabled={busy || undefined}
+          aria-busy={busy || undefined}
+          title={t("tasks.create.switch_to_agent")}
+          className="group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/20 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          onClick={() => {
+            if (!busy) onSwitchMode({ project_id: draft.projectId });
+          }}
+        >
+          <ArrowLeftRight
+            className="size-3.5 shrink-0 text-primary transition-transform duration-300 group-hover:rotate-180 motion-reduce:transition-none"
+            aria-hidden
+          />
+          {t("tasks.create.switch_to_agent")}
+        </button>
+        <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted-foreground">
+          <Switch
+            checked={createAnother}
+            onCheckedChange={setCreateAnother}
+            aria-label={t("tasks.create.create_another_short")}
+          />
+          <span aria-hidden>{t("tasks.create.create_another_short")}</span>
+        </label>
+        <Button type="submit" aria-disabled={!canSubmit || undefined} className="justify-self-end gap-2">
+          {busy ? t("tasks.create.creating") : t("common.create")}
+          {!busy && sendShortcut ? <ShortcutKeycaps shortcut={sendShortcut} decorative /> : null}
+        </Button>
       </div>
     </form>
   );

@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 
 const pillChrome =
-  "inline-flex h-8 max-w-56 min-w-0 items-center gap-1 rounded-full border border-border/80 bg-muted/40 px-2.5 text-caption font-medium text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex max-w-56 min-w-0 items-center gap-1.5 overflow-hidden rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-caption font-medium text-muted-foreground shadow-none transition-colors hover:bg-accent/60 hover:text-foreground disabled:pointer-events-none disabled:opacity-50";
 
 export function PillButton({ className, type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button type={type} className={cn(pillChrome, className)} {...props} />;
@@ -27,7 +27,13 @@ export function ClearablePillButton({
   disabled,
 }: ClearablePillButtonProps) {
   return (
-    <span className={cn("inline-flex max-w-56 min-w-0 items-center gap-0.5", className)}>
+    <span
+      className={cn(
+        "inline-flex max-w-56 min-w-0 items-center overflow-hidden rounded-full border border-border/80 bg-transparent text-caption text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground",
+        "[&_[data-slot=select-trigger]]:h-7 [&_[data-slot=select-trigger]]:w-fit [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:border-0 [&_[data-slot=select-trigger]]:bg-transparent [&_[data-slot=select-trigger]]:shadow-none [&_[data-slot=select-trigger]]:hover:bg-transparent",
+        className,
+      )}
+    >
       {children}
       <button
         type="button"

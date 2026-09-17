@@ -15,6 +15,7 @@ import { Select } from "@uniwork/ui/components/ui/select";
 import { DateField } from "../common/date-field";
 import { ClearablePillButton, PillButton } from "../common/pill-button";
 import { CreateTaskCustomProperties } from "./create-task-custom-properties";
+import { PropertyIcon } from "./icons/property-icon";
 
 export type OverflowFieldKey =
   | "parent"
@@ -93,7 +94,7 @@ export function CreateTaskManualOverflow({
   onPropertyChange,
 }: CreateTaskManualOverflowProps) {
   const hiddenProperties = properties.filter((property) => !revealed.has(propertyFieldKey(property.id)));
-  const menuItems: { key: OverflowFieldKey; label: string }[] = [
+  const menuItems: { key: OverflowFieldKey; label: string; icon?: ReactNode }[] = [
     ...(!revealed.has("parent") ? [{ key: "parent" as const, label: parentLabel }] : []),
     ...(!revealed.has("stage") ? [{ key: "stage" as const, label: stageLabel }] : []),
     ...(!revealed.has("start_date") ? [{ key: "start_date" as const, label: startDateLabel }] : []),
@@ -101,6 +102,7 @@ export function CreateTaskManualOverflow({
     ...hiddenProperties.map((property) => ({
       key: propertyFieldKey(property.id),
       label: property.name,
+      icon: <PropertyIcon property={property} className="size-3.5 text-muted-foreground" />,
     })),
   ];
 
@@ -215,6 +217,7 @@ export function CreateTaskManualOverflow({
           <DropdownMenuContent align="start" className="min-w-44">
             {menuItems.map((item) => (
               <DropdownMenuItem key={item.key} onClick={() => onReveal(item.key)}>
+                {item.icon}
                 {item.label}
               </DropdownMenuItem>
             ))}

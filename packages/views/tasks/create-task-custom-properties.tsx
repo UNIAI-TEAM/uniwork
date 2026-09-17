@@ -6,8 +6,18 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { DateField } from "../common/date-field";
+import { PropertyIcon } from "./icons/property-icon";
 
 type PropertyOption = { value: string; label: string };
+
+function PropertyLabel({ property }: { property: TaskProperty }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <PropertyIcon property={property} className="size-3.5 text-muted-foreground" />
+      <span>{property.name}</span>
+    </span>
+  );
+}
 
 function optionsFor(property: TaskProperty): PropertyOption[] {
   const raw = property.config?.options;
@@ -40,7 +50,7 @@ export function CreateTaskCustomProperties({
       return (
         <label key={property.id} className="flex items-center gap-2 text-body">
           <Checkbox checked={value === true} onCheckedChange={(checked) => onChange(property.id, checked)} />
-          {property.name}
+          <PropertyLabel property={property} />
         </label>
       );
     }
@@ -48,7 +58,7 @@ export function CreateTaskCustomProperties({
     if (property.type === "select" && options.length > 0) {
       return (
         <div key={property.id} className="space-y-1.5">
-          <Label htmlFor={id}>{property.name}</Label>
+          <Label htmlFor={id}><PropertyLabel property={property} /></Label>
           <Select
             id={id}
             items={[{ value: "__none__", label: "—" }, ...options]}
@@ -65,7 +75,7 @@ export function CreateTaskCustomProperties({
       );
       return (
         <fieldset key={property.id} className="space-y-1.5">
-          <legend className="text-body font-medium">{property.name}</legend>
+          <legend className="text-body font-medium"><PropertyLabel property={property} /></legend>
           <div className="flex flex-wrap gap-3">
             {options.map((option) => (
               <label key={option.value} className="flex items-center gap-2 text-body">
@@ -89,7 +99,7 @@ export function CreateTaskCustomProperties({
     if (property.type === "date") {
       return (
         <div key={property.id} className="space-y-1.5">
-          <Label htmlFor={id}>{property.name}</Label>
+          <Label htmlFor={id}><PropertyLabel property={property} /></Label>
           <DateField id={id} value={typeof value === "string" ? value : ""} onChange={(next) => onChange(property.id, next || undefined)} modal={false} />
         </div>
       );
@@ -97,7 +107,7 @@ export function CreateTaskCustomProperties({
 
     return (
       <div key={property.id} className="space-y-1.5">
-        <Label htmlFor={id}>{property.name}</Label>
+        <Label htmlFor={id}><PropertyLabel property={property} /></Label>
         <Input
           id={id}
           type={property.type === "number" ? "number" : property.type === "url" ? "url" : "text"}
