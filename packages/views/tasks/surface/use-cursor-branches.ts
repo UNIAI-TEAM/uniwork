@@ -26,8 +26,13 @@ export interface CursorBranchState {
   isFetchingMore: boolean;
   /** The last page failed and has no data. */
   isError: boolean;
-  /** The last page has a `next_cursor`. */
+  /**
+   * The last page has a `next_cursor`. Never while the first page is the
+   * previous query's: its cursor belongs to that query.
+   */
   hasMore: boolean;
+  /** The first page shown is the previous query's, kept while the changed query loads. */
+  isShowingPrevious: boolean;
   /** Asks the next page; a no-op while one is on its way, a retry when the last page failed. */
   loadMore: () => void;
   /** Refetches the failed page. */
@@ -36,7 +41,7 @@ export interface CursorBranchState {
 
 type PageState = Pick<
   UseQueryResult<TableRowsResult>,
-  "data" | "error" | "isLoading" | "isError" | "isFetching" | "dataUpdatedAt" | "refetch"
+  "data" | "error" | "isLoading" | "isError" | "isFetching" | "isPlaceholderData" | "dataUpdatedAt" | "refetch"
 >;
 
 /**
@@ -46,15 +51,18 @@ type PageState = Pick<
  * every render, and a caller memoizing on it renders forever.
  */
 function pickPageStates(results: readonly PageState[]): PageState[] {
-  return results.map(({ data, error, isLoading, isError, isFetching, dataUpdatedAt, refetch }) => ({
-    data,
-    error,
-    isLoading,
-    isError,
-    isFetching,
-    dataUpdatedAt,
-    refetch,
-  }));
+  return results.map(
+    ({ data, error, isLoading, isError, isFetching, isPlaceholderData, dataUpdatedAt, refetch }) => ({
+      data,
+      error,
+      isLoading,
+      isError,
+      isFetching,
+      isPlaceholderData,
+      dataUpdatedAt,
+      refetch,
+    }),
+  );
 }
 
 const FIRST_PAGE: readonly (string | null)[] = [null];
@@ -99,8 +107,27 @@ function mergeRows(pages: readonly PageState[]): TableRowsResult["rows"] {
 export function useCursorBranches(
   workspaceId: string,
   branches: CursorBranchSpec[],
-): { byKey: ReadonlyMap<string, CursorBranchState>; isRefreshing: boolean } {
+  options: {
+    /**
+     * A branch whose query changed (a search, a sort) keeps showing its last
+     * first page until the new one arrives, instead of starting empty. The
+     * table uses it so the rows, and the expanded parents under them, stay on
+     * screen. `useQueries` gives a new query key a new observer, so the
+     * previous data is kept here, per branch key, not by `keepPreviousData`.
+     */
+    keepPreviousFirstPage?: boolean;
+  } = {},
+): {
+  byKey: ReadonlyMap<string, CursorBranchState>;
+  /** Some page with data is fetching again: a changed query, an invalidation, a refocus. */
+  isRefreshing: boolean;
+  /** Some branch shows the previous query's first page (only with `keepPreviousFirstPage`). */
+  isShowingPrevious: boolean;
+} {
   const [cursorsByBranch, setCursorsByBranch] = useState<Cursors>({});
+  const keepPreviousFirstPage = options.keepPreviousFirstPage ?? false;
+  // `workspace|branch key` → the branch's last first page that was real data.
+  const lastFirstPages = useRef(new Map<string, TableRowsResult>());
 
   // Callers rebuild `branches` each render; the signature keeps the work below
   // (and its identity) tied to what the branches ask, not to the array.
@@ -131,6 +158,9 @@ export function useCursorBranches(
       b.bodies.map((body) => ({
         ...tableRowsPageQuery(workspaceId, body),
         enabled: b.enabled && !!workspaceId,
+        ...(keepPreviousFirstPage && body.cursor === null
+          ? { placeholderData: () => lastFirstPages.current.get(`${workspaceId}|${b.key}`) }
+          : {}),
       })),
     ),
     combine: pickPageStates,
@@ -165,8 +195,9 @@ export function useCursorBranches(
   useEffect(() => {
     for (const b of prepared) {
       const pages = pagesOf.get(b.stateKey) ?? [];
-      const data = pages[0]?.data;
+      const data = pages[0]?.isPlaceholderData ? undefined : pages[0]?.data;
       if (data !== undefined) {
+        lastFirstPages.current.set(`${workspaceId}|${b.key}`, data);
         const seen = firstPageData.current.get(b.stateKey);
         firstPageData.current.set(b.stateKey, data);
         if (seen !== undefined && seen !== data && pages.length > 1) {
@@ -187,7 +218,7 @@ export function useCursorBranches(
         resetBranch(b.stateKey);
       }
     }
-  }, [prepared, pagesOf, resetBranch]);
+  }, [prepared, pagesOf, resetBranch, workspaceId]);
 
   const byKey = useMemo(() => {
     const map = new Map<string, CursorBranchState>();
@@ -196,7 +227,8 @@ export function useCursorBranches(
       const first = pages[0];
       const last = pages[pages.length - 1];
       const cursors = b.bodies.map((body) => body.cursor);
-      const nextCursor = last?.data?.next_cursor ?? null;
+      const showingPrevious = !!first?.isPlaceholderData;
+      const nextCursor = showingPrevious ? null : (last?.data?.next_cursor ?? null);
       const rows = mergeRows(pages);
       const retry = () => {
         for (const page of pages) {
@@ -212,7 +244,10 @@ export function useCursorBranches(
         isFetchingMore: pages.length > 1 && !!last?.isFetching,
         isError: !!last?.isError && last.data === undefined,
         hasMore: nextCursor !== null,
+        isShowingPrevious: showingPrevious,
         loadMore: () => {
+          // The previous query's first page: its cursor would not match this query.
+          if (showingPrevious) return;
           // Only a page still on its way blocks: a background refetch of a
           // loaded last page keeps its cursor, so the next page starts at once.
           if (!b.enabled || !last || (last.isFetching && last.data === undefined)) return;
@@ -234,6 +269,7 @@ export function useCursorBranches(
   }, [prepared, pagesOf]);
 
   const isRefreshing = pageStates.some((page) => page.isFetching && page.data !== undefined);
+  const isShowingPrevious = pageStates.some((page) => page.isPlaceholderData);
 
-  return { byKey, isRefreshing };
+  return { byKey, isRefreshing, isShowingPrevious };
 }

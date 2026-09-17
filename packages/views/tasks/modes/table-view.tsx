@@ -16,45 +16,55 @@ import {
 } from "@uniwork/core/tasks/stores/view-store";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import { DataTable } from "@uniwork/ui/components/ui/data-table";
-import type { ChildProgress, Project } from "@uniwork/core/types";
-import { useTaskLabels } from "@uniwork/core/tasks";
+import type { Agent, ChildProgress, Project, TaskProperty } from "@uniwork/core/types";
+import {
+  useSetTaskPropertyValue,
+  useTaskLabels,
+  useTaskProperties,
+  useUnsetTaskPropertyValue,
+} from "@uniwork/core/tasks";
 import { toastApiError } from "../../toast-api-error";
 import { BatchActionToolbar } from "../views/batch-action-toolbar";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
 import { TaskTableGroupRow } from "./table-group-row";
 import { TaskTableLoadMoreRow } from "./table-load-more-row";
-import {
-  useTableColumnDefs,
-  type TableViewMeta,
-} from "./table-view-columns";
+import { useTableColumnDefs } from "./table-view-columns";
+import type { TableViewMeta } from "./table-view-meta";
 import { isRowControlTarget } from "./row-navigation";
-import { TableViewToolbar } from "./table-view-toolbar";
+import { TableViewToolbar, type TablePropertyGrouping } from "./table-view-toolbar";
+import { TableEmptyMessage, TableLoadErrorState, TableRefreshingBar } from "./table-view-states";
 import {
   getTaskTableSelectionRange,
   type TaskTableDisplayRow,
 } from "./table-view-model";
 import { useTableViewData } from "./use-table-view-data";
 import type { TableMember } from "./table-cell-editors";
+import type { AssigneeOption } from "../pickers";
 
 const EMPTY_MEMBERS: TableMember[] = [];
 const EMPTY_PROJECTS: Project[] = [];
 const EMPTY_CHILD_PROGRESS: ChildProgress[] = [];
+const EMPTY_AGENTS: Agent[] = [];
+const EMPTY_PROPERTIES: TaskProperty[] = [];
+const GROUPABLE_PROPERTY_TYPES = new Set(["select", "checkbox"]);
 
 /**
  * Suite TaskSurface table mode — baseline table structure (groups, rows,
  * DataTable, column picker, selection) on suite table APIs.
  *
- * Project grouping and custom-property editors stay visible-disabled until
- * their table API contracts ship. Agent chrome is not mounted after cutover.
+ * Groups by status, priority, assignee, project or an active select/checkbox
+ * property on the server. Custom-property columns edit in place unless
+ * `propertiesDisabled`; the assignee cell offers members and agents.
  */
 export function TableView({
   workspaceId,
   filter,
   members = EMPTY_MEMBERS,
+  agents = EMPTY_AGENTS,
   projects = EMPTY_PROJECTS,
   childProgress = EMPTY_CHILD_PROGRESS,
-  projectGroupingDisabled = true,
+  projectGroupingDisabled = false,
   projectGroupingReasonKey = "capabilities.unknown",
   propertiesDisabled = true,
   propertiesDisabledReasonKey = "capabilities.unknown",
@@ -65,6 +75,7 @@ export function TableView({
   workspaceId: string;
   filter?: TableFilter;
   members?: TableMember[];
+  agents?: Agent[];
   projects?: Project[];
   childProgress?: ChildProgress[];
   projectGroupingDisabled?: boolean;
@@ -81,11 +92,15 @@ export function TableView({
   const selection = useTaskSurfaceSelection();
   const selectionAnchorRef = useRef<string | null>(null);
   const [search, setSearch] = useState("");
-  const tableProjectGroupingReasonKey = "capabilities.surface_not_ready";
+  const propertiesQuery = useTaskProperties(workspaceId);
+  const { mutate: setPropertyValue } = useSetTaskPropertyValue(workspaceId);
+  const { mutate: unsetPropertyValue } = useUnsetTaskPropertyValue(workspaceId);
+  const propertyCatalog = propertiesQuery.data?.properties ?? EMPTY_PROPERTIES;
 
   const tableColumns = useViewStore((s) => s.tableColumns);
   const setTableColumnWidth = useViewStore((s) => s.setTableColumnWidth);
   const toggleTableColumn = useViewStore((s) => s.toggleTableColumn);
+  const reorderTableColumn = useViewStore((s) => s.reorderTableColumn);
   const toggleTableGroupCollapsed = useViewStore(
     (s) => s.toggleTableGroupCollapsed,
   );
@@ -94,14 +109,45 @@ export function TableView({
   const setSortBy = useViewStore((s) => s.setSortBy);
   const setSortDirection = useViewStore((s) => s.setSortDirection);
   const showSubTasks = useViewStore((s) => s.showSubTasks);
-  const tableCollapsedParents = useViewStore((s) => s.tableCollapsedParents);
-  const toggleTableParentCollapsed = useViewStore(
-    (s) => s.toggleTableParentCollapsed,
+  const toggleTableParentExpanded = useViewStore(
+    (s) => s.toggleTableParentExpanded,
   );
 
-  const projectNames = useMemo(
-    () => new Map(projects.map((project) => [project.id, project.title])),
-    [projects],
+  const propertyGroupings = useMemo<TablePropertyGrouping[]>(
+    () =>
+      (propertiesQuery.data?.properties ?? [])
+        .filter(
+          (property) =>
+            !property.archived_at && GROUPABLE_PROPERTY_TYPES.has(property.type),
+        )
+        .map((property) => ({
+          value: `property:${property.id}`,
+          label: property.name,
+        })),
+    [propertiesQuery.data?.properties],
+  );
+
+  const properties = useMemo(
+    () => new Map(propertyCatalog.map((property) => [property.id, property])),
+    [propertyCatalog],
+  );
+  // Mirrors the properties sidebar: members first, then the workspace's agents.
+  const assigneeOptions = useMemo<AssigneeOption[]>(
+    () => [
+      ...members.map((member) => ({
+        id: member.id,
+        kind: "human" as const,
+        name: member.name,
+        ...(member.avatarUrl ? { avatarUrl: member.avatarUrl } : {}),
+      })),
+      ...agents.map((agent) => ({
+        id: agent.id,
+        kind: "agent" as const,
+        name: agent.name,
+        ...(agent.avatar_url ? { avatarUrl: agent.avatar_url } : {}),
+      })),
+    ],
+    [agents, members],
   );
   const childProgressByTask = useMemo(
     () =>
@@ -119,16 +165,12 @@ export function TableView({
     workspaceId,
     filter,
     search,
-    collapsedParentIds: tableCollapsedParents,
-    showSubTasks,
     assigneeNames,
+    properties,
   });
 
   const columnKeys = useMemo(
-    () =>
-      tableColumns
-        .map((column) => column.key)
-        .filter((key) => !propertyIdFromViewKey(key)),
+    () => tableColumns.map((column) => column.key),
     [tableColumns],
   );
 
@@ -176,10 +218,28 @@ export function TableView({
   const columnLabel = useCallback(
     (key: TableColumnKey) => {
       const propertyId = propertyIdFromViewKey(key);
-      if (propertyId) return t("tasks.table.unavailable_cell");
+      if (propertyId) {
+        return properties.get(propertyId)?.name ?? t("tasks.table.unavailable_cell");
+      }
       return t(`tasks.table.columns.${key}`);
     },
-    [t],
+    [properties, t],
+  );
+
+  // The title column stays first; every other column moves by its header grip.
+  const reorderableColumnIds = useMemo(
+    () => columnKeys.filter((key) => key !== "title"),
+    [columnKeys],
+  );
+  const onColumnReorder = useCallback(
+    (active: string, over: string) =>
+      reorderTableColumn(active as TableColumnKey, over as TableColumnKey),
+    [reorderTableColumn],
+  );
+  const reorderHandleLabel = useCallback(
+    (id: string) =>
+      t("tasks.table.reorder_column", { name: columnLabel(id as TableColumnKey) }),
+    [columnLabel, t],
   );
 
   const onSort = useCallback(
@@ -207,8 +267,10 @@ export function TableView({
       hierarchyDisabled: !showSubTasks,
       workspaceId,
       members,
+      assigneeOptions,
       labels: labelsQuery.data?.labels ?? [],
-      projectNames,
+      projects,
+      properties,
       childProgress: childProgressByTask,
       columnLabel,
       sortBy,
@@ -222,8 +284,20 @@ export function TableView({
           onError: (error) => toastApiError(error, t("common.error")),
         });
       },
+      setPropertyValue: (taskId, propertyId, value) => {
+        setPropertyValue(
+          { taskId, propertyId, value },
+          { onError: (error) => toastApiError(error, t("common.error")) },
+        );
+      },
+      clearPropertyValue: (taskId, propertyId) => {
+        unsetPropertyValue(
+          { taskId, propertyId },
+          { onError: (error) => toastApiError(error, t("common.error")) },
+        );
+      },
       openTask: onOpenTask,
-      toggleTableParentCollapsed,
+      toggleTableParentExpanded,
       toggleTableColumn,
       propertiesDisabled,
       propertiesDisabledReason: t(propertiesDisabledReasonKey),
@@ -232,6 +306,7 @@ export function TableView({
     [
       clearVisibleSelection,
       actions,
+      assigneeOptions,
       childProgressByTask,
       columnLabel,
       editingDisabled,
@@ -241,16 +316,19 @@ export function TableView({
       members,
       onOpenTask,
       onSort,
-      projectNames,
+      projects,
+      properties,
       propertiesDisabled,
       propertiesDisabledReasonKey,
       selectAllVisible,
       selection.selectedIds,
+      setPropertyValue,
+      unsetPropertyValue,
       showSubTasks,
       sortBy,
       sortDirection,
       t,
-      toggleTableParentCollapsed,
+      toggleTableParentExpanded,
       toggleTableColumn,
       visibleTaskIds,
       workspaceId,
@@ -291,56 +369,61 @@ export function TableView({
       <TableViewToolbar
         search={search}
         onSearchChange={setSearch}
-        projectGroupingDisabled
-        projectGroupingReason={
-          projectGroupingDisabled
-            ? projectGroupingReasonKey
-            : tableProjectGroupingReasonKey
-        }
+        projectGroupingDisabled={projectGroupingDisabled}
+        projectGroupingReason={projectGroupingReasonKey}
+        propertyGroupings={propertyGroupings}
+        properties={properties}
         propertiesDisabled={propertiesDisabled}
         propertiesDisabledReason={t(propertiesDisabledReasonKey)}
       />
       {data.groupsError ? (
-        <div className="flex flex-1 items-center justify-center p-6 text-body text-muted-foreground">
-          {t("tasks.table.load_error")}
-        </div>
+        <TableLoadErrorState onRetry={data.retry} />
       ) : (
-        <DataTable
-          table={table}
-          className="min-h-0 flex-1"
-          virtualizeRows={data.displayRows.length > 40}
-          virtualRowHeight={40}
-          emptyMessage={t("tasks.table.empty")}
-          onRowClick={(row, event) => {
-            if (row.original.kind === "group") {
-              toggleTableGroupCollapsed(row.original.key);
-              return;
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          {data.isShowingPrevious ? <TableRefreshingBar /> : null}
+          <DataTable
+            table={table}
+            className="min-h-0 flex-1"
+            virtualizeRows={data.displayRows.length > 40}
+            virtualRowHeight={40}
+            reorderableColumnIds={reorderableColumnIds}
+            onColumnReorder={onColumnReorder}
+            reorderHandleLabel={reorderHandleLabel}
+            emptyMessage={
+              <TableEmptyMessage search={data.search} onClearSearch={() => setSearch("")} />
             }
-            if (row.original.kind !== "task" || !onOpenTask) return;
-            if (isRowControlTarget(event.target)) return;
-            onOpenTask(row.original.task.id);
-          }}
-          renderRow={(row) => {
-            if (row.original.kind === "group") {
-              return (
-                <TaskTableGroupRow
-                  group={row.original}
-                  colSpan={table.getVisibleLeafColumns().length}
-                  onToggle={() => toggleTableGroupCollapsed(row.original.key)}
-                />
-              );
-            }
-            if (row.original.kind === "load_more") {
-              return (
-                <TaskTableLoadMoreRow
-                  row={row.original}
-                  colSpan={table.getVisibleLeafColumns().length}
-                />
-              );
-            }
-            return null;
-          }}
-        />
+            onRowClick={(row, event) => {
+              if (row.original.kind === "group") {
+                toggleTableGroupCollapsed(row.original.key);
+                return;
+              }
+              if (row.original.kind !== "task" || !onOpenTask) return;
+              if (isRowControlTarget(event.target)) return;
+              onOpenTask(row.original.task.id);
+            }}
+            renderRow={(row) => {
+              if (row.original.kind === "group") {
+                return (
+                  <TaskTableGroupRow
+                    group={row.original}
+                    color={row.original.color}
+                    colSpan={table.getVisibleLeafColumns().length}
+                    onToggle={() => toggleTableGroupCollapsed(row.original.key)}
+                  />
+                );
+              }
+              if (row.original.kind === "load_more") {
+                return (
+                  <TaskTableLoadMoreRow
+                    row={row.original}
+                    colSpan={table.getVisibleLeafColumns().length}
+                  />
+                );
+              }
+              return null;
+            }}
+          />
+        </div>
       )}
       <BatchActionToolbar
         workspaceId={workspaceId}

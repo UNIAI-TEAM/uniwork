@@ -120,6 +120,13 @@ func TestRealtimePatchCarriesOnlyAWholeChange(t *testing.T) {
 			patchKey: map[string]string{"priority": "urgent"},
 		},
 		{
+			// ADR 0015: start_date is not in task.updated's Patch list, so a
+			// frame that carries it must fall back to ids-only, unlike due_date.
+			name:   "start_date alone stays ids-only",
+			update: UpdateTaskInput{StartDate: nullable(str("2026-10-01"))},
+			bumps:  2,
+		},
+		{
 			name:     "clearing the due date sends an empty string",
 			create:   CreateTaskInput{DueDate: str("2026-09-20")},
 			update:   UpdateTaskInput{DueDate: nullable(nil)},

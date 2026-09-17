@@ -67,6 +67,7 @@ export function InlineTitle({
           variant="ghost"
           size="icon-sm"
           className="size-6 shrink-0"
+          aria-expanded={!collapsed}
           aria-label={
             collapsed
               ? t("tasks.table.expand_children")

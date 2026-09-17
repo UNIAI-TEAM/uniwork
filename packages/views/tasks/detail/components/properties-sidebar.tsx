@@ -123,9 +123,8 @@ export function TaskDetailPropertiesSidebar({
     [attachedLabels],
   );
 
-  // Only the sidebar offers agents as assignees today (ADR 0007 pair: id +
-  // kind travel together). The table cell and batch toolbar deliberately
-  // keep offering human members only — see the task-2 report.
+  // Members, then agents (ADR 0007 pair: id + kind travel together); the
+  // table's assignee cell builds the same list.
   const assigneeOptions: AssigneeOption[] = useMemo(
     () => [
       ...(members ?? []).map((m) => ({

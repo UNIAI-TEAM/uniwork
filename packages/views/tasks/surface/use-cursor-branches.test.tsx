@@ -7,7 +7,7 @@ import { encodeCursor, serveTableCursor } from "../../test/table-cursor-server";
 import { useCursorBranches, type CursorBranchSpec } from "./use-cursor-branches";
 
 function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   function Wrapper({ children }: { children: React.ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
@@ -217,7 +217,8 @@ describe("useCursorBranches", () => {
     act(() => result.current.byKey.get("todo")!.retry());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
     expect(result.current.byKey.get("todo")?.isError).toBe(false);
-    expect(server.rowRequests()).toEqual(["todo@null", "todo@null"]);
+    // The request, its one automatic retry, then the user's retry.
+    expect(server.rowRequests()).toEqual(["todo@null", "todo@null", "todo@null"]);
   });
 
   it("retries a failed later page from loadMore, keeping the rows before it", async () => {
@@ -226,14 +227,19 @@ describe("useCursorBranches", () => {
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
 
     act(() => result.current.byKey.get("todo")!.loadMore());
-    await waitFor(() => expect(server.rowRequests()).toHaveLength(2));
+    await waitFor(() => expect(server.rowRequests()).toHaveLength(3));
     await settle();
     expect(result.current.byKey.get("todo")).toMatchObject({ isFetchingMore: false });
     expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
 
     act(() => result.current.byKey.get("todo")!.loadMore());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
-    expect(server.rowRequests()).toEqual(["todo@null", `todo@${encodeCursor(2)}`, `todo@${encodeCursor(2)}`]);
+    expect(server.rowRequests()).toEqual([
+      "todo@null",
+      `todo@${encodeCursor(2)}`,
+      `todo@${encodeCursor(2)}`,
+      `todo@${encodeCursor(2)}`,
+    ]);
   });
 
   it("resets a branch to its first page once when a later cursor no longer matches the query", async () => {
@@ -249,6 +255,36 @@ describe("useCursorBranches", () => {
     expect(state).toMatchObject({ isError: false, hasMore: true });
     expect(state.rows).toHaveLength(2);
     expect(server.rowRequests()).toHaveLength(2);
+  });
+
+  it("with keepPreviousFirstPage, shows the old first page under a changed query but offers no next page from it", async () => {
+    const server = serveTableCursor({
+      count: () => 5,
+      hold: (body) => (body.query as { search?: string }).search === "x",
+    });
+    const { Wrapper } = setup();
+    const { result, rerender } = renderHook(
+      (props: { search?: string }) =>
+        useCursorBranches("w1", [branch("todo", props)], { keepPreviousFirstPage: true }),
+      { wrapper: Wrapper, initialProps: {} as { search?: string } },
+    );
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: true, isShowingPrevious: false });
+    expect(result.current.isShowingPrevious).toBe(false);
+
+    rerender({ search: "x" });
+    await waitFor(() => expect(result.current.byKey.get("todo")?.isShowingPrevious).toBe(true));
+    expect(result.current.isShowingPrevious).toBe(true);
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: false, isLoading: false });
+    expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await settle();
+    expect(server.rowRequests()).toEqual(["todo@null", "todo@null"]);
+
+    server.release();
+    await waitFor(() => expect(result.current.byKey.get("todo")?.isShowingPrevious).toBe(false));
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: true });
+    expect(result.current.isShowingPrevious).toBe(false);
   });
 
   it("asks nothing for a disabled branch", async () => {

@@ -97,6 +97,49 @@ func TestPutTaskSuiteStaleIfMatchConflict(t *testing.T) {
 	}
 }
 
+func TestPatchTaskHTTPStartDate(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Start date qua PATCH",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("create: %d %v", res.StatusCode, out)
+	}
+	taskID := out["task"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{"start_date": "2026-09-20"})
+	if res.StatusCode != 200 {
+		t.Fatalf("set start_date: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	if task["start_date"] != "2026-09-20" {
+		t.Fatalf("start_date = %v, want 2026-09-20", task["start_date"])
+	}
+	revisionAfterSet := task["revision"].(float64)
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{"start_date": nil})
+	if res.StatusCode != 200 {
+		t.Fatalf("clear start_date: %d %v", res.StatusCode, out)
+	}
+	task = out["task"].(map[string]any)
+	if task["start_date"] != nil {
+		t.Fatalf("start_date after clear = %v, want nil", task["start_date"])
+	}
+	if task["revision"].(float64) <= revisionAfterSet {
+		t.Fatalf("revision after clear = %v, want > %v", task["revision"], revisionAfterSet)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{"start_date": "bad"})
+	if res.StatusCode != 400 {
+		t.Fatalf("bad start_date: %d %v", res.StatusCode, out)
+	}
+	errObj, _ := out["error"].(map[string]any)
+	if errObj["code"] != "invalid_request" {
+		t.Fatalf("code=%v want invalid_request body=%v", errObj["code"], out)
+	}
+}
+
 func TestCreateTaskHTTPAcceptsWorkManagementContext(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 	res, labelOut := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/task-labels", token, map[string]any{

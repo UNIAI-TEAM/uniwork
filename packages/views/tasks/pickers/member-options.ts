@@ -21,10 +21,10 @@ export function toMemberOptions(members: Member[]): MemberOption[] {
 }
 
 /**
- * Task surfaces only offer human members as assignees; agent assignment is not
- * offered from the table or the row menu (see assignee-picker.tsx, task-2 report).
+ * Human members as assignee options. The row menu and batch toolbar offer
+ * only these; the table cell and the properties sidebar add the agents.
  */
-export function toHumanAssigneeOptions(
+function toHumanAssigneeOptions(
   members: MemberOption[],
 ): AssigneeOption[] {
   return members.map((member) => ({

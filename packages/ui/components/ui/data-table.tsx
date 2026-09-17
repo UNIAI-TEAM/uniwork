@@ -1,6 +1,25 @@
 "use client";
 
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type Modifier,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+// Aliased: the bare name would shadow the global `CSS` (CSS.escape is used
+// below, unrelated to dnd-kit).
+import { CSS as DndCSS } from "@dnd-kit/utilities";
+import {
   flexRender,
   type ColumnSizingState,
   type Header as TanstackHeader,
@@ -8,6 +27,7 @@ import {
   type Table as TanstackTable,
 } from "@tanstack/react-table";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
+import { GripVertical } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 
@@ -31,6 +51,15 @@ import { cn } from "@uniwork/ui/lib/utils";
 // the column-reorder sensor's activation distance so both gestures on the same
 // header behave alike, and keeps a plain click from committing a width.
 const RESIZE_DRAG_THRESHOLD = 4;
+
+// Stands in for @dnd-kit/modifiers' restrictToHorizontalAxis — pulling in the
+// whole package for this one function isn't worth the dependency. Zeroing the
+// vertical component keeps a column drag from ever visually lifting off the
+// header row, even if the pointer drifts.
+const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
+  ...transform,
+  y: 0,
+});
 
 interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   table: TanstackTable<TData>;
@@ -59,6 +88,19 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   virtualizeRows?: boolean;
   virtualRowHeight?: number;
   virtualOverscan?: number;
+  // Column ids that may be dragged to a new position, in the caller's
+  // current visible order. A grip renders only on headers whose id is in
+  // this list; every other header (row-select, the primary title column,
+  // a trailing "add column" affordance, …) renders exactly as it does today.
+  reorderableColumnIds?: string[];
+  // Fired once a drag (pointer or keyboard) completes over a different
+  // column than it started on. The caller owns reordering its own column
+  // list — this component never reorders `table` itself.
+  onColumnReorder?: (activeId: string, overId: string) => void;
+  // aria-label for a column's reorder grip. Required in practice whenever
+  // onColumnReorder is set — undocumented columns fall back to a generic
+  // label built from the column id.
+  reorderHandleLabel?: (columnId: string) => string;
 }
 
 // Headless data-table shell — adapted from Dice UI's data-table
@@ -88,11 +130,34 @@ export function DataTable<TData>({
   virtualizeRows = false,
   virtualRowHeight = 41,
   virtualOverscan = 10,
+  reorderableColumnIds,
+  onColumnReorder,
+  reorderHandleLabel,
   className,
   ...props
 }: DataTableProps<TData>) {
   const [resizingColumnId, setResizingColumnId] = React.useState<string | null>(
     null,
+  );
+
+  // Distance-based activation so a click on the grip (to reach it with a
+  // screen reader, say) doesn't itself start a drag; keyboard activation
+  // (Space/Enter) has no such threshold. Harmless to construct even when
+  // onColumnReorder is unset — no DndContext ever mounts to consume them.
+  const columnDragSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleColumnDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!onColumnReorder || !over || active.id === over.id) return;
+      onColumnReorder(String(active.id), String(over.id));
+    },
+    [onColumnReorder],
   );
 
   const columnSizing = table.getState().columnSizing;
@@ -391,6 +456,16 @@ export function DataTable<TData>({
         ref={scrollRef}
         className="flex min-h-0 flex-1 flex-col overflow-auto bg-background"
       >
+        {/* Wraps the whole <table>, not just the header row: DndContext
+          * renders its own screen-reader-only live region as a sibling of
+          * its children wherever it sits in the tree, and a <div> is not
+          * valid inside a <table> — even one that never paints. */}
+        <DataTableHeaderShell
+          enabled={Boolean(onColumnReorder)}
+          sensors={columnDragSensors}
+          reorderableColumnIds={reorderableColumnIds ?? []}
+          onDragEnd={handleColumnDragEnd}
+        >
         <table
           className="w-full table-fixed caption-bottom text-body"
           style={{
@@ -406,10 +481,10 @@ export function DataTable<TData>({
             * strip flickers black. The mix resolves to the same colour
             * bg-muted/30 composited to, and a header that scrolled content
             * passes behind has no reason to show it through anyway. */}
-          <TableHeader className="sticky top-0 z-10 bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                {headerGroup.headers.map((header) => {
+            <TableHeader className="sticky top-0 z-10 bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                  {headerGroup.headers.map((header) => {
                   const isPinned = header.column.getIsPinned();
                   const columnHasExplicitSize = hasExplicitSize(
                     header.column.id,
@@ -418,6 +493,30 @@ export function DataTable<TData>({
                     typeof header.column.columnDef.header === "string"
                       ? header.column.columnDef.header
                       : header.column.id;
+
+                  // Non-reorderable ids (row-select, the primary column, a
+                  // trailing "add column" affordance, …) fall straight
+                  // through to the branch below and render unchanged.
+                  if (
+                    onColumnReorder &&
+                    reorderableColumnIds?.includes(header.column.id)
+                  ) {
+                    return (
+                      <DataTableSortableHeadCell
+                        key={header.id}
+                        header={header}
+                        headerLabel={headerLabel}
+                        isPinned={isPinned}
+                        columnHasExplicitSize={columnHasExplicitSize}
+                        resizingColumnId={resizingColumnId}
+                        reorderHandleLabel={reorderHandleLabel}
+                        beginColumnResize={beginColumnResize}
+                        autoFitColumn={autoFitColumn}
+                        handleResizeKeyDown={handleResizeKeyDown}
+                      />
+                    );
+                  }
+
                   return (
                     <TableHead
                       key={header.id}
@@ -451,7 +550,7 @@ export function DataTable<TData>({
                       // muted with background to preserve the same visual tone
                       // as muted/30 without introducing alpha.
                       className={cn(
-                        "relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0",
+                        "relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0 pointer-coarse:h-11",
                         isPinned &&
                           "bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]",
                       )}
@@ -529,6 +628,7 @@ export function DataTable<TData>({
           )}
           {footer}
         </table>
+        </DataTableHeaderShell>
       </div>
       {/* Cast past the frozen block rather than drawn inside it. The border
         * between the frozen columns and the rest is permanent and says where
@@ -572,6 +672,185 @@ export function DataTable<TData>({
         table.getFilteredSelectedRowModel().rows.length > 0 &&
         actionBar}
     </div>
+  );
+}
+
+// Mounts DndContext/SortableContext around the header row only when a caller
+// opted into reordering. Kept as its own component (rather than an inline
+// ternary around <TableHeader>) so the sensors and context genuinely don't
+// exist — not just go unused — for every table that never passes
+// onColumnReorder, matching the "render exactly as today" contract.
+//
+// `enabled` is read from `Boolean(onColumnReorder)`: toggling that prop
+// between defined and undefined flips this branch and remounts the whole
+// <table> subtree underneath it (DndContext unmounts/mounts), so callers
+// should treat `onColumnReorder` as stable across renders, not conditionally
+// passed. Also untested here: this wraps the table body too (see the call
+// site), so if a caller ever adds its own row-level dnd-kit (row drag/reorder)
+// inside the same DataTable, its interaction with this column-drag context
+// has no coverage.
+function DataTableHeaderShell({
+  enabled,
+  sensors,
+  reorderableColumnIds,
+  onDragEnd,
+  children,
+}: {
+  enabled: boolean;
+  sensors: ReturnType<typeof useSensors>;
+  reorderableColumnIds: string[];
+  onDragEnd: (event: DragEndEvent) => void;
+  children: React.ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToHorizontalAxis]}
+      onDragEnd={onDragEnd}
+    >
+      <SortableContext
+        items={reorderableColumnIds}
+        strategy={horizontalListSortingStrategy}
+      >
+        {children}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+// A reorderable header cell. Split out from the inline header render so only
+// columns actually listed in `reorderableColumnIds` call useSortable — every
+// other header, including every header in a table with no onColumnReorder,
+// never touches dnd-kit at all.
+function DataTableSortableHeadCell<TData>({
+  header,
+  headerLabel,
+  isPinned,
+  columnHasExplicitSize,
+  resizingColumnId,
+  reorderHandleLabel,
+  beginColumnResize,
+  autoFitColumn,
+  handleResizeKeyDown,
+}: {
+  header: TanstackHeader<TData, unknown>;
+  headerLabel: string;
+  isPinned: false | "left" | "right";
+  columnHasExplicitSize: boolean;
+  resizingColumnId: string | null;
+  reorderHandleLabel?: (columnId: string) => string;
+  beginColumnResize: (
+    header: TanstackHeader<TData, unknown>,
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => void;
+  autoFitColumn: (header: TanstackHeader<TData, unknown>) => void;
+  handleResizeKeyDown: (
+    header: TanstackHeader<TData, unknown>,
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: header.column.id });
+  const gripLabel = reorderHandleLabel
+    ? reorderHandleLabel(header.column.id)
+    : `Reorder ${headerLabel} column`;
+
+  return (
+    <TableHead
+      ref={setNodeRef}
+      colSpan={header.colSpan}
+      data-column-id={header.column.id}
+      data-pinned-edge={
+        isPinned === "left" && header.column.getIsLastColumn("left")
+          ? ""
+          : undefined
+      }
+      className={cn(
+        "group/reorder relative h-8 overflow-hidden border-r px-4 py-2 text-caption uppercase tracking-wider text-muted-foreground last:border-r-0 pointer-coarse:h-11",
+        isPinned &&
+          "bg-[color-mix(in_oklab,var(--muted)_30%,var(--background))]",
+        isDragging && "z-20 bg-accent",
+      )}
+      style={{
+        ...getCellStyle(header.column, { hasExplicitSize: columnHasExplicitSize }),
+        // horizontalListSortingStrategy already zeroes the y component; the
+        // DndContext-level modifier covers the pointer overlay this
+        // per-item transform doesn't reach.
+        transform: DndCSS.Translate.toString(transform),
+        transition,
+      }}
+    >
+      {/* Hidden at rest so it doesn't compete with the label; a real button
+        * (not the whole header) so pointer/keyboard drag activation stays
+        * scoped to an explicit, discoverable control. No outline-none: the
+        * global :focus-visible outline stays the focus indicator, per the
+        * primitive contract in CLAUDE.md.
+        *
+        * The visible button is 16px (w-4) — too small a touch target on its
+        * own. `after:` adds an invisible hit area, coarse pointers only, that
+        * grows it to the full 44px (w-11) without changing anything
+        * paintable; `pointer-coarse:h-11` on the <TableHead> above (both this
+        * branch and the plain one) grows the header row to 44px on the same
+        * pointers so the hit area covers the full cell height, not just the
+        * 32px (h-8) fine-pointer row.
+        *
+        * A 44px-wide area at this cell's left edge can still reach into the
+        * resize handle's 8px hit area, flush at the cell's right edge, on a
+        * narrow enough column. The task table's reorderable columns are all
+        * ≥80px (`dataCols` in table-view-columns.tsx), which leaves a 28px
+        * gap — safe. A generic caller of this primitive with narrower
+        * reorderable + resizable columns (< ~52px) could see the two hit
+        * areas overlap; that's a caller-configuration concern, not something
+        * fixed-width geometry here can rule out for every possible column
+        * width. */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={gripLabel}
+        data-slot="data-table-reorder-handle"
+        className={cn(
+          "absolute inset-y-0 left-0 z-10 flex w-4 cursor-grab items-center justify-center opacity-0 transition-opacity",
+          "after:absolute after:inset-y-0 after:left-0 after:w-4 pointer-coarse:after:w-11",
+          "hover:text-foreground focus-visible:opacity-100 group-hover/reorder:opacity-100 group-focus-within/reorder:opacity-100",
+          isDragging && "cursor-grabbing opacity-100 text-foreground",
+        )}
+      >
+        <GripVertical className="size-3.5" aria-hidden />
+      </button>
+      <span className="block truncate pl-4">
+        {header.isPlaceholder
+          ? null
+          : flexRender(header.column.columnDef.header, header.getContext())}
+      </span>
+      {!header.isPlaceholder && header.column.getCanResize() && (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        <div
+          role="separator"
+          aria-label={`Resize ${headerLabel} column`}
+          aria-orientation="vertical"
+          /* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */
+          tabIndex={0}
+          className={cn(
+            "absolute top-0 right-0 h-full w-2 cursor-col-resize touch-none select-none outline-none",
+            "after:absolute after:inset-y-0 after:right-0 after:w-0.5 after:bg-transparent after:transition-colors after:duration-100",
+            "hover:after:bg-brand/60 focus-visible:after:bg-brand/60",
+            resizingColumnId === header.column.id &&
+              "after:bg-brand after:transition-none",
+          )}
+          onPointerDown={(event) => beginColumnResize(header, event)}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            autoFitColumn(header);
+          }}
+          onKeyDown={(event) => handleResizeKeyDown(header, event)}
+        />
+      )}
+    </TableHead>
   );
 }
 

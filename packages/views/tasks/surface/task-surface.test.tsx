@@ -1,12 +1,22 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { taskKeys } from "@uniwork/core/tasks";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
+import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { requestMock, wrap } from "../../test/api-mock";
 import { TaskSurface } from "./task-surface";
+import { useTaskSurfaceController } from "./use-task-surface-controller";
 
 initI18n();
 
@@ -296,6 +306,60 @@ describe("TaskSurface", () => {
       ]);
     });
   }, 60_000);
+
+  it("sends a start_date patch through actions.updateTask like due_date", async () => {
+    // useTaskSurfaceController is the same hook TaskSurface renders with; this
+    // exercises taskPatchFromSurfaceUpdates through the real actions.updateTask
+    // path without exporting it just for the test (mirrors due_date's mapping).
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const store = getTaskSurfaceViewStore("test-ws-start-date-patch");
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>
+          <ViewStoreProvider store={store}>{children}</ViewStoreProvider>
+        </QueryClientProvider>
+      );
+    }
+    const { result } = renderHook(
+      () =>
+        useTaskSurfaceController({
+          workspaceId: "w1",
+          scope: { type: "workspace" },
+          modes: ["list"],
+        }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => {
+      result.current.actions.updateTask("t1", { start_date: "2026-09-20" });
+    });
+
+    await waitFor(() => {
+      const call = requestMock.mock.calls.find(
+        ([path]) => path === "/api/v1/tasks/t1",
+      );
+      expect(call).toEqual([
+        "/api/v1/tasks/t1",
+        { method: "PATCH", body: { start_date: "2026-09-20" } },
+      ]);
+    });
+
+    // null clears it, exactly like due_date.
+    await act(async () => {
+      result.current.actions.updateTask("t1", { start_date: null });
+    });
+    await waitFor(() => {
+      const calls = requestMock.mock.calls.filter(
+        ([path]) => path === "/api/v1/tasks/t1",
+      );
+      expect(calls.at(-1)).toEqual([
+        "/api/v1/tasks/t1",
+        { method: "PATCH", body: { start_date: null } },
+      ]);
+    });
+  });
 
   it("shows surface empty with create in gantt when zero tasks exist", async () => {
     queryTasks = [];
