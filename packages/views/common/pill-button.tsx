@@ -4,50 +4,87 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 
-const pillChrome =
-  "inline-flex max-w-56 min-w-0 items-center gap-1.5 overflow-hidden rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-caption font-medium text-muted-foreground shadow-none transition-colors hover:bg-accent/60 hover:text-foreground disabled:pointer-events-none disabled:opacity-50";
+/**
+ * Multica pill chrome for create-task / property toolbars. Hard width cap so
+ * long project/assignee/label text wraps siblings instead of owning the row.
+ */
+const PILL_CHROME =
+  "inline-flex min-w-0 max-w-56 items-center overflow-hidden rounded-full border border-border/80 text-caption font-medium text-muted-foreground transition-colors";
 
-export function PillButton({ className, type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button type={type} className={cn(pillChrome, className)} {...props} />;
+export function PillButton({
+  className,
+  type = "button",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type={type}
+      className={cn(
+        PILL_CHROME,
+        "cursor-pointer gap-1.5 px-2.5 py-1 hover:bg-accent/60 hover:text-foreground",
+        "data-popup-open:bg-accent data-popup-open:text-accent-foreground",
+        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
-type ClearablePillButtonProps = {
-  onClear: () => void;
-  clearLabel: string;
-  children: ReactNode;
-  className?: string;
-  disabled?: boolean;
-};
-
+/**
+ * Pill with a trailing clear ×. Same chrome as PillButton; the × is a sibling
+ * button (never nested). Forwarded props land on the inner trigger so Popover
+ * anchors correctly.
+ */
 export function ClearablePillButton({
-  onClear,
-  clearLabel,
   children,
   className,
+  onClear,
+  clearLabel,
   disabled,
-}: ClearablePillButtonProps) {
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  onClear?: () => void;
+  clearLabel?: string;
+  /** Filled by PopoverTrigger when used as `triggerRender`. */
+  children?: ReactNode;
+}) {
+  const clearable = Boolean(onClear) && !disabled;
   return (
     <span
       className={cn(
-        "inline-flex max-w-56 min-w-0 items-center overflow-hidden rounded-full border border-border/80 bg-transparent text-caption text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground",
-        "[&_[data-slot=select-trigger]]:h-7 [&_[data-slot=select-trigger]]:w-fit [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:rounded-full [&_[data-slot=select-trigger]]:border-0 [&_[data-slot=select-trigger]]:bg-transparent [&_[data-slot=select-trigger]]:shadow-none [&_[data-slot=select-trigger]]:hover:bg-transparent",
+        PILL_CHROME,
+        !disabled && "hover:bg-accent/60 hover:text-foreground",
+        "has-[[data-popup-open]]:bg-accent has-[[data-popup-open]]:text-accent-foreground",
         className,
       )}
     >
-      {children}
       <button
         type="button"
-        aria-label={clearLabel}
-        aria-disabled={disabled || undefined}
-        className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-border hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50 pointer-coarse:size-11"
-        onClick={(event) => {
-          event.stopPropagation();
-          if (disabled) return;
-          onClear();
-        }}
+        disabled={disabled}
+        className={cn(
+          "flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden py-1 pl-2.5",
+          clearable ? "pr-1" : "pr-2.5",
+          "disabled:cursor-not-allowed",
+        )}
+        {...props}
       >
-        <X className="size-3.5" aria-hidden />
+        {children}
       </button>
+      {clearable ? (
+        <button
+          type="button"
+          aria-label={clearLabel}
+          title={clearLabel}
+          onClick={(event) => {
+            event.stopPropagation();
+            onClear?.();
+          }}
+          className="flex shrink-0 cursor-pointer items-center py-1 pr-2 pl-0.5 text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-3" aria-hidden />
+        </button>
+      ) : null}
     </span>
   );
 }

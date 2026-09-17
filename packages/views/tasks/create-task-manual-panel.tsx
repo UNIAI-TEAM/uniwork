@@ -1,38 +1,25 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
-import {
-  ArrowLeftRight,
-  Maximize2,
-  Minimize2,
-  Paperclip,
-  Tag,
-  UserRound,
-  X,
-} from "lucide-react";
+import { useRef } from "react";
+import { ArrowLeftRight, Maximize2, Minimize2, Paperclip, X } from "lucide-react";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import type { CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { PillButton } from "../common/pill-button";
 import { ContentEditor } from "../editor";
 import { ShortcutKeycaps } from "../editor/shortcut-keycaps";
-import { ProjectIcon } from "../projects/components/project-icon";
-import { PriorityIcon } from "./icons/priority-icon";
-import { StatusIcon } from "./icons/status-icon";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
-import { AssigneePicker } from "./pickers/assignee-picker";
-import { LabelPicker } from "./pickers/label-picker";
+import {
+  CreateTaskAssigneeField,
+  CreateTaskLabelField,
+  CreateTaskPriorityField,
+  CreateTaskStatusField,
+} from "./pickers/create-task-property-fields";
+import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
 import { useCreateTaskManualState } from "./use-create-task-manual";
 
 export type CreateTaskManualPanelProps = {
@@ -44,41 +31,6 @@ export type CreateTaskManualPanelProps = {
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
 };
-
-const pillTriggerClass =
-  "h-7 max-w-56 min-w-0 justify-start rounded-full border border-border/80 bg-transparent px-2.5 py-1 text-caption font-medium text-muted-foreground shadow-none hover:bg-accent/60 hover:text-foreground";
-
-type CompactSelectProps = {
-  id: string;
-  label: string;
-  items: { value: string; label: string }[];
-  value: string;
-  onValueChange: (value: string | null) => void;
-  icon: ReactNode;
-};
-
-function CompactSelect({ id, label, items, value, onValueChange, icon }: CompactSelectProps) {
-  return (
-    <Select items={items} value={value} onValueChange={onValueChange}>
-      <SelectTrigger
-        id={id}
-        aria-label={label}
-        size="sm"
-        className={pillTriggerClass}
-      >
-        {icon}
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent align="start">
-        {items.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 export function CreateTaskManualPanel({
   workspaceId,
@@ -106,6 +58,7 @@ export function CreateTaskManualPanel({
     priorityItems,
     projectItems,
     parentItems,
+    maxSiblingStage,
     labelList,
     propertyList,
     assignees,
@@ -191,25 +144,19 @@ export function CreateTaskManualPanel({
           data-testid="create-task-property-toolbar"
           className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 py-2"
         >
-          <CompactSelect
-            id="task-status"
-            label={t("tasks.status")}
+          <CreateTaskStatusField
             items={statusItems}
             value={draft.status ?? "todo"}
-            onValueChange={(value) => updateDraft({ status: value ?? "todo" })}
-            icon={<StatusIcon status={draft.status ?? "todo"} className="size-3.5" />}
+            searchPlaceholder={t("tasks.create.status_search_placeholder")}
+            noResultsLabel={t("tasks.create.options_no_results")}
+            onChange={(value) => updateDraft({ status: value })}
           />
-          <CompactSelect
-            id="task-priority"
-            label={t("tasks.priority")}
+          <CreateTaskPriorityField
             items={priorityItems}
-            value={draft.priority ?? "none"}
-            onValueChange={(value) =>
-              updateDraft({ priority: (value as CreateTaskDraft["priority"]) ?? "none" })
-            }
-            icon={<PriorityIcon priority={draft.priority ?? "none"} />}
+            value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>}
+            onChange={(value) => updateDraft({ priority: value })}
           />
-          <AssigneePicker
+          <CreateTaskAssigneeField
             value={assignee}
             options={assignees.options}
             onChange={(value) => updateDraft({ assigneeId: value?.id, assigneeKind: value?.kind })}
@@ -218,12 +165,8 @@ export function CreateTaskManualPanel({
             unassignedLabel={t("tasks.unassigned")}
             searchPlaceholder={t("tasks.assignee_search_placeholder")}
             noResultsLabel={t("tasks.assignee_no_results")}
-            triggerClassName={pillTriggerClass}
-          >
-            <UserRound className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate">{assigneeLabel}</span>
-          </AssigneePicker>
-          <LabelPicker
+          />
+          <CreateTaskLabelField
             labels={labelList?.labels ?? []}
             selectedIds={new Set(draft.labelIds ?? [])}
             onToggle={(labelId, checked) => {
@@ -235,30 +178,29 @@ export function CreateTaskManualPanel({
             ariaLabel={t("tasks.detail.prop_labels")}
             valueLabel={t("tasks.create.labels_selected", { count: draft.labelIds?.length ?? 0 })}
             emptyLabel={t("tasks.table.labels_empty")}
-            triggerClassName={pillTriggerClass}
-          >
-            <Tag className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate">
-              {t("tasks.create.labels_selected", { count: draft.labelIds?.length ?? 0 })}
-            </span>
-          </LabelPicker>
-          <CompactSelect
-            id="task-project"
-            label={t("tasks.create.project")}
+            searchPlaceholder={t("tasks.create.label_search_placeholder")}
+            noResultsLabel={t("tasks.create.options_no_results")}
+          />
+          <CreateTaskProjectField
             items={projectItems}
-            value={draft.projectId || "__none__"}
-            onValueChange={(value) =>
-              updateDraft({ projectId: !value || value === "__none__" ? undefined : value })
-            }
-            icon={<ProjectIcon />}
+            value={draft.projectId}
+            noneLabel={t("tasks.create.project_none")}
+            searchPlaceholder={t("tasks.create.project_search_placeholder")}
+            noResultsLabel={t("tasks.create.options_no_results")}
+            clearLabel={t("common.delete")}
+            onChange={(value) => updateDraft({ projectId: value })}
           />
           <CreateTaskManualOverflow
             moreFieldsLabel={t("tasks.create.more_fields")}
             clearLabel={t("common.delete")}
             parentLabel={t("tasks.create.parent")}
             stageLabel={t("tasks.create.stage")}
+            stageNoneLabel={t("tasks.detail.stage_none")}
             startDateLabel={t("tasks.create.start_date")}
             dueDateLabel={t("tasks.dueDate")}
+            parentSearchPlaceholder={t("tasks.create.parent_search_placeholder")}
+            optionsNoResultsLabel={t("tasks.create.options_no_results")}
+            parentNoneLabel={t("tasks.create.parent_none")}
             revealed={revealed}
             onReveal={reveal}
             onClear={unreveal}
@@ -266,6 +208,7 @@ export function CreateTaskManualPanel({
             parentValue={draft.parentTaskId}
             onParentChange={(value) => updateDraft({ parentTaskId: value })}
             stageValue={draft.stage}
+            maxSiblingStage={maxSiblingStage}
             onStageChange={(value) => updateDraft({ stage: value })}
             startDate={draft.startDate}
             onStartDateChange={(value) => updateDraft({ startDate: value })}

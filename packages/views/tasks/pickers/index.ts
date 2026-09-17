@@ -12,4 +12,16 @@ export {
   type AssigneeRef,
 } from "./assignee-picker";
 export { LabelPicker, labelChipClass } from "./label-picker";
+export { IconSelect, type IconSelectItem } from "./icon-select";
+export {
+  SearchableOptionPicker,
+  SEARCHABLE_OPTION_THRESHOLD,
+  type SearchableOption,
+} from "./searchable-option-picker";
+export {
+  PropertyPicker,
+  PickerItem,
+  PickerEmpty,
+  PICKER_TRIGGER_CLASS,
+} from "./property-picker";
 export { useTaskLabelToggle } from "./use-task-label-toggle";

@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import type { BatchUpdateBody } from "@uniwork/core/api/endpoints/tasks-suite";
 import type { Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
 import { DateField } from "../../common/date-field";
+import { PriorityIcon } from "../icons/priority-icon";
+import { StatusIcon } from "../icons/status-icon";
 import {
   AssigneePicker,
   PriorityPicker,
@@ -38,6 +40,7 @@ export function BatchStatusPicker({
         disabled={disabled}
         ariaLabel={label}
         align="center"
+        icon={(value) => <StatusIcon status={value} className="size-3.5" />}
         onChange={(value) => onUpdate({ status: value })}
       >
         {label}
@@ -63,6 +66,7 @@ export function BatchPriorityPicker({
       disabled={disabled}
       ariaLabel={label}
       align="center"
+      icon={(value) => <PriorityIcon priority={value} />}
       onChange={(value) => onUpdate({ priority: value })}
     >
       {label}

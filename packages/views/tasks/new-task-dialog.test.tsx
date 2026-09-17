@@ -237,13 +237,16 @@ describe("NewTaskDialog", () => {
     fireEvent.input(screen.getByRole("textbox", { name: "Mô tả" }), {
       target: { innerHTML: "<p><strong>Chi tiết</strong></p>" },
     });
-    expect(screen.getByRole("combobox", { name: "Task cha" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Task cha" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Thêm trường" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Giai đoạn" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Giai đoạn 2" }));
     fireEvent.click(screen.getByRole("button", { name: "Thêm trường" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Story points" }));
-    fireEvent.change(screen.getByLabelText("Giai đoạn"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Story points"), { target: { value: "5" } });
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Story points" }), {
+      target: { value: "5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
 
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith(

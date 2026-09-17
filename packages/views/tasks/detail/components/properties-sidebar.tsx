@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, Plus, Unlink, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
@@ -41,13 +41,12 @@ import { TaskActorAvatar } from "./task-actor-avatar";
 import {
   AssigneePicker,
   LabelPicker,
-  PriorityPicker,
-  StatusPicker,
   labelChipClass,
   useTaskLabelToggle,
   type AssigneeOption,
   type AssigneeRef,
 } from "../../pickers";
+import { PropRow, TaskDetailEnumFields } from "./properties-sidebar-enum-fields";
 
 const EMPTY_CONFIG = {
   flags: {},
@@ -55,15 +54,6 @@ const EMPTY_CONFIG = {
   work_management_capabilities: {},
 } as const;
 const NONE = "__none__";
-
-function PropRow({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[minmax(0,7rem)_1fr] items-start gap-x-2 gap-y-1 py-1">
-      <div className="pt-1.5 text-caption text-muted-foreground">{label}</div>
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
 
 /**
  * Suite properties sidebar: compact, named controls for the task's mutable
@@ -199,40 +189,11 @@ export function TaskDetailPropertiesSidebar({
       </h2>
 
       <div className="space-y-0.5">
-        <PropRow label={<Label>{t("tasks.status")}</Label>}>
-          <StatusPicker
-            value={task.status}
-            ariaLabel={t("tasks.status")}
-            valueLabel={t(`tasks.status_${task.status}`)}
-            triggerClassName="h-8 w-full justify-start px-2"
-            onChange={(value) => {
-              // Skip the PUT when the picked value matches the current one:
-              // this call is revisioned, so a no-op selection would still
-              // spend a revision bump for nothing.
-              if (value !== task.status) {
-                putField({ status: value });
-              }
-            }}
-          >
-            {t(`tasks.status_${task.status}`)}
-          </StatusPicker>
-        </PropRow>
-
-        <PropRow label={<Label>{t("tasks.priority")}</Label>}>
-          <PriorityPicker
-            value={task.priority}
-            ariaLabel={t("tasks.priority")}
-            valueLabel={t(`tasks.priority_${task.priority}`)}
-            triggerClassName="h-8 w-full justify-start px-2"
-            onChange={(value) => {
-              if (value !== task.priority) {
-                putField({ priority: value });
-              }
-            }}
-          >
-            {t(`tasks.priority_${task.priority}`)}
-          </PriorityPicker>
-        </PropRow>
+        <TaskDetailEnumFields
+          task={task}
+          onStatusChange={(value) => putField({ status: value })}
+          onPriorityChange={(value) => putField({ priority: value })}
+        />
 
         <PropRow
           label={
@@ -331,9 +292,6 @@ export function TaskDetailPropertiesSidebar({
                     )}
                   >
                     <span className="max-w-32 truncate">{l.name}</span>
-                    {/* Removal is an explicit × with its own name, not a click
-                        on the chip: a screen reader announced the old chip as
-                        just "Bug, button" with nothing saying it would detach. */}
                     <Button
                       type="button"
                       variant="ghost"
@@ -356,6 +314,8 @@ export function TaskDetailPropertiesSidebar({
               onToggle={labelToggle.toggle}
               ariaLabel={t("tasks.detail.add_label")}
               emptyLabel={t("tasks.table.labels_empty")}
+              searchPlaceholder={t("tasks.create.label_search_placeholder")}
+              noResultsLabel={t("tasks.create.options_no_results")}
               triggerClassName="h-8 w-full justify-start px-2 text-muted-foreground"
             >
               {t("tasks.detail.add_label")}

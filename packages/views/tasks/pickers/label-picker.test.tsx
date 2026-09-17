@@ -295,4 +295,26 @@ describe("LabelPicker", () => {
       expect(onOpenRow).not.toHaveBeenCalled();
     });
   });
+
+  it("ghim ô tìm kiếm trên đầu menu và lọc danh sách nhãn", () => {
+    const many = Array.from({ length: 10 }, (_, i) => label(`l${i}`, `Nhãn ${i}`));
+    render(
+      <LabelPicker
+        labels={many}
+        selectedIds={new Set()}
+        onToggle={vi.fn()}
+        ariaLabel="Nhãn"
+        emptyLabel="Workspace chưa có nhãn"
+        searchPlaceholder="Tìm nhãn"
+      >
+        Nhãn
+      </LabelPicker>,
+    );
+    openMenu();
+    const search = screen.getByPlaceholderText("Tìm nhãn");
+    expect(search).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: "Nhãn 9" } });
+    expect(screen.getByRole("menuitemcheckbox", { name: "Nhãn 9" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Nhãn 0" })).not.toBeInTheDocument();
+  });
 });

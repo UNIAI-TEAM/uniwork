@@ -12,10 +12,8 @@ describe("PillButton", () => {
     const onClear = vi.fn();
     const onClick = vi.fn();
     render(
-      <ClearablePillButton onClear={onClear} clearLabel="Xóa dự án">
-        <button type="button" onClick={onClick}>
-          Dự án A
-        </button>
+      <ClearablePillButton onClear={onClear} clearLabel="Xóa dự án" onClick={onClick}>
+        Dự án A
       </ClearablePillButton>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Xóa dự án" }));

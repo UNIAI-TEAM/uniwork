@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useState, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
@@ -43,6 +43,19 @@ interface DateFieldProps {
   /** Override the visible localized date without changing the date-only transport. */
   formatOptions?: Intl.DateTimeFormatOptions;
   showIcon?: boolean;
+  /** Visible text when no date is selected. */
+  placeholder?: string;
+  /** Accessible field name when the visible trigger contains only a value. */
+  ariaLabel?: string;
+  /** Match PropertyPicker/PillButton triggers without duplicating the calendar. */
+  triggerRender?: ReactElement<Record<string, unknown>>;
+  /** Optional icon in place of the default calendar glyph. */
+  icon?: ReactNode;
+  /** Custom trigger content while DateField still owns formatting and state. */
+  renderTrigger?: (label: string, selected: boolean) => ReactNode;
+  /** Optional controlled popover state for composers that reveal and open a field together. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -61,9 +74,21 @@ export function DateField({
   modal = true,
   formatOptions,
   showIcon = true,
+  placeholder,
+  ariaLabel,
+  triggerRender,
+  icon,
+  renderTrigger,
+  open: controlledOpen,
+  onOpenChange,
 }: DateFieldProps) {
   const { t, i18n } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const selected = dateOnlyToLocalDate(value);
   const before = min ? dateOnlyToLocalDate(min) : undefined;
   const after = max ? dateOnlyToLocalDate(max) : undefined;
@@ -72,7 +97,7 @@ export function DateField({
         i18n.language,
         formatOptions ?? { day: "numeric", month: "short", year: "numeric" },
       )
-    : t("common.date_pick");
+    : (placeholder ?? t("common.date_pick"));
 
   return (
     <Popover modal={modal} open={open} onOpenChange={setOpen}>
@@ -80,16 +105,28 @@ export function DateField({
         id={id}
         type="button"
         disabled={disabled}
-        className={cn(
-          "flex h-8 w-full min-w-0 items-center gap-2 pointer-coarse:min-h-11 rounded-lg border border-input bg-transparent px-2.5 py-1 text-left text-body transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30",
-          !selected && "text-muted-foreground",
-          className,
-        )}
+        aria-label={ariaLabel}
+        render={triggerRender}
+        className={
+          triggerRender
+            ? undefined
+            : cn(
+                "flex h-8 w-full min-w-0 items-center gap-2 pointer-coarse:min-h-11 rounded-lg border border-input bg-transparent px-2.5 py-1 text-left text-body transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30",
+                !selected && "text-muted-foreground",
+                className,
+              )
+        }
       >
-        {showIcon ? (
-          <CalendarDays aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-        ) : null}
-        <span className="truncate">{label}</span>
+        {renderTrigger ? (
+          renderTrigger(label, Boolean(selected))
+        ) : (
+          <>
+            {showIcon
+              ? (icon ?? <CalendarDays aria-hidden className="size-4 shrink-0 text-muted-foreground" />)
+              : null}
+            <span className="truncate">{label}</span>
+          </>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <button

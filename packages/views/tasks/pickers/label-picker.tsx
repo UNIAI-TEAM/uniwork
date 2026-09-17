@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode, type SyntheticEvent } from "react";
+import { useMemo, useState, type ReactNode, type SyntheticEvent } from "react";
 import type { TaskLabel } from "@uniwork/core/types";
 import { tintClass, tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -10,8 +10,10 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Input } from "@uniwork/ui/components/ui/input";
 import { tintFromColor } from "@uniwork/ui/lib/tint-from-color";
 import { cn } from "@uniwork/ui/lib/utils";
+import { SEARCHABLE_OPTION_THRESHOLD } from "./searchable-option-picker";
 import { usePickerTriggerLabel } from "./trigger-label";
 
 /** Token classes for a label chip: the stored hex mapped onto the nearest tint. */
@@ -29,6 +31,10 @@ export function labelChipClass(color: string | null | undefined): string {
  * `Menu.CheckboxItem` default `closeOnClick=false`; it is passed explicitly so
  * a future change to the registry wrapper can't silently flip it.
  *
+ * When `searchPlaceholder` is set and the catalog exceeds
+ * `SEARCHABLE_OPTION_THRESHOLD`, a search field is pinned above the scrollable
+ * list (Multica LabelPicker / PropertyPicker parity).
+ *
  * `onTriggerNavigationGuard` is wired exactly like `EnumFieldPicker`'s — the
  * trigger's `onPointerDown`/`onClick`/`onAuxClick` plus the popup's
  * `onAuxClick` — for the same reproduced row-navigation escapes; read that
@@ -45,6 +51,8 @@ export function LabelPicker({
   ariaLabel,
   valueLabel,
   emptyLabel,
+  searchPlaceholder,
+  noResultsLabel,
   onTriggerNavigationGuard,
   triggerClassName,
   align = "start",
@@ -63,6 +71,10 @@ export function LabelPicker({
    * the trigger shows a fixed action label. */
   valueLabel?: string;
   emptyLabel: string;
+  /** When set and the catalog is long, pins a Multica-style search above the list. */
+  searchPlaceholder?: string;
+  /** Shown when the catalog has labels but the query matches none. */
+  noResultsLabel?: string;
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
   align?: "start" | "center" | "end";
@@ -74,17 +86,28 @@ export function LabelPicker({
   // (@base-ui/react 1.7.0 menu/trigger/MenuTrigger.js:161-163), so `open` is
   // held closed here, as AssigneePicker does for its combobox.
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   // A controlled close never fires onOpenChange, so disabling an open menu
   // would leave `open` true and the menu would pop back when `disabled`
   // clears. Reset it during render, before anything commits.
   if (disabled && open) setOpen(false);
   const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
+  const showSearch =
+    Boolean(searchPlaceholder) && labels.length > SEARCHABLE_OPTION_THRESHOLD;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase();
+    if (!q) return labels;
+    return labels.filter((label) => label.name.toLocaleLowerCase().includes(q));
+  }, [labels, query]);
 
   return (
     <DropdownMenu
       open={disabled ? false : open}
       onOpenChange={(next) => {
-        if (!disabled) setOpen(next);
+        if (!disabled) {
+          setOpen(next);
+          if (!next) setQuery("");
+        }
       }}
     >
       <DropdownMenuTrigger
@@ -107,32 +130,54 @@ export function LabelPicker({
       <DropdownMenuContent
         align={align}
         onAuxClick={onTriggerNavigationGuard}
-        className="max-h-72 w-56 overflow-y-auto"
-      >
-        {labels.length === 0 ? (
-          <p className="px-2 py-4 text-center text-caption text-muted-foreground">
-            {emptyLabel}
-          </p>
-        ) : (
-          labels.map((label) => (
-            <DropdownMenuCheckboxItem
-              key={label.id}
-              checked={selectedIds.has(label.id)}
-              disabled={disabled || pendingIds?.has(label.id)}
-              closeOnClick={false}
-              onCheckedChange={(checked) => onToggle(label.id, checked)}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  tintSolidClass[tintFromColor(label.color)],
-                )}
-              />
-              <span className="truncate">{label.name}</span>
-            </DropdownMenuCheckboxItem>
-          ))
+        className={cn(
+          "w-56",
+          showSearch ? "flex max-h-72 flex-col overflow-hidden p-0" : "max-h-72 overflow-y-auto",
         )}
+      >
+        {showSearch && searchPlaceholder ? (
+          <div className="shrink-0 border-b px-2 py-1.5">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
+              className="h-8 border-0 bg-transparent px-1 shadow-none"
+            />
+          </div>
+        ) : null}
+        <div className={showSearch ? "min-h-0 flex-1 overflow-y-auto p-1" : undefined}>
+          {labels.length === 0 ? (
+            <p className="px-2 py-4 text-center text-caption text-muted-foreground">
+              {emptyLabel}
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="px-2 py-4 text-center text-caption text-muted-foreground">
+              {noResultsLabel ?? emptyLabel}
+            </p>
+          ) : (
+            filtered.map((label) => (
+              <DropdownMenuCheckboxItem
+                key={label.id}
+                checked={selectedIds.has(label.id)}
+                disabled={disabled || pendingIds?.has(label.id)}
+                closeOnClick={false}
+                onCheckedChange={(checked) => onToggle(label.id, checked)}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-2 shrink-0 rounded-full",
+                    tintSolidClass[tintFromColor(label.color)],
+                  )}
+                />
+                <span className="truncate">{label.name}</span>
+              </DropdownMenuCheckboxItem>
+            ))
+          )}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

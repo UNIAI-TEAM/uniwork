@@ -156,8 +156,16 @@ export function useCreateTaskManualState({
   const statusItems = useMemo(
     () =>
       statusList?.statuses.length
-        ? statusList.statuses.map((status) => ({ value: status.key, label: status.name }))
-        : TASK_STATUSES.map((status) => ({ value: status, label: t(`tasks.status_${status}`) })),
+        ? statusList.statuses.map((status) => ({
+            value: status.key,
+            label: status.name,
+            category: status.category,
+          }))
+        : TASK_STATUSES.map((status) => ({
+            value: status,
+            label: t(`tasks.status_${status}`),
+            category: status,
+          })),
     [statusList, t],
   );
   const priorityItems = useMemo(
@@ -165,21 +173,25 @@ export function useCreateTaskManualState({
     [t],
   );
   const projectItems = useMemo(
-    () => [
-      { value: "__none__", label: t("tasks.create.project_none") },
-      ...(projectList?.projects ?? []).map((project) => ({ value: project.id, label: project.title })),
-    ],
-    [projectList, t],
+    () => (projectList?.projects ?? []).map((project) => ({ value: project.id, label: project.title })),
+    [projectList],
   );
   const parentItems = useMemo(
-    () => [
-      { value: "__none__", label: t("tasks.create.parent_none") },
-      ...(taskList ?? []).map((task) => ({
+    () =>
+      (taskList ?? []).map((task) => ({
         value: task.id,
         label: `${task.identifier || task.id} ${task.title}`,
       })),
-    ],
-    [taskList, t],
+    [taskList],
+  );
+  const maxSiblingStage = useMemo(
+    () =>
+      (taskList ?? []).reduce((maximum, task) => {
+        if (!draft.parentTaskId || task.parent_task_id !== draft.parentTaskId) return maximum;
+        const stage = typeof task.stage === "number" ? task.stage : Number(task.stage);
+        return Number.isSafeInteger(stage) && stage > maximum ? stage : maximum;
+      }, 0),
+    [draft.parentTaskId, taskList],
   );
 
   const submit = () => {
@@ -341,6 +353,7 @@ export function useCreateTaskManualState({
     priorityItems,
     projectItems,
     parentItems,
+    maxSiblingStage,
     labelList,
     propertyList,
     assignees,

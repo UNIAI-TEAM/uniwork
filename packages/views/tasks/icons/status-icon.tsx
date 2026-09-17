@@ -121,12 +121,13 @@ export function StatusIcon({
   inheritColor = false,
 }: {
   status: string;
-  category?: TaskStatus;
+  /** Catalog category key; unknown values fall back via categoryOf. */
+  category?: string;
   color?: string | null;
   className?: string;
   inheritColor?: boolean;
 }) {
-  const category = categoryProp ?? categoryOf(status);
+  const category = categoryOf(categoryProp ?? status);
   const Renderer = renderers[category];
   const customColor = !inheritColor && Boolean(color);
 

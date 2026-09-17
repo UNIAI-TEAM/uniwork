@@ -35,8 +35,8 @@ describe("CreateTaskDialog", () => {
       ),
     );
 
-    const status = screen.getByRole("combobox", { name: "Trạng thái" });
-    const priority = screen.getByRole("combobox", { name: "Độ ưu tiên" });
+    const status = screen.getByRole("button", { name: "Cần làm" });
+    const priority = screen.getByRole("button", { name: "Không ưu tiên" });
 
     expect(status).toHaveClass("rounded-full");
     expect(priority).toHaveClass("rounded-full");
@@ -44,7 +44,7 @@ describe("CreateTaskDialog", () => {
     expect(priority).not.toHaveClass("w-full");
     expect(status.querySelector('[data-slot="status-icon"]')).not.toBeNull();
     expect(priority.querySelector('[data-slot="priority-icon"]')).not.toBeNull();
-    expect(screen.getByRole("combobox", { name: "Dự án" })).toHaveTextContent("📁");
+    expect(screen.getByRole("button", { name: "Không có dự án" })).toHaveTextContent("📁");
     expect(screen.getByTestId("create-task-composer-body")).toHaveClass("flex-1");
     expect(screen.getByTestId("create-task-property-toolbar")).toHaveClass("shrink-0");
     expect(screen.getByTestId("create-task-footer")).toHaveClass("sm:flex");
