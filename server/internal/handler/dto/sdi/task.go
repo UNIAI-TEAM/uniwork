@@ -22,7 +22,7 @@ type CreateTaskSDI struct {
 
 // PatchTaskSDI documents PATCH /api/v1/tasks/{taskID}. The handler still
 // decodes map[string]json.RawMessage so a missing field stays unchanged and
-// a JSON null clears assignee_id / due_date.
+// a JSON null clears assignee_id / start_date / due_date.
 type PatchTaskSDI struct {
 	Title        *string  `json:"title" description:"Tiêu đề mới" example:"Chuẩn bị standup"`
 	Description  *string  `json:"description" example:"Agenda và ghi chú"`
@@ -31,6 +31,7 @@ type PatchTaskSDI struct {
 	Position     *float64 `json:"position" description:"Thứ tự trên bảng; số lớn hơn nằm sau" example:"1"`
 	AssigneeID   *string  `json:"assignee_id" description:"Gán thành viên hoặc agent, hoặc gửi null để bỏ giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	AssigneeKind *string  `json:"assignee_kind" description:"human (mặc định) hoặc agent; đọc cùng assignee_id" example:"agent"`
+	StartDate    *string  `json:"start_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa ngày bắt đầu" example:"2026-08-25"`
 	DueDate      *string  `json:"due_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa hạn" example:"2026-08-28"`
 	ProjectID    *string  `json:"project_id" description:"Gắn project ULID, hoặc gửi null để gỡ" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 }
@@ -101,18 +102,18 @@ type TableSortSDI struct {
 type TableQuerySDI struct {
 	Filter TableFilterSDI `json:"filter" description:"Bộ lọc chung"`
 	Search string         `json:"search" description:"Tìm theo tiêu đề (mọi từ) hoặc số hiệu" example:"báo cáo"`
-	Sort   TableSortSDI   `json:"sort"`
+	Sort   TableSortSDI   `json:"sort" description:"Thứ tự dòng; bỏ trống = position tăng dần"`
 }
 
 // TableGroupsSDI is POST .../tasks/table/groups (flagged suite).
 type TableGroupsSDI struct {
-	Query   TableQuerySDI `json:"query"`
+	Query   TableQuerySDI `json:"query" description:"Lọc, tìm và sắp xếp dùng chung với rows và facets"`
 	GroupBy string        `json:"group_by" description:"none, status, priority, assignee, project hoặc property:<id>" example:"status"`
 }
 
 // TableRowsSDI is POST .../tasks/table/rows (flagged suite).
 type TableRowsSDI struct {
-	Query     TableQuerySDI `json:"query"`
+	Query     TableQuerySDI `json:"query" description:"Lọc, tìm và sắp xếp; phải khớp truy vấn đã tạo cursor"`
 	GroupBy   string        `json:"group_by" description:"Trục nhóm khớp groups" example:"status"`
 	GroupKey  *string       `json:"group_key" description:"Key nhóm nguyên văn từ /table/groups; null khi group_by=none" example:"status:todo"`
 	Hierarchy bool          `json:"hierarchy" description:"Bật cây việc con" example:"true"`
@@ -123,6 +124,6 @@ type TableRowsSDI struct {
 
 // TableFacetsSDI is POST .../tasks/table/facets (flagged suite).
 type TableFacetsSDI struct {
-	Query  TableQuerySDI `json:"query"`
+	Query  TableQuerySDI `json:"query" description:"Lọc, tìm và sắp xếp để đếm facet"`
 	Facets []string      `json:"facets" description:"status, priority, assignee, project" example:"[\"status\"]"`
 }

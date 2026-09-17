@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { tableRows } from "../../api/endpoints/tasks-table";
+import { ApiError } from "../../api/http";
 import {
+  tableQueryRetry,
   normalizeTableQuery,
   tableGroupsBody,
   tableRowsBranchPrefix,
@@ -110,6 +112,33 @@ describe("tasks/surface/table-query", () => {
     expect(JSON.stringify(tableGroupsBody({ query: { filter: { statuses: ["todo"] } }, groupBy: "status" }))).toBe(
       '{"query":{"filter":{"statuses":["todo"]}},"group_by":"status"}',
     );
+  });
+
+  describe("tableQueryRetry", () => {
+    it("never retries a client error: the same request would fail the same way", () => {
+      for (const status of [400, 404, 409, 422, 499]) {
+        expect(tableQueryRetry(0, new ApiError("no", "bad", status))).toBe(false);
+      }
+    });
+
+    it("retries a server or network failure once", () => {
+      expect(tableQueryRetry(0, new ApiError("down", "internal", 500))).toBe(true);
+      expect(tableQueryRetry(0, new Error("network"))).toBe(true);
+      expect(tableQueryRetry(1, new Error("network"))).toBe(false);
+    });
+
+    it("is what a rows page asks with", () => {
+      const body = tableRowsPageBody({
+        query: {},
+        groupBy: "none",
+        hierarchy: true,
+        groupKey: null,
+        parentId: null,
+        cursor: null,
+        limit: 50,
+      });
+      expect(tableRowsPageQuery("w1", body).retry).toBe(tableQueryRetry);
+    });
   });
 
   describe("tableRowsBranchPrefix", () => {

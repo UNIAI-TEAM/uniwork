@@ -60,8 +60,8 @@ type CreateTaskInput struct {
 	Properties    map[string]json.RawMessage
 }
 
-// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate/ProjectID con trỏ
-// kép — con trỏ tới nil = xóa giá trị.
+// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/ProjectID
+// con trỏ kép — con trỏ tới nil = xóa giá trị.
 type UpdateTaskInput struct {
 	Title        *string
 	Description  *string
@@ -70,6 +70,7 @@ type UpdateTaskInput struct {
 	Position     *float64
 	AssigneeID   **string
 	AssigneeKind string // read only when AssigneeID is set; "" means human
+	StartDate    **string
 	DueDate      **string
 	ProjectID    **string
 }
@@ -309,11 +310,11 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if !validPriority[in.Priority] {
 		return db.Task{}, Invalid("priority không hợp lệ")
 	}
-	start, err := parseDate(in.StartDate)
+	start, err := parseDate("start_date", in.StartDate)
 	if err != nil {
 		return db.Task{}, err
 	}
-	due, err := parseDate(in.DueDate)
+	due, err := parseDate("due_date", in.DueDate)
 	if err != nil {
 		return db.Task{}, err
 	}
@@ -563,8 +564,21 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 			return db.Task{}, err
 		}
 	}
+	if in.StartDate != nil {
+		start, serr := parseDate("start_date", *in.StartDate)
+		if serr != nil {
+			return db.Task{}, serr
+		}
+		task, err = q.SetTaskStartDate(ctx, db.SetTaskStartDateParams{
+			ID: before.ID, StartDate: start,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
 	if in.DueDate != nil {
-		due, derr := parseDate(*in.DueDate)
+		due, derr := parseDate("due_date", *in.DueDate)
 		if derr != nil {
 			return db.Task{}, derr
 		}
@@ -679,13 +693,14 @@ func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskI
 	})
 }
 
-func parseDate(s *string) (pgtype.Date, error) {
+// parseDate reads an optional YYYY-MM-DD value; field names it in the error.
+func parseDate(field string, s *string) (pgtype.Date, error) {
 	if s == nil || *s == "" {
 		return pgtype.Date{}, nil
 	}
 	t, err := time.Parse("2006-01-02", *s)
 	if err != nil {
-		return pgtype.Date{}, Invalid("due_date phải dạng YYYY-MM-DD")
+		return pgtype.Date{}, Invalid(field + " phải dạng YYYY-MM-DD")
 	}
 	return pgtype.Date{Time: t, Valid: true}, nil
 }

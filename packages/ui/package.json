@@ -23,6 +23,9 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@dnd-kit/core": "catalog:",
+    "@dnd-kit/sortable": "catalog:",
+    "@dnd-kit/utilities": "catalog:",
     "@emoji-mart/data": "^1.2.1",
     "@number-flow/react": "^0.6.1",
     "@tanstack/react-table": "catalog:",

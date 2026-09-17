@@ -80,7 +80,7 @@ export function ChatPageView({
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
   const sendFileMessage = useSendChatFileMessage(workspaceId);
   useChatSendOutboxFlush(workspaceId, currentUserId);
-  const pendingOutboxCount = useChatSendOutboxCount(workspaceId);
+  const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
   const blockUser = useBlockChatUser(workspaceId);
   const unblockUser = useUnblockChatUser(workspaceId);
 

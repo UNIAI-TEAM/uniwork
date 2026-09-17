@@ -12,10 +12,11 @@ import { useClearDeliveredChatSends } from "./use-clear-delivered-chat-sends";
 
 const outboxEntry = (clientMsgId: string) => ({
   workspaceId: "ws1",
+  senderId: "u1",
   roomId: "room1",
   body: "hello",
   client_msg_id: clientMsgId,
-  queued_at: "2026-09-05T00:00:00Z",
+  queued_at: new Date().toISOString(),
 });
 
 describe("useClearDeliveredChatSends", () => {
@@ -38,7 +39,7 @@ describe("useClearDeliveredChatSends", () => {
 
     renderHook(() => useClearDeliveredChatSends([{ client_msg_id: "cmid-delivered" }]));
 
-    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1")).toEqual([]);
+    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toEqual([]);
     expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([]);
   });
 
@@ -47,6 +48,6 @@ describe("useClearDeliveredChatSends", () => {
 
     renderHook(() => useClearDeliveredChatSends([{ client_msg_id: "cmid-other" }, {}]));
 
-    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1")).toHaveLength(1);
+    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toHaveLength(1);
   });
 });

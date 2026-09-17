@@ -38,7 +38,7 @@ import {
 } from "./actions-context";
 import {
   useCreateTaskSurfaceSelection,
-  type TaskSurfaceSelection,
+  type TaskSurfaceSelectionHandle,
 } from "./selection-context";
 import type { TaskSurfaceMode } from "./types";
 import { projectSurfaceTasks } from "./task-surface-projection";
@@ -89,8 +89,14 @@ function taskPatchFromSurfaceUpdates(
       patch.assignee_kind = updates.assignee_kind;
     }
   }
+  if (updates.start_date === null || typeof updates.start_date === "string") {
+    patch.start_date = updates.start_date;
+  }
   if (updates.due_date === null || typeof updates.due_date === "string") {
     patch.due_date = updates.due_date;
+  }
+  if (updates.project_id === null || typeof updates.project_id === "string") {
+    patch.project_id = updates.project_id;
   }
   return patch;
 }
@@ -127,7 +133,7 @@ export interface TaskSurfaceController {
   isError: boolean;
   isRefreshing: boolean;
   actions: TaskSurfaceActions;
-  selection: TaskSurfaceSelection;
+  selection: TaskSurfaceSelectionHandle;
   openCreateTask: (defaults?: TaskCreateDefaults) => void;
   createDefaults: TaskCreateDefaults | undefined;
   createOpen: boolean;

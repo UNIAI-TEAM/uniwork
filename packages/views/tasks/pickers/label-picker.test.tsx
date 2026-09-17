@@ -39,7 +39,7 @@ function Harness({
   selectedIds?: string[];
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
 }) {
-  const { toggle, pendingIds } = useTaskLabelToggle("w1", "t1");
+  const { toggle, pendingIds } = useTaskLabelToggle("w1", "t1", labels);
   return (
     <LabelPicker
       labels={labels}

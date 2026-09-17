@@ -76,6 +76,17 @@ WHERE id = $1
   AND workspace_id = $4
 RETURNING *;
 
+-- name: SetTaskStartDate :one
+UPDATE tasks SET
+  start_date = $2,
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = $1
+  AND organization_id = $3
+  AND workspace_id = $4
+RETURNING *;
+
 -- name: SetTaskProjectID :one
 UPDATE tasks SET
   project_id = $2,

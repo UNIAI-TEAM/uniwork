@@ -11,7 +11,7 @@ beforeAll(() => {
   initI18n();
 });
 
-const members = [{ id: "u1", name: "An Nguyễn" }];
+const options = [{ id: "u1", kind: "human" as const, name: "An Nguyễn" }];
 
 describe("table cell pickers: accessible name contains the visible value", () => {
   it("status", () => {
@@ -27,13 +27,13 @@ describe("table cell pickers: accessible name contains the visible value", () =>
   });
 
   it("assignee", () => {
-    render(<TableAssigneeCell assigneeId="u1" members={members} onChange={vi.fn()} />);
+    render(<TableAssigneeCell assigneeId="u1" options={options} onChange={vi.fn()} />);
     const trigger = screen.getByRole("combobox", { name: "Người phụ trách: An Nguyễn" });
     expect(trigger).toHaveTextContent("An Nguyễn");
   });
 
   it("unassigned", () => {
-    render(<TableAssigneeCell members={members} onChange={vi.fn()} />);
+    render(<TableAssigneeCell options={options} onChange={vi.fn()} />);
     expect(
       screen.getByRole("combobox", { name: "Người phụ trách: Chưa giao" }),
     ).toHaveTextContent("Chưa giao");
@@ -45,7 +45,7 @@ describe("table cell pickers: accessible name contains the visible value", () =>
         assigneeId="a1"
         assigneeName="Trợ lý QA"
         assigneeKind="agent"
-        members={members}
+        options={options}
         onChange={vi.fn()}
       />,
     );

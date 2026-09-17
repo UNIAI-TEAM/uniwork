@@ -92,7 +92,7 @@ export function TaskDetailPropertiesSidebar({
   const catalog = propertiesQuery.data?.properties ?? [];
   const labelsQuery = useTaskLabels(workspaceId);
   const onTaskLabels = useLabelsOnTask(task.id);
-  const labelToggle = useTaskLabelToggle(workspaceId, task.id);
+  const labelToggle = useTaskLabelToggle(workspaceId, task.id, labelsQuery.data?.labels ?? []);
   const parentId = task.parent_task_id ?? null;
   const { data: parentTask } = useTask(parentId ?? "");
   const [optionalOpen, setOptionalOpen] = useState(false);
@@ -123,9 +123,8 @@ export function TaskDetailPropertiesSidebar({
     [attachedLabels],
   );
 
-  // Only the sidebar offers agents as assignees today (ADR 0007 pair: id +
-  // kind travel together). The table cell and batch toolbar deliberately
-  // keep offering human members only — see the task-2 report.
+  // Members, then agents (ADR 0007 pair: id + kind travel together); the
+  // table's assignee cell builds the same list.
   const assigneeOptions: AssigneeOption[] = useMemo(
     () => [
       ...(members ?? []).map((m) => ({

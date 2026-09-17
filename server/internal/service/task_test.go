@@ -210,6 +210,64 @@ func TestTaskUpdateAcceptsRemainingBuiltInBoardStatuses(t *testing.T) {
 	}
 }
 
+// start_date follows the due_date pattern exactly (ADR 0015 keeps it out of
+// task.updated's Patch list; see TestRealtimePatchCarriesOnlyAWholeChange for
+// that half): PATCH sets it, revision +1, one audit row lands, null clears
+// it, and a malformed value is rejected before any query runs.
+func TestTaskUpdateStartDate(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Đặt ngày bắt đầu"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sd := "2026-09-20"
+	sdp := &sd
+	set, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &sdp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !set.StartDate.Valid || set.StartDate.Time.Format("2006-01-02") != sd {
+		t.Fatalf("start_date = %+v, want %s", set.StartDate, sd)
+	}
+	if set.Revision != task.Revision+2 {
+		t.Fatalf("set start_date revision: got %d want %d", set.Revision, task.Revision+2)
+	}
+
+	var n int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE resource_type = 'task' AND resource_id = $1 AND action = 'task.updated'`,
+		task.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("task.updated audit rows: %d, want 1", n)
+	}
+
+	var nilStr *string
+	cleared, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &nilStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.StartDate.Valid {
+		t.Fatal("start_date not cleared")
+	}
+
+	bad := "not-a-date"
+	badp := &bad
+	_, err = s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &badp})
+	var verr ValidationError
+	if !errors.As(err, &verr) || verr.Msg != "start_date phải dạng YYYY-MM-DD" {
+		t.Fatalf("malformed start_date: got %v, want a validation error naming start_date", err)
+	}
+	_, err = s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{DueDate: &badp})
+	if !errors.As(err, &verr) || verr.Msg != "due_date phải dạng YYYY-MM-DD" {
+		t.Fatalf("malformed due_date: got %v, want a validation error naming due_date", err)
+	}
+}
+
 func TestTaskNumbersAreAtomicPerWorkspace(t *testing.T) {
 	s, _, ua, ub, w := taskFixture(t)
 	ctx := context.Background()

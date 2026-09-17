@@ -8,7 +8,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@uniwork/core/types";
-import { useLabelsOnTask } from "@uniwork/core/tasks";
+import type { TableRowLabel } from "@uniwork/core/api/endpoints/tasks-table";
 import {
   Avatar,
   AvatarFallback,
@@ -23,11 +23,12 @@ import {
   PriorityPicker,
   StatusPicker,
   labelChipClass,
-  toHumanAssigneeOptions,
   useTaskLabelToggle,
+  type AssigneeOption,
   type AssigneeRef,
   type MemberOption,
 } from "../pickers";
+import { EnumFieldPicker } from "../pickers/enum-field-picker";
 import { STATUS_CONFIG } from "./status-config";
 
 export type TableMember = MemberOption;
@@ -115,45 +116,55 @@ export function TablePriorityCell({
   );
 }
 
-function MemberIdentity({ member }: { member: TableMember }) {
+function AssigneeIdentity({
+  name,
+  avatarUrl,
+}: {
+  name: string;
+  avatarUrl?: string;
+}) {
   return (
     <>
       <Avatar size="sm" className="size-5">
-        {member.avatarUrl ? (
-          <AvatarImage src={member.avatarUrl} alt="" />
-        ) : null}
-        <AvatarFallback>{initials(member.name)}</AvatarFallback>
+        {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
+        <AvatarFallback>{initials(name)}</AvatarFallback>
       </Avatar>
-      <span className="truncate">{member.name}</span>
+      <span className="truncate">{name}</span>
     </>
   );
 }
 
+/**
+ * Assignee cell over the workspace's members and agents, as the properties
+ * sidebar offers them: the picked option's id and kind travel together
+ * (ADR 0007).
+ */
 export function TableAssigneeCell({
   assigneeId,
   assigneeName,
   assigneeKind,
-  members,
+  options,
   onChange,
 }: {
   assigneeId?: string;
   assigneeName?: string;
   assigneeKind?: string;
-  members: TableMember[];
-  onChange: (id: string | null) => void;
+  options: AssigneeOption[];
+  onChange: (next: AssigneeRef | null) => void;
 }) {
   const { t } = useTranslation();
-  const selected = members.find((member) => member.id === assigneeId);
-  const options = toHumanAssigneeOptions(members);
-  const shownName = selected?.name ?? assigneeName ?? t("tasks.unassigned");
   const value: AssigneeRef | null = assigneeId
     ? { id: assigneeId, kind: assigneeKind === "agent" ? "agent" : "human" }
     : null;
+  const selected = value
+    ? options.find((option) => option.id === value.id && option.kind === value.kind)
+    : undefined;
+  const shownName = selected?.name ?? assigneeName ?? t("tasks.unassigned");
   return (
     <AssigneePicker
       value={value}
       options={options}
-      onChange={(next) => onChange(next?.id ?? null)}
+      onChange={onChange}
       ariaLabel={t("tasks.assignee")}
       valueLabel={
         assigneeKind === "agent" ? `${shownName} ${t("agents.badge")}` : shownName
@@ -165,7 +176,7 @@ export function TableAssigneeCell({
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
     >
       {selected ? (
-        <MemberIdentity member={selected} />
+        <AssigneeIdentity name={selected.name} avatarUrl={selected.avatarUrl} />
       ) : (
         <>
           <Avatar size="sm" className="size-5">
@@ -183,7 +194,8 @@ export function TableAssigneeCell({
   );
 }
 
-export function TableDueDateCell({
+/** A calendar-day cell (start date, due date); an empty pick clears with null. */
+export function TableDateCell({
   value,
   onChange,
 }: {
@@ -202,18 +214,46 @@ export function TableDueDateCell({
   );
 }
 
-export function TableProjectCell({ title }: { title?: string }) {
+const NO_PROJECT = "__none__";
+
+export function TableProjectCell({
+  projectId,
+  projects,
+  onChange,
+}: {
+  projectId?: string;
+  projects: ReadonlyArray<{ id: string; title: string }>;
+  onChange: (projectId: string | null) => void;
+}) {
   const { t } = useTranslation();
+  const none = t("tasks.detail.prop_project_none");
+  // A project this list does not have (not loaded, or not visible) is still a
+  // project: say nothing rather than claim there is none.
+  const title = projectId
+    ? (projects.find((project) => project.id === projectId)?.title ?? "—")
+    : none;
   return (
-    <span className="flex min-w-0 items-center gap-1.5 text-caption">
+    <EnumFieldPicker
+      value={projectId || NO_PROJECT}
+      options={[
+        { value: NO_PROJECT, label: none },
+        ...projects.map((project) => ({ value: project.id, label: project.title })),
+      ]}
+      onChange={(next) => {
+        const nextId = next === NO_PROJECT ? null : next;
+        if (nextId !== (projectId || null)) onChange(nextId);
+      }}
+      ariaLabel={t("tasks.detail.prop_project")}
+      valueLabel={title}
+      onTriggerNavigationGuard={stopRowNavigation}
+      triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
+    >
       <FolderKanban
         className="size-3.5 shrink-0 text-muted-foreground"
         aria-hidden
       />
-      <span className="truncate">
-        {title ?? t("tasks.detail.prop_project_none")}
-      </span>
-    </span>
+      <span className="truncate">{title}</span>
+    </EnumFieldPicker>
   );
 }
 
@@ -221,25 +261,25 @@ export function TableLabelsCell({
   workspaceId,
   taskId,
   labels,
+  attached,
 }: {
   workspaceId: string;
   taskId: string;
+  /** The workspace label catalog — the picker's choices. */
   labels: TaskLabel[];
+  /** The task's attached labels, as the table row already carries them: no per-row query. */
+  attached: TableRowLabel[];
 }) {
   const { t } = useTranslation();
-  // One per-row query, unchanged from before this picker existed; the
-  // workspace catalog still arrives through `labels` (see task-4 brief).
-  const attached = useLabelsOnTask(taskId);
-  const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId);
-  const selected = attached.data?.labels ?? [];
-  const selectedIds = new Set(selected.map((label) => label.id));
+  const { toggle, pendingIds } = useTaskLabelToggle(workspaceId, taskId, labels);
+  const selectedIds = new Set(attached.map((label) => label.id));
   // Mirrors the chips below: two names, then "+N", or the empty placeholder.
   const shownLabels =
-    selected.length === 0
+    attached.length === 0
       ? t("tasks.table.empty_value")
       : [
-          ...selected.slice(0, 2).map((label) => label.name),
-          ...(selected.length > 2 ? [`+${selected.length - 2}`] : []),
+          ...attached.slice(0, 2).map((label) => label.name),
+          ...(attached.length > 2 ? [`+${attached.length - 2}`] : []),
         ].join(", ");
 
   return (
@@ -254,13 +294,13 @@ export function TableLabelsCell({
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"
     >
-      {selected.length === 0 ? (
+      {attached.length === 0 ? (
         <span className="text-muted-foreground">
           {t("tasks.table.empty_value")}
         </span>
       ) : (
         <>
-          {selected.slice(0, 2).map((label) => (
+          {attached.slice(0, 2).map((label) => (
             <span
               key={label.id}
               className={cn(
@@ -271,9 +311,9 @@ export function TableLabelsCell({
               {label.name}
             </span>
           ))}
-          {selected.length > 2 ? (
+          {attached.length > 2 ? (
             <span className="tabular-nums text-muted-foreground">
-              +{selected.length - 2}
+              +{attached.length - 2}
             </span>
           ) : null}
         </>

@@ -19,7 +19,7 @@ initI18n();
 let storeCount = 0;
 
 function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   storeCount += 1;
   const store = getTaskSurfaceViewStore(`board-columns-data-${storeCount}`);
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -92,10 +92,12 @@ describe("useBoardColumnsData", () => {
     expect(server.rowRequests()).toEqual(["status:todo@0"]);
   });
 
-  it("shares its rows and groups cache entries with a table grouped by status on the same parameters", async () => {
+  it("shares its rows and groups cache entries with a flat table grouped by status on the same parameters", async () => {
     serveBoardTable({ counts: { todo: 3, done: 2 } });
     const { client, store, Wrapper } = setup();
     store.getState().setTableGrouping("status");
+    // The board is flat; a table showing sub-tasks asks `hierarchy: true` and pages apart.
+    store.getState().toggleShowSubTasks();
     const { result } = renderHook(
       () => ({
         board: useBoardColumnsData({
@@ -308,6 +310,7 @@ describe("useBoardColumnsData", () => {
     expect(result.current.columns.todo!.isError).toBe(false);
     expect(server.rowRequests().filter((page) => page.startsWith("status:todo@"))).toEqual([
       "status:todo@0",
+      "status:todo@50",
       "status:todo@50",
       "status:todo@50",
     ]);

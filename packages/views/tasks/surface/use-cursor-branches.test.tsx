@@ -1,13 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { tableRowsBranchPrefix, tableRowsPageBody } from "@uniwork/core/tasks/surface/table-query";
+import type { TableRowsResult } from "@uniwork/core/api/endpoints/tasks-table";
+import {
+  tableRowsBranchPrefix,
+  tableRowsPageBody,
+  tableRowsPageQuery,
+} from "@uniwork/core/tasks/surface/table-query";
 import { requestMock } from "../../test/request-mock";
 import { encodeCursor, serveTableCursor } from "../../test/table-cursor-server";
 import { useCursorBranches, type CursorBranchSpec } from "./use-cursor-branches";
 
 function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   function Wrapper({ children }: { children: React.ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
@@ -104,7 +109,7 @@ describe("useCursorBranches", () => {
     expect(result.current.byKey.get("todo")?.hasMore).toBe(true);
   });
 
-  it("drops the tail pages when the first page refetches with changed data", async () => {
+  it("drops the tail pages when a refetch moves the first page's next_cursor", async () => {
     const server = serveTableCursor({ count: () => 6 });
     const { client, result } = renderBranches({});
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
@@ -112,6 +117,7 @@ describe("useCursorBranches", () => {
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
 
     server.change();
+    server.moveBoundary();
     await act(() => client.invalidateQueries({ queryKey: tableRowsBranchPrefix("w1", branch("todo").body) }));
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
     await settle();
@@ -125,7 +131,59 @@ describe("useCursorBranches", () => {
     server.rowBodies.length = 0;
     act(() => result.current.byKey.get("todo")!.loadMore());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
+    expect(server.rowRequests()).toEqual([`todo@${encodeCursor(2, 1)}`]);
     expect(result.current.byKey.get("todo")!.rows[2]!.task.title).toBe("todo 2 v1");
+  });
+
+  it("keeps the tail pages when an optimistic edit rewrites a first-page row", async () => {
+    const server = serveTableCursor({ count: () => 6 });
+    const { client, result } = renderBranches({});
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
+
+    const firstKey = tableRowsPageQuery("w1", { ...branch("todo").body, cursor: null }).queryKey;
+    server.rowBodies.length = 0;
+    act(() => {
+      client.setQueryData<TableRowsResult>(firstKey, (page) =>
+        page
+          ? {
+              ...page,
+              rows: page.rows.map((row, i) => (i === 0 ? { ...row, task: { ...row.task, title: "edited" } } : row)),
+            }
+          : page,
+      );
+    });
+    await settle();
+
+    const state = result.current.byKey.get("todo")!;
+    expect(state.rows.map((row) => row.task.id)).toEqual([0, 1, 2, 3].map((i) => `todo-${i}`));
+    expect(state.rows[0]!.task.title).toBe("edited");
+    expect(state.hasMore).toBe(true);
+    expect(server.rowBodies).toHaveLength(0);
+  });
+
+  it("keeps the tail pages when a realtime patch's settle refetch keeps the first page's next_cursor", async () => {
+    const server = serveTableCursor({ count: () => 6 });
+    const { client, result } = renderBranches({});
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
+
+    // A row on page one was edited: its content differs, the keyset boundary does not.
+    server.change();
+    await act(() => client.invalidateQueries({ queryKey: tableRowsBranchPrefix("w1", branch("todo").body) }));
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows[0]?.task.title).toBe("todo 0 v1"));
+    await settle();
+
+    const state = result.current.byKey.get("todo")!;
+    expect(state.rows.map((row) => row.task.title)).toEqual([0, 1, 2, 3].map((i) => `todo ${i} v1`));
+    expect(state.hasMore).toBe(true);
+
+    server.rowBodies.length = 0;
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(6));
+    expect(server.rowRequests()).toEqual([`todo@${encodeCursor(4)}`]);
   });
 
   it("keeps the tail pages when the first page refetches with equal data", async () => {
@@ -193,7 +251,8 @@ describe("useCursorBranches", () => {
     await act(() => client.refetchQueries({ queryKey: tableRowsBranchPrefix("w1", branch("todo").body) }));
     await waitFor(() => expect(result.current.byKey.get("todo")?.total).toBe(3));
     await settle();
-    expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
+    // The first page's boundary did not move, so the refetched second page stays.
+    expect(result.current.byKey.get("todo")?.rows).toHaveLength(3);
     expect(result.current.byKey.get("todo")?.total).toBe(3);
   });
 
@@ -217,7 +276,8 @@ describe("useCursorBranches", () => {
     act(() => result.current.byKey.get("todo")!.retry());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
     expect(result.current.byKey.get("todo")?.isError).toBe(false);
-    expect(server.rowRequests()).toEqual(["todo@null", "todo@null"]);
+    // The request, its one automatic retry, then the user's retry.
+    expect(server.rowRequests()).toEqual(["todo@null", "todo@null", "todo@null"]);
   });
 
   it("retries a failed later page from loadMore, keeping the rows before it", async () => {
@@ -226,14 +286,19 @@ describe("useCursorBranches", () => {
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
 
     act(() => result.current.byKey.get("todo")!.loadMore());
-    await waitFor(() => expect(server.rowRequests()).toHaveLength(2));
+    await waitFor(() => expect(server.rowRequests()).toHaveLength(3));
     await settle();
     expect(result.current.byKey.get("todo")).toMatchObject({ isFetchingMore: false });
     expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
 
     act(() => result.current.byKey.get("todo")!.loadMore());
     await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(4));
-    expect(server.rowRequests()).toEqual(["todo@null", `todo@${encodeCursor(2)}`, `todo@${encodeCursor(2)}`]);
+    expect(server.rowRequests()).toEqual([
+      "todo@null",
+      `todo@${encodeCursor(2)}`,
+      `todo@${encodeCursor(2)}`,
+      `todo@${encodeCursor(2)}`,
+    ]);
   });
 
   it("resets a branch to its first page once when a later cursor no longer matches the query", async () => {
@@ -249,6 +314,36 @@ describe("useCursorBranches", () => {
     expect(state).toMatchObject({ isError: false, hasMore: true });
     expect(state.rows).toHaveLength(2);
     expect(server.rowRequests()).toHaveLength(2);
+  });
+
+  it("with keepPreviousFirstPage, shows the old first page under a changed query but offers no next page from it", async () => {
+    const server = serveTableCursor({
+      count: () => 5,
+      hold: (body) => (body.query as { search?: string }).search === "x",
+    });
+    const { Wrapper } = setup();
+    const { result, rerender } = renderHook(
+      (props: { search?: string }) =>
+        useCursorBranches("w1", [branch("todo", props)], { keepPreviousFirstPage: true }),
+      { wrapper: Wrapper, initialProps: {} as { search?: string } },
+    );
+    await waitFor(() => expect(result.current.byKey.get("todo")?.rows).toHaveLength(2));
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: true, isShowingPrevious: false });
+    expect(result.current.isShowingPrevious).toBe(false);
+
+    rerender({ search: "x" });
+    await waitFor(() => expect(result.current.byKey.get("todo")?.isShowingPrevious).toBe(true));
+    expect(result.current.isShowingPrevious).toBe(true);
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: false, isLoading: false });
+    expect(result.current.byKey.get("todo")?.rows).toHaveLength(2);
+    act(() => result.current.byKey.get("todo")!.loadMore());
+    await settle();
+    expect(server.rowRequests()).toEqual(["todo@null", "todo@null"]);
+
+    server.release();
+    await waitFor(() => expect(result.current.byKey.get("todo")?.isShowingPrevious).toBe(false));
+    expect(result.current.byKey.get("todo")).toMatchObject({ hasMore: true });
+    expect(result.current.isShowingPrevious).toBe(false);
   });
 
   it("asks nothing for a disabled branch", async () => {
