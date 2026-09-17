@@ -1,24 +1,14 @@
 "use client";
-import { Flag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskStatus } from "@uniwork/core/types";
 import { tintClass, tintForegroundClass, tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
+import { PriorityIcon } from "../icons/priority-icon";
+import { StatusIcon } from "../icons/status-icon";
 import { priorityTone } from "./priority-config";
 import { STATUS_CONFIG } from "./status-config";
 
-/** Status glyph in the category's tint — the per-row mark beside a title. */
-export function StatusIcon({ status, className }: { status: string; className?: string }) {
-  const cfg = STATUS_CONFIG[status as TaskStatus];
-  const Icon = cfg?.icon ?? STATUS_CONFIG.todo.icon;
-  return (
-    <Icon
-      aria-hidden
-      data-slot="status-icon"
-      className={cn("size-4 shrink-0", cfg?.iconColor ?? "text-muted-foreground", className)}
-    />
-  );
-}
+export { StatusIcon } from "../icons/status-icon";
 
 /**
  * Group / column header: the status name on its solid tint, uppercase, with
@@ -27,7 +17,6 @@ export function StatusIcon({ status, className }: { status: string; className?: 
  */
 export function StatusPill({ status, label, className }: { status: string; label: string; className?: string }) {
   const cfg = STATUS_CONFIG[status as TaskStatus];
-  const Icon = cfg?.icon ?? STATUS_CONFIG.todo.icon;
   return (
     <span
       data-slot="status-pill"
@@ -38,7 +27,7 @@ export function StatusPill({ status, label, className }: { status: string; label
         className,
       )}
     >
-      <Icon aria-hidden />
+      <StatusIcon status={status} inheritColor />
       <span className="truncate">{label}</span>
     </span>
   );
@@ -59,12 +48,14 @@ export function PriorityFlag({
   const label = t(`tasks.priority_${priority}`);
   if (!withLabel) {
     return (
-      <Flag
+      <span
         role="img"
         aria-label={label}
         data-slot="priority-flag"
-        className={cn("size-3.5 shrink-0 fill-current", tintForegroundClass[tone], className)}
-      />
+        className={cn("inline-flex shrink-0", tintForegroundClass[tone])}
+      >
+        <PriorityIcon priority={priority} inheritColor className={className} />
+      </span>
     );
   }
   return (
@@ -76,7 +67,7 @@ export function PriorityFlag({
         className,
       )}
     >
-      <Flag aria-hidden className="size-3 fill-current" />
+      <PriorityIcon priority={priority} inheritColor className="size-3" />
       {label}
     </span>
   );

@@ -291,6 +291,8 @@ export function TableLabelsCell({
       ariaLabel={t("tasks.detail.prop_labels")}
       valueLabel={shownLabels}
       emptyLabel={t("tasks.table.labels_empty")}
+      searchPlaceholder={t("tasks.create.label_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1 px-1.5 font-normal"
     >

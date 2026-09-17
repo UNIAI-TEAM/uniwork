@@ -352,8 +352,11 @@ var taskFoundationQueryFiles = []string{
 
 // GetTask is authorize-by-taskID (id-only SELECT); membership is decided solely
 // via RequireMember. JOIN-only presence of tenant columns must not fake compliance.
+// LockTaskDuplicateKey is a transaction advisory lock — the lock key already
+// embeds organization_id and workspace_id in Go; it does not read a business table.
 var taskFoundationScopeExemptQueries = map[string]bool{
-	"GetTask": true,
+	"GetTask":              true,
+	"LockTaskDuplicateKey": true,
 }
 
 // The table view's dynamic SQL is one package, reached from one place (ADR

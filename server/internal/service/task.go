@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -33,12 +34,14 @@ type TaskService struct {
 	q       *db.Queries
 	ws      *WorkspaceService
 	storage storage.Storage
+	// ent is the quota gate (F-02); built here so create can never skip it.
+	ent *EntitlementService
 	// Chat is optional; when set, CreateProject can provision a linked channel.
 	Chat *ChatService
 }
 
 func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, store storage.Storage) *TaskService {
-	return &TaskService{pool: pool, q: q, ws: ws, storage: store}
+	return &TaskService{pool: pool, q: q, ws: ws, storage: store, ent: NewEntitlementService(pool, q)}
 }
 
 type CreateTaskInput struct {
@@ -58,6 +61,8 @@ type CreateTaskInput struct {
 	LabelIDs      []string
 	AttachmentIDs []string
 	Properties    map[string]json.RawMessage
+	// AllowDuplicate skips the active-title guard (CLI / explicit override).
+	AllowDuplicate bool
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/ProjectID
@@ -341,6 +346,15 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	if err := s.guardActiveDuplicateTask(ctx, q, ws, projectID, parentTaskID, in.Title, in.AllowDuplicate); err != nil {
+		return db.Task{}, err
+	}
+	if err := s.ent.Consume(ctx, q, ConsumeInput{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Meter: FeatureTasksMax, Delta: 1, Actor: actor,
+	}); err != nil {
+		return db.Task{}, err
+	}
 	minPos, err := q.MinTaskPosition(ctx, db.MinTaskPositionParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: status,
 	})
@@ -427,6 +441,65 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		return db.Task{}, err
 	}
 	return task, nil
+}
+
+func normalizeTaskTitle(title string) string {
+	return strings.ToLower(strings.Join(strings.Fields(title), " "))
+}
+
+// guardActiveDuplicateTask serializes creates that share the same normalized
+// title under one workspace/project/parent and refuses a second active row
+// unless AllowDuplicate is set (active duplicate-task parity).
+func (s *TaskService) guardActiveDuplicateTask(
+	ctx context.Context,
+	q *db.Queries,
+	ws db.Workspace,
+	projectID, parentTaskID pgtype.Text,
+	title string,
+	allowDuplicate bool,
+) error {
+	normalized := normalizeTaskTitle(title)
+	if normalized == "" {
+		return nil
+	}
+	lockKey := strings.Join([]string{
+		"task-active-duplicate",
+		ws.OrganizationID,
+		ws.ID,
+		projectID.String,
+		parentTaskID.String,
+		normalized,
+	}, "|")
+	if err := q.LockTaskDuplicateKey(ctx, lockKey); err != nil {
+		return err
+	}
+	if allowDuplicate {
+		return nil
+	}
+	dup, err := q.FindActiveDuplicateTask(ctx, db.FindActiveDuplicateTaskParams{
+		OrganizationID:  ws.OrganizationID,
+		WorkspaceID:     ws.ID,
+		ProjectID:       projectID,
+		ParentTaskID:    parentTaskID,
+		NormalizedTitle: normalized,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return CodedError{
+		Code:   "active_duplicate_task",
+		Status: http.StatusConflict,
+		Msg:    fmt.Sprintf("đã có task đang mở với tiêu đề này: %s-%d – %s", ws.TaskPrefix, dup.Number, dup.Title),
+		Err:    ErrConflict,
+		Fields: map[string]any{
+			"task_id":    dup.ID,
+			"identifier": fmt.Sprintf("%s-%d", ws.TaskPrefix, dup.Number),
+			"title":      dup.Title,
+		},
+	}
 }
 
 func normalizeCreateTaskProperties(

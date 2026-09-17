@@ -70,9 +70,20 @@ func New(d Deps, h Routes) http.Handler {
 	joinLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 	lobbyWSLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader, telemetry.DebugTraceHeader, meetings.GuestSessionHeader},
+		AllowedOrigins: []string{d.Cfg.FrontendOrigin},
+		AllowedMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
+		// Idempotency-Key / If-Match are sent by create and suite mutations from
+		// the browser; omitting them fails the CORS preflight and the fetch never
+		// leaves the page (create-task E2E hangs on waitForResponse).
+		AllowedHeaders: []string{
+			"Authorization",
+			"Content-Type",
+			"Idempotency-Key",
+			"If-Match",
+			mw.CorrelationHeader,
+			telemetry.DebugTraceHeader,
+			meetings.GuestSessionHeader,
+		},
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader},
 		AllowCredentials: true,
 	}))

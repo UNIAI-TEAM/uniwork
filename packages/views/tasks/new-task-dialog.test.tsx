@@ -9,9 +9,11 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import type { NavigationAdapter } from "../navigation";
 import { requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { NewTaskDialog } from "./new-task-dialog";
+import { ApiError } from "@uniwork/core/api";
 
 const toastSuccess = vi.hoisted(() => vi.fn());
-vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: vi.fn() } }));
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
 initI18n();
 
@@ -64,9 +66,11 @@ describe("NewTaskDialog", () => {
     setSessionUser(user);
     useCreateTaskDraftStore.setState({ drafts: {}, settings: {}, ownerId: null });
     toastSuccess.mockReset();
+    toastError.mockReset();
     requestMock.mockReset();
     requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
       if (path.endsWith("/members")) return { members: [] };
+      if (path.endsWith("/organizations") || path.includes("/organizations?")) return { organizations: [] };
       if (path.endsWith("/projects")) return { projects: [], total: 0 };
       if (path.endsWith("/task-properties")) return { properties: [], total: 0 };
       if (path.endsWith("/tasks") && init?.method !== "POST") return { tasks: [] };
@@ -93,7 +97,7 @@ describe("NewTaskDialog", () => {
       </StrictMode>,
     );
 
-    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Không cảnh báo" } });
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Không cảnh báo" } });
 
     expect(
       consoleError.mock.calls.some(([message]) =>
@@ -112,6 +116,32 @@ describe("NewTaskDialog", () => {
 
     expect(screen.queryByTestId("create-agent-trigger")).toBeNull();
     expect(screen.queryByTestId("create-squad-assign")).toBeNull();
+  });
+
+  it("keeps the dialog open and clears the title when create-another is on", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <NewTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("switch", { name: "Tạo tiếp" }));
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
+      target: { value: "Việc tiếp theo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("Tiêu đề issue")).toHaveValue(""),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it("submits surface defaults and the full human create payload", async () => {
@@ -136,7 +166,7 @@ describe("NewTaskDialog", () => {
       ),
     );
 
-    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "  Sửa lỗi  " } });
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "  Sửa lỗi  " } });
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Mô tả" })).toBeInTheDocument());
     fireEvent.input(screen.getByRole("textbox", { name: "Mô tả" }), {
       target: { innerHTML: "<p>Chi tiết</p>" },
@@ -202,14 +232,21 @@ describe("NewTaskDialog", () => {
       />,
     ));
 
-    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Task đầy đủ" } });
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Task đầy đủ" } });
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Mô tả" })).toBeInTheDocument());
     fireEvent.input(screen.getByRole("textbox", { name: "Mô tả" }), {
       target: { innerHTML: "<p><strong>Chi tiết</strong></p>" },
     });
-    expect(screen.getByRole("combobox", { name: "Task cha" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Giai đoạn"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Story points"), { target: { value: "5" } });
+    expect(screen.getByRole("button", { name: "Task cha" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Thêm trường" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Giai đoạn" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Giai đoạn 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Thêm trường" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Story points" }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Story points" }), {
+      target: { value: "5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
 
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith(
@@ -239,10 +276,10 @@ describe("NewTaskDialog", () => {
       ),
     );
 
-    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Giữ lại" } });
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Giữ lại" } });
     fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
 
-    await waitFor(() => expect(screen.getByLabelText("Tiêu đề")).toHaveValue("Giữ lại"));
+    await waitFor(() => expect(screen.getByPlaceholderText("Tiêu đề issue")).toHaveValue("Giữ lại"));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
@@ -271,7 +308,7 @@ describe("NewTaskDialog", () => {
       ),
     );
 
-    const title = screen.getByLabelText("Tiêu đề");
+    const title = screen.getByPlaceholderText("Tiêu đề issue");
     fireEvent.change(title, { target: { value: "Bản gửi" } });
     fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
     fireEvent.change(title, { target: { value: "Bản mới hơn" } });
@@ -300,7 +337,7 @@ describe("NewTaskDialog", () => {
       ),
     );
 
-    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Sửa lỗi" } });
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Sửa lỗi" } });
     fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
@@ -324,9 +361,11 @@ describe("NewTaskDialog", () => {
       return {};
     });
     render(wrap(<NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />));
-    fireEvent.change(screen.getByLabelText("Tiêu đề"), { target: { value: "Có tệp" } });
-    const form = screen.getByLabelText("Tiêu đề").closest("form")!;
-    fireEvent.change(screen.getByLabelText("Đính kèm"), {
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Có tệp" } });
+    const form = screen.getByPlaceholderText("Tiêu đề issue").closest("form")!;
+    const fileInput = form.querySelector<HTMLInputElement>("input[type='file']");
+    expect(fileInput).not.toBeNull();
+    fireEvent.change(fileInput!, {
       target: { files: [new File(["hello"], "brief.txt", { type: "text/plain" })] },
     });
     fireEvent.submit(form);
@@ -345,5 +384,55 @@ describe("NewTaskDialog", () => {
       "/api/v1/workspaces/ws1/tasks",
       expect.objectContaining({ body: expect.objectContaining({ attachment_ids: ["att-1"] }) }),
     ));
+  });
+
+  it("keeps the draft and offers view-existing when create hits an active duplicate", async () => {
+    const push = vi.fn();
+    const navigation: NavigationAdapter = {
+      push,
+      replace: vi.fn(),
+      back: vi.fn(),
+      pathname: "/acme/team/tasks",
+      searchParams: new URLSearchParams(),
+      getShareableUrl: (path) => path,
+    };
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/members")) return { members: [] };
+      if (path.endsWith("/organizations") || path.includes("/organizations?")) {
+        return { organizations: [{ id: "o1", role: "owner" }] };
+      }
+      if (path.endsWith("/projects")) return { projects: [], total: 0 };
+      if (path.endsWith("/task-properties")) return { properties: [], total: 0 };
+      if (path.endsWith("/tasks") && init?.method !== "POST") return { tasks: [] };
+      if (init?.method === "POST" && path.endsWith("/tasks")) {
+        throw new ApiError("trùng", "active_duplicate_task", 409, undefined, {
+          task_id: "dup-1",
+          identifier: "UNI-7",
+          title: "Login bug",
+        });
+      }
+      return {};
+    });
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />
+        </WorkspaceProvider>,
+        navigation,
+      ),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Login bug" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(screen.getByPlaceholderText("Tiêu đề issue")).toHaveValue("Login bug");
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.title).toBe("Login bug");
+    const options = toastError.mock.calls.at(-1)?.[1] as {
+      action?: { label: string; onClick: () => void };
+    };
+    expect(options.action?.label).toBe("Xem task");
+    options.action?.onClick();
+    expect(push).toHaveBeenCalledWith("/acme/team/tasks/dup-1");
   });
 });

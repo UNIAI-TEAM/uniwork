@@ -79,6 +79,7 @@ vi.mock("@uniwork/ui/components/ui/popover", async () => {
       onFocusCapture?: React.FocusEventHandler;
     } & Record<string, unknown>) =>
       mockState.open ? (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- PopoverContent stand-in; forwards key/focus handlers under test
         <div
           role="dialog"
           tabIndex={-1}

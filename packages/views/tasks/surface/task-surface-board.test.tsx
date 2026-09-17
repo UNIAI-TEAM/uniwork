@@ -129,9 +129,12 @@ describe("TaskSurface board columns on the table API", () => {
         name: i18n.t("tasks.surface.add_task"),
       }),
     );
-    fireEvent.change(await screen.findByLabelText(i18n.t("tasks.taskTitle")), {
-      target: { value: "Created in todo" },
-    });
+    fireEvent.change(
+      await screen.findByLabelText(i18n.t("tasks.create.title_placeholder")),
+      {
+        target: { value: "Created in todo" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: i18n.t("common.create") }));
 
     await waitFor(() => {
