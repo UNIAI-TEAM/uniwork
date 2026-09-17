@@ -70,3 +70,42 @@ func TestFingerprintChangesWithPropertyTypeAndOptionOrder(t *testing.T) {
 		t.Fatal("changing a group property's type must change the fingerprint")
 	}
 }
+
+func TestValidateCursorSortValueChecksTheSortCast(t *testing.T) {
+	number := &PropertyRef{ID: "p1", Type: "number"}
+	text := &PropertyRef{ID: "p2", Type: "text"}
+	cases := []struct {
+		sort Sort
+		good []string
+		bad  []string
+	}{
+		{Sort{Field: "position"}, []string{"1.5", "-2", "1e+09", "Infinity"}, []string{"abc", "", "0x1p-2", "1e400"}},
+		{Sort{Field: "status"}, []string{"1000000000"}, []string{"todo"}},
+		{Sort{Field: "priority"}, []string{"0", "4"}, []string{"high", "1.5", "99999999999"}},
+		{Sort{Field: "property", Property: number}, []string{"12.5000", "1e400", "-0.1"}, []string{"abc", "1,5"}},
+		{Sort{Field: "due_date"}, []string{"2026-09-16", "infinity"}, []string{"abc", "16/09/2026"}},
+		{Sort{Field: "created_at"}, []string{
+			"2026-09-16 01:02:03.123456+00", "2026-09-16 08:02:03+07", "2026-09-16 06:32:03.5+05:30",
+			"2026-09-16T01:02:03.123456Z",
+		}, []string{"abc", "2026-09-16"}},
+		{Sort{Field: "property", Property: text}, []string{"abc", ""}, nil},
+		{Sort{Field: "title"}, []string{"anything"}, nil},
+	}
+	for _, tc := range cases {
+		q := Query{WorkspaceID: "w", Sort: tc.sort}.Normalize()
+		for _, v := range tc.good {
+			if err := ValidateCursorSortValue(q, Cursor{SortValue: &v}); err != nil {
+				t.Errorf("%s: %q rejected: %v", tc.sort.Field, v, err)
+			}
+		}
+		for _, v := range tc.bad {
+			if err := ValidateCursorSortValue(q, Cursor{SortValue: &v}); !errors.Is(err, ErrInvalidCursor) {
+				t.Errorf("%s: %q accepted, want ErrInvalidCursor", tc.sort.Field, v)
+			}
+		}
+		bogus := "abc"
+		if err := ValidateCursorSortValue(q, Cursor{SortValue: &bogus, SortNull: true}); err != nil {
+			t.Errorf("%s: a null cursor's value is never cast: %v", tc.sort.Field, err)
+		}
+	}
+}

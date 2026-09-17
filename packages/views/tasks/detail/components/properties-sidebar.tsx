@@ -92,7 +92,7 @@ export function TaskDetailPropertiesSidebar({
   const catalog = propertiesQuery.data?.properties ?? [];
   const labelsQuery = useTaskLabels(workspaceId);
   const onTaskLabels = useLabelsOnTask(task.id);
-  const labelToggle = useTaskLabelToggle(workspaceId, task.id);
+  const labelToggle = useTaskLabelToggle(workspaceId, task.id, labelsQuery.data?.labels ?? []);
   const parentId = task.parent_task_id ?? null;
   const { data: parentTask } = useTask(parentId ?? "");
   const [optionalOpen, setOptionalOpen] = useState(false);

@@ -70,6 +70,9 @@ function TablePropertyCell({
   );
 }
 
+/** Test-only: how many times a data cell rendered. Counts nothing outside tests. */
+export const tableCellRenderCounter = { count: 0 };
+
 export function TaskCellContent({
   columnKey,
   row,
@@ -79,6 +82,7 @@ export function TaskCellContent({
   row: Extract<TaskTableDisplayRow, { kind: "task" }>;
   table: TanstackTable<TaskTableDisplayRow>;
 }): ReactNode {
+  if (process.env.NODE_ENV === "test") tableCellRenderCounter.count += 1;
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
   const task = row.task;
@@ -194,6 +198,7 @@ export function TaskCellContent({
           workspaceId={meta.workspaceId}
           taskId={task.id}
           labels={meta.labels}
+          attached={row.labels}
         />
       );
     default:

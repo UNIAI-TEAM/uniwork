@@ -184,12 +184,13 @@ export function useCursorBranches(
     return out;
   }, [prepared, pageStates]);
 
-  // Stale tail: when the first page comes back with different content (an
-  // edit, an invalidation), the later pages' cursors point into the old
-  // ordering. Drop them. Compared by `data` identity, not `dataUpdatedAt`:
-  // structural sharing keeps `data` the same object when a refetch (a window
-  // refocus) returns equal content, and then the tail is still valid.
-  const firstPageData = useRef(new Map<string, TableRowsResult>());
+  // Stale tail: the second page starts at the first page's `next_cursor` (the
+  // keyset boundary). When a refetch moves that boundary, the later pages'
+  // cursors point into the old ordering: drop them. Anything else that
+  // rewrites the first page — an optimistic edit, a realtime patch, the settle
+  // refetch after editing a first-page row, a refocus — leaves the boundary
+  // where it was, and the tail (with the user's scroll) stays.
+  const firstPageCursors = useRef(new Map<string, string | null>());
   // A 409 error object is acted on once, even while its query retries.
   const handledMismatches = useRef(new WeakSet<object>());
   useEffect(() => {
@@ -198,9 +199,10 @@ export function useCursorBranches(
       const data = pages[0]?.isPlaceholderData ? undefined : pages[0]?.data;
       if (data !== undefined) {
         lastFirstPages.current.set(`${workspaceId}|${b.key}`, data);
-        const seen = firstPageData.current.get(b.stateKey);
-        firstPageData.current.set(b.stateKey, data);
-        if (seen !== undefined && seen !== data && pages.length > 1) {
+        const known = firstPageCursors.current.has(b.stateKey);
+        const seen = firstPageCursors.current.get(b.stateKey);
+        firstPageCursors.current.set(b.stateKey, data.next_cursor);
+        if (known && seen !== data.next_cursor && pages.length > 1) {
           resetBranch(b.stateKey);
           continue;
         }

@@ -310,11 +310,11 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if !validPriority[in.Priority] {
 		return db.Task{}, Invalid("priority không hợp lệ")
 	}
-	start, err := parseDate(in.StartDate)
+	start, err := parseDate("start_date", in.StartDate)
 	if err != nil {
 		return db.Task{}, err
 	}
-	due, err := parseDate(in.DueDate)
+	due, err := parseDate("due_date", in.DueDate)
 	if err != nil {
 		return db.Task{}, err
 	}
@@ -565,7 +565,7 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		}
 	}
 	if in.StartDate != nil {
-		start, serr := parseDate(*in.StartDate)
+		start, serr := parseDate("start_date", *in.StartDate)
 		if serr != nil {
 			return db.Task{}, serr
 		}
@@ -578,7 +578,7 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		}
 	}
 	if in.DueDate != nil {
-		due, derr := parseDate(*in.DueDate)
+		due, derr := parseDate("due_date", *in.DueDate)
 		if derr != nil {
 			return db.Task{}, derr
 		}
@@ -693,13 +693,14 @@ func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskI
 	})
 }
 
-func parseDate(s *string) (pgtype.Date, error) {
+// parseDate reads an optional YYYY-MM-DD value; field names it in the error.
+func parseDate(field string, s *string) (pgtype.Date, error) {
 	if s == nil || *s == "" {
 		return pgtype.Date{}, nil
 	}
 	t, err := time.Parse("2006-01-02", *s)
 	if err != nil {
-		return pgtype.Date{}, Invalid("due_date phải dạng YYYY-MM-DD")
+		return pgtype.Date{}, Invalid(field + " phải dạng YYYY-MM-DD")
 	}
 	return pgtype.Date{Time: t, Valid: true}, nil
 }

@@ -443,6 +443,24 @@ func TestTableRowsCursorErrors(t *testing.T) {
 	_, err = s.TableRows(ctx, actor, w.ID, TableRowsInput{Cursor: strPtr("garbage"), Limit: 2})
 	wantTableCode(t, err, 400, "invalid_cursor")
 
+	// A well-formed cursor of this very query whose sort value does not cast
+	// to the sort's type is a bad cursor, not a failed statement.
+	for _, sort := range []string{"position", "created_at", "priority", "due_date"} {
+		in := TableRowsInput{TableQueryInput: TableQueryInput{SortField: sort}, Limit: 2}
+		page, err := s.TableRows(ctx, actor, w.ID, in)
+		if err != nil || page.NextCursor == nil {
+			t.Fatalf("%s page: err=%v next=%v", sort, err, page.NextCursor)
+		}
+		c, err := tablequery.DecodeCursor(*page.NextCursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.SortValue, c.SortNull = strPtr("abc"), false
+		in.Cursor = strPtr(tablequery.EncodeCursor(c))
+		_, err = s.TableRows(ctx, actor, w.ID, in)
+		wantTableCode(t, err, 400, "invalid_cursor")
+	}
+
 	grouped := TableQueryInput{GroupBy: "status"}
 	todo, err := s.TableRows(ctx, actor, w.ID, TableRowsInput{TableQueryInput: grouped, GroupKey: strPtr("status:todo"), Limit: 2})
 	if err != nil || todo.NextCursor == nil {

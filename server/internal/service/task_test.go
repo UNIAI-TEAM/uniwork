@@ -257,8 +257,14 @@ func TestTaskUpdateStartDate(t *testing.T) {
 
 	bad := "not-a-date"
 	badp := &bad
-	if _, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &badp}); err == nil {
-		t.Fatal("malformed start_date accepted")
+	_, err = s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &badp})
+	var verr ValidationError
+	if !errors.As(err, &verr) || verr.Msg != "start_date phải dạng YYYY-MM-DD" {
+		t.Fatalf("malformed start_date: got %v, want a validation error naming start_date", err)
+	}
+	_, err = s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{DueDate: &badp})
+	if !errors.As(err, &verr) || verr.Msg != "due_date phải dạng YYYY-MM-DD" {
+		t.Fatalf("malformed due_date: got %v, want a validation error naming due_date", err)
 	}
 }
 

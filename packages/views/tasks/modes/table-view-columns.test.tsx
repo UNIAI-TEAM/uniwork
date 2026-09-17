@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
@@ -8,6 +8,7 @@ import { requestMock, wrap } from "../../test/api-mock";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { TaskSurface } from "../surface/task-surface";
+import { tableCellRenderCounter } from "./table-task-cell";
 
 // The real TaskSurface → TableView → DataTable against a fake API: each edit
 // has to reach the request it is meant to send, through the table's own meta.
@@ -210,6 +211,77 @@ function stubColumnRects(): () => void {
   };
 }
 
+describe("bảng: độ rộng mặc định đọc được", () => {
+  it("mỗi cột có độ rộng mặc định theo loại", async () => {
+    await renderTable(["identifier", "project", "start_date", "created_at", "property:p1"]);
+    const table = document.querySelector("table") as HTMLTableElement;
+    const width = (id: string) =>
+      table.style.getPropertyValue(`--col-${id.replace(/[^a-zA-Z0-9_-]/g, "_")}-size`);
+    expect({
+      status: width("status"),
+      priority: width("priority"),
+      assignee: width("assignee"),
+      due_date: width("due_date"),
+      labels: width("labels"),
+      identifier: width("identifier"),
+      project: width("project"),
+      start_date: width("start_date"),
+      created_at: width("created_at"),
+      property: width("property:p1"),
+    }).toEqual({
+      status: "148px",
+      priority: "152px",
+      assignee: "176px",
+      due_date: "152px",
+      labels: "180px",
+      identifier: "96px",
+      project: "168px",
+      start_date: "152px",
+      created_at: "152px",
+      property: "160px",
+    });
+  });
+
+  it("dòng dữ liệu cao 40px, lưới chỉ kẻ ngang trừ mép cột ghim", async () => {
+    const { row } = await renderTable();
+    expect(row).toHaveClass("h-10");
+    expect(cell(row, "title")).toHaveClass("border-r");
+    expect(cell(row, "status")).not.toHaveClass("border-r");
+  });
+});
+
+describe("bảng: nhãn theo hàng, không N+1", () => {
+  it("bảng 30 hàng không gửi yêu cầu nào tới đường dẫn kết thúc bằng /labels", async () => {
+    const base = requestMock.getMockImplementation()!;
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({
+      task: { ...task, id: `t${i + 1}`, title: `Task ${i + 1}` },
+      direct_child_count: 0,
+      labels: [{ id: "l1", name: "Bug", color: "#ef4444" }],
+    }));
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.includes("/tasks/table/rows")) {
+        return {
+          query_fingerprint: "fp-rows",
+          group_key: null,
+          parent_id: null,
+          total: manyRows.length,
+          rows: manyRows,
+          next_cursor: null,
+        };
+      }
+      return base(path, init);
+    });
+    await renderTable();
+    await screen.findByText("Task 30");
+    // `endsWith("/labels")` only catches GET-list and POST-attach
+    // (`/tasks/{id}/labels`); a DELETE detach is `/tasks/{id}/labels/{labelId}`
+    // and would not match — this render never toggles, so it doesn't matter here.
+    expect(
+      requestMock.mock.calls.filter(([path]) => (path as string).endsWith("/labels")),
+    ).toHaveLength(0);
+  });
+});
+
 describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () => {
   it("ô thuộc tính select gửi PUT giá trị với id lựa chọn", async () => {
     const { row } = await renderTable(["property:p1"]);
@@ -376,5 +448,176 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
         "status",
       ]),
     );
+  });
+});
+
+describe("bảng: chọn hàng chỉ render lại ô chọn", () => {
+  function serveRows(count: number) {
+    const base = requestMock.getMockImplementation()!;
+    const rows = Array.from({ length: count }, (_, i) => ({
+      task: { ...task, id: `t${i + 1}`, title: `Task ${i + 1}` },
+      direct_child_count: 0,
+      labels: [],
+    }));
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.includes("/tasks/table/rows")) {
+        return {
+          query_fingerprint: "fp-rows",
+          group_key: null,
+          parent_id: null,
+          total: rows.length,
+          rows,
+          next_cursor: null,
+        };
+      }
+      return base(path, init);
+    });
+  }
+
+  const settle = (ms: number) =>
+    act(() => new Promise((resolve) => setTimeout(resolve, ms)));
+
+  const rowCheckbox = (title: string) =>
+    within(screen.getByText(title).closest("tr") as HTMLElement).getByRole("checkbox", {
+      name: "Chọn công việc",
+    }) as HTMLInputElement;
+
+  it("tick một hàng trong bảng 50 hàng không render lại ô dữ liệu nào", async () => {
+    // 50 rows virtualize; jsdom lays nothing out, so give the virtualizer a
+    // viewport and each row a height or it renders no rows at all.
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const height = this.tagName === "TR" ? 40 : 4000;
+      return { x: 0, y: 0, left: 0, top: 0, width: 1200, height, right: 1200, bottom: height, toJSON: () => ({}) } as DOMRect;
+    };
+    const viewport = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(4000);
+    const viewportWidth = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1200);
+    try {
+      serveRows(50);
+      await renderTable();
+      await screen.findByText("Task 2");
+      await settle(200);
+
+      const before = tableCellRenderCounter.count;
+      expect(before).toBeGreaterThan(0);
+      fireEvent.click(rowCheckbox("Task 2"));
+
+      await waitFor(() => expect(rowCheckbox("Task 2").checked).toBe(true));
+      await settle(50);
+      expect(tableCellRenderCounter.count).toBe(before);
+      expect(rowCheckbox("Task 1").checked).toBe(false);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original;
+      viewport.mockRestore();
+      viewportWidth.mockRestore();
+    }
+  });
+
+  it("chọn tất cả ở header tick mọi hàng, bấm lại bỏ tick", async () => {
+    serveRows(3);
+    await renderTable();
+    await screen.findByText("Task 3");
+    const all = screen.getByRole("checkbox", { name: "Chọn tất cả công việc" }) as HTMLInputElement;
+
+    fireEvent.click(rowCheckbox("Task 1"));
+    await waitFor(() => expect(all.indeterminate).toBe(true));
+    expect(all.checked).toBe(false);
+
+    fireEvent.click(all);
+    await waitFor(() => expect(all.checked).toBe(true));
+    for (const title of ["Task 1", "Task 2", "Task 3"]) {
+      expect(rowCheckbox(title).checked).toBe(true);
+    }
+    expect(all.indeterminate).toBe(false);
+
+    fireEvent.click(all);
+    await waitFor(() => expect(all.checked).toBe(false));
+    for (const title of ["Task 1", "Task 2", "Task 3"]) {
+      expect(rowCheckbox(title).checked).toBe(false);
+    }
+  });
+
+  it("đang chọn hàng thì cuối vùng cuộn có khoảng đệm cho thanh thao tác, không render lại ô", async () => {
+    serveRows(3);
+    await renderTable();
+    await screen.findByText("Task 3");
+    const spacer = () =>
+      document.querySelector('[data-slot="task-table-selection-spacer"]');
+    expect(spacer()).toBeNull();
+
+    const before = tableCellRenderCounter.count;
+    fireEvent.click(rowCheckbox("Task 1"));
+    await waitFor(() => expect(spacer()).not.toBeNull());
+    // Inside the scroll surface, after the rows, so "Tải thêm" scrolls clear.
+    expect(spacer()!.closest("table")).not.toBeNull();
+    expect(tableCellRenderCounter.count).toBe(before);
+
+    fireEvent.click(rowCheckbox("Task 1"));
+    await waitFor(() => expect(spacer()).toBeNull());
+  });
+
+  it("shift-click chọn cả dải từ hàng neo", async () => {
+    serveRows(5);
+    await renderTable();
+    await screen.findByText("Task 5");
+
+    fireEvent.click(rowCheckbox("Task 2"));
+    await waitFor(() => expect(rowCheckbox("Task 2").checked).toBe(true));
+    fireEvent.click(rowCheckbox("Task 4"), { shiftKey: true });
+
+    await waitFor(() => expect(rowCheckbox("Task 4").checked).toBe(true));
+    expect(rowCheckbox("Task 3").checked).toBe(true);
+    expect(rowCheckbox("Task 1").checked).toBe(false);
+    expect(rowCheckbox("Task 5").checked).toBe(false);
+  });
+});
+
+describe("bảng: vùng cuộn về đầu khi truy vấn đổi", () => {
+  function serveParentWithChild() {
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string; body?: { parent_id?: string | null } }) => {
+        if (path.includes("/tasks/table/rows")) {
+          const child = init?.body?.parent_id === "t1";
+          return {
+            query_fingerprint: "fp-rows",
+            group_key: null,
+            parent_id: child ? "t1" : null,
+            total: 1,
+            rows: child
+              ? [{ task: { ...task, id: "c1", title: "Con 1", parent_task_id: "t1" }, direct_child_count: 0, labels: [] }]
+              : [{ task, direct_child_count: 1, labels: [] }],
+            next_cursor: null,
+          };
+        }
+        return base(path, init);
+      },
+    );
+  }
+
+  function scrolledSurface() {
+    const scroll = document.querySelector<HTMLElement>('[data-slot="data-table-scroll"]')!;
+    // jsdom keeps no scroll position; give the element a writable one.
+    Object.defineProperty(scroll, "scrollTop", { value: 300, writable: true });
+    return scroll;
+  }
+
+  it("đổi chiều sắp xếp đưa vùng cuộn về đầu", async () => {
+    const { store } = await renderTable();
+    const scroll = scrolledSurface();
+    const header = await screen.findByRole("columnheader", { name: /Tiêu đề/ });
+    fireEvent.click(within(header).getByRole("button", { name: /^Tiêu đề/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Giảm dần/i }));
+    expect(store.getState().sortDirection).toBe("desc");
+    await waitFor(() => expect(scroll.scrollTop).toBe(0));
+  });
+
+  it("mở việc con không đổi vị trí cuộn", async () => {
+    serveParentWithChild();
+    await renderTable();
+    const scroll = scrolledSurface();
+    fireEvent.click(await screen.findByRole("button", { name: "Mở công việc con" }));
+    await screen.findByText("Con 1");
+    expect(scroll.scrollTop).toBe(300);
   });
 });

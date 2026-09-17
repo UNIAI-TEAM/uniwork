@@ -38,7 +38,7 @@ import {
 } from "./actions-context";
 import {
   useCreateTaskSurfaceSelection,
-  type TaskSurfaceSelection,
+  type TaskSurfaceSelectionHandle,
 } from "./selection-context";
 import type { TaskSurfaceMode } from "./types";
 import { projectSurfaceTasks } from "./task-surface-projection";
@@ -133,7 +133,7 @@ export interface TaskSurfaceController {
   isError: boolean;
   isRefreshing: boolean;
   actions: TaskSurfaceActions;
-  selection: TaskSurfaceSelection;
+  selection: TaskSurfaceSelectionHandle;
   openCreateTask: (defaults?: TaskCreateDefaults) => void;
   createDefaults: TaskCreateDefaults | undefined;
   createOpen: boolean;

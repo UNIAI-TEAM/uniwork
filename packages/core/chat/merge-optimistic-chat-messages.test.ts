@@ -33,6 +33,7 @@ describe("mergeOptimisticChatMessages", () => {
   it("hides optimistic rows once the server echoes their client_msg_id", () => {
     const entry = {
       workspaceId: "ws1",
+      senderId: "u1",
       roomId: "room1",
       body: "same text",
       client_msg_id: "cmid-echo",
@@ -60,6 +61,7 @@ describe("mergeOptimisticChatMessages", () => {
   it("hides the echo regardless of how far the timestamps drift apart", () => {
     const entry = {
       workspaceId: "ws1",
+      senderId: "u1",
       roomId: "room1",
       body: "same text",
       client_msg_id: "cmid-drift",
@@ -82,6 +84,7 @@ describe("mergeOptimisticChatMessages", () => {
   it("keeps the optimistic row when the server carries a different send", () => {
     const entry = {
       workspaceId: "ws1",
+      senderId: "u1",
       roomId: "room1",
       body: "same text",
       client_msg_id: "cmid-mine",

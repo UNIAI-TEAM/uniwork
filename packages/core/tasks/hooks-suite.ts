@@ -235,15 +235,6 @@ export function useTableGroups(
   });
 }
 
-export function useTableRows(workspaceId: string, body: table.TableRowsBody | null) {
-  const hash = stableHash(body);
-  return useQuery({
-    queryKey: taskKeys.tableRows(workspaceId, hash),
-    queryFn: () => table.tableRows(workspaceId, body!),
-    enabled: !!workspaceId && !!body,
-  });
-}
-
 export function useTableFacets(workspaceId: string, body: table.TableFacetsBody | null) {
   const hash = stableHash(body);
   return useQuery({

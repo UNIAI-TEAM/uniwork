@@ -38,7 +38,6 @@ export type TableViewMeta = {
   toggleTableColumn: (key: TableColumnKey) => void;
   propertiesDisabled: boolean;
   propertiesDisabledReason?: string;
-  selectedIds: Set<string>;
 };
 
 export function getTableViewMeta(

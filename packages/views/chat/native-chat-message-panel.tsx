@@ -103,7 +103,7 @@ export function NativeChatMessagePanel({
   );
   const outboxEntries = useChatSendOutboxStore(
     useShallow((state) =>
-      state.listForWorkspace(workspaceId).filter((entry) => entry.roomId === roomId),
+      state.listForWorkspace(workspaceId, currentUserId).filter((entry) => entry.roomId === roomId),
     ),
   );
   const toggleReaction = useToggleChatReaction(workspaceId);

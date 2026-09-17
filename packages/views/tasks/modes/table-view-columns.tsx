@@ -16,10 +16,39 @@ import {
 import { TaskCellContent } from "./table-task-cell";
 import { getTableViewMeta } from "./table-view-meta";
 import {
+  useIsTaskSelected,
+  useSelectionSummary,
+} from "../surface/selection-context";
+import {
   RowActionsDropdown,
   RowDeleteDialog,
   useRowActionModel,
 } from "../row-actions-menu";
+
+// Wide enough that the common values of each kind fit untruncated inside the
+// cell's px-4, measured in the browser: "Trung bình" and "Không ưu tiên" need
+// 152px, a full date ("30 thg 9, 2026") 152px, "Chưa giao" with its avatar and
+// chevron 176px. The user can still resize any of them.
+const DEFAULT_COLUMN_WIDTHS: Partial<Record<TableColumnKey, number>> = {
+  title: 360,
+  identifier: 96,
+  status: 148,
+  priority: 152,
+  assignee: 176,
+  labels: 180,
+  project: 168,
+  start_date: 152,
+  due_date: 152,
+  created_at: 152,
+  updated_at: 152,
+};
+const DEFAULT_PROPERTY_COLUMN_WIDTH = 160;
+const DEFAULT_COLUMN_WIDTH = 140;
+
+function defaultColumnWidth(columnKey: TableColumnKey): number {
+  if (columnKey.startsWith("property:")) return DEFAULT_PROPERTY_COLUMN_WIDTH;
+  return DEFAULT_COLUMN_WIDTHS[columnKey] ?? DEFAULT_COLUMN_WIDTH;
+}
 
 function stopRowNavigation(event: SyntheticEvent) {
   event.stopPropagation();
@@ -32,10 +61,9 @@ function SelectHeader({
 }) {
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
-  const ids = meta.visibleTaskIds;
-  const selectedCount = ids.filter((id) => meta.selectedIds.has(id)).length;
-  const checked = ids.length > 0 && selectedCount === ids.length;
-  const indeterminate = selectedCount > 0 && selectedCount < ids.length;
+  const summary = useSelectionSummary(meta.visibleTaskIds);
+  const checked = meta.visibleTaskIds.length > 0 && summary === "all";
+  const indeterminate = summary === "some";
 
   return (
     <input
@@ -65,11 +93,12 @@ function SelectCell({
 }) {
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
+  const selected = useIsTaskSelected(row.task.id);
   return (
     <input
       type="checkbox"
       className="size-4 accent-primary"
-      checked={meta.selectedIds.has(row.task.id)}
+      checked={selected}
       aria-label={t("tasks.table.select_row")}
       onChange={(event) => {
         const native = event.nativeEvent as MouseEvent;
@@ -152,7 +181,7 @@ export function useTableColumnDefs(
       (columnKey) => ({
         id: columnKey,
         accessorFn: () => columnKey,
-        size: columnKey === "title" ? 360 : 140,
+        size: defaultColumnWidth(columnKey),
         minSize: 80,
         header: ({ table }) => (
           <HeaderLabel columnKey={columnKey} table={table} />

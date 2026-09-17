@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { setCurrentWorkspace } from "@uniwork/core/platform";
 import { WSProvider } from "@uniwork/core/realtime";
 import { SidebarInset, SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
@@ -40,31 +41,39 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
   const { t } = useTranslation();
   return (
     <DashboardGuard orgSlug={orgSlug} wsSlug={wsSlug} loadingFallback={loadingFallback ?? <WorkspaceLoader />}>
-      {({ user, workspace }) => (
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
-            <ChatVoiceCallHost>
-              <WorkspaceRealtimeSync />
-              <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
-                {/* First in the DOM so it is the first tab stop; visible only
-                    while focused. */}
-                <a
-                  href={`#${MAIN_CONTENT_ID}`}
-                  className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-popover focus-visible:px-3 focus-visible:py-2 focus-visible:text-body focus-visible:text-popover-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {t("nav.skip_to_content")}
-                </a>
-                <AppSidebar />
-                <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
-                  <NavigationProgress />
-                  <WorkspaceChrome>{children}</WorkspaceChrome>
-                  {extra}
-                </SidebarInset>
-              </SidebarProvider>
-            </ChatVoiceCallHost>
-          </WSProvider>
-        </WorkspaceProvider>
-      )}
+      {({ user, workspace }) => {
+        // Render-phase, before any child store reads or writes: workspace-scoped
+        // persisted state (task views, navigation, chat drafts) namespaces its
+        // keys by this slug and drops writes while it is unset. It self-dedupes
+        // and defers its rehydrate/notify side effects to a microtask, so
+        // calling it on every render is safe.
+        setCurrentWorkspace(`${orgSlug}/${wsSlug}`, workspace.id);
+        return (
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
+              <ChatVoiceCallHost>
+                <WorkspaceRealtimeSync />
+                <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
+                  {/* First in the DOM so it is the first tab stop; visible only
+                      while focused. */}
+                  <a
+                    href={`#${MAIN_CONTENT_ID}`}
+                    className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-popover focus-visible:px-3 focus-visible:py-2 focus-visible:text-body focus-visible:text-popover-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {t("nav.skip_to_content")}
+                  </a>
+                  <AppSidebar />
+                  <SidebarInset id={MAIN_CONTENT_ID} tabIndex={-1} className="relative overflow-hidden outline-hidden">
+                    <NavigationProgress />
+                    <WorkspaceChrome>{children}</WorkspaceChrome>
+                    {extra}
+                  </SidebarInset>
+                </SidebarProvider>
+              </ChatVoiceCallHost>
+            </WSProvider>
+          </WorkspaceProvider>
+        );
+      }}
     </DashboardGuard>
   );
 }

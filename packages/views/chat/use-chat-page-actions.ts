@@ -138,7 +138,7 @@ export function useChatPageActions({
 
       const queueForLater = () => {
         usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, payload));
+        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, currentUserId, payload));
         setReplyTo(null);
         setDraft("");
         setComposerPriority?.(null);

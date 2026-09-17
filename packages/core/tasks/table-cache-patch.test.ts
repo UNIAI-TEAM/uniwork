@@ -251,7 +251,76 @@ describe("patchTableCaches", () => {
     expect(rowsOf(qc, key)).toMatchObject({ total: 0 });
   });
 
-  it("creates a missing target status group in key order and drops a source group that empties", () => {
+  it("inserts a new status group at its workspace catalog position when the catalog is cached", () => {
+    const qc = new QueryClient();
+    const A = task("A", { status: "todo", position: 1 });
+    const B = task("B", { status: "todo", position: 2 });
+    qc.setQueryData(rowsKey("status:todo"), rowsPage([A, B]));
+    const board = groupsKey();
+    qc.setQueryData(board, {
+      ...groupsResult({}),
+      total: 3,
+      groups: [
+        { key: "status:todo", value: { kind: "status", status: "todo" }, count: 2 },
+        { key: "status:done", value: { kind: "status", status: "done" }, count: 1 },
+      ],
+    });
+    const status = (key: string, position: number, archived = false) => ({
+      id: key,
+      organization_id: "o1",
+      workspace_id: WS,
+      key,
+      name: key,
+      description: "",
+      category: "todo",
+      color: "gray",
+      is_system: true,
+      position,
+      ...(archived ? { archived_at: "2026-09-01T00:00:00Z" } : {}),
+      created_at: "2026-09-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+    });
+    qc.setQueryData(taskKeys.statuses(WS), {
+      statuses: [status("todo", 0), status("in_progress", 1), status("done", 2)],
+      categories: [],
+      total: 3,
+    });
+
+    // Key order would put in_progress first; the catalog puts it between todo and done.
+    patchTableCaches(qc, WS, "A", { status: "in_progress", position: 1 });
+
+    expect(countsOf(qc, board)).toEqual([
+      ["status:todo", 1],
+      ["status:in_progress", 1],
+      ["status:done", 1],
+    ]);
+  });
+
+  it("appends a new status group after the others when the status catalog is not cached", () => {
+    const qc = new QueryClient();
+    const A = task("A", { status: "todo", position: 1 });
+    const B = task("B", { status: "todo", position: 2 });
+    qc.setQueryData(rowsKey("status:todo"), rowsPage([A, B]));
+    const board = groupsKey();
+    qc.setQueryData(board, {
+      ...groupsResult({}),
+      total: 3,
+      groups: [
+        { key: "status:todo", value: { kind: "status", status: "todo" }, count: 2 },
+        { key: "status:done", value: { kind: "status", status: "done" }, count: 1 },
+      ],
+    });
+
+    patchTableCaches(qc, WS, "A", { status: "blocked", position: 1 });
+
+    expect(countsOf(qc, board)).toEqual([
+      ["status:todo", 1],
+      ["status:done", 1],
+      ["status:blocked", 1],
+    ]);
+  });
+
+  it("creates a missing target status group and drops a source group that empties", () => {
     const qc = new QueryClient();
     const A = task("A", { status: "todo", position: 1 });
     qc.setQueryData(rowsKey("status:todo"), rowsPage([A]));
