@@ -2507,7 +2507,12 @@
       "lede_secondary": "In a few minutes you'll have an organization, your first workspace, and teammates invited in.",
       "start": "Get started",
       "skip_existing": "I've used UniWork before",
-      "illustration_caption": "Your team's tasks, meetings and conversations, in one place."
+      "illustration_caption": "Your team's tasks, meetings and conversations, in one place.",
+      "eyebrow": "Welcome to UniWork",
+      "plan_title": "Setting up",
+      "plan_meta_one": "{{count}} step",
+      "plan_meta_other": "{{count}} steps",
+      "up_next": "Up next"
     },
     "questions": {
       "about_you": {

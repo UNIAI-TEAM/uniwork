@@ -2506,7 +2506,12 @@
       "lede_secondary": "Vài phút nữa bạn sẽ có tổ chức, workspace đầu tiên và đồng nghiệp được mời vào.",
       "start": "Bắt đầu",
       "skip_existing": "Tôi đã dùng rồi",
-      "illustration_caption": "Việc, cuộc họp và trao đổi của đội, cùng một chỗ."
+      "illustration_caption": "Việc, cuộc họp và trao đổi của đội, cùng một chỗ.",
+      "eyebrow": "Chào mừng bạn đến với UniWork",
+      "plan_title": "Sắp thiết lập",
+      "plan_meta_one": "{{count}} bước",
+      "plan_meta_other": "{{count}} bước",
+      "up_next": "Tiếp theo"
     },
     "questions": {
       "about_you": {
