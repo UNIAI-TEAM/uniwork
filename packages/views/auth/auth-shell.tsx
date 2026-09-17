@@ -2,27 +2,13 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ListChecks, Sparkles, Video, type LucideIcon } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
 import { Logo } from "@uniwork/ui/brand";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { BrandRailAside, RAIL_COLUMN, RAIL_GUTTER, RAIL_WIDTH_AUTH } from "../layout/brand-rail";
+import { Bezel, Rise } from "../layout/brand-surface";
 import { MODULE_TONES } from "../layout/module-tones";
 import { LocaleSwitch } from "./locale-switch";
-
-/**
- * The machined-tray container: a translucent outer shell with a hairline, a
- * padded gap, and the real surface seated inside it on concentric corners.
- * Outer radius is the ramp's 3xl; the inner one subtracts the 6px gap so the
- * curves stay parallel.
- */
-function Bezel({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <div className={cn("rounded-3xl bg-surface/55 p-1.5 ring-1 ring-border/60", className)}>
-      <div className="rounded-[calc(var(--radius-3xl)-0.375rem)] bg-surface shadow-floating">{children}</div>
-    </div>
-  );
-}
 
 /**
  * Three things that run today, each in its module's tint. Stacked like cards
@@ -34,30 +20,6 @@ const RAIL_POINTS: { key: "tasks" | "meetings" | "ai"; icon: LucideIcon; tone: I
   { key: "meetings", icon: Video, tone: MODULE_TONES.meetings, place: "-mt-4 ml-14 rotate-[1.5deg]" },
   { key: "ai", icon: Sparkles, tone: "brand", place: "-mt-4 ml-6 -rotate-1" },
 ];
-
-/** Heavy, damped settle: the curve of the entrance on this screen. */
-const SETTLE = [0.32, 0.72, 0, 1] as const;
-
-/**
- * Rises once on arrival: up from below, out of a blur, into focus, each piece
- * a beat after the one before. The owner chose this slower, softer entrance
- * over the 200ms product default for the signed-out screens (2026-09-17). With
- * reduced motion it is simply there, and `filter` is cleared once settled
- * because a leftover `blur(0px)` is still a filter, and a filtered ancestor
- * becomes the containing block for anything fixed-position inside the form.
- */
-function Rise({ index, children }: { index: number; children: ReactNode }) {
-  const reduce = useReducedMotion() ?? false;
-  return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y: 40, filter: "blur(12px)" }}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
-      transition={{ duration: 0.9, delay: 0.06 + index * 0.09, ease: SETTLE }}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 function RailCascade() {
   const { t } = useTranslation();
@@ -143,7 +105,7 @@ export function AuthShell({
       <div className="relative flex min-h-0 flex-1">
         {/* Page chrome, not part of the statement: top right of the window, on
             the same line as the lockup. */}
-        <LocaleSwitch className="absolute right-10 top-[2.375rem] z-10 hidden rounded-full lg:inline-flex" />
+        <LocaleSwitch className="absolute right-10 top-8 z-10 hidden lg:inline-flex" />
         <BrandRailAside width={RAIL_WIDTH_AUTH} from="lg">
           <div className="flex h-full flex-col px-6 pb-8 pt-5 lg:px-10">
             <header className="flex min-h-9 shrink-0 items-center">
@@ -181,7 +143,7 @@ export function AuthShell({
                 come along with it. */}
             <div className="mb-6 flex items-center justify-between lg:hidden">
               <Logo variant="lockup" size={28} />
-              <LocaleSwitch className="-mr-2 rounded-full" />
+              <LocaleSwitch />
             </div>
             <Rise index={1}>
               <Bezel>
