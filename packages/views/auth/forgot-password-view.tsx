@@ -9,6 +9,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink } from "../navigation";
+import { AUTH_INPUT, AUTH_PILL, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
 
@@ -53,7 +54,7 @@ export function ForgotPasswordView() {
               type="button"
               variant="outline"
               size="lg"
-              className="w-full"
+              className={AUTH_PILL}
               onClick={() => {
                 if (cooldown > 0) return;
                 send(() => {
@@ -137,22 +138,15 @@ export function ForgotPasswordView() {
               placeholder={t("auth.emailPlaceholder")}
               aria-invalid={errorMsg ? true : undefined}
               aria-describedby={errorMsg ? errorId : undefined}
-              className="h-10 text-body pointer-coarse:h-11"
+              className={AUTH_INPUT}
             />
           </Field>
           <FieldError id={errorId}>{errorMsg}</FieldError>
         </FieldGroup>
         <div className="flex flex-col gap-4">
-          <Button type="submit" size="lg" className="w-full" aria-disabled={forgot.isPending || undefined}>
-            {forgot.isPending ? (
-              <>
-                <Loader2 aria-hidden className="animate-spin" />
-                {t("auth.forgot.sending")}
-              </>
-            ) : (
-              t("auth.forgot.submit")
-            )}
-          </Button>
+          <AuthSubmit pending={forgot.isPending} pendingLabel={t("auth.forgot.sending")}>
+            {t("auth.forgot.submit")}
+          </AuthSubmit>
           <p className="text-center text-body text-muted-foreground">
             <AppLink href={paths.login()} className={AUTH_LINK}>
               {t("auth.forgot.backToLogin")}

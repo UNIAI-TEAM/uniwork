@@ -5,6 +5,7 @@ import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Separator } from "@uniwork/ui/components/ui/separator";
+import { AUTH_PILL } from "./auth-controls";
 
 /** Google's four-colour "G", inline so no third-party script or image is loaded. */
 function GoogleMark() {
@@ -38,7 +39,7 @@ export function GoogleButton({ next }: { next?: string | null }) {
     return (
       <div aria-hidden data-slot="google-placeholder" className="invisible flex flex-col gap-4">
         <div className="h-4" />
-        <div className="h-10 pointer-coarse:h-11" />
+        <div className="h-12" />
       </div>
     );
   }
@@ -55,7 +56,7 @@ export function GoogleButton({ next }: { next?: string | null }) {
           button semantics (role, key handling) over the link either way. */}
       <a
         href={paths.googleStart(next)}
-        className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-10 w-full pointer-coarse:h-11")}
+        className={cn(buttonVariants({ variant: "outline", size: "lg" }), AUTH_PILL)}
       >
         <GoogleMark />
         {t("auth.google.continueWith")}

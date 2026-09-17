@@ -45,12 +45,9 @@ export function StepWelcome({
       <div className="flex flex-col lg:flex-1">
         <div className="flex flex-1 flex-col justify-center px-6 pb-12 pt-16 sm:px-10 md:px-20 lg:px-20 lg:pt-0 xl:px-24">
           <div className="flex w-full max-w-[540px] flex-col gap-8">
-            <div className="flex items-center gap-2.5">
-              <Logo variant="mark" size={22} decorative />
-              <span className="font-display text-title-lg font-medium tracking-tight text-foreground">
-                {t("onboarding.welcome.wordmark")}
-              </span>
-            </div>
+            {/* The real lockup in its own gradient, the same logo the sign-in
+                screen shows: one logo across the signed-out flow. */}
+            <Logo variant="lockup" size={32} />
 
             <h1 className="text-balance font-display text-hero font-medium leading-[1.04] tracking-tight text-foreground sm:text-hero-lg">
               {t("onboarding.welcome.headline_line1")}{" "}
@@ -82,7 +79,7 @@ export function StepWelcome({
       </div>
 
       {/* Cột phải: minh hoạ, ẩn dưới lg để headline + CTA giữ tiêu điểm. */}
-      <div className="hidden border-l border-border bg-muted/40 lg:flex lg:flex-1 lg:flex-col lg:overflow-hidden">
+      <div className="hidden m-3 rounded-xl bg-brand-subtle lg:m-4 lg:flex lg:flex-1 lg:flex-col lg:overflow-hidden">
         <div className="flex flex-1 flex-col items-center justify-center gap-7 px-8 py-8">
           <p className="max-w-[440px] text-balance text-center font-display text-body-lg italic leading-snug text-muted-foreground">
             {t("onboarding.welcome.illustration_caption")}

@@ -15,7 +15,7 @@ export function MeetingInviteShell({
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="flex h-14 shrink-0 items-center justify-between px-4 sm:px-6">
-        <Logo variant="lockup" size={26} />
+        <Logo variant="lockup" size={28} />
         <LocaleSwitch className="-mr-2" />
       </header>
       <main

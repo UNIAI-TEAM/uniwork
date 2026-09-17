@@ -50,6 +50,22 @@
     "passwordMinHint": "Ít nhất {{min}} ký tự",
     "wordmark": "UniWork",
     "railTagline": "Con người và AI cùng sở hữu công việc.",
+    "railEyebrow": "Work OS cho người và AI",
+    "railPoints": {
+      "tasks": {
+        "title": "Việc và dự án",
+        "body": "Giao việc, theo dõi tiến độ, cả đội thấy thay đổi ngay khi nó xảy ra."
+      },
+      "meetings": {
+        "title": "Họp trực tuyến",
+        "body": "Phòng họp, tóm tắt và việc cần làm nằm cùng một chỗ."
+      },
+      "ai": {
+        "title": "Trợ lý AI trong workspace",
+        "body": "Hỏi Uni về công việc của đội mà không rời màn đang làm."
+      }
+    },
+    "railLede": "Việc, cuộc họp và trao đổi của cả đội ở một chỗ, có AI làm cùng như một đồng nghiệp.",
     "forgotPassword": "Quên mật khẩu?",
     "emailRequired": "Nhập email của bạn",
     "emailInvalid": "Email chưa đúng, ví dụ ten@congty.vn",
@@ -96,6 +112,7 @@
       "invalidCode": "Mã không đúng hoặc đã hết hạn. Nhập lại hoặc gửi mã mới.",
       "resend": "Gửi lại mã",
       "resendIn": "Gửi lại sau {{seconds}}s",
+      "resending": "Đang gửi mã…",
       "resent": "Đã gửi mã mới.",
       "resendTooSoon": "Vừa gửi một mã rồi, chờ một phút rồi thử lại.",
       "verifying": "Đang xác thực…",
@@ -302,6 +319,7 @@
       "appearance": "Chế độ hiển thị",
       "accent": "Màu nhấn",
       "accents": {
+        "uniwork": "UniWork (theo logo)",
         "black": "Đen",
         "purple": "Tím",
         "blue": "Xanh dương",
@@ -2458,7 +2476,6 @@
   },
   "onboarding": {
     "step_nav": {
-      "wordmark": "UniWork",
       "label": "Các bước khởi đầu",
       "about_you": {
         "label": "Về bạn",
@@ -2482,7 +2499,6 @@
       "log_out": "Đăng xuất"
     },
     "welcome": {
-      "wordmark": "UniWork",
       "headline_line1": "Công việc và cuộc họp của cả đội,",
       "headline_line2": "trong",
       "headline_emphasis": "một không gian.",
@@ -2490,35 +2506,7 @@
       "lede_secondary": "Vài phút nữa bạn sẽ có tổ chức, workspace đầu tiên và đồng nghiệp được mời vào.",
       "start": "Bắt đầu",
       "skip_existing": "Tôi đã dùng rồi",
-      "illustration_caption": "Một buổi sáng của đội bạn trên UniWork.",
-      "illustration": {
-        "card1_actor": "Lan",
-        "card1_initial": "L",
-        "card1_ref": "UW-42",
-        "card1_mention": "@Minh",
-        "card1_body": " xem giúp bản nháp đề xuất trước 3h nhé.",
-        "card2_actor": "Minh",
-        "card2_initial": "M",
-        "card2_ref": "UW-42",
-        "card2_body": "Đã sửa phần ngân sách, chuyển sang Đang làm.",
-        "card2_status": "Đang làm",
-        "card3_actor": "Cuộc họp",
-        "card3_ref": "14:00",
-        "card3_body": "Sync tuần · phòng video sẵn sàng trước 5 phút.",
-        "card3_status": "Sắp diễn ra",
-        "card4_actor": "Hà",
-        "card4_initial": "H",
-        "card4_ref": "UW-38",
-        "card4_body": "Hoàn thành onboarding khách hàng mới.",
-        "card4_status": "Hoàn thành",
-        "card4_timestamp": "10 phút trước",
-        "card5_actor": "Minh",
-        "card5_initial": "M",
-        "card5_ref": "UW-42",
-        "card5_prefix": "Xong rồi ",
-        "card5_mention": "@Lan",
-        "card5_body": " — mời bạn duyệt."
-      }
+      "illustration_caption": "Việc, cuộc họp và trao đổi của đội, cùng một chỗ."
     },
     "questions": {
       "about_you": {
