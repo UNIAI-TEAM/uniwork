@@ -448,7 +448,7 @@ func normalizeTaskTitle(title string) string {
 
 // guardActiveDuplicateTask serializes creates that share the same normalized
 // title under one workspace/project/parent and refuses a second active row
-// unless AllowDuplicate is set (Multica active_duplicate_issue parity).
+// unless AllowDuplicate is set (active duplicate-task parity).
 func (s *TaskService) guardActiveDuplicateTask(
 	ctx context.Context,
 	q *db.Queries,

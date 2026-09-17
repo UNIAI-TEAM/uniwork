@@ -27,7 +27,7 @@ function projectIdFromCarry(carry?: Record<string, unknown> | null): string | un
 }
 
 /**
- * Multica AgentCreatePanel chrome. Submit is gated (ADR 0010): toast only —
+ * Agent create-panel chrome. Submit is gated (ADR 0010): toast only —
  * no useCreateTask / POST /tasks until a real agent-create API exists.
  */
 export function CreateTaskAgentPanel({

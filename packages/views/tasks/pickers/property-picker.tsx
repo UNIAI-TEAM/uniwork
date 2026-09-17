@@ -29,7 +29,7 @@ export const PICKER_TRIGGER_CLASS =
   "flex items-center gap-1.5 cursor-pointer rounded px-1 -mx-1 hover:bg-accent/30 transition-colors overflow-hidden";
 
 /**
- * Multica PropertyPicker shell: one Popover for every create-task / detail
+ * PropertyPicker shell: one Popover for every create-task / detail
  * property field. Optional pinned search sits above the scrollable list;
  * callers own the trigger via `trigger` + `triggerRender` (PillButton).
  */

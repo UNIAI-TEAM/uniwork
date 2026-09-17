@@ -126,7 +126,7 @@ func TestAuditExportJSONLinesIsOnePerLine(t *testing.T) {
 	store := newMemStorage()
 	consumer := NewAuditExportConsumer(f.q, store)
 	for range 2 {
-		if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc"}); err != nil {
+		if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc", AllowDuplicate: true}); err != nil {
 			t.Fatal(err)
 		}
 	}

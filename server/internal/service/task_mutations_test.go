@@ -78,7 +78,7 @@ func TestBatchUpdateTasksUpdatesThree(t *testing.T) {
 
 	ids := make([]string, 0, 3)
 	for i := 0; i < 3; i++ {
-		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Batch", Priority: "low"})
+		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Batch", Priority: "low", AllowDuplicate: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestBatchDeleteTasksRemovesThree(t *testing.T) {
 
 	ids := make([]string, 0, 3)
 	for i := 0; i < 3; i++ {
-		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Del", Priority: "low"})
+		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Del", Priority: "low", AllowDuplicate: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -406,7 +406,7 @@ func TestBatchUpdateTasksRollsBackOnMidFailure(t *testing.T) {
 
 	ids := make([]string, 0, 2)
 	for i := 0; i < 2; i++ {
-		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Batch atomic", Priority: "low"})
+		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Batch atomic", Priority: "low", AllowDuplicate: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -440,7 +440,7 @@ func TestBatchDeleteTasksRollsBackOnMidFailure(t *testing.T) {
 
 	ids := make([]string, 0, 2)
 	for i := 0; i < 2; i++ {
-		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Del atomic", Priority: "low"})
+		task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Del atomic", Priority: "low", AllowDuplicate: true})
 		if err != nil {
 			t.Fatal(err)
 		}

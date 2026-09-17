@@ -22,7 +22,7 @@ export type SearchableOption = {
 
 /**
  * Below this many options (including an optional empty row) a search box
- * only adds friction — Multica's StatusPicker uses 9; assignee uses 8.
+ * only adds friction — status catalogs use 9; assignee uses 8.
  * Project/parent/status catalogs grow past this quickly.
  */
 export const SEARCHABLE_OPTION_THRESHOLD = 8;

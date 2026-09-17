@@ -5,7 +5,7 @@ import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 /**
  * Column chrome for the seven catalog categories. `tone` is the category's
  * tint (identity, not state — see PRODUCT.md › Design Principles). Status
- * glyph geometry lives in `icons/status-icon.tsx`, matching Multica.
+ * glyph geometry lives in `icons/status-icon.tsx`.
  */
 export const STATUS_CONFIG: Record<
   TaskStatus,

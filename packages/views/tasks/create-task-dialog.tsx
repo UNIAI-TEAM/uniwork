@@ -26,7 +26,7 @@ export type CreateTaskDialogProps = {
 /**
  * Shell that owns the single Dialog + DialogContent for create-task.
  * Mode switching remounts only the inner panel — Portal/Overlay/Popup stay
- * mounted so Base UI does not replay the open animation (Multica pattern).
+ * mounted so Base UI does not replay the open animation.
  */
 export function CreateTaskDialog({
   workspaceId,

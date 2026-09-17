@@ -270,6 +270,3 @@ WHERE t.organization_id = sqlc.arg('organization_id')
   AND lower(btrim(regexp_replace(t.title, '[[:space:]]+', ' ', 'g'))) = sqlc.arg('normalized_title')
 ORDER BY t.created_at ASC
 LIMIT 1;
-
--- name: CountTasksInOrganization :one
-SELECT count(*)::bigint FROM tasks WHERE organization_id = $1;

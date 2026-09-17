@@ -12,7 +12,7 @@ import { SEARCHABLE_OPTION_THRESHOLD } from "./searchable-option-picker";
 
 type OptionItem = { value: string; label: string };
 
-/** Multica create-issue: ProjectPicker + ClearablePillButton. */
+/** Create-task project field: ProjectPicker + ClearablePillButton. */
 export function CreateTaskProjectField({
   items,
   value,

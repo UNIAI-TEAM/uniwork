@@ -35,7 +35,7 @@ function refsEqual(a: AssigneeRef | null, b: AssigneeRef | null): boolean {
   return a.id === b.id && a.kind === b.kind;
 }
 
-/** Multica create-issue: StatusPicker + PillButton. */
+/** Create-task status field: StatusPicker + PillButton. */
 export function CreateTaskStatusField({
   items,
   value,
@@ -106,7 +106,7 @@ export function CreateTaskStatusField({
   );
 }
 
-/** Multica create-issue: PriorityPicker + PillButton. */
+/** Create-task priority field: PriorityPicker + PillButton. */
 export function CreateTaskPriorityField({
   items,
   value,
@@ -157,7 +157,7 @@ export function CreateTaskPriorityField({
   );
 }
 
-/** Multica create-issue: AssigneePicker + PillButton. */
+/** Create-task assignee field: AssigneePicker + PillButton. */
 export function CreateTaskAssigneeField({
   value,
   options,
@@ -266,7 +266,7 @@ export function CreateTaskAssigneeField({
   );
 }
 
-/** Multica create-issue: LabelPicker + PillButton (multi-select stays open). */
+/** Create-task label field: LabelPicker + PillButton (multi-select stays open). */
 export function CreateTaskLabelField({
   labels,
   selectedIds,

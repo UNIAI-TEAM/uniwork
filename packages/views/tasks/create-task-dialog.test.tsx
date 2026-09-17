@@ -28,7 +28,7 @@ describe("CreateTaskDialog", () => {
     expect(screen.getByText(/sẽ bắt đầu làm ngay sau khi tạo/)).toBeInTheDocument();
   });
 
-  it("renders the manual composer with compact Multica property pills", () => {
+  it("renders the manual composer with compact property pills", () => {
     render(
       wrap(
         <CreateTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,

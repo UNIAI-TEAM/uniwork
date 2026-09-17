@@ -153,7 +153,7 @@ func TestBatchUpdateHTTPUpdatesThree(t *testing.T) {
 	ids := make([]string, 0, 3)
 	for i := 0; i < 3; i++ {
 		res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
-			"title": "B", "priority": "low",
+			"title": "B", "priority": "low", "allow_duplicate": true,
 		})
 		if res.StatusCode != 200 {
 			t.Fatalf("create: %d %v", res.StatusCode, out)

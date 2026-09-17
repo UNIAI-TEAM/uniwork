@@ -17,7 +17,7 @@ export function PropRow({ label, children }: { label: ReactNode; children: React
   );
 }
 
-/** Status + priority rows with Multica-parity icons on trigger and menu items. */
+/** Status + priority rows with parity icons on trigger and menu items. */
 export function TaskDetailEnumFields({
   task,
   onStatusChange,

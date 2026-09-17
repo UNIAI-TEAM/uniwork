@@ -33,7 +33,7 @@ export function labelChipClass(color: string | null | undefined): string {
  *
  * When `searchPlaceholder` is set and the catalog exceeds
  * `SEARCHABLE_OPTION_THRESHOLD`, a search field is pinned above the scrollable
- * list (Multica LabelPicker / PropertyPicker parity).
+ * list (LabelPicker / PropertyPicker parity).
  *
  * `onTriggerNavigationGuard` is wired exactly like `EnumFieldPicker`'s — the
  * trigger's `onPointerDown`/`onClick`/`onAuxClick` plus the popup's
@@ -71,7 +71,7 @@ export function LabelPicker({
    * the trigger shows a fixed action label. */
   valueLabel?: string;
   emptyLabel: string;
-  /** When set and the catalog is long, pins a Multica-style search above the list. */
+  /** When set and the catalog is long, pins a search field above the list. */
   searchPlaceholder?: string;
   /** Shown when the catalog has labels but the query matches none. */
   noResultsLabel?: string;

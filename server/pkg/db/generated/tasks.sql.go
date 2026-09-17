@@ -117,17 +117,6 @@ func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, 
 	return column_1, err
 }
 
-const countTasksInOrganization = `-- name: CountTasksInOrganization :one
-SELECT count(*)::bigint FROM tasks WHERE organization_id = $1
-`
-
-func (q *Queries) CountTasksInOrganization(ctx context.Context, organizationID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countTasksInOrganization, organizationID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, status, priority,

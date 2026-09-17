@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 
 /**
- * Multica pill chrome for create-task / property toolbars. Hard width cap so
+ * Pill chrome for create-task / property toolbars. Hard width cap so
  * long project/assignee/label text wraps siblings instead of owning the row.
  */
 const PILL_CHROME =

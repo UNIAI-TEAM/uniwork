@@ -21,14 +21,14 @@ function property(overrides: Partial<TaskProperty> = {}): TaskProperty {
 }
 
 describe("PropertyIcon", () => {
-  it("renders the persisted Multica icon key from task property config", () => {
+  it("renders the persisted icon key from task property config", () => {
     const { container } = render(
       <PropertyIcon property={property({ config: { icon: "rocket" } })} />,
     );
     expect(container.querySelector('[data-property-icon="rocket"]')).not.toBeNull();
   });
 
-  it("falls back to the Multica number glyph for a number property", () => {
+  it("falls back to the number glyph for a number property", () => {
     const { container } = render(<PropertyIcon property={property()} />);
     expect(container.querySelector('[data-property-icon="hash"]')).not.toBeNull();
   });

@@ -17,7 +17,7 @@ export type IconSelectItem = {
 
 /**
  * Compact Select used by the create-task toolbar: trigger carries a field
- * icon, and every option can carry its own icon (Multica priority/status
+ * icon, and every option can carry its own icon (priority/status
  * parity). Labels stay the Select value map so SelectValue stays text.
  */
 export function IconSelect({
