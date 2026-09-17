@@ -4,25 +4,21 @@ import { DotSphere } from "@uniwork/ui/components/ui/dot-sphere";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 
 /**
- * The dark panel every signed-out screen is built on: onboarding puts its
- * stepper inside it, the credential screens put a tagline. It is chrome, not a
- * screen — it owns the panel, the dot field and the header/footer slots, and
- * nothing about what fills them.
+ * The panel onboarding is built on: its stepper sits inside. (The credential
+ * screens share only `BrandRailAside` and the column ruler.) It is chrome,
+ * not a screen: it owns the panel, the dot field and the header/footer slots,
+ * and nothing about what fills them.
  *
- * Structurally follows the ReUI onboarding-3 block: an inset panel with
- * `.dark` scoping token overrides for this subtree only, and the dot field as
- * a texture. The fill is `bg-rail`, the one token that is dark in BOTH themes
- * and one notch above the dark page: with `bg-background` the rail measured
- * 1.00:1 against the dark page and survived only as a 1px ring.
+ * The fill is `bg-brand-subtle`, the same surface the app uses for a selected
+ * row, so the first screen a person sees is already in the app's colours and
+ * follows the theme and the accent picked in Themes. It used to be `bg-rail`
+ * scoped `.dark`: a charcoal slab in a white app whose primary is violet.
+ * Measured on this fill: foreground 15.6 / muted-foreground 5.1 (light),
+ * foreground 14.9 / muted-foreground 6.0 / brand 5.9 (dark).
  *
- * The dot field is a still frame. It used to run a requestAnimationFrame loop
- * for as long as the page was open; PRODUCT.md keeps motion for explaining a
- * change, and a sign-in form has none to explain. The canvas paints no
- * background of its own so the token shows through, and its dots take
- * `text-brand` — the brand hue in this subtree's dark value — instead of the
- * indigo the block shipped with. The mask fades the field out across the
- * middle band, where both screens put their text (the tagline, the stepper):
- * dots inside the counters of a serif glyph read as dirt, not texture.
+ * The dot field is a still frame in `text-brand`, confined to the top edge of
+ * the panel by the mask: the middle is where both screens put their text, and
+ * dots inside the counters of a glyph read as dirt, not texture.
  */
 export function BrandRail({
   header,
@@ -54,13 +50,13 @@ export function BrandRail({
   return (
     <div
       className={
-        "dark relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl bg-rail px-5 pb-5 text-foreground ring-1 ring-border" +
+        "relative isolate flex h-full w-full flex-col overflow-hidden rounded-xl bg-brand-subtle px-6 pb-6 text-foreground" +
         (className ? " " + className : "")
       }
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 text-brand [mask-image:linear-gradient(to_bottom,black_28%,transparent_40%,transparent_60%,black_72%)]"
+        className="pointer-events-none absolute inset-0 text-brand [mask-image:linear-gradient(to_bottom,black_0%,black_12%,transparent_30%)]"
       >
         {showSphere && (
           <DotSphere
@@ -69,14 +65,14 @@ export function BrandRail({
             sphereCount={5}
             sphereRadius="20%"
             dotRadiusMax={1.9}
-            dotAlpha={0.55}
+            dotAlpha={0.4}
             bgColor="transparent"
             animate={false}
           />
         )}
       </div>
 
-      <div className="relative flex min-h-0 flex-1 flex-col pt-5">
+      <div className="relative flex min-h-0 flex-1 flex-col pt-6">
         {header ? <header className="flex min-h-9 shrink-0 items-center justify-between gap-3">{header}</header> : null}
         {children}
         {footer ? <footer className="flex min-h-8 shrink-0 items-end justify-between gap-4">{footer}</footer> : null}
@@ -106,9 +102,24 @@ export const RAIL_GUTTER = "px-6 py-8 sm:px-10 lg:px-14 lg:py-10";
  * left adrift in the middle of the rest. `e2e/auth-layout.spec.ts` measures it.
  */
 export const RAIL_WIDTH_ONBOARDING = "md:w-[19rem] lg:w-[22rem]";
-export const RAIL_WIDTH_AUTH = "md:w-[36%] lg:w-[42%]";
+export const RAIL_WIDTH_AUTH = "lg:w-[42%]";
 
-/** The <aside> that positions the rail beside a content column. Hidden below `md`. */
-export function BrandRailAside({ width, children }: { width: string; children: ReactNode }) {
-  return <aside className={`hidden shrink-0 p-2 md:block md:p-3 lg:p-4 ${width}`}>{children}</aside>;
+/**
+ * The <aside> that positions the rail beside a content column, hidden below
+ * `from`. Onboarding's rail is a narrow fixed stepper and fits from `md`; the
+ * credential screens' statement column needs `lg` — at 768px its 36% share
+ * was 276px, the headline broke over four lines and the feature cards ran off
+ * the bottom of a tablet held upright.
+ */
+export function BrandRailAside({
+  width,
+  from = "md",
+  children,
+}: {
+  width: string;
+  from?: "md" | "lg";
+  children: ReactNode;
+}) {
+  const shown = from === "lg" ? "lg:block lg:p-4" : "md:block md:p-3 lg:p-4";
+  return <aside className={`hidden shrink-0 p-2 ${shown} ${width}`}>{children}</aside>;
 }

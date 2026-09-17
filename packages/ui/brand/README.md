@@ -17,7 +17,7 @@ The logo, and the rules that keep it one logo.
 import { Logo } from "@uniwork/ui/brand";
 
 <Logo variant="mark" size={20} />                  // sidebar, rail
-<Logo variant="lockup" size={30} />                // auth screens, headers
+<Logo variant="lockup" size={30} />                // auth screens, headers: "uni" + mark + "ork"
 <Logo variant="mark" tone="mono" size={20} />      // inherits currentColor
 <Logo variant="mark" size={16} decorative />       // aria-hidden
 ```
@@ -32,7 +32,7 @@ disabled row, or the dark onboarding rail without being restated.
 
 `gradient` swaps to the on-dark ramp by itself. The light ramp's deep end
 measures **2.19:1** on the dark sidebar, which erases the left-hand figure and
-leaves the mark reading as half a logo; the dark ramp starts at `--brand`'s dark
+leaves the mark reading as half a logo; the dark ramp (#4D8DFF) sits beside `--brand`'s dark
 value and clears 4.87:1 on that same surface. The swap runs through the `dark:`
 variant, not a theme read in JS, so the server-rendered frame is already right.
 
@@ -50,9 +50,18 @@ Clear space is the mark's head radius: `size * LOGO_SAFE_ZONE_RATIO` (14/92 of
 the rendered height) on every side, nothing inside it. The number comes off the
 artwork, so it stays correct if the mark is redrawn.
 
-Minimums (`LOGO_MIN_SIZE`): mark 16px, wordmark 12px, lockup 22px high (about
-94px wide), stacked lockup 32px. Below these the head gap closes and the wave
+Minimums (`LOGO_MIN_SIZE`): mark 16px, wordmark and lockup 16px high (about
+84px wide), stacked lockup 40px. Below these the head gap closes and the wave
 turns to texture.
+
+## The wordmark
+
+"uni", the mark, "ork" (2026-09-17): the mark stands in for the w. The letters
+are Plus Jakarta Sans ExtraBold, lower case, the product's own display face,
+outlined to paths. The mark is as tall as the k: top on its ascender, bottom on
+the baseline less the round letters' overshoot, with one fixed gap either side on
+top of the letters' sidebearings. `lockup` is the word with the mark in its tone;
+`wordmark` is the single-ink version, mark included.
 
 ## Don't
 
@@ -64,8 +73,8 @@ turns to texture.
 - Don't rebuild the lockup by placing the mark and the wordmark by hand — the
   spacing is generated. Use `variant="lockup"`.
 - Don't put the full-colour mark on a busy photo or a mid-tone fill. Use `mono`.
-- Don't retype the wordmark in Inter. The W's feet are custom; typed text is a
-  different mark.
+- Don't retype the wordmark, and don't place the mark between typed "uni" and
+  "ork". The spacing and the mark's height are generated from the letters.
 - Don't put the light-ramp mark on a dark ground by hand. Use `<Logo>`, which
   swaps ramps, or `mark-dark.svg`.
 
@@ -87,7 +96,7 @@ point the valleys and the underside of the crest come to visible points.
 
 ```bash
 pnpm brand:build                          # mark + rasters
-INTER_TTF=/path/to/Inter-SemiBold.ttf pnpm brand:build   # + wordmark and lockups
+BRAND_FONT_TTF=/path/to/PlusJakartaSans[wght].ttf pnpm brand:build   # + wordmark and lockups
 ```
 
 Three steps: `build-svg.py` draws the mark, `build-assets.mjs` rasterises it in
@@ -97,8 +106,10 @@ takes the shipped rasters from 422 KB to 137 KB. It also converts the Open Graph
 card to JPEG, which is why `apps/web/app/` holds `opengraph-image.jpg`.
 
 Needs `python3` with `fonttools` and `pillow`. Chromium comes from the repo's
-Playwright install. The wordmark step is skipped without `INTER_TTF` — its outlines are
-already committed, so a mark-only change does not need the font. Inter is
-OFL-licensed; the binary is not committed because nothing at runtime reads it.
+Playwright install. The wordmark step is skipped without `BRAND_FONT_TTF` — its
+outlines are already committed, so a mark-only change does not need the font.
+Plus Jakarta Sans is OFL-licensed (google/fonts, `ofl/plusjakartasans`); the
+variable file is fine, the build instances it at ExtraBold. The binary is not
+committed because nothing at runtime reads it.
 
 Changing the mark means editing `scripts/brand/geometry.py`, never the SVGs.

@@ -17,7 +17,7 @@ describe("ThemesPanel", () => {
     renderPanel();
     // Native radios: the appearance tiles and the accent chips must be two
     // separate groups, otherwise picking an accent clears the appearance.
-    expect(screen.getAllByRole("radio")).toHaveLength(13);
+    expect(screen.getAllByRole("radio")).toHaveLength(14);
     expect(screen.getByRole("group", { name: "Chế độ hiển thị" })).toBeInTheDocument();
   });
 
@@ -31,7 +31,7 @@ describe("ThemesPanel", () => {
   it("clears the accent attribute when the default is chosen back", () => {
     renderPanel();
     fireEvent.click(screen.getByRole("radio", { name: "Bạc hà" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Tím violet" }));
+    fireEvent.click(screen.getByRole("radio", { name: "UniWork (theo logo)" }));
     expect(document.documentElement.hasAttribute("data-accent")).toBe(false);
   });
 });

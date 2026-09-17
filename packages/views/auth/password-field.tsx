@@ -4,6 +4,8 @@ import { useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AUTH_INPUT } from "./auth-controls";
 
 /**
  * Password input with a reveal toggle. Typing a password blind is where most
@@ -60,7 +62,7 @@ export function PasswordField({
         aria-describedby={describedBy}
         // pr-11 keeps the text from running under the toggle; the toggle grows
         // to 44px on a coarse pointer and would otherwise sit on the caret.
-        className="h-10 pr-11 text-body pointer-coarse:h-11"
+        className={cn(AUTH_INPUT, "pr-11")}
       />
       <Button
         type="button"
@@ -79,7 +81,7 @@ export function PasswordField({
         // holding a mouse. e2e/auth-layout.spec.ts presses it with a real one.
         className="absolute inset-y-0 right-1 my-auto text-muted-foreground"
       >
-        {shown ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+        {shown ? <EyeOff aria-hidden strokeWidth={1.75} /> : <Eye aria-hidden strokeWidth={1.75} />}
       </Button>
     </div>
   );

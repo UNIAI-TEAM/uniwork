@@ -50,6 +50,22 @@
     "passwordMinHint": "At least {{min}} characters",
     "wordmark": "UniWork",
     "railTagline": "People and AI co‑own the work.",
+    "railEyebrow": "A Work OS for people and AI",
+    "railPoints": {
+      "tasks": {
+        "title": "Tasks and projects",
+        "body": "Assign work and track progress; the whole team sees changes as they happen."
+      },
+      "meetings": {
+        "title": "Online meetings",
+        "body": "The room, the summary and the follow-ups live in one place."
+      },
+      "ai": {
+        "title": "AI assistant in your workspace",
+        "body": "Ask Uni about your team's work without leaving the screen you're on."
+      }
+    },
+    "railLede": "Your team's tasks, meetings and conversations in one place, with AI working alongside as a colleague.",
     "forgotPassword": "Forgot your password?",
     "emailRequired": "Enter your email",
     "emailInvalid": "That email doesn't look right, e.g. you@company.com",
@@ -96,6 +112,7 @@
       "invalidCode": "That code is wrong or has expired. Try again or request a new one.",
       "resend": "Resend code",
       "resendIn": "Resend in {{seconds}}s",
+      "resending": "Sending code…",
       "resent": "A new code is on its way.",
       "resendTooSoon": "A code was just sent — wait a minute and try again.",
       "verifying": "Verifying…",
@@ -303,6 +320,7 @@
       "appearance": "Appearance",
       "accent": "Accent",
       "accents": {
+        "uniwork": "UniWork (logo blue)",
         "black": "Black",
         "purple": "Purple",
         "blue": "Blue",
@@ -2459,7 +2477,6 @@
   },
   "onboarding": {
     "step_nav": {
-      "wordmark": "UniWork",
       "label": "Getting started",
       "about_you": {
         "label": "About you",
@@ -2483,7 +2500,6 @@
       "log_out": "Log out"
     },
     "welcome": {
-      "wordmark": "UniWork",
       "headline_line1": "Your team's work and meetings,",
       "headline_line2": "in",
       "headline_emphasis": "one place.",
@@ -2491,35 +2507,7 @@
       "lede_secondary": "In a few minutes you'll have an organization, your first workspace, and teammates invited in.",
       "start": "Get started",
       "skip_existing": "I've used UniWork before",
-      "illustration_caption": "A morning with your team on UniWork.",
-      "illustration": {
-        "card1_actor": "Lan",
-        "card1_initial": "L",
-        "card1_ref": "UW-42",
-        "card1_mention": "@Minh",
-        "card1_body": " could you look over the draft proposal before 3?",
-        "card2_actor": "Minh",
-        "card2_initial": "M",
-        "card2_ref": "UW-42",
-        "card2_body": "Budget section reworked, moving this to In progress.",
-        "card2_status": "In progress",
-        "card3_actor": "Meeting",
-        "card3_ref": "14:00",
-        "card3_body": "Weekly sync · video room opens 5 minutes early.",
-        "card3_status": "Upcoming",
-        "card4_actor": "Hà",
-        "card4_initial": "H",
-        "card4_ref": "UW-38",
-        "card4_body": "New client onboarding wrapped up.",
-        "card4_status": "Done",
-        "card4_timestamp": "10 minutes ago",
-        "card5_actor": "Minh",
-        "card5_initial": "M",
-        "card5_ref": "UW-42",
-        "card5_prefix": "All yours ",
-        "card5_mention": "@Lan",
-        "card5_body": " — ready for your review."
-      }
+      "illustration_caption": "Your team's tasks, meetings and conversations, in one place."
     },
     "questions": {
       "about_you": {
