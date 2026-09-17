@@ -45,6 +45,8 @@ export interface CreateTaskBody {
   label_ids?: string[];
   attachment_ids?: string[];
   properties?: Record<string, unknown>;
+  /** Skip the active-title duplicate guard when the caller confirms. */
+  allow_duplicate?: boolean;
 }
 
 const enc = encodeURIComponent;

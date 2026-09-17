@@ -347,6 +347,17 @@ func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, 
 	return column_1, err
 }
 
+const countTasksInOrganization = `-- name: CountTasksInOrganization :one
+SELECT count(*)::bigint FROM tasks WHERE organization_id = $1
+`
+
+func (q *Queries) CountTasksInOrganization(ctx context.Context, organizationID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countTasksInOrganization, organizationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, status, priority,
@@ -688,6 +699,74 @@ func (q *Queries) DeleteTaskDependency(ctx context.Context, arg DeleteTaskDepend
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const findActiveDuplicateTask = `-- name: FindActiveDuplicateTask :one
+SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at FROM tasks t
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+  AND t.project_id IS NOT DISTINCT FROM $3
+  AND t.parent_task_id IS NOT DISTINCT FROM $4
+  AND lower(btrim(regexp_replace(t.title, '[[:space:]]+', ' ', 'g'))) = $5
+ORDER BY t.created_at ASC
+LIMIT 1
+`
+
+type FindActiveDuplicateTaskParams struct {
+	OrganizationID  string      `json:"organization_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	ProjectID       pgtype.Text `json:"project_id"`
+	ParentTaskID    pgtype.Text `json:"parent_task_id"`
+	NormalizedTitle string      `json:"normalized_title"`
+}
+
+func (q *Queries) FindActiveDuplicateTask(ctx context.Context, arg FindActiveDuplicateTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, findActiveDuplicateTask,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.ParentTaskID,
+		arg.NormalizedTitle,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeID,
+		&i.DueDate,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
+		&i.OrganizationID,
+		&i.Number,
+		&i.ProjectID,
+		&i.ParentTaskID,
+		&i.AssigneeType,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Metadata,
+		&i.Properties,
+		&i.StartDate,
+		&i.Stage,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.Revision,
+		&i.LastActivityAt,
+	)
+	return i, err
 }
 
 const getTask = `-- name: GetTask :one
@@ -1475,6 +1554,15 @@ func (q *Queries) ListTasksByWorkspace(ctx context.Context, arg ListTasksByWorks
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockTaskDuplicateKey = `-- name: LockTaskDuplicateKey :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+func (q *Queries) LockTaskDuplicateKey(ctx context.Context, dollar_1 string) error {
+	_, err := q.db.Exec(ctx, lockTaskDuplicateKey, dollar_1)
+	return err
 }
 
 const maxTaskPosition = `-- name: MaxTaskPosition :one

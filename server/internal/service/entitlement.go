@@ -22,6 +22,7 @@ import (
 const (
 	FeatureMembersMax       = "members.max"
 	FeatureWorkspacesMax    = "workspaces.max"
+	FeatureTasksMax         = "tasks.max"
 	FeatureMeetingMinutes   = "meeting.participant_minutes"
 	FeatureMeetingRecording = "meeting.recording"
 	FeatureMeetingAISummary = "meeting.ai_summary"
@@ -32,8 +33,9 @@ const (
 // unlimited" row never claims a number nobody writes. Add a key here in the
 // same change that adds its first Consume/Can call.
 var wiredFeatures = map[string]bool{
-	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureMeetingMinutes: true,
-	FeatureMeetingRecording: true, FeatureMeetingAISummary: true, FeatureAITokens: true,
+	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureTasksMax: true,
+	FeatureMeetingMinutes: true, FeatureMeetingRecording: true, FeatureMeetingAISummary: true,
+	FeatureAITokens: true,
 }
 
 // graceFeatures stay effective when the subscription is inactive, so an
@@ -221,6 +223,8 @@ func snapshotCount(ctx context.Context, q *db.Queries, orgID, meter string) (int
 		return q.CountOrganizationMembers(ctx, orgID)
 	case FeatureWorkspacesMax:
 		return q.CountWorkspacesInOrganization(ctx, orgID)
+	case FeatureTasksMax:
+		return q.CountTasksInOrganization(ctx, orgID)
 	}
 	return 0, nil
 }

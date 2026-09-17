@@ -334,3 +334,21 @@ WHERE t.organization_id = sqlc.arg('organization_id')
   )
 ORDER BY t.status, t.position, t.created_at
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
+
+-- name: LockTaskDuplicateKey :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0));
+
+-- name: FindActiveDuplicateTask :one
+SELECT t.* FROM tasks t
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE t.organization_id = sqlc.arg('organization_id')
+  AND t.workspace_id = sqlc.arg('workspace_id')
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+  AND t.project_id IS NOT DISTINCT FROM sqlc.narg('project_id')
+  AND t.parent_task_id IS NOT DISTINCT FROM sqlc.narg('parent_task_id')
+  AND lower(btrim(regexp_replace(t.title, '[[:space:]]+', ' ', 'g'))) = sqlc.arg('normalized_title')
+ORDER BY t.created_at ASC
+LIMIT 1;
+
+-- name: CountTasksInOrganization :one
+SELECT count(*)::bigint FROM tasks WHERE organization_id = $1;

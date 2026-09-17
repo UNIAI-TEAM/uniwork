@@ -22,6 +22,12 @@ export class ApiError extends Error {
      * one string support needs to find the whole chain.
      */
     public correlationId?: string,
+    /**
+     * Machine-readable detail from ErrorSDO.fields (quota meters, duplicate
+     * task refs, …). Optional; absent when the server sent none or the body
+     * could not be parsed.
+     */
+    public fields?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -45,6 +51,13 @@ export function errorCode(err: unknown): string | undefined {
  */
 export function correlationIdOf(err: unknown): string | undefined {
   return err instanceof ApiError ? err.correlationId : undefined;
+}
+
+/**
+ * Machine-readable ErrorSDO.fields from a failed API call, when present.
+ */
+export function errorFields(err: unknown): Record<string, unknown> | undefined {
+  return err instanceof ApiError ? err.fields : undefined;
 }
 
 /**
@@ -137,6 +150,26 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
   });
 }
 
+async function throwFromFailedResponse(res: Response): Promise<never> {
+  let code = "internal";
+  let message = res.statusText;
+  let fields: Record<string, unknown> | undefined;
+  try {
+    const body = (await res.json()) as {
+      error?: { code: string; message: string; fields?: Record<string, unknown> };
+    };
+    if (body.error) {
+      ({ code, message } = body.error);
+      if (body.error.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
+        fields = body.error.fields;
+      }
+    }
+  } catch {
+    /* body is not JSON */
+  }
+  throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined, fields);
+}
+
 /**
  * Perform a request and return the decoded JSON body as `unknown`. The type
  * is deliberately not parameterised: shaping the response is the endpoint's
@@ -149,15 +182,7 @@ export async function request(path: string, opts: RequestOpts = {}): Promise<unk
     if (refreshed) res = await rawFetch(path, opts);
   }
   if (!res.ok) {
-    let code = "internal";
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: { code: string; message: string } };
-      if (body.error) ({ code, message } = body.error);
-    } catch {
-      /* body is not JSON */
-    }
-    throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
+    await throwFromFailedResponse(res);
   }
   if (res.status === 204) return undefined;
   return res.json();
@@ -190,15 +215,7 @@ export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"
     if (refreshed) res = await rawFetch(path, opts);
   }
   if (!res.ok) {
-    let code = "internal";
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: { code: string; message: string } };
-      if (body.error) ({ code, message } = body.error);
-    } catch {
-      /* body is not JSON */
-    }
-    throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
+    await throwFromFailedResponse(res);
   }
   // Prefer arrayBuffer → Blob: jsdom's Response.blob() yields a Blob without
   // readable bytes / .text(), which breaks authenticated media object URLs in tests.
