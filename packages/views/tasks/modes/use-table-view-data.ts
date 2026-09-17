@@ -1,34 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   TableFilter,
   TableGroupsResult,
-  TableRowsResult,
+  TableQuery,
 } from "@uniwork/core/api/endpoints/tasks-table";
 import { useTableGroups } from "@uniwork/core/tasks";
 import {
+  normalizeTableQuery,
   tableGroupsBody,
   tableRowsPageBody,
-  tableRowsPageQuery,
 } from "@uniwork/core/tasks/surface/table-query";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import type { Task } from "@uniwork/core/types";
-import { pickPageStates } from "../surface/use-board-columns-data";
+import {
+  useCursorBranches,
+  type CursorBranchSpec,
+  type CursorBranchState,
+} from "../surface/use-cursor-branches";
 import {
   TABLE_PAGE_SIZE,
   buildTaskTableHierarchy,
   groupLabelFromDescriptor,
-  sortTasksForTable,
   tableGroupBy,
   tableUsesServerGrouping,
   type TaskTableDisplayRow,
 } from "./table-view-model";
+import { useDebouncedValue } from "./use-debounced-value";
 
 const EMPTY_GROUPS: TableGroupsResult["groups"] = [];
 const EMPTY_PARENT_IDS: string[] = [];
+const EMPTY_TASKS: Task[] = [];
+const UNGROUPED_BRANCH = "__ungrouped";
+const SEARCH_DEBOUNCE_MS = 300;
 
 export interface UseTableViewDataResult {
   displayRows: TaskTableDisplayRow[];
@@ -41,14 +47,12 @@ export interface UseTableViewDataResult {
   groupsError: boolean;
 }
 
-type PageQuery = {
-  branchKey: string;
-  groupKey: string | null;
-  pageIndex: number;
-};
-
-const UNGROUPED_BRANCH = "__ungrouped";
-
+/**
+ * Table data on the cursor table API: the server filters, searches and sorts;
+ * each open group (or the whole table, ungrouped) is one cursor branch paged
+ * through `useCursorBranches`. Bodies come from `tasks/surface/table-query`, as
+ * the board's do, so a status-grouped table shares the board's cache entries.
+ */
 export function useTableViewData({
   workspaceId,
   filter,
@@ -69,23 +73,24 @@ export function useTableViewData({
   const tableCollapsedGroups = useViewStore((s) => s.tableCollapsedGroups);
   const sortBy = useViewStore((s) => s.sortBy);
   const sortDirection = useViewStore((s) => s.sortDirection);
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
 
   const groupBy = tableGroupBy(tableGrouping);
   const usesServerGrouping = tableUsesServerGrouping(tableGrouping);
-  const tableColumns = useViewStore((s) => s.tableColumns);
-  const columns = useMemo(
-    () => tableColumns.map((column) => column.key),
-    [tableColumns],
-  );
 
-  const groupsBody = useMemo(
-    () => tableGroupsBody({ filter, groupBy, columns, limit: TABLE_PAGE_SIZE }),
-    [columns, filter, groupBy],
+  const query = useMemo<TableQuery>(
+    () =>
+      normalizeTableQuery({
+        filter,
+        search: debouncedSearch,
+        sort: { field: sortBy, direction: sortDirection },
+      }),
+    [debouncedSearch, filter, sortBy, sortDirection],
   );
 
   const groupsQuery = useTableGroups(
     workspaceId,
-    usesServerGrouping ? groupsBody : null,
+    usesServerGrouping ? tableGroupsBody({ query, groupBy }) : null,
   );
   const groups = groupsQuery.data?.groups ?? EMPTY_GROUPS;
   const collapsed = useMemo(
@@ -93,67 +98,29 @@ export function useTableViewData({
     [tableCollapsedGroups],
   );
 
-  const [pagesByGroup, setPagesByGroup] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    setPagesByGroup({});
-  }, [workspaceId, groupBy, columns, filter, usesServerGrouping]);
-
-  const pageQueries = useMemo((): PageQuery[] => {
-    const list: PageQuery[] = [];
-    if (!usesServerGrouping) {
-      const pages = pagesByGroup[UNGROUPED_BRANCH] ?? 1;
-      for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
-        list.push({
-          branchKey: UNGROUPED_BRANCH,
-          groupKey: null,
-          pageIndex,
-        });
-      }
-      return list;
-    }
+  const branchBody = (groupKey: string | null) =>
+    tableRowsPageBody({
+      query,
+      groupBy,
+      hierarchy: false,
+      groupKey,
+      parentId: null,
+      cursor: null,
+      limit: TABLE_PAGE_SIZE,
+    });
+  const branches: CursorBranchSpec[] = [];
+  if (!usesServerGrouping) {
+    branches.push({ key: UNGROUPED_BRANCH, body: branchBody(null), enabled: true });
+  } else {
     for (const group of groups) {
       if (collapsed.has(group.key)) continue;
-      const pages = pagesByGroup[group.key] ?? 1;
-      for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
-        list.push({
-          branchKey: group.key,
-          groupKey: group.key,
-          pageIndex,
-        });
-      }
+      branches.push({ key: group.key, body: branchBody(group.key), enabled: true });
     }
-    return list;
-  }, [collapsed, groups, pagesByGroup, usesServerGrouping]);
-
-  const rowQueries = useQueries({
-    queries: pageQueries.map(({ groupKey, pageIndex }) => ({
-      // Shared with the board, so equal parameters land on one cache entry.
-      ...tableRowsPageQuery(
-        workspaceId,
-        tableRowsPageBody({
-          filter,
-          groupBy,
-          groupKey,
-          columns,
-          limit: TABLE_PAGE_SIZE,
-          offset: pageIndex * TABLE_PAGE_SIZE,
-        }),
-      ),
-      enabled: !!workspaceId,
-    })),
-    // Without a stable combine, useQueries returns a new array on every render,
-    // displayRows is rebuilt, and TanStack Table's pagination auto-reset writes
-    // its own state on each row-model rebuild — a render loop that froze the app.
-    combine: pickPageStates,
-  });
-
-  const loadMore = useCallback((groupKey: string) => {
-    setPagesByGroup((prev) => ({
-      ...prev,
-      [groupKey]: (prev[groupKey] ?? 1) + 1,
-    }));
-  }, []);
+  }
+  const { byKey, isRefreshing: branchesRefreshing } = useCursorBranches(
+    workspaceId,
+    branches,
+  );
 
   const translateStatus = useCallback(
     (status: string) => {
@@ -172,39 +139,15 @@ export function useTableViewData({
     [t],
   );
 
-  const pagesForGroup = useCallback(
-    (branchKey: string) => {
-      const pages: Array<{
-        data?: TableRowsResult;
-        isLoading: boolean;
-        isError: boolean;
-        isFetching: boolean;
-      }> = [];
-      pageQueries.forEach((page, index) => {
-        if (page.branchKey !== branchKey) return;
-        const query = rowQueries[index];
-        if (!query) return;
-        pages.push({
-          data: query.data as TableRowsResult | undefined,
-          isLoading: query.isLoading,
-          isError: query.isError,
-          isFetching: query.isFetching,
-        });
-      });
-      return pages;
-    },
-    [pageQueries, rowQueries],
-  );
+  const ungrouped = usesServerGrouping ? undefined : byKey.get(UNGROUPED_BRANCH);
 
   const displayRows = useMemo(() => {
     const rows: TaskTableDisplayRow[] = [];
-    const needle = search.trim().toLocaleLowerCase();
     const collapsedParents = new Set(collapsedParentIds);
 
     if (
       (usesServerGrouping && groupsQuery.isLoading && groups.length === 0) ||
-      (!usesServerGrouping &&
-        rowQueries.some((query) => query.isLoading && !query.data))
+      (!usesServerGrouping && (!ungrouped || ungrouped.isLoading))
     ) {
       for (let i = 0; i < 8; i += 1) {
         rows.push({ kind: "skeleton", key: `skeleton:${i}` });
@@ -212,42 +155,17 @@ export function useTableViewData({
       return rows;
     }
 
-    const appendBranch = (
-      branchKey: string,
-      groupTotalHint: number,
-    ) => {
-      const pages = pagesForGroup(branchKey);
-      const anyLoading = pages.some((page) => page.isLoading && !page.data);
-      if (pages.length === 0 || anyLoading) {
-        for (let i = 0; i < Math.min(groupTotalHint || 3, 3); i += 1) {
-          rows.push({
-            kind: "skeleton",
-            key: `skeleton:${branchKey}:${i}`,
-          });
+    const appendBranch = (branch: CursorBranchState | undefined, skeletonHint: number) => {
+      if (!branch || branch.isLoading) {
+        for (let i = 0; i < Math.min(skeletonHint || 3, 3); i += 1) {
+          rows.push({ kind: "skeleton", key: `skeleton:${branch?.key ?? "branch"}:${i}` });
         }
         return;
       }
 
-      const accumulated: Array<{ task: Task; direct_child_count: number }> = [];
-      let groupTotal = groupTotalHint;
-      let lastError = false;
-      let fetchingMore = false;
-      for (const page of pages) {
-        if (page.isError && !page.data) lastError = true;
-        if (page.isFetching && page.data) fetchingMore = true;
-        if (page.data) {
-          groupTotal = page.data.total;
-          accumulated.push(...page.data.rows);
-        }
-      }
-
-      const tasks = sortTasksForTable(
-        accumulated.map((row) => row.task),
-        sortBy,
-        sortDirection,
-      );
+      const tasks = branch.rows.map((row) => row.task);
       const childCountById = new Map(
-        accumulated.map((row) => [row.task.id, row.direct_child_count]),
+        branch.rows.map((row) => [row.task.id, row.direct_child_count]),
       );
       const hierarchyRows = showSubTasks
         ? buildTaskTableHierarchy(tasks, childCountById, collapsedParents)
@@ -261,36 +179,22 @@ export function useTableViewData({
               hasChildren: false,
               collapsed: false,
             }));
+      rows.push(...hierarchyRows);
 
-      for (const row of hierarchyRows) {
-        if (
-          needle &&
-          !row.task.title.toLocaleLowerCase().includes(needle) &&
-          !(row.task.identifier ?? "").toLocaleLowerCase().includes(needle)
-        ) {
-          continue;
-        }
-        rows.push(row);
-      }
-
-      if (accumulated.length < groupTotal) {
+      if (branch.hasMore || branch.isFetchingMore || branch.isError) {
         rows.push({
           kind: "load_more",
-          key: `load_more:${branchKey}`,
-          state: lastError
-            ? "error"
-            : fetchingMore
-              ? "loading"
-              : "has_more",
-          total: groupTotal,
-          loadedCount: accumulated.length,
-          onLoad: () => loadMore(branchKey),
+          key: `load_more:${branch.key}`,
+          state: branch.isError ? "error" : branch.isFetchingMore ? "loading" : "has_more",
+          total: branch.total,
+          loadedCount: branch.rows.length,
+          onLoad: branch.isError ? branch.retry : branch.loadMore,
         });
       }
     };
 
     if (!usesServerGrouping) {
-      appendBranch(UNGROUPED_BRANCH, 0);
+      appendBranch(ungrouped, 0);
       return rows;
     }
 
@@ -310,54 +214,48 @@ export function useTableViewData({
         count: group.count,
         collapsed: isCollapsed,
       });
-
       if (isCollapsed) continue;
-      appendBranch(group.key, group.count);
+      appendBranch(byKey.get(group.key), group.count);
     }
 
     return rows;
   }, [
+    assigneeNames,
+    byKey,
     collapsed,
     collapsedParentIds,
-    assigneeNames,
     groups,
     groupsQuery.isLoading,
-    loadMore,
-    pagesForGroup,
-    search,
     showSubTasks,
-    sortBy,
-    sortDirection,
     t,
     translatePriority,
     translateStatus,
+    ungrouped,
     usesServerGrouping,
-    rowQueries,
   ]);
 
   const loadedTasks = useMemo(() => {
     const byId = new Map<string, Task>();
-    for (const query of rowQueries) {
-      const page = query.data as TableRowsResult | undefined;
-      for (const row of page?.rows ?? []) byId.set(row.task.id, row.task);
+    for (const branch of byKey.values()) {
+      for (const row of branch.rows) {
+        if (!byId.has(row.task.id)) byId.set(row.task.id, row.task);
+      }
     }
-    return [...byId.values()];
-  }, [rowQueries]);
+    return byId.size > 0 ? [...byId.values()] : EMPTY_TASKS;
+  }, [byKey]);
 
-  const rowsLoading = rowQueries.some(
-    (query) => query.isLoading && !query.data,
-  );
+  const branchStates = [...byKey.values()];
+  const rowsLoading = branchStates.some((branch) => branch.isLoading);
   const isLoading = usesServerGrouping
     ? groupsQuery.isLoading || (groups.length > 0 && rowsLoading)
-    : rowsLoading;
+    : !ungrouped || ungrouped.isLoading;
   const isRefreshing =
-    (groupsQuery.isFetching && !groupsQuery.isLoading) ||
-    rowQueries.some((query) => query.isFetching && !query.isLoading);
-  const ungroupedTotal = (rowQueries[0]?.data as TableRowsResult | undefined)
-    ?.total;
+    !isLoading &&
+    ((usesServerGrouping && groupsQuery.isFetching && !groupsQuery.isLoading) ||
+      branchesRefreshing);
   const total = usesServerGrouping
     ? (groupsQuery.data?.total ?? loadedTasks.length)
-    : (ungroupedTotal ?? loadedTasks.length);
+    : (ungrouped?.total ?? loadedTasks.length);
   const isEmpty = !isLoading && total === 0;
 
   return {
@@ -370,6 +268,6 @@ export function useTableViewData({
     groupBy,
     groupsError: usesServerGrouping
       ? groupsQuery.isError
-      : rowQueries.some((query) => query.isError && !query.data),
+      : !!ungrouped?.isError && ungrouped.rows.length === 0,
   };
 }

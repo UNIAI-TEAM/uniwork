@@ -1,15 +1,10 @@
+import type { TableGroupValue } from "@uniwork/core/api/endpoints/tasks-table";
 import {
   propertyIdFromViewKey,
-  type SortDirection,
-  type SortField,
   type TableCalculation,
   type TableColumnKey,
 } from "@uniwork/core/tasks/stores/view-store";
-import {
-  TASK_PRIORITIES,
-  TASK_STATUSES,
-  type Task,
-} from "@uniwork/core/types";
+import type { Task } from "@uniwork/core/types";
 
 export type TaskTableDisplayRow =
   | {
@@ -207,31 +202,21 @@ export function buildTaskTableCsv(headers: string[], rows: unknown[][]) {
     .join("\r\n");
 }
 
-/** Map view-store grouping to the suite `group_by` string. */
+/**
+ * Map view-store grouping to the table API `group_by`. Groupings the server
+ * does not group by yet (project, custom properties) page ungrouped.
+ */
 export function tableGroupBy(grouping: string): string {
-  if (grouping === "none") return "status";
-  if (grouping === "status" || grouping === "assignee") {
-    return grouping;
-  }
-  // Project and property grouping stay client-ungrouped until their table API
-  // contracts land. Rows still need a valid fallback group_by value.
-  if (grouping.startsWith("property:")) return "status";
-  return "status";
+  return tableUsesServerGrouping(grouping) ? grouping : "none";
 }
 
 export function tableUsesServerGrouping(grouping: string): boolean {
-  if (grouping === "none" || grouping.startsWith("property:")) return false;
   return grouping === "status" || grouping === "assignee";
 }
 
 export function groupLabelFromDescriptor(
   key: string,
-  value: {
-    kind: string;
-    status?: string;
-    priority?: string;
-    actor?: { id?: string };
-  },
+  value: TableGroupValue,
   translateStatus: (status: string) => string,
   translatePriority: (priority: string) => string,
   unassignedLabel: string,
@@ -244,67 +229,12 @@ export function groupLabelFromDescriptor(
     return translatePriority(value.priority);
   }
   if (value.kind === "assignee") {
-    const id =
-      value.actor?.id ??
-      (key === "assignee"
-        ? ""
-        : key.includes(":")
-          ? key.split(":").slice(1).join(":")
-          : key);
+    // `assignee:none` carries no actor; `assignee:<type>:<id>` does.
+    if (value.label) return value.label;
+    const id = value.actor?.id;
     return id ? (resolveAssignee?.(id) ?? id) : unassignedLabel;
   }
   return key;
-}
-
-const STATUS_RANK = new Map(TASK_STATUSES.map((status, i) => [status, i]));
-const PRIORITY_RANK = new Map(
-  TASK_PRIORITIES.map((priority, i) => [priority, i]),
-);
-
-function sortValue(task: Task, field: SortField): string | number | null {
-  switch (field) {
-    case "title":
-      return task.title.toLocaleLowerCase();
-    case "status":
-      return STATUS_RANK.get(task.status) ?? Number.MAX_SAFE_INTEGER;
-    case "priority":
-      return PRIORITY_RANK.get(task.priority) ?? Number.MAX_SAFE_INTEGER;
-    case "due_date":
-      return task.due_date ?? "";
-    case "created_at":
-      return task.created_at;
-    case "updated_at":
-      return task.updated_at;
-    case "position":
-      return task.position;
-    case "start_date":
-      return task.start_date ?? "";
-    default:
-      return null;
-  }
-}
-
-/** Client-sort loaded table rows; unknown / property fields keep input order. */
-export function sortTasksForTable(
-  tasks: Task[],
-  sortBy: SortField,
-  sortDirection: SortDirection,
-): Task[] {
-  const ranked = tasks.map((task, index) => ({
-    task,
-    index,
-    value: sortValue(task, sortBy),
-  }));
-  const direction = sortDirection === "desc" ? -1 : 1;
-  ranked.sort((a, b) => {
-    if (a.value == null && b.value == null) return a.index - b.index;
-    if (a.value == null || a.value === "") return 1;
-    if (b.value == null || b.value === "") return -1;
-    if (a.value < b.value) return -1 * direction;
-    if (a.value > b.value) return 1 * direction;
-    return a.index - b.index;
-  });
-  return ranked.map((entry) => entry.task);
 }
 
 export const TABLE_PAGE_SIZE = 50;

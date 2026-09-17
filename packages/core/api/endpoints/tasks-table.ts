@@ -3,6 +3,95 @@ import { TaskSchema, type Task } from "../../types/task";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 
+export interface TableFilter {
+  statuses?: string[];
+  priorities?: string[];
+  assignee_ids?: string[];
+  project_ids?: string[];
+}
+
+export interface TableSort {
+  field: string;
+  direction: "asc" | "desc";
+}
+
+export interface TableQuery {
+  filter?: TableFilter;
+  search?: string;
+  sort?: TableSort;
+}
+
+export interface TableGroupsBody {
+  query: TableQuery;
+  group_by: string;
+}
+
+export interface TableRowsBody {
+  query: TableQuery;
+  group_by: string;
+  group_key: string | null;
+  hierarchy: boolean;
+  parent_id: string | null;
+  cursor: string | null;
+  limit: number;
+}
+
+export interface TableFacetsBody {
+  query: TableQuery;
+  facets: string[];
+}
+
+export type TableGroupValue = {
+  kind: string;
+  status?: string;
+  priority?: string;
+  actor?: { type: string; id: string };
+  project_id?: string;
+  property_id?: string;
+  option?: string;
+  label?: string;
+};
+
+export type TableRowLabel = { id: string; name: string; color: string };
+
+export interface TableGroupDescriptor {
+  key: string;
+  value: TableGroupValue;
+  count: number;
+}
+
+export interface TableGroupsResult {
+  query_fingerprint: string;
+  total: number;
+  groups: TableGroupDescriptor[];
+  next_cursor: string | null;
+}
+
+export type TableRowsResult = {
+  query_fingerprint: string;
+  group_key: string | null;
+  parent_id: string | null;
+  total: number;
+  rows: Array<{ task: Task; direct_child_count: number; labels: TableRowLabel[] }>;
+  next_cursor: string | null;
+};
+
+export interface TableFacetValue {
+  key: string;
+  count: number;
+}
+
+export interface TableFacet {
+  kind: string;
+  values: TableFacetValue[];
+}
+
+export interface TableFacetsResult {
+  query_fingerprint: string;
+  total: number;
+  facets: TableFacet[];
+}
+
 const TableActorRefSchema = z.object({
   type: z.string(),
   id: z.string(),
@@ -13,7 +102,18 @@ const TableGroupValueSchema = z.object({
   status: z.string().optional(),
   priority: z.string().optional(),
   actor: TableActorRefSchema.optional(),
+  project_id: z.string().optional(),
+  property_id: z.string().optional(),
+  option: z.string().optional(),
+  label: z.string().optional(),
 });
+
+/** A `string | null` field the server may omit; missing degrades to `null`, never to a parse failure. */
+const nullableString = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => v ?? null);
 
 const TableGroupDescriptorSchema = z.object({
   key: z.string(),
@@ -25,27 +125,30 @@ const TableGroupsSchema = z.object({
   query_fingerprint: z.string(),
   total: z.number(),
   groups: z.array(TableGroupDescriptorSchema),
-  next_cursor: z.string().nullable().optional(),
+  next_cursor: nullableString,
 });
-export type TableGroupsResult = z.infer<typeof TableGroupsSchema>;
+
+const TableRowLabelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string(),
+});
 
 const TableRowSchema = z.object({
   task: TaskSchema,
   direct_child_count: z.number(),
+  // An old server (or a drifted one) may omit labels entirely; the row still parses.
+  labels: z.array(TableRowLabelSchema).catch([]),
 });
 
 const TableRowsSchema = z.object({
   query_fingerprint: z.string(),
-  group_key: z.string().nullable().optional(),
-  parent_id: z.string().nullable().optional(),
+  group_key: nullableString,
+  parent_id: nullableString,
   total: z.number(),
   rows: z.array(TableRowSchema),
-  branch_total: z.number(),
-  next_cursor: z.string().nullable().optional(),
+  next_cursor: nullableString,
 });
-export type TableRowsResult = Omit<z.infer<typeof TableRowsSchema>, "rows"> & {
-  rows: Array<{ task: Task; direct_child_count: number }>;
-};
 
 const TableFacetValueSchema = z.object({
   key: z.string(),
@@ -62,37 +165,6 @@ const TableFacetsSchema = z.object({
   total: z.number(),
   facets: z.array(TableFacetSchema),
 });
-export type TableFacetsResult = z.infer<typeof TableFacetsSchema>;
-
-export interface TableFilter {
-  statuses?: string[];
-  priorities?: string[];
-  assignee_ids?: string[];
-  project_ids?: string[];
-}
-
-export interface TableGroupsBody {
-  filter?: TableFilter;
-  group_by: string;
-  columns?: string[];
-  limit?: number;
-  offset?: number;
-}
-
-export interface TableRowsBody {
-  filter?: TableFilter;
-  group_by: string;
-  group_key?: string | null;
-  columns?: string[];
-  limit?: number;
-  offset?: number;
-}
-
-export interface TableFacetsBody {
-  filter?: TableFilter;
-  facets: string[];
-  columns?: string[];
-}
 
 const enc = encodeURIComponent;
 
@@ -109,7 +181,6 @@ const emptyRows: TableRowsResult = {
   parent_id: null,
   total: 0,
   rows: [],
-  branch_total: 0,
   next_cursor: null,
 };
 
