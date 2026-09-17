@@ -8,9 +8,11 @@
  *
  * One table, one source of truth. The picker's swatch and the CSS derivation in
  * `styles/tokens.css` both read these four numbers off <html> as custom
- * properties; tokens.css never repeats a hex. `violet` is the palette already
- * baked into `:root` / `.dark`, so selecting it removes the attribute entirely
- * rather than re-deriving the same colour through oklch().
+ * properties; tokens.css never repeats a hex. `uniwork` (the logo's blue) is the
+ * palette already baked into `:root` / `.dark`, so selecting it removes the
+ * attribute entirely rather than re-deriving the colour through oklch(). Its row
+ * here feeds the swatch and the contrast test; the numbers are the light
+ * token's own oklch, so the dot matches the app.
  *
  * `l` / `lDark` are per-accent, not one constant, for two reasons. The ramp is
  * not linear at the ends — `black` has to sit near-ink in light and near-paper
@@ -33,6 +35,7 @@ export type Accent = {
 
 /** Insertion order is the order of the picker grid. */
 export const ACCENTS = {
+  uniwork: { h: 263, c: 0.232, l: 0.505, lDark: 0.74 },
   black: { h: 285, c: 0.014, l: 0.26, lDark: 0.93 },
   purple: { h: 292, c: 0.19, l: 0.52, lDark: 0.8 },
   blue: { h: 248, c: 0.17, l: 0.52, lDark: 0.8 },
@@ -50,7 +53,7 @@ export type AccentName = keyof typeof ACCENTS;
 export const ACCENT_NAMES = Object.keys(ACCENTS) as AccentName[];
 
 /** The accent `:root` / `.dark` already hold; it needs no override block. */
-export const DEFAULT_ACCENT: AccentName = "violet";
+export const DEFAULT_ACCENT: AccentName = "uniwork";
 
 export const ACCENT_STORAGE_KEY = "uniwork-accent";
 
@@ -117,7 +120,7 @@ export function readStoredAccent(): AccentName {
 /**
  * Runs before first paint, from a blocking inline <script> in the document
  * head — the same trick next-themes uses for `.dark`. Without it the app paints
- * one frame of violet before React mounts and repaints in the chosen accent.
+ * one frame of the default blue before React mounts and repaints in the chosen accent.
  * Serialised as a string because it must not wait for a bundle.
  */
 export function accentBootScript(): string {
