@@ -73,7 +73,6 @@
     "networkError": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
     "serverError": "UniWork đang gặp sự cố. Thử lại sau ít phút.",
     "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
-    "switchTo": "Chuyển sang {{language}}",
     "forgot": {
       "title": "Quên mật khẩu",
       "subtitle": "Nhập email tài khoản, chúng tôi sẽ gửi link đặt lại.",

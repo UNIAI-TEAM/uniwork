@@ -73,7 +73,6 @@
     "networkError": "Can't reach UniWork. Check your connection and try again.",
     "serverError": "UniWork is having trouble. Try again in a few minutes.",
     "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
-    "switchTo": "Switch to {{language}}",
     "forgot": {
       "title": "Forgot password",
       "subtitle": "Enter your account email and we will send a reset link.",

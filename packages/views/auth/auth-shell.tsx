@@ -105,7 +105,7 @@ export function AuthShell({
       <div className="relative flex min-h-0 flex-1">
         {/* Page chrome, not part of the statement: top right of the window, on
             the same line as the lockup. */}
-        <LocaleSwitch className="absolute right-10 top-[2.375rem] z-10 hidden rounded-full lg:inline-flex" />
+        <LocaleSwitch className="absolute right-10 top-8 z-10 hidden lg:inline-flex" />
         <BrandRailAside width={RAIL_WIDTH_AUTH} from="lg">
           <div className="flex h-full flex-col px-6 pb-8 pt-5 lg:px-10">
             <header className="flex min-h-9 shrink-0 items-center">
@@ -143,7 +143,7 @@ export function AuthShell({
                 come along with it. */}
             <div className="mb-6 flex items-center justify-between lg:hidden">
               <Logo variant="lockup" size={28} />
-              <LocaleSwitch className="-mr-2 rounded-full" />
+              <LocaleSwitch />
             </div>
             <Rise index={1}>
               <Bezel>
