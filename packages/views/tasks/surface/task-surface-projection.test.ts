@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "@uniwork/core/types";
-import { projectSurfaceTasks } from "./task-surface-projection";
+import { projectSurfaceTasks, sortSurfaceTasks } from "./task-surface-projection";
 
 const base: Task = {
   id: "t1",
@@ -55,5 +55,85 @@ describe("projectSurfaceTasks", () => {
         sortDirection: "asc",
       }).map((item) => item.id),
     ).toEqual(["urgent", "low"]);
+  });
+});
+
+describe("sortSurfaceTasks", () => {
+  it("sorts loaded tasks by title status priority and due date", () => {
+    const rows = [
+      task({
+        id: "b",
+        title: "Bravo",
+        status: "done",
+        priority: "low",
+        due_date: "2026-09-10",
+      }),
+      task({
+        id: "a",
+        title: "Alpha",
+        status: "todo",
+        priority: "high",
+        due_date: "2026-09-01",
+      }),
+    ];
+    expect(sortSurfaceTasks(rows, "title", "asc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortSurfaceTasks(rows, "title", "desc").map((r) => r.id)).toEqual([
+      "b",
+      "a",
+    ]);
+    // Catalog order: done after todo; low before high.
+    expect(sortSurfaceTasks(rows, "status", "asc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortSurfaceTasks(rows, "priority", "asc").map((r) => r.id)).toEqual([
+      "b",
+      "a",
+    ]);
+    expect(sortSurfaceTasks(rows, "due_date", "asc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortSurfaceTasks(rows, "position", "asc").map((r) => r.id)).toEqual([
+      "b",
+      "a",
+    ]);
+  });
+
+  it("sorts by created/updated/start and keeps unknown fields stable", () => {
+    const rows = [
+      task({
+        id: "b",
+        title: "B",
+        created_at: "2026-09-02T00:00:00Z",
+        updated_at: "2026-09-04T00:00:00Z",
+        start_date: "2026-09-10",
+      }),
+      task({
+        id: "a",
+        title: "A",
+        created_at: "2026-09-01T00:00:00Z",
+        updated_at: "2026-09-05T00:00:00Z",
+        start_date: undefined,
+      }),
+    ];
+    expect(sortSurfaceTasks(rows, "created_at", "asc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortSurfaceTasks(rows, "updated_at", "desc").map((r) => r.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(sortSurfaceTasks(rows, "start_date", "asc").map((r) => r.id)).toEqual([
+      "b",
+      "a",
+    ]);
+    expect(
+      sortSurfaceTasks(rows, "property:x" as never, "asc").map((r) => r.id),
+    ).toEqual(["b", "a"]);
   });
 });

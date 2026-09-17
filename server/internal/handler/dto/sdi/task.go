@@ -92,28 +92,38 @@ type TableFilterSDI struct {
 	ProjectIDs  []string `json:"project_ids" description:"Lọc project ULID" example:"[\"01J8X4PROJ0N1P2Q3R4S5T6U7\"]"`
 }
 
+// TableSortSDI orders table rows; both fields default (position asc) when empty.
+type TableSortSDI struct {
+	Field     string `json:"field" description:"position, title, created_at, updated_at, start_date, due_date, status, priority hoặc property:<id>" example:"due_date"`
+	Direction string `json:"direction" description:"asc hoặc desc" example:"asc"`
+}
+
+// TableQuerySDI is the filter/search/sort shared by groups, rows and facets.
+type TableQuerySDI struct {
+	Filter TableFilterSDI `json:"filter" description:"Bộ lọc chung"`
+	Search string         `json:"search" description:"Tìm theo tiêu đề (mọi từ) hoặc số hiệu" example:"báo cáo"`
+	Sort   TableSortSDI   `json:"sort"`
+}
+
 // TableGroupsSDI is POST .../tasks/table/groups (flagged suite).
 type TableGroupsSDI struct {
-	Filter  TableFilterSDI `json:"filter" description:"Bộ lọc chung"`
-	GroupBy string         `json:"group_by" description:"status, priority hoặc assignee" example:"status"`
-	Columns []string       `json:"columns" description:"Cột client yêu cầu (fingerprint); groups không chiếu cột" example:"[\"title\",\"status\"]"`
-	Limit   int32          `json:"limit" description:"Giới hạn số group (dự phòng phân trang)" example:"50"`
-	Offset  int32          `json:"offset" example:"0"`
+	Query   TableQuerySDI `json:"query"`
+	GroupBy string        `json:"group_by" description:"none, status, priority, assignee, project hoặc property:<id>" example:"status"`
 }
 
 // TableRowsSDI is POST .../tasks/table/rows (flagged suite).
 type TableRowsSDI struct {
-	Filter   TableFilterSDI `json:"filter"`
-	GroupBy  string         `json:"group_by" description:"Trục nhóm khớp groups" example:"status"`
-	GroupKey *string        `json:"group_key" description:"Key group từ /table/groups; null = mọi group" example:"todo"`
-	Columns  []string       `json:"columns" description:"Cột client; server trả task đầy đủ ổn định" example:"[\"title\",\"status\",\"priority\"]"`
-	Limit    int32          `json:"limit" example:"50"`
-	Offset   int32          `json:"offset" example:"0"`
+	Query     TableQuerySDI `json:"query"`
+	GroupBy   string        `json:"group_by" description:"Trục nhóm khớp groups" example:"status"`
+	GroupKey  *string       `json:"group_key" description:"Key nhóm nguyên văn từ /table/groups; null khi group_by=none" example:"status:todo"`
+	Hierarchy bool          `json:"hierarchy" description:"Bật cây việc con" example:"true"`
+	ParentID  *string       `json:"parent_id" description:"Tải con của việc này; cần hierarchy=true" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	Cursor    *string       `json:"cursor" description:"next_cursor của trang trước" example:"eyJ2IjoxfQ"`
+	Limit     int32         `json:"limit" description:"1–100, mặc định 50" example:"50"`
 }
 
 // TableFacetsSDI is POST .../tasks/table/facets (flagged suite).
 type TableFacetsSDI struct {
-	Filter  TableFilterSDI `json:"filter"`
-	Facets  []string       `json:"facets" description:"status, priority, assignee" example:"[\"status\",\"priority\"]"`
-	Columns []string       `json:"columns" description:"Fingerprint; facets không chiếu cột" example:"[\"title\"]"`
+	Query  TableQuerySDI `json:"query"`
+	Facets []string      `json:"facets" description:"status, priority, assignee, project" example:"[\"status\"]"`
 }

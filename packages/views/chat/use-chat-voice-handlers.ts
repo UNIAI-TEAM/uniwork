@@ -60,7 +60,7 @@ export function useChatVoiceHandlers({
       } else if (targetKind === "channel") {
         if (!activeChannel) return;
         label = `#${activeChannel.name}`;
-        callKind = "group";
+        callKind = "channel";
       }
       if (!label || !callKind) return;
       try {

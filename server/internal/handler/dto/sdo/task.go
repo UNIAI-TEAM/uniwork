@@ -136,10 +136,14 @@ type TableActorRefDTO struct {
 
 // TableGroupValueDTO is the stable group value for table mode.
 type TableGroupValueDTO struct {
-	Kind     string            `json:"kind" example:"status"`
-	Status   string            `json:"status,omitempty" example:"todo"`
-	Priority string            `json:"priority,omitempty" example:"high"`
-	Actor    *TableActorRefDTO `json:"actor,omitempty"`
+	Kind       string            `json:"kind" example:"status"`
+	Status     string            `json:"status,omitempty" example:"todo"`
+	Priority   string            `json:"priority,omitempty" example:"high"`
+	Actor      *TableActorRefDTO `json:"actor,omitempty"`
+	ProjectID  string            `json:"project_id,omitempty" description:"Group theo project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+	PropertyID string            `json:"property_id,omitempty" description:"Group theo property:<id>" example:"01J8X4PROPN1P2Q3R4S5T6U7"`
+	Option     string            `json:"option,omitempty" description:"Giá trị option select hoặc true/false của checkbox" example:"urgent"`
+	Label      string            `json:"label,omitempty" description:"Nhãn hiển thị cho assignee, project hoặc option" example:"Khẩn cấp"`
 }
 
 // TableGroupDescriptorDTO is one bucket in TableGroupsSDO.
@@ -151,27 +155,34 @@ type TableGroupDescriptorDTO struct {
 
 // TableGroupsSDO is POST .../tasks/table/groups.
 type TableGroupsSDO struct {
-	QueryFingerprint string                    `json:"query_fingerprint" example:"a1b2c3d4e5f60718"`
+	QueryFingerprint string                    `json:"query_fingerprint" description:"Đổi khi filter/search/sort/group_by đổi; dùng để phát hiện cursor cũ" example:"a1b2c3d4e5f60718"`
 	Total            int64                     `json:"total" example:"6"`
 	Groups           []TableGroupDescriptorDTO `json:"groups"`
-	NextCursor       *string                   `json:"next_cursor"`
+	NextCursor       *string                   `json:"next_cursor" description:"Luôn null; groups không phân trang"`
+}
+
+// TableRowLabelDTO is one label attached to a table row.
+type TableRowLabelDTO struct {
+	ID    string `json:"id" example:"01J8X4LBL0N1P2Q3R4S5T6U7V8"`
+	Name  string `json:"name" example:"Ưu tiên"`
+	Color string `json:"color" example:"#FF5733"`
 }
 
 // TableRowDTO is one row in TableRowsSDO.
 type TableRowDTO struct {
-	Task             TaskDTO `json:"task"`
-	DirectChildCount int64   `json:"direct_child_count" example:"0"`
+	Task             TaskDTO            `json:"task"`
+	DirectChildCount int64              `json:"direct_child_count" example:"0"`
+	Labels           []TableRowLabelDTO `json:"labels" description:"Nhãn active gắn trên task, không bao giờ null"`
 }
 
 // TableRowsSDO is POST .../tasks/table/rows.
 type TableRowsSDO struct {
-	QueryFingerprint string        `json:"query_fingerprint"`
-	GroupKey         *string       `json:"group_key" example:"todo"`
-	ParentID         *string       `json:"parent_id"`
-	Total            int64         `json:"total" example:"3"`
+	QueryFingerprint string        `json:"query_fingerprint" description:"Đổi khi filter/search/sort/group_by đổi; dùng để phát hiện cursor cũ" example:"a1b2c3d4e5f60718"`
+	GroupKey         *string       `json:"group_key" description:"group_key đã gửi trong request; null khi group_by=none" example:"status:todo"`
+	ParentID         *string       `json:"parent_id" description:"parent_id đã gửi trong request; null khi tải root" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	Total            int64         `json:"total" description:"Tổng số dòng trong nhóm/nhánh này, không riêng trang hiện tại" example:"3"`
 	Rows             []TableRowDTO `json:"rows"`
-	BranchTotal      int64         `json:"branch_total" example:"3"`
-	NextCursor       *string       `json:"next_cursor"`
+	NextCursor       *string       `json:"next_cursor" description:"Truyền lại làm cursor để lấy trang kế; null khi hết trang" example:"eyJ2IjoxfQ"`
 }
 
 // TableFacetValueDTO is one facet bucket.

@@ -231,6 +231,11 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   trigger that raises on both, so the rule holds even where the app owns the
   schema (ADR 0012). Retention never deletes; a wrong row is answered with
   another row. `TestAuditEventsAreAppendOnly` proves it.
+- Table-view SQL is built only in `server/pkg/db/tablequery` (ADR 0020):
+  values are always `$n` parameters, every statement starts with the
+  organization/workspace clause, and only `internal/service/task_table*.go`
+  imports it — `TestTableQueryOnlyFromTaskTableService` and the builder tests
+  in that package hold it.
 
 ## Audit and Events
 

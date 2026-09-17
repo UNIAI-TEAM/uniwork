@@ -66,6 +66,15 @@ var followUpMigrationRenumbers = map[string]string{
 	"183_chat_message_follow_ups_workspace_user_idx": "184_chat_message_follow_ups_workspace_user_idx",
 }
 
+// voiceRecordingMigrationRenumbers records chat_voice_recordings DDL that briefly
+// used 186–188 on the UNI-513 branch before develop took 186 for
+// task_subscriber_opt_out; existing DBs only need schema_migrations rows renamed.
+var voiceRecordingMigrationRenumbers = map[string]string{
+	"186_chat_voice_recordings":             "189_chat_voice_recordings",
+	"187_chat_voice_recordings_egress_uidx": "190_chat_voice_recordings_egress_uidx",
+	"188_chat_voice_recordings_call_idx":    "191_chat_voice_recordings_call_idx",
+}
+
 func renameMigrationVersions(ctx context.Context, conn *pgxpool.Conn, renames map[string]string) error {
 	for oldV, newV := range renames {
 		if _, err := conn.Exec(ctx, `
@@ -95,7 +104,13 @@ func reconcileRenamedMigrations(ctx context.Context, conn *pgxpool.Conn) error {
 	if err := renameMigrationVersions(ctx, conn, followUpMigrationRenumbers); err != nil {
 		return err
 	}
-	return backfillFollowUpMigrationsIfPresent(ctx, conn)
+	if err := renameMigrationVersions(ctx, conn, voiceRecordingMigrationRenumbers); err != nil {
+		return err
+	}
+	if err := backfillFollowUpMigrationsIfPresent(ctx, conn); err != nil {
+		return err
+	}
+	return backfillVoiceRecordingMigrationsIfPresent(ctx, conn)
 }
 
 // backfillFollowUpMigrationsIfPresent marks Follow-ups versions applied when
@@ -140,6 +155,53 @@ func backfillFollowUpMigrationsIfPresent(ctx context.Context, conn *pgxpool.Conn
 			SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
 			check.version); err != nil {
 			return fmt.Errorf("backfill follow-up migration version %s: %w", check.version, err)
+		}
+	}
+	return nil
+}
+
+// backfillVoiceRecordingMigrationsIfPresent marks voice-recording versions
+// applied when the matching objects already exist but schema_migrations has no
+// row (dev/test DBs that applied the temporary 186–188 names).
+func backfillVoiceRecordingMigrationsIfPresent(ctx context.Context, conn *pgxpool.Conn) error {
+	checks := []struct {
+		version string
+		sql     string
+	}{
+		{
+			"189_chat_voice_recordings",
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.tables
+				WHERE table_schema = 'public' AND table_name = 'chat_voice_recordings')`,
+		},
+		{
+			"190_chat_voice_recordings_egress_uidx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'idx_chat_voice_recordings_egress')`,
+		},
+		{
+			"191_chat_voice_recordings_call_idx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'idx_chat_voice_recordings_call')`,
+		},
+	}
+	for _, check := range checks {
+		var present bool
+		if err := conn.QueryRow(ctx, check.sql).Scan(&present); err != nil {
+			return err
+		}
+		if !present {
+			continue
+		}
+		if _, err := conn.Exec(ctx, `
+			INSERT INTO schema_migrations (version)
+			SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+			check.version); err != nil {
+			return fmt.Errorf("backfill voice-recording migration version %s: %w", check.version, err)
 		}
 	}
 	return nil

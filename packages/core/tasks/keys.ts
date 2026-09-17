@@ -38,7 +38,20 @@ export const taskKeys = {
   childProgress: (wsId: string) => ["task-child-progress", wsId] as const,
   tableRoot: (wsId: string) => ["tasks-table", wsId] as const,
   tableGroups: (wsId: string, filterHash: string) => ["tasks-table", wsId, "groups", filterHash] as const,
-  tableRows: (wsId: string, filterHash: string) => ["tasks-table", wsId, "rows", filterHash] as const,
+  /**
+   * `bodyHash` is the JSON of the request body without `cursor`, so every
+   * page of one branch shares the 4-segment prefix `["tasks-table", wsId,
+   * "rows", bodyHash]` (`tableRowsBranchPrefix`); one page appends `cursor`
+   * (`""` for page 0) as a 5th segment. Called with 2 args (`cursor`
+   * omitted), it stays that 4-segment branch key —
+   * `realtime-task-patch.ts` relies on `.slice(0, -1)` of that (called with
+   * `bodyHash: ""`) landing on the 3-segment root `["tasks-table", wsId,
+   * "rows"]`, which prefix-matches every page of every branch.
+   */
+  tableRows: (wsId: string, bodyHash: string, cursor?: string) =>
+    cursor === undefined
+      ? (["tasks-table", wsId, "rows", bodyHash] as const)
+      : (["tasks-table", wsId, "rows", bodyHash, cursor] as const),
   tableFacets: (wsId: string, filterHash: string) => ["tasks-table", wsId, "facets", filterHash] as const,
   statuses: (wsId: string) => ["task-statuses", wsId] as const,
   labels: (wsId: string) => ["task-labels", wsId] as const,

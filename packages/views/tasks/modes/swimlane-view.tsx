@@ -30,7 +30,7 @@ import {
 import { TASK_STATUSES, type Task, type TaskStatus } from "@uniwork/core/types";
 import { BoardCardContent, type BoardCardMeta } from "./board-card";
 import { HiddenColumnsPanel } from "./hidden-columns-panel";
-import { sortTasksForTable } from "./table-view-model";
+import { sortSurfaceTasks } from "../surface/task-surface-projection";
 import { applySwimlaneDragEnd, applySwimlaneDragOver } from "./swimlane-drag";
 import { DraggableSwimLane } from "./swimlane-lane";
 import {
@@ -188,7 +188,7 @@ function SwimLaneViewImpl({
       result[lane.key] = {};
       for (const status of sortedStatuses) result[lane.key]![status] = [];
     }
-    const sorted = sortTasksForTable(tasks, sortBy, sortDirection);
+    const sorted = sortSurfaceTasks(tasks, sortBy, sortDirection);
     const orphanLane = laneGroups.find((lane) => lane.isOrphan);
     for (const task of sorted) {
       let placed = false;

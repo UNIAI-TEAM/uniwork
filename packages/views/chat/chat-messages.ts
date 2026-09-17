@@ -17,9 +17,22 @@ export interface ChatMessage {
     outcome: string;
     duration_seconds?: number;
     caller_id: string;
+    participants?: { user_id: string; display_name: string }[];
     recording_id?: string;
     recording_status?: string;
     recording_url?: string;
+  };
+  voiceCallSummary?: {
+    call_id: string;
+    call_log_message_id: string;
+    summary: string;
+    highlights: string[];
+    action_items: {
+      title: string;
+      owner: string;
+      due: string;
+      source_message_id: string;
+    }[];
   };
   voice?: {
     duration_ms: number;

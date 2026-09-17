@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { ChatMessage } from "./chat-messages";
 import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallParticipantLabels } from "./voice-call-participant-labels";
 import { VoiceCallRecordingDialog } from "./voice-call-recording-dialog";
 
 function voiceCallLogLabel(
@@ -61,7 +62,12 @@ export function VoiceCallLogRow({
 }) {
   const { t } = useTranslation();
   const [recordingOpen, setRecordingOpen] = useState(false);
-  const label = voiceCallLogLabel(message, currentUserId, t);
+  const summary = voiceCallLogLabel(message, currentUserId, t);
+  const participantLabels = formatVoiceCallParticipantLabels(message, currentUserId, t("chat.you"));
+  const label = participantLabels ? t("chat.voice_call_log_with_participants", {
+    summary,
+    participants: participantLabels,
+  }) : summary;
   const Icon = voiceCallLogIcon(message.voiceCall?.outcome);
   const recordingId = message.voiceCall?.recording_id?.trim();
   const recordingReady =

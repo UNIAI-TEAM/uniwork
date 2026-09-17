@@ -1,6 +1,12 @@
 // Fake table API behind the mocked transport, for board tests: groups and rows
-// per status column, paged by group_key and offset as the real server pages them.
+// per status column (`group_key` `status:<status>`), paged by `cursor` as the
+// real server pages them. The cursor is base64 of the offset string — for this
+// fake only; the client never reads it. Pages are named `status:<status>@<offset>`.
 import { requestMock } from "./request-mock";
+
+const STATUS_PREFIX = "status:";
+const encodeCursor = (offset: number) => btoa(String(offset));
+const decodeCursor = (cursor: unknown) => (typeof cursor === "string" ? Number(atob(cursor)) : 0);
 
 type Params = Record<string, unknown>;
 
@@ -27,11 +33,11 @@ interface BoardTableServerOptions {
   claimed?: Record<string, number>;
   /** Rows pages after the first start this many rows early, repeating ids across the boundary. */
   overlap?: number;
-  /** `status@offset` pages whose first request fails. */
+  /** `status:<status>@offset` pages whose first request fails. */
   failOnce?: string[];
   /** The first groups request fails. */
   failGroupsOnce?: boolean;
-  /** `status@offset` page held until `release()`. */
+  /** `status:<status>@offset` page held until `release()`. */
   hold?: string;
   /** Hold only this request of the `hold` page, counting from 1; by default every one waits. */
   holdNth?: number;
@@ -72,7 +78,7 @@ export function serveBoardTable(options: BoardTableServerOptions) {
         groups: statuses
           .filter((status) => served(status) > 0)
           .map((status) => ({
-            key: status,
+            key: `${STATUS_PREFIX}${status}`,
             value: { kind: "status", status },
             count: claimed(status),
           })),
@@ -82,7 +88,9 @@ export function serveBoardTable(options: BoardTableServerOptions) {
     if (path.includes("/tasks/table/rows")) {
       rowBodies.push(body);
       const groupKey = typeof body.group_key === "string" ? body.group_key : null;
-      const offset = Number(body.offset ?? 0);
+      const status =
+        groupKey?.startsWith(STATUS_PREFIX) ? groupKey.slice(STATUS_PREFIX.length) : groupKey;
+      const offset = decodeCursor(body.cursor);
       const limit = Number(body.limit ?? 50);
       const page = `${String(groupKey)}@${offset}`;
       const nth = (requestsPerPage.get(page) ?? 0) + 1;
@@ -95,20 +103,20 @@ export function serveBoardTable(options: BoardTableServerOptions) {
         throw new Error("page failed");
       }
       // Without a group key the server pages every status as one branch.
-      const branchStatuses = groupKey === null ? statuses : [groupKey];
+      const branchStatuses = status === null ? statuses : [status];
       const branch = branchStatuses.flatMap((status) =>
         Array.from({ length: served(status) }, (_, index) => row(status, index)),
       );
       const start = offset > 0 ? Math.max(0, offset - (options.overlap ?? 0)) : 0;
-      const pageRows = branch.slice(start, start + limit);
+      const end = Math.min(branch.length, start + limit);
+      const pageRows = branch.slice(start, end);
       return {
         query_fingerprint: "fp-rows",
         group_key: groupKey,
         parent_id: null,
-        total: groupKey === null ? claimedTotal() : claimed(groupKey),
-        rows: pageRows.map((task) => ({ task, direct_child_count: 0 })),
-        branch_total: pageRows.length,
-        next_cursor: null,
+        total: status === null ? claimedTotal() : claimed(status),
+        rows: pageRows.map((task) => ({ task, direct_child_count: 0, labels: [] })),
+        next_cursor: end < branch.length ? encodeCursor(end) : null,
       };
     }
     if (path.includes("/my-tasks")) {
@@ -131,9 +139,9 @@ export function serveBoardTable(options: BoardTableServerOptions) {
   });
 
   return {
-    /** Every rows request as `group_key@offset`, in order. */
+    /** Every rows request as `group_key@offset` (the cursor decoded), in order. */
     rowRequests: () =>
-      rowBodies.map((body) => `${String(body.group_key)}@${String(body.offset)}`),
+      rowBodies.map((body) => `${String(body.group_key)}@${decodeCursor(body.cursor)}`),
     rowBodies,
     groupBodies,
     paths,

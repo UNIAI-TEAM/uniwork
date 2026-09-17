@@ -2,457 +2,337 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"net/http"
-	"sort"
-	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/db/tablequery"
 )
 
-// TableFilter narrows table groups/rows/facets. Empty slices mean no filter.
-type TableFilter struct {
-	Statuses    []string
-	Priorities  []string
-	AssigneeIDs []string
-	ProjectIDs  []string
+// TableQueryInput is the shared request for TableGroups / TableRows /
+// TableFacets (spec 2026-09-16 §3.1).
+type TableQueryInput struct {
+	Filter    tablequery.Filter
+	Search    string
+	SortField string // position|title|created_at|updated_at|start_date|due_date|status|priority|property:<id>
+	SortDir   string // asc|desc
+	GroupBy   string // none|status|priority|assignee|project|property:<id>
+	Hierarchy bool
 }
 
-// TableInput is the shared request for TableGroups / TableRows / TableFacets.
-// Plan contract: filter + group_by + columns (facets list for facets only).
-type TableInput struct {
-	Filter   TableFilter
-	GroupBy  string   // status | priority | assignee (default status)
-	GroupKey *string  // rows: opaque group key from TableGroups
-	Columns  []string // accepted into fingerprint; rows return full tasks
-	Facets   []string // facets endpoint: status | priority | assignee
-	Limit    int32
-	Offset   int32
+// TableRowsInput is one page request of table rows.
+type TableRowsInput struct {
+	TableQueryInput
+	GroupKey *string // required when GroupBy != none, nil when none
+	ParentID *string // only with Hierarchy
+	Cursor   *string
+	Limit    int32 // 1..100, default 50
+}
+
+// TableFacetsInput asks for facet counts; GroupBy is ignored.
+type TableFacetsInput struct {
+	TableQueryInput
+	Facets []string // status|priority|assignee|project; empty = status, priority
 }
 
 // TableGroupValue is the stable group descriptor value for table mode.
 type TableGroupValue struct {
-	Kind     string         `json:"kind"`
-	Status   string         `json:"status,omitempty"`
-	Priority string         `json:"priority,omitempty"`
-	Actor    *TableActorRef `json:"actor,omitempty"`
+	Kind       string         `json:"kind"`
+	Status     string         `json:"status,omitempty"`
+	Priority   string         `json:"priority,omitempty"`
+	Actor      *TableActorRef `json:"actor,omitempty"`
+	ProjectID  string         `json:"project_id,omitempty"`
+	PropertyID string         `json:"property_id,omitempty"`
+	Option     string         `json:"option,omitempty"` // select option value or "true"/"false"
+	Label      string         `json:"label,omitempty"`
 }
 
 // TableActorRef is an assignee key for group_by=assignee.
 type TableActorRef struct {
-	Type string `json:"type"`
+	Type string `json:"type"` // human|agent
 	ID   string `json:"id"`
 }
 
 // TableGroupDescriptor is one bucket in TableGroups.
 type TableGroupDescriptor struct {
-	Key   string          `json:"key"`
-	Value TableGroupValue `json:"value"`
-	Count int64           `json:"count"`
+	Key   string
+	Value TableGroupValue
+	Count int64
 }
 
 // TableGroupsResult is POST .../tasks/table/groups.
 type TableGroupsResult struct {
-	QueryFingerprint string                 `json:"query_fingerprint"`
-	Total            int64                  `json:"total"`
-	Groups           []TableGroupDescriptor `json:"groups"`
-	NextCursor       *string                `json:"next_cursor"`
+	QueryFingerprint string
+	Total            int64
+	Groups           []TableGroupDescriptor
 }
 
-// TableRow is one row in TableRows (task + direct children count).
+// TableRowLabel is a label attached to a table row.
+type TableRowLabel struct{ ID, Name, Color string }
+
+// TableRow is one row in TableRows.
 type TableRow struct {
 	Task             db.Task
 	DirectChildCount int64
+	Labels           []TableRowLabel // never nil
 }
 
-// TableRowsResult is POST .../tasks/table/rows.
+// TableRowsResult is POST .../tasks/table/rows. Total counts the whole
+// branch (group roots or children of ParentID) across every page.
 type TableRowsResult struct {
-	QueryFingerprint string     `json:"query_fingerprint"`
-	GroupKey         *string    `json:"group_key"`
-	ParentID         *string    `json:"parent_id"`
-	Total            int64      `json:"total"`
-	Rows             []TableRow `json:"rows"`
-	BranchTotal      int64      `json:"branch_total"`
-	NextCursor       *string    `json:"next_cursor"`
+	QueryFingerprint string
+	GroupKey         *string
+	ParentID         *string
+	Total            int64
+	Rows             []TableRow
+	NextCursor       *string
 }
 
-// TableFacetValue is one facet bucket.
+// TableFacetValue is one facet bucket; Key is the raw value ("" = none).
 type TableFacetValue struct {
-	Key   string `json:"key"`
-	Count int64  `json:"count"`
-}
-
-// TableFacet is one requested facet dimension.
-type TableFacet struct {
-	Kind   string            `json:"kind"`
-	Values []TableFacetValue `json:"values"`
-}
-
-// TableFacetsResult is POST .../tasks/table/facets.
-type TableFacetsResult struct {
-	QueryFingerprint string       `json:"query_fingerprint"`
-	Total            int64        `json:"total"`
-	Facets           []TableFacet `json:"facets"`
-}
-
-func (s *TaskService) TableGroups(ctx context.Context, actor Actor, workspaceID string, in TableInput) (TableGroupsResult, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return TableGroupsResult{}, err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return TableGroupsResult{}, err
-	}
-	groupBy, err := normalizeTableGroupBy(in.GroupBy)
-	if err != nil {
-		return TableGroupsResult{}, err
-	}
-	fp := tableFingerprint("groups", in, groupBy)
-	params := tableFilterParams(ws.OrganizationID, workspaceID, in.Filter)
-	total, err := s.q.CountTableTasks(ctx, params)
-	if err != nil {
-		return TableGroupsResult{}, err
-	}
-	keys, err := s.countTableGroups(ctx, params, groupBy)
-	if err != nil {
-		return TableGroupsResult{}, err
-	}
-	groups := make([]TableGroupDescriptor, 0, len(keys))
-	for _, row := range keys {
-		groups = append(groups, TableGroupDescriptor{
-			Key:   row.Key,
-			Count: row.Count,
-			Value: tableGroupValue(groupBy, row.Key),
-		})
-	}
-	return TableGroupsResult{
-		QueryFingerprint: fp,
-		Total:            total,
-		Groups:           groups,
-		NextCursor:       nil,
-	}, nil
-}
-
-func (s *TaskService) TableRows(ctx context.Context, actor Actor, workspaceID string, in TableInput) (TableRowsResult, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return TableRowsResult{}, err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return TableRowsResult{}, err
-	}
-	groupBy, err := normalizeTableGroupBy(in.GroupBy)
-	if err != nil {
-		return TableRowsResult{}, err
-	}
-	if in.Limit <= 0 || in.Limit > maxTaskQueryLimit {
-		in.Limit = defaultTaskQueryLimit
-	}
-	if in.Offset < 0 {
-		in.Offset = 0
-	}
-	fp := tableFingerprint("rows", in, groupBy)
-	filter := tableFilterParams(ws.OrganizationID, workspaceID, in.Filter)
-	hasGroupKey := in.GroupKey != nil
-	groupKey := ""
-	if hasGroupKey {
-		groupKey = *in.GroupKey
-	}
-	// Narrow the count to the selected group when group_key is set.
-	countFilter := in.Filter
-	if hasGroupKey {
-		switch groupBy {
-		case "priority":
-			countFilter.Priorities = []string{groupKey}
-		case "assignee":
-			if groupKey == "" {
-				// Empty key = unassigned; CountTableTasks cannot express
-				// "assignee IS NULL" via the assignee_ids ANY filter.
-			} else {
-				countFilter.AssigneeIDs = []string{groupKey}
-			}
-		default:
-			countFilter.Statuses = []string{groupKey}
-		}
-	}
-	var total int64
-	if hasGroupKey && groupBy == "assignee" && groupKey == "" {
-		total, err = countUnassigned(ctx, s, filter)
-	} else {
-		total, err = s.q.CountTableTasks(ctx, tableFilterParams(ws.OrganizationID, workspaceID, countFilter))
-	}
-	if err != nil {
-		return TableRowsResult{}, err
-	}
-	rows, err := s.q.ListTableTaskRows(ctx, db.ListTableTaskRowsParams{
-		OrganizationID:    filter.OrganizationID,
-		WorkspaceID:       filter.WorkspaceID,
-		HasStatusFilter:   filter.HasStatusFilter,
-		Statuses:          filter.Statuses,
-		HasPriorityFilter: filter.HasPriorityFilter,
-		Priorities:        filter.Priorities,
-		HasAssigneeFilter: filter.HasAssigneeFilter,
-		AssigneeIds:       filter.AssigneeIds,
-		HasProjectFilter:  filter.HasProjectFilter,
-		ProjectIds:        filter.ProjectIds,
-		HasGroupKey:       hasGroupKey,
-		GroupBy:           groupBy,
-		GroupKey:          groupKey,
-		LimitN:            in.Limit,
-		OffsetN:           in.Offset,
-	})
-	if err != nil {
-		return TableRowsResult{}, err
-	}
-	out := make([]TableRow, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, TableRow{
-			Task:             tableRowToTask(r),
-			DirectChildCount: r.DirectChildCount,
-		})
-	}
-	var gk *string
-	if hasGroupKey {
-		gk = &groupKey
-	}
-	return TableRowsResult{
-		QueryFingerprint: fp,
-		GroupKey:         gk,
-		ParentID:         nil,
-		Total:            total,
-		Rows:             out,
-		BranchTotal:      int64(len(out)),
-		NextCursor:       nil,
-	}, nil
-}
-
-func (s *TaskService) TableFacets(ctx context.Context, actor Actor, workspaceID string, in TableInput) (TableFacetsResult, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
-		return TableFacetsResult{}, err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return TableFacetsResult{}, err
-	}
-	fp := tableFingerprint("facets", in, "")
-	base := tableFilterParams(ws.OrganizationID, workspaceID, in.Filter)
-	total, err := s.q.CountTableTasks(ctx, base)
-	if err != nil {
-		return TableFacetsResult{}, err
-	}
-	kinds := in.Facets
-	if len(kinds) == 0 {
-		kinds = []string{"status", "priority"}
-	}
-	facets := make([]TableFacet, 0, len(kinds))
-	for _, kind := range kinds {
-		kind = strings.TrimSpace(strings.ToLower(kind))
-		// Disjunctive: drop this facet's own dimension from the filter.
-		f := in.Filter
-		switch kind {
-		case "status":
-			f.Statuses = nil
-		case "priority":
-			f.Priorities = nil
-		case "assignee":
-			f.AssigneeIDs = nil
-		default:
-			return TableFacetsResult{}, Invalid("invalid facets kind: " + kind)
-		}
-		params := tableFilterParams(ws.OrganizationID, workspaceID, f)
-		keys, err := s.countTableGroups(ctx, params, kind)
-		if err != nil {
-			return TableFacetsResult{}, err
-		}
-		values := make([]TableFacetValue, 0, len(keys))
-		for _, row := range keys {
-			values = append(values, TableFacetValue(row))
-		}
-		facets = append(facets, TableFacet{Kind: kind, Values: values})
-	}
-	return TableFacetsResult{
-		QueryFingerprint: fp,
-		Total:            total,
-		Facets:           facets,
-	}, nil
-}
-
-type tableKeyCount struct {
 	Key   string
 	Count int64
 }
 
-func (s *TaskService) countTableGroups(ctx context.Context, params db.CountTableTasksParams, groupBy string) ([]tableKeyCount, error) {
-	switch groupBy {
-	case "priority":
-		rows, err := s.q.CountTableTasksByPriority(ctx, db.CountTableTasksByPriorityParams(params))
-		if err != nil {
-			return nil, err
-		}
-		out := make([]tableKeyCount, 0, len(rows))
-		for _, r := range rows {
-			out = append(out, tableKeyCount{Key: r.Key, Count: r.Count})
-		}
-		return out, nil
-	case "assignee":
-		rows, err := s.q.CountTableTasksByAssignee(ctx, db.CountTableTasksByAssigneeParams(params))
-		if err != nil {
-			return nil, err
-		}
-		out := make([]tableKeyCount, 0, len(rows))
-		for _, r := range rows {
-			out = append(out, tableKeyCount{Key: r.Key, Count: r.Count})
-		}
-		return out, nil
-	default:
-		rows, err := s.q.CountTableTasksByStatus(ctx, db.CountTableTasksByStatusParams(params))
-		if err != nil {
-			return nil, err
-		}
-		out := make([]tableKeyCount, 0, len(rows))
-		for _, r := range rows {
-			out = append(out, tableKeyCount{Key: r.Key, Count: r.Count})
-		}
-		return out, nil
-	}
+// TableFacet is one requested facet dimension.
+type TableFacet struct {
+	Kind   string
+	Values []TableFacetValue
 }
 
-func countUnassigned(ctx context.Context, s *TaskService, filter db.CountTableTasksParams) (int64, error) {
-	rows, err := s.q.CountTableTasksByAssignee(ctx, db.CountTableTasksByAssigneeParams(filter))
+// TableFacetsResult is POST .../tasks/table/facets.
+type TableFacetsResult struct {
+	QueryFingerprint string
+	Total            int64
+	Facets           []TableFacet
+}
+
+// beginTableRead opens the snapshot every table read counts and pages in.
+func (s *TaskService) beginTableRead(ctx context.Context) (pgx.Tx, error) {
+	return s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+}
+
+func (s *TaskService) TableGroups(ctx context.Context, actor Actor, workspaceID string, in TableQueryInput) (TableGroupsResult, error) {
+	r, err := s.resolveTableQuery(ctx, actor, workspaceID, in, true)
 	if err != nil {
-		return 0, err
+		return TableGroupsResult{}, err
 	}
-	for _, r := range rows {
-		if r.Key == "" {
-			return r.Count, nil
+	tx, err := s.beginTableRead(ctx)
+	if err != nil {
+		return TableGroupsResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	countSQL, countArgs := tablequery.BuildCountQuery(r.query)
+	total, err := tablequery.Count(ctx, tx, countSQL, countArgs)
+	if err != nil {
+		return TableGroupsResult{}, err
+	}
+	groups := []TableGroupDescriptor{}
+	if r.query.Group.Kind != tablequery.GroupKindNone {
+		counts, err := tablequery.Groups(ctx, tx, r.query)
+		if err != nil {
+			return TableGroupsResult{}, err
+		}
+		for _, g := range counts {
+			groups = append(groups, TableGroupDescriptor{
+				Key:   tablequery.EncodeGroupKey(r.query.Group, g.Predicate),
+				Value: tableGroupValue(r.query.Group, g, r.optionLabels),
+				Count: g.Count,
+			})
 		}
 	}
-	return 0, nil
+	if err := tx.Commit(ctx); err != nil {
+		return TableGroupsResult{}, err
+	}
+	return TableGroupsResult{QueryFingerprint: r.fingerprint, Total: total, Groups: groups}, nil
 }
 
-func normalizeTableGroupBy(v string) (string, error) {
-	v = strings.TrimSpace(strings.ToLower(v))
-	if v == "" {
-		return "status", nil
+func (s *TaskService) TableRows(ctx context.Context, actor Actor, workspaceID string, in TableRowsInput) (TableRowsResult, error) {
+	r, err := s.resolveTableQuery(ctx, actor, workspaceID, in.TableQueryInput, true)
+	if err != nil {
+		return TableRowsResult{}, err
 	}
-	switch v {
-	case "status", "priority", "assignee":
-		return v, nil
-	default:
-		return "", coded(http.StatusBadRequest, "invalid_group_by", "group_by must be status, priority, or assignee")
+	if in.ParentID != nil && !r.query.Hierarchy {
+		return TableRowsResult{}, coded(http.StatusBadRequest, "parent_requires_hierarchy", "parent_id requires hierarchy")
 	}
-}
-
-func tableGroupValue(groupBy, key string) TableGroupValue {
-	switch groupBy {
-	case "priority":
-		return TableGroupValue{Kind: "priority", Priority: key}
-	case "assignee":
-		var actor *TableActorRef
-		if key != "" {
-			actor = &TableActorRef{Type: "member", ID: key}
+	pred, err := decodeTableGroupKey(r.query.Group, in.GroupKey)
+	if err != nil {
+		return TableRowsResult{}, err
+	}
+	limit := int(in.Limit)
+	switch {
+	case limit <= 0:
+		limit = defaultTableRowsLimit
+	case limit > maxTableRowsLimit:
+		limit = maxTableRowsLimit
+	}
+	var after *tablequery.Cursor
+	if in.Cursor != nil {
+		c, err := tablequery.DecodeCursor(*in.Cursor)
+		if err != nil {
+			return TableRowsResult{}, coded(http.StatusBadRequest, "invalid_cursor", "cursor is invalid")
 		}
-		return TableGroupValue{Kind: "assignee", Actor: actor}
-	default:
-		return TableGroupValue{Kind: "status", Status: key}
+		if c.FP != r.fingerprint || !equalStringPtr(c.GroupKey, in.GroupKey) || !equalStringPtr(c.ParentID, in.ParentID) {
+			return TableRowsResult{}, coded(http.StatusConflict, "cursor_query_mismatch", "cursor belongs to a different query")
+		}
+		after = &c
 	}
+
+	tx, err := s.beginTableRead(ctx)
+	if err != nil {
+		return TableRowsResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	req := tablequery.RowsRequest{Query: r.query, Group: pred, ParentID: in.ParentID, After: after, Limit: limit}
+	page, err := tablequery.Rows(ctx, tx, req)
+	if err != nil {
+		return TableRowsResult{}, err
+	}
+	countSQL, countArgs := tablequery.BuildCountBranch(req)
+	total, err := tablequery.Count(ctx, tx, countSQL, countArgs)
+	if err != nil {
+		return TableRowsResult{}, err
+	}
+	var next *string
+	if len(page) > limit {
+		page = page[:limit]
+		last := page[limit-1]
+		token := tablequery.EncodeCursor(tablequery.Cursor{
+			V: 1, FP: r.fingerprint, GroupKey: in.GroupKey, ParentID: in.ParentID,
+			SortValue: last.SortValue, SortNull: last.SortNull,
+			CreatedAt: last.Task.CreatedAt.Time.Format(time.RFC3339Nano), ID: last.Task.ID,
+		})
+		next = &token
+	}
+	rows, err := s.tableRowsWithLabels(ctx, s.q.WithTx(tx), r.query, page)
+	if err != nil {
+		return TableRowsResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return TableRowsResult{}, err
+	}
+	return TableRowsResult{
+		QueryFingerprint: r.fingerprint,
+		GroupKey:         in.GroupKey,
+		ParentID:         in.ParentID,
+		Total:            total,
+		Rows:             rows,
+		NextCursor:       next,
+	}, nil
 }
 
-func tableFilterParams(orgID, workspaceID string, f TableFilter) db.CountTableTasksParams {
-	statuses := append([]string(nil), f.Statuses...)
-	priorities := append([]string(nil), f.Priorities...)
-	assignees := append([]string(nil), f.AssigneeIDs...)
-	projects := append([]string(nil), f.ProjectIDs...)
-	if statuses == nil {
-		statuses = []string{}
+func (s *TaskService) TableFacets(ctx context.Context, actor Actor, workspaceID string, in TableFacetsInput) (TableFacetsResult, error) {
+	r, err := s.resolveTableQuery(ctx, actor, workspaceID, in.TableQueryInput, false)
+	if err != nil {
+		return TableFacetsResult{}, err
 	}
-	if priorities == nil {
-		priorities = []string{}
+	kinds, err := normalizeTableFacets(in.Facets)
+	if err != nil {
+		return TableFacetsResult{}, err
 	}
-	if assignees == nil {
-		assignees = []string{}
+	tx, err := s.beginTableRead(ctx)
+	if err != nil {
+		return TableFacetsResult{}, err
 	}
-	if projects == nil {
-		projects = []string{}
+	defer tx.Rollback(ctx)
+
+	countSQL, countArgs := tablequery.BuildCountQuery(r.query)
+	total, err := tablequery.Count(ctx, tx, countSQL, countArgs)
+	if err != nil {
+		return TableFacetsResult{}, err
 	}
-	return db.CountTableTasksParams{
-		OrganizationID:    orgID,
-		WorkspaceID:       workspaceID,
-		HasStatusFilter:   len(f.Statuses) > 0,
-		Statuses:          statuses,
-		HasPriorityFilter: len(f.Priorities) > 0,
-		Priorities:        priorities,
-		HasAssigneeFilter: len(f.AssigneeIDs) > 0,
-		AssigneeIds:       assignees,
-		HasProjectFilter:  len(f.ProjectIDs) > 0,
-		ProjectIds:        projects,
+	facets := make([]TableFacet, 0, len(kinds))
+	for _, kind := range kinds {
+		counts, err := tablequery.Facet(ctx, tx, r.query, kind)
+		if err != nil {
+			return TableFacetsResult{}, err
+		}
+		facets = append(facets, TableFacet{Kind: kind, Values: tableFacetValues(counts)})
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return TableFacetsResult{}, err
+	}
+	return TableFacetsResult{QueryFingerprint: r.fingerprint, Total: total, Facets: facets}, nil
 }
 
-func tableFingerprint(kind string, in TableInput, groupBy string) string {
-	payload := map[string]any{
-		"kind":     kind,
-		"filter":   in.Filter,
-		"group_by": groupBy,
-		"columns":  sortedCopy(in.Columns),
-		"facets":   sortedCopy(in.Facets),
-		"group_key": func() any {
-			if in.GroupKey == nil {
-				return nil
-			}
-			return *in.GroupKey
-		}(),
+// decodeTableGroupKey enforces that a key is sent exactly when the query is
+// grouped, and that it belongs to that grouping.
+func decodeTableGroupKey(group tablequery.Group, key *string) (*tablequery.GroupPredicate, error) {
+	required := coded(http.StatusBadRequest, "group_key_required", "group_key is required when grouped and must be null otherwise")
+	if group.Kind == tablequery.GroupKindNone {
+		if key != nil {
+			return nil, required
+		}
+		return nil, nil
 	}
-	raw, _ := json.Marshal(payload)
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:16])
+	if key == nil {
+		return nil, required
+	}
+	p, err := tablequery.DecodeGroupKey(group, *key)
+	if err != nil {
+		return nil, coded(http.StatusBadRequest, "invalid_group_key", "group_key does not match group_by")
+	}
+	return &p, nil
 }
 
-func sortedCopy(in []string) []string {
-	if len(in) == 0 {
-		return []string{}
+// tableFacetValues flattens facet buckets to raw keys. Assignee buckets are
+// split by actor kind in SQL; the facet key is the id alone, so equal ids
+// merge.
+func tableFacetValues(counts []tablequery.GroupCount) []TableFacetValue {
+	out := make([]TableFacetValue, 0, len(counts))
+	index := map[string]int{}
+	for _, g := range counts {
+		key := g.Predicate.Value
+		if g.Predicate.None {
+			key = ""
+		}
+		if i, ok := index[key]; ok {
+			out[i].Count += g.Count
+			continue
+		}
+		index[key] = len(out)
+		out = append(out, TableFacetValue{Key: key, Count: g.Count})
 	}
-	out := append([]string(nil), in...)
-	sort.Strings(out)
 	return out
 }
 
-func tableRowToTask(r db.ListTableTaskRowsRow) db.Task {
-	return db.Task{
-		ID:                 r.ID,
-		WorkspaceID:        r.WorkspaceID,
-		Title:              r.Title,
-		Description:        r.Description,
-		Status:             r.Status,
-		Priority:           r.Priority,
-		AssigneeID:         r.AssigneeID,
-		DueDate:            r.DueDate,
-		Position:           r.Position,
-		CreatedBy:          r.CreatedBy,
-		CreatedAt:          r.CreatedAt,
-		UpdatedAt:          r.UpdatedAt,
-		Kind:               r.Kind,
-		CreatedByKind:      r.CreatedByKind,
-		AssigneeKind:       r.AssigneeKind,
-		OrganizationID:     r.OrganizationID,
-		Number:             r.Number,
-		ProjectID:          r.ProjectID,
-		ParentTaskID:       r.ParentTaskID,
-		AssigneeType:       r.AssigneeType,
-		CreatorType:        r.CreatorType,
-		CreatorID:          r.CreatorID,
-		AcceptanceCriteria: r.AcceptanceCriteria,
-		ContextRefs:        r.ContextRefs,
-		Metadata:           r.Metadata,
-		Properties:         r.Properties,
-		StartDate:          r.StartDate,
-		Stage:              r.Stage,
-		OriginType:         r.OriginType,
-		OriginID:           r.OriginID,
-		FirstExecutedAt:    r.FirstExecutedAt,
-		Revision:           r.Revision,
-		LastActivityAt:     r.LastActivityAt,
+// tableRowsWithLabels attaches active labels to every row in one query.
+func (s *TaskService) tableRowsWithLabels(ctx context.Context, q *db.Queries, query tablequery.Query, page []tablequery.Row) ([]TableRow, error) {
+	rows := make([]TableRow, len(page))
+	if len(page) == 0 {
+		return rows, nil
 	}
+	ids := make([]string, len(page))
+	for i, row := range page {
+		ids[i] = row.Task.ID
+	}
+	links, err := q.ListLabelsForTasks(ctx, db.ListLabelsForTasksParams{
+		OrganizationID: query.OrganizationID, WorkspaceID: query.WorkspaceID, TaskIds: ids,
+	})
+	if err != nil {
+		return nil, err
+	}
+	byTask := map[string][]TableRowLabel{}
+	for _, l := range links {
+		byTask[l.TaskID] = append(byTask[l.TaskID], TableRowLabel{ID: l.ID, Name: l.Name, Color: l.Color})
+	}
+	for i, row := range page {
+		labels := byTask[row.Task.ID]
+		if labels == nil {
+			labels = []TableRowLabel{}
+		}
+		rows[i] = TableRow{Task: row.Task, DirectChildCount: row.DirectChildCount, Labels: labels}
+	}
+	return rows, nil
+}
+
+func equalStringPtr(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }

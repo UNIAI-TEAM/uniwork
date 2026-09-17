@@ -58,13 +58,35 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 		out.EditedAt = m.EditedAt.Format(time.RFC3339)
 	}
 	if m.VoiceCall != nil {
+		participants := make([]sdo.VoiceCallParticipantDTO, 0, len(m.VoiceCall.Participants))
+		for _, p := range m.VoiceCall.Participants {
+			participants = append(participants, sdo.VoiceCallParticipantDTO{
+				UserID: p.UserID, DisplayName: p.DisplayName,
+			})
+		}
 		out.VoiceCall = &sdo.VoiceCallLogDTO{
 			Outcome:         m.VoiceCall.Outcome,
 			DurationSeconds: m.VoiceCall.DurationSeconds,
 			CallerID:        m.VoiceCall.CallerID,
+			Participants:    participants,
 			RecordingID:     m.VoiceCall.RecordingID,
 			RecordingStatus: m.VoiceCall.RecordingStatus,
 			RecordingURL:    m.VoiceCall.RecordingURL,
+		}
+	}
+	if m.VoiceCallSummary != nil {
+		items := make([]sdo.VoiceCallSummaryActionItemDTO, 0, len(m.VoiceCallSummary.ActionItems))
+		for _, item := range m.VoiceCallSummary.ActionItems {
+			items = append(items, sdo.VoiceCallSummaryActionItemDTO{
+				Title: item.Title, Owner: item.Owner, Due: item.Due, SourceMessageID: item.SourceMessageID,
+			})
+		}
+		out.VoiceCallSummary = &sdo.VoiceCallSummaryDTO{
+			CallID:           m.VoiceCallSummary.CallID,
+			CallLogMessageID: m.VoiceCallSummary.CallLogMessageID,
+			Summary:          m.VoiceCallSummary.Summary,
+			Highlights:       m.VoiceCallSummary.Highlights,
+			ActionItems:      items,
 		}
 	}
 	if m.Voice != nil {

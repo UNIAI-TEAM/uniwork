@@ -19,6 +19,7 @@ export function ActiveVoiceCallSession({
   onMinimize,
   onMaximize,
   onLeave,
+  onDisconnected,
   onEndForAll,
   onConnected,
   onConnectFailed,
@@ -36,6 +37,7 @@ export function ActiveVoiceCallSession({
   onMinimize: () => void;
   onMaximize: () => void;
   onLeave: () => void;
+  onDisconnected: () => void;
   onEndForAll: () => void;
   onConnected: () => void;
   onConnectFailed: () => void;
@@ -45,7 +47,7 @@ export function ActiveVoiceCallSession({
       url={url}
       token={token}
       initialCameraEnabled={initialCameraEnabled}
-      onDisconnected={onLeave}
+      onDisconnected={onDisconnected}
       onConnectFailed={onConnectFailed}
     >
       <ActiveVoiceCallContent

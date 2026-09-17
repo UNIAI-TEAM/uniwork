@@ -122,6 +122,13 @@ func TestPromptSnapshots(t *testing.T) {
 			"locale": "vi", "today": "2026-09-11", "scope": "room", "since": "2026-09-11T08:00:00Z",
 			"sources": RenderSources([]Source{{ID: "S1", Kind: "chat", Title: "An · 2026-09-11 09:00", Excerpt: "Nhắc hạn F-09"}}),
 		},
+		PromptChatCallSummary: {
+			"locale": "vi", "today": "2026-09-16", "duration": "1:05", "participants": "An, Bình",
+			"sources": RenderSources([]Source{
+				{ID: "S1", Kind: "chat", Title: "Cuộc gọi", Excerpt: "Cuộc gọi thoại · 1:05 · An, Bình"},
+				{ID: "S2", Kind: "chat", Title: "An · 09:00", Excerpt: "Chốt demo thứ Sáu"},
+			}),
+		},
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)

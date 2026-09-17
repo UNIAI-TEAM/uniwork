@@ -7,7 +7,7 @@ import { useViewStore, useViewStoreApi } from "@uniwork/core/tasks/stores/view-s
 import type { Task } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { sortTasksForTable } from "./table-view-model";
+import { sortSurfaceTasks } from "../surface/task-surface-projection";
 import { GanttAxis, GanttBackgroundLayer } from "./gantt-axis";
 import { daysBetween, startOfDayUTC } from "./gantt-date";
 import {
@@ -45,7 +45,7 @@ export function GanttView({
 
   const scheduled = useMemo(() => {
     const sortField = sortBy === "position" ? "start_date" : sortBy;
-    return sortTasksForTable(tasks, sortField, sortDirection);
+    return sortSurfaceTasks(tasks, sortField, sortDirection);
   }, [tasks, sortBy, sortDirection]);
 
   const range = useMemo(

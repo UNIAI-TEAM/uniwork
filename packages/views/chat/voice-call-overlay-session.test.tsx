@@ -77,6 +77,7 @@ describe("ActiveVoiceCallSession", () => {
           onMinimize={vi.fn()}
           onMaximize={vi.fn()}
           onLeave={vi.fn()}
+          onDisconnected={vi.fn()}
           onEndForAll={vi.fn()}
           onConnected={onConnected}
           onConnectFailed={vi.fn()}
