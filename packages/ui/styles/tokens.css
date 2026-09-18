@@ -606,15 +606,18 @@ html.dark[data-accent] {
   --radius-xl: 16px;
   --radius-2xl: 20px;
   --radius-3xl: 32px;
-  /* Motion. One curve (the quartic ease-out lib/motion.ts exports as
-     UI_EASE_OUT) and three durations — micro for colour, fast for popovers,
-     standard for panels and page transitions. The right-sidebar and the
+  /* Motion. Two curves (the quartic ease-out lib/motion.ts exports as
+     UI_EASE_OUT, and UI_EASE_SETTLE for an object that travels) and four
+     durations — micro for colour, fast for popovers, standard for panels and
+     page transitions, settle for the travelling object. The right-sidebar and the
      glyph pops in base.css read these; tokens.test.ts holds them equal to
      UI_MOTION_DURATION so CSS and motion/react never drift apart. */
   --ease-out-quart: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
   --duration-micro: 100ms;
   --duration-fast: 150ms;
   --duration-standard: 200ms;
+  --duration-settle: 450ms;
   /* Three families. Plus Jakarta Sans for headings (bound to the title /
      display / hero utilities below), Inter for copy and controls, JetBrains
      Mono for taxonomy labels — Sometype Mono, ClickUp's own, ships no

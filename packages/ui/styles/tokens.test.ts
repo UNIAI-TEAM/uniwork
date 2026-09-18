@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { UI_EASE_OUT, UI_MOTION_DURATION } from "../lib/motion";
+import { UI_EASE_OUT, UI_EASE_SETTLE, UI_MOTION_DURATION } from "../lib/motion";
 
 // Resolved from the package root rather than `import.meta.url`: the jsdom
 // environment rewrites module URLs to a non-file scheme, and vitest always runs
@@ -181,6 +181,7 @@ describe("token contract", () => {
       expect(theme).toMatch(new RegExp(`--duration-${name}:\\s*${Math.round(seconds * 1000)}ms;`));
     }
     expect(theme).toContain(`--ease-out-quart: cubic-bezier(${UI_EASE_OUT.join(", ")});`);
+    expect(theme).toContain(`--ease-settle: cubic-bezier(${UI_EASE_SETTLE.join(", ")});`);
   });
 
   it("binds the overline role to case, weight and the mono family", () => {
