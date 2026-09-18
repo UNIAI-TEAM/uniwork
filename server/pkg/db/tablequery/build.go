@@ -3,6 +3,7 @@ package tablequery
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -80,12 +81,26 @@ func (b *builder) memberFilters(alias string, g *GroupPredicate) []string {
 	}{
 		{"status", f.Statuses},
 		{"priority", f.Priorities},
-		{"assignee_id", f.AssigneeIDs},
-		{"project_id", f.ProjectIDs},
 	} {
 		if len(c.vals) > 0 {
 			out = append(out, fmt.Sprintf("%s.%s = ANY(%s::text[])", alias, c.col, b.a.add(c.vals)))
 		}
+	}
+	if c := nullableIDFilter(alias, "assignee_id", f.AssigneeIDs, f.IncludeNoAssignee, &b.a); c != "" {
+		out = append(out, c)
+	}
+	if c := nullableIDFilter(alias, "project_id", f.ProjectIDs, f.IncludeNoProject, &b.a); c != "" {
+		out = append(out, c)
+	}
+	if c := b.creatorFilter(alias); c != "" {
+		out = append(out, c)
+	}
+	if c := b.labelFilter(alias); c != "" {
+		out = append(out, c)
+	}
+	out = append(out, b.propertyFilters(alias)...)
+	if c := b.dateFilter(alias); c != "" {
+		out = append(out, c)
 	}
 	if s := b.search(alias); s != "" {
 		out = append(out, s)
@@ -94,6 +109,107 @@ func (b *builder) memberFilters(alias string, g *GroupPredicate) []string {
 		out = append(out, b.groupPredicate(alias, g))
 	}
 	return out
+}
+
+// nullableIDFilter renders positive selection on a nullable id column: ids
+// only, IS NULL only, or (IS NULL OR id = ANY(...)).
+func nullableIDFilter(alias, col string, ids []string, includeNone bool, a *args) string {
+	switch {
+	case includeNone && len(ids) == 0:
+		return alias + "." + col + " IS NULL"
+	case includeNone && len(ids) > 0:
+		return fmt.Sprintf("(%s.%s IS NULL OR %s.%s = ANY(%s::text[]))",
+			alias, col, alias, col, a.add(ids))
+	case len(ids) > 0:
+		return fmt.Sprintf("%s.%s = ANY(%s::text[])", alias, col, a.add(ids))
+	default:
+		return ""
+	}
+}
+
+// creatorFilter matches (created_by_kind, created_by) against parsed
+// CreatorRefs. Invalid refs were dropped in Normalize.
+func (b *builder) creatorFilter(alias string) string {
+	refs := b.q.Filter.CreatorRefs
+	if len(refs) == 0 {
+		return ""
+	}
+	pairs := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		kind, id, ok := strings.Cut(ref, ":")
+		if !ok {
+			continue
+		}
+		pairs = append(pairs, fmt.Sprintf("(%s, %s)", b.a.add(kind), b.a.add(id)))
+	}
+	if len(pairs) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("(%s.created_by_kind, %s.created_by) IN (%s)",
+		alias, alias, strings.Join(pairs, ", "))
+}
+
+// labelFilter requires at least one task_label_links row for the selected
+// label ids (OR across labels), scoped to the same tenant.
+func (b *builder) labelFilter(alias string) string {
+	ids := b.q.Filter.LabelIDs
+	if len(ids) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`EXISTS (SELECT 1 FROM task_label_links ll WHERE ll.organization_id = $1 AND ll.workspace_id = $2 AND ll.task_id = %s.id AND ll.label_id = ANY(%s::text[]))`,
+		alias, b.a.add(ids))
+}
+
+// propertyFilters ANDs one clause per property def: OR of option matches,
+// with "__none__" meaning the JSONB key is absent / null / empty string.
+func (b *builder) propertyFilters(alias string) []string {
+	props := b.q.Filter.Properties
+	if len(props) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(props))
+	for k := range props {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, pid := range keys {
+		vals := props[pid]
+		if len(vals) == 0 {
+			continue
+		}
+		pidPH := b.a.add(pid) + "::text"
+		var branches []string
+		var options []string
+		for _, v := range vals {
+			if v == "__none__" {
+				branches = append(branches, fmt.Sprintf("((%[1]s.properties->%[2]s) IS NULL OR NULLIF(%[1]s.properties->>%[2]s,'') IS NULL)", alias, pidPH))
+				continue
+			}
+			options = append(options, v)
+		}
+		if len(options) > 0 {
+			optPH := b.a.add(options)
+			branches = append(branches, fmt.Sprintf(`(%[1]s.properties->>%[2]s = ANY(%[3]s::text[]) OR EXISTS (SELECT 1 FROM unnest(%[3]s::text[]) AS pv(v) WHERE %[1]s.properties->%[2]s @> to_jsonb(pv.v)))`,
+				alias, pidPH, optPH))
+		}
+		if len(branches) == 0 {
+			continue
+		}
+		out = append(out, "("+strings.Join(branches, " OR ")+")")
+	}
+	return out
+}
+
+// dateFilter applies an inclusive ::date range on created_at or updated_at
+// when Normalize left a whitelisted DateField with both bounds.
+func (b *builder) dateFilter(alias string) string {
+	f := b.q.Filter
+	if !dateFields[f.DateField] || f.DateFrom == "" || f.DateTo == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s::date BETWEEN %s::date AND %s::date",
+		alias, f.DateField, b.a.add(f.DateFrom), b.a.add(f.DateTo))
 }
 
 // numberSearchRe matches a search that is a task number, optionally with a
