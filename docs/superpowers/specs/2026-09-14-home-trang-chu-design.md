@@ -69,7 +69,7 @@ tiêu đề (`home-task-kind.ts`: email/họp/chat/tài liệu) và phím R "tra
 | 7 | "Hôm nay" tính theo **`users.timezone`** (mặc định `Asia/Ho_Chi_Minh`) trên server; `due_date` là `DATE` nên so bằng ngày | `due_date` không có giờ; múi giờ người dùng đã có từ F-07 |
 | 8 | "Sắp tới" = **cuộc họp** của workspace bắt đầu từ đầu hôm nay đến hết ngày mai, `status ∈ {SCHEDULED, IN_PROGRESS}`, mà tôi là host, người tạo, hoặc participant còn hiệu lực; IN_PROGRESS (đang diễn ra) luôn vào; tối đa 5. **Không** gộp deadline task | Deadline đã nằm trong "Công việc của tôi" (#5); gộp gây trùng dòng |
 | 9 | "Hộp việc" = **8 thông báo chưa đọc** của workspace này, dùng `notification.Service.List` và `NotificationRow`/`resourceHref` sẵn có; mở dòng = đánh dấu đã đọc rồi đi tới tài nguyên | Không viết lại logic deep link; nhất quán với `/inbox` |
-| 10 | Tổng quan hôm nay là **dải số inline** (đến hạn hôm nay · quá hạn · họp hôm nay · chưa đọc), không phải KPI card | PRODUCT.md anti-reference "hero KPI cards"; số chưa đọc lấy từ `unread-count` theo workspace |
+| 10 | Tổng quan hôm nay là **bốn ô số** (đến hạn hôm nay · quá hạn · họp hôm nay · chưa đọc), mỗi ô một ký hiệu: đến hạn/quá hạn mang màu tín hiệu (warning/destructive, về xám khi bằng 0), họp/chưa đọc mang tint module như sidebar. *Sửa 2026-09-18 (UNI-704): ban đầu là dải số inline, không KPI card* | PRODUCT.md 2026-09-17 cho phép thẻ chỉ số khi đếm record thật của màn đang xem; số chưa đọc lấy từ `unread-count` theo workspace |
 | 11 | Tóm tắt hôm nay là **hàm thuần phía client** (`packages/core/home/brief.ts`) sinh `{key, params}` render qua `t()`; tối đa 3 dòng; không dòng nào → ẩn khối | Không có nội dung server-side cần dịch; test được không cần DB; "không có dữ liệu" thay vì 0 |
 | 12 | Tuỳ chọn Home lưu ở bảng mới **`home_preferences`** `(organization_id, workspace_id, user_id, prefs JSONB)`, PK `(workspace_id, user_id)`; server chỉ kiểm `prefs` là object ≤ 8 KiB; client chuẩn hoá bằng zod với fallback mặc định | Theo mẫu `task_view_preferences`; bản cũ dùng chung bảng dashboard với tiền tố `home.` — UniWork chưa có dashboard nên bảng riêng rõ hơn |
 | 13 | Ghi prefs **không audit, không outbox** | Cài đặt cá nhân về cách hiển thị, không phải trạng thái nghiệp vụ; cùng cách xử lý với `task_view_preferences` và `notification_preferences` |
@@ -217,7 +217,7 @@ ba nhóm này.
 - `home/home-view.tsx` — ghép khối theo prefs, lưới theo `layout`, thông báo `partial`.
 - `home/home-view.tsx` cũng chứa lời chào theo giờ và phụ đề theo `counts`; header dùng `CollectionPageHeader`
   với hai hành động Tuỳ chỉnh và Làm mới (không có nút tạo nhanh: tạo việc đã có ở top bar).
-- `home/home-stats.tsx` — dải số inline (link tới `/tasks`, `/my-tasks`, `/meetings`, `/inbox`).
+- `home/home-stats.tsx` — bốn ô số (đến hạn/quá hạn đưa focus tới việc đầu tiên trong Công việc của tôi; họp → `/meetings`, chưa đọc → `/inbox`); ký hiệu dùng chung với tóm tắt ở `home/home-marks.ts`.
 - `home/home-my-work.tsx`, `home/home-my-work-row.tsx`, `home/use-my-work-keys.ts` —
   danh sách, chọn nhiều, hoàn thành, hàng loạt, phím tắt.
 - `home/home-upcoming.tsx` — cuộc họp; IN_PROGRESS có nút "Vào họp" tới `ws.room(id)`.
@@ -225,7 +225,7 @@ ba nhóm này.
 - `home/home-brief.tsx` — render `buildHomeBrief`.
 - `home/home-customize-panel.tsx` — bật/tắt, lên/xuống, mật độ, preset, đặt lại.
 - `home/home-partial-notice.tsx` — nhãn nguồn lỗi + nút thử lại; mỗi khối dùng `PanelCard` (`common/panel-card.tsx`).
-- `home/home-layout.ts` + `home-layout.test.ts` — `homeGridClass(layout)`, `homeSpanClass(key, layout)` (chuỗi class Tailwind phải nằm trong `views` để được quét).
+- `home/home-layout.ts` + `home-layout.test.ts` — `homeGridClass(layout)`, `homeSpanClass(key, layout)` cho gọn/rộng (chuỗi class Tailwind phải nằm trong `views` để được quét); cân bằng dùng `homeBalancedBands(keys)`: công việc + hộp việc ở cột chính, sắp tới + tóm tắt ở cột phụ, dưới `xl` gộp một cột theo thứ tự người dùng chọn.
 - Test: `home-view.test.tsx` (loading / lỗi / rỗng / có dữ liệu / partial / prefs ẩn hết),
   `home-my-work.test.tsx` (hoàn thành gọi PATCH, hàng loạt gọi batch-update, phím tắt),
   `home-customize-panel.test.tsx`, `home-brief.test.tsx`, `home-layout.test.ts`.
