@@ -7,6 +7,11 @@ import {
   TASK_STATUSES,
   type Task,
 } from "@uniwork/core/types";
+import {
+  applyTaskFilters,
+  type TaskFilterContext,
+  type TaskFilterState,
+} from "../utils/filter";
 
 export function projectSurfaceTasks(
   tasks: Task[],
@@ -14,16 +19,48 @@ export function projectSurfaceTasks(
     showSubTasks: boolean;
     sortBy: SortField;
     sortDirection: SortDirection;
+    /** Full client filter state for load-flat modes. */
+    taskFilters?: TaskFilterState;
+    filterContext?: TaskFilterContext;
+    /**
+     * Table-backed modes already sent server dimensions — only keep
+     * client-only predicates (`workingOnly` / agentRunning).
+     */
+    clientOnlyFilterDimensions?: boolean;
   },
 ): Task[] {
   const visibleTasks = options.showSubTasks
     ? tasks
     : tasks.filter((task) => !task.parent_task_id);
-  return sortSurfaceTasks(
+  const sorted = sortSurfaceTasks(
     visibleTasks,
     options.sortBy,
     options.sortDirection,
   );
+  if (!options.taskFilters) return sorted;
+
+  const filters: TaskFilterState = options.clientOnlyFilterDimensions
+    ? {
+        statusFilters: [],
+        priorityFilters: [],
+        assigneeFilters: [],
+        includeNoAssignee: false,
+        creatorFilters: [],
+        projectFilters: [],
+        includeNoProject: false,
+        labelFilters: [],
+        workingOnly: options.taskFilters.workingOnly,
+      }
+    : options.taskFilters;
+
+  if (
+    options.clientOnlyFilterDimensions &&
+    filters.workingOnly !== true
+  ) {
+    return sorted;
+  }
+
+  return applyTaskFilters(sorted, filters, options.filterContext);
 }
 
 const STATUS_RANK = new Map(TASK_STATUSES.map((status, i) => [status, i]));

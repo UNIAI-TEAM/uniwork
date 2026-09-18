@@ -52,7 +52,7 @@ describe("useBoardColumnsData", () => {
       () =>
         useBoardColumnsData({
           workspaceId: "w1",
-          projectId: "p1",
+          filter: { project_ids: ["p1"] },
           categories: ["todo"],
           enabled: true,
         }),
@@ -102,7 +102,7 @@ describe("useBoardColumnsData", () => {
       () => ({
         board: useBoardColumnsData({
           workspaceId: "w1",
-          projectId: "p1",
+          filter: { project_ids: ["p1"] },
           categories: ["todo", "done"],
           enabled: true,
         }),

@@ -9,8 +9,12 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TableFacetsResult } from "@uniwork/core/api/endpoints/tasks-table";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
+import type { TaskDateFilter } from "@uniwork/core/tasks/stores/view-store-types";
+import type { TaskViewBaseline } from "@uniwork/core/tasks/views/baseline";
+import type { Task } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -29,6 +33,7 @@ import {
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import type { TaskTableFacetSpec } from "../filters/filter-counts";
 import type { TaskSurfaceMode } from "../surface/types";
 import { TaskFilterMenu } from "../filters/task-filter-menu";
 import { TaskDisplaySettings } from "./task-display-settings";
@@ -57,15 +62,31 @@ export { TaskFilterMenu } from "../filters/task-filter-menu";
 export function TaskDisplayControls({
   modes,
   isRefreshing = false,
+  scopedTasks,
+  workspaceId,
   showProjectGrouping = true,
   projectGroupingDisabled = true,
   projectGroupingReasonKey,
+  lockProjectFilter = false,
+  viewBaseline,
+  dateFilter,
+  onDateFilterChange,
+  tableFacetCounts,
+  onTableFacetChange,
 }: {
   modes: TaskSurfaceMode[];
   isRefreshing?: boolean;
+  scopedTasks?: Task[];
+  workspaceId?: string;
   showProjectGrouping?: boolean;
   projectGroupingDisabled?: boolean;
   projectGroupingReasonKey?: string;
+  lockProjectFilter?: boolean;
+  viewBaseline?: TaskViewBaseline;
+  dateFilter?: TaskDateFilter | null;
+  onDateFilterChange?: (filter: TaskDateFilter | null) => void;
+  tableFacetCounts?: TableFacetsResult;
+  onTableFacetChange?: (facet: TaskTableFacetSpec | null) => void;
 }) {
   const { t } = useTranslation();
   const { data: publicConfig } = usePublicConfig();
@@ -101,6 +122,14 @@ export function TaskDisplayControls({
           </Button>
         }
         tooltip={filterLabel}
+        workspaceId={workspaceId}
+        scopedTasks={scopedTasks}
+        viewBaseline={viewBaseline}
+        dateFilter={dateFilter}
+        onDateFilterChange={onDateFilterChange}
+        lockProjectFilter={lockProjectFilter}
+        tableFacetCounts={tableFacetCounts}
+        onTableFacetChange={onTableFacetChange}
       />
 
       <Popover open={displayOpen} onOpenChange={setDisplayOpen}>

@@ -26,6 +26,18 @@ function task(overrides: Partial<Task>): Task {
   return { ...base, ...overrides } as Task;
 }
 
+const emptyClientFilters = {
+  statusFilters: [] as string[],
+  priorityFilters: [] as import("@uniwork/core/types").TaskPriority[],
+  assigneeFilters: [] as import("@uniwork/core/tasks/stores/view-store-types").ActorFilterValue[],
+  includeNoAssignee: false,
+  creatorFilters: [] as import("@uniwork/core/tasks/stores/view-store-types").ActorFilterValue[],
+  projectFilters: [] as string[],
+  includeNoProject: false,
+  labelFilters: [] as string[],
+  workingOnly: false,
+};
+
 describe("projectSurfaceTasks", () => {
   it("hides sub-tasks when requested", () => {
     const tasks = [
@@ -55,6 +67,47 @@ describe("projectSurfaceTasks", () => {
         sortDirection: "asc",
       }).map((item) => item.id),
     ).toEqual(["urgent", "low"]);
+  });
+
+  it("applies client status filter on load-flat projection", () => {
+    const tasks = [
+      task({ id: "todo", status: "todo" }),
+      task({ id: "done", status: "done" }),
+    ];
+
+    expect(
+      projectSurfaceTasks(tasks, {
+        showSubTasks: true,
+        sortBy: "position",
+        sortDirection: "asc",
+        taskFilters: {
+          ...emptyClientFilters,
+          statusFilters: ["todo"],
+        },
+      }).map((item) => item.id),
+    ).toEqual(["todo"]);
+  });
+
+  it("applies only workingOnly when clientOnlyFilterDimensions is set", () => {
+    const tasks = [
+      task({ id: "todo", status: "todo" }),
+      task({ id: "done", status: "done" }),
+    ];
+
+    expect(
+      projectSurfaceTasks(tasks, {
+        showSubTasks: true,
+        sortBy: "position",
+        sortDirection: "asc",
+        clientOnlyFilterDimensions: true,
+        taskFilters: {
+          ...emptyClientFilters,
+          statusFilters: ["todo"],
+          workingOnly: true,
+        },
+        filterContext: { runningTaskIds: new Set(["done"]) },
+      }).map((item) => item.id),
+    ).toEqual(["done"]);
   });
 });
 

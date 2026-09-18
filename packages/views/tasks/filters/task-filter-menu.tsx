@@ -43,7 +43,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@uniwork/ui/components/ui/tooltip";
-import { useWorkspaceId } from "../../layout/workspace-context";
+import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { PriorityIcon } from "../icons/priority-icon";
 import { StatusIcon } from "../icons/status-icon";
 import { FilterAssigneeOptions } from "./filter-assignee-options";
@@ -84,6 +84,7 @@ export function TaskFilterMenu({
   freezeAnchor = false,
   viewBaseline,
   lockProjectFilter = false,
+  workspaceId: workspaceIdProp,
 }: {
   trigger: ReactElement;
   tooltip?: string;
@@ -96,6 +97,8 @@ export function TaskFilterMenu({
   freezeAnchor?: boolean;
   viewBaseline?: TaskViewBaseline;
   lockProjectFilter?: boolean;
+  /** Prefer explicit id; falls back to WorkspaceProvider when omitted. */
+  workspaceId?: string;
 }) {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLElement>(null);
@@ -116,7 +119,8 @@ export function TaskFilterMenu({
   const setDateFilter = useViewStore((s) => s.setDateFilter);
   const act = useViewStoreApi().getState();
 
-  const wsId = useWorkspaceId();
+  const workspaceCtx = useOptionalWorkspace();
+  const wsId = workspaceIdProp || workspaceCtx?.workspace.id || "";
   const { data: statusList } = useTaskStatuses(wsId);
   const { data: propertyList } = useTaskProperties(wsId);
 

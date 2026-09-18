@@ -8,6 +8,8 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import type { MyTasksScope } from "@uniwork/core/tasks/stores/my-tasks-view-store";
+import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
+import { baselineFromQuery } from "@uniwork/core/tasks/views/baseline";
 import { useActiveTaskView } from "@uniwork/core/tasks/views/use-active-view";
 import type { Task } from "@uniwork/core/types";
 import type { TaskView } from "@uniwork/core/types/task-view";
@@ -73,7 +75,6 @@ export function MyTasksHeader({
   projectGroupingReasonKey?: string;
 }) {
   const { t } = useTranslation();
-  void scopedTasks;
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{
     view: TaskView;
@@ -97,6 +98,17 @@ export function MyTasksHeader({
 
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const isViewOwner = !!activeView && activeView.owner_id === currentUserId;
+
+  const viewBaseline = useMemo(() => {
+    const query = activeView?.query;
+    if (!query || typeof query !== "object" || Array.isArray(query)) {
+      return undefined;
+    }
+    return baselineFromQuery(query as Record<string, unknown>);
+  }, [activeView]);
+
+  const dateFilter = useViewStore((s) => s.dateFilter);
+  const setDateFilter = useViewStore((s) => s.setDateFilter);
 
   const { data: publicConfig } = usePublicConfig();
   const agentCapability = capabilityState(
@@ -233,8 +245,13 @@ export function MyTasksHeader({
             <TaskDisplayControls
               modes={modes}
               isRefreshing={isRefreshing}
+              workspaceId={workspaceId}
+              scopedTasks={scopedTasks}
               projectGroupingDisabled={projectGroupingDisabled}
               projectGroupingReasonKey={projectGroupingReasonKey}
+              viewBaseline={viewBaseline}
+              dateFilter={dateFilter}
+              onDateFilterChange={setDateFilter}
             />
           </div>
         </div>
@@ -242,6 +259,9 @@ export function MyTasksHeader({
 
       <FilterChipsBar
         workspaceId={workspaceId}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        viewBaseline={viewBaseline}
         onSave={openSaveView}
         saveLabel={saveLabel}
       />

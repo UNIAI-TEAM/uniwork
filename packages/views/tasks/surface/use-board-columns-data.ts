@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { TableQuery } from "@uniwork/core/api/endpoints/tasks-table";
+import type {
+  TableFilter,
+  TableQuery,
+} from "@uniwork/core/api/endpoints/tasks-table";
 import { useTableGroups } from "@uniwork/core/tasks";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
 import {
@@ -48,12 +51,13 @@ interface BoardColumnState extends BoardColumnPaging {
  */
 export function useBoardColumnsData({
   workspaceId,
-  projectId,
+  filter,
   categories,
   enabled,
 }: {
   workspaceId: string;
-  projectId?: string;
+  /** Server filter shared with table mode (includes project_ids when scoped). */
+  filter?: TableFilter;
   /** Status categories the board shows, in column order. */
   categories: readonly string[];
   enabled: boolean;
@@ -63,8 +67,8 @@ export function useBoardColumnsData({
   // Assignee and project boards regroup every loaded task, hidden statuses included.
   const skipsHidden = grouping !== "assignee" && grouping !== "project";
   const query = useMemo<TableQuery>(
-    () => normalizeTableQuery({ filter: projectId ? { project_ids: [projectId] } : undefined }),
-    [projectId],
+    () => normalizeTableQuery({ filter }),
+    [filter],
   );
   const identity = JSON.stringify([workspaceId, query]);
 
