@@ -12,7 +12,9 @@ import (
 )
 
 // TableQueryInput is the shared request for TableGroups / TableRows /
-// TableFacets (spec 2026-09-16 §3.1).
+// TableFacets (spec 2026-09-16 §3.1). Filter carries the Multica-shaped
+// dimensions (labels, creators, properties, date range, include-none flags)
+// straight into tablequery.Query.
 type TableQueryInput struct {
 	Filter    tablequery.Filter
 	Search    string

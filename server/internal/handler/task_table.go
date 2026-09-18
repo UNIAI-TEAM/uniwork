@@ -117,6 +117,14 @@ func tableQueryInputFromSDI(q sdi.TableQuerySDI, groupBy string, hierarchy bool)
 	in.Filter.Priorities = q.Filter.Priorities
 	in.Filter.AssigneeIDs = q.Filter.AssigneeIDs
 	in.Filter.ProjectIDs = q.Filter.ProjectIDs
+	in.Filter.IncludeNoAssignee = q.Filter.IncludeNoAssignee
+	in.Filter.IncludeNoProject = q.Filter.IncludeNoProject
+	in.Filter.CreatorRefs = q.Filter.CreatorRefs
+	in.Filter.LabelIDs = q.Filter.LabelIDs
+	in.Filter.Properties = q.Filter.Properties
+	in.Filter.DateField = q.Filter.DateField
+	in.Filter.DateFrom = q.Filter.DateFrom
+	in.Filter.DateTo = q.Filter.DateTo
 	in.Search = q.Search
 	in.SortField = q.Sort.Field
 	in.SortDir = q.Sort.Direction
