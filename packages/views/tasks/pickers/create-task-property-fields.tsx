@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Tag, UserMinus, UserRound } from "lucide-react";
+import { Tag, UserMinus } from "lucide-react";
 import type { TaskLabel, TaskPriority } from "@uniwork/core/types";
 import { AgentBadge } from "../../agents/agent-badge";
 import { PillButton } from "../../common/pill-button";
@@ -18,6 +18,7 @@ import type { AssigneeOption, AssigneeRef } from "./assignee-picker";
 import {
   PickerEmpty,
   PickerItem,
+  PickerSection,
   PropertyPicker,
 } from "./property-picker";
 import { SEARCHABLE_OPTION_THRESHOLD } from "./searchable-option-picker";
@@ -167,6 +168,8 @@ export function CreateTaskAssigneeField({
   searchPlaceholder,
   noResultsLabel,
   valueLabel,
+  membersLabel,
+  agentsLabel,
 }: {
   value: AssigneeRef | null;
   options: AssigneeOption[];
@@ -176,6 +179,8 @@ export function CreateTaskAssigneeField({
   searchPlaceholder: string;
   noResultsLabel: string;
   valueLabel: string;
+  membersLabel: string;
+  agentsLabel: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -191,7 +196,8 @@ export function CreateTaskAssigneeField({
         option.secondaryLabel?.toLocaleLowerCase().includes(q),
     );
   }, [options, query]);
-  const searchable = options.length + 1 > SEARCHABLE_OPTION_THRESHOLD;
+  const members = filtered.filter((option) => option.kind === "human");
+  const agents = filtered.filter((option) => option.kind === "agent");
 
   return (
     <PropertyPicker
@@ -202,7 +208,7 @@ export function CreateTaskAssigneeField({
       }}
       width="w-64"
       align="start"
-      searchable={searchable}
+      searchable
       searchPlaceholder={searchPlaceholder}
       searchAriaLabel={searchPlaceholder}
       onSearchChange={setQuery}
@@ -217,10 +223,7 @@ export function CreateTaskAssigneeField({
             <span className="truncate">{valueLabel}</span>
           </>
         ) : (
-          <>
-            <UserRound className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate">{valueLabel}</span>
-          </>
+          <span className="truncate text-muted-foreground">{valueLabel}</span>
         )
       }
     >
@@ -233,36 +236,65 @@ export function CreateTaskAssigneeField({
           setQuery("");
         }}
       >
-        <Avatar size="sm" className="size-5">
-          <AvatarFallback>
-            <UserMinus className="size-3" aria-hidden />
-          </AvatarFallback>
-        </Avatar>
+        <UserMinus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <span className="truncate">{unassignedLabel}</span>
       </PickerItem>
-      {filtered.map((option) => {
-        const ref = { id: option.id, kind: option.kind } as const;
-        return (
-          <PickerItem
-            key={`${option.kind}:${option.id}`}
-            selected={refsEqual(ref, value)}
-            onClick={() => {
-              onChange(ref);
-              setOpen(false);
-              setQuery("");
-            }}
-          >
-            <Avatar size="sm" className="size-5">
-              {option.avatarUrl ? <AvatarImage src={option.avatarUrl} alt="" /> : null}
-              <AvatarFallback>{initialOf(option.name)}</AvatarFallback>
-            </Avatar>
-            <span className="min-w-0 flex-1 truncate">{option.name}</span>
-            {option.kind === "agent" ? <AgentBadge className="shrink-0" /> : null}
-          </PickerItem>
-        );
-      })}
+      {members.length > 0 ? (
+        <PickerSection label={membersLabel}>
+          {members.map((option) => (
+            <AssigneePickerItem
+              key={`human:${option.id}`}
+              option={option}
+              selected={refsEqual({ id: option.id, kind: option.kind }, value)}
+              onSelect={(ref) => {
+                onChange(ref);
+                setOpen(false);
+                setQuery("");
+              }}
+            />
+          ))}
+        </PickerSection>
+      ) : null}
+      {agents.length > 0 ? (
+        <PickerSection label={agentsLabel}>
+          {agents.map((option) => (
+            <AssigneePickerItem
+              key={`agent:${option.id}`}
+              option={option}
+              selected={refsEqual({ id: option.id, kind: option.kind }, value)}
+              onSelect={(ref) => {
+                onChange(ref);
+                setOpen(false);
+                setQuery("");
+              }}
+            />
+          ))}
+        </PickerSection>
+      ) : null}
       {filtered.length === 0 ? <PickerEmpty>{noResultsLabel}</PickerEmpty> : null}
     </PropertyPicker>
+  );
+}
+
+function AssigneePickerItem({
+  option,
+  selected,
+  onSelect,
+}: {
+  option: AssigneeOption;
+  selected: boolean;
+  onSelect: (value: AssigneeRef) => void;
+}) {
+  const ref: AssigneeRef = { id: option.id, kind: option.kind };
+  return (
+    <PickerItem selected={selected} onClick={() => onSelect(ref)}>
+      <Avatar size="sm" className="size-5">
+        {option.avatarUrl ? <AvatarImage src={option.avatarUrl} alt="" /> : null}
+        <AvatarFallback>{initialOf(option.name)}</AvatarFallback>
+      </Avatar>
+      <span className="min-w-0 flex-1 truncate">{option.name}</span>
+      {option.kind === "agent" ? <AgentBadge className="shrink-0" /> : null}
+    </PickerItem>
   );
 }
 

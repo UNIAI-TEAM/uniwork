@@ -784,6 +784,8 @@
       "project_search_placeholder": "Tìm dự án",
       "parent_search_placeholder": "Tìm task cha",
       "label_search_placeholder": "Tìm nhãn",
+      "assignee_members": "Thành viên",
+      "assignee_agents": "Agent",
       "options_no_results": "Không có kết quả khớp",
       "property_search_placeholder": "Tìm {{name}}…",
       "property_true": "Có",

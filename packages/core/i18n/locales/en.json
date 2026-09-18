@@ -785,6 +785,8 @@
       "project_search_placeholder": "Search projects",
       "parent_search_placeholder": "Search parent tasks",
       "label_search_placeholder": "Search labels",
+      "assignee_members": "Members",
+      "assignee_agents": "Agents",
       "options_no_results": "No matching results",
       "property_search_placeholder": "Search {{name}}…",
       "property_true": "Yes",

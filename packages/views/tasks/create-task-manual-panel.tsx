@@ -165,6 +165,8 @@ export function CreateTaskManualPanel({
             unassignedLabel={t("tasks.unassigned")}
             searchPlaceholder={t("tasks.assignee_search_placeholder")}
             noResultsLabel={t("tasks.assignee_no_results")}
+            membersLabel={t("tasks.create.assignee_members")}
+            agentsLabel={t("tasks.create.assignee_agents")}
           />
           <CreateTaskLabelField
             labels={labelList?.labels ?? []}
