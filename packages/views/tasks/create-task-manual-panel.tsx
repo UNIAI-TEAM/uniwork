@@ -124,7 +124,7 @@ export function CreateTaskManualPanel({
           required
           maxLength={200}
           autoFocus
-          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-title font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0 md:text-title dark:bg-transparent"
+          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-title font-semibold shadow-none placeholder:font-semibold focus-visible:border-transparent focus-visible:ring-0 md:text-title dark:bg-transparent"
         />
       </div>
 
@@ -278,7 +278,7 @@ export function CreateTaskManualPanel({
           aria-disabled={busy || undefined}
           aria-busy={busy || undefined}
           title={t("tasks.create.switch_to_agent")}
-          className="group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/20 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          className="border-beam group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/15 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
           onClick={() => {
             if (!busy) onSwitchMode({ project_id: draft.projectId });
           }}

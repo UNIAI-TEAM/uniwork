@@ -118,6 +118,24 @@ describe("NewTaskDialog", () => {
     expect(screen.queryByTestId("create-squad-assign")).toBeNull();
   });
 
+  it("matches the Multica title emphasis and agent-mode affordance", () => {
+    render(
+      wrap(
+        <NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,
+      ),
+    );
+
+    expect(screen.getByPlaceholderText("Tiêu đề issue")).toHaveClass(
+      "text-title",
+      "font-semibold",
+      "placeholder:font-semibold",
+    );
+    expect(screen.getByRole("button", { name: "Chuyển sang agent" })).toHaveClass(
+      "border-beam",
+      "group",
+    );
+  });
+
   it("keeps the dialog open and clears the title when create-another is on", async () => {
     const onOpenChange = vi.fn();
     render(
