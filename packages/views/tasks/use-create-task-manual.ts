@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
 import { paths } from "@uniwork/core/paths";
 import { useBillingPermissions } from "@uniwork/core/permissions";
 import {
@@ -13,7 +14,6 @@ import {
   useTaskStatuses,
   useTasks,
   useUploadWorkspaceAttachment,
-  useDeleteAttachment,
   type CreateTaskBody,
 } from "@uniwork/core/tasks";
 import {
@@ -22,6 +22,7 @@ import {
   type CreateTaskSettings,
 } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@uniwork/core/types";
+import { contentReferencesAttachment } from "@uniwork/core/types/attachment-url";
 import { createSafeId } from "@uniwork/core/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
@@ -82,18 +83,19 @@ export function useCreateTaskManualState({
   defaults,
   carry,
   onClose,
+  createAnother,
 }: {
   workspaceId: string;
   defaults?: Partial<CreateTaskBody>;
   carry?: Record<string, unknown> | null;
   onClose: () => void;
+  createAnother: boolean;
 }) {
   const { t } = useTranslation();
   const workspaceContext = useOptionalWorkspace();
   const navigation = useOptionalNavigation();
   const create = useCreateTask(workspaceId);
   const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
-  const deleteAttachment = useDeleteAttachment(workspaceId, "");
   const { data: projectList } = useProjects(workspaceId);
   const { data: labelList } = useTaskLabels(workspaceId);
   const { data: statusList } = useTaskStatuses(workspaceId);
@@ -108,13 +110,12 @@ export function useCreateTaskManualState({
   const orgId = workspaceContext?.workspace.organization_id ?? "";
   const { canView: canViewBillingDecision } = useBillingPermissions(orgId);
   const [draft, setDraftState] = useState<CreateTaskDraft>(() =>
-    draftFromDefaults(defaults, settingsFor(workspaceId)),
+    draftFor(workspaceId) ?? draftFromDefaults(defaults, settingsFor(workspaceId)),
   );
   const draftRef = useRef(draft);
-  const uploadInFlightRef = useRef(false);
+  const uploadCountRef = useRef(0);
   const carryAppliedRef = useRef<Record<string, unknown> | null>(null);
-  const [createAnother, setCreateAnother] = useState(false);
-  const [failedFile, setFailedFile] = useState<File | null>(null);
+  const [uploadCount, setUploadCount] = useState(0);
   const [revealed, setRevealed] = useState<Set<OverflowFieldKey>>(() =>
     initialRevealed(draftFromDefaults(defaults, settingsFor(workspaceId))),
   );
@@ -195,31 +196,36 @@ export function useCreateTaskManualState({
   );
 
   const submit = () => {
-    if (create.isPending || uploadInFlightRef.current) return;
-    const title = draft.title.trim();
+    if (create.isPending || uploadCountRef.current > 0) return;
+    const currentDraft = draftRef.current;
+    const title = currentDraft.title.trim();
     if (!title) return;
-    const submitted = { ...draft, title };
+    const submitted = { ...currentDraft, title };
     void create
       .mutateAsync({
         title,
-        description: draft.description?.trim() || undefined,
-        status: draft.status,
-        priority: draft.priority,
-        assignee_id: draft.assigneeId || null,
-        assignee_kind: draft.assigneeId ? draft.assigneeKind ?? "human" : undefined,
-        project_id: draft.projectId || null,
-        parent_task_id: draft.parentTaskId || null,
-          stage: (() => {
-            if (!draft.stage) return null;
-            const parsed = Number(draft.stage);
-            return Number.isFinite(parsed) ? parsed : null;
-          })(),
-        start_date: draft.startDate || null,
-        due_date: draft.dueDate || null,
-        label_ids: draft.labelIds,
-        attachment_ids: draft.attachments?.map((attachment) => attachment.id),
-        properties: draft.properties,
-        idempotencyKey: draft.idempotencyKey,
+        description: currentDraft.description?.trim() || undefined,
+        status: currentDraft.status,
+        priority: currentDraft.priority,
+        assignee_id: currentDraft.assigneeId || null,
+        assignee_kind: currentDraft.assigneeId ? currentDraft.assigneeKind ?? "human" : undefined,
+        project_id: currentDraft.projectId || null,
+        parent_task_id: currentDraft.parentTaskId || null,
+        stage: (() => {
+          if (!currentDraft.stage) return null;
+          const parsed = Number(currentDraft.stage);
+          return Number.isFinite(parsed) ? parsed : null;
+        })(),
+        start_date: currentDraft.startDate || null,
+        due_date: currentDraft.dueDate || null,
+        label_ids: currentDraft.labelIds,
+        attachment_ids: currentDraft.attachments
+          ?.filter((attachment) =>
+            contentReferencesAttachment(currentDraft.description ?? "", attachment),
+          )
+          .map((attachment) => attachment.id),
+        properties: currentDraft.properties,
+        idempotencyKey: currentDraft.idempotencyKey,
       })
       .then((task) => {
         const latest = draftRef.current;
@@ -305,25 +311,24 @@ export function useCreateTaskManualState({
       });
   };
 
-  const uploadFile = (file: File) => {
-    setFailedFile(null);
-    uploadInFlightRef.current = true;
-    void uploadAttachment
-      .mutateAsync(file)
-      .then((attachment) => {
-        updateDraft({ attachments: [...(draftRef.current.attachments ?? []), attachment] });
-      })
-      .catch(() => setFailedFile(file))
-      .finally(() => {
-        uploadInFlightRef.current = false;
-      });
-  };
-
-  const removeAttachment = (attachmentId: string) => {
-    updateDraft({
-      attachments: draftRef.current.attachments?.filter((item) => item.id !== attachmentId),
-    });
-    void deleteAttachment.mutateAsync(attachmentId);
+  const uploadFile = async (file: File, _uploadId: string): Promise<UploadResult | null> => {
+    uploadCountRef.current += 1;
+    setUploadCount(uploadCountRef.current);
+    try {
+      const attachment = await uploadAttachment.mutateAsync(file);
+      const attachments = draftRef.current.attachments ?? [];
+      if (!attachments.some((item) => item.id === attachment.id)) {
+        updateDraft({ attachments: [...attachments, attachment] });
+      }
+      return toUploadResult(attachment);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      toast.error(t("editor.upload.failed", { filename: file.name, reason }));
+      return null;
+    } finally {
+      uploadCountRef.current = Math.max(0, uploadCountRef.current - 1);
+      setUploadCount(uploadCountRef.current);
+    }
   };
 
   const setProperty = (propertyId: string, value: unknown | undefined) => {
@@ -338,9 +343,6 @@ export function useCreateTaskManualState({
     draft,
     draftRef,
     updateDraft,
-    createAnother,
-    setCreateAnother,
-    failedFile,
     revealed,
     reveal: (key: OverflowFieldKey) => setRevealed((current) => new Set([...current, key])),
     unreveal: (key: OverflowFieldKey) =>
@@ -373,10 +375,10 @@ export function useCreateTaskManualState({
     workspaceName: workspaceContext?.workspace.name ?? t("tasks.new"),
     submit,
     uploadFile,
-    removeAttachment,
     setProperty,
     create,
     uploadAttachment,
-    busy: create.isPending || uploadAttachment.isPending,
+    uploading: uploadCount > 0,
+    busy: create.isPending || uploadCount > 0,
   };
 }

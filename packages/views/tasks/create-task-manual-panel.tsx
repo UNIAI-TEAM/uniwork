@@ -1,18 +1,24 @@
 "use client";
 
 import { useRef } from "react";
-import { ArrowLeftRight, Maximize2, Minimize2, Paperclip, X } from "lucide-react";
+import { ArrowLeftRight, Maximize2, Minimize2, X } from "lucide-react";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import type { CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
+import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Switch } from "@uniwork/ui/components/ui/switch";
-import { PillButton } from "../common/pill-button";
-import { ContentEditor } from "../editor";
-import { ShortcutKeycaps } from "../editor/shortcut-keycaps";
+import {
+  ContentEditor,
+  FileDropOverlay,
+  useFileDropZone,
+  useUploadGate,
+  type ContentEditorRef,
+} from "../editor";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
+import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import {
   CreateTaskAssigneeField,
   CreateTaskLabelField,
@@ -30,6 +36,8 @@ export type CreateTaskManualPanelProps = {
   onSwitchMode: (carry?: Record<string, unknown> | null) => void;
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
+  createAnother: boolean;
+  setCreateAnother: (createAnother: boolean) => void;
 };
 
 export function CreateTaskManualPanel({
@@ -40,17 +48,22 @@ export function CreateTaskManualPanel({
   onSwitchMode,
   isExpanded,
   setIsExpanded,
+  createAnother,
+  setCreateAnother,
 }: CreateTaskManualPanelProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<ContentEditorRef>(null);
   const sendShortcut = useShortcut("send");
-  const state = useCreateTaskManualState({ workspaceId, defaults, carry, onClose });
+  const state = useCreateTaskManualState({
+    workspaceId,
+    defaults,
+    carry,
+    onClose,
+    createAnother,
+  });
   const {
     t,
     draft,
     updateDraft,
-    createAnother,
-    setCreateAnother,
-    failedFile,
     revealed,
     reveal,
     unreveal,
@@ -67,19 +80,27 @@ export function CreateTaskManualPanel({
     workspaceName,
     submit,
     uploadFile,
-    removeAttachment,
     setProperty,
-    uploadAttachment,
+    uploading,
     busy,
   } = state;
-  const canSubmit = Boolean(draft.title.trim()) && !busy;
+  const uploadGate = useUploadGate(editorRef);
+  const isUploading = uploading || uploadGate.uploading;
+  const canSubmit = Boolean(draft.title.trim()) && !busy && !uploadGate.uploading;
+  const submitIfReady = () => {
+    if (uploadGate.isBlocked()) return;
+    submit();
+  };
+  const { isDragOver, dropZoneProps } = useFileDropZone({
+    onDrop: (files) => files.forEach((file) => editorRef.current?.uploadFile(file)),
+  });
 
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault();
-        submit();
+        submitIfReady();
       }}
     >
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
@@ -117,27 +138,35 @@ export function CreateTaskManualPanel({
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
               event.preventDefault();
-              submit();
+              submitIfReady();
             }
           }}
           placeholder={t("tasks.create.title_placeholder")}
           required
           maxLength={200}
           autoFocus
-          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-title font-semibold shadow-none focus-visible:border-transparent focus-visible:ring-0 md:text-title dark:bg-transparent"
+          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-title font-semibold shadow-none placeholder:font-semibold focus-visible:border-transparent focus-visible:ring-0 md:text-title dark:bg-transparent"
         />
       </div>
 
       <div data-testid="create-task-composer-body" className="flex min-h-0 flex-1 flex-col">
-        <div className="relative flex min-h-0 flex-1 overflow-y-auto px-5">
+        <div
+          className="relative flex min-h-0 flex-1 overflow-y-auto px-5"
+          {...dropZoneProps}
+        >
           <ContentEditor
             key={draft.idempotencyKey}
+            ref={editorRef}
             defaultValue={draft.description ?? ""}
             ariaLabel={t("tasks.description")}
             placeholder={t("tasks.create.description_placeholder")}
             onDocumentChange={(description) => updateDraft({ description })}
-            onSubmit={submit}
+            onSubmit={submitIfReady}
+            onUploadFile={uploadFile}
+            onUploadingChange={uploadGate.onUploadingChange}
+            attachments={draft.attachments}
           />
+          {isDragOver ? <FileDropOverlay /> : null}
         </div>
 
         <div
@@ -165,6 +194,8 @@ export function CreateTaskManualPanel({
             unassignedLabel={t("tasks.unassigned")}
             searchPlaceholder={t("tasks.assignee_search_placeholder")}
             noResultsLabel={t("tasks.assignee_no_results")}
+            membersLabel={t("tasks.create.assignee_members")}
+            agentsLabel={t("tasks.create.assignee_agents")}
           />
           <CreateTaskLabelField
             labels={labelList?.labels ?? []}
@@ -220,29 +251,6 @@ export function CreateTaskManualPanel({
           />
         </div>
 
-        {uploadAttachment.isPending ? (
-          <p className="px-5 py-1 text-caption text-muted-foreground" aria-live="polite">
-            {t("tasks.detail.attachments_uploading", {
-              filename: uploadAttachment.variables?.name ?? "",
-            })}
-          </p>
-        ) : null}
-        {failedFile ? (
-          <div className="flex items-center justify-between gap-2 px-5 py-1 text-body" role="alert">
-            <span>{t("editor.upload.failed_label", { filename: failedFile.name })}</span>
-            <Button type="button" variant="outline" size="sm" onClick={() => uploadFile(failedFile)}>
-              {t("common.retry")}
-            </Button>
-          </div>
-        ) : null}
-        {(draft.attachments ?? []).map((attachment) => (
-          <div key={attachment.id} className="flex items-center justify-between gap-2 px-5 py-1 text-body">
-            <span className="truncate">{attachment.filename}</span>
-            <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(attachment.id)}>
-              {t("editor.upload.remove")}
-            </Button>
-          </div>
-        ))}
       </div>
 
       <div
@@ -250,35 +258,31 @@ export function CreateTaskManualPanel({
         className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap"
       >
         <div className="flex min-h-7 items-center gap-2 sm:mr-auto">
-          <input
-            ref={fileInputRef}
-            id="task-attachments"
-            type="file"
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) uploadFile(file);
-              event.target.value = "";
-            }}
+          <FileUploadButton
+            size="sm"
+            multiple
+            disabled={isUploading}
+            onSelect={(file) => editorRef.current?.uploadFile(file)}
           />
-          <PillButton
-            type="button"
-            aria-label={t("tasks.detail.attachments_section")}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Paperclip className="size-3.5" aria-hidden />
-          </PillButton>
         </div>
         <button
           type="button"
           aria-disabled={busy || undefined}
           aria-busy={busy || undefined}
           title={t("tasks.create.switch_to_agent")}
-          className="group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/20 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          className="border-beam group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/15 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
           onClick={() => {
-            if (!busy) onSwitchMode({ project_id: draft.projectId });
+            if (busy || uploadGate.isBlocked()) return;
+            updateDraft({
+              agentPrompt: draft.agentPrompt?.trim() ? draft.agentPrompt : draft.description,
+              agentId:
+                draft.agentId ??
+                (draft.assigneeKind === "agent" ? draft.assigneeId : undefined),
+            });
+            onSwitchMode({
+              project_id: draft.projectId,
+              parent_task_id: draft.parentTaskId,
+            });
           }}
         >
           <ArrowLeftRight
@@ -295,10 +299,19 @@ export function CreateTaskManualPanel({
           />
           <span aria-hidden>{t("tasks.create.create_another_short")}</span>
         </label>
-        <Button type="submit" aria-disabled={!canSubmit || undefined} className="justify-self-end gap-2">
-          {busy ? t("tasks.create.creating") : t("common.create")}
-          {!busy && sendShortcut ? <ShortcutKeycaps shortcut={sendShortcut} decorative /> : null}
-        </Button>
+        <CreateTaskSubmitButton
+          type="submit"
+          inactive={!canSubmit}
+          busy={busy || isUploading}
+          label={
+            busy
+              ? t("tasks.create.creating")
+              : isUploading
+                ? t("tasks.create.agent_uploading")
+                : t("common.create")
+          }
+          shortcut={sendShortcut}
+        />
       </div>
     </form>
   );

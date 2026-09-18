@@ -217,6 +217,24 @@ export function PickerItem({
   );
 }
 
+/** Visual group label shared by property pickers with heterogeneous options. */
+export function PickerSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="px-2 pb-1 pt-2 text-micro font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export function PickerEmpty({ children }: { children: ReactNode }) {
   return (
     <div className="px-2 py-3 text-center text-body text-muted-foreground">{children}</div>

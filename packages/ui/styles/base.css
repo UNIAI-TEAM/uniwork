@@ -131,6 +131,48 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
 }
 .animate-caret-blink { animation: caret-blink 1.2s ease-out infinite; }
 
+/* A quiet brand beam distinguishes the agent-mode affordance from the other
+   footer controls without changing its footprint. The ring uses semantic
+   palette slots so it follows both theme and accent changes. */
+@property --border-beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-beam-rotate {
+  to { --border-beam-angle: 360deg; }
+}
+
+.border-beam {
+  position: relative;
+}
+
+.border-beam::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--border-beam-angle),
+    transparent 0deg,
+    transparent 220deg,
+    var(--warning) 250deg,
+    var(--destructive) 285deg,
+    var(--tint-violet-foreground) 320deg,
+    var(--brand) 345deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(var(--foreground) 0 0) content-box,
+    linear-gradient(var(--foreground) 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: border-beam-rotate 3.2s linear infinite;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* A single truncated blink would end on the invisible frame; keep it lit. */
   .animate-caret-blink { animation: none; }
@@ -144,6 +186,7 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   /* Glyph pop là chuyển động không gian thuần tuý — thay bằng hiện dần. */
   .animate-welcome-glyph-pop,
   .animate-reaction-pop { animation-name: onboarding-enter; }
+  .border-beam::before { animation: none; }
 }
 
 /* Indeterminate sweep for the navigation progress bar (views/layout). */

@@ -118,6 +118,103 @@ describe("NewTaskDialog", () => {
     expect(screen.queryByTestId("create-squad-assign")).toBeNull();
   });
 
+  it("matches the title emphasis and agent-mode affordance", () => {
+    render(
+      wrap(
+        <NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,
+      ),
+    );
+
+    expect(screen.getByPlaceholderText("Tiêu đề issue")).toHaveClass(
+      "text-title",
+      "font-semibold",
+      "placeholder:font-semibold",
+    );
+    expect(screen.getByRole("button", { name: "Chuyển sang agent" })).toHaveClass(
+      "border-beam",
+      "group",
+    );
+  });
+
+  it("preserves independent manual and agent drafts plus shared create state across mode switches", async () => {
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/members")) return { members: [] };
+      if (path.endsWith("/agents")) {
+        return {
+          agents: [{
+            id: "agent-1",
+            organization_id: "o1",
+            name: "Agent 17",
+            handle: "agent-17",
+            description: "",
+            status: "active",
+            owner_user_id: "u1",
+          }],
+        };
+      }
+      if (path.endsWith("/projects")) {
+        return {
+          projects: [{
+            id: "p1",
+            organization_id: "o1",
+            workspace_id: "ws1",
+            title: "UniWork",
+            description: "",
+            status: "in_progress",
+            priority: "high",
+            revision: 1,
+            task_count: 0,
+            done_count: 0,
+            resource_count: 0,
+            created_at: "2026-09-16T00:00:00Z",
+            updated_at: "2026-09-16T00:00:00Z",
+          }],
+          total: 1,
+        };
+      }
+      if (path.endsWith("/task-properties")) return { properties: [], total: 0 };
+      if (path.endsWith("/tasks") && init?.method !== "POST") return { tasks: [] };
+      return {};
+    });
+    render(wrap(
+      <NewTaskDialog
+        workspaceId="ws1"
+        open
+        showTrigger={false}
+        onOpenChange={() => {}}
+        defaults={{ project_id: "p1", priority: "high", due_date: "2026-09-30" }}
+      />,
+    ));
+
+    const manualEditor = await screen.findByRole("textbox", { name: "Mô tả" });
+    fireEvent.input(manualEditor, { target: { innerHTML: "<p>Mô tả thủ công</p>" } });
+    await waitFor(() =>
+      expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.description).toBe("Mô tả thủ công"),
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "Tạo tiếp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang agent" }));
+
+    const agentEditor = await screen.findByRole("textbox", { name: "Yêu cầu cho agent" });
+    await waitFor(() => expect(agentEditor).toHaveTextContent("Mô tả thủ công"));
+    expect(await screen.findByText("Agent 17")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /UniWork/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cao/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hạn" })).toHaveTextContent("30 thg 9");
+
+    fireEvent.input(agentEditor, { target: { innerHTML: "<p>Yêu cầu riêng cho agent</p>" } });
+    await waitFor(() =>
+      expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe("Yêu cầu riêng cho agent"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang thủ công" }));
+
+    const restoredManualEditor = await screen.findByRole("textbox", { name: "Mô tả" });
+    await waitFor(() => expect(restoredManualEditor).toHaveTextContent("Mô tả thủ công"));
+    expect(screen.getByRole("switch", { name: "Tạo tiếp" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang agent" }));
+    const restoredAgentEditor = await screen.findByRole("textbox", { name: "Yêu cầu cho agent" });
+    await waitFor(() => expect(restoredAgentEditor).toHaveTextContent("Yêu cầu riêng cho agent"));
+  });
+
   it("keeps the dialog open and clears the title when create-another is on", async () => {
     const onOpenChange = vi.fn();
     render(
@@ -365,6 +462,7 @@ describe("NewTaskDialog", () => {
     const form = screen.getByPlaceholderText("Tiêu đề issue").closest("form")!;
     const fileInput = form.querySelector<HTMLInputElement>("input[type='file']");
     expect(fileInput).not.toBeNull();
+    expect(fileInput).toHaveAttribute("multiple");
     fireEvent.change(fileInput!, {
       target: { files: [new File(["hello"], "brief.txt", { type: "text/plain" })] },
     });
@@ -384,6 +482,60 @@ describe("NewTaskDialog", () => {
       "/api/v1/workspaces/ws1/tasks",
       expect.objectContaining({ body: expect.objectContaining({ attachment_ids: ["att-1"] }) }),
     ));
+  });
+
+  it("uploads multiple files inline and binds only attachments left in the description", async () => {
+    let sequence = 0;
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/members")) return { members: [] };
+      if (path.endsWith("/projects")) return { projects: [], total: 0 };
+      if (init?.method === "POST" && path.endsWith("/attachments")) {
+        sequence += 1;
+        const id = `att-${sequence}`;
+        const filename = sequence === 1 ? "first.txt" : "second.txt";
+        return {
+          id,
+          workspace_id: "ws1",
+          task_id: null,
+          filename,
+          url: `/api/v1/attachments/${id}/content`,
+          download_url: `/api/v1/attachments/${id}/download`,
+          content_type: "text/plain",
+          size_bytes: 5,
+          created_at: "2026-09-16T00:00:00Z",
+        };
+      }
+      if (init?.method === "POST" && path.endsWith("/tasks")) return { task: createdTask };
+      return {};
+    });
+
+    render(wrap(<NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />));
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Nhiều tệp" } });
+    const form = screen.getByPlaceholderText("Tiêu đề issue").closest("form")!;
+    const fileInput = form.querySelector<HTMLInputElement>("input[type='file']")!;
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(["first"], "first.txt", { type: "text/plain" }),
+          new File(["second"], "second.txt", { type: "text/plain" }),
+        ],
+      },
+    });
+
+    await screen.findByText("first.txt");
+    await screen.findByText("second.txt");
+    const removeButtons = screen.getAllByRole("button", { name: "Gỡ tệp đính kèm" });
+    fireEvent.click(removeButtons[0]!);
+    fireEvent.submit(form);
+
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/tasks",
+        expect.objectContaining({
+          body: expect.objectContaining({ attachment_ids: ["att-2"] }),
+        }),
+      ),
+    );
   });
 
   it("keeps the draft and offers view-existing when create hits an active duplicate", async () => {
