@@ -78,7 +78,7 @@ export function HomeInbox({
           }
         />
       ) : (
-        <ul aria-label={t("home.section.inbox")}>
+        <ul aria-label={t("home.section.inbox")} className="p-1.5 [--row-fill:var(--surface)]">
           {items.map((n) => (
             <NotificationRow
               key={n.id}
