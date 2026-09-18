@@ -118,7 +118,7 @@ describe("NewTaskDialog", () => {
     expect(screen.queryByTestId("create-squad-assign")).toBeNull();
   });
 
-  it("matches the Multica title emphasis and agent-mode affordance", () => {
+  it("matches the title emphasis and agent-mode affordance", () => {
     render(
       wrap(
         <NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,

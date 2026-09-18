@@ -16,7 +16,7 @@ describe("CreateTaskDialog", () => {
     requestMock.mockImplementation(async () => ({}));
   });
 
-  it("switches body mode without unmounting the dialog role", () => {
+  it("switches body mode without unmounting the dialog role", async () => {
     render(
       wrap(
         <CreateTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />,
@@ -25,7 +25,9 @@ describe("CreateTaskDialog", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Chuyển sang agent" }));
     expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(screen.getByText(/sẽ bắt đầu làm ngay sau khi tạo/)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("textbox", { name: "Yêu cầu cho agent" }),
+    ).toBeInTheDocument();
   });
 
   it("renders the manual composer with compact property pills", () => {
@@ -54,6 +56,27 @@ describe("CreateTaskDialog", () => {
   });
 
   it("shows agent unavailable toast and does not POST /tasks when creating in agent mode", async () => {
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/agents")) {
+        return {
+          agents: [
+            {
+              id: "agent-1",
+              organization_id: "o1",
+              name: "Agent 17",
+              handle: "agent-17",
+              description: "",
+              status: "active",
+              owner_user_id: "u1",
+            },
+          ],
+        };
+      }
+      if (path.endsWith("/projects")) return { projects: [], total: 0 };
+      if (path.endsWith("/tasks") && init?.method !== "POST") return { tasks: [] };
+      return {};
+    });
+
     render(
       wrap(
         <CreateTaskDialog
@@ -65,7 +88,17 @@ describe("CreateTaskDialog", () => {
         />,
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: /^Tạo$/ }));
+
+    const editor = await screen.findByRole("textbox", { name: "Yêu cầu cho agent" });
+    await screen.findByText("Agent 17");
+    fireEvent.input(editor, { target: { innerHTML: "<p>Viết summary</p>" } });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Gửi cho agent/ })).not.toHaveAttribute(
+        "aria-disabled",
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Gửi cho agent/ }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(requestMock).not.toHaveBeenCalledWith(
       expect.stringMatching(/\/tasks$/),
