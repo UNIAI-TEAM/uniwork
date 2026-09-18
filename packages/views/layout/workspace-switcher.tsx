@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import type { Workspace } from "@uniwork/core/types";
@@ -18,6 +18,7 @@ import {
 import { SidebarMenuButton } from "@uniwork/ui/components/ui/sidebar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useNavigation } from "../navigation";
+import { ChevronDisc } from "./sidebar-tray";
 
 /**
  * Sidebar header: organization › current workspace. The menu groups every
@@ -29,7 +30,15 @@ import { useNavigation } from "../navigation";
  * only thing left of this control, and a rail whose top slot is blank reads
  * as a broken header rather than a nav.
  */
-export function WorkspaceSwitcher({ current, onNavigate }: { current: Workspace; onNavigate?: () => void }) {
+export function WorkspaceSwitcher({
+  current,
+  onNavigate,
+  className,
+}: {
+  current: Workspace;
+  onNavigate?: () => void;
+  className?: string;
+}) {
   const { t } = useTranslation();
   const { push } = useNavigation();
   const { data: workspaces = [] } = useWorkspaces();
@@ -55,32 +64,46 @@ export function WorkspaceSwitcher({ current, onNavigate }: { current: Workspace;
         render={
           <SidebarMenuButton
             size="lg"
-            aria-label={t("org.switch")}
+            // Starts with the names on the button (WCAG 2.5.3), then says what it does.
+            // The unread-elsewhere dot is inside a label-overridden button, so
+            // its own label was never read; the fact rides on the name instead.
+            aria-label={[
+              t("org.switch_named", { organization: current.organization_name, workspace: current.name }),
+              elsewhere ? t("notifications.unread_elsewhere") : null,
+            ]
+              .filter(Boolean)
+              .join(". ")}
             tooltip={current.name}
-            className="data-[popup-open]:bg-sidebar-accent"
+            className={cn("gap-2.5 px-2", className)}
           />
         }
       >
-        <span className="relative shrink-0">
+        {/* aria-hidden, which also keeps it visible in the icon rail: the
+            menu-button primitive makes every other direct span child
+            sr-only there, and the rail was once left with no workspace mark
+            at all. Its meaning (initial, unread dot) is in the aria-label. */}
+        <span aria-hidden className="relative shrink-0">
           <span
             aria-hidden
-            className="flex size-6 items-center justify-center rounded-md bg-sidebar-primary text-caption font-medium text-sidebar-primary-foreground"
+            className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-body font-semibold text-sidebar-primary-foreground group-data-[collapsible=icon]:size-6 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-caption"
           >
             {current.name.trim().slice(0, 1).toUpperCase()}
           </span>
           {elsewhere ? (
             <span
-              role="img"
-              aria-label={t("notifications.unread_elsewhere")}
-              className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-sidebar"
+              className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-surface group-data-[collapsible=icon]:ring-app-shell"
             />
           ) : null}
         </span>
         <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
-          <span className="block truncate text-caption text-muted-foreground">{current.organization_name}</span>
-          <span className="block truncate text-body font-medium text-sidebar-foreground">{current.name}</span>
+          <span title={current.organization_name} className="block truncate text-caption text-muted-foreground">
+            {current.organization_name}
+          </span>
+          <span title={current.name} className="block truncate text-body font-semibold text-sidebar-foreground">
+            {current.name}
+          </span>
         </span>
-        <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-faint-foreground group-data-[collapsible=icon]:hidden" />
+        <ChevronDisc />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-60">
         {[...groups.entries()].map(([orgId, g]) => (

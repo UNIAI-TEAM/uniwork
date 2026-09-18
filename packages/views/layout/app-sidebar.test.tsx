@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -69,6 +69,54 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).not.toHaveAttribute("aria-current");
   });
 
+  it("groups the sections by what they are for, under visible labels", () => {
+    renderSidebar("/acme/team/tasks");
+    const groupOf = (label: string) => screen.getByText(label).closest<HTMLElement>('[data-slot="sidebar-group"]')!;
+    const work = within(groupOf("Làm việc"));
+    expect(work.getAllByRole("link").map((l) => l.textContent)).toEqual(["Công việc", "Việc của tôi", "Dự án"]);
+    const communication = within(groupOf("Trao đổi"));
+    expect(communication.getAllByRole("link").map((l) => l.textContent)).toEqual(["Cuộc họp", "Trò chuyện", "Danh bạ"]);
+    // Still one landmark: the labels group rows, they do not split the nav.
+    expect(screen.getAllByRole("navigation")).toHaveLength(1);
+  });
+
+  it("names each grouped list by its visible label", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.getByRole("list", { name: "Làm việc" })).toContainElement(screen.getByRole("link", { name: "Dự án" }));
+    expect(screen.getByRole("list", { name: "Trao đổi" })).toContainElement(screen.getByRole("link", { name: "Danh bạ" }));
+  });
+
+  it("starts the switcher's and the account's names with the text they show", () => {
+    renderSidebar("/acme/team/tasks");
+    // WCAG 2.5.3: a voice-control user says what they see.
+    expect(screen.getByRole("button", { name: "Acme, Team: chuyển workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "An, a@b.c: tài khoản" })).toBeInTheDocument();
+  });
+
+  it("says in the switcher's name when another workspace has unread notifications", async () => {
+    const other: Workspace = { ...workspace, id: "ws2", slug: "ops", name: "Ops" };
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/api/v1/me/notifications/unread-count"
+          ? { total: 3, by_workspace: { ws2: 3 } }
+          : { workspaces: [workspace, other] },
+      ),
+    );
+    renderSidebar("/acme/team/tasks");
+    expect(
+      await screen.findByRole("button", {
+        name: "Acme, Team: chuyển workspace. Có thông báo chưa đọc ở workspace khác",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("draws the active island once, inside the current section only", () => {
+    renderSidebar("/acme/team/meetings");
+    const islands = document.body.querySelectorAll('[data-slot="sidebar-active-island"]');
+    expect(islands).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Cuộc họp" })).toContainElement(islands[0] as HTMLElement);
+  });
+
   it("names the navigation landmark so a screen reader can jump to it", () => {
     renderSidebar("/acme/team/tasks");
     expect(screen.getByRole("navigation", { name: "Điều hướng workspace" })).toBeInTheDocument();
@@ -83,7 +131,7 @@ describe("AppSidebar", () => {
     const nav = renderSidebar("/acme/team/tasks");
     expect(screen.queryByRole("menuitem", { name: "Đăng xuất" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tài khoản" }));
+    fireEvent.click(screen.getByRole("button", { name: /tài khoản$/ }));
     const settings = await screen.findByRole("menuitem", { name: "Cài đặt" });
     expect(settings).toHaveAttribute("href", "/acme/team/settings");
     const logout = await screen.findByRole("menuitem", { name: "Đăng xuất" });
@@ -131,7 +179,7 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tài khoản" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /tài khoản$/ })).toBeInTheDocument();
   });
 });
 
