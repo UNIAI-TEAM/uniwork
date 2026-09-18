@@ -1,39 +1,55 @@
 "use client";
 
-import { useMemo } from "react";
 import { ClipboardList } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { buildHomeBrief } from "@uniwork/core/home/brief";
-import type { HomeSummary } from "@uniwork/core/types/home";
+import type { HomeBriefLine } from "@uniwork/core/home/brief";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { PanelCard } from "../common/panel-card";
+import { moduleTone } from "../layout/module-tones";
+import { HOME_MARKS, type HomeMarkKey } from "./home-marks";
+
+/** `home.brief.<topic>[_plain]` → the stat the sentence explains. */
+const TOPIC_MARK: Record<string, HomeMarkKey> = {
+  overdue: "overdue",
+  meetings: "meetings_today",
+  due_today: "due_today",
+  unread: "unread",
+};
+
+function markOf(line: HomeBriefLine): HomeMarkKey | undefined {
+  const topic = line.key.replace(/^home\.brief\./, "").replace(/_plain$/, "");
+  return TOPIC_MARK[topic];
+}
 
 /**
  * A few sentences derived from the summary itself — no model, no invented
- * numbers. With nothing to say the section is absent rather than a line of zeros.
+ * numbers. Each carries the mark of the stat it explains. The view leaves the
+ * section out when there is nothing to say, rather than show a line of zeros.
  */
-export function HomeBrief({ summary }: { summary: HomeSummary }) {
+export function HomeBrief({ lines }: { lines: HomeBriefLine[] }) {
   const { t } = useTranslation();
-  const lines = useMemo(() => buildHomeBrief(summary), [summary]);
-  if (lines.length === 0) return null;
   return (
     <PanelCard
       id="home-brief"
       title={t("home.brief.title")}
       icon={ClipboardList}
-      action={
-        <span className="rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">{t("home.brief.badge")}</span>
-      }
+      iconTone={moduleTone("home")}
+      className="h-full"
+      action={<span className="rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">{t("home.brief.badge")}</span>}
     >
-      <ol className="space-y-2">
-        {lines.map((line, i) => (
-          <li key={line.key} className="flex gap-2 text-body text-foreground">
-            <span aria-hidden className="w-4 shrink-0 text-caption leading-6 text-muted-foreground tabular-nums">
-              {i + 1}.
-            </span>
-            <span>{t(line.key, line.params)}</span>
-          </li>
-        ))}
-      </ol>
+      <ul className="space-y-3">
+        {lines.map((line) => {
+          const mark = markOf(line);
+          return (
+            <li key={line.key} className="flex items-start gap-2.5 text-body text-foreground">
+              {mark ? (
+                <IconTile icon={HOME_MARKS[mark].icon} tone={HOME_MARKS[mark].tone} size="xs" shape="circle" className="mt-px" />
+              ) : null}
+              <span className="min-w-0 text-pretty">{t(line.key, line.params)}</span>
+            </li>
+          );
+        })}
+      </ul>
     </PanelCard>
   );
 }
