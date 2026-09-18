@@ -203,6 +203,7 @@ export function TasksHeader({
       </div>
 
       <FilterChipsBar
+        workspaceId={workspaceId}
         lockProjectFilter={lockProjectFilter}
         onSave={saveViewScope ? openSaveView : undefined}
         saveLabel={saveViewScope ? saveLabel : undefined}

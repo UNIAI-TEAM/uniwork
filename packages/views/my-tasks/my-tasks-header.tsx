@@ -240,7 +240,11 @@ export function MyTasksHeader({
         </div>
       </div>
 
-      <FilterChipsBar onSave={openSaveView} saveLabel={saveLabel} />
+      <FilterChipsBar
+        workspaceId={workspaceId}
+        onSave={openSaveView}
+        saveLabel={saveLabel}
+      />
 
       <SaveViewDialog
         workspaceId={workspaceId}
