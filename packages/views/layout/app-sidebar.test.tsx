@@ -141,13 +141,22 @@ describe("AppSidebar", () => {
     ).toBeInTheDocument();
   });
 
-  it("uses Multica's compact active fill without a leading brand stripe", () => {
+  it("moves a compact active fill without restoring the brand stripe", () => {
     renderSidebar("/acme/team/meetings");
     const active = screen.getByRole("link", { name: "Cuộc họp" });
-    expect(active).toHaveClass("rounded-md", "data-active:bg-sidebar-accent");
-    expect(active).not.toHaveClass("rounded-xl", "data-active:bg-transparent");
-    expect(document.querySelector('[data-slot="sidebar-active-island"]')).toBeNull();
+    const indicator = active.querySelector('[data-slot="sidebar-active-indicator"]');
+    expect(active).toHaveClass("rounded-md", "data-active:bg-transparent");
+    expect(indicator).toHaveClass("rounded-md", "bg-sidebar-accent");
+    expect(indicator?.className).not.toContain("before:");
+    expect(document.querySelectorAll('[data-slot="sidebar-active-indicator"]')).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Công việc" })).not.toHaveAttribute("aria-current", "page");
+  });
+
+  it("centers each menu title on the same compact icon slot", () => {
+    renderSidebar("/acme/team/tasks");
+    const tasks = screen.getByRole("link", { name: "Công việc" });
+    expect(tasks.querySelector('[data-slot="icon-tile"]')).toHaveClass("size-4");
+    expect(within(tasks).getByText("Công việc")).toHaveClass("flex", "h-4", "items-center");
   });
 
   it("names the navigation landmark so a screen reader can jump to it", () => {
