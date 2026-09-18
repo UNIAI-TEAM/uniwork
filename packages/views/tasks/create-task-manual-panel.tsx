@@ -247,7 +247,7 @@ export function CreateTaskManualPanel({
 
       <div
         data-testid="create-task-footer"
-        className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t px-4 py-3 sm:flex sm:flex-wrap"
+        className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap"
       >
         <div className="flex min-h-7 items-center gap-2 sm:mr-auto">
           <input

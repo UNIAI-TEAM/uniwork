@@ -147,7 +147,7 @@ export function PropertyPicker({
       </PopoverTrigger>
       <PopoverContent align={align} side={side} className={cn(width, "gap-0 p-0")}>
         {searchable ? (
-          <div className="border-b px-2 py-1.5">
+          <div className="border-b border-surface-border/50 bg-surface-hover/20 px-2 py-1.5">
             <input
               type="text"
               name="property-picker-search"
@@ -161,15 +161,15 @@ export function PropertyPicker({
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               aria-label={filterAria}
-              className="w-full rounded-sm bg-transparent px-1 text-body placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="w-full rounded-md bg-transparent px-1 text-body outline-none transition-colors placeholder:text-muted-foreground focus-visible:bg-surface-hover/70 focus-visible:ring-1 focus-visible:ring-surface-border/70"
             />
           </div>
         ) : null}
-        {header ? <div className="border-b">{header}</div> : null}
+        {header ? <div className="border-b border-surface-border/50">{header}</div> : null}
         <div ref={listRef} className="max-h-72 overscroll-contain overflow-y-auto p-1">
           {children}
         </div>
-        {footer ? <div className="border-t p-1">{footer}</div> : null}
+        {footer ? <div className="border-t border-surface-border/50 p-1">{footer}</div> : null}
       </PopoverContent>
     </Popover>
   );
