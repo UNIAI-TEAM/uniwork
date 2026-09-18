@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import type { Workspace } from "@uniwork/core/types";
@@ -18,7 +18,6 @@ import {
 import { SidebarMenuButton } from "@uniwork/ui/components/ui/sidebar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useNavigation } from "../navigation";
-import { ChevronDisc } from "./sidebar-tray";
 
 /**
  * Sidebar header: organization › current workspace. The menu groups every
@@ -33,11 +32,9 @@ import { ChevronDisc } from "./sidebar-tray";
 export function WorkspaceSwitcher({
   current,
   onNavigate,
-  className,
 }: {
   current: Workspace;
   onNavigate?: () => void;
-  className?: string;
 }) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -74,7 +71,7 @@ export function WorkspaceSwitcher({
               .filter(Boolean)
               .join(". ")}
             tooltip={current.name}
-            className={cn("gap-2.5 px-2", className)}
+            className="gap-2.5 px-2"
           />
         }
       >
@@ -103,7 +100,7 @@ export function WorkspaceSwitcher({
             {current.name}
           </span>
         </span>
-        <ChevronDisc />
+        <ChevronDown aria-hidden className="ml-auto size-3! text-muted-foreground group-data-[collapsible=icon]:hidden" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-60">
         {[...groups.entries()].map(([orgId, g]) => (

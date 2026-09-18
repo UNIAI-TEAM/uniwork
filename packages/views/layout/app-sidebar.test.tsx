@@ -99,7 +99,7 @@ describe("AppSidebar", () => {
     }
   });
 
-  it("keeps sidebar chrome borderless without removing keyboard focus", () => {
+  it("keeps non-menu controls on the sidebar plane without removing keyboard focus", () => {
     renderSidebar("/acme/team/tasks");
     const search = screen.getByRole("button", { name: /tìm kiếm/i });
     const workspaceButton = screen.getByRole("button", { name: /chuyển workspace/i });
@@ -107,12 +107,14 @@ describe("AppSidebar", () => {
 
     for (const button of [search, workspaceButton, accountButton]) {
       expect(button).not.toHaveClass("ring-1");
+      expect(button).not.toHaveClass("rounded-xl");
+      expect(button.className).not.toMatch(/(?:^|\s)bg-surface(?:\/|\s)/);
       expect(button.className).toContain("focus-visible:ring-2");
     }
     expect(search.querySelector("kbd")).not.toHaveClass("ring-1");
+    expect(search.querySelector("kbd")?.className).not.toContain("bg-muted");
     expect(workspaceButton.parentElement).not.toHaveClass("ring-1");
     expect(accountButton.parentElement).not.toHaveClass("ring-1");
-    expect(document.querySelector('[data-slot="sidebar-active-island"]')).not.toHaveClass("ring-1");
   });
 
   it("starts the switcher's and the account's names with the text they show", () => {
@@ -139,11 +141,13 @@ describe("AppSidebar", () => {
     ).toBeInTheDocument();
   });
 
-  it("draws the active island once, inside the current section only", () => {
+  it("uses Multica's compact active fill without a leading brand stripe", () => {
     renderSidebar("/acme/team/meetings");
-    const islands = document.body.querySelectorAll('[data-slot="sidebar-active-island"]');
-    expect(islands).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "Cuộc họp" })).toContainElement(islands[0] as HTMLElement);
+    const active = screen.getByRole("link", { name: "Cuộc họp" });
+    expect(active).toHaveClass("rounded-md", "data-active:bg-sidebar-accent");
+    expect(active).not.toHaveClass("rounded-xl", "data-active:bg-transparent");
+    expect(document.querySelector('[data-slot="sidebar-active-island"]')).toBeNull();
+    expect(screen.getByRole("link", { name: "Công việc" })).not.toHaveAttribute("aria-current", "page");
   });
 
   it("names the navigation landmark so a screen reader can jump to it", () => {
