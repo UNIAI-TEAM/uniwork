@@ -15,7 +15,7 @@ import (
 // Filter narrows the task set by exact-match id/key lists. Every slice is
 // normalized (sorted, deduped) by Query.Normalize before use.
 //
-// Positive-selection semantics (Multica parity): empty list = no constraint on
+// Positive-selection semantics (filter parity): empty list = no constraint on
 // that dimension. IncludeNoAssignee / IncludeNoProject OR with their id lists.
 // CreatorRefs are "human:<id>" / "agent:<id>". Properties values may include
 // "__none__" for unset. DateField is created_at|updated_at with inclusive

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
+import type { TaskViewState } from "@uniwork/core/tasks/stores/view-store";
 import { baselineFromQuery } from "@uniwork/core/tasks/views/baseline";
 import { wrap } from "../../test/api-mock";
 import { FilterChipsBar } from "./filter-chips-bar";
@@ -83,7 +84,8 @@ vi.mock("@uniwork/core/agents", async (importOriginal) => {
 function renderBar(
   storeKey: string,
   props: Omit<ComponentProps<typeof FilterChipsBar>, "workspaceId"> = {},
-  seed?: Parameters<ReturnType<typeof getTaskSurfaceViewStore>["setState"]>[0],
+  // Partial — Parameters<setState>[0] resolves Zustand's replace overload (full state).
+  seed?: Partial<TaskViewState>,
 ) {
   const store = getTaskSurfaceViewStore(storeKey);
   if (seed) store.setState(seed);

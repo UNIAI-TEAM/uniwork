@@ -5729,9 +5729,8 @@
       "target_path": "packages/views/tasks/utils/filter.ts",
       "kind": "source",
       "disposition": "adapted",
-      "verification_state": "verified",
-      "owner_issue": "UNI-426",
-      "evidence_path": "packages/views/tasks/utils/filter.ts"
+      "verification_state": "pending",
+      "owner_issue": "UNI-426"
     },
     {
       "source_path": "packages/views/issues/utils/sort.test.ts",

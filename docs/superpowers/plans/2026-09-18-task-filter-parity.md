@@ -1,5 +1,7 @@
 # Task filter parity (Multica → UniWork) Implementation Plan
 
+> **Trạng thái:** in-progress
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wire full Multica-shaped task filters on every UniWork collection surface — menu, chips, baseline, `filter.ts`, expanded `tablequery` — and remove `filters_not_wired`.
