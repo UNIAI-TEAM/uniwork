@@ -48,6 +48,9 @@ describe("CreateTaskDialog", () => {
     expect(screen.getByTestId("create-task-composer-body")).toHaveClass("flex-1");
     expect(screen.getByTestId("create-task-property-toolbar")).toHaveClass("shrink-0");
     expect(screen.getByTestId("create-task-footer")).toHaveClass("sm:flex");
+    expect(screen.getByTestId("create-task-footer")).toHaveClass(
+      "border-surface-border/50",
+    );
   });
 
   it("shows agent unavailable toast and does not POST /tasks when creating in agent mode", async () => {
