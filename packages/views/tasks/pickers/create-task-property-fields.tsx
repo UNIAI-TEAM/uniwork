@@ -216,7 +216,7 @@ export function CreateTaskAssigneeField({
       trigger={
         selected ? (
           <>
-            <Avatar size="sm" className="size-4">
+            <Avatar className="size-4">
               {selected.avatarUrl ? <AvatarImage src={selected.avatarUrl} alt="" /> : null}
               <AvatarFallback className="text-micro">{initialOf(selected.name)}</AvatarFallback>
             </Avatar>
