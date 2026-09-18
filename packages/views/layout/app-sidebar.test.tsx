@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
 import type { User, Workspace } from "@uniwork/core/types";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
@@ -86,6 +86,37 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("list", { name: "Trao đổi" })).toContainElement(screen.getByRole("link", { name: "Danh bạ" }));
   });
 
+  it("keeps group headings in the locale's own casing, including English", async () => {
+    await setLocale("en");
+    try {
+      renderSidebar("/acme/team/tasks");
+      expect(screen.getByText("Work")).not.toHaveClass("uppercase");
+      expect(screen.getByText("Communication")).not.toHaveClass("uppercase");
+      expect(screen.getByRole("list", { name: "Work" })).toBeInTheDocument();
+      expect(screen.queryByText(/nav\.group_/i)).toBeNull();
+    } finally {
+      await setLocale("vi");
+    }
+  });
+
+  it("keeps non-menu controls on the sidebar plane without removing keyboard focus", () => {
+    renderSidebar("/acme/team/tasks");
+    const search = screen.getByRole("button", { name: /tìm kiếm/i });
+    const workspaceButton = screen.getByRole("button", { name: /chuyển workspace/i });
+    const accountButton = screen.getByRole("button", { name: /tài khoản$/ });
+
+    for (const button of [search, workspaceButton, accountButton]) {
+      expect(button).not.toHaveClass("ring-1");
+      expect(button).not.toHaveClass("rounded-xl");
+      expect(button.className).not.toMatch(/(?:^|\s)bg-surface(?:\/|\s)/);
+      expect(button.className).toContain("focus-visible:ring-2");
+    }
+    expect(search.querySelector("kbd")).not.toHaveClass("ring-1");
+    expect(search.querySelector("kbd")?.className).not.toContain("bg-muted");
+    expect(workspaceButton.parentElement).not.toHaveClass("ring-1");
+    expect(accountButton.parentElement).not.toHaveClass("ring-1");
+  });
+
   it("starts the switcher's and the account's names with the text they show", () => {
     renderSidebar("/acme/team/tasks");
     // WCAG 2.5.3: a voice-control user says what they see.
@@ -110,11 +141,23 @@ describe("AppSidebar", () => {
     ).toBeInTheDocument();
   });
 
-  it("draws the active island once, inside the current section only", () => {
+  it("moves a compact active fill without restoring the brand stripe", () => {
     renderSidebar("/acme/team/meetings");
-    const islands = document.body.querySelectorAll('[data-slot="sidebar-active-island"]');
-    expect(islands).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "Cuộc họp" })).toContainElement(islands[0] as HTMLElement);
+    const active = screen.getByRole("link", { name: "Cuộc họp" });
+    const indicator = active.querySelector('[data-slot="sidebar-active-indicator"]');
+    expect(active).toHaveClass("rounded-md", "data-active:bg-transparent");
+    expect(indicator).toHaveClass("rounded-md", "bg-sidebar-accent");
+    expect(indicator?.className).not.toContain("before:");
+    expect(document.querySelectorAll('[data-slot="sidebar-active-indicator"]')).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Công việc" })).not.toHaveAttribute("aria-current", "page");
+  });
+
+  it("aligns each group title with the icon column without shrinking menu icons", () => {
+    renderSidebar("/acme/team/tasks");
+    expect(screen.getByText("Làm việc")).toHaveClass("px-2");
+    expect(screen.getByText("Trao đổi")).toHaveClass("px-2");
+    const tasks = screen.getByRole("link", { name: "Công việc" });
+    expect(tasks.querySelector('[data-slot="icon-tile"]')).toHaveClass("size-5");
   });
 
   it("names the navigation landmark so a screen reader can jump to it", () => {
