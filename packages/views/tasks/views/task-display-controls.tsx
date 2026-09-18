@@ -93,6 +93,7 @@ export function TaskDisplayControls({
             variant="toolbar"
             size="sm"
             className="gap-1.5"
+            aria-label={filterLabel}
             data-testid="task-filter-add"
           >
             <Filter className="size-3.5" aria-hidden />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   TaskDateField,
@@ -48,6 +48,13 @@ function todayDateOnly(): string {
   return toDateOnly(new Date());
 }
 
+function rangeFromValue(value: TaskDateFilter | null): LocalDateRange | undefined {
+  if (!value) return undefined;
+  const from = dateOnlyToLocalDate(value.from);
+  if (!from) return undefined;
+  return { from, to: dateOnlyToLocalDate(value.to) };
+}
+
 export function FilterDatePanel({
   value,
   onChange,
@@ -60,12 +67,15 @@ export function FilterDatePanel({
     value?.field ?? "created_at",
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [range, setRange] = useState<LocalDateRange | undefined>(() => {
-    if (!value) return undefined;
-    const from = dateOnlyToLocalDate(value.from);
-    if (!from) return undefined;
-    return { from, to: dateOnlyToLocalDate(value.to) };
-  });
+  const [range, setRange] = useState<LocalDateRange | undefined>(() =>
+    rangeFromValue(value),
+  );
+
+  useEffect(() => {
+    setField(value?.field ?? "created_at");
+    setRange(rangeFromValue(value));
+    if (!value) setCalendarOpen(false);
+  }, [value]);
 
   const setFieldValue = (next: TaskDateField) => {
     setField(next);

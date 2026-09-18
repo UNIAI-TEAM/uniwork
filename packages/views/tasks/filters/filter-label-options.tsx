@@ -38,6 +38,7 @@ export function FilterLabelOptions({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("tasks.filters.search_placeholder")}
+          aria-label={t("tasks.filters.search_placeholder")}
           className="w-full bg-transparent text-body outline-none placeholder:text-muted-foreground"
           autoFocus
         />

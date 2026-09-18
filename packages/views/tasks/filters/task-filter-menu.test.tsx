@@ -130,6 +130,10 @@ function renderControls(storeKey: string) {
 
 async function openFilterMenu() {
   const add = screen.getByTestId("task-filter-add");
+  expect(add).toHaveAttribute(
+    "aria-label",
+    initI18n().t("tasks.filters.add"),
+  );
   expect(add).not.toHaveAttribute("data-reason-code", "filters_not_wired");
   expect(add).not.toBeDisabled();
   fireEvent.click(add);
