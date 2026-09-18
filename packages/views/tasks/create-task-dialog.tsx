@@ -43,6 +43,7 @@ export function CreateTaskDialog({
   const [mode, setMode] = useState<CreateTaskMode>(initialMode ?? "manual");
   const [carry, setCarry] = useState<Record<string, unknown> | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [createAnother, setCreateAnother] = useState(false);
 
   const switchTo = (next: CreateTaskMode) => (nextCarry?: Record<string, unknown> | null) => {
     setCarry(nextCarry ?? null);
@@ -69,6 +70,8 @@ export function CreateTaskDialog({
             onSwitchMode={switchTo("agent")}
             isExpanded={isExpanded}
             setIsExpanded={setIsExpanded}
+            createAnother={createAnother}
+            setCreateAnother={setCreateAnother}
           />
         ) : (
           <CreateTaskAgentPanel
@@ -78,6 +81,8 @@ export function CreateTaskDialog({
             onSwitchMode={switchTo("manual")}
             isExpanded={isExpanded}
             setIsExpanded={setIsExpanded}
+            createAnother={createAnother}
+            setCreateAnother={setCreateAnother}
           />
         )}
       </DialogContent>

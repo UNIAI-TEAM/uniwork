@@ -83,11 +83,13 @@ export function useCreateTaskManualState({
   defaults,
   carry,
   onClose,
+  createAnother,
 }: {
   workspaceId: string;
   defaults?: Partial<CreateTaskBody>;
   carry?: Record<string, unknown> | null;
   onClose: () => void;
+  createAnother: boolean;
 }) {
   const { t } = useTranslation();
   const workspaceContext = useOptionalWorkspace();
@@ -108,12 +110,11 @@ export function useCreateTaskManualState({
   const orgId = workspaceContext?.workspace.organization_id ?? "";
   const { canView: canViewBillingDecision } = useBillingPermissions(orgId);
   const [draft, setDraftState] = useState<CreateTaskDraft>(() =>
-    draftFromDefaults(defaults, settingsFor(workspaceId)),
+    draftFor(workspaceId) ?? draftFromDefaults(defaults, settingsFor(workspaceId)),
   );
   const draftRef = useRef(draft);
   const uploadCountRef = useRef(0);
   const carryAppliedRef = useRef<Record<string, unknown> | null>(null);
-  const [createAnother, setCreateAnother] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
   const [revealed, setRevealed] = useState<Set<OverflowFieldKey>>(() =>
     initialRevealed(draftFromDefaults(defaults, settingsFor(workspaceId))),
@@ -342,8 +343,6 @@ export function useCreateTaskManualState({
     draft,
     draftRef,
     updateDraft,
-    createAnother,
-    setCreateAnother,
     revealed,
     reveal: (key: OverflowFieldKey) => setRevealed((current) => new Set([...current, key])),
     unreveal: (key: OverflowFieldKey) =>

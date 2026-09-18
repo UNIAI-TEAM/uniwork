@@ -36,6 +36,8 @@ export type CreateTaskManualPanelProps = {
   onSwitchMode: (carry?: Record<string, unknown> | null) => void;
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
+  createAnother: boolean;
+  setCreateAnother: (createAnother: boolean) => void;
 };
 
 export function CreateTaskManualPanel({
@@ -46,16 +48,22 @@ export function CreateTaskManualPanel({
   onSwitchMode,
   isExpanded,
   setIsExpanded,
+  createAnother,
+  setCreateAnother,
 }: CreateTaskManualPanelProps) {
   const editorRef = useRef<ContentEditorRef>(null);
   const sendShortcut = useShortcut("send");
-  const state = useCreateTaskManualState({ workspaceId, defaults, carry, onClose });
+  const state = useCreateTaskManualState({
+    workspaceId,
+    defaults,
+    carry,
+    onClose,
+    createAnother,
+  });
   const {
     t,
     draft,
     updateDraft,
-    createAnother,
-    setCreateAnother,
     revealed,
     reveal,
     unreveal,
@@ -264,7 +272,17 @@ export function CreateTaskManualPanel({
           title={t("tasks.create.switch_to_agent")}
           className="border-beam group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/15 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
           onClick={() => {
-            if (!busy && !uploadGate.isBlocked()) onSwitchMode({ project_id: draft.projectId });
+            if (busy || uploadGate.isBlocked()) return;
+            updateDraft({
+              agentPrompt: draft.agentPrompt?.trim() ? draft.agentPrompt : draft.description,
+              agentId:
+                draft.agentId ??
+                (draft.assigneeKind === "agent" ? draft.assigneeId : undefined),
+            });
+            onSwitchMode({
+              project_id: draft.projectId,
+              parent_task_id: draft.parentTaskId,
+            });
           }}
         >
           <ArrowLeftRight

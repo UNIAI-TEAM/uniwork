@@ -136,6 +136,85 @@ describe("NewTaskDialog", () => {
     );
   });
 
+  it("preserves independent manual and agent drafts plus shared create state across mode switches", async () => {
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/members")) return { members: [] };
+      if (path.endsWith("/agents")) {
+        return {
+          agents: [{
+            id: "agent-1",
+            organization_id: "o1",
+            name: "Agent 17",
+            handle: "agent-17",
+            description: "",
+            status: "active",
+            owner_user_id: "u1",
+          }],
+        };
+      }
+      if (path.endsWith("/projects")) {
+        return {
+          projects: [{
+            id: "p1",
+            organization_id: "o1",
+            workspace_id: "ws1",
+            title: "UniWork",
+            description: "",
+            status: "in_progress",
+            priority: "high",
+            revision: 1,
+            task_count: 0,
+            done_count: 0,
+            resource_count: 0,
+            created_at: "2026-09-16T00:00:00Z",
+            updated_at: "2026-09-16T00:00:00Z",
+          }],
+          total: 1,
+        };
+      }
+      if (path.endsWith("/task-properties")) return { properties: [], total: 0 };
+      if (path.endsWith("/tasks") && init?.method !== "POST") return { tasks: [] };
+      return {};
+    });
+    render(wrap(
+      <NewTaskDialog
+        workspaceId="ws1"
+        open
+        showTrigger={false}
+        onOpenChange={() => {}}
+        defaults={{ project_id: "p1", priority: "high", due_date: "2026-09-30" }}
+      />,
+    ));
+
+    const manualEditor = await screen.findByRole("textbox", { name: "Mô tả" });
+    fireEvent.input(manualEditor, { target: { innerHTML: "<p>Mô tả thủ công</p>" } });
+    await waitFor(() =>
+      expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.description).toBe("Mô tả thủ công"),
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "Tạo tiếp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang agent" }));
+
+    const agentEditor = await screen.findByRole("textbox", { name: "Yêu cầu cho agent" });
+    await waitFor(() => expect(agentEditor).toHaveTextContent("Mô tả thủ công"));
+    expect(await screen.findByText("Agent 17")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /UniWork/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cao/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hạn" })).toHaveTextContent("30 thg 9");
+
+    fireEvent.input(agentEditor, { target: { innerHTML: "<p>Yêu cầu riêng cho agent</p>" } });
+    await waitFor(() =>
+      expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe("Yêu cầu riêng cho agent"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang thủ công" }));
+
+    const restoredManualEditor = await screen.findByRole("textbox", { name: "Mô tả" });
+    await waitFor(() => expect(restoredManualEditor).toHaveTextContent("Mô tả thủ công"));
+    expect(screen.getByRole("switch", { name: "Tạo tiếp" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang agent" }));
+    const restoredAgentEditor = await screen.findByRole("textbox", { name: "Yêu cầu cho agent" });
+    await waitFor(() => expect(restoredAgentEditor).toHaveTextContent("Yêu cầu riêng cho agent"));
+  });
+
   it("keeps the dialog open and clears the title when create-another is on", async () => {
     const onOpenChange = vi.fn();
     render(
