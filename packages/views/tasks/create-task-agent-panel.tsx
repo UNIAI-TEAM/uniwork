@@ -20,8 +20,8 @@ import { Switch } from "@uniwork/ui/components/ui/switch";
 import { AgentBadge } from "../agents/agent-badge";
 import { PillButton } from "../common/pill-button";
 import { ContentEditor, FileDropOverlay, useFileDropZone, useUploadGate, type ContentEditorRef } from "../editor";
-import { ShortcutKeycaps } from "../editor/shortcut-keycaps";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
 import { CreateTaskPriorityField } from "./pickers/create-task-property-fields";
@@ -244,10 +244,14 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
           <Switch checked={createAnother} onCheckedChange={setCreateAnother} aria-label={t("tasks.create.create_another_short")} />
           <span aria-hidden>{t("tasks.create.create_another_short")}</span>
         </label>
-        <Button type="button" size="sm" disabled={!hasContent || !selectedAgent || isUploading} aria-busy={isUploading || undefined} className="min-w-28 justify-self-end gap-2" onClick={submit}>
-          {isUploading ? t("tasks.create.agent_uploading") : t("tasks.create.agent_submit")}
-          {!isUploading && sendShortcut ? <ShortcutKeycaps shortcut={sendShortcut} decorative className="ml-1 max-sm:hidden" keyClassName="border-background/30 bg-background/15 text-primary-foreground shadow-none" /> : null}
-        </Button>
+        <CreateTaskSubmitButton
+          type="button"
+          inactive={!hasContent || !selectedAgent}
+          busy={isUploading}
+          label={isUploading ? t("tasks.create.agent_uploading") : t("tasks.create.agent_submit")}
+          shortcut={sendShortcut}
+          onClick={submit}
+        />
       </div>
     </div>
   );

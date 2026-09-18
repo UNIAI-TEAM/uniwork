@@ -17,8 +17,8 @@ import {
   useUploadGate,
   type ContentEditorRef,
 } from "../editor";
-import { ShortcutKeycaps } from "../editor/shortcut-keycaps";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
+import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import {
   CreateTaskAssigneeField,
   CreateTaskLabelField,
@@ -299,10 +299,19 @@ export function CreateTaskManualPanel({
           />
           <span aria-hidden>{t("tasks.create.create_another_short")}</span>
         </label>
-        <Button type="submit" aria-disabled={!canSubmit || undefined} className="justify-self-end gap-2">
-          {busy ? t("tasks.create.creating") : t("common.create")}
-          {!busy && sendShortcut ? <ShortcutKeycaps shortcut={sendShortcut} decorative /> : null}
-        </Button>
+        <CreateTaskSubmitButton
+          type="submit"
+          inactive={!canSubmit}
+          busy={busy || isUploading}
+          label={
+            busy
+              ? t("tasks.create.creating")
+              : isUploading
+                ? t("tasks.create.agent_uploading")
+                : t("common.create")
+          }
+          shortcut={sendShortcut}
+        />
       </div>
     </form>
   );
