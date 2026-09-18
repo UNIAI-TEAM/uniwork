@@ -1,6 +1,6 @@
 # UniWork — Task filter parity với Multica
 
-> **Trạng thái:** in-progress — spec brainstorm đã duyệt; chờ plan + implement trên `feature/UNI-702-…`
+> **Trạng thái:** in-progress — spec duyệt; plan `../plans/2026-09-18-task-filter-parity.md`; implement trên `feature/UNI-702-…`
 
 **Ngày:** 2026-09-18  
 **Issue:** UNI-702  
