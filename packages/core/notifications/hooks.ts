@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import * as api from "../api/endpoints/notifications";
 import type { Notification, NotificationPreference, UnreadCount } from "../types/notification";
 
@@ -16,6 +16,9 @@ export const notificationKeys = {
   lists: () => ["notifications", "list"] as const,
   list: (workspaceId: string | undefined, unreadOnly: boolean, limit = 50) =>
     ["notifications", "list", workspaceId ?? "", unreadOnly, limit] as const,
+  /** The inbox's cursor-paged list; under `lists()`, so every mutation patches it too. */
+  pages: (workspaceId: string | undefined, unreadOnly: boolean, pageSize = 50) =>
+    ["notifications", "list", workspaceId ?? "", unreadOnly, pageSize, "pages"] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
   prefs: () => ["notifications", "prefs"] as const,
   pushConfig: () => ["notifications", "push-config"] as const,
@@ -33,6 +36,24 @@ export function useNotifications({
   });
 }
 
+/**
+ * The inbox: newest first, `pageSize` at a time, older pages fetched on
+ * demand through the server's `next_before` cursor. A short page is the end.
+ */
+export function useNotificationPages({
+  workspaceId,
+  unreadOnly = false,
+  pageSize = 50,
+}: { workspaceId?: string; unreadOnly?: boolean; pageSize?: number }) {
+  return useInfiniteQuery({
+    queryKey: notificationKeys.pages(workspaceId, unreadOnly, pageSize),
+    queryFn: ({ pageParam }) =>
+      api.listNotifications({ workspaceId, unreadOnly, limit: pageSize, before: pageParam || undefined }),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_before || undefined,
+  });
+}
+
 /** The badge. 30 s stale; realtime invalidates on notification.created. */
 export function useUnreadCount() {
   return useQuery({
@@ -43,15 +64,32 @@ export function useUnreadCount() {
 }
 
 type Page = api.NotificationPage;
+/** A list entry is one page (bell, home) or the inbox's pages. */
+type Cached = Page | InfiniteData<Page, string>;
 
-/** Patch every cached list page in place; returns the snapshots for rollback. */
-function patchLists(qc: ReturnType<typeof useQueryClient>, fn: (n: Notification) => Notification) {
-  const snapshots = qc.getQueriesData<Page>({ queryKey: notificationKeys.lists() });
-  for (const [key, page] of snapshots) {
-    if (!page) continue;
-    qc.setQueryData<Page>(key, { ...page, notifications: page.notifications.map(fn) });
+function mapRows(data: Cached, fn: (rows: Notification[]) => Notification[]): Cached {
+  if ("pages" in data) return { ...data, pages: data.pages.map((p) => ({ ...p, notifications: fn(p.notifications) })) };
+  return { ...data, notifications: fn(data.notifications) };
+}
+
+function rowsOf(data: Cached | undefined): Notification[] {
+  if (!data) return [];
+  return "pages" in data ? data.pages.flatMap((p) => p.notifications) : data.notifications;
+}
+
+/** Rewrite the rows of every cached list; returns the snapshots for rollback. */
+function rewriteLists(qc: ReturnType<typeof useQueryClient>, fn: (rows: Notification[]) => Notification[]) {
+  const snapshots = qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() });
+  for (const [key, data] of snapshots) {
+    if (!data) continue;
+    qc.setQueryData<Cached>(key, mapRows(data, fn));
   }
   return snapshots;
+}
+
+/** Patch every cached row in place; returns the snapshots for rollback. */
+function patchLists(qc: ReturnType<typeof useQueryClient>, fn: (n: Notification) => Notification) {
+  return rewriteLists(qc, (rows) => rows.map(fn));
 }
 
 function adjustUnread(qc: ReturnType<typeof useQueryClient>, delta: (n: Notification) => number, rows: Notification[]) {
@@ -69,8 +107,8 @@ function adjustUnread(qc: ReturnType<typeof useQueryClient>, delta: (n: Notifica
 
 function cachedRows(qc: ReturnType<typeof useQueryClient>, ids: string[]): Notification[] {
   const seen = new Map<string, Notification>();
-  for (const [, page] of qc.getQueriesData<Page>({ queryKey: notificationKeys.lists() })) {
-    for (const n of page?.notifications ?? []) if (ids.includes(n.id)) seen.set(n.id, n);
+  for (const [, data] of qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() })) {
+    for (const n of rowsOf(data)) if (ids.includes(n.id)) seen.set(n.id, n);
   }
   return [...seen.values()];
 }
@@ -149,11 +187,7 @@ export function useArchive() {
     onMutate: async (ids) => {
       await qc.cancelQueries({ queryKey: notificationKeys.all });
       const unread = cachedRows(qc, ids).filter((n) => !n.read_at);
-      const lists = qc.getQueriesData<Page>({ queryKey: notificationKeys.lists() });
-      for (const [key, page] of lists) {
-        if (!page) continue;
-        qc.setQueryData<Page>(key, { ...page, notifications: page.notifications.filter((n) => !ids.includes(n.id)) });
-      }
+      const lists = rewriteLists(qc, (rows) => rows.filter((n) => !ids.includes(n.id)));
       const count = adjustUnread(qc, () => -1, unread);
       return { lists, count };
     },

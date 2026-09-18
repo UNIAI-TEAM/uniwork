@@ -1,11 +1,11 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { setAccessToken } from "../api/session";
 import type { NotificationPage } from "../api/endpoints/notifications";
 import type { UnreadCount } from "../types/notification";
-import { notificationKeys, useArchive, useMarkAllRead, useMarkRead, useMarkUnread } from "./hooks";
+import { notificationKeys, useArchive, useMarkAllRead, useMarkRead, useMarkUnread, useNotificationPages } from "./hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -101,5 +101,66 @@ describe("notification mutations", () => {
     });
     await waitFor(() => expect(list().notifications).toHaveLength(0));
     expect(count()).toEqual({ total: 2, by_workspace: { ws1: 0, ws2: 2 } });
+  });
+
+  it("patches and prunes the inbox's paged entry the same way", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ status: "ok" })));
+    const { qc, wrapper, count } = setup();
+    const key = notificationKeys.pages("ws1", false);
+    qc.setQueryData<InfiniteData<NotificationPage, string>>(key, {
+      pages: [
+        { notifications: [row("n1")], next_before: "n1" },
+        { notifications: [row("n3")], next_before: "" },
+      ],
+      pageParams: ["", "n1"],
+    });
+    const pages = () => qc.getQueryData<InfiniteData<NotificationPage, string>>(key)!.pages;
+    const read = renderHook(() => useMarkRead(), { wrapper }).result;
+    act(() => {
+      read.current.mutate(["n3"]);
+    });
+    await waitFor(() => expect(pages()[1]!.notifications[0]!.read_at).toBeTruthy());
+    expect(count().by_workspace.ws1).toBe(0);
+    const archive = renderHook(() => useArchive(), { wrapper }).result;
+    act(() => {
+      archive.current.mutate(["n1"]);
+    });
+    await waitFor(() => expect(pages()[0]!.notifications).toHaveLength(0));
+    expect(pages()[1]!.notifications).toHaveLength(1);
+  });
+});
+
+describe("useNotificationPages", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("follows next_before until a page comes back without one", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(
+        String(input).includes("before=n1")
+          ? json({ notifications: [row("n2")], next_before: "" })
+          : json({ notifications: [row("n1")], next_before: "n1" }),
+      ),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useNotificationPages({ workspaceId: "ws1", pageSize: 1 }), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("workspace_id=ws1&limit=1");
+    await act(() => result.current.fetchNextPage());
+    await waitFor(() =>
+      expect(result.current.data?.pages.flatMap((p) => p.notifications.map((n) => n.id))).toEqual(["n1", "n2"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
   });
 });
