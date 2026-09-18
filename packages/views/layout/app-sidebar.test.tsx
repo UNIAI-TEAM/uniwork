@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
 import type { User, Workspace } from "@uniwork/core/types";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
@@ -84,6 +84,35 @@ describe("AppSidebar", () => {
     renderSidebar("/acme/team/tasks");
     expect(screen.getByRole("list", { name: "Làm việc" })).toContainElement(screen.getByRole("link", { name: "Dự án" }));
     expect(screen.getByRole("list", { name: "Trao đổi" })).toContainElement(screen.getByRole("link", { name: "Danh bạ" }));
+  });
+
+  it("keeps group headings in the locale's own casing, including English", async () => {
+    await setLocale("en");
+    try {
+      renderSidebar("/acme/team/tasks");
+      expect(screen.getByText("Work")).not.toHaveClass("uppercase");
+      expect(screen.getByText("Communication")).not.toHaveClass("uppercase");
+      expect(screen.getByRole("list", { name: "Work" })).toBeInTheDocument();
+      expect(screen.queryByText(/nav\.group_/i)).toBeNull();
+    } finally {
+      await setLocale("vi");
+    }
+  });
+
+  it("keeps sidebar chrome borderless without removing keyboard focus", () => {
+    renderSidebar("/acme/team/tasks");
+    const search = screen.getByRole("button", { name: /tìm kiếm/i });
+    const workspaceButton = screen.getByRole("button", { name: /chuyển workspace/i });
+    const accountButton = screen.getByRole("button", { name: /tài khoản$/ });
+
+    for (const button of [search, workspaceButton, accountButton]) {
+      expect(button).not.toHaveClass("ring-1");
+      expect(button.className).toContain("focus-visible:ring-2");
+    }
+    expect(search.querySelector("kbd")).not.toHaveClass("ring-1");
+    expect(workspaceButton.parentElement).not.toHaveClass("ring-1");
+    expect(accountButton.parentElement).not.toHaveClass("ring-1");
+    expect(document.querySelector('[data-slot="sidebar-active-island"]')).not.toHaveClass("ring-1");
   });
 
   it("starts the switcher's and the account's names with the text they show", () => {

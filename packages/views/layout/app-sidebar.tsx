@@ -53,7 +53,7 @@ import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { moduleTone, type ModuleKey } from "./module-tones";
-import { ChevronDisc, TRAY_CORE, Tray } from "./sidebar-tray";
+import { ChevronDisc, TRAY_CORE } from "./sidebar-tray";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
@@ -75,7 +75,7 @@ interface NavGroup {
 
 /*
  * Rows sit directly on the app-shell plane; there is no sidebar panel. The
- * active row is a raised island (surface, hairline, soft shadow) that glides
+ * active row is a surface island with a brand bar that glides
  * between rows via a shared `layoutId`, so moving between sections reads as
  * one object travelling rather than two rows swapping colour. Hover is a grey
  * wash, not a paler island: a white hover next to the white island read as a
@@ -94,7 +94,7 @@ const navButtonClass =
  * (well over 3:1 on both grounds) and travels with it.
  */
 const ISLAND =
-  "absolute inset-0 -z-10 rounded-xl bg-surface shadow-surface ring-1 ring-border/60 before:absolute before:inset-y-2 before:left-0.5 before:w-[3px] before:rounded-full before:bg-brand";
+  "absolute inset-0 -z-10 rounded-xl bg-surface before:absolute before:inset-y-2 before:left-0.5 before:w-[3px] before:rounded-full before:bg-brand";
 
 /** First letter of the first word, which is all an avatar has room for at 32px. */
 function initialOf(name: string) {
@@ -159,9 +159,7 @@ export function AppSidebar() {
       <SidebarHeader className="gap-2 px-2 pt-2 pb-1 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>
           <SidebarMenuItem>
-            <Tray>
-              <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} className={TRAY_CORE} />
-            </Tray>
+            <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} className={TRAY_CORE} />
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
@@ -188,7 +186,7 @@ export function AppSidebar() {
                     <SidebarGroupLabel
                       id={`${labelId}-${id}`}
                       aria-hidden
-                      className="h-7 px-3 text-overline uppercase text-muted-foreground"
+                      className="h-7 px-3 text-overline text-muted-foreground"
                     >
                       {t(label)}
                     </SidebarGroupLabel>
@@ -252,37 +250,35 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
-              <Tray>
-                <DropdownMenuTrigger
-                  render={
-                    <SidebarMenuButton
-                      size="lg"
-                      // Starts with what the button shows, so a voice-control
-                      // user can say the name they see (WCAG 2.5.3).
-                      aria-label={t("nav.account_named", { name: user.display_name, email: user.email })}
-                      tooltip={user.display_name}
-                      className={cn("gap-2.5 px-2", TRAY_CORE)}
-                    />
-                  }
-                >
-                  <ActorAvatar
-                    name={user.display_name}
-                    initials={initialOf(user.display_name)}
-                    avatarUrl={user.avatar_url}
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton
                     size="lg"
-                    className="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
+                    // Starts with what the button shows, so a voice-control
+                    // user can say the name they see (WCAG 2.5.3).
+                    aria-label={t("nav.account_named", { name: user.display_name, email: user.email })}
+                    tooltip={user.display_name}
+                    className={cn("gap-2.5 px-2", TRAY_CORE)}
                   />
-                  <span className="flex min-w-0 flex-1 flex-col text-left group-data-[collapsible=icon]:hidden">
-                    <span title={user.display_name} className="truncate text-body font-semibold text-foreground">
-                      {user.display_name}
-                    </span>
-                    <span title={user.email} className="truncate text-caption text-muted-foreground">
-                      {user.email}
-                    </span>
+                }
+              >
+                <ActorAvatar
+                  name={user.display_name}
+                  initials={initialOf(user.display_name)}
+                  avatarUrl={user.avatar_url}
+                  size="lg"
+                  className="bg-sidebar-accent text-sidebar-accent-foreground"
+                />
+                <span className="flex min-w-0 flex-1 flex-col text-left group-data-[collapsible=icon]:hidden">
+                  <span title={user.display_name} className="truncate text-body font-semibold text-foreground">
+                    {user.display_name}
                   </span>
-                  <ChevronDisc />
-                </DropdownMenuTrigger>
-              </Tray>
+                  <span title={user.email} className="truncate text-caption text-muted-foreground">
+                    {user.email}
+                  </span>
+                </span>
+                <ChevronDisc />
+              </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="min-w-56">
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="flex min-w-0 flex-col">

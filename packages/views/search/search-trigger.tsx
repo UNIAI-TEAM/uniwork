@@ -21,16 +21,14 @@ export function SearchTrigger({ className }: { className?: string }) {
     <SidebarMenuButton
       tooltip={label}
       className={cn(
-        // A pill field on the shell plane: same hairline as the trays above
-        // and below, so the three chrome blocks read as one set.
-        "h-9 rounded-full bg-surface/55 pr-1.5 pl-3 text-muted-foreground ring-1 ring-border/60 hover:bg-surface hover:text-foreground group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:ring-0",
+        "h-9 rounded-xl bg-surface/45 pr-1.5 pl-3 text-muted-foreground hover:bg-surface/75 hover:text-foreground group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:bg-transparent",
         className,
       )}
       onClick={() => useSearchStore.getState().setOpen(true)}
     >
       <Search aria-hidden strokeWidth={1.75} />
       <span>{label}</span>
-      <kbd className="pointer-events-none ml-auto hidden h-6 items-center rounded-full bg-surface px-2 font-sans text-caption font-medium text-muted-foreground shadow-surface ring-1 ring-border/60 sm:inline-flex">
+      <kbd className="pointer-events-none ml-auto hidden h-6 items-center rounded-md bg-muted/60 px-2 font-sans text-caption font-medium text-muted-foreground sm:inline-flex">
         {shortcutLabel(t)}
       </kbd>
     </SidebarMenuButton>
