@@ -7,6 +7,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { wrap } from "../../test/api-mock";
 import { TaskDisplayControls } from "../views/task-display-controls";
+import { TaskFilterMenu } from "./task-filter-menu";
 
 initI18n();
 
@@ -173,6 +174,47 @@ describe("TaskFilterMenu", () => {
 
     fireEvent.click(todo);
     expect(store.getState().statusFilters).toContain("todo");
+  });
+
+  it("requests table facets only for server-supported kinds", async () => {
+    const onTableFacetChange = vi.fn();
+    const store = getTaskSurfaceViewStore("test-filter-menu-facets");
+    render(
+      wrap(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <ViewStoreProvider store={store}>
+            <TaskFilterMenu
+              workspaceId={workspace.id}
+              trigger={
+                <button type="button" data-testid="task-filter-menu-trigger">
+                  {initI18n().t("tasks.filters.add")}
+                </button>
+              }
+              onTableFacetChange={onTableFacetChange}
+            />
+          </ViewStoreProvider>
+        </WorkspaceProvider>,
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("task-filter-menu-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("task-filter-section-status")).toBeInTheDocument();
+    });
+
+    await openSubmenu("task-filter-section-status");
+    expect(onTableFacetChange).toHaveBeenCalledWith({ kind: "status" });
+
+    onTableFacetChange.mockClear();
+    await openSubmenu("task-filter-section-label");
+    const facetKinds = onTableFacetChange.mock.calls
+      .map(([facet]) => facet)
+      .filter(
+        (facet): facet is { kind: string } =>
+          facet !== null && typeof facet === "object" && "kind" in facet,
+      )
+      .map((facet) => facet.kind);
+    expect(facetKinds).not.toContain("label");
   });
 
   it("disables squad assignee row when tasks.squads is unavailable", async () => {

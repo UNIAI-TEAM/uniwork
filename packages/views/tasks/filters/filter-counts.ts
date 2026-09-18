@@ -21,6 +21,22 @@ export type TaskTableFacetSpec =
     }
   | { kind: "property"; property_id: string };
 
+/** Facet kinds accepted by POST .../tasks/table/facets. */
+export const SERVER_TABLE_FACET_KINDS = [
+  "status",
+  "priority",
+  "assignee",
+  "project",
+] as const;
+
+export type ServerTableFacetKind = (typeof SERVER_TABLE_FACET_KINDS)[number];
+
+export function isServerTableFacetKind(
+  kind: TaskTableFacetSpec["kind"],
+): kind is ServerTableFacetKind {
+  return (SERVER_TABLE_FACET_KINDS as readonly string[]).includes(kind);
+}
+
 export interface FilterCountMaps {
   status: Map<string, number>;
   priority: Map<string, number>;

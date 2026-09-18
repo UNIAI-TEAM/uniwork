@@ -50,6 +50,7 @@ import { FilterAssigneeOptions } from "./filter-assignee-options";
 import {
   getActiveFilterCount,
   useTaskFilterCounts,
+  type ServerTableFacetKind,
   type TaskTableFacetSpec,
 } from "./filter-counts";
 import { FilterDatePanel } from "./filter-date-panel";
@@ -205,19 +206,9 @@ export function TaskFilterMenu({
     : trigger;
 
   const facetOpen =
-    (kind: TaskTableFacetSpec["kind"], propertyId?: string) =>
-    (open: boolean) => {
-      if (!open) {
-        onTableFacetChange?.(null);
-        return;
-      }
-      if (kind === "property" && propertyId) {
-        onTableFacetChange?.({ kind: "property", property_id: propertyId });
-        return;
-      }
-      if (kind !== "property") {
-        onTableFacetChange?.({ kind });
-      }
+    (kind: ServerTableFacetKind) => (open: boolean) => {
+      if (!onTableFacetChange) return;
+      onTableFacetChange(open ? { kind } : null);
     };
 
   return (
@@ -376,7 +367,7 @@ export function TaskFilterMenu({
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 
-        <DropdownMenuSub onOpenChange={facetOpen("creator")}>
+        <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <UserRoundPen className="size-3.5" aria-hidden />
             <span className="flex-1">{t("tasks.filters.creator")}</span>
@@ -425,8 +416,8 @@ export function TaskFilterMenu({
           </DropdownMenuSub>
         ) : null}
 
-        <DropdownMenuSub onOpenChange={facetOpen("label")}>
-          <DropdownMenuSubTrigger>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger data-testid="task-filter-section-label">
             <Tag className="size-3.5" aria-hidden />
             <span className="flex-1">{t("tasks.filters.label")}</span>
             {labelFilters.length > 0 ? (
@@ -450,10 +441,7 @@ export function TaskFilterMenu({
         {filterableProperties.map((property) => {
           const selected = propertyFilters[property.id] ?? [];
           return (
-            <DropdownMenuSub
-              key={property.id}
-              onOpenChange={facetOpen("property", property.id)}
-            >
+            <DropdownMenuSub key={property.id}>
               <DropdownMenuSubTrigger>
                 <SlidersHorizontal className="size-3.5" aria-hidden />
                 <span className="flex-1 truncate">{property.name}</span>
