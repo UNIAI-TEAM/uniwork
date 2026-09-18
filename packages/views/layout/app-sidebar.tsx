@@ -163,7 +163,7 @@ export function AppSidebar() {
                   <SidebarGroupLabel
                     id={`${labelId}-${id}`}
                     aria-hidden
-                    className="h-7 px-3 text-overline text-muted-foreground"
+                    className="h-7 px-2 text-overline text-muted-foreground"
                   >
                     {t(label)}
                   </SidebarGroupLabel>
@@ -201,9 +201,9 @@ export function AppSidebar() {
                               size="xs"
                               variant="solid"
                               tone={moduleTone(module)}
-                              className="size-4 rounded-[4px] [&_svg]:size-3! [&_svg]:stroke-[2.25]"
+                              className="[&_svg]:size-3 [&_svg]:stroke-[2.25]"
                             />
-                            <span className="flex h-4 min-w-0 items-center leading-none">{t(key)}</span>
+                            <span>{t(key)}</span>
                             {badge ? (
                               <SidebarMenuBadge
                                 aria-label={t("notifications.bell_unread", { count: badge })}
