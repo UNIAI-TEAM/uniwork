@@ -152,11 +152,12 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).not.toHaveAttribute("aria-current", "page");
   });
 
-  it("centers each menu title on the same compact icon slot", () => {
+  it("aligns each group title with the icon column without shrinking menu icons", () => {
     renderSidebar("/acme/team/tasks");
+    expect(screen.getByText("Làm việc")).toHaveClass("px-2");
+    expect(screen.getByText("Trao đổi")).toHaveClass("px-2");
     const tasks = screen.getByRole("link", { name: "Công việc" });
-    expect(tasks.querySelector('[data-slot="icon-tile"]')).toHaveClass("size-4");
-    expect(within(tasks).getByText("Công việc")).toHaveClass("flex", "h-4", "items-center");
+    expect(tasks.querySelector('[data-slot="icon-tile"]')).toHaveClass("size-5");
   });
 
   it("names the navigation landmark so a screen reader can jump to it", () => {
