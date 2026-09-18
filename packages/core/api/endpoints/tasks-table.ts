@@ -8,6 +8,17 @@ export interface TableFilter {
   priorities?: string[];
   assignee_ids?: string[];
   project_ids?: string[];
+  include_no_assignee?: boolean;
+  include_no_project?: boolean;
+  /** `"human:<id>"` | `"agent:<id>"` */
+  creator_refs?: string[];
+  label_ids?: string[];
+  properties?: Record<string, string[]>;
+  date_field?: "created_at" | "updated_at";
+  /** YYYY-MM-DD */
+  date_from?: string;
+  /** YYYY-MM-DD */
+  date_to?: string;
 }
 
 export interface TableSort {

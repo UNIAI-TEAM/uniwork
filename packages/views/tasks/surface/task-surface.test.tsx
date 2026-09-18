@@ -171,6 +171,58 @@ describe("TaskSurface", () => {
     });
   });
 
+  it("puts statusFilters into table groups body filter.statuses", async () => {
+    const store = getTaskSurfaceViewStore("test-ws-table-status-filter");
+    store.getState().setTableGrouping("status");
+    store.getState().toggleStatusFilter("todo");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["table"]}
+          surfaceKey="test-ws-table-status-filter"
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      const groupsCall = requestMock.mock.calls.find(
+        ([path]) =>
+          typeof path === "string" && path.includes("/tasks/table/groups"),
+      );
+      expect(groupsCall).toBeDefined();
+      const init = groupsCall?.[1] as
+        | { body?: { query?: { filter?: { statuses?: string[] } } } }
+        | undefined;
+      expect(init?.body?.query?.filter?.statuses).toEqual(["todo"]);
+    });
+  });
+
+  it("applies client status filter on load-flat list surface", async () => {
+    queryTasks = [
+      task({ id: "t-todo", title: "Todo only", status: "todo" }),
+      task({ id: "t-done", title: "Done only", status: "done" }),
+    ];
+    const store = getTaskSurfaceViewStore("test-ws-list-status-filter");
+    store.getState().toggleStatusFilter("todo");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["list"]}
+          surfaceKey="test-ws-list-status-filter"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText("Todo only")).toBeInTheDocument();
+    expect(screen.queryByText("Done only")).not.toBeInTheDocument();
+  });
+
   it("does not request table groups for my-scope even if table is in modes", async () => {
     const store = getTaskSurfaceViewStore("test-my-no-table");
     store.getState().setViewMode("table");

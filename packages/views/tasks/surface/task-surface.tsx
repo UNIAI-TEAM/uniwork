@@ -160,6 +160,15 @@ function TaskSurfaceContent({
         showProjectGrouping={scope.type !== "project"}
         projectGroupingDisabled={controller.projectGroupingDisabled}
         projectGroupingReasonKey={controller.projectGroupingReasonKey}
+        tableFacetCounts={controller.tableFacetCounts}
+        onTableFacetChange={(facet) => {
+          if (facet == null || facet.kind === "property") {
+            controller.setActiveTableFacet(null);
+            return;
+          }
+          controller.setActiveTableFacet({ kind: facet.kind });
+        }}
+        agentRunningProjection={false}
         saveViewScope={
           scope.type === "workspace"
             ? { kind: "workspace" }

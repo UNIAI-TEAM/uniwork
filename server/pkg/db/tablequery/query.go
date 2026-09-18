@@ -14,11 +14,25 @@ import (
 
 // Filter narrows the task set by exact-match id/key lists. Every slice is
 // normalized (sorted, deduped) by Query.Normalize before use.
+//
+// Positive-selection semantics (filter parity): empty list = no constraint on
+// that dimension. IncludeNoAssignee / IncludeNoProject OR with their id lists.
+// CreatorRefs are "human:<id>" / "agent:<id>". Properties values may include
+// "__none__" for unset. DateField is created_at|updated_at with inclusive
+// DateFrom/DateTo (YYYY-MM-DD); incomplete or unknown dates are cleared.
 type Filter struct {
-	Statuses    []string
-	Priorities  []string
-	AssigneeIDs []string
-	ProjectIDs  []string
+	Statuses          []string
+	Priorities        []string
+	AssigneeIDs       []string
+	IncludeNoAssignee bool
+	ProjectIDs        []string
+	IncludeNoProject  bool
+	CreatorRefs       []string // "human:id" / "agent:id"
+	LabelIDs          []string
+	Properties        map[string][]string // def id → option ids; "__none__" = unset
+	DateField         string              // created_at|updated_at|""
+	DateFrom          string              // YYYY-MM-DD or ""
+	DateTo            string
 }
 
 // PropertyRef identifies a custom property and, for select properties, the
@@ -71,11 +85,25 @@ type Query struct {
 // becomes empty), Search trimmed, Sort defaulted/coerced to position where
 // required, and Desc forced false for position sort.
 func (q Query) Normalize() Query {
+	dateField := strings.TrimSpace(q.Filter.DateField)
+	dateFrom := strings.TrimSpace(q.Filter.DateFrom)
+	dateTo := strings.TrimSpace(q.Filter.DateTo)
+	if !dateFields[dateField] || dateFrom == "" || dateTo == "" {
+		dateField, dateFrom, dateTo = "", "", ""
+	}
 	q.Filter = Filter{
-		Statuses:    normalizeSlice(q.Filter.Statuses),
-		Priorities:  normalizeSlice(q.Filter.Priorities),
-		AssigneeIDs: normalizeSlice(q.Filter.AssigneeIDs),
-		ProjectIDs:  normalizeSlice(q.Filter.ProjectIDs),
+		Statuses:          normalizeSlice(q.Filter.Statuses),
+		Priorities:        normalizeSlice(q.Filter.Priorities),
+		AssigneeIDs:       normalizeSlice(q.Filter.AssigneeIDs),
+		IncludeNoAssignee: q.Filter.IncludeNoAssignee,
+		ProjectIDs:        normalizeSlice(q.Filter.ProjectIDs),
+		IncludeNoProject:  q.Filter.IncludeNoProject,
+		CreatorRefs:       normalizeCreatorRefs(q.Filter.CreatorRefs),
+		LabelIDs:          normalizeSlice(q.Filter.LabelIDs),
+		Properties:        normalizeProperties(q.Filter.Properties),
+		DateField:         dateField,
+		DateFrom:          dateFrom,
+		DateTo:            dateTo,
 	}
 	q.Search = strings.TrimSpace(q.Search)
 
@@ -110,6 +138,12 @@ var sortPropertyTypes = map[string]bool{
 	"text": true, "number": true, "select": true, "date": true, "url": true,
 }
 
+// dateFields is the whitelist of timestamp columns filterable by date range.
+var dateFields = map[string]bool{
+	"created_at": true,
+	"updated_at": true,
+}
+
 // normalizeSlice sorts and dedupes s, always returning a non-nil (possibly
 // empty) slice so downstream JSON encoding is stable regardless of the
 // caller passing nil or a duplicate-laden slice.
@@ -120,6 +154,45 @@ func normalizeSlice(s []string) []string {
 	out = dedupeSorted(out)
 	if out == nil {
 		out = []string{}
+	}
+	return out
+}
+
+// normalizeCreatorRefs keeps only "human:<id>" / "agent:<id>" refs, then
+// sorts and dedupes them.
+func normalizeCreatorRefs(refs []string) []string {
+	out := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		kind, id, ok := strings.Cut(ref, ":")
+		if !ok || id == "" {
+			continue
+		}
+		if kind != "human" && kind != "agent" {
+			continue
+		}
+		out = append(out, kind+":"+id)
+	}
+	return normalizeSlice(out)
+}
+
+// normalizeProperties deep-copies m with sorted keys (via map rebuild) and
+// sorted/deduped option id slices. Empty maps become a non-nil empty map.
+func normalizeProperties(m map[string][]string) map[string][]string {
+	out := make(map[string][]string, len(m))
+	if len(m) == 0 {
+		return out
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		vals := normalizeSlice(m[k])
+		if len(vals) == 0 {
+			continue
+		}
+		out[k] = vals
 	}
 	return out
 }

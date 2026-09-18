@@ -56,6 +56,81 @@ describe("tasks/surface/table-query", () => {
       });
       expect(Object.keys(q)).toEqual(["filter", "search", "sort"]);
     });
+
+    it("preserves expanded filter fields and drops empty or false ones", () => {
+      expect(
+        normalizeTableQuery({
+          filter: {
+            statuses: ["todo"],
+            include_no_assignee: true,
+            include_no_project: false,
+            creator_refs: ["human:u1"],
+            label_ids: [],
+            properties: { prop1: ["a"], prop2: [] },
+            date_field: "created_at",
+            date_from: "2026-01-01",
+            date_to: "",
+          },
+        }),
+      ).toEqual({
+        filter: {
+          statuses: ["todo"],
+          include_no_assignee: true,
+          creator_refs: ["human:u1"],
+          properties: { prop1: ["a"] },
+        },
+      });
+    });
+
+    it("keeps a stable filter key order for cache keys", () => {
+      const q = normalizeTableQuery({
+        filter: {
+          date_to: "2026-12-31",
+          label_ids: ["l1"],
+          statuses: ["todo"],
+          include_no_project: true,
+          priorities: ["high"],
+          date_from: "2026-01-01",
+          project_ids: ["p1"],
+          include_no_assignee: true,
+          assignee_ids: ["u1"],
+          creator_refs: ["human:c1"],
+          properties: { x: ["1"] },
+          date_field: "updated_at",
+        },
+      });
+      expect(Object.keys(q.filter!)).toEqual([
+        "statuses",
+        "priorities",
+        "assignee_ids",
+        "include_no_assignee",
+        "project_ids",
+        "include_no_project",
+        "creator_refs",
+        "label_ids",
+        "properties",
+        "date_field",
+        "date_from",
+        "date_to",
+      ]);
+    });
+
+    it("omits date fields unless date_field is set and both bounds are non-empty", () => {
+      expect(
+        normalizeTableQuery({
+          filter: { date_field: "created_at", date_from: "2026-01-01", date_to: "2026-12-31" },
+        }),
+      ).toEqual({
+        filter: {
+          date_field: "created_at",
+          date_from: "2026-01-01",
+          date_to: "2026-12-31",
+        },
+      });
+      expect(
+        normalizeTableQuery({ filter: { date_field: "created_at", date_from: "", date_to: "2026-12-31" } }),
+      ).toEqual({});
+    });
   });
 
   it("keys a rows page by its body minus cursor, in the field order the callers have always used", () => {

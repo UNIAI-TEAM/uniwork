@@ -185,3 +185,55 @@ func TestTableGroupsUnsupportedTextPropertyHTTP(t *testing.T) {
 		t.Fatalf("code = %v, want unsupported_group", code)
 	}
 }
+
+func TestTableRowsLabelFilterHTTP(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	createTask := func(title string) string {
+		t.Helper()
+		res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+			"title": title,
+		})
+		if res.StatusCode != 200 {
+			t.Fatalf("create %s: %d %v", title, res.StatusCode, out)
+		}
+		return out["task"].(map[string]any)["id"].(string)
+	}
+	taggedID := createTask("tagged")
+	createTask("plain")
+
+	res, labelOut := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/task-labels", token, map[string]any{
+		"name": "L", "color": "#112233",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("create label: %d %v", res.StatusCode, labelOut)
+	}
+	labelID := labelOut["label"].(map[string]any)["id"].(string)
+	res, body := doJSON(t, srv, "POST", "/api/v1/tasks/"+taggedID+"/labels", token, map[string]any{
+		"label_id": labelID,
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("attach label: %d %v", res.StatusCode, body)
+	}
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks/table/rows", token, map[string]any{
+		"query": map[string]any{
+			"filter": map[string]any{"label_ids": []string{labelID}},
+		},
+		"limit": 50,
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("rows: %d %v", res.StatusCode, body)
+	}
+	if body["total"].(float64) != 1 {
+		t.Fatalf("total = %v, want 1", body["total"])
+	}
+	rows := body["rows"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("rows len = %d, want 1", len(rows))
+	}
+	gotID := rows[0].(map[string]any)["task"].(map[string]any)["id"].(string)
+	if gotID != taggedID {
+		t.Fatalf("row id = %s, want %s", gotID, taggedID)
+	}
+}

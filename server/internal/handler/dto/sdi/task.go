@@ -87,10 +87,18 @@ type ListMyTasksSDI struct {
 
 // TableFilterSDI narrows table groups/rows/facets.
 type TableFilterSDI struct {
-	Statuses    []string `json:"statuses" description:"Lọc status; bỏ trống = mọi status" example:"[\"todo\",\"in_progress\"]"`
-	Priorities  []string `json:"priorities" description:"Lọc priority" example:"[\"high\"]"`
-	AssigneeIDs []string `json:"assignee_ids" description:"Lọc assignee ULID" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
-	ProjectIDs  []string `json:"project_ids" description:"Lọc project ULID" example:"[\"01J8X4PROJ0N1P2Q3R4S5T6U7\"]"`
+	Statuses          []string            `json:"statuses" description:"Lọc status; bỏ trống = mọi status" example:"[\"todo\",\"in_progress\"]"`
+	Priorities        []string            `json:"priorities" description:"Lọc priority" example:"[\"high\"]"`
+	AssigneeIDs       []string            `json:"assignee_ids" description:"Lọc assignee ULID" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	ProjectIDs        []string            `json:"project_ids" description:"Lọc project ULID" example:"[\"01J8X4PROJ0N1P2Q3R4S5T6U7\"]"`
+	IncludeNoAssignee bool                `json:"include_no_assignee" description:"Kèm việc chưa gán người; OR với assignee_ids"`
+	IncludeNoProject  bool                `json:"include_no_project" description:"Kèm việc chưa gán dự án; OR với project_ids"`
+	CreatorRefs       []string            `json:"creator_refs" description:"human:<id> hoặc agent:<id>" example:"[\"human:01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	LabelIDs          []string            `json:"label_ids" description:"Lọc nhãn ULID" example:"[\"01J8X4LABELN1P2Q3R4S5T6U7\"]"`
+	Properties        map[string][]string `json:"properties" description:"property id → option ids; __none__ = chưa đặt"`
+	DateField         string              `json:"date_field" description:"created_at hoặc updated_at" example:"created_at"`
+	DateFrom          string              `json:"date_from" description:"YYYY-MM-DD inclusive" example:"2026-01-01"`
+	DateTo            string              `json:"date_to" description:"YYYY-MM-DD inclusive" example:"2026-12-31"`
 }
 
 // TableSortSDI orders table rows; both fields default (position asc) when empty.

@@ -46,6 +46,11 @@ import {
   SaveViewPriorityPreview,
   SaveViewStatusPreview,
 } from "./save-view-filter-chip";
+import {
+  buildChipActorNames,
+  propertyFilterOptionLabel,
+  summarizeChipNames,
+} from "./filter-chips-helpers";
 
 export function SaveViewFilterMenu({
   workspaceId,
@@ -198,16 +203,21 @@ export function SaveViewFilterMenu({
   }
   for (const [propertyId, values] of Object.entries(propertyFilters)) {
     if (values.length === 0) continue;
+    const definition = properties.find(({ id }) => id === propertyId);
+    const actorName = buildChipActorNames(members, agents);
     chips.push({
       key: `property:${propertyId}`,
       dimension: `property:${propertyId}`,
       icon: <ListFilter className={SAVE_VIEW_CHIP_ICON} aria-hidden />,
-      label:
-        properties.find(({ id }) => id === propertyId)?.name ??
-        t("tasks.filters.property"),
-      value:
-        values.length === 1
-          ? values[0] ?? ""
+      label: definition?.name ?? t("tasks.filters.property"),
+      value: definition
+        ? summarizeChipNames(
+            values.map((id) =>
+              propertyFilterOptionLabel(definition, id, t, actorName),
+            ),
+          )
+        : values.length === 1
+          ? (values[0] ?? "")
           : t("tasks.filters.count_values", { count: values.length }),
     });
   }

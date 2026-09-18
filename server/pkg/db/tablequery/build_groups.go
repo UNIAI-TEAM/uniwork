@@ -107,9 +107,11 @@ func BuildFacet(q Query, kind string) (string, []any) {
 		q.Group.Kind = GroupKindPriority
 	case FacetAssignee:
 		q.Filter.AssigneeIDs = nil
+		q.Filter.IncludeNoAssignee = false
 		q.Group.Kind = GroupKindAssignee
 	case FacetProject:
 		q.Filter.ProjectIDs = nil
+		q.Filter.IncludeNoProject = false
 		q.Group.Kind = GroupKindProject
 	}
 	return BuildGroups(q)

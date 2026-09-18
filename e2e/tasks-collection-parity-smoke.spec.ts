@@ -50,6 +50,14 @@ test("tasks collection: suite mode controls always on", async ({ page }) => {
 
   const filterAdd = page.getByTestId("task-filter-add");
   await expect(filterAdd).toBeVisible();
-  await expect(filterAdd).toBeDisabled();
-  await expect(filterAdd).toHaveAttribute("data-reason-code", "filters_not_wired");
+  await expect(filterAdd).toBeEnabled();
+
+  await filterAdd.click();
+  await expect(page.getByTestId("task-filter-section-status")).toBeVisible();
+  await page.getByTestId("task-filter-section-status").click();
+  await page.getByTestId("task-filter-status-todo").click();
+
+  await expect(page.getByTestId("tasks-filter-chips")).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Xóa bộ lọc" }).click();
+  await expect(page.getByRole("button", { name: "Xóa bộ lọc" })).toHaveCount(0);
 });

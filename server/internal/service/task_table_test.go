@@ -567,3 +567,56 @@ func TestTableGroupsFilterByProjectID(t *testing.T) {
 		t.Fatalf("TableGroups total = %d, want 1", groups.Total)
 	}
 }
+
+func TestTableGroupsRowsLabelFilter(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	tagged := mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "tagged"})
+	mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "plain"})
+	label, err := s.CreateTaskLabel(ctx, actor, w.ID, CreateTaskLabelInput{Name: "L", Color: "#112233"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AttachTaskLabel(ctx, actor, tagged.ID, label.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	filter := tableFilter(func(f *tablequery.Filter) { f.LabelIDs = []string{label.ID} })
+	groups, err := s.TableGroups(ctx, actor, w.ID, TableQueryInput{Filter: filter, GroupBy: "status"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if groups.Total != 1 {
+		t.Fatalf("groups.Total = %d, want 1", groups.Total)
+	}
+
+	rows := allRows(t, s, actor, w.ID, TableRowsInput{TableQueryInput: TableQueryInput{Filter: filter}})
+	if !sameIDs(rowIDs(rows), tagged.ID) {
+		t.Fatalf("rows = %v, want tagged only", rowIDs(rows))
+	}
+}
+
+func TestTableRowsDateFilter(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	inRange := mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "in-range"})
+	outOfRange := mkTask(t, s, actor, w.ID, CreateTaskInput{Title: "out-of-range"})
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE tasks SET created_at = $1 WHERE id = $2 AND organization_id = $3 AND workspace_id = $4`,
+		"2020-01-15T12:00:00Z", outOfRange.ID, w.OrganizationID, w.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	filter := tableFilter(func(f *tablequery.Filter) {
+		f.DateField = "created_at"
+		f.DateFrom = "2026-01-01"
+		f.DateTo = "2026-12-31"
+	})
+	rows := allRows(t, s, actor, w.ID, TableRowsInput{TableQueryInput: TableQueryInput{Filter: filter}})
+	if !sameIDs(rowIDs(rows), inRange.ID) {
+		t.Fatalf("rows = %v, want in-range only", rowIDs(rows))
+	}
+}
