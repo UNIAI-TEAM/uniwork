@@ -1,6 +1,6 @@
 "use client";
 
-import { Inbox } from "lucide-react";
+import { ArrowRight, Inbox } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useReadHomeNotification } from "@uniwork/core/home";
 import { useArchive } from "@uniwork/core/notifications";
@@ -45,11 +45,13 @@ export function HomeInbox({
       id="home-inbox"
       title={t("home.section.inbox")}
       icon={Inbox}
+      iconTone={moduleTone("inbox")}
       flush
       className="h-full"
       action={
         <AppLink href={ws.inbox()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           {t("home.inbox.view_all")}
+          <ArrowRight aria-hidden data-icon="inline-end" />
         </AppLink>
       }
     >

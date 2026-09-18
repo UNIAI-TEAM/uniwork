@@ -1,12 +1,11 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
+import { ArrowRight, CalendarDays } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { localDay } from "@uniwork/core/home/brief";
 import { paths } from "@uniwork/core/paths";
 import type { Meeting } from "@uniwork/core/types";
 import type { HomeSummary } from "@uniwork/core/types/home";
-import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -24,38 +23,52 @@ function nextDay(day: string): string {
   return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1)).toISOString().slice(0, 10);
 }
 
-function MeetingRow({ meeting, summary, href, roomHref }: { meeting: Meeting; summary: HomeSummary; href: string; roomHref: string }) {
+/** Wall-clock time in the viewer's zone, the same clock `formatMeetingTimes` reads. */
+function clock(iso: string, locale: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+}
+
+function MeetingRow({ meeting, href, roomHref }: { meeting: Meeting; href: string; roomHref: string }) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
   const live = meeting.status === "IN_PROGRESS";
-  const day = localDay(meeting.starts_at, summary.timezone || "UTC");
-  const dayLabel =
-    day === summary.today ? t("home.upcoming.today") : day === nextDay(summary.today) ? t("home.upcoming.tomorrow") : formatMeetingDay(day, locale);
 
   return (
-    <li className="flex min-h-12 items-center gap-3 border-b border-border px-4 py-2 last:border-b-0">
-      <IconTile icon={CalendarDays} size="sm" tone={moduleTone("meetings")} />
-      <AppLink href={href} className="min-w-0 flex-1">
+    <li className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-surface-hover focus-within:bg-surface-selected">
+      {/* The time column is for the eye; the link below carries the same span as text. */}
+      <span aria-hidden className="flex w-11 shrink-0 flex-col text-right tabular-nums">
+        <span className="text-body font-semibold text-foreground">{clock(meeting.starts_at, locale)}</span>
+        <span className="text-caption text-muted-foreground">{clock(meeting.ends_at, locale)}</span>
+      </span>
+      <span aria-hidden className={cn("w-1 self-stretch rounded-full", live ? "bg-success" : "bg-tint-violet-solid")} />
+      <AppLink href={href} className="min-w-0 flex-1 rounded-sm">
         <span className="block truncate text-body font-medium text-foreground">{meeting.title}</span>
         <span className="flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground">
-          {live ? <span className="font-medium text-success">{t("home.upcoming.live")}</span> : <span>{dayLabel}</span>}
-          <span className="tabular-nums">{formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale)}</span>
+          {live ? (
+            <span className="inline-flex items-center gap-1.5 font-medium text-success">
+              <span aria-hidden className="size-1.5 rounded-full bg-success" />
+              {t("home.upcoming.live")}
+            </span>
+          ) : null}
+          <span className="sr-only">{formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale)}</span>
         </span>
       </AppLink>
       {live ? (
         <AppLink href={roomHref} className={cn(buttonVariants({ size: "sm" }))}>
           {t("home.upcoming.join")}
         </AppLink>
-      ) : (
-        <AppLink href={href} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-          {t("home.upcoming.open")}
-        </AppLink>
-      )}
+      ) : null}
     </li>
   );
 }
 
-/** Meetings in progress, today and tomorrow that the viewer is part of. */
+/**
+ * Meetings in progress, today and tomorrow that the viewer is part of, under
+ * a heading per day. The server sends them by start time, so a day's meetings
+ * are already consecutive.
+ */
 export function HomeUpcoming({
   summary,
   loading,
@@ -67,21 +80,43 @@ export function HomeUpcoming({
   retrying: boolean;
   onRetry: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { workspace } = useWorkspace();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const meetings = summary?.upcoming_meetings ?? [];
+  const locale = meetingLocale(i18n.language);
+
+  const days: { key: string; label: string; meetings: Meeting[] }[] = [];
+  if (summary) {
+    for (const meeting of meetings) {
+      const day = localDay(meeting.starts_at, summary.timezone || "UTC");
+      const last = days[days.length - 1];
+      if (last && last.key === day) {
+        last.meetings.push(meeting);
+        continue;
+      }
+      const label =
+        day === summary.today
+          ? t("home.upcoming.today")
+          : day === nextDay(summary.today)
+            ? t("home.upcoming.tomorrow")
+            : formatMeetingDay(day, locale);
+      days.push({ key: day, label, meetings: [meeting] });
+    }
+  }
 
   return (
     <PanelCard
       id="home-upcoming"
       title={t("home.section.upcoming")}
       icon={CalendarDays}
+      iconTone={moduleTone("meetings")}
       flush
       className="h-full"
       action={
         <AppLink href={ws.meetings()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           {t("home.upcoming.view_all")}
+          <ArrowRight aria-hidden data-icon="inline-end" />
         </AppLink>
       }
     >
@@ -106,17 +141,18 @@ export function HomeUpcoming({
           }
         />
       ) : (
-        <ul>
-          {meetings.map((meeting) => (
-            <MeetingRow
-              key={meeting.id}
-              meeting={meeting}
-              summary={summary}
-              href={ws.meeting(meeting.id)}
-              roomHref={ws.room(meeting.id)}
-            />
+        <div className="divide-y divide-border">
+          {days.map((day) => (
+            <div key={day.key} className="py-1">
+              <h3 className="px-4 pt-2 pb-1 text-overline text-muted-foreground">{day.label}</h3>
+              <ul aria-label={day.label}>
+                {day.meetings.map((meeting) => (
+                  <MeetingRow key={meeting.id} meeting={meeting} href={ws.meeting(meeting.id)} roomHref={ws.room(meeting.id)} />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </PanelCard>
   );

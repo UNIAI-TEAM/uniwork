@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ListTodo } from "lucide-react";
+import { ArrowRight, ListTodo } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useCompleteHomeTasks } from "@uniwork/core/home";
@@ -138,6 +138,7 @@ export function HomeMyWork({
       id="home-mywork"
       title={t("home.section.mywork")}
       icon={ListTodo}
+      iconTone={moduleTone("my_tasks")}
       flush
       // The card is a size container: its width depends on the chosen density,
       // not on the viewport, so what fits in its header is decided per card.
@@ -154,32 +155,44 @@ export function HomeMyWork({
           </span>
           <AppLink href={ws.myTasks()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
             {t("home.mywork.view_all")}
+            <ArrowRight aria-hidden data-icon="inline-end" />
           </AppLink>
         </>
       }
     >
       {summary?.partial.includes("tasks") ? <HomePartialNotice source="tasks" onRetry={onRetry} retrying={retrying} /> : null}
       {open.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2">
+        <div
+          className={cn(
+            "flex min-h-11 flex-wrap items-center gap-3 border-b border-border px-4 py-1.5 transition-colors duration-150",
+            checked.length > 0 && "bg-brand-subtle",
+          )}
+        >
           <Checkbox
             checked={allChecked}
             indeterminate={checked.length > 0 && !allChecked}
             onCheckedChange={(value) => setChecked(value === true ? open.map((task) => task.id) : [])}
             aria-label={t("home.mywork.select_all")}
           />
-          <span className="text-caption text-muted-foreground">
+          <span
+            className={cn(
+              "text-caption tabular-nums",
+              checked.length > 0 ? "font-medium text-brand-subtle-foreground" : "text-muted-foreground",
+            )}
+          >
             {t("home.mywork.selected", { count: checked.length, total: open.length })}
           </span>
-          <div className="ml-auto flex items-center gap-2">
-            {checked.length > 0 ? (
+          {/* The actions only exist once there is something to act on. */}
+          {checked.length > 0 ? (
+            <div className="ml-auto flex items-center gap-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setChecked([])}>
                 {t("home.mywork.clear_selection")}
               </Button>
-            ) : null}
-            <Button type="button" size="sm" disabled={checked.length === 0 || complete.isPending} onClick={() => run(checked)}>
-              {t("home.mywork.bulk_complete", { count: checked.length })}
-            </Button>
-          </div>
+              <Button type="button" size="sm" disabled={complete.isPending} onClick={() => run(checked)}>
+                {t("home.mywork.bulk_complete", { count: checked.length })}
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {loading ? (
