@@ -3,6 +3,7 @@
 import { useId, useRef } from "react";
 import {
   CalendarDays,
+  ChevronDown,
   FolderKanban,
   House,
   Inbox,
@@ -14,7 +15,6 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { MotionConfig, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
 import { HOME_PAGE_FLAG, useFlag } from "@uniwork/core/feature-flags";
@@ -46,14 +46,11 @@ import {
   SidebarRail,
   useSidebar,
 } from "@uniwork/ui/components/ui/sidebar";
-import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
-import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
 import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { moduleTone, type ModuleKey } from "./module-tones";
-import { ChevronDisc, TRAY_CORE } from "./sidebar-tray";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
@@ -73,28 +70,8 @@ interface NavGroup {
   items: NavItem[];
 }
 
-/*
- * Rows sit directly on the app-shell plane; there is no sidebar panel. The
- * active row is a surface island with a brand bar that glides
- * between rows via a shared `layoutId`, so moving between sections reads as
- * one object travelling rather than two rows swapping colour. Hover is a grey
- * wash, not a paler island: a white hover next to the white island read as a
- * second current page. Press sinks the row a touch.
- *
- * Only transform joins the primitive's transition list; its 150ms timing for
- * width/height/padding (the icon-rail collapse) stays as it is.
- */
 const navButtonClass =
-  "isolate h-9 rounded-xl text-muted-foreground transition-[width,height,padding,background-color,color,transform] hover:not-data-active:bg-foreground/5 hover:text-foreground active:scale-[0.98] data-active:bg-transparent data-active:font-semibold data-active:text-foreground data-active:hover:bg-transparent";
-
-/*
- * The island alone is white on a near-white plane, about 1.1:1 — the same
- * reason this sidebar once moved to a brand bar. In the icon rail there is no
- * bold label left to carry the state, so the island carries a 3px brand bar
- * (well over 3:1 on both grounds) and travels with it.
- */
-const ISLAND =
-  "absolute inset-0 -z-10 rounded-xl bg-surface before:absolute before:inset-y-2 before:left-0.5 before:w-[3px] before:rounded-full before:bg-brand";
+  "h-9 rounded-md text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground";
 
 /** First letter of the first word, which is all an avatar has room for at 32px. */
 function initialOf(name: string) {
@@ -159,7 +136,7 @@ export function AppSidebar() {
       <SidebarHeader className="gap-2 px-2 pt-2 pb-1 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>
           <SidebarMenuItem>
-            <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} className={TRAY_CORE} />
+            <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} />
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
@@ -170,80 +147,68 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
-        {/* `reducedMotion="user"`: with the OS setting on, the island jumps to
-            the new row instead of gliding. */}
-        <MotionConfig reducedMotion="user" transition={{ duration: UI_MOTION_DURATION.settle, ease: UI_EASE_SETTLE }}>
-          <nav aria-label={t("nav.workspace_group")} className="flex flex-col pt-1">
-            {groups.map(({ id, label, items }) =>
-              items.length === 0 ? null : (
-                <SidebarGroup key={id} className="py-1 group-data-[collapsible=icon]:px-0">
-                  {/* The label names its list through `aria-labelledby`, and is
-                      itself aria-hidden: read as text too, a screen reader said
-                      "Làm việc" twice, and in the icon rail (where the label
-                      fades out) it was a stray line between two lists. A
-                      reference to a hidden element still yields the name. */}
-                  {label ? (
-                    <SidebarGroupLabel
-                      id={`${labelId}-${id}`}
-                      aria-hidden
-                      className="h-7 px-3 text-overline text-muted-foreground"
-                    >
-                      {t(label)}
-                    </SidebarGroupLabel>
-                  ) : null}
-                  <SidebarGroupContent>
-                    <SidebarMenu className="gap-0.5" aria-labelledby={label ? `${labelId}-${id}` : undefined}>
-                      {items.map(({ key, module, href, icon: Icon, badge, exact }) => {
-                        const active = isActive(href, exact);
-                        return (
-                          <SidebarMenuItem key={href}>
-                            <SidebarMenuButton
-                              isActive={active}
-                              tooltip={t(key)}
-                              className={navButtonClass}
-                              render={
-                                <AppLink
-                                  href={href}
-                                  aria-current={active ? "page" : undefined}
-                                  onClick={dismissSheet}
-                                />
-                              }
-                            >
-                              {active ? (
-                                <motion.span
-                                  aria-hidden
-                                  layoutId="sidebar-active-row"
-                                  data-slot="sidebar-active-island"
-                                  className={ISLAND}
-                                />
-                              ) : null}
-                              <IconTile
-                                icon={Icon}
-                                size="xs"
-                                variant="solid"
-                                tone={moduleTone(module)}
-                                className="[&_svg]:size-3 [&_svg]:stroke-[2.25]"
+        <nav aria-label={t("nav.workspace_group")} className="flex flex-col pt-1">
+          {groups.map(({ id, label, items }) =>
+            items.length === 0 ? null : (
+              <SidebarGroup key={id} className="py-1 group-data-[collapsible=icon]:px-0">
+                {/* The label names its list through `aria-labelledby`, and is
+                    itself aria-hidden: read as text too, a screen reader said
+                    "Làm việc" twice, and in the icon rail (where the label
+                    fades out) it was a stray line between two lists. A
+                    reference to a hidden element still yields the name. */}
+                {label ? (
+                  <SidebarGroupLabel
+                    id={`${labelId}-${id}`}
+                    aria-hidden
+                    className="h-7 px-3 text-overline text-muted-foreground"
+                  >
+                    {t(label)}
+                  </SidebarGroupLabel>
+                ) : null}
+                <SidebarGroupContent>
+                  <SidebarMenu className="gap-0.5" aria-labelledby={label ? `${labelId}-${id}` : undefined}>
+                    {items.map(({ key, module, href, icon: Icon, badge, exact }) => {
+                      const active = isActive(href, exact);
+                      return (
+                        <SidebarMenuItem key={href}>
+                          <SidebarMenuButton
+                            isActive={active}
+                            tooltip={t(key)}
+                            className={navButtonClass}
+                            render={
+                              <AppLink
+                                href={href}
+                                aria-current={active ? "page" : undefined}
+                                onClick={dismissSheet}
                               />
-                              <span>{t(key)}</span>
-                              {badge ? (
-                                <SidebarMenuBadge
-                                  aria-label={t("notifications.bell_unread", { count: badge })}
-                                  className="top-2! right-2 rounded-full bg-primary px-1.5 text-primary-foreground peer-data-active/menu-button:text-primary-foreground peer-hover/menu-button:text-primary-foreground [[data-mobile=true]_&]:top-3!"
-                                >
-                                  {badge > 99 ? "99+" : badge}
-                                </SidebarMenuBadge>
-                              ) : null}
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        );
-                      })}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              ),
-            )}
-          </nav>
-        </MotionConfig>
+                            }
+                          >
+                            <IconTile
+                              icon={Icon}
+                              size="xs"
+                              variant="solid"
+                              tone={moduleTone(module)}
+                              className="[&_svg]:size-3 [&_svg]:stroke-[2.25]"
+                            />
+                            <span>{t(key)}</span>
+                            {badge ? (
+                              <SidebarMenuBadge
+                                aria-label={t("notifications.bell_unread", { count: badge })}
+                                className="top-2! right-2 rounded-full bg-primary px-1.5 text-primary-foreground peer-data-active/menu-button:text-primary-foreground peer-hover/menu-button:text-primary-foreground [[data-mobile=true]_&]:top-3!"
+                              >
+                                {badge > 99 ? "99+" : badge}
+                              </SidebarMenuBadge>
+                            ) : null}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ),
+          )}
+        </nav>
       </SidebarContent>
 
       <SidebarFooter className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:px-0">
@@ -258,7 +223,7 @@ export function AppSidebar() {
                     // user can say the name they see (WCAG 2.5.3).
                     aria-label={t("nav.account_named", { name: user.display_name, email: user.email })}
                     tooltip={user.display_name}
-                    className={cn("gap-2.5 px-2", TRAY_CORE)}
+                    className="gap-2.5 px-2"
                   />
                 }
               >
@@ -277,7 +242,7 @@ export function AppSidebar() {
                     {user.email}
                   </span>
                 </span>
-                <ChevronDisc />
+                <ChevronDown aria-hidden className="ml-auto size-3! text-muted-foreground group-data-[collapsible=icon]:hidden" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="min-w-56">
                 <DropdownMenuGroup>

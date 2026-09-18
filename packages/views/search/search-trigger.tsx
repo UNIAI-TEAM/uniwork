@@ -21,14 +21,14 @@ export function SearchTrigger({ className }: { className?: string }) {
     <SidebarMenuButton
       tooltip={label}
       className={cn(
-        "h-9 rounded-xl bg-surface/45 pr-1.5 pl-3 text-muted-foreground hover:bg-surface/75 hover:text-foreground group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:bg-transparent",
+        "h-9 rounded-md pr-1.5 pl-2 text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
         className,
       )}
       onClick={() => useSearchStore.getState().setOpen(true)}
     >
       <Search aria-hidden strokeWidth={1.75} />
       <span>{label}</span>
-      <kbd className="pointer-events-none ml-auto hidden h-6 items-center rounded-md bg-muted/60 px-2 font-sans text-caption font-medium text-muted-foreground sm:inline-flex">
+      <kbd className="pointer-events-none ml-auto hidden h-6 items-center px-2 font-sans text-caption font-medium text-muted-foreground sm:inline-flex">
         {shortcutLabel(t)}
       </kbd>
     </SidebarMenuButton>
