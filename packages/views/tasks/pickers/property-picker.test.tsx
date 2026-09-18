@@ -41,6 +41,9 @@ describe("PropertyPicker", () => {
     );
 
     const search = screen.getByRole("textbox", { name: "Tìm giá trị…" });
+    expect(search.parentElement).toHaveClass("border-surface-border/50");
+    expect(search).toHaveClass("focus-visible:ring-surface-border/70");
+    expect(search).not.toHaveClass("focus-visible:ring-ring/30");
     fireEvent.change(search, { target: { value: "done" } });
     fireEvent.keyDown(search, { key: "Enter" });
     expect(onPick).toHaveBeenCalledWith("done");
