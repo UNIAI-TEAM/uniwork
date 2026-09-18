@@ -38,11 +38,30 @@ export function normalizeTableQuery(q: TableQuery): TableQuery {
 
   const filter = q.filter;
   if (filter) {
+    // Filter key order is fixed for stable JSON.stringify / cache keys.
     const nextFilter: TableFilter = {};
     if (filter.statuses && filter.statuses.length > 0) nextFilter.statuses = filter.statuses;
     if (filter.priorities && filter.priorities.length > 0) nextFilter.priorities = filter.priorities;
     if (filter.assignee_ids && filter.assignee_ids.length > 0) nextFilter.assignee_ids = filter.assignee_ids;
+    if (filter.include_no_assignee === true) nextFilter.include_no_assignee = true;
     if (filter.project_ids && filter.project_ids.length > 0) nextFilter.project_ids = filter.project_ids;
+    if (filter.include_no_project === true) nextFilter.include_no_project = true;
+    if (filter.creator_refs && filter.creator_refs.length > 0) nextFilter.creator_refs = filter.creator_refs;
+    if (filter.label_ids && filter.label_ids.length > 0) nextFilter.label_ids = filter.label_ids;
+    if (filter.properties) {
+      const props: Record<string, string[]> = {};
+      for (const [key, values] of Object.entries(filter.properties)) {
+        if (values.length > 0) props[key] = values;
+      }
+      if (Object.keys(props).length > 0) nextFilter.properties = props;
+    }
+    const dateFrom = filter.date_from?.trim();
+    const dateTo = filter.date_to?.trim();
+    if (filter.date_field && dateFrom && dateTo) {
+      nextFilter.date_field = filter.date_field;
+      nextFilter.date_from = dateFrom;
+      nextFilter.date_to = dateTo;
+    }
     if (Object.keys(nextFilter).length > 0) out.filter = nextFilter;
   }
 
