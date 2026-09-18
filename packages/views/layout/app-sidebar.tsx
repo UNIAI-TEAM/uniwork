@@ -15,6 +15,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
 import { HOME_PAGE_FLAG, useFlag } from "@uniwork/core/feature-flags";
@@ -46,6 +47,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@uniwork/ui/components/ui/sidebar";
+import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { AppLink, useNavigation } from "../navigation";
 import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
@@ -71,7 +73,7 @@ interface NavGroup {
 }
 
 const navButtonClass =
-  "h-9 rounded-md text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground";
+  "isolate h-9 rounded-md text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-transparent";
 
 /** First letter of the first word, which is all an avatar has room for at 32px. */
 function initialOf(name: string) {
@@ -96,6 +98,7 @@ export function AppSidebar() {
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
   const homeEnabled = useFlag(HOME_PAGE_FLAG, false);
   const labelId = useId();
+  const reduceMotion = useReducedMotion() ?? false;
 
   const groups: NavGroup[] = [
     {
@@ -183,14 +186,24 @@ export function AppSidebar() {
                               />
                             }
                           >
+                            {active ? (
+                              <motion.span
+                                aria-hidden
+                                initial={false}
+                                layoutId={reduceMotion ? undefined : "sidebar-active-row"}
+                                transition={{ duration: UI_MOTION_DURATION.settle, ease: UI_EASE_SETTLE }}
+                                data-slot="sidebar-active-indicator"
+                                className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-sidebar-accent"
+                              />
+                            ) : null}
                             <IconTile
                               icon={Icon}
                               size="xs"
                               variant="solid"
                               tone={moduleTone(module)}
-                              className="[&_svg]:size-3 [&_svg]:stroke-[2.25]"
+                              className="size-4 rounded-[4px] [&_svg]:size-3! [&_svg]:stroke-[2.25]"
                             />
-                            <span>{t(key)}</span>
+                            <span className="flex h-4 min-w-0 items-center leading-none">{t(key)}</span>
                             {badge ? (
                               <SidebarMenuBadge
                                 aria-label={t("notifications.bell_unread", { count: badge })}
