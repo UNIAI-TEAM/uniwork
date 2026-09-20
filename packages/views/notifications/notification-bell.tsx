@@ -83,7 +83,7 @@ export function NotificationBell() {
           </span>
         </div>
         {list.data && list.data.notifications.length > 0 ? (
-          <ul className="max-h-96 overflow-y-auto" aria-label={t("nav.inbox")}>
+          <ul className="max-h-[28rem] overflow-y-auto p-1 [--row-fill:var(--popover)]" aria-label={t("nav.inbox")}>
             {list.data.notifications.map((n) => (
               <NotificationRow
                 key={n.id}
