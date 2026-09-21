@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,15 +64,16 @@ func setupEmailHubHTTP(t *testing.T) (*httptest.Server, string, string, string, 
 	userID := out["user"].(map[string]any)["id"].(string)
 	verifyEmail(t, srv, token)
 
+	tag := strings.ToLower(util.NewID()[:8])
 	res, out = doJSON(t, srv, "POST", "/api/v1/orgs", token, map[string]string{
-		"name": "EH Org", "slug": fmt.Sprintf("eh-http-org-%s", util.NewID()[:8]),
+		"name": "EH Org", "slug": "eh-http-org-" + tag,
 	})
 	if res.StatusCode != 201 {
 		t.Fatalf("create org: %d %v", res.StatusCode, out)
 	}
 	orgID := out["organization"].(map[string]any)["id"].(string)
 	res, out = doJSON(t, srv, "POST", "/api/v1/orgs/"+orgID+"/workspaces", token, map[string]string{
-		"name": "EH Team", "slug": fmt.Sprintf("eh-http-team-%s", util.NewID()[:8]),
+		"name": "EH Team", "slug": "eh-http-team-" + tag,
 	})
 	if res.StatusCode != 201 {
 		t.Fatalf("create ws: %d %v", res.StatusCode, out)
@@ -121,14 +122,14 @@ func TestEmailHubEndpointsWhenNotConfigured(t *testing.T) {
 	if res.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("connect status: %d %v", res.StatusCode, out)
 	}
-	if out["code"] != "email_hub_not_configured" {
-		t.Fatalf("connect code: %v", out["code"])
+	if errorCode(out) != "email_hub_not_configured" {
+		t.Fatalf("connect code: %v", out["error"])
 	}
 
 	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]string{
 		"account_id": "acc-1", "to": "a@b.co", "subject": "Hi", "body_text": "Hello",
 	})
-	if res.StatusCode != http.StatusServiceUnavailable || out["code"] != "email_hub_not_configured" {
+	if res.StatusCode != http.StatusServiceUnavailable || errorCode(out) != "email_hub_not_configured" {
 		t.Fatalf("send: %d %v", res.StatusCode, out)
 	}
 
@@ -164,7 +165,7 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	res, out := doJSON(t, srv, "POST", base+"/accounts", token, map[string]string{
 		"email_address": "user@unknown.example", "app_password": "secret",
 	})
-	if res.StatusCode != http.StatusBadRequest || out["code"] != "email_hub_unsupported" {
+	if res.StatusCode != http.StatusBadRequest || errorCode(out) != "email_hub_unsupported" {
 		t.Fatalf("unsupported provider: %d %v", res.StatusCode, out)
 	}
 
