@@ -30,6 +30,7 @@
     "./chat/*": "./chat/*.tsx",
     "./ai/*": "./ai/*.tsx",
     "./notifications/*": "./notifications/*.tsx",
+    "./email-hub/*": "./email-hub/*.tsx",
     "./onboarding/*": "./onboarding/*.tsx",
     "./settings": "./settings/index.ts",
     "./people/*": "./people/*.tsx",

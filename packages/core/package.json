@@ -25,6 +25,7 @@
     "./tasks/stores/view-store-context": "./tasks/stores/view-store-context.tsx",
     "./tasks/stores/*": "./tasks/stores/*.ts",
     "./tasks/views/*": "./tasks/views/*.ts",
+    "./email-hub/hooks": "./email-hub/hooks.ts",
     "./home": "./home/hooks.ts",
     "./home/*": "./home/*.ts",
     "./agents": "./agents/hooks.ts",

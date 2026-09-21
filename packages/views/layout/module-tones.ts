@@ -8,6 +8,7 @@ import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 export const MODULE_TONES = {
   home: "gray",
   inbox: "blue",
+  email: "orange",
   tasks: "green",
   my_tasks: "green",
   projects: "teal",

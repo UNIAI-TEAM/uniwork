@@ -9,6 +9,7 @@ import {
   Inbox,
   ListTodo,
   LogOut,
+  Mail,
   MessageSquare,
   Settings,
   SquareCheckBig,
@@ -56,7 +57,7 @@ import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.home" | "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
   module: ModuleKey;
   href: string;
   icon: LucideIcon;
@@ -121,6 +122,7 @@ export function AppSidebar() {
       id: "communication",
       label: "nav.group_communication",
       items: [
+        { key: "nav.email", module: "email", href: ws.email(), icon: Mail },
         { key: "nav.meetings", module: "meetings", href: ws.meetings(), icon: CalendarDays },
         { key: "nav.chat", module: "chat", href: ws.chat(), icon: MessageSquare },
         { key: "nav.people", module: "people", href: ws.people(), icon: Users },

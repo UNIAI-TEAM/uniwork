@@ -32,6 +32,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
+	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -44,6 +45,7 @@ var (
 )
 
 func main() {
+	tryLoadDevEnv()
 	logger.Init()
 	log := logger.New()
 	cfg, err := config.Load()
@@ -295,6 +297,20 @@ func main() {
 	// users.platform_role rather than membership.
 	adminSvc := service.NewAdminService(pool, q, billingSvc, service.NewEntitlementService(pool, q))
 	adminSvc.SetSystemSources(readiness, realtime.M.ActiveConnections.Load, featureflag.ProviderNames(flags))
+	var emailHubBox *secretbox.Box
+	if key, err := secretbox.LoadKey("EMAIL_HUB_CREDENTIAL_KEY"); err == nil {
+		if box, err := secretbox.New(key); err == nil {
+			emailHubBox = box
+			log.Info("email hub enabled")
+		} else {
+			log.Warn("email hub disabled", "err", err)
+		}
+	} else if os.Getenv("EMAIL_HUB_CREDENTIAL_KEY") != "" {
+		log.Warn("email hub disabled", "err", err)
+	}
+	emailHubSvc := service.NewEmailHubService(q, wsSvc, emailHubBox)
+	go emailHubSvc.RunWorkers(runCtx)
+	go emailHubSvc.RunHubWatchers(runCtx)
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:            authSvc,
@@ -310,6 +326,7 @@ func main() {
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,
 		Home:            service.NewHomeService(q, wsSvc),
+		EmailHub:        emailHubSvc,
 		Agents:          agentSvc,
 		Actors:          actorSvc,
 		Audit:           auditSvc,

@@ -146,10 +146,23 @@ type Routes struct {
 	GetHomeSummary    http.HandlerFunc
 	GetHomePreference http.HandlerFunc
 	PutHomePreference http.HandlerFunc
-	ListPins          http.HandlerFunc
-	CreatePin         http.HandlerFunc
-	DeletePin         http.HandlerFunc
-	ReorderPins       http.HandlerFunc
+
+	ListEmailHubAccounts          http.HandlerFunc
+	ConnectEmailHubAccount        http.HandlerFunc
+	DisconnectEmailHubAccount     http.HandlerFunc
+	ListEmailHubThreads           http.HandlerFunc
+	GetEmailHubThread             http.HandlerFunc
+	DownloadEmailHubAttachment    http.HandlerFunc
+	PatchEmailHubThread           http.HandlerFunc
+	SendEmailHub                  http.HandlerFunc
+	SyncEmailHub                  http.HandlerFunc
+	WatchEmailHub                 http.HandlerFunc
+	SubscribeEmailHubInboxWatch   http.HandlerFunc
+	UnsubscribeEmailHubInboxWatch http.HandlerFunc
+	ListPins                      http.HandlerFunc
+	CreatePin                     http.HandlerFunc
+	DeletePin                     http.HandlerFunc
+	ReorderPins                   http.HandlerFunc
 
 	ListProjects          http.HandlerFunc
 	SearchProjects        http.HandlerFunc

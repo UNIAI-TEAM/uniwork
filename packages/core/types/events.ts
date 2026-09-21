@@ -47,6 +47,7 @@ export const WS_EVENT_TYPES = [
   "department.archived",
   "department.created",
   "department.updated",
+  "email_hub.inbox_changed",
   "host.transferred",
   "invitation.responded",
   "invitation.revoked",
