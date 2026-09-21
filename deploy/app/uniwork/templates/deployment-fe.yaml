@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uniwork-fe
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.fe.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-fe
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: uniwork-fe
+        reap.io/pool: pool-app
+    spec:
+      serviceAccountName: uniwork
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.fe.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.fe.securityContext.runAsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      containers:
+        - name: uniwork-fe
+          image: {{ include "uniwork.image" .Values.fe.image | quote }}
+          imagePullPolicy: {{ .Values.fe.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.fe.port }}
+          resources:
+            {{- toYaml .Values.fe.resources | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5

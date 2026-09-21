@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uniwork-be
+  namespace: {{ .Values.namespace }}
+data:
+  APP_ENV: "production"
+  PORT: {{ .Values.be.port | quote }}
+  FRONTEND_ORIGIN: {{ .Values.public.origin | quote }}
+  API_PUBLIC_URL: {{ .Values.public.origin | quote }}
+  LIVEKIT_URL: {{ .Values.public.livekitUrl | quote }}
+  TRUSTED_PROXIES: "10.244.0.0/16"
+  MEETING_PROVIDER: "livekit"
