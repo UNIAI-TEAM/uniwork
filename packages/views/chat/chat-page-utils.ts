@@ -41,6 +41,22 @@ function pushNameEntry(
   });
 }
 
+/**
+ * The workspace room's name as people see it. The server names the room
+ * after the workspace; until someone renames it, it reads as the generic
+ * "Chung" everywhere (list, header, settings). Once renamed, the new name
+ * shows in all three.
+ */
+export function workspaceRoomTitle(
+  roomName: string | null | undefined,
+  workspaceName: string | null | undefined,
+  defaultLabel: string,
+): string {
+  const name = roomName?.trim();
+  if (!name || name === workspaceName?.trim()) return defaultLabel;
+  return name;
+}
+
 export function chatHeaderTitle(
   target:
     | { kind: "workspace" }

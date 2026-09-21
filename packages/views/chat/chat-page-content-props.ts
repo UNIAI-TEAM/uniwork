@@ -33,6 +33,8 @@ export type ChatPageContentProps = {
   mentionUnreadByRoomId: Record<string, number>;
   roomPreviewsByRoomId: Record<string, ChatRoomPreview>;
   unreadBadgesReady: boolean;
+  /** The workspace room's display name ("Chung" until renamed). */
+  workspaceRoomTitle: string;
   nicknamesByUserId: Record<string, string>;
   nameContext: ChatNameContextEntry[];
   replyTo: ChatMessage | null;

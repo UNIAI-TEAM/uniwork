@@ -14,6 +14,7 @@ export function ChatPageContentSheets({
   catchUpError,
   catchUpResult,
   onCatchUpRetry,
+  onJumpToMessage,
   workspaceId,
   recordingsOpen,
   onRecordingsOpenChange,
@@ -28,6 +29,8 @@ export function ChatPageContentSheets({
   catchUpError: string | null;
   catchUpResult: ChatCatchUpResponse | null;
   onCatchUpRetry: () => void;
+  /** Scrolls the open room to a message — used by the catch-up's source links. */
+  onJumpToMessage?: (messageId: string) => void;
   workspaceId: string;
   recordingsOpen: boolean;
   onRecordingsOpenChange: (open: boolean) => void;
@@ -45,6 +48,7 @@ export function ChatPageContentSheets({
         error={catchUpError}
         result={catchUpResult}
         onRetry={onCatchUpRetry}
+        onJumpToMessage={onJumpToMessage}
         workspaceId={workspaceId}
       />
       {activeRoomId ? (

@@ -1,5 +1,6 @@
 import { resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 
 export type ChatRoomPreview = {
   body: string;
@@ -19,6 +20,7 @@ export function formatChatSidebarPreviewText(
     voiceMessageLabel?: string;
     fileMessageLabel?: string;
     nicknamesByUserId?: Readonly<Record<string, string>>;
+    mediaLabels?: ChatMediaLabels;
   },
 ): string | null {
   if (!preview) return null;
@@ -32,7 +34,8 @@ export function formatChatSidebarPreviewText(
     const name = preview.body.trim();
     return name || options.fileMessageLabel || null;
   }
-  const body = deserializeMessageBodyToComposerDraft(preview.body).trim();
+  const media = options.mediaLabels ? describeChatMediaBody(preview.body, options.mediaLabels) : null;
+  const body = media ?? deserializeMessageBodyToComposerDraft(preview.body).trim();
   if (!body) return null;
   if (options.isGroup) {
     const isSelf =
@@ -49,7 +52,7 @@ export function formatChatSidebarPreviewText(
 
 export function formatChatSidebarTime(
   iso: string | undefined,
-  options: { now?: Date; yesterdayLabel: string },
+  options: { now?: Date; yesterdayLabel: string; locale?: string },
 ): string | null {
   if (!iso?.trim()) return null;
   const date = new Date(iso);
@@ -62,15 +65,15 @@ export function formatChatSidebarTime(
     (startOfDay(now).getTime() - startOfDay(date).getTime()) / (24 * 60 * 60 * 1000);
 
   if (dayDiff === 0) {
-    return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    return date.toLocaleTimeString(options.locale, { hour: "2-digit", minute: "2-digit" });
   }
   if (dayDiff === 1) {
     return options.yesterdayLabel;
   }
   if (dayDiff < 7) {
-    return date.toLocaleDateString(undefined, { weekday: "short" });
+    return date.toLocaleDateString(options.locale, { weekday: "short" });
   }
-  return date.toLocaleDateString(undefined, { month: "numeric", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString(options.locale, { month: "numeric", day: "numeric", year: "numeric" });
 }
 
 export function compareRoomPreviewRecency(

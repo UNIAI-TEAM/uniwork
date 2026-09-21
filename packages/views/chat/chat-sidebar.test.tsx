@@ -97,9 +97,9 @@ describe("ChatSidebar", () => {
 
     expect(screen.queryByText(/Chưa có nhóm nào/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Chưa có cuộc trò chuyện/)).not.toBeInTheDocument();
-    expect(screen.getByRole("toolbar", { name: /Lọc cuộc trò chuyện/i })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /Lọc cuộc trò chuyện/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tất cả", pressed: true })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tin nhắn", pressed: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Riêng", pressed: false })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Chung/ })).toBeInTheDocument();
   });
 
@@ -118,7 +118,7 @@ describe("ChatSidebar", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Tin nhắn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Riêng" }));
     expect(screen.getByRole("button", { name: /Binh/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Design/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Chung/ })).not.toBeInTheDocument();

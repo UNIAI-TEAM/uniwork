@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "@uniwork/core/api";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import {
   mergeActiveDmContact,
   sidebarFromChatRooms,
@@ -39,7 +41,7 @@ import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { useChatReminderNotifications } from "./use-chat-reminder-notify";
-import { buildChatNameContext, chatHeaderTitle } from "./chat-page-utils";
+import { buildChatNameContext, chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
@@ -63,6 +65,7 @@ export function ChatPageView({
   currentUserId: string;
 }) {
   const { t } = useTranslation();
+  const workspaceName = useOptionalWorkspace()?.workspace.name;
   useChatReminderNotifications(workspaceId);
   const workHubEnabled = useFlag("chat_work_hub", false);
   const authReady = useAuthStore((s) => s.status === "authed");
@@ -90,6 +93,7 @@ export function ChatPageView({
   );
 
   const workspaceRoomId = workspaceRoom?.id ?? ensureRoom.data?.room_id ?? null;
+  const workspaceRoomName = workspaceRoomTitle(workspaceRoom?.name, workspaceName, t("chat.workspace_room"));
   const unreadByRoomId = useMemo(() => unreadMapFromRooms(rooms), [rooms]);
   const mentionUnreadByRoomId = useMemo(() => mentionUnreadMapFromRooms(rooms), [rooms]);
   const roomPreviewsByRoomId = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
@@ -166,13 +170,13 @@ export function ChatPageView({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setConnectError(err instanceof Error ? err.message : "dm_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.dm_failed"));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [dmPeerUserId, dmContactRoomId]);
+  }, [dmPeerUserId, dmContactRoomId, t]);
 
   const activeRoomId =
     target.kind === "workspace"
@@ -306,7 +310,7 @@ export function ChatPageView({
     target,
     contacts,
     groups,
-    t("chat.title"),
+    workspaceRoomName,
     (params) => t("chat.dm_with", params),
     nicknamesByUserId,
     channels,
@@ -354,7 +358,7 @@ export function ChatPageView({
       setResolvedDmRoomId(null);
       setDmSettingsOpen(false);
     } catch (err: unknown) {
-      setConnectError(err instanceof Error ? err.message : t("chat.block_failed"));
+      setConnectError(apiErrorMessage(err) ?? t("chat.block_failed"));
     } finally {
       setBlockingContact(false);
     }
@@ -367,7 +371,7 @@ export function ChatPageView({
     try {
       await unblockUser.mutateAsync(activeContact.user_id);
     } catch (err: unknown) {
-      setConnectError(err instanceof Error ? err.message : t("chat.unblock_failed"));
+      setConnectError(apiErrorMessage(err) ?? t("chat.unblock_failed"));
     } finally {
       setUnblockingContact(false);
     }
@@ -404,6 +408,7 @@ export function ChatPageView({
         setTarget={setTarget}
         currentUserId={currentUserId}
         headerTitle={headerTitle}
+        workspaceRoomTitle={workspaceRoomName}
         contacts={contacts}
         groups={groups}
         channels={channels}

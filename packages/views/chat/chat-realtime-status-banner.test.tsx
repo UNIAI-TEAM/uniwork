@@ -21,7 +21,7 @@ describe("ChatRealtimeStatusBanner", () => {
   it("shows disconnected copy and reconnect action", () => {
     render(<ChatRealtimeStatusBanner pendingOutboxCount={2} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Mất kết nối thời gian thực");
+    expect(screen.getByRole("status")).toHaveTextContent("Mất kết nối");
     expect(screen.getByRole("status")).toHaveTextContent("2 tin nhắn đang chờ gửi");
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     expect(reconnectNow).toHaveBeenCalled();
