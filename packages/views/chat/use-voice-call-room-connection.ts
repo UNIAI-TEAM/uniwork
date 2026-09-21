@@ -293,6 +293,13 @@ export function useVoiceCallRoomConnection(
       if (!disposed) setters.setMuted(true);
     };
     room.on(RoomEvent.MediaDevicesError, onMediaDevicesError);
+    // Who is speaking and whose mic is off live on the tiles.
+    const onTileStateChange = () => {
+      if (!disposed) syncParticipantTiles();
+    };
+    room.on(RoomEvent.ActiveSpeakersChanged, onTileStateChange);
+    room.on(RoomEvent.TrackMuted, onTileStateChange);
+    room.on(RoomEvent.TrackUnmuted, onTileStateChange);
 
     connectTimeoutId = setTimeout(() => {
       if (disposed || room.state === ConnectionState.Connected) return;
@@ -318,6 +325,9 @@ export function useVoiceCallRoomConnection(
       room.off(RoomEvent.ConnectionStateChanged, onConnectionStateChanged);
       room.off(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackStatusChanged);
       room.off(RoomEvent.MediaDevicesError, onMediaDevicesError);
+      room.off(RoomEvent.ActiveSpeakersChanged, onTileStateChange);
+      room.off(RoomEvent.TrackMuted, onTileStateChange);
+      room.off(RoomEvent.TrackUnmuted, onTileStateChange);
       for (const el of refs.audioElsRef.current) {
         el.remove();
       }

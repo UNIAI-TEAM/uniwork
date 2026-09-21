@@ -139,6 +139,8 @@ export function VoiceCallRoom({
       isLocal: true,
       hasVideo: Boolean(localPub?.track) && !localPub?.isMuted,
       hasScreenShare: Boolean(localScreenPub?.track) && !localScreenPub?.isMuted,
+      isSpeaking: room.localParticipant.isSpeaking,
+      micMuted: !room.localParticipant.isMicrophoneEnabled,
     });
     let anyRemoteVideo = false;
     let anyRemoteScreenShare = false;
@@ -155,6 +157,8 @@ export function VoiceCallRoom({
         isLocal: false,
         hasVideo,
         hasScreenShare,
+        isSpeaking: participant.isSpeaking,
+        micMuted: !participant.isMicrophoneEnabled,
       });
     }
     setParticipantTiles(tiles);

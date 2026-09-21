@@ -86,9 +86,10 @@ describe("ActiveVoiceCallSession", () => {
     );
 
     expect(onConnected).toHaveBeenCalled();
-    fireEvent.click(screen.getByLabelText("Tắt mic"));
+    // The mic control keeps one name and reports its state through aria-pressed.
+    fireEvent.click(screen.getByLabelText("Micro"));
     expect(toggleMute).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByLabelText("Bật camera"));
+    fireEvent.click(screen.getByLabelText("Camera"));
     expect(toggleCamera).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByLabelText("Chia sẻ màn hình"));
     expect(toggleScreenShare).toHaveBeenCalledTimes(1);

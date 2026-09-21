@@ -1,12 +1,8 @@
 "use client";
 
-import { MessageSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { CollectionPageState } from "../layout/collection-page";
-import { moduleTone } from "../layout/module-tones";
 import { ChatComposer, type ComposerAttachAction } from "./chat-composer";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import type { ChatSidebarTarget } from "./chat-sidebar";
@@ -24,8 +20,11 @@ import { ChatPageContentSheets } from "./chat-page-content-sheets";
 import {
   ChatPageConversationToolbar,
   chatPageEmptyLabel,
+  ChatPageConversationIntro,
 } from "./chat-page-conversation-toolbar";
 import { ChatPageEmptyConversation } from "./chat-page-empty-conversation";
+import { ChatConversationSkeleton } from "./chat-conversation-skeleton";
+import { ChatConversationNotices } from "./chat-notice";
 import { chatComposerPlaceholder } from "./chat-composer-placeholder";
 import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
 import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
@@ -55,6 +54,7 @@ export function ChatPageContent({
   mentionUnreadByRoomId,
   roomPreviewsByRoomId,
   unreadBadgesReady,
+  workspaceRoomTitle,
   nicknamesByUserId,
   nameContext,
   replyTo,
@@ -165,13 +165,17 @@ export function ChatPageContent({
     return () => media.removeEventListener("change", keepChatWhenNarrow);
   }, [activeRoomId]);
 
+  // ⌘/Ctrl+F searches the room only while focus is inside the conversation;
+  // anywhere else the browser keeps its own find.
+  const conversationRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!activeRoomId) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        onMessageSearchOpenChange(true);
-      }
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "f") return;
+      const root = conversationRef.current;
+      if (!root || !(event.target instanceof Node) || !root.contains(event.target)) return;
+      event.preventDefault();
+      onMessageSearchOpenChange(true);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -299,7 +303,7 @@ export function ChatPageContent({
             "flex min-h-0 w-full flex-1 overflow-hidden bg-surface",
             sidebarCollapsed
               ? "lg:grid lg:grid-cols-[minmax(0,1fr)]"
-              : "lg:grid lg:grid-cols-[300px_minmax(0,1fr)]",
+              : "lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]",
           )}
         >
           <div
@@ -329,52 +333,37 @@ export function ChatPageContent({
               roomPreviewsByRoomId={roomPreviewsByRoomId}
               unreadBadgesReady={unreadBadgesReady}
               nicknamesByUserId={nicknamesByUserId}
+              loading={!unreadBadgesReady}
+              workspaceRoomTitle={workspaceRoomTitle}
+              onCollapse={handleToggleSidebar}
               embedded
             />
           </div>
 
           <div
+            ref={conversationRef}
             className={cn(
-              "flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15",
+              "flex min-h-0 min-w-0 flex-col overflow-hidden bg-background",
               showMobileChat ? "flex flex-1" : "hidden",
               "lg:flex lg:flex-1",
             )}
           >
             <ChatRealtimeStatusBanner pendingOutboxCount={pendingOutboxCount} />
-            {isWorkspaceError && target.kind === "workspace" ? (
-              <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-2">
-                <p className="text-caption text-muted-foreground">{t("chat.room_load_failed")}</p>
-                <Button type="button" variant="outline" size="sm" onClick={onRefetchWorkspace}>
-                  {t("chat.retry")}
-                </Button>
-              </div>
-            ) : null}
-            {connectError && (target.kind === "dm" || target.kind === "group" || target.kind === "channel") ? (
-              <p className="border-b border-border bg-surface px-4 py-2 text-caption text-muted-foreground">
-                {connectError}
-              </p>
-            ) : null}
-            {target.kind === "dm" && dmBlocked ? (
-              <p className="border-b border-border bg-surface px-4 py-2 text-caption text-muted-foreground">
-                {dmBlockedByMe ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}
-              </p>
-            ) : null}
+            <ChatConversationNotices
+              workspaceLoadFailed={isWorkspaceError && target.kind === "workspace"}
+              onRetryWorkspace={onRefetchWorkspace}
+              connectError={target.kind === "workspace" ? null : connectError}
+              blockedNotice={
+                target.kind === "dm" && dmBlocked
+                  ? dmBlockedByMe
+                    ? t("chat.block_active_banner")
+                    : t("chat.blocked_me_banner")
+                  : null
+              }
+            />
 
             {showLoading ? (
-              <div className="flex flex-1 items-center justify-center p-6">
-                <CollectionPageState
-                  icon={MessageSquare} tone={moduleTone("chat")} title={t("chat.loading")}
-                  description={
-                    target.kind === "workspace"
-                      ? t("chat.group_description")
-                      : target.kind === "group"
-                        ? t("chat.group_loading")
-                        : target.kind === "channel"
-                          ? t("chat.channel.loading")
-                          : t("chat.dm_hint")
-                  }
-                />
-              </div>
+              <ChatConversationSkeleton />
             ) : activeRoomId ? (
               <>
                 {messageSearchOpen ? (
@@ -436,6 +425,18 @@ export function ChatPageContent({
                   nameContext={nameContext}
                   youLabel={t("chat.you")}
                   emptyLabel={chatPageEmptyLabel(t, target, headerTitle, nicknamesByUserId)}
+                  intro={
+                    <ChatPageConversationIntro
+                      target={target}
+                      headerTitle={headerTitle}
+                      activeChannel={activeChannel}
+                      nicknamesByUserId={nicknamesByUserId}
+                      t={t}
+                      onViewMembers={() => onWorkspaceSettingsOpenChange(true)}
+                      onAddMembers={() => onAddMembersOpenChange(true)}
+                      workspaceMemberCount={workspaceMembers.length}
+                    />
+                  }
                   replyTo={replyTo}
                   onReplyToChange={onReplyToChange}
                   workHubEnabled={workHubEnabled}
@@ -503,6 +504,7 @@ export function ChatPageContent({
         catchUpError={catchUpUi.error}
         catchUpResult={catchUpUi.result}
         onCatchUpRetry={catchUpUi.onRetry}
+        onJumpToMessage={onJumpToMessageIdChange}
         workspaceId={workspaceId}
         recordingsOpen={recordingsOpen}
         onRecordingsOpenChange={setRecordingsOpen}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { ChatMessageBody } from "./chat-message-body";
@@ -16,6 +16,27 @@ describe("ChatMessageBody", () => {
   it("renders plain text without markdown wrapper", () => {
     render(<ChatMessageBody body="hello world" isOwn={false} nameContext={[]} />);
     expect(screen.getByText("hello world")).toBeInTheDocument();
+  });
+
+  it("draws a sticker at once as an image named in words, and says so when it cannot load", () => {
+    render(
+      <ChatMessageBody body="![sticker:ăn mừng](https://media.giphy.com/a/giphy.gif)" isOwn nameContext={[]} />,
+    );
+    // No markdown chunk to wait for: the image is there on the first render.
+    const img = screen.getByRole("img", { name: "Nhãn dán · ăn mừng" });
+    expect(img).toHaveAttribute("src", "https://media.giphy.com/a/giphy.gif");
+    fireEvent.error(img);
+    expect(screen.getByText("Không tải được Nhãn dán · ăn mừng")).toBeInTheDocument();
+  });
+
+  it("turns web addresses into links and leaves trailing punctuation outside", () => {
+    render(
+      <ChatMessageBody body="Xem https://docs.example.com/a?b=1. rồi báo nhé" isOwn nameContext={[]} />,
+    );
+    const link = screen.getByRole("link", { name: "https://docs.example.com/a?b=1" });
+    expect(link).toHaveAttribute("href", "https://docs.example.com/a?b=1");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.closest("p")).toHaveTextContent("Xem https://docs.example.com/a?b=1. rồi báo nhé");
   });
 
   // The markdown renderer is lazy (it carries KaTeX and Shiki), so these two

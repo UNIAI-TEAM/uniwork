@@ -4,22 +4,23 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Loader2,
   Maximize2,
   Minimize2,
-  Plus,
   Search,
-  Settings,
   Smile,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChatGifs, useChatStickers } from "@uniwork/core/chat";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatGifItem, ChatStickerItem, ChatStickerPack } from "./chat-expression-catalog";
 import { formatChatMediaMessageBody, normalizeExpressionSearchQuery } from "./chat-expression-utils";
 import { filterStickerPacks, loadChatStickerPacks } from "./chat-sticker-packs";
+import { ComposerToolbarButton } from "./chat-composer-attach-menu";
 
 const EmojiPicker = lazy(() =>
   import("@uniwork/ui/components/common/emoji-picker").then((module) => ({
@@ -49,32 +50,6 @@ function tenorRecordsToPack(
 
 type ExpressionTab = "sticker" | "emoji" | "gif";
 
-function ExpressionTabButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      className={cn(
-        "relative px-3 py-2 text-caption font-semibold uppercase tracking-wide transition-colors",
-        active ? "text-brand" : "text-muted-foreground hover:text-foreground",
-      )}
-      onClick={onClick}
-    >
-      {label}
-      {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand" aria-hidden /> : null}
-    </button>
-  );
-}
-
 function MediaThumbnail({
   src,
   alt,
@@ -97,18 +72,36 @@ function MediaThumbnail({
   );
 }
 
+function PickerEmpty({ label }: { label: string }) {
+  return <p className="px-6 py-10 text-center text-caption text-pretty text-muted-foreground">{label}</p>;
+}
+
+/** Loading in the grid's own shape: tiles where the stickers or GIFs will land. */
+function PickerGridSkeleton({ columns, label }: { columns: 2 | 4; label: string }) {
+  return (
+    <div className={cn("grid gap-2 p-3", columns === 4 ? "grid-cols-4" : "grid-cols-2")} aria-busy>
+      <span className="sr-only">{label}</span>
+      {Array.from({ length: columns === 4 ? 12 : 6 }, (_, i) => (
+        <Skeleton key={i} className={cn("rounded-lg", columns === 4 ? "size-16" : "aspect-video w-full")} />
+      ))}
+    </div>
+  );
+}
+
 function StickerGrid({
   stickers,
   onSelect,
+  emptyLabel,
 }: {
   stickers: ChatStickerItem[];
   onSelect: (sticker: ChatStickerItem) => void;
+  emptyLabel: string;
 }) {
   const [brokenIds, setBrokenIds] = useState<ReadonlySet<string>>(() => new Set());
   const visibleStickers = stickers.filter((sticker) => !brokenIds.has(sticker.id));
 
   if (visibleStickers.length === 0) {
-    return <p className="px-3 py-6 text-center text-caption text-muted-foreground">—</p>;
+    return <PickerEmpty label={emptyLabel} />;
   }
 
   return (
@@ -117,7 +110,7 @@ function StickerGrid({
         <li key={sticker.id}>
           <button
             type="button"
-            className="flex size-16 items-center justify-center rounded-lg transition-colors hover:bg-muted"
+            className="flex size-16 items-center justify-center rounded-lg transition-colors duration-(--duration-fast) hover:bg-surface-hover"
             aria-label={sticker.label}
             onClick={() => onSelect(sticker)}
           >
@@ -134,12 +127,20 @@ function StickerGrid({
   );
 }
 
-function GifGrid({ items, onSelect }: { items: ChatGifItem[]; onSelect: (item: ChatGifItem) => void }) {
+function GifGrid({
+  items,
+  onSelect,
+  emptyLabel,
+}: {
+  items: ChatGifItem[];
+  onSelect: (item: ChatGifItem) => void;
+  emptyLabel: string;
+}) {
   const [brokenIds, setBrokenIds] = useState<ReadonlySet<string>>(() => new Set());
   const visibleItems = items.filter((item) => !brokenIds.has(item.id));
 
   if (visibleItems.length === 0) {
-    return <p className="px-3 py-6 text-center text-caption text-muted-foreground">—</p>;
+    return <PickerEmpty label={emptyLabel} />;
   }
 
   return (
@@ -148,7 +149,7 @@ function GifGrid({ items, onSelect }: { items: ChatGifItem[]; onSelect: (item: C
         <li key={item.id}>
           <button
             type="button"
-            className="overflow-hidden rounded-lg border border-border bg-muted/30 transition-colors hover:border-brand/40"
+            className="overflow-hidden rounded-lg border border-border bg-muted transition-colors duration-(--duration-fast) hover:border-ring"
             aria-label={item.label}
             onClick={() => onSelect(item)}
           >
@@ -275,25 +276,36 @@ export function ChatExpressionPicker({
         ? t("chat.expression_search_gifs")
         : t("chat.expression_search_emojis");
 
+  const searchField = (
+    <div className="border-b border-border px-3 py-2">
+      <div className="relative">
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
+          className="h-8 pl-8"
+        />
+      </div>
+    </div>
+  );
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         disabled={disabled}
         render={
-          <button
-            type="button"
-            aria-label={t("chat.expression_picker_open")}
+          <ComposerToolbarButton
+            label={t("chat.expression_picker_open")}
             disabled={disabled}
-            className={cn(
-              "inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors",
-              "hover:bg-muted hover:text-foreground",
-              "disabled:pointer-events-none disabled:opacity-50",
-              "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-              className,
-            )}
+            className={className}
           >
             <Smile className="size-5" aria-hidden />
-          </button>
+          </ComposerToolbarButton>
         }
       />
       <PopoverContent
@@ -301,156 +313,123 @@ export function ChatExpressionPicker({
         side="top"
         className={cn(
           "flex flex-col overflow-hidden p-0",
-          expanded ? "h-[520px] w-[min(480px,calc(100vw-2rem))]" : "h-[400px] w-[min(360px,calc(100vw-2rem))]",
+          expanded ? "h-130 w-[min(30rem,calc(100vw-2rem))]" : "h-100 w-[min(22.5rem,calc(100vw-2rem))]",
         )}
       >
-        <div className="flex items-center border-b border-border px-2 pt-1">
-          <div className="flex min-w-0 flex-1 items-center" role="tablist" aria-label={t("chat.expression_picker_tabs")}>
-            <ExpressionTabButton
-              active={tab === "sticker"}
-              label={t("chat.expression_tab_sticker")}
-              onClick={() => setTab("sticker")}
-            />
-            <ExpressionTabButton
-              active={tab === "emoji"}
-              label={t("chat.expression_tab_emoji")}
-              onClick={() => setTab("emoji")}
-            />
-            <ExpressionTabButton
-              active={tab === "gif"}
-              label={t("chat.expression_tab_gif")}
-              onClick={() => setTab("gif")}
-            />
+        {/* Registry tabs: arrow keys between tabs, each panel labelled by its tab. */}
+        <Tabs value={tab} onValueChange={(next) => setTab(next as ExpressionTab)} className="min-h-0 flex-1 gap-0">
+          <div className="flex items-center border-b border-border px-2 py-1.5">
+            <TabsList variant="line" className="min-w-0 flex-1 justify-start" aria-label={t("chat.expression_picker_tabs")}>
+              <TabsTrigger value="sticker" className="flex-none px-2.5">
+                {t("chat.expression_tab_sticker")}
+              </TabsTrigger>
+              <TabsTrigger value="emoji" className="flex-none px-2.5">
+                {t("chat.expression_tab_emoji")}
+              </TabsTrigger>
+              <TabsTrigger value="gif" className="flex-none px-2.5">
+                {t("chat.expression_tab_gif")}
+              </TabsTrigger>
+            </TabsList>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label={expanded ? t("chat.expression_collapse") : t("chat.expression_expand")}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
+            </Button>
           </div>
-          <button
-            type="button"
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={expanded ? t("chat.expression_collapse") : t("chat.expression_expand")}
-            onClick={() => setExpanded((value) => !value)}
-          >
-            {expanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
-          </button>
-        </div>
 
-        {tab !== "emoji" ? (
-          <div className="border-b border-border px-3 py-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={searchPlaceholder}
-                aria-label={searchPlaceholder}
-                className="h-9 rounded-full border-border bg-muted/40 pl-9"
-              />
+          <TabsContent value="sticker" className="flex min-h-0 flex-col">
+            {searchField}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {stickersLoading || tenorStickersLoading ? (
+                <PickerGridSkeleton columns={4} label={t("common.loading")} />
+              ) : (
+                <>
+                  <p className="px-3 pt-3 pb-1 text-overline text-muted-foreground uppercase">
+                    {activePack?.name ?? t("chat.expression_tab_sticker")}
+                  </p>
+                  <StickerGrid
+                    stickers={visibleStickers}
+                    onSelect={sendSticker}
+                    emptyLabel={t("chat.expression_stickers_empty")}
+                  />
+                </>
+              )}
             </div>
-          </div>
-        ) : null}
+            {filteredPacks.length > 0 ? (
+              <div className="flex items-center gap-1 border-t border-border px-2 py-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground"
+                  aria-label={t("chat.expression_prev_pack")}
+                  onClick={() =>
+                    setActivePackIndex((index) => (index <= 0 ? filteredPacks.length - 1 : index - 1))
+                  }
+                >
+                  <ChevronLeft aria-hidden />
+                </Button>
+                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+                  {filteredPacks.map((pack, index) => (
+                    <button
+                      key={pack.id}
+                      type="button"
+                      aria-label={pack.name}
+                      aria-pressed={index === activePackIndex}
+                      className={cn(
+                        "inline-flex size-9 shrink-0 items-center justify-center rounded-md text-title-sm transition-colors duration-(--duration-fast)",
+                        index === activePackIndex ? "bg-surface-selected" : "hover:bg-surface-hover",
+                      )}
+                      onClick={() => setActivePackIndex(index)}
+                    >
+                      {pack.coverUrl ? (
+                        <img src={pack.coverUrl} alt="" className="size-6 object-contain" loading="lazy" />
+                      ) : (
+                        (pack.stickers[0]?.emoji ?? "🙂")
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground"
+                  aria-label={t("chat.expression_next_pack")}
+                  onClick={() =>
+                    setActivePackIndex((index) => (index >= filteredPacks.length - 1 ? 0 : index + 1))
+                  }
+                >
+                  <ChevronRight aria-hidden />
+                </Button>
+              </div>
+            ) : null}
+          </TabsContent>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {tab === "sticker" ? (
-            stickersLoading || tenorStickersLoading ? (
-              <p className="flex items-center justify-center gap-2 px-3 py-8 text-caption text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                {t("common.loading")}
-              </p>
-            ) : (
-              <>
-                <p className="px-3 pt-3 pb-1 text-caption font-semibold text-foreground">
-                  {activePack?.name ?? t("chat.expression_tab_sticker")}
-                </p>
-                <StickerGrid stickers={visibleStickers} onSelect={sendSticker} />
-              </>
-            )
-          ) : null}
-
-          {tab === "emoji" ? (
-            <Suspense fallback={<p className="p-4 text-caption text-muted-foreground">{t("common.loading")}</p>}>
-              <div className="h-full min-h-[280px] overflow-hidden [&_em-emoji-picker]:!w-full [&_em-emoji-picker]:!border-0">
+          <TabsContent value="emoji" className="min-h-0 overflow-y-auto">
+            <Suspense fallback={<PickerGridSkeleton columns={4} label={t("common.loading")} />}>
+              <div className="h-full min-h-70 overflow-hidden [&_em-emoji-picker]:!w-full [&_em-emoji-picker]:!border-0">
                 <EmojiPicker onSelect={handleEmojiSelect} />
               </div>
             </Suspense>
-          ) : null}
+          </TabsContent>
 
-          {tab === "gif" ? (
-            gifsLoading ? (
-              <p className="flex items-center justify-center gap-2 px-3 py-8 text-caption text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                {t("common.loading")}
-              </p>
-            ) : (
-              <GifGrid items={gifItems} onSelect={sendGif} />
-            )
-          ) : null}
-        </div>
-
-        {tab === "sticker" && filteredPacks.length > 0 ? (
-          <div className="flex items-center gap-1 border-t border-border px-2 py-2">
-            <button
-              type="button"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              aria-label={t("chat.expression_prev_pack")}
-              onClick={() =>
-                setActivePackIndex((index) =>
-                  index <= 0 ? filteredPacks.length - 1 : index - 1,
-                )
-              }
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-            </button>
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-              {filteredPacks.map((pack, index) => (
-                <button
-                  key={pack.id}
-                  type="button"
-                  aria-label={pack.name}
-                  aria-current={index === activePackIndex ? "true" : undefined}
-                  className={cn(
-                    "inline-flex size-10 shrink-0 items-center justify-center rounded-md border text-title-sm transition-colors",
-                    index === activePackIndex
-                      ? "border-brand/30 bg-brand/10"
-                      : "border-transparent hover:bg-muted",
-                  )}
-                  onClick={() => setActivePackIndex(index)}
-                >
-                  {pack.coverUrl ? (
-                    <img src={pack.coverUrl} alt="" className="size-7 object-contain" loading="lazy" />
-                  ) : (
-                    (pack.stickers[0]?.emoji ?? "🙂")
-                  )}
-                </button>
-              ))}
+          <TabsContent value="gif" className="flex min-h-0 flex-col">
+            {searchField}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {gifsLoading ? (
+                <PickerGridSkeleton columns={2} label={t("common.loading")} />
+              ) : (
+                <GifGrid items={gifItems} onSelect={sendGif} emptyLabel={t("chat.expression_gifs_empty")} />
+              )}
             </div>
-            <button
-              type="button"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              aria-label={t("chat.expression_next_pack")}
-              onClick={() =>
-                setActivePackIndex((index) =>
-                  index >= filteredPacks.length - 1 ? 0 : index + 1,
-                )
-              }
-            >
-              <ChevronRight className="size-4" aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              aria-label={t("chat.expression_pack_settings")}
-              disabled
-            >
-              <Settings className="size-4" aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              aria-label={t("chat.expression_add_pack")}
-              disabled
-            >
-              <Plus className="size-4" aria-hidden />
-            </button>
-          </div>
-        ) : null}
+          </TabsContent>
+        </Tabs>
       </PopoverContent>
     </Popover>
   );

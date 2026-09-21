@@ -31,4 +31,10 @@ export interface ChatSidebarProps {
   unreadBadgesReady?: boolean;
   nicknamesByUserId?: Record<string, string>;
   embedded?: boolean;
+  /** Rooms have not arrived yet: the list shows its loading shape, not "empty". */
+  loading?: boolean;
+  /** The workspace room's display name; defaults to the generic "Chung". */
+  workspaceRoomTitle?: string;
+  /** Hides the list on desktop; the conversation header offers the way back. */
+  onCollapse?: () => void;
 }

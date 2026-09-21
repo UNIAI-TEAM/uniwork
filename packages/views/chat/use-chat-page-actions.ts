@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { errorCode } from "@uniwork/core/api";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
   outboxEntryFromPayload,
@@ -192,7 +192,7 @@ export function useChatPageActions({
           queueForLater();
         } else {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-          setConnectError(err instanceof Error ? err.message : "send_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.send_failed"));
         }
       }
     },
@@ -252,13 +252,13 @@ export function useChatPageActions({
           setCreateGroupOpen(false);
         })
         .catch((err: unknown) => {
-          setConnectError(err instanceof Error ? err.message : "group_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.group_failed"));
         })
         .finally(() => {
           setCreatingGroup(false);
         });
     },
-    [createGroup, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup],
+    [createGroup, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup, t],
   );
 
   const handleAddGroupMembers = useCallback(
@@ -302,13 +302,14 @@ export function useChatPageActions({
           setAddMembersOpen(false);
         })
         .catch((err: unknown) => {
-          setConnectError(err instanceof Error ? err.message : "group_invite_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.group_invite_failed"));
         })
         .finally(() => {
           setInvitingMembers(false);
         });
     },
     [
+      t,
       target.kind,
       activeChannel,
       activeGroup,
@@ -333,7 +334,7 @@ export function useChatPageActions({
         setGroupSettingsOpen(false);
         clearGroupMemberProfiles();
       } catch (err: unknown) {
-        setConnectError(err instanceof Error ? err.message : t("chat.leave_conversation_failed"));
+        setConnectError(apiErrorMessage(err) ?? t("chat.leave_conversation_failed"));
       } finally {
         setLeavingConversation(false);
       }

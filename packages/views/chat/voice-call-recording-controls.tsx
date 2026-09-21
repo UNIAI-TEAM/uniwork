@@ -54,7 +54,6 @@ export function VoiceCallRecordControl({
   const invalidateRecordings = useInvalidateChatVoiceRecordings();
   const recordingEnabled = caps?.recording === true;
   const [recording, setRecording] = useState(false);
-  const [startedBy, setStartedBy] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -64,7 +63,6 @@ export function VoiceCallRecordControl({
       .then((rec) => {
         if (rec?.status === "ACTIVE") {
           setRecording(true);
-          if (rec.started_by) setStartedBy(rec.started_by);
         }
       })
       .catch(() => {
@@ -82,20 +80,21 @@ export function VoiceCallRecordControl({
       const data = payload as { room_id?: string; call_id?: string; user_id?: string };
       if (data.room_id !== roomId || data.call_id !== callId) return;
       setRecording(true);
-      if (data.user_id?.trim()) setStartedBy(data.user_id.trim());
+      const by = data.user_id?.trim();
+      // Everyone in the call is told, not only the person who pressed record.
+      if (by && by !== currentUserId) toast.info(t("chat.voice_call_record_peer_started"));
     });
     const offStopped = ws.on("chat.voice.recording.stopped", (payload) => {
       const data = payload as { room_id?: string; call_id?: string };
       if (data.room_id === roomId && data.call_id === callId) {
         setRecording(false);
-        setStartedBy(null);
       }
     });
     return () => {
       offStarted();
       offStopped();
     };
-  }, [ws, roomId, callId]);
+  }, [ws, roomId, callId, currentUserId, t]);
 
   const startRecording = useCallback(() => {
     setPending(true);
@@ -106,8 +105,6 @@ export function VoiceCallRecordControl({
           return;
         }
         setRecording(true);
-        if (rec.started_by) setStartedBy(rec.started_by);
-        else if (currentUserId) setStartedBy(currentUserId);
         invalidateRecordings(workspaceId, roomId);
         toast.success(
           rec.started_by && currentUserId && rec.started_by !== currentUserId
@@ -138,7 +135,6 @@ export function VoiceCallRecordControl({
             return;
           }
           setRecording(false);
-          setStartedBy(null);
           invalidateRecordings(workspaceId, roomId);
           toast.success(t("chat.voice_call_record_stopped"));
         })
@@ -151,25 +147,19 @@ export function VoiceCallRecordControl({
     setConfirmOpen(true);
   };
 
-  const peerIsRecording =
-    recording && startedBy != null && currentUserId !== "" && startedBy !== currentUserId;
-
   return (
     <>
-      <div className="flex flex-col items-center gap-0.5">
+      <div className="flex flex-col items-center gap-1">
         <Button
           type="button"
-          variant={recording ? "default" : "outline"}
+          variant="outline"
           size="icon-lg"
           className={cn(
-            "size-11 rounded-full",
-            !recording && "border-border bg-background",
-            recording && "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-            !recordingEnabled && "opacity-60",
+            "size-11 rounded-xl",
+            recording && "border-transparent bg-destructive-solid text-on-solid hover:bg-destructive-solid hover:opacity-90",
           )}
-          aria-label={
-            recording ? t("chat.voice_call_record_stop") : t("chat.voice_call_record_start")
-          }
+          aria-label={recording ? t("chat.voice_call_record_stop") : t("chat.voice_call_record_start")}
+          title={recording ? t("chat.voice_call_record_stop") : t("chat.voice_call_record_start")}
           aria-pressed={recording}
           disabled={disabled || pending}
           onClick={toggle}
@@ -179,16 +169,19 @@ export function VoiceCallRecordControl({
           ) : (
             <Circle
               aria-hidden
-              className={cn(
-                "size-4",
-                recordingEnabled ? "fill-destructive text-destructive" : "text-muted-foreground",
-              )}
+              className={cn("size-4", recordingEnabled ? "fill-destructive text-destructive" : "text-muted-foreground")}
             />
           )}
         </Button>
-        {peerIsRecording ? (
-          <span className="max-w-[4.5rem] truncate text-[10px] leading-tight text-muted-foreground">
-            {t("chat.voice_call_record_peer_active")}
+        {/* While anyone records, everyone sees it: a REC pill under the
+            control, in the danger signal, dot pulsing only when motion is ok. */}
+        {recording ? (
+          <span
+            role="status"
+            className="inline-flex items-center gap-1 rounded-md bg-destructive-soft px-1.5 py-0.5 text-micro font-semibold text-destructive-soft-foreground"
+          >
+            <span className="size-1.5 rounded-full bg-destructive-solid motion-safe:animate-pulse" aria-hidden />
+            {t("chat.voice_call_record_live")}
           </span>
         ) : null}
       </div>
@@ -199,7 +192,7 @@ export function VoiceCallRecordControl({
             <AlertDialogDescription>{t("chat.voice_call_record_confirm")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.back")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction disabled={pending} onClick={startRecording}>
               {t("chat.voice_call_record_confirm_action")}
             </AlertDialogAction>

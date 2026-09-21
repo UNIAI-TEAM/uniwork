@@ -1,15 +1,38 @@
 "use client";
 
-import { Plus, Search, UserPlus, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Compass,
+  Hash,
+  ListChecks,
+  MessageSquare,
+  PanelLeftClose,
+  Plus,
+  Search,
+  UserPlus,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
 import type { PendingInvitation } from "@uniwork/core/types";
 import { useAcceptInvite, useMyInvitations } from "@uniwork/core/workspaces";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { moduleTone } from "../layout/module-tones";
 import { ChannelDirectorySheet } from "./channel-directory-sheet";
 import { CreateChannelDialog } from "./create-channel-dialog";
 import { CreateGroupDialog } from "./create-group-dialog";
@@ -23,6 +46,14 @@ import {
 import { ChatSidebarUnifiedRow } from "./chat-sidebar-unified-row";
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
+
+/* Same chip as the inbox triage row: a quiet label that rises to a raised
+   surface when on, so the active filter reads without a second accent. */
+/* One segment of the kind filter: a quiet label on the muted track that
+   rises to a raised surface when chosen — one control, one row. */
+const FILTER_SEGMENT =
+  "h-7 min-w-0 flex-1 truncate rounded-md border-0 px-1.5 text-caption font-medium text-muted-foreground transition-colors duration-(--duration-fast) pointer-coarse:h-11 " +
+  "hover:text-foreground aria-pressed:bg-surface aria-pressed:text-foreground aria-pressed:shadow-[var(--surface-shadow)] dark:aria-pressed:bg-muted";
 
 export function ChatSidebar({
   currentUserId,
@@ -46,6 +77,9 @@ export function ChatSidebar({
   unreadBadgesReady = false,
   nicknamesByUserId = {},
   embedded = false,
+  loading = false,
+  workspaceRoomTitle,
+  onCollapse,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState("");
@@ -58,34 +92,13 @@ export function ChatSidebar({
   const setCreateGroupOpen = onCreateGroupOpenChange ?? setCreateGroupOpenInternal;
   const { data: invites = [] } = useMyInvitations();
   const accept = useAcceptInvite();
-  const filterScrollRef = useRef<HTMLDivElement>(null);
-
-  // Map vertical mouse-wheel to horizontal scroll on the filter chips row.
-  useEffect(() => {
-    const el = filterScrollRef.current;
-    if (!el) return;
-    const onWheel = (event: WheelEvent) => {
-      if (el.scrollWidth <= el.clientWidth) return;
-      const delta =
-        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      if (delta === 0) return;
-      const max = el.scrollWidth - el.clientWidth;
-      const next = Math.min(max, Math.max(0, el.scrollLeft + delta));
-      if (next === el.scrollLeft) return;
-      event.preventDefault();
-      el.scrollLeft = next;
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
-
   const filterText = filterQuery.trim().toLowerCase();
   const pinnedByRoomId = useChatRoomPreferencesStore((state) => state.byRoomId);
   const isRoomPinned = (roomId: string | null | undefined) =>
     Boolean(roomId && pinnedByRoomId[roomId]?.pinned);
   const isRoomNotificationsMuted = (roomId: string | null | undefined) =>
     Boolean(roomId && pinnedByRoomId[roomId]?.notificationsMuted);
-  const workspaceTitle = t("chat.workspace_room");
+  const workspaceTitle = workspaceRoomTitle ?? t("chat.workspace_room");
 
   const filterOptions = useMemo(
     () => chatSidebarFilterOptions(workHubEnabled),
@@ -161,17 +174,77 @@ export function ChatSidebar({
     <>
       <aside
         className={cn(
-          "flex min-h-0 flex-col gap-3 bg-surface p-3",
-          embedded
-            ? "h-full min-w-0 flex-1 border-r border-border"
-            : "gap-4 rounded-lg border border-border",
+          "flex min-h-0 flex-col bg-surface",
+          embedded ? "h-full min-w-0 flex-1 border-r border-border" : "rounded-lg border border-border",
         )}
       >
-        <div className="flex items-center gap-1.5">
-          <div className="relative min-w-0 flex-1">
+        {/* Same height as the conversation header, so one rule runs across
+            both columns and the two titles share a baseline. */}
+        <header className="flex h-14 shrink-0 items-center gap-0.5 border-b border-border pr-2 pl-3">
+          <h2 className="min-w-0 flex-1 truncate text-title-sm font-semibold text-foreground">{t("chat.title")}</h2>
+          {workHubEnabled && onOpenFollowUps ? (
+            <SidebarIconAction icon={ListChecks} label={t("chat.follow_up.list_title")} onClick={onOpenFollowUps} />
+          ) : null}
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-lg"
+                        className="text-foreground"
+                        aria-label={t("chat.new_conversation_aria")}
+                      />
+                    }
+                  />
+                }
+              >
+                <Plus aria-hidden className="size-[18px]" />
+              </TooltipTrigger>
+              <TooltipContent>{t("chat.new_conversation_aria")}</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="min-w-52">
+              <DropdownMenuItem onClick={() => setStartDmOpen(true)}>
+                <UserPlus aria-hidden />
+                {t("chat.add_dm_aria")}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!onCreateGroup} onClick={() => setCreateGroupOpen(true)}>
+                <Users aria-hidden />
+                {t("chat.create_group_aria")}
+              </DropdownMenuItem>
+              {workHubEnabled ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setCreateChannelOpen(true)}>
+                    <Hash aria-hidden />
+                    {t("chat.channel.create_aria")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setChannelDirectoryOpen(true)}>
+                    <Compass aria-hidden />
+                    {t("chat.channel.directory_aria")}
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {onCollapse ? (
+            <SidebarIconAction
+              icon={PanelLeftClose}
+              label={t("chat.hide_conversations")}
+              onClick={onCollapse}
+              className="hidden lg:inline-flex"
+            />
+          ) : null}
+        </header>
+
+        <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-2">
+          <div className="relative">
             <Search
               aria-hidden
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               value={filterQuery}
@@ -180,106 +253,40 @@ export function ChatSidebar({
               aria-label={t("chat.search_conversations")}
               type="search"
               autoComplete="off"
-              className="h-10 rounded-full border-border/80 bg-muted/40 pl-9"
+              className="h-8 border-transparent bg-muted pl-8 hover:bg-surface-hover focus-visible:bg-surface dark:bg-muted dark:focus-visible:bg-surface"
             />
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={t("chat.add_dm_aria")}
-            onClick={() => setStartDmOpen(true)}
+          {/* Registry toggle group: arrow keys move between kinds (roving focus).
+              Dark has no surface lighter than the sidebar, so there the track
+              sinks (background) and the chosen segment rises (muted). */}
+          <ToggleGroup
+            value={[kindFilter]}
+            onValueChange={(value) => {
+              const next = value[0] as ChatSidebarKindFilter | undefined;
+              if (next) setKindFilter(next);
+            }}
+            aria-label={t("chat.filter_aria")}
+            spacing={1}
+            className="flex w-full rounded-lg bg-muted p-0.5 dark:bg-background"
           >
-            <UserPlus className="size-5" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={t("chat.create_group_aria")}
-            disabled={!onCreateGroup}
-            onClick={() => setCreateGroupOpen(true)}
-          >
-            <Users className="size-5" aria-hidden />
-          </Button>
-          {workHubEnabled ? (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label={t("chat.channel.directory_aria")}
-                onClick={() => setChannelDirectoryOpen(true)}
-              >
-                <Search className="size-5" aria-hidden />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label={t("chat.channel.create_aria")}
-                onClick={() => setCreateChannelOpen(true)}
-              >
-                <Plus className="size-5" aria-hidden />
-              </Button>
-            </>
-          ) : null}
-        </div>
-
-        <div
-          ref={filterScrollRef}
-          className="no-scrollbar flex items-center gap-1.5 overflow-x-auto"
-          role="toolbar"
-          aria-label={t("chat.filter_aria")}
-        >
-          {filterOptions.map((kind) => {
-            const active = kindFilter === kind;
-            return (
-              <Button
-                key={kind}
-                type="button"
-                size="sm"
-                variant="ghost"
-                className={cn(
-                  "h-8 shrink-0 rounded-full px-3.5 text-caption transition-colors",
-                  active
-                    ? "bg-brand/15 font-semibold text-brand shadow-sm ring-1 ring-brand/25 hover:bg-brand/20 hover:text-brand"
-                    : "bg-muted/70 font-medium text-foreground hover:bg-muted hover:text-foreground",
-                )}
-                aria-pressed={active}
-                onClick={() => setKindFilter(kind)}
-              >
+            {filterOptions.map((kind) => (
+              <ToggleGroupItem key={kind} value={kind} className={FILTER_SEGMENT}>
                 {filterLabel(kind)}
-              </Button>
-            );
-          })}
-          {workHubEnabled && onOpenFollowUps ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 shrink-0 rounded-full bg-muted/70 px-3.5 text-caption font-medium text-foreground hover:bg-muted hover:text-foreground"
-              onClick={onOpenFollowUps}
-            >
-              {t("chat.follow_up.list_title")}
-            </Button>
-          ) : null}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
 
         {invites.length > 0 ? (
-          <section className="space-y-2">
-            <h2 className="px-1 text-label font-medium text-foreground">
+          <section className="space-y-2 px-3 pb-2">
+            <h3 className="px-1 text-overline text-muted-foreground uppercase">
               {t("chat.pending_invites")}
-            </h2>
+            </h3>
             <ul className="space-y-1">
               {invites.map((inv) => (
                 <li
                   key={inv.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2"
+                  className="flex flex-col gap-2 rounded-lg bg-brand-subtle px-3 py-2"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-body font-medium text-foreground">
@@ -305,15 +312,19 @@ export function ChatSidebar({
         ) : null}
 
         <nav
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3"
           aria-label={t("chat.sidebar_nav")}
         >
-          {entries.length === 0 ? (
-            <p className="px-1 text-caption text-muted-foreground">
-              {t("chat.search_no_results")}
-            </p>
+          {loading && entries.length <= 1 ? (
+            <SidebarSkeleton />
+          ) : entries.length === 0 ? (
+            <SidebarEmpty
+              searching={filterText.length > 0}
+              filtered={kindFilter !== "all"}
+              onStartDm={() => setStartDmOpen(true)}
+            />
           ) : (
-            <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+            <ul className="-mx-1 min-h-0 shrink space-y-px overflow-y-auto px-1">
               {entries.map((entry) => (
                 <li key={entry.key}>
                   <ChatSidebarUnifiedRow
@@ -341,6 +352,9 @@ export function ChatSidebar({
               ))}
             </ul>
           )}
+          {!loading && !filterText && kindFilter === "all" && entries.length === 1 && entries[0]?.kind === "workspace" ? (
+            <SidebarStarter onStartDm={() => setStartDmOpen(true)} onCreateGroup={onCreateGroup ? () => setCreateGroupOpen(true) : undefined} />
+          ) : null}
         </nav>
       </aside>
 
@@ -379,6 +393,10 @@ export function ChatSidebar({
             onOpenChange={setChannelDirectoryOpen}
             workspaceId={workspaceId}
             memberChannelIds={memberChannelIds}
+            onCreateChannel={() => {
+              setChannelDirectoryOpen(false);
+              setCreateChannelOpen(true);
+            }}
             onJoined={(room) => {
               setChannelDirectoryOpen(false);
               onTargetChange({ kind: "channel", channel: room });
@@ -387,5 +405,115 @@ export function ChatSidebar({
         </>
       ) : null}
     </>
+  );
+}
+
+/** A quiet icon action in the sidebar header, named by its tooltip. */
+function SidebarIconAction({
+  icon: Icon,
+  label,
+  onClick,
+  className,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            className={cn("text-muted-foreground hover:text-foreground", className)}
+            aria-label={label}
+            onClick={onClick}
+          />
+        }
+      >
+        <Icon aria-hidden className="size-[18px]" />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * A new workspace lists only its shared room. Under it, one quiet line says
+ * what the list is for and offers the two ways to start — not an empty column.
+ */
+function SidebarStarter({ onStartDm, onCreateGroup }: { onStartDm: () => void; onCreateGroup?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="mt-3 space-y-2 border-t border-border px-2 pt-3">
+      <p className="text-caption text-pretty text-muted-foreground">{t("chat.sidebar_starter_hint")}</p>
+      <div className="flex flex-col items-start gap-0.5">
+        <Button type="button" variant="ghost" size="sm" className="-ml-2 text-foreground" onClick={onStartDm}>
+          <UserPlus aria-hidden />
+          {t("chat.add_dm_aria")}
+        </Button>
+        {onCreateGroup ? (
+          <Button type="button" variant="ghost" size="sm" className="-ml-2 text-foreground" onClick={onCreateGroup}>
+            <Users aria-hidden />
+            {t("chat.create_group_aria")}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** The loading shape is the row's shape: a mark, a name, a preview. */
+function SidebarSkeleton() {
+  const widths = ["w-2/3", "w-1/2", "w-3/4", "w-2/5", "w-3/5"];
+  return (
+    <div className="space-y-px" aria-busy>
+      {widths.map((w, i) => (
+        <div key={i} className="flex items-center gap-3 px-2 py-2">
+          <Skeleton className="size-8 shrink-0 rounded-lg" />
+          <div className="flex flex-1 flex-col gap-1.5">
+            <Skeleton className={`h-3.5 ${w}`} />
+            <Skeleton className="h-3 w-4/5" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Three different truths share this slot: a search with no hit, a kind filter
+ * with nothing of that kind yet, and no conversation at all beyond the
+ * workspace room. Each says which one it is and, when there is one, the next
+ * step.
+ */
+function SidebarEmpty({
+  searching,
+  filtered,
+  onStartDm,
+}: {
+  searching: boolean;
+  filtered: boolean;
+  onStartDm: () => void;
+}) {
+  const { t } = useTranslation();
+  if (searching) {
+    return <p className="px-2 py-3 text-caption text-muted-foreground">{t("chat.search_no_results")}</p>;
+  }
+  return (
+    <div className="flex flex-col items-start gap-2 px-2 py-4">
+      <IconTile icon={MessageSquare} tone={moduleTone("chat")} size="sm" />
+      <p className="text-body font-medium text-foreground">
+        {filtered ? t("chat.sidebar_filter_empty_title") : t("chat.sidebar_empty_title")}
+      </p>
+      <p className="text-caption text-pretty text-muted-foreground">{t("chat.sidebar_empty_hint")}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onStartDm}>
+        <UserPlus aria-hidden />
+        {t("chat.add_dm_aria")}
+      </Button>
+    </div>
   );
 }

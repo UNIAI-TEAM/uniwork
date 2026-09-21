@@ -1,50 +1,94 @@
 "use client";
 
-import { Suspense, lazy } from "react";
+import { Fragment, Suspense, lazy, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { messageBodyHasMention } from "./chat-mention-utils";
-import { isChatMediaMessageBody, parseChatMediaMessageBody } from "./chat-expression-utils";
+import {
+  describeChatMediaBody,
+  isChatMediaMessageBody,
+  parseChatMediaMessageBody,
+} from "./chat-expression-utils";
 
 // The markdown renderer drags KaTeX, Shiki and the whole unified stack — about
 // 140 KB gzip — into whatever route imports it. Most chat messages are plain
 // text and return before reaching it (see ChatMessageBody), so it loads with
-// the first message that carries a mention or an image, not with the route
+// the first message that carries a mention, not with the route
 // (scripts/bundle-budget.mjs).
 const Markdown = lazy(() =>
   import("@uniwork/ui/markdown").then((m) => ({ default: m.Markdown })),
 );
 
+/**
+ * A sticker, GIF or image is already parsed to a URL and a name, so it is
+ * drawn as a plain <img>: no markdown bundle to wait for, no empty bubble
+ * while it loads. A sticker keeps its 128px height from the first paint; a
+ * GIF or image shows a muted plate until it arrives; a broken link says so
+ * in words.
+ */
 function ChatMediaMessageBody({ body }: { body: string }) {
+  const { t } = useTranslation();
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
   const parsed = parseChatMediaMessageBody(body);
   if (!parsed) return null;
   const isSticker = parsed.alt.startsWith("sticker:");
-  const isGif = parsed.alt.startsWith("gif:") || parsed.url.toLowerCase().includes(".gif");
+  const label =
+    describeChatMediaBody(body, {
+      sticker: t("chat.media_sticker"),
+      gif: t("chat.media_gif"),
+      image: t("chat.media_image"),
+    }) ?? t("chat.media_image");
 
+  if (failed) {
+    return (
+      <p className="rounded-lg bg-muted px-3 py-2 text-caption text-muted-foreground">
+        {t("chat.media_unavailable", { name: label })}
+      </p>
+    );
+  }
   return (
-    // The image is the whole message, so the fallback reserves nothing: a
-    // placeholder would flash for one frame on a picture about to appear.
-    <Suspense fallback={null}>
-      <Markdown
-        mode="minimal"
-        className="[&_p]:my-0"
-        renderImage={({ src, alt }) => (
-          <img
-            src={src}
-            alt={alt}
-            className={cn(
-              "my-0 max-w-full object-contain",
-              isSticker ? "size-32" : isGif ? "max-h-48 rounded-md" : "max-h-48 rounded-md",
-            )}
-            loading="lazy"
-          />
-        )}
-      >
-        {body}
-      </Markdown>
-    </Suspense>
+    <img
+      src={parsed.url}
+      alt={label}
+      loading="lazy"
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      onError={() => setFailed(true)}
+      className={cn(
+        "block max-w-full object-contain",
+        // Fixed height (no jump when it loads), natural width: many "stickers"
+        // from GIF services are landscape and would letterbox in a square.
+        isSticker
+          ? "h-32 w-auto max-w-56"
+          : cn("max-h-60 rounded-xl", !loaded && "min-h-32 min-w-48 bg-muted"),
+      )}
+    />
   );
+}
+
+const URL_PATTERN = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
+
+/**
+ * Plain text with its web addresses made into links. A cheap pass on the
+ * common path, so a message with a URL does not pull in the markdown bundle.
+ */
+function linkify(text: string, linkClass: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const start = match.index ?? 0;
+    if (start > last) out.push(<Fragment key={`t${last}`}>{text.slice(last, start)}</Fragment>);
+    out.push(
+      <a key={`a${start}`} href={match[0]} target="_blank" rel="noopener noreferrer" className={linkClass}>
+        {match[0]}
+      </a>,
+    );
+    last = start + match[0].length;
+  }
+  if (last < text.length) out.push(<Fragment key={`t${last}`}>{text.slice(last)}</Fragment>);
+  return out;
 }
 
 export function ChatMessageBody({
@@ -57,26 +101,28 @@ export function ChatMessageBody({
   nameContext: ChatNameContextEntry[];
 }) {
   const { t } = useTranslation();
-  const textClass = cn(
-    "whitespace-pre-wrap break-words text-body leading-relaxed",
-    isOwn ? "text-brand-foreground" : "text-foreground",
-  );
+  // Both bubbles are pale fills (brand-subtle for mine, muted for theirs), so
+  // the body is always the foreground colour; long words and URLs wrap
+  // anywhere instead of pushing the bubble past its column.
+  const textClass = "whitespace-pre-wrap text-body leading-relaxed text-foreground text-pretty [overflow-wrap:anywhere]";
+  const linkClass =
+    "font-medium text-brand-subtle-foreground underline decoration-1 underline-offset-2 hover:decoration-2";
 
   if (isChatMediaMessageBody(body)) {
     return (
-      <div className={cn(isOwn ? "text-brand-foreground" : "text-foreground")}>
+      <div className="text-foreground">
         <ChatMediaMessageBody body={body} />
       </div>
     );
   }
 
   if (!messageBodyHasMention(body)) {
-    return <p className={textClass}>{body}</p>;
+    return <p className={textClass}>{linkify(body, linkClass)}</p>;
   }
 
   const mentionClass = cn(
-    "font-semibold rounded-sm px-0.5",
-    isOwn ? "bg-brand-foreground/15 text-brand-foreground" : "bg-primary/10 text-primary",
+    "rounded-sm font-semibold text-brand-subtle-foreground",
+    isOwn ? "" : "bg-brand-subtle px-0.5",
   );
 
   return (

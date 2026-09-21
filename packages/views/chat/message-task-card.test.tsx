@@ -65,7 +65,8 @@ describe("MessageTaskCard", () => {
     expect(screen.getByTestId("chat-task-peek-dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Tiêu đề")).toHaveValue("long ơi");
     expect(screen.getByTestId("chat-task-peek-fields")).toBeInTheDocument();
-    expect(screen.getByLabelText("Trạng thái")).toBeInTheDocument();
-    expect(screen.getByLabelText("Project")).toBeInTheDocument();
+    // Each field's trigger names the field and its current value.
+    expect(screen.getByRole("button", { name: "Trạng thái: Cần làm" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Project: Không gắn" })).toBeInTheDocument();
   });
 });

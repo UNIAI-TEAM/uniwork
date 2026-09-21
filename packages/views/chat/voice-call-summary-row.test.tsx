@@ -55,7 +55,8 @@ describe("VoiceCallSummaryRow", () => {
       ),
     );
 
-    expect(screen.getByText("Tóm tắt cuộc gọi")).toBeInTheDocument();
+    // AI output says so in its label (Agent Principles).
+    expect(screen.getByText("Tóm tắt cuộc gọi · AI")).toBeInTheDocument();
     expect(screen.getByText("Đã chốt ship vào thứ Sáu.")).toBeInTheDocument();
     expect(screen.getByText("Deadline thứ Sáu")).toBeInTheDocument();
     expect(screen.getByText("Gửi báo cáo")).toBeInTheDocument();

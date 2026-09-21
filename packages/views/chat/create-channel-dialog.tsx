@@ -2,19 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "@uniwork/core/api";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useCreateChatChannel } from "@uniwork/core/chat";
 import { useProjects } from "@uniwork/core/tasks";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
@@ -26,7 +19,12 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
-import { cn } from "@uniwork/ui/lib/utils";
+import {
+  ChatDialogBody,
+  ChatDialogContent,
+  ChatDialogFooter,
+  ChatDialogHeader,
+} from "./chat-dialog-layout";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberPickerList,
@@ -34,6 +32,10 @@ import {
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
+
+type Visibility = "public" | "private";
+const NO_PROJECT = "__none__";
+const NAME_MAX = 80;
 
 export function CreateChannelDialog({
   open,
@@ -55,18 +57,19 @@ export function CreateChannelDialog({
 
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [visibility, setVisibility] = useState<Visibility>("public");
   const [projectId, setProjectId] = useState<string>("");
   const [memberQuery, setMemberQuery] = useState("");
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const excludeUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
   );
 
-  const { filteredMembers, isLoading, workspaceEmailMatch } = useWorkspaceMemberPicker({
+  const { filteredMembers, hasOtherMembers, isLoading, workspaceEmailMatch } = useWorkspaceMemberPicker({
     workspaceId,
     currentUserId,
     open,
@@ -83,6 +86,7 @@ export function CreateChannelDialog({
     setMemberQuery("");
     setSearchSubmitted(false);
     setPendingMembers([]);
+    setError(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -111,11 +115,12 @@ export function CreateChannelDialog({
   };
 
   const trimmedName = name.trim();
-  const canCreate = trimmedName.length >= 1 && trimmedName.length <= 80 && !createChannel.isPending;
+  const nameValid = trimmedName.length >= 1 && trimmedName.length <= NAME_MAX;
 
   const submit = () => {
-    if (!canCreate) return;
-    void createChannel
+    if (!nameValid || createChannel.isPending) return;
+    setError(null);
+    createChannel
       .mutateAsync({
         name: trimmedName,
         visibility,
@@ -124,21 +129,39 @@ export function CreateChannelDialog({
         member_user_ids: pendingMembers.map((m) => m.user_id),
       })
       .then((room) => {
-        if (!room?.id) return;
+        if (!room?.id) {
+          setError(t("chat.channel.create_failed"));
+          return;
+        }
         handleOpenChange(false);
         onCreated?.(room);
+      })
+      .catch((err: unknown) => {
+        setError(apiErrorMessage(err) ?? t("chat.channel.create_failed"));
       });
   };
 
+  const visibilityOptions: { value: Visibility; title: string; hint: string }[] = [
+    {
+      value: "public",
+      title: t("chat.channel.visibility_public_title"),
+      hint: t("chat.channel.visibility_public_hint"),
+    },
+    {
+      value: "private",
+      title: t("chat.channel.visibility_private_title"),
+      hint: t("chat.channel.visibility_private_hint"),
+    },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1.5 border-b border-border px-5 py-4">
-          <DialogTitle className="text-title">{t("chat.channel.create_title")}</DialogTitle>
-          <DialogDescription>{t("chat.channel.create_description")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
+      <ChatDialogContent size="lg">
+        <ChatDialogHeader
+          title={t("chat.channel.create_title")}
+          description={t("chat.channel.create_description")}
+        />
+        <ChatDialogBody className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="channel-name" className="text-label font-medium">
               {t("chat.channel.name_label")}
@@ -146,11 +169,19 @@ export function CreateChannelDialog({
             <Input
               id="channel-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                e.preventDefault();
+                submit();
+              }}
               placeholder={t("chat.channel.name_placeholder")}
-              className="rounded-xl"
               autoFocus
-              maxLength={80}
+              maxLength={NAME_MAX}
             />
           </div>
 
@@ -163,60 +194,70 @@ export function CreateChannelDialog({
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder={t("chat.channel.topic_placeholder")}
-              className="min-h-16 resize-none rounded-xl"
+              className="min-h-16 resize-none"
               maxLength={280}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-label font-medium">{t("chat.channel.visibility_label")}</Label>
+            <p id="channel-visibility-label" className="text-label font-medium text-foreground">
+              {t("chat.channel.visibility_label")}
+            </p>
             <RadioGroup
+              aria-labelledby="channel-visibility-label"
               value={visibility}
               onValueChange={(value) => {
                 if (value === "public" || value === "private") setVisibility(value);
               }}
-              className="gap-2"
+              className="gap-2 sm:grid-cols-2"
             >
-              <label
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
-                  visibility === "public"
-                    ? "border-foreground/20 bg-muted/40 ring-1 ring-ring/20"
-                    : "border-border/70 hover:bg-muted/30",
-                )}
-              >
-                <RadioGroupItem value="public" id="channel-vis-public" />
-                <span className="text-body text-foreground">{t("chat.channel.visibility_public")}</span>
-              </label>
-              <label
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
-                  visibility === "private"
-                    ? "border-foreground/20 bg-muted/40 ring-1 ring-ring/20"
-                    : "border-border/70 hover:bg-muted/30",
-                )}
-              >
-                <RadioGroupItem value="private" id="channel-vis-private" />
-                <span className="text-body text-foreground">{t("chat.channel.visibility_private")}</span>
-              </label>
+              {visibilityOptions.map((option) => (
+                <Label
+                  key={option.value}
+                  htmlFor={`channel-vis-${option.value}`}
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-3 py-2.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle"
+                >
+                  <RadioGroupItem
+                    value={option.value}
+                    id={`channel-vis-${option.value}`}
+                    aria-describedby={`channel-vis-${option.value}-hint`}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0 space-y-0.5">
+                    <span className="block text-body font-medium text-foreground">{option.title}</span>
+                    <span
+                      id={`channel-vis-${option.value}-hint`}
+                      className="block text-caption text-pretty text-muted-foreground"
+                    >
+                      {option.hint}
+                    </span>
+                  </span>
+                </Label>
+              ))}
             </RadioGroup>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-label font-medium">{t("chat.channel.project_label")}</Label>
+            <Label id="channel-project-label" htmlFor="channel-project" className="text-label font-medium">
+              {t("chat.channel.project_label")}
+            </Label>
             <Select
-              value={projectId || "__none__"}
-              onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
+              value={projectId || NO_PROJECT}
+              onValueChange={(value) => setProjectId(!value || value === NO_PROJECT ? "" : value)}
               items={[
-                { value: "__none__", label: t("chat.channel.project_none") },
+                { value: NO_PROJECT, label: t("chat.channel.project_none") },
                 ...projects.map((project) => ({ value: project.id, label: project.title })),
               ]}
             >
-              <SelectTrigger className="w-full rounded-xl" aria-label={t("chat.channel.project_label")}>
+              <SelectTrigger
+                id="channel-project"
+                aria-labelledby="channel-project-label channel-project"
+                className="w-full"
+              >
                 <SelectValue placeholder={t("chat.channel.project_none")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">{t("chat.channel.project_none")}</SelectItem>
+                <SelectItem value={NO_PROJECT}>{t("chat.channel.project_none")}</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
                     {project.title}
@@ -225,10 +266,6 @@ export function CreateChannelDialog({
               </SelectContent>
             </Select>
           </div>
-
-          {pendingMembers.length > 0 ? (
-            <SelectedMemberChips members={pendingMembers} onRemove={removeMember} />
-          ) : null}
 
           <div className="space-y-3">
             <WorkspaceMemberSearchField
@@ -240,32 +277,36 @@ export function CreateChannelDialog({
                 setSearchSubmitted(false);
               }}
               onSubmit={submitMemberSearch}
-              placeholder={t("chat.search_member_or_email")}
+              placeholder={t("chat.member_search_placeholder")}
             />
+            {pendingMembers.length > 0 ? (
+              <SelectedMemberChips members={pendingMembers} onRemove={removeMember} />
+            ) : null}
             <WorkspaceMemberPickerList
               members={filteredMembers}
               loading={isLoading}
-              emptyLabel={t("chat.workspace_members_empty")}
+              query={memberQuery}
+              hasOtherMembers={hasOtherMembers}
               onPick={addMember}
             />
           </div>
-        </div>
 
-        <DialogFooter className="border-t border-border px-5 py-3.5 sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full"
-            disabled={createChannel.isPending}
-            onClick={() => handleOpenChange(false)}
-          >
-            {t("chat.channel.cancel")}
-          </Button>
-          <Button type="button" className="rounded-full" disabled={!canCreate} onClick={submit}>
-            {createChannel.isPending ? t("chat.channel.creating") : t("chat.channel.create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          {error ? (
+            <p role="alert" className="text-caption text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </ChatDialogBody>
+        <ChatDialogFooter
+          onCancel={() => handleOpenChange(false)}
+          submitLabel={t("chat.channel.create")}
+          submittingLabel={t("chat.channel.creating")}
+          submitting={createChannel.isPending}
+          submitDisabled={!nameValid}
+          onSubmit={submit}
+          leading={!nameValid ? t("chat.channel.name_required") : undefined}
+        />
+      </ChatDialogContent>
     </Dialog>
   );
 }

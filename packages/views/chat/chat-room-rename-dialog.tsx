@@ -1,18 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "@uniwork/core/api";
 import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
 
 export function ChatRoomRenameDialog({
   open,
@@ -32,52 +27,65 @@ export function ChatRoomRenameDialog({
   const { t } = useTranslation();
   const updateSettings = useUpdateChatRoomSettings(workspaceId);
   const [name, setName] = useState(currentName);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleOpenChange = (next: boolean) => {
-    if (next) setName(currentName);
-    onOpenChange(next);
-  };
+  // The parent opens the dialog through `open`, so reset on that, not on onOpenChange.
+  useEffect(() => {
+    if (!open) return;
+    setName(currentName);
+    setError(null);
+  }, [open, currentName]);
 
   const handleSave = () => {
     const trimmed = name.trim();
     if (!trimmed || updateSettings.isPending) return;
+    setError(null);
     void updateSettings
       .mutateAsync({ roomId, name: trimmed })
       .then(() => {
         onRenamed?.(trimmed);
         onOpenChange(false);
       })
-      .catch(() => {
-        // mutation error surfaced by caller if needed
+      .catch((err: unknown) => {
+        setError(apiErrorMessage(err) ?? t("chat.room_rename_failed"));
       });
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("chat.room_rename_title")}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <ChatDialogContent size="md">
+        <ChatDialogHeader title={t("chat.room_rename_title")} description={t("chat.room_rename_description")} />
+        <ChatDialogBody className="space-y-2">
           <Label htmlFor="chat-room-rename">{t("chat.room_rename_label")}</Label>
           <Input
             id="chat-room-rename"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "chat-room-rename-error" : undefined}
+            onChange={(event) => {
+              setName(event.target.value);
+              if (error) setError(null);
+            }}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
               if (event.key === "Enter") handleSave();
             }}
           />
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" disabled={!name.trim() || updateSettings.isPending} onClick={handleSave}>
-            {t("common.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          {error ? (
+            <p id="chat-room-rename-error" role="alert" className="text-caption text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </ChatDialogBody>
+        <ChatDialogFooter
+          onCancel={() => onOpenChange(false)}
+          submitLabel={t("common.save")}
+          submittingLabel={t("chat.room_rename_saving")}
+          submitting={updateSettings.isPending}
+          submitDisabled={!name.trim()}
+          onSubmit={handleSave}
+        />
+      </ChatDialogContent>
     </Dialog>
   );
 }

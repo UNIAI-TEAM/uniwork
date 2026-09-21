@@ -103,7 +103,7 @@ export function VoiceCallOverlay({
           })
         : t("chat.voice_call_incoming_label");
     return (
-      <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse>
+      <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse alert>
         <VoiceCallLabeledAction
           label={t("chat.voice_call_decline")}
           ariaLabel={t("chat.voice_call_decline")}

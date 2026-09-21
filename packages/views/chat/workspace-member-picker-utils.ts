@@ -49,3 +49,21 @@ export function shouldLookupEmailOutsideWorkspace(
   if (!normalized.includes("@")) return false;
   return findWorkspaceMemberByEmail(members, normalized) === null;
 }
+
+/**
+ * Why a picker list is empty, so the line under it tells the truth:
+ * a typed query that matched no one, a workspace with nobody else in it
+ * yet, or everyone already picked (or already in the room).
+ */
+type MemberPickerEmptyReason = "no_match" | "no_other_members" | "all_picked";
+
+export function memberPickerEmptyReason({
+  query,
+  hasOtherMembers,
+}: {
+  query: string;
+  hasOtherMembers: boolean;
+}): MemberPickerEmptyReason {
+  if (query.trim()) return "no_match";
+  return hasOtherMembers ? "all_picked" : "no_other_members";
+}

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
-import { filterBulletinMessages, isBulletinMessage, bulletinMessagePreview } from "./chat-room-bulletin-utils";
+import {
+  bulletinMessagePreview,
+  filterBulletinMessages,
+  formatBulletinTime,
+  isBulletinMessage,
+} from "./chat-room-bulletin-utils";
 
 describe("chat-room-bulletin-utils", () => {
   const rows: ChatMessageRecord[] = [
@@ -125,5 +130,21 @@ describe("chat-room-bulletin-utils", () => {
     ).toBe("Call");
     expect(bulletinMessagePreview({ ...rows[0]!, body: "   " }, "Call")).toBe("…");
     expect(bulletinMessagePreview({ ...rows[0]!, body: "short" }, "Call")).toBe("short");
+  });
+});
+
+describe("formatBulletinTime", () => {
+  const now = new Date(2026, 8, 21, 15, 0);
+
+  it("prints only the time for today and a short date otherwise, in the given locale", () => {
+    expect(formatBulletinTime(new Date(2026, 8, 21, 9, 5).toISOString(), "en", now)).toMatch(/09:05/);
+    const other = formatBulletinTime(new Date(2026, 8, 12, 9, 5).toISOString(), "en", now);
+    expect(other).toMatch(/Sep/);
+    expect(other).not.toMatch(/2026/);
+    expect(formatBulletinTime(new Date(2025, 0, 2, 9, 5).toISOString(), "en", now)).toMatch(/2025/);
+  });
+
+  it("returns an empty string for an unparseable date", () => {
+    expect(formatBulletinTime("nope", "vi", now)).toBe("");
   });
 });

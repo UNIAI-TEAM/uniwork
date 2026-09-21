@@ -1,19 +1,19 @@
 "use client";
 
 import { Hash, Home, Lock, Users } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { usePresenceStore } from "@uniwork/core/chat/presence-store";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
+import { initialOf } from "./chat-initials";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
+import { ChatRoomMark } from "./chat-room-mark";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import { SidebarNavItem } from "./chat-sidebar-rows";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import type { UnifiedSidebarEntry } from "./chat-sidebar-unified";
 
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
 
 /** Renders one flat conversation row for the unified sidebar list. */
 export function ChatSidebarUnifiedRow({
@@ -57,6 +57,8 @@ export function ChatSidebarUnifiedRow({
   fileMessagePreviewLabel: string;
   yesterdayLabel: string;
 }) {
+  const { t } = useTranslation();
+  const workspaceSubtitle = t("chat.workspace_room_subtitle");
   const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
   const previewOpts = {
     currentUserId,
@@ -69,19 +71,14 @@ export function ChatSidebarUnifiedRow({
   };
 
   if (entry.kind === "workspace") {
+    const active = target.kind === "workspace";
     return (
       <SidebarNavItem
-        active={target.kind === "workspace"}
+        active={active}
         onClick={() => onTargetChange({ kind: "workspace" })}
-        avatar={
-          <span
-            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-            aria-hidden
-          >
-            <Home className="size-4" />
-          </span>
-        }
+        avatar={<ChatRoomMark icon={Home} active={active} />}
         title={workspaceTitle}
+        fallbackSubtitle={workspaceSubtitle}
         preview={workspaceRoomId ? roomPreviewsByRoomId[workspaceRoomId] : undefined}
         roomId={workspaceRoomId}
         contacts={contacts}
@@ -98,17 +95,13 @@ export function ChatSidebarUnifiedRow({
   if (entry.kind === "channel") {
     const channel = entry.channel;
     const privateChannel = channel.visibility === "private";
+    const active = target.kind === "channel" && target.channel.id === channel.id;
     return (
       <SidebarNavItem
-        active={target.kind === "channel" && target.channel.id === channel.id}
+        active={active}
         onClick={() => onTargetChange({ kind: "channel", channel })}
         avatar={
-          <span
-            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-            aria-hidden
-          >
-            {privateChannel ? <Lock className="size-4" /> : <Hash className="size-4" />}
-          </span>
+          <ChatRoomMark icon={privateChannel ? Lock : Hash} active={active} />
         }
         title={privateChannel ? channel.name : `#${channel.name}`}
         preview={roomPreviewsByRoomId[channel.id]}
@@ -126,17 +119,13 @@ export function ChatSidebarUnifiedRow({
 
   if (entry.kind === "group") {
     const group = entry.group;
+    const active = target.kind === "group" && target.group.id === group.id;
     return (
       <SidebarNavItem
-        active={target.kind === "group" && target.group.id === group.id}
+        active={active}
         onClick={() => onTargetChange({ kind: "group", group })}
         avatar={
-          <span
-            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-            aria-hidden
-          >
-            <Users className="size-4" />
-          </span>
+          <ChatRoomMark icon={Users} active={active} />
         }
         title={group.name}
         preview={roomPreviewsByRoomId[group.room_id]}
@@ -164,7 +153,7 @@ export function ChatSidebarUnifiedRow({
         <ChatPresenceAvatar
           name={label}
           initials={initialOf(label)}
-          size="sm"
+          size="lg"
           online={online}
         />
       }

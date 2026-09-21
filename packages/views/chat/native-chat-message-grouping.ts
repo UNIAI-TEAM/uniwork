@@ -1,4 +1,5 @@
 import type { ChatMessage } from "./chat-messages";
+import { messageDayKey } from "./chat-message-time";
 
 function isBubbleMessage(message: ChatMessage): boolean {
   return (
@@ -30,7 +31,8 @@ export function messageGrouping(
       return { compactTop: false, showAvatar: true };
     }
     const sameSender = prev.sender === message.sender;
-    const closeInTime = message.ts - prev.ts < MESSAGE_GROUP_MS;
+    const closeInTime =
+      message.ts - prev.ts < MESSAGE_GROUP_MS && messageDayKey(prev.ts) === messageDayKey(message.ts);
     return {
       compactTop: sameSender && closeInTime,
       showAvatar: !(sameSender && closeInTime),

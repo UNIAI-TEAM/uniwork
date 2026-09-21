@@ -1,6 +1,7 @@
 "use client";
 
-import { Archive, Hash, Lock, Search, UserPlus } from "lucide-react";
+import { Archive, Search, UserPlus } from "lucide-react";
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
@@ -31,6 +32,8 @@ import {
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { ChannelSettingsMembers } from "./channel-settings-members";
 import { ChatSettingsMenuRow, ChatSettingsTitleRow } from "./chat-settings-ui";
+import { ChatConfirmDialog } from "./chat-dialog-layout";
+import { toastApiError } from "../toast-api-error";
 import { LeaveConversationSection } from "./leave-conversation-section";
 
 export function ChannelSettingsSheet({
@@ -72,6 +75,7 @@ export function ChannelSettingsSheet({
   const [visibility, setVisibility] = useState(channel.visibility === "private" ? "private" : "public");
   const [projectId, setProjectId] = useState(channel.project_id ?? "");
   const [busy, setBusy] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -83,6 +87,13 @@ export function ChannelSettingsSheet({
 
   const isDefault = Boolean(channel.is_default);
   const saving = updateChannel.isPending || busy;
+  // Save appears once something changed, so an untouched sheet reads as
+  // information, not as a form waiting to be submitted.
+  const dirty =
+    name.trim() !== channel.name ||
+    topic.trim() !== (channel.topic ?? "") ||
+    (!isDefault && visibility !== (channel.visibility === "private" ? "private" : "public")) ||
+    (projectId || null) !== (channel.project_id || null);
 
   const save = () => {
     const trimmed = name.trim();
@@ -102,21 +113,33 @@ export function ChannelSettingsSheet({
       .then((room) => {
         if (room) onOpenChange(false);
       })
+      .catch((err: unknown) => toastApiError(err, t("chat.channel.save_failed")))
       .finally(() => setBusy(false));
   };
 
+  // Archived channels leave every list, so the sheet only ever sees an
+  // active one: archiving asks first, then offers an undo in the toast.
   const handleArchive = () => {
     if (isDefault || archiveChannel.isPending) return;
-    void archiveChannel.mutateAsync(channel.id).then((ok) => {
-      if (!ok) return;
-      onOpenChange(false);
-      onArchived?.();
-    });
-  };
-
-  const handleUnarchive = () => {
-    if (unarchiveChannel.isPending) return;
-    void unarchiveChannel.mutateAsync(channel.id);
+    void archiveChannel
+      .mutateAsync(channel.id)
+      .then((ok) => {
+        if (!ok) return;
+        setArchiveConfirmOpen(false);
+        onOpenChange(false);
+        onArchived?.();
+        toast.success(t("chat.channel.archived_toast", { name: channel.name }), {
+          action: {
+            label: t("chat.channel.unarchive"),
+            onClick: () => {
+              void unarchiveChannel
+                .mutateAsync(channel.id)
+                .catch((err: unknown) => toastApiError(err, t("chat.channel.unarchive_failed")));
+            },
+          },
+        });
+      })
+      .catch((err: unknown) => toastApiError(err, t("chat.channel.archive_failed")));
   };
 
   return (
@@ -131,7 +154,7 @@ export function ChannelSettingsSheet({
           <ChatSettingsTitleRow title={`#${channel.name}`} />
 
           {onOpenSearch ? (
-            <section className="border-b border-border">
+            <section className="border-b border-border py-1">
               <ChatSettingsMenuRow
                 icon={Search}
                 label={t("chat.search_messages")}
@@ -143,58 +166,70 @@ export function ChannelSettingsSheet({
             </section>
           ) : null}
 
-          <div className="space-y-5 px-5 py-4">
-            <div className="space-y-2">
+          <form
+            id="channel-settings-form"
+            className="space-y-4 border-b border-border px-4 py-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save();
+            }}
+          >
+            <div className="space-y-1.5">
               <Label htmlFor="channel-settings-name">{t("chat.channel.name_label")}</Label>
               <Input
                 id="channel-settings-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="rounded-xl"
                 maxLength={80}
+                required
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="channel-settings-topic">{t("chat.channel.topic_label")}</Label>
               <Textarea
                 id="channel-settings-topic"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                className="min-h-16 rounded-xl"
+                className="min-h-16"
                 maxLength={280}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>{t("chat.channel.visibility_label")}</Label>
+            <div className="space-y-1.5">
+              <Label id="channel-settings-visibility-label">{t("chat.channel.visibility_label")}</Label>
               <RadioGroup
+                aria-labelledby="channel-settings-visibility-label"
                 value={visibility}
                 onValueChange={(value) => {
                   if (value === "public" || value === "private") setVisibility(value);
                 }}
-                className="gap-2"
+                className="gap-1.5"
               >
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2">
-                  <RadioGroupItem value="public" id="channel-settings-public" disabled={isDefault} />
-                  <Hash className="size-4 text-muted-foreground" aria-hidden />
-                  <span className="text-body">{t("chat.channel.visibility_public")}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2">
-                  <RadioGroupItem value="private" id="channel-settings-private" disabled={isDefault} />
-                  <Lock className="size-4 text-muted-foreground" aria-hidden />
-                  <span className="text-body">{t("chat.channel.visibility_private")}</span>
-                </label>
+                {(["public", "private"] as const).map((value) => (
+                  <label
+                    key={value}
+                    className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border px-3 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-hover has-[[data-checked]]:border-ring has-[[data-checked]]:bg-surface-selected"
+                  >
+                    <RadioGroupItem value={value} id={`channel-settings-${value}`} disabled={isDefault} className="mt-0.5" />
+                    <span className="min-w-0">
+                      <span className="block text-body font-medium text-foreground">
+                        {t(`chat.channel.visibility_${value}_title`)}
+                      </span>
+                      <span className="block text-caption text-muted-foreground">
+                        {t(`chat.channel.visibility_${value}_hint`)}
+                      </span>
+                    </span>
+                  </label>
+                ))}
               </RadioGroup>
               {isDefault ? (
-                <p className="text-caption text-muted-foreground">
-                  {t("chat.channel.default_visibility_locked")}
-                </p>
+                <p className="text-caption text-muted-foreground">{t("chat.channel.default_visibility_locked")}</p>
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label>{t("chat.channel.project_label")}</Label>
+            <div className="space-y-1.5">
+              <Label id="channel-settings-project-label">{t("chat.channel.project_label")}</Label>
               <Select
                 value={projectId || "__none__"}
                 onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
@@ -203,7 +238,7 @@ export function ChannelSettingsSheet({
                   ...projects.map((project) => ({ value: project.id, label: project.title })),
                 ]}
               >
-                <SelectTrigger className="w-full rounded-xl" aria-label={t("chat.channel.project_label")}>
+                <SelectTrigger className="w-full" aria-labelledby="channel-settings-project-label">
                   <SelectValue placeholder={t("chat.channel.project_none")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -216,80 +251,88 @@ export function ChannelSettingsSheet({
                 </SelectContent>
               </Select>
             </div>
+          </form>
 
-            <Button type="button" className="w-full rounded-full" disabled={saving} onClick={save}>
-              {saving ? t("chat.channel.saving") : t("chat.channel.save")}
-            </Button>
-
-            {!isDefault && onAddMembers ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full rounded-full"
+          {!isDefault && onAddMembers ? (
+            <section className="border-b border-border py-1">
+              <ChatSettingsMenuRow
+                icon={UserPlus}
+                label={t("chat.channel.add_members")}
                 onClick={() => {
                   onOpenChange(false);
                   onAddMembers();
                 }}
-              >
-                <UserPlus className="size-4" aria-hidden />
-                {t("chat.channel.add_members")}
-              </Button>
-            ) : null}
-
-            {!isDefault ? (
-              <div className="rounded-xl border border-border p-3">
-                <p className="mb-2 text-label font-medium text-foreground">
-                  {t("chat.channel.archive_section")}
-                </p>
-                <p className="mb-3 text-caption text-muted-foreground">
-                  {t("chat.channel.archive_hint")}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-full"
-                    disabled={archiveChannel.isPending}
-                    onClick={handleArchive}
-                  >
-                    <Archive className="size-4" aria-hidden />
-                    {t("chat.channel.archive")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="rounded-full"
-                    disabled={unarchiveChannel.isPending}
-                    onClick={handleUnarchive}
-                  >
-                    {t("chat.channel.unarchive")}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            {!isDefault ? (
-              <ChannelSettingsMembers
-                open={open}
-                workspaceId={workspaceId}
-                roomId={channel.id}
-                currentUserId={currentUserId}
-                youLabel={youLabel}
               />
-            ) : null}
+            </section>
+          ) : null}
 
-            {!isDefault && onLeave ? (
-              <div className="px-0 pb-2">
+          {!isDefault ? (
+            <ChannelSettingsMembers
+              open={open}
+              workspaceId={workspaceId}
+              roomId={channel.id}
+              currentUserId={currentUserId}
+              youLabel={youLabel}
+            />
+          ) : null}
+
+          {!isDefault ? (
+            <div className="space-y-4 px-4 py-4">
+              <section className="space-y-2">
+                <h3 className="text-label font-semibold text-foreground">{t("chat.channel.archive_section")}</h3>
+                <p className="text-caption text-pretty text-muted-foreground">{t("chat.channel.archive_hint")}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={archiveChannel.isPending}
+                  onClick={() => setArchiveConfirmOpen(true)}
+                >
+                  <Archive aria-hidden />
+                  {t("chat.channel.archive")}
+                </Button>
+              </section>
+              {onLeave ? (
                 <LeaveConversationSection
                   variant="channel"
                   disabled={leaveDisabled}
                   leaving={leaving}
                   onLeave={onLeave}
                 />
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
+
+        {dirty ? (
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={() => {
+                setName(channel.name);
+                setTopic(channel.topic ?? "");
+                setVisibility(channel.visibility === "private" ? "private" : "public");
+                setProjectId(channel.project_id ?? "");
+              }}
+            >
+              {t("chat.channel.discard_changes")}
+            </Button>
+            <Button type="submit" form="channel-settings-form" disabled={saving || !name.trim()}>
+              {saving ? t("chat.channel.saving") : t("chat.channel.save")}
+            </Button>
+          </div>
+        ) : null}
+
+        <ChatConfirmDialog
+          open={archiveConfirmOpen}
+          onOpenChange={setArchiveConfirmOpen}
+          title={t("chat.channel.archive_confirm_title", { name: channel.name })}
+          description={t("chat.channel.archive_hint")}
+          confirmLabel={t("chat.channel.archive")}
+          pending={archiveChannel.isPending}
+          onConfirm={handleArchive}
+        />
       </SheetContent>
     </Sheet>
   );

@@ -4,6 +4,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import {
   ExternalMemberLookupRow,
+  WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
   useWorkspaceMemberPicker,
@@ -87,8 +88,46 @@ describe("workspace-member-picker", () => {
     );
     expect(screen.getByText("Đang tải thành viên…")).toBeInTheDocument();
 
-    rerender(wrap(<WorkspaceMemberPickerList members={[]} emptyLabel="Không có ai" onPick={vi.fn()} />));
+    // The "no match" line now only shows when a query was typed.
+    rerender(
+      wrap(<WorkspaceMemberPickerList members={[]} query="lan" emptyLabel="Không có ai" onPick={vi.fn()} />),
+    );
     expect(screen.getByText("Không có ai")).toBeInTheDocument();
+  });
+
+  it("does not blame an empty query when the workspace has nobody else", () => {
+    render(
+      wrap(
+        <WorkspaceMemberPickerList
+          members={[]}
+          query=""
+          hasOtherMembers={false}
+          emptyLabel="Không có ai"
+          onPick={vi.fn()}
+        />,
+      ),
+    );
+    expect(screen.queryByText("Không có ai")).not.toBeInTheDocument();
+  });
+
+  it("moves focus between rows with the arrow keys", () => {
+    render(
+      wrap(
+        <WorkspaceMemberPickerList
+          members={[
+            { workspace_id: "ws1", user_id: "u1", role: "member", email: "a@example.com", display_name: "An" },
+            { workspace_id: "ws1", user_id: "u2", role: "member", email: "b@example.com", display_name: "Binh" },
+          ]}
+          onPick={vi.fn()}
+        />,
+      ),
+    );
+    const first = screen.getByRole("button", { name: /An/ });
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(screen.getByRole("button", { name: /Binh/ })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect(first).toHaveFocus();
   });
 
   it("renders members and handles pick", () => {
@@ -138,6 +177,34 @@ describe("workspace-member-picker", () => {
     expect(onPick).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: "u9", email: "guest@example.com" }),
     );
+  });
+
+  it("says when an email lookup found nobody, and marks people already in the room", () => {
+    const base = { isFetching: false, isFetched: true, data: null } as unknown as Parameters<
+      typeof WorkspaceMemberLookupResult
+    >[0]["lookup"];
+    const { rerender } = render(
+      wrap(<WorkspaceMemberLookupResult enabled lookup={base} onPick={vi.fn()} actionLabel="Thêm" />),
+    );
+    expect(screen.getByText("Không tìm thấy người dùng với email này.")).toBeInTheDocument();
+
+    const found = {
+      ...base,
+      data: { user_id: "u9", email: "guest@example.com", display_name: "Guest" },
+    } as typeof base;
+    rerender(
+      wrap(
+        <WorkspaceMemberLookupResult
+          enabled
+          lookup={found}
+          onPick={vi.fn()}
+          actionLabel="Thêm"
+          unavailableLabel={() => "Đã có trong nhóm"}
+        />,
+      ),
+    );
+    expect(screen.getByText("Đã có trong nhóm")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thêm" })).not.toBeInTheDocument();
   });
 
   it("filters workspace members through the picker hook", () => {
