@@ -43,8 +43,13 @@ if (typeof document !== "undefined") {
   if (typeof (globalThis as { PointerEvent?: unknown }).PointerEvent === "undefined") {
     class PE extends MouseEvent {
       pointerId = 1;
-      pointerType = "mouse";
+      pointerType: string;
       isPrimary = true;
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+        // Keep the init's pointer type so touch-only handlers can be tested.
+        this.pointerType = init?.pointerType ?? "mouse";
+      }
     }
     (globalThis as unknown as { PointerEvent: typeof PE }).PointerEvent = PE;
   }
