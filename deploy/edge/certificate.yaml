@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: uniwork-tls
+  namespace: reap-edge
+spec:
+  secretName: uniwork-tls
+  dnsNames:
+    - uniwork.ubos.vn
+  issuerRef:
+    name: letsencrypt-http01
+    kind: ClusterIssuer
+    group: cert-manager.io

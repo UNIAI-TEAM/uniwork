@@ -1,0 +1,24 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: uniwork
+  namespace: reap-edge
+spec:
+  ingressClassName: apisix
+  http:
+    - name: uniwork-api
+      priority: 200
+      websocket: true
+      match:
+        hosts: [uniwork.ubos.vn]
+        paths: [/api, /api/*]
+      upstreams:
+        - name: uniwork-be
+    - name: uniwork-web
+      priority: 100
+      websocket: true
+      match:
+        hosts: [uniwork.ubos.vn]
+        paths: [/, /*]
+      upstreams:
+        - name: uniwork-fe
