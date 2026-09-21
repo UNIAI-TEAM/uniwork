@@ -16,10 +16,14 @@ import { VoiceCallSummaryRow } from "./voice-call-summary-row";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { senderLabelFor } from "./native-chat-message-mapping";
 import { messageGrouping } from "./native-chat-message-grouping";
+import { messageDayKey } from "./chat-message-time";
+import { ChatDaySeparator } from "./chat-day-separator";
 
 export type NativeChatMessageActions = {
   onReply: (message: ChatMessage | null) => void;
   onReact: (message: ChatMessage) => void;
+  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
   onThread?: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage) => void;
   onPin: (message: ChatMessage) => void;
@@ -30,7 +34,28 @@ export type NativeChatMessageActions = {
   onFollowUp?: (message: ChatMessage) => void;
 };
 
-export function renderNativeChatMessage(input: {
+/**
+ * One timeline row, preceded by a day separator when it opens a new calendar
+ * day. The separator lives inside the row so the virtual list still measures
+ * one element per message.
+ */
+export function renderNativeChatMessage(input: Parameters<typeof renderMessageBody>[0]): ReactNode {
+  const { messages, index } = input;
+  const message = messages[index];
+  if (!message) return null;
+  const previous = index > 0 ? messages[index - 1] : undefined;
+  const opensDay = !previous || messageDayKey(previous.ts) !== messageDayKey(message.ts);
+  const row = renderMessageBody(input);
+  if (!opensDay) return row;
+  return (
+    <div key={message.id}>
+      <ChatDaySeparator ts={message.ts} />
+      {row}
+    </div>
+  );
+}
+
+function renderMessageBody(input: {
   messages: ChatMessage[];
   index: number;
   messagesById: Map<string, ChatMessage>;
@@ -72,6 +97,9 @@ export function renderNativeChatMessage(input: {
         key={message.id}
         reminder={message.reminder}
         senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        senderId={message.sender}
+        isOwn={message.sender === currentUserId}
+        ts={message.ts}
         showSenderName={showSenderName}
         compactTop={compactTop}
       />
@@ -84,6 +112,9 @@ export function renderNativeChatMessage(input: {
         key={message.id}
         note={message.note}
         senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        senderId={message.sender}
+        isOwn={message.sender === currentUserId}
+        ts={message.ts}
         showSenderName={showSenderName}
         compactTop={compactTop}
       />
@@ -96,6 +127,9 @@ export function renderNativeChatMessage(input: {
         key={message.id}
         post={message.post}
         senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        senderId={message.sender}
+        isOwn={message.sender === currentUserId}
+        ts={message.ts}
         showSenderName={showSenderName}
         compactTop={compactTop}
       />
@@ -111,6 +145,9 @@ export function renderNativeChatMessage(input: {
         roomId={roomId}
         poll={message.poll}
         senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        senderId={message.sender}
+        isOwn={message.sender === currentUserId}
+        ts={message.ts}
         showSenderName={showSenderName}
         compactTop={compactTop}
         nameContext={nameContext}
@@ -140,6 +177,7 @@ export function renderNativeChatMessage(input: {
         senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
         showSenderName={showSenderName}
         compactTop={compactTop}
+        isOwn={message.sender === currentUserId}
       />
     );
   }
@@ -180,6 +218,7 @@ export function renderNativeChatMessage(input: {
         replyToMessage={replyTarget}
         onReply={actions.onReply}
         onReact={actions.onReact}
+        onToggleReaction={actions.onToggleReaction}
         onThread={actions.onThread}
         onPin={canPinMessages ? actions.onPin : undefined}
         onCopy={actions.onCopy}
@@ -198,6 +237,8 @@ export function renderNativeChatMessage(input: {
     ? messagesById.get(message.replyToEventId)
     : undefined;
   const { compactTop, showAvatar } = messageGrouping(messages, index);
+  const next = messages[index + 1];
+  const lastOfRun = !next || !messageGrouping(messages, index + 1).compactTop;
   return (
     <ChatMessageRow
       key={message.id}
@@ -215,6 +256,8 @@ export function renderNativeChatMessage(input: {
       roomId={roomId}
       onReply={isPending ? undefined : actions.onReply}
       onReact={isPending ? undefined : actions.onReact}
+      onToggleReaction={isPending ? undefined : actions.onToggleReaction}
+      onJumpToMessage={actions.onJumpToMessage}
       onThread={isPending ? undefined : actions.onThread}
       onEdit={isPending ? undefined : actions.onEdit}
       onPin={isPending || !canPinMessages ? undefined : actions.onPin}
@@ -228,6 +271,7 @@ export function renderNativeChatMessage(input: {
       compactTop={compactTop}
       nameContext={nameContext}
       showAvatar={showAvatar}
+      lastOfRun={lastOfRun}
       highlighted={message.id === highlightMessageId}
     />
   );

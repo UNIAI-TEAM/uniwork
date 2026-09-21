@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   BarChart3,
   Bell,
@@ -12,7 +12,16 @@ import {
   StickyNote,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 
 export type ComposerAttachAction =
@@ -54,21 +63,18 @@ export function ComposerToolbarButton({
   ...props
 }: React.ComponentProps<"button"> & { label: string }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon-lg"
       aria-label={label}
+      title={label}
       disabled={disabled}
-      className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors",
-        "hover:bg-muted hover:text-foreground",
-        "disabled:pointer-events-none disabled:opacity-50",
-        "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-        className,
-      )}
+      className={cn("shrink-0 text-muted-foreground hover:text-foreground", className)}
       {...props}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -92,15 +98,23 @@ export function ComposerAttachMenu({
   showCreatePoll?: boolean;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const menuItems = useMemo(
     () => filterAttachMenuItems(ATTACH_MENU_ITEMS, showCreatePoll),
     [showCreatePoll],
   );
+  const actions = menuItems.filter((item) => !("separator" in item)) as Array<
+    Extract<ComposerAttachMenuItem, { id: ComposerAttachAction }>
+  >;
+  const isFlag = (id: ComposerAttachAction) => id === "mark_important" || id === "mark_urgent";
+  const createItems = actions.filter((item) => !isFlag(item.id));
+  const flagItems = actions.filter((item) => isFlag(item.id));
 
+  // The registry menu: arrow keys, typeahead and focus return come with it.
+  // Creating content and flagging the message are two kinds of action, so
+  // the flags sit in their own labelled group.
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
+    <DropdownMenu>
+      <DropdownMenuTrigger
         disabled={disabled}
         render={
           <ComposerToolbarButton label={t("chat.composer_attach")} disabled={disabled}>
@@ -108,35 +122,29 @@ export function ComposerAttachMenu({
           </ComposerToolbarButton>
         }
       />
-      <PopoverContent align={align} side="top" className="w-72 p-1">
-        <ul className="flex flex-col" role="menu" aria-label={t("chat.composer_attach_menu")}>
-          {menuItems.map((item, index) =>
-            "separator" in item ? (
-              <li key={`sep-${index}`} role="separator" className="my-1 h-px bg-border" />
-            ) : (
-              <li key={item.id} role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-body text-foreground",
-                    "hover:bg-muted focus-visible:bg-muted focus-visible:outline-none",
-                  )}
-                  onClick={() => {
-                    // Open the file picker while still inside the user-gesture
-                    // stack; closing the popover first can cancel the dialog.
-                    onAction(item.id);
-                    setOpen(false);
-                  }}
-                >
-                  <item.icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-                  <span>{t(`chat.${item.labelKey}`)}</span>
-                </button>
-              </li>
-            ),
-          )}
-        </ul>
-      </PopoverContent>
-    </Popover>
+      <DropdownMenuContent align={align} side="top" className="w-60" aria-label={t("chat.composer_attach_menu")}>
+        {createItems.map((item) => (
+          <DropdownMenuItem
+            key={item.id}
+            className="gap-2.5 py-1.5"
+            // Opens the file picker inside the click's user-gesture stack.
+            onClick={() => onAction(item.id)}
+          >
+            <item.icon aria-hidden className="size-4 text-muted-foreground" />
+            {t(`chat.${item.labelKey}`)}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("chat.composer_flag_group")}</DropdownMenuLabel>
+          {flagItems.map((item) => (
+            <DropdownMenuItem key={item.id} className="gap-2.5 py-1.5" onClick={() => onAction(item.id)}>
+              <item.icon aria-hidden className="size-4 text-muted-foreground" />
+              {t(`chat.${item.labelKey}`)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

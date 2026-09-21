@@ -1,12 +1,14 @@
 "use client";
 
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { useSearchChatRoomMessages } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { describeChatMediaBody } from "./chat-expression-utils";
 import { cn } from "@uniwork/ui/lib/utils";
 
 type NameContextEntry = {
@@ -38,16 +40,16 @@ function highlightSnippet(body: string, query: string): ReactNode {
   return (
     <>
       {before}
-      <mark className="rounded-sm bg-brand/20 px-0.5 text-foreground">{match}</mark>
+      <mark className="rounded-sm bg-brand-subtle px-0.5 font-medium text-brand-subtle-foreground">{match}</mark>
       {after}
     </>
   );
 }
 
-function formatResultTime(iso: string): string {
+function formatResultTime(iso: string, locale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString(locale, {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -72,7 +74,9 @@ export function ChatMessageSearchBar({
   onClose: () => void;
   onJumpToMessage: (messageId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const listId = useId();
+  const mediaLabels = { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") };
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -136,7 +140,12 @@ export function ChatMessageSearchBar({
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("chat.search_messages_placeholder")}
             aria-label={t("chat.search_messages")}
-            className="pl-9"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={textResults.length > 0}
+            aria-controls={listId}
+            aria-activedescendant={selected ? `${listId}-${selected.id}` : undefined}
+            className="h-8 pl-9"
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
@@ -164,7 +173,7 @@ export function ChatMessageSearchBar({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 rounded-full"
+          className="shrink-0"
           aria-label={t("chat.search_prev_result")}
           disabled={textResults.length === 0}
           onClick={() => moveSelection(-1)}
@@ -175,7 +184,7 @@ export function ChatMessageSearchBar({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 rounded-full"
+          className="shrink-0"
           aria-label={t("chat.search_next_result")}
           disabled={textResults.length === 0}
           onClick={() => moveSelection(1)}
@@ -186,7 +195,7 @@ export function ChatMessageSearchBar({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 rounded-full"
+          className="shrink-0"
           aria-label={t("chat.search_close")}
           onClick={onClose}
         >
@@ -197,46 +206,61 @@ export function ChatMessageSearchBar({
       {debouncedQuery.length >= 2 ? (
         <div className="border-t border-border px-3 py-2 sm:px-4">
           {isFetching ? (
-            <p className="text-caption text-muted-foreground">{t("chat.search_loading")}</p>
+            <div className="space-y-2 py-1" aria-busy>
+              <span className="sr-only">{t("chat.search_loading")}</span>
+              {["w-3/4", "w-1/2"].map((w) => (
+                <div key={w} className="space-y-1.5 px-3 py-1">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className={cn("h-3", w)} />
+                </div>
+              ))}
+            </div>
           ) : textResults.length === 0 ? (
-            <p className="text-caption text-muted-foreground">{t("chat.search_messages_no_results")}</p>
+            <p className="py-1 text-caption text-muted-foreground">{t("chat.search_messages_no_results")}</p>
           ) : (
             <>
-              <p className="mb-2 text-caption text-muted-foreground">
+              <p className="mb-1.5 text-caption text-muted-foreground tabular-nums" aria-live="polite">
                 {t("chat.search_results_count", {
                   current: selectedIndex + 1,
                   total: textResults.length,
                 })}
               </p>
-              <ul className="max-h-52 space-y-1 overflow-y-auto">
+              {/* Focus stays in the search field; arrows move the active option
+                  (aria-activedescendant), Enter or a click jumps to it. */}
+              <ul id={listId} role="listbox" aria-label={t("chat.search_messages")} className="max-h-52 space-y-px overflow-y-auto">
                 {textResults.map((message, index) => {
                   const label = senderLabelFor(message, currentUserId, youLabel, nameContext);
+                  const jump = () => {
+                    setSelectedIndex(index);
+                    onJumpToMessage(message.id);
+                    onClose();
+                  };
                   return (
-                    <li key={message.id}>
-                      <button
-                        type="button"
-                        className={cn(
-                          "w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-muted",
-                          index === selectedIndex && "bg-muted ring-1 ring-border",
-                        )}
-                        onClick={() => {
-                          setSelectedIndex(index);
-                          onJumpToMessage(message.id);
-                          onClose();
-                        }}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-caption font-medium text-foreground">
-                            {label}
-                          </span>
-                          <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
-                            {formatResultTime(message.created_at)}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 line-clamp-2 text-caption text-muted-foreground">
-                          {highlightSnippet(message.body, debouncedQuery)}
-                        </p>
-                      </button>
+                    <li
+                      key={message.id}
+                      id={`${listId}-${message.id}`}
+                      role="option"
+                      aria-selected={index === selectedIndex}
+                      tabIndex={-1}
+                      className={cn(
+                        "cursor-pointer rounded-md px-3 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-hover",
+                        index === selectedIndex && "bg-surface-selected hover:bg-surface-selected",
+                      )}
+                      onClick={jump}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") jump();
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-caption font-medium text-foreground">{label}</span>
+                        <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+                          {formatResultTime(message.created_at, i18n.language)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-caption text-muted-foreground">
+                        {describeChatMediaBody(message.body, mediaLabels) ??
+                          highlightSnippet(message.body, debouncedQuery)}
+                      </p>
                     </li>
                   );
                 })}

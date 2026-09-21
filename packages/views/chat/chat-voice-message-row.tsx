@@ -8,6 +8,14 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
+import {
+  CHAT_BUBBLE_OTHER,
+  CHAT_BUBBLE_OWN,
+  ChatMessageMeta,
+  chatBubbleShape,
+} from "./chat-message-row";
+import { initialOf } from "./chat-initials";
+import { senderNameClass } from "./sender-colors";
 
 function formatDuration(durationMs: number): string {
   const seconds = Math.max(0, Math.ceil(durationMs / 1000));
@@ -83,52 +91,49 @@ export function ChatVoiceMessageRow({
       )}
     >
       {!isOwn ? (
-        <div className="flex w-8 shrink-0 flex-col justify-end self-stretch">
+        <div className="w-8 shrink-0">
           {showAvatar ? (
-            <ActorAvatar
-              name={senderLabel}
-              initials={senderLabel.trim().slice(0, 1).toUpperCase() || "?"}
-              size="sm"
-              className="mx-auto shrink-0"
-            />
+            <ActorAvatar name={senderLabel} initials={initialOf(senderLabel)} size="lg" className="shrink-0" />
           ) : null}
         </div>
       ) : null}
-      <div className={cn("flex max-w-[min(100%,22rem)] flex-col gap-1.5", isOwn ? "items-end" : "items-start")}>
+      <div className={cn("flex max-w-[min(85%,22rem)] flex-col gap-1", isOwn ? "items-end" : "items-start")}>
         {!isOwn && showSenderName && showAvatar ? (
-          <p className="px-1 pb-0.5 text-caption font-medium text-foreground">{senderLabel}</p>
+          <p className={cn("px-1 text-caption font-semibold", senderNameClass(message.sender, isOwn))}>
+            {senderLabel}
+          </p>
         ) : null}
         <div
           className={cn(
-            "flex min-w-48 items-center gap-3 rounded-[18px] px-3 py-2 shadow-sm",
-            isOwn
-              ? "rounded-br-[4px] bg-brand text-brand-foreground"
-              : "rounded-bl-[4px] bg-surface text-foreground ring-1 ring-border/60",
+            "min-w-48 px-3 py-2 text-foreground",
+            chatBubbleShape(isOwn, !compactTop),
+            isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
           )}
         >
-          <Button
-            type="button"
-            size="icon-sm"
-            variant={isOwn ? "secondary" : "ghost"}
-            className="size-9 shrink-0 rounded-full"
-            aria-label={status === "playing" ? t("chat.voice_pause") : t("chat.voice_play")}
-            onClick={() => void togglePlayback()}
-            disabled={status === "loading"}
-          >
-            {status === "loading" ? (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            ) : status === "playing" ? (
-              <Pause className="size-4" aria-hidden />
-            ) : (
-              <Play className="size-4" aria-hidden />
-            )}
-          </Button>
-          <span className="min-w-0 flex-1">
-            <span className="block text-body font-medium">{t("chat.voice_message")}</span>
-            <span className={cn("block text-caption", isOwn ? "text-brand-foreground/75" : "text-muted-foreground")}>
-              {duration}
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              size="icon-lg"
+              variant="outline"
+              className="shrink-0 rounded-full bg-surface"
+              aria-label={status === "playing" ? t("chat.voice_pause") : t("chat.voice_play")}
+              onClick={() => void togglePlayback()}
+              disabled={status === "loading"}
+            >
+              {status === "loading" ? (
+                <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
+              ) : status === "playing" ? (
+                <Pause className="size-4" aria-hidden />
+              ) : (
+                <Play className="size-4" aria-hidden />
+              )}
+            </Button>
+            <span className="min-w-0 flex-1">
+              <span className="block text-body font-medium">{t("chat.voice_message")}</span>
+              <span className="block text-caption text-muted-foreground tabular-nums">{duration}</span>
             </span>
-          </span>
+          </div>
+          <ChatMessageMeta message={message} isOwn={isOwn} showTime />
         </div>
         {status === "error" ? (
           <p className="px-1 text-caption text-destructive" role="alert">

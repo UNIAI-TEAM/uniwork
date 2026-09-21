@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { loadChatFileBlob } from "@uniwork/core/api/endpoints/chat";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   isChatImageContentType,
@@ -16,6 +17,16 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
+import {
+  CHAT_BUBBLE_OTHER,
+  CHAT_BUBBLE_OWN,
+  ChatMessageMeta,
+  ChatReactionChips,
+  chatBubbleShape,
+} from "./chat-message-row";
+import { initialOf } from "./chat-initials";
+import { useMessageActionsReveal } from "./use-message-actions-reveal";
+import { senderNameClass } from "./sender-colors";
 
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
@@ -35,6 +46,7 @@ export function ChatFileMessageRow({
   replyToMessage,
   onReply,
   onReact,
+  onToggleReaction,
   onThread,
   onPin,
   onCopy,
@@ -55,6 +67,7 @@ export function ChatFileMessageRow({
   replyToMessage?: ChatMessage;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
+  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
   onThread?: (message: ChatMessage) => void;
   onPin?: (message: ChatMessage) => void;
   onCopy?: (message: ChatMessage) => void;
@@ -64,12 +77,12 @@ export function ChatFileMessageRow({
   onFollowUp?: (message: ChatMessage) => void;
   workHubEnabled?: boolean;
 }) {
+  const reveal = useMessageActionsReveal();
   const { t } = useTranslation();
   const file = message.file;
   const isImage = isChatImageContentType(file?.content_type);
   const isPdf = isChatPdfContentType(file?.content_type);
   const loadsInlinePreview = isImage || isPdf;
-  const reactionEntries = Object.entries(message.reactions);
   const [busy, setBusy] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewStatus, setPreviewStatus] = useState<"idle" | "loading" | "ready" | "error">(
@@ -140,19 +153,18 @@ export function ChatFileMessageRow({
         compactTop ? "mt-2" : "mt-4",
       )}
     >
-      <div className={cn("flex max-w-[min(100%,22rem)] gap-2", isOwn && "flex-row-reverse")}>
-        {showAvatar && !isOwn ? (
-          <ActorAvatar
-            name={senderLabel}
-            initials={senderLabel.trim().slice(0, 1).toUpperCase() || "?"}
-            className="mt-0.5 size-8 shrink-0"
-          />
+      <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
+        {isOwn ? null : showAvatar ? (
+          <ActorAvatar name={senderLabel} initials={initialOf(senderLabel)} size="lg" className="shrink-0" />
         ) : (
-          <span className="size-8 shrink-0" aria-hidden />
+          <span className="w-8 shrink-0" aria-hidden />
         )}
         <div
+          ref={reveal.rootRef}
+          {...reveal.bind}
+          
           className={cn(
-            "group relative min-w-0",
+            "group/message relative flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
             isOwn ? "items-end" : "items-start",
           )}
         >
@@ -169,14 +181,18 @@ export function ChatFileMessageRow({
             onLinkTask={workHubEnabled ? onLinkTask : undefined}
             onFollowUp={workHubEnabled ? onFollowUp : undefined}
             canEdit={false}
+            forceOpen={reveal.open}
           />
           {showSenderName && !isOwn ? (
-            <p className="mb-1.5 px-1 text-caption font-medium text-brand">{senderLabel}</p>
+            <p className={cn("px-1 text-caption font-semibold", senderNameClass(message.sender, isOwn))}>
+              {senderLabel}
+            </p>
           ) : null}
           <div
             className={cn(
-              "overflow-hidden rounded-xl border shadow-sm",
-              isOwn ? "border-brand/30 bg-brand/10" : "border-border bg-surface",
+              "max-w-full overflow-hidden",
+              chatBubbleShape(isOwn, !compactTop),
+              isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
               !isImage && !isPdf && "px-3 py-2",
             )}
           >
@@ -194,7 +210,7 @@ export function ChatFileMessageRow({
               previewStatus === "ready" && previewUrl ? (
                 <button
                   type="button"
-                  className="block max-w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block max-w-full overflow-hidden"
                   aria-label={t("chat.file_open")}
                   onClick={openPreview}
                 >
@@ -206,30 +222,27 @@ export function ChatFileMessageRow({
                   />
                 </button>
               ) : (
-                <div className="flex min-h-40 min-w-48 items-center justify-center px-4 py-8">
-                  {previewStatus === "error" ? (
+                previewStatus === "error" ? (
+                  <div className="flex min-h-40 min-w-48 items-center justify-center px-4 py-8">
                     <p className="text-center text-caption text-muted-foreground">
                       {t("chat.file_download_failed")}
                     </p>
-                  ) : (
-                    <LoaderCircle
-                      className="size-5 animate-spin text-muted-foreground"
-                      aria-hidden
-                    />
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <Skeleton className="h-40 w-56 rounded-none" aria-label={t("chat.file_loading")} />
+                )
               )
             ) : isPdf ? (
               <div className="space-y-2 p-2">
                 <div className="flex items-center gap-3 px-1">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
                     <FileText className="size-4" aria-hidden />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-body font-medium text-foreground">
                       {file?.filename || t("chat.file_untitled")}
                     </p>
-                    <p className="text-caption text-muted-foreground">
+                    <p className="text-caption text-muted-foreground tabular-nums">
                       {formatBytes(file?.size_bytes ?? 0)}
                     </p>
                   </div>
@@ -243,7 +256,7 @@ export function ChatFileMessageRow({
                     onClick={() => void download()}
                   >
                     {busy ? (
-                      <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                      <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
                     ) : (
                       <Download className="size-4" aria-hidden />
                     )}
@@ -260,24 +273,19 @@ export function ChatFileMessageRow({
                     {t("chat.file_download_failed")}
                   </p>
                 ) : (
-                  <div className="flex h-40 items-center justify-center">
-                    <LoaderCircle
-                      className="size-5 animate-spin text-muted-foreground"
-                      aria-hidden
-                    />
-                  </div>
+                  <Skeleton className="h-72 w-full rounded-lg" aria-label={t("chat.file_loading")} />
                 )}
               </div>
             ) : (
               <div className="flex items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
                   <FileText className="size-4" aria-hidden />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-body font-medium text-foreground">
                     {file?.filename || t("chat.file_untitled")}
                   </p>
-                  <p className="text-caption text-muted-foreground">
+                  <p className="text-caption text-muted-foreground tabular-nums">
                     {formatBytes(file?.size_bytes ?? 0)}
                   </p>
                 </div>
@@ -291,7 +299,7 @@ export function ChatFileMessageRow({
                   onClick={() => void download()}
                 >
                   {busy ? (
-                    <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                    <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
                   ) : (
                     <Download className="size-4" aria-hidden />
                   )}
@@ -299,38 +307,28 @@ export function ChatFileMessageRow({
               </div>
             )}
           </div>
-          {reactionEntries.length > 0 ? (
-            <div className={cn("mt-1 flex flex-wrap gap-1 px-0.5", isOwn && "justify-end")}>
-              {reactionEntries.map(([emoji, count]) => (
-                <span
-                  key={emoji}
-                  className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface px-1.5 py-0.5 text-caption shadow-sm"
-                >
-                  <span aria-hidden>{emoji}</span>
-                  {count > 1 ? <span className="text-muted-foreground">{count}</span> : null}
-                </span>
-              ))}
-            </div>
-          ) : null}
+          <div className={cn(isImage || isPdf ? "px-1" : undefined)}>
+            <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+          </div>
+          <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
           {(message.replyCount ?? 0) > 0 && onThread && !message.threadRootId ? (
-            <button
+            <Button
               type="button"
-              className={cn(
-                "mt-1 px-1 text-left text-caption font-medium text-brand hover:underline",
-                isOwn && "self-end",
-              )}
+              variant="link"
+              size="xs"
+              className={cn("h-auto px-1 py-0.5 text-brand-subtle-foreground", isOwn && "self-end")}
               onClick={() => onThread(message)}
             >
               {message.threadUnread
                 ? t("chat.thread_replies_unread", { count: message.replyCount })
                 : t("chat.thread_replies", { count: message.replyCount })}
-            </button>
+            </Button>
           ) : null}
           {workHubEnabled ? (
             <MessageTaskCard
               workspaceId={workspaceId}
               messageId={message.id}
-              className={cn("mt-1", isOwn && "items-end self-end")}
+              className={cn(isOwn && "items-end self-end")}
             />
           ) : null}
         </div>

@@ -9,8 +9,8 @@ import {
   isTomorrow,
   type ReminderRepeat,
 } from "@uniwork/core/chat/reminder-utils";
-import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
+import { ChatCard, ChatCardStatus } from "./chat-card";
 
 type ReminderPayload = NonNullable<ChatMessage["reminder"]>;
 
@@ -21,15 +21,21 @@ function repeatLabelKey(repeat: ReminderRepeat): string {
 export function ChatReminderMessageRow({
   reminder,
   senderLabel,
+  senderId,
+  isOwn,
+  ts,
   showSenderName,
   compactTop,
 }: {
   reminder: ReminderPayload;
   senderLabel: string;
+  senderId?: string;
+  isOwn?: boolean;
+  ts?: number;
   showSenderName?: boolean;
   compactTop?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const scheduleLabel = useMemo(() => {
     const remindAt = Date.parse(reminder.remindAt);
@@ -43,45 +49,36 @@ export function ChatReminderMessageRow({
     if (isTomorrow(now, date)) {
       return t("chat.reminder_schedule_tomorrow", { time });
     }
-    return t("chat.reminder_schedule_date", { date: date.toLocaleString() });
-  }, [reminder.remindAt, t]);
+    return t("chat.reminder_schedule_date", {
+      date: date.toLocaleString(i18n.language, { dateStyle: "medium", timeStyle: "short" }),
+    });
+  }, [reminder.remindAt, t, i18n.language]);
 
   const isDue = Date.parse(reminder.remindAt) <= Date.now();
 
+  // A reminder that has fired keeps its full contrast — it is still the
+  // record of what was asked — and says so with a pill instead of fading.
   return (
-    <article
-      className={cn(
-        "flex w-full max-w-full justify-center",
-        compactTop ? "mt-2.5" : "mt-4",
-      )}
+    <ChatCard
+      icon={Clock}
+      tone="teal"
+      label={t("chat.reminder_message_badge")}
+      senderLabel={senderLabel}
+      senderId={senderId}
+      isOwn={isOwn}
+      ts={ts}
+      showSenderName={showSenderName}
+      compactTop={compactTop}
+      status={isDue ? <ChatCardStatus>{t("chat.reminder_due_status")}</ChatCardStatus> : null}
     >
-      <div
-        className={cn(
-          "w-full max-w-md rounded-xl border border-border bg-surface px-3.5 py-3 shadow-sm",
-          isDue && "opacity-70",
-        )}
-      >
-        {showSenderName ? (
-          <p className="mb-2 text-caption font-medium text-brand">{senderLabel}</p>
-        ) : null}
-
-        <div className="mb-2 flex items-start gap-2.5">
-          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-            <Clock className="size-3.5" aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
-              {t("chat.reminder_message_badge")}
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-body font-semibold text-foreground">{reminder.body}</p>
-          </div>
-        </div>
-
-        <p className="text-caption text-muted-foreground">{scheduleLabel}</p>
-        {reminder.repeat !== "none" ? (
-          <p className="mt-1 text-caption text-brand">{t(repeatLabelKey(reminder.repeat))}</p>
-        ) : null}
-      </div>
-    </article>
+      <p className="whitespace-pre-wrap text-body font-medium text-foreground text-pretty [overflow-wrap:anywhere]">
+        {reminder.body}
+      </p>
+      <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground tabular-nums">
+        <Clock className="size-3.5" aria-hidden />
+        {scheduleLabel}
+        {reminder.repeat !== "none" ? <span>· {t(repeatLabelKey(reminder.repeat))}</span> : null}
+      </p>
+    </ChatCard>
   );
 }

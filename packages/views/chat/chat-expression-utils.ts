@@ -26,3 +26,23 @@ export function parseChatMediaMessageBody(body: string): { url: string; alt: str
 export function normalizeExpressionSearchQuery(query: string): string {
   return query.trim().toLowerCase();
 }
+
+export type ChatMediaLabels = { sticker: string; gif: string; image: string };
+
+/**
+ * A sticker, GIF or image message in words, for every place that shows a
+ * message as one line of text (list preview, pinned bar, reply quote,
+ * search). The body is markdown (`![sticker:ăn mừng](https://…)`) and must
+ * never reach those places raw. Null when the body is not a media message.
+ */
+export function describeChatMediaBody(body: string, labels: ChatMediaLabels): string | null {
+  const parsed = parseChatMediaMessageBody(body);
+  if (!parsed) return null;
+  const [prefix, ...rest] = parsed.alt.split(":");
+  const name = rest.join(":").trim();
+  if (prefix === "sticker") return name ? `${labels.sticker} · ${name}` : labels.sticker;
+  if (prefix === "gif" || parsed.url.toLowerCase().includes(".gif")) {
+    return name ? `${labels.gif} · ${name}` : labels.gif;
+  }
+  return labels.image;
+}

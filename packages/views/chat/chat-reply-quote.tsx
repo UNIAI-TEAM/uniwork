@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileText, ImageIcon } from "lucide-react";
+import { FileText, ImageIcon, Reply, X } from "lucide-react";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { loadChatFileBlob } from "@uniwork/core/api/endpoints/chat";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
+import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
+import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 
 function isImageFileMessage(message: ChatMessage): boolean {
   return message.kind === "file" && Boolean(message.file?.content_type?.startsWith("image/"));
@@ -51,21 +54,23 @@ function useChatImagePreviewUrl(
 
 export function replyPreviewLabel(
   message: ChatMessage,
-  labels: { voice: string; file: string },
+  labels: { voice: string; file: string; media?: ChatMediaLabels },
 ): string {
   if (message.kind === "voice") return labels.voice;
   if (message.kind === "file") {
     return message.file?.filename?.trim() || message.body.trim() || labels.file;
   }
-  return message.body.trim();
+  const media = labels.media ? describeChatMediaBody(message.body, labels.media) : null;
+  return media ?? deserializeMessageBodyToComposerDraft(message.body).trim();
 }
 
 export function ChatReplyQuote({
   message,
   workspaceId,
   roomId,
-  isOwn = false,
+  isOwn: _isOwn = false,
   compact = false,
+  onJump,
 }: {
   message: ChatMessage;
   workspaceId: string;
@@ -73,6 +78,8 @@ export function ChatReplyQuote({
   isOwn?: boolean;
   /** Composer banner uses a lighter layout. */
   compact?: boolean;
+  /** Scrolls to the quoted message; the quote becomes a button when set. */
+  onJump?: (messageId: string) => void;
 }) {
   const { t } = useTranslation();
   const previewUrl = useChatImagePreviewUrl(workspaceId, roomId, message);
@@ -80,13 +87,14 @@ export function ChatReplyQuote({
   const label = replyPreviewLabel(message, {
     voice: t("chat.voice_message"),
     file: t("chat.file_untitled"),
+    media: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
   });
 
   if (compact) {
     return (
       <div className="flex min-w-0 items-center gap-2">
         {isImage ? (
-          <span className="relative size-9 shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60">
+          <span className="relative size-9 shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border">
             {previewUrl ? (
               <img src={previewUrl} alt={label} className="size-full object-cover" />
             ) : (
@@ -103,43 +111,45 @@ export function ChatReplyQuote({
     );
   }
 
-  return (
-    <div
-      className={cn(
-        "mb-1.5 flex min-w-0 items-center gap-2 border-l-2 pl-2",
-        isOwn
-          ? "border-brand-foreground/40 text-brand-foreground/85"
-          : "border-brand/40 text-muted-foreground",
-      )}
-    >
+  // Both bubbles are pale washes, so one quote style serves mine and theirs:
+  // an inset of the page surface inside the bubble, led by a reply glyph —
+  // a quote reads as "set into" the message rather than a coloured side rule.
+  const content = (
+    <>
+      <Reply aria-hidden className="size-3.5 shrink-0 text-brand-subtle-foreground" />
       {isImage ? (
-        <span
-          className={cn(
-            "relative size-10 shrink-0 overflow-hidden rounded-md ring-1",
-            isOwn ? "bg-brand-foreground/15 ring-brand-foreground/25" : "bg-muted ring-border/60",
-          )}
-        >
+        <span className="relative size-10 shrink-0 overflow-hidden rounded-md bg-surface ring-1 ring-border">
           {previewUrl ? (
             <img src={previewUrl} alt={label} className="size-full object-cover" />
           ) : (
-            <span className="flex size-full items-center justify-center opacity-70">
+            <span className="flex size-full items-center justify-center text-muted-foreground">
               <ImageIcon className="size-4" aria-hidden />
             </span>
           )}
         </span>
       ) : message.kind === "file" ? (
-        <span
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-md",
-            isOwn ? "bg-brand-foreground/15" : "bg-muted",
-          )}
-        >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface text-muted-foreground">
           <FileText className="size-3.5" aria-hidden />
         </span>
       ) : null}
-      <p className="min-w-0 flex-1 truncate text-caption">{label}</p>
-    </div>
+      <span className="min-w-0 flex-1 truncate text-caption">{label}</span>
+    </>
   );
+  const quoteClass =
+    "mb-1.5 flex w-full min-w-0 items-center gap-2 rounded-lg bg-surface px-2 py-1 text-left text-muted-foreground";
+  if (onJump) {
+    return (
+      <button
+        type="button"
+        className={cn(quoteClass, "transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-foreground")}
+        aria-label={t("chat.reply_quote_jump", { preview: label })}
+        onClick={() => onJump(message.id)}
+      >
+        {content}
+      </button>
+    );
+  }
+  return <div className={quoteClass}>{content}</div>;
 }
 
 export function ChatReplyComposerBar({
@@ -155,15 +165,22 @@ export function ChatReplyComposerBar({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-border bg-surface/90 px-4 py-2 backdrop-blur-sm">
-      <ChatReplyQuote message={message} workspaceId={workspaceId} roomId={roomId} compact />
-      <button
+    <div className="flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-1.5">
+      <span className="flex min-w-0 items-center gap-2">
+        <Reply aria-hidden className="size-4 shrink-0 text-brand-subtle-foreground" />
+        <ChatReplyQuote message={message} workspaceId={workspaceId} roomId={roomId} compact />
+      </span>
+      <Button
         type="button"
-        className="shrink-0 text-caption text-muted-foreground underline-offset-2 hover:underline"
+        variant="ghost"
+        size="icon-sm"
+        className="shrink-0 text-muted-foreground hover:text-foreground"
+        aria-label={t("chat.cancel_reply")}
+        title={t("chat.cancel_reply")}
         onClick={onCancel}
       >
-        {t("chat.cancel_reply")}
-      </button>
+        <X aria-hidden />
+      </Button>
     </div>
   );
 }

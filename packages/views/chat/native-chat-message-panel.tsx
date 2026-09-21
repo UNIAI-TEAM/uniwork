@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ChatMessagesSkeleton } from "./chat-conversation-skeleton";
+import {
+  ChatAnchorBar,
+  ChatJumpToLatestButton,
+  ChatOlderMessagesSkeleton,
+  ChatThreadBar,
+} from "./native-chat-panel-bars";
 import { useShallow } from "zustand/react/shallow";
 import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
@@ -20,6 +27,7 @@ import {
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { serializeComposerDraftToMessageBody } from "./chat-mention-utils";
 import { ChatMessageEditDialog } from "./chat-message-edit-dialog";
+import { parseChatMediaMessageBody } from "./chat-expression-utils";
 import type { ChatMessage } from "./chat-messages";
 import { CHAT_MESSAGE_INITIAL, CHAT_MESSAGE_MAX_IN_MEMORY, CHAT_MESSAGE_PAGE_SIZE } from "./chat-messages";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
@@ -55,6 +63,7 @@ export function NativeChatMessagePanel({
   peerLastReadAt = null,
   onFollowUp,
   onActiveThreadRootIdChange,
+  intro,
 }: {
   workspaceId: string;
   roomId: string;
@@ -75,6 +84,8 @@ export function NativeChatMessagePanel({
   peerLastReadAt?: string | null;
   onFollowUp?: (message: ChatMessage) => void;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
+  /** Where the room begins: shown when empty, and above the first message once all history is loaded. */
+  intro?: ReactNode;
 }) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -88,7 +99,14 @@ export function NativeChatMessagePanel({
   const [anchorMessages, setAnchorMessages] = useState<ChatMessage[] | null>(null);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [loadingAnchor, setLoadingAnchor] = useState(false);
-  const { data: latestRows = [] } = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
+  const { data: latestRows = [], isPending: latestPending } = useChatRoomMessages(
+    workspaceId,
+    roomId,
+    CHAT_MESSAGE_INITIAL,
+  );
+  // Mirrors stickToBottomRef for rendering: the "back to latest" button shows
+  // only once the reader has scrolled away from the newest message.
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
   const threadQuery = useChatThreadMessages(
     workspaceId,
     roomId,
@@ -125,6 +143,24 @@ export function NativeChatMessagePanel({
     },
     [roomId, toggleReaction],
   );
+
+  const handleToggleReaction = useCallback(
+    (message: ChatMessage, emoji: string) => {
+      void toggleReaction.mutateAsync({ roomId, messageId: message.id, emoji });
+    },
+    [roomId, toggleReaction],
+  );
+
+  // A quoted reply scrolls to its original when that message is on screen or
+  // in the loaded window, and flashes it the same way a search jump does.
+  const handleJumpToMessage = useCallback((messageId: string) => {
+    const node = document.getElementById(`chat-msg-${messageId}`);
+    if (!node) return;
+    stickToBottomRef.current = false;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+    setHighlightMessageId(messageId);
+  }, []);
 
   const handleThread = useCallback(
     (message: ChatMessage) => {
@@ -169,7 +205,8 @@ export function NativeChatMessagePanel({
 
   const handleCopy = useCallback(async (message: ChatMessage) => {
     try {
-      await navigator.clipboard.writeText(message.body);
+      // A sticker or GIF copies as its link, not as its markdown.
+      await navigator.clipboard.writeText(parseChatMediaMessageBody(message.body)?.url ?? message.body);
     } catch {
       // Clipboard may be unavailable in tests or insecure contexts.
     }
@@ -339,7 +376,8 @@ export function NativeChatMessagePanel({
     if (programmaticScrollRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
-    updateStickToBottomFromScroll(el, stickToBottomRef);
+    const nearBottom = updateStickToBottomFromScroll(el, stickToBottomRef);
+    setAwayFromLatest(!nearBottom);
     // Near-top while stick-to-bottom is usually a layout flash after a reload
     // before pin runs — never page older history in that state.
     if (
@@ -373,6 +411,8 @@ export function NativeChatMessagePanel({
         actions: {
           onReply: onReplyToChange,
           onReact: handleReact,
+          onToggleReaction: handleToggleReaction,
+          onJumpToMessage: handleJumpToMessage,
           onThread: threadsEnabled ? handleThread : undefined,
           onEdit: handleEdit,
           onPin: handlePin,
@@ -392,6 +432,8 @@ export function NativeChatMessagePanel({
       handlePin,
       handleReact,
       handleThread,
+      handleToggleReaction,
+      handleJumpToMessage,
       highlightMessageId,
       messages,
       messagesById,
@@ -409,70 +451,69 @@ export function NativeChatMessagePanel({
     ],
   );
 
-  const listHeader = (
-    <>
-      {loadingOlder || loadingAnchor ? (
-        <p className="mb-3 text-center text-caption text-muted-foreground">
-          {loadingAnchor ? t("chat.search_loading_context") : t("chat.loading_older")}
-        </p>
-      ) : null}
-      {!loadingOlder && hasMore ? (
-        <p className="mb-3 text-center text-caption text-muted-foreground">{t("chat.scroll_for_older")}</p>
-      ) : null}
-    </>
-  );
+  const scrollToLatest = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current = true;
+    setAwayFromLatest(false);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
+  };
+
+  // Older history loads in the message's own shape; when more exists and
+  // nothing is loading, the header stays empty — scrolling up is the cue.
+  const listHeader =
+    loadingOlder || loadingAnchor ? (
+      <ChatOlderMessagesSkeleton
+        label={loadingAnchor ? t("chat.search_loading_context") : t("chat.loading_older")}
+      />
+    ) : !hasMore && !threadRoot && !anchorMessages && intro ? (
+      intro
+    ) : null;
 
   return (
     <div className={embedded ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface"}>
       {threadRoot ? (
-        <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2">
-          <p className="min-w-0 truncate text-caption font-medium text-foreground">
-            {t("chat.thread_title")}
-          </p>
-          <button
-            type="button"
-            className="shrink-0 text-caption text-muted-foreground underline-offset-2 hover:underline"
-            onClick={() => {
-              setThreadRoot(null);
-              onReplyToChange(null);
-              onActiveThreadRootIdChange?.(null);
-            }}
-          >
-            {t("chat.close_thread")}
-          </button>
-        </div>
-      ) : null}
-      {anchorMessageId && onClearAnchor ? (
-        <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2">
-          <p className="min-w-0 truncate text-caption text-muted-foreground">
-            {t("chat.search_jump_banner")}
-          </p>
-          <button
-            type="button"
-            className="shrink-0 text-caption font-medium text-foreground underline-offset-2 hover:underline"
-            onClick={onClearAnchor}
-          >
-            {t("chat.search_back_to_latest")}
-          </button>
-        </div>
-      ) : null}
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-muted/25 px-3 py-5 sm:px-4"
-        aria-label={t("chat.messages_region")}
-      >
-        <VirtualChatMessageList
-          key={roomId}
-          messages={messages}
-          scrollRef={scrollRef}
-          stickToBottomRef={stickToBottomRef}
-          programmaticScrollRef={programmaticScrollRef}
-          highlightMessageId={highlightMessageId}
-          header={listHeader}
-          empty={<p className="text-body text-muted-foreground">{emptyLabel}</p>}
-          renderMessage={renderMessage}
+        <ChatThreadBar
+          onClose={() => {
+            setThreadRoot(null);
+            onReplyToChange(null);
+            onActiveThreadRootIdChange?.(null);
+          }}
         />
+      ) : null}
+      {anchorMessageId && onClearAnchor ? <ChatAnchorBar onBackToLatest={onClearAnchor} /> : null}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={scrollRef}
+          onScroll={onScroll}
+          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 pt-2 pb-4 sm:px-4"
+          role="log"
+          aria-label={t("chat.messages_region")}
+        >
+          <VirtualChatMessageList
+            key={roomId}
+            messages={messages}
+            scrollRef={scrollRef}
+            stickToBottomRef={stickToBottomRef}
+            programmaticScrollRef={programmaticScrollRef}
+            highlightMessageId={highlightMessageId}
+            header={listHeader}
+            empty={
+              latestPending ? (
+                <ChatMessagesSkeleton className="px-0" />
+              ) : (
+                (intro ?? (
+                  <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>
+                ))
+              )
+            }
+            renderMessage={renderMessage}
+          />
+        </div>
+        {awayFromLatest && !threadRoot && !anchorMessageId ? (
+          <ChatJumpToLatestButton onClick={scrollToLatest} />
+        ) : null}
       </div>
       {replyTo ? (
         <ChatReplyComposerBar
