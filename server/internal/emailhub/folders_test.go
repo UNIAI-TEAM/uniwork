@@ -34,3 +34,22 @@ func TestDefaultMailboxMap(t *testing.T) {
 		t.Fatalf("unexpected move targets: %v", got)
 	}
 }
+
+func TestProviderMailboxDefaults(t *testing.T) {
+	t.Parallel()
+	if got := MailboxName("gmail", FolderInbox); got != FolderInbox {
+		t.Fatalf("gmail inbox default: %q", got)
+	}
+	if got := MailboxName("outlook", FolderInbox); got != FolderInbox {
+		t.Fatalf("outlook inbox default: %q", got)
+	}
+	if got := MailboxName("yahoo", FolderInbox); got != FolderInbox {
+		t.Fatalf("yahoo inbox default: %q", got)
+	}
+	if got := MailboxName("outlook", FolderSent); got != "Sent Items" {
+		t.Fatalf("outlook sent: %q", got)
+	}
+	if got := MailboxName("yahoo", FolderArchive); got != "Archive" {
+		t.Fatalf("yahoo archive: %q", got)
+	}
+}

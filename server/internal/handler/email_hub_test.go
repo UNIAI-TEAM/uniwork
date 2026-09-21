@@ -142,6 +142,15 @@ func TestEmailHubEndpointsWhenNotConfigured(t *testing.T) {
 		t.Fatalf("watch not configured: %d %v", res.StatusCode, out)
 	}
 
+	res, out = doJSON(t, srv, "POST", base+"/inbox-watch?account_id=missing", token, nil)
+	if res.StatusCode != http.StatusServiceUnavailable || errorCode(out) != "email_hub_not_configured" {
+		t.Fatalf("inbox-watch subscribe not configured: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "DELETE", base+"/inbox-watch?account_id=missing", token, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("inbox-watch unsubscribe missing account: %d %v", res.StatusCode, out)
+	}
+
 	res, out = doJSON(t, srv, "PATCH", base+"/threads/thread-1", token, map[string]any{
 		"account_id": "acc-1",
 	})
@@ -167,6 +176,12 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	})
 	if res.StatusCode != http.StatusBadRequest || errorCode(out) != "email_hub_unsupported" {
 		t.Fatalf("unsupported provider: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/accounts", token, map[string]string{
+		"email_address": "user@gmail.com",
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("connect missing password: %d %v", res.StatusCode, out)
 	}
 
 	sealed, err := box.Seal([]byte("app-password"))
@@ -212,6 +227,10 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	if res.StatusCode != 200 {
 		t.Fatalf("list threads: %d %v", res.StatusCode, out)
 	}
+	res, out = doJSON(t, srv, "GET", base+"/threads?account_id="+accID+"&folder=INBOX&query=Hi", token, nil)
+	if res.StatusCode != 200 || len(jsonArrayAt(t, out, "threads")) != 1 {
+		t.Fatalf("list threads with query: %d %v", res.StatusCode, out)
+	}
 	if len(jsonArrayAt(t, out, "threads")) != 1 {
 		t.Fatalf("expected one thread, got %v", out["threads"])
 	}
@@ -219,6 +238,69 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	res, out = doJSON(t, srv, "GET", base+"/threads/"+threadID+"?account_id="+accID, token, nil)
 	if res.StatusCode != 200 {
 		t.Fatalf("get thread: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"/threads/"+threadID+"?account_id="+accID+"&mark_read=1", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("get thread mark_read: %d %v", res.StatusCode, out)
+	}
+	if out["is_read"] != true {
+		t.Fatalf("expected thread marked read: %v", out["is_read"])
+	}
+
+	res, out = doJSON(t, srv, "PATCH", base+"/threads/"+threadID, token, map[string]any{
+		"account_id": accID, "is_read": true,
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("patch read: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", base+"/threads/"+threadID, token, map[string]any{
+		"account_id": accID, "is_starred": true,
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("patch starred: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"/threads?account_id="+accID+"&folder=INBOX&limit=10&unread=1", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list unread: %d %v", res.StatusCode, out)
+	}
+	if len(jsonArrayAt(t, out, "threads")) != 0 {
+		t.Fatalf("expected no unread threads after mark_read, got %v", out["threads"])
+	}
+
+	res, _ = doJSON(t, srv, "GET", base+"/threads/"+threadID+"/attachments/missing?account_id="+accID, token, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("download missing attachment: %d", res.StatusCode)
+	}
+
+	res, out = doJSON(t, srv, "POST", base+"/inbox-watch?account_id="+accID, token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("inbox-watch subscribe: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "DELETE", base+"/inbox-watch?account_id="+accID, token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("inbox-watch unsubscribe: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "POST", base+"/sync?account_id="+accID+"&folder=INBOX&force=1", token, nil)
+	if res.StatusCode < 400 {
+		t.Fatalf("sync without IMAP should fail: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
+		"account_id": accID, "to": []string{"dest@example.com"}, "subject": "Hi", "body_text": "Hello",
+	})
+	if res.StatusCode != http.StatusBadGateway || errorCode(out) != "email_hub_send_failed" {
+		t.Fatalf("send without SMTP: %d %v", res.StatusCode, out)
+	}
+
+	res, _ = doJSON(t, srv, "PATCH", base+"/threads/"+threadID, token, map[string]any{
+		"account_id": accID, "move_to": "ARCHIVE",
+	})
+	if res.StatusCode == http.StatusNoContent {
+		t.Fatal("move should fail without reachable IMAP")
 	}
 
 	res, _ = doJSON(t, srv, "DELETE", base+"/accounts/"+accID, token, nil)

@@ -216,6 +216,59 @@ func TestEmailHubSyncErrorsWithoutIMAP(t *testing.T) {
 	}
 }
 
+func TestEmailHubSyncAllFoldersWithoutIMAP(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+
+	synced, err := svc.Sync(ctx, actor, ws.ID, acc.ID, emailhub.FolderStarred, true, false)
+	if err == nil {
+		t.Fatal("expected full sync error without reachable IMAP")
+	}
+	if synced {
+		t.Fatal("expected synced false when IMAP dial fails")
+	}
+}
+
+func TestEmailHubDisconnectRemovesData(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	thread := seedEmailHubThread(t, q, acc.ID, ws.OrganizationID)
+	if _, err := q.CreateEmailHubAttachment(ctx, db.CreateEmailHubAttachmentParams{
+		ID: util.NewID(), ThreadID: thread.ID, AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Filename: "doc.pdf", MimeType: "application/pdf", SizeBytes: 12, PartID: "1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.Disconnect(ctx, actor, ws.ID, acc.ID); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := svc.ListAccounts(ctx, actor, ws.ID)
+	if err != nil || len(accounts) != 0 {
+		t.Fatalf("expected no accounts after disconnect: err=%v len=%d", err, len(accounts))
+	}
+}
+
+func TestEmailHubGetThreadFetchBodyWithoutIMAP(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	thread := seedEmailHubThread(t, q, acc.ID, ws.OrganizationID)
+
+	view, err := svc.GetThread(ctx, actor, ws.ID, acc.ID, thread.ID, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.BodyCached {
+		t.Fatalf("expected body fetch to fail gracefully without IMAP: %+v", view)
+	}
+}
+
 func TestEmailHubListWithQuery(t *testing.T) {
 	svc, q, user, ws := emailHubFixture(t)
 	ctx := context.Background()
@@ -228,6 +281,80 @@ func TestEmailHubListWithQuery(t *testing.T) {
 	})
 	if err != nil || len(page.Threads) != 1 {
 		t.Fatalf("query list: err=%v len=%d", err, len(page.Threads))
+	}
+}
+
+func TestEmailHubSendValidation(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+
+	_, err := svc.Send(ctx, actor, ws.ID, SendEmailHubInput{AccountID: acc.ID})
+	if err == nil {
+		t.Fatal("expected validation error for empty send")
+	}
+
+	_, err = svc.Send(ctx, actor, ws.ID, SendEmailHubInput{
+		AccountID: acc.ID, To: []string{"dest@example.com"}, BodyText: "hello",
+	})
+	if err == nil {
+		t.Fatal("expected subject required")
+	}
+}
+
+func TestEmailHubSendFailsWithoutSMTP(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+
+	_, err := svc.Send(ctx, actor, ws.ID, SendEmailHubInput{
+		AccountID: acc.ID, To: []string{"dest@example.com"}, Subject: "Hi", BodyText: "Hello",
+	})
+	if !errors.Is(err, ErrEmailHubSendFailed) {
+		t.Fatalf("expected send failed, got %v", err)
+	}
+}
+
+func TestEmailHubGetThreadMarksRead(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	thread := seedEmailHubThread(t, q, acc.ID, ws.OrganizationID)
+
+	view, err := svc.GetThread(ctx, actor, ws.ID, acc.ID, thread.ID, false, true)
+	if err != nil || !view.IsRead {
+		t.Fatalf("mark read on get: err=%v is_read=%v", err, view.IsRead)
+	}
+}
+
+func TestEmailHubOpenAttachmentNotFound(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	thread := seedEmailHubThread(t, q, acc.ID, ws.OrganizationID)
+
+	_, _, err := svc.OpenAttachment(ctx, actor, ws.ID, acc.ID, thread.ID, "missing-att")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected not found, got %v", err)
+	}
+}
+
+func TestEmailHubListUnreadOnly(t *testing.T) {
+	svc, q, user, ws := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	seedEmailHubThread(t, q, acc.ID, ws.OrganizationID)
+
+	page, err := svc.ListThreads(ctx, actor, ws.ID, ListEmailHubThreadsInput{
+		AccountID: acc.ID, Folder: emailhub.FolderInbox, Limit: 50, UnreadOnly: true,
+	})
+	if err != nil || len(page.Threads) != 1 {
+		t.Fatalf("unread list: err=%v len=%d", err, len(page.Threads))
 	}
 }
 
