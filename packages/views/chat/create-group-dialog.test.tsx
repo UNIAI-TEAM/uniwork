@@ -24,6 +24,7 @@ const members = [
 vi.mock("./workspace-member-picker", () => ({
   useWorkspaceMemberPicker: () => ({
     filteredMembers: members,
+    hasOtherMembers: true,
     isLoading: false,
     lookup: { isFetching: false, isFetched: false, data: null },
     lookupEnabled: false,
@@ -73,6 +74,7 @@ vi.mock("./workspace-member-picker", () => ({
     </ul>
   ),
   ExternalMemberLookupRow: () => null,
+  WorkspaceMemberLookupResult: () => null,
 }));
 
 beforeAll(() => {

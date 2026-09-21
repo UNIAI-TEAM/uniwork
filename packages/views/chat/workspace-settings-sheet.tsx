@@ -3,23 +3,18 @@
 import {
   Bell,
   BellOff,
-  ChevronLeft,
   Hash,
-  History,
-  Info,
-  PanelLeft,
-  PanelLeftClose,
+  Home,
   Pin,
   Search,
   Settings,
+  StickyNote,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useChatRoomMembers,
   useChatRooms,
-  useRemoveChatRoomMember,
-  useUpdateChatRoomMember,
 } from "@uniwork/core/chat";
 import { useWorkspacePermissions, useCurrentMember } from "@uniwork/core/permissions";
 import type { Member } from "@uniwork/core/types/workspace";
@@ -34,11 +29,12 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
-  ChatSettingsBulletinEntry,
+  ChatMemberListSkeleton,
+  ChatMemberRow,
   ChatSettingsCollapsibleSection,
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
-  ChatSettingsQuickActionsDm,
+  ChatSettingsQuickActions,
   ChatSettingsTitleRow,
 } from "./chat-settings-ui";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
@@ -52,10 +48,10 @@ import {
   canPromoteChatMember,
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
-
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
+import { initialOf } from "./chat-initials";
+import { useRoomMemberModeration } from "./use-room-member-moderation";
+import { ChatConversationToolbar } from "./chat-conversation-toolbar";
+import { ChatRoomMark } from "./chat-room-mark";
 
 export function WorkspaceSettingsSheet({
   open,
@@ -79,21 +75,21 @@ export function WorkspaceSettingsSheet({
   onOpenSearch?: () => void;
 }) {
   const { t } = useTranslation();
-  const { data: chatMembers = [] } = useChatRoomMembers(workspaceId, roomId, open);
+  const { data: chatMembers = [], isPending: membersPending } = useChatRoomMembers(workspaceId, roomId, open);
   const { data: rooms = [] } = useChatRooms(workspaceId);
   const roomRecord = useMemo(() => rooms.find((room) => room.id === roomId), [roomId, rooms]);
   const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(roomId);
   const currentMember = useCurrentMember(workspaceId);
   const { decideRemove } = useWorkspacePermissions(workspaceId);
-  const updateMember = useUpdateChatRoomMember(workspaceId);
-  const removeMember = useRemoveChatRoomMember(workspaceId);
-  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const moderation = useRoomMemberModeration({ workspaceId, roomId });
   const [membersOpen, setMembersOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [bulletinOpen, setBulletinOpen] = useState(false);
 
-  const displayName = roomRecord?.name?.trim() || title;
+  // The page resolves the room's shown name (generic until renamed); the
+  // sheet repeats it so list, header and settings never disagree.
+  const displayName = title;
   const roomPermissions = useResolvedRoomPermissions({
     room: roomRecord,
     members: chatMembers,
@@ -107,19 +103,6 @@ export function WorkspaceSettingsSheet({
     [workspaceMembers],
   );
 
-  const runMemberAction = (
-    userId: string,
-    action: () => Promise<unknown>,
-    confirmMessage?: string,
-  ) => {
-    if (busyUserId) return;
-    if (confirmMessage && !window.confirm(confirmMessage)) return;
-    setBusyUserId(userId);
-    void action().finally(() => {
-      setBusyUserId(null);
-    });
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" showCloseButton={false} className="flex w-full flex-col p-0 sm:max-w-md">
@@ -131,16 +114,12 @@ export function WorkspaceSettingsSheet({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <ChatSettingsTitleRow
             title={displayName}
-            leading={
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-                <Hash className="size-5" aria-hidden />
-              </span>
-            }
+            leading={<ChatRoomMark icon={Home} size="header" />}
             editAriaLabel={t("chat.settings_edit_name")}
             onEdit={roomPermissions.canChangeProfile ? () => setRenameOpen(true) : undefined}
           />
 
-          <ChatSettingsQuickActionsDm>
+          <ChatSettingsQuickActions>
             <ChatSettingsQuickAction
               icon={notificationsMuted ? BellOff : Bell}
               label={t("chat.settings_mute_notifications")}
@@ -156,10 +135,10 @@ export function WorkspaceSettingsSheet({
             <ChatSettingsQuickAction
               icon={Settings}
               label={t("chat.settings_manage_room")}
-              onClick={() => setManageOpen(true)}
+              onClick={() => setManageOpen((value) => !value)}
               active={manageOpen}
             />
-          </ChatSettingsQuickActionsDm>
+          </ChatSettingsQuickActions>
 
           {manageOpen ? (
             <ChatGroupManageSection
@@ -172,110 +151,74 @@ export function WorkspaceSettingsSheet({
 
           <ChatSettingsCollapsibleSection
             title={t("chat.workspace_members")}
-            summary={t("chat.group_member_count", { count: chatMembers.length })}
+            summary={membersPending ? undefined : t("chat.group_member_count", { count: chatMembers.length })}
             open={membersOpen}
             onOpenChange={setMembersOpen}
+            flush
           >
-            <ul className="space-y-2">
-              {chatMembers.map((member) => {
-                const isSelf = member.user_id === currentUserId;
-                const label = isSelf
-                  ? youLabel
-                  : member.display_name?.trim() || member.email || member.user_id;
-                const wsMember = wsRoleByUserId.get(member.user_id);
-                const subtitle =
-                  member.role === "admin"
-                    ? t("chat.room_role_admin")
-                    : member.send_restricted
-                      ? t("chat.room_role_muted")
-                      : wsMember?.role === "owner"
-                        ? t("chat.workspace_role_owner")
-                        : member.email;
-
-                return (
-                  <li
-                    key={member.user_id}
-                    className="flex items-center gap-3 rounded-md border border-border px-3 py-2"
-                  >
-                    <ActorAvatar name={label} initials={initialOf(label)} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-body font-medium text-foreground">{label}</p>
-                      <p className="truncate text-caption text-muted-foreground">{subtitle}</p>
-                    </div>
-                    {!isSelf && isModerator ? (
-                      <ChatRoomMemberActions
-                        label={label}
-                        canPromote={canPromoteChatMember(member, isModerator)}
-                        canDemote={canDemoteChatMember(member, currentUserId, isModerator)}
-                        canMute={canMuteChatMember(member, isModerator)}
-                        canUnmute={canUnmuteChatMember(member, isModerator)}
-                        canKick={
-                          wsMember ? decideRemove(wsMember).allowed && member.role !== "admin" : false
-                        }
-                        busy={busyUserId === member.user_id}
-                        onPromote={() =>
-                          runMemberAction(member.user_id, () =>
-                            updateMember.mutateAsync({
-                              roomId,
-                              userId: member.user_id,
-                              role: "admin",
-                            }),
-                          )
-                        }
-                        onDemote={() =>
-                          runMemberAction(member.user_id, () =>
-                            updateMember.mutateAsync({
-                              roomId,
-                              userId: member.user_id,
-                              role: "member",
-                            }),
-                          )
-                        }
-                        onMute={() =>
-                          runMemberAction(member.user_id, () =>
-                            updateMember.mutateAsync({
-                              roomId,
-                              userId: member.user_id,
-                              send_restricted: true,
-                            }),
-                          )
-                        }
-                        onUnmute={() =>
-                          runMemberAction(member.user_id, () =>
-                            updateMember.mutateAsync({
-                              roomId,
-                              userId: member.user_id,
-                              send_restricted: false,
-                            }),
-                          )
-                        }
-                        onKick={() =>
-                          runMemberAction(
-                            member.user_id,
-                            () =>
-                              removeMember.mutateAsync({
-                                roomId,
-                                userId: member.user_id,
-                              }),
-                            t("workspace.removeConfirm", { name: label }),
-                          )
-                        }
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="text-caption text-muted-foreground">{t("chat.workspace_room_moderation_hint")}</p>
+            {membersPending ? (
+              <ChatMemberListSkeleton label={t("chat.members_loading")} />
+            ) : (
+              <ul>
+                {chatMembers.map((member) => {
+                  const isSelf = member.user_id === currentUserId;
+                  const label = isSelf
+                    ? youLabel
+                    : member.display_name?.trim() || member.email || member.user_id;
+                  const wsMember = wsRoleByUserId.get(member.user_id);
+                  const detail =
+                    member.role === "admin"
+                      ? t("chat.room_role_admin")
+                      : member.send_restricted
+                        ? t("chat.room_role_muted")
+                        : wsMember?.role === "owner"
+                          ? t("chat.workspace_role_owner")
+                          : member.email;
+                  return (
+                    <ChatMemberRow
+                      key={member.user_id}
+                      avatar={<ActorAvatar name={label} initials={initialOf(label)} size="lg" />}
+                      name={label}
+                      detail={detail}
+                      actions={
+                        !isSelf && isModerator ? (
+                          <ChatRoomMemberActions
+                            label={label}
+                            canPromote={canPromoteChatMember(member, isModerator)}
+                            canDemote={canDemoteChatMember(member, currentUserId, isModerator)}
+                            canMute={canMuteChatMember(member, isModerator)}
+                            canUnmute={canUnmuteChatMember(member, isModerator)}
+                            canKick={wsMember ? decideRemove(wsMember).allowed && member.role !== "admin" : false}
+                            busy={moderation.busyUserId === member.user_id}
+                            onPromote={() => moderation.promote(member.user_id)}
+                            onDemote={() => moderation.demote(member.user_id)}
+                            onMute={() => moderation.mute(member.user_id)}
+                            onUnmute={() => moderation.unmute(member.user_id)}
+                            onKick={() =>
+                              moderation.requestRemove(
+                                member.user_id,
+                                label,
+                                t("workspace.removeConfirm", { name: label }),
+                              )
+                            }
+                          />
+                        ) : null
+                      }
+                    />
+                  );
+                })}
+              </ul>
+            )}
+            <p className="px-4 pt-1 text-caption text-muted-foreground">{t("chat.workspace_room_moderation_hint")}</p>
           </ChatSettingsCollapsibleSection>
 
-          <ChatSettingsBulletinEntry
-            label={t("chat.settings_notes_pins_polls")}
-            onClick={() => setBulletinOpen(true)}
-          />
-
-          {onOpenSearch ? (
-            <section className="border-b border-border">
+          <section className="border-b border-border py-1">
+            <ChatSettingsMenuRow
+              icon={StickyNote}
+              label={t("chat.settings_notes_pins_polls")}
+              onClick={() => setBulletinOpen(true)}
+            />
+            {onOpenSearch ? (
               <ChatSettingsMenuRow
                 icon={Search}
                 label={t("chat.search_messages")}
@@ -284,8 +227,8 @@ export function WorkspaceSettingsSheet({
                   onOpenSearch();
                 }}
               />
-            </section>
-          ) : null}
+            ) : null}
+          </section>
         </div>
 
         {renameOpen ? (
@@ -309,6 +252,7 @@ export function WorkspaceSettingsSheet({
             canPinMessages={roomPermissions.canPinContent}
           />
         ) : null}
+        {moderation.confirmDialog}
       </SheetContent>
     </Sheet>
   );
@@ -336,74 +280,20 @@ export function WorkspaceChatToolbar({
   catchUpDisabled?: boolean;
 }) {
   const { t } = useTranslation();
-
   return (
-    <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
-      {onBack ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
-          aria-label={backAriaLabel}
-          onClick={onBack}
-        >
-          <ChevronLeft className="size-5" aria-hidden />
-        </Button>
-      ) : null}
-      {/* Narrow screens swap list and thread with the back control above, so
-          the collapse toggle is a desktop-only affordance. */}
-      {onToggleSidebar ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="hidden size-10 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex"
-          aria-label={
-            sidebarCollapsed ? t("chat.show_conversations") : t("chat.hide_conversations")
-          }
-          aria-expanded={!sidebarCollapsed}
-          onClick={onToggleSidebar}
-        >
-          {sidebarCollapsed ? (
-            <PanelLeft className="size-5" aria-hidden />
-          ) : (
-            <PanelLeftClose className="size-5" aria-hidden />
-          )}
-        </Button>
-      ) : null}
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-        <Hash className="size-5" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <h1 className="truncate text-body font-semibold text-foreground">{title}</h1>
-        <p className="truncate text-caption text-muted-foreground">
-          {t("chat.group_member_count", { count: memberCount })}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {onCatchUp ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t("chat.ai.catch_up")}
-            disabled={catchUpDisabled}
-            onClick={onCatchUp}
-          >
-            <History className="size-5" aria-hidden />
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t("chat.workspace_room_settings")}
-          onClick={onOpenSettings}
-        >
-          <Info className="size-5" aria-hidden />
-        </Button>
-      </div>
-    </div>
+    <ChatConversationToolbar
+      avatar={<ChatRoomMark icon={Home} />}
+      title={title}
+      subtitle={t("chat.group_member_count", { count: memberCount })}
+      backAriaLabel={backAriaLabel}
+      onBack={onBack}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={onToggleSidebar}
+      settingsAriaLabel={t("chat.workspace_room_settings")}
+      onOpenSettings={onOpenSettings}
+      catchUpAriaLabel={t("chat.ai.catch_up")}
+      onCatchUp={onCatchUp}
+      catchUpDisabled={catchUpDisabled}
+    />
   );
 }

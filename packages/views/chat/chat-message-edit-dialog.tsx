@@ -2,15 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 
 export function ChatMessageEditDialog({
@@ -33,31 +27,30 @@ export function ChatMessageEditDialog({
     if (open) setBody(deserializeMessageBodyToComposerDraft(initialBody));
   }, [open, initialBody]);
 
+  const canSave = body.trim().length > 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("chat.edit_dialog_title")}</DialogTitle>
-        </DialogHeader>
-        <Textarea
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          rows={4}
-          aria-label={t("chat.edit_dialog_title")}
+      <ChatDialogContent size="md">
+        <ChatDialogHeader title={t("chat.edit_dialog_title")} description={t("chat.edit_dialog_description")} />
+        <ChatDialogBody>
+          <Textarea
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            rows={4}
+            aria-label={t("chat.edit_dialog_title")}
+          />
+        </ChatDialogBody>
+        <ChatDialogFooter
+          onCancel={() => onOpenChange(false)}
+          cancelLabel={t("chat.edit_dialog_cancel")}
+          submitLabel={t("chat.edit_dialog_save")}
+          submittingLabel={t("chat.edit_dialog_saving")}
+          submitting={Boolean(saving)}
+          submitDisabled={!canSave}
+          onSubmit={() => onSave(body.trim())}
         />
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t("chat.edit_dialog_cancel")}
-          </Button>
-          <Button
-            type="button"
-            disabled={saving || body.trim().length === 0}
-            onClick={() => onSave(body.trim())}
-          >
-            {t("chat.edit_dialog_save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </ChatDialogContent>
     </Dialog>
   );
 }

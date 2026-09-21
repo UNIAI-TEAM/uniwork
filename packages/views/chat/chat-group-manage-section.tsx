@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ChatRoomMemberPermissions } from "@uniwork/core/api/endpoints/chat";
 import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
-import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { Switch } from "@uniwork/ui/components/ui/switch";
 
 const defaultPermissions = (): ChatRoomMemberPermissions => ({
   allow_change_profile: true,
@@ -48,37 +48,36 @@ export function ChatGroupManageSection({
         member_permissions: { [key]: checked },
       })
       .then(() => {
-        toast.info(t("chat.settings_permissions_saved"));
+        toast.success(t("chat.settings_permissions_saved"));
       })
       .catch(() => {
         toast.error(t("chat.settings_permissions_save_failed"));
       });
   };
 
+  // Each permission applies the moment it is flipped, so it is a switch, not
+  // a checkbox waiting for a Save that does not exist.
   return (
-    <section className="border-b border-border px-4 py-4">
-      <p className="mb-3 text-body font-semibold text-foreground">
-        {t("chat.settings_group_permissions_title")}
-      </p>
-      <ul className="space-y-3">
+    <section className="border-b border-border px-4 py-3">
+      <p className="mb-2 text-label font-semibold text-foreground">{t("chat.settings_group_permissions_title")}</p>
+      <ul className="divide-y divide-border">
         {permissionKeys.map((key) => (
-          <li key={key} className="flex items-start gap-3">
-            <Checkbox
+          <li key={key} className="flex items-center justify-between gap-3 py-2">
+            <Label htmlFor={`chat-perm-${roomId}-${key}`} className="flex-1 cursor-pointer text-body text-foreground">
+              {t(`chat.settings_perm_${key}`)}
+            </Label>
+            <Switch
               id={`chat-perm-${roomId}-${key}`}
               checked={current[key]}
               disabled={!canManage || updateSettings.isPending}
               onCheckedChange={(value) => toggle(key, value === true)}
-              className="mt-0.5"
             />
-            <Label
-              htmlFor={`chat-perm-${roomId}-${key}`}
-              className="flex-1 cursor-pointer text-body leading-snug text-foreground"
-            >
-              {t(`chat.settings_perm_${key}`)}
-            </Label>
           </li>
         ))}
       </ul>
+      {!canManage ? (
+        <p className="mt-2 text-caption text-muted-foreground">{t("chat.settings_permissions_admin_only")}</p>
+      ) : null}
     </section>
   );
 }

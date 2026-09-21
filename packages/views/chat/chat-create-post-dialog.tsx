@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
@@ -10,18 +9,13 @@ import {
   POST_BODY_MAX_LENGTH,
   POST_TITLE_MAX_LENGTH,
 } from "@uniwork/core/chat/post-utils";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { toastApiError } from "../toast-api-error";
+import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
 
 export function ChatCreatePostDialog({
   open,
@@ -77,19 +71,17 @@ export function ChatCreatePostDialog({
         onCreated?.();
         onOpenChange(false);
       })
-      .catch(() => {
-        toast.error(t("chat.post_create_failed"));
+      .catch((err: unknown) => {
+        toastApiError(err, t("chat.post_create_failed"));
       });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle>{t("chat.post_create_title")}</DialogTitle>
-        </DialogHeader>
+      <ChatDialogContent size="lg">
+        <ChatDialogHeader title={t("chat.post_create_title")} description={t("chat.post_create_description")} />
 
-        <div className="space-y-5 overflow-y-auto px-5 py-4">
+        <ChatDialogBody className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="post-title">{t("chat.post_title_label")}</Label>
             <Input
@@ -113,29 +105,67 @@ export function ChatCreatePostDialog({
             />
           </div>
 
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="post-pin-top"
-              checked={pinToTop}
-              disabled={!canPinToTop}
-              onCheckedChange={(checked) => setPinToTop(checked === true)}
-            />
-            <Label htmlFor="post-pin-top" id="post-pin-top-label" className="cursor-pointer font-normal leading-snug">
-              {t("chat.post_pin_to_top")}
-            </Label>
-          </div>
-        </div>
+          <PinToTopRow
+            id="post-pin-top"
+            label={t("chat.post_pin_to_top")}
+            checked={pinToTop}
+            onCheckedChange={setPinToTop}
+            disabledReason={canPinToTop ? undefined : t("chat.post_pin_forbidden")}
+          />
+        </ChatDialogBody>
 
-        <DialogFooter className="gap-2 border-t border-border px-5 py-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" disabled={!canCreate || sendMessage.isPending} onClick={handleCreate}>
-            <Megaphone className="size-4" aria-hidden />
-            {t("chat.post_create_submit")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+        <ChatDialogFooter
+          onCancel={() => onOpenChange(false)}
+          submitLabel={t("chat.post_create_submit")}
+          submittingLabel={t("chat.post_create_submitting")}
+          submitting={sendMessage.isPending}
+          submitDisabled={!canCreate}
+          onSubmit={handleCreate}
+        />
+      </ChatDialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The same Switch the poll dialog uses for "pin to top". When the viewer may
+ * not pin, the control stays visible but off, and the caption says why.
+ */
+function PinToTopRow({
+  id,
+  label,
+  checked,
+  onCheckedChange,
+  disabledReason,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabledReason?: string;
+}) {
+  const labelId = `${id}-label`;
+  const reasonId = `${id}-reason`;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3">
+        <Label id={labelId} htmlFor={id} className="font-normal text-body text-foreground">
+          {label}
+        </Label>
+        <Switch
+          id={id}
+          aria-labelledby={labelId}
+          aria-describedby={disabledReason ? reasonId : undefined}
+          checked={checked && !disabledReason}
+          disabled={Boolean(disabledReason)}
+          onCheckedChange={onCheckedChange}
+        />
+      </div>
+      {disabledReason ? (
+        <p id={reasonId} className="text-caption text-muted-foreground">
+          {disabledReason}
+        </p>
+      ) : null}
+    </div>
   );
 }

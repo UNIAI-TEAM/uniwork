@@ -3,25 +3,25 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import {
+  ChatDialogBody,
+  ChatDialogContent,
+  ChatDialogFooter,
+  ChatDialogHeader,
+} from "./chat-dialog-layout";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
-  ExternalMemberLookupRow,
+  WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
+
+const MIN_GROUP_MEMBERS = 2;
 
 export function CreateGroupDialog({
   open,
@@ -49,7 +49,7 @@ export function CreateGroupDialog({
     [pendingMembers],
   );
 
-  const { filteredMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
+  const { filteredMembers, hasOtherMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
     useWorkspaceMemberPicker({
       workspaceId,
       currentUserId,
@@ -91,7 +91,9 @@ export function CreateGroupDialog({
     }
   };
 
-  const canCreate = pendingMembers.length >= 2 && !creating;
+  const picked = pendingMembers.length;
+  const missing = Math.max(MIN_GROUP_MEMBERS - picked, 0);
+  const canCreate = missing === 0 && !creating;
 
   const submit = () => {
     if (!canCreate) return;
@@ -100,13 +102,12 @@ export function CreateGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1.5 border-b border-border px-5 py-4">
-          <DialogTitle className="text-title">{t("chat.create_group_title")}</DialogTitle>
-          <DialogDescription>{t("chat.create_group_description")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
+      <ChatDialogContent size="md">
+        <ChatDialogHeader
+          title={t("chat.create_group_title")}
+          description={t("chat.create_group_description")}
+        />
+        <ChatDialogBody>
           <div className="space-y-2">
             <Label htmlFor="group-name" className="text-label font-medium">
               {t("chat.group_name_label")}
@@ -116,7 +117,6 @@ export function CreateGroupDialog({
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder={t("chat.group_name_placeholder")}
-              className="rounded-xl"
               autoFocus
             />
           </div>
@@ -125,70 +125,51 @@ export function CreateGroupDialog({
             members={pendingMembers}
             onRemove={removeMember}
             title={t("chat.group_selected_members")}
-            countBadge={t("chat.group_member_minimum", { count: pendingMembers.length })}
-            emptyLabel={t("chat.group_pick_members")}
+            summary={
+              missing > 0
+                ? t("chat.group_member_progress", { count: picked, min: MIN_GROUP_MEMBERS })
+                : t("chat.group_member_selected", { count: picked })
+            }
           />
 
-          <div className="space-y-3">
-            <WorkspaceMemberSearchField
-              id="group-member-search"
-              label={t("chat.group_members_label")}
-              query={memberQuery}
-              onQueryChange={(value) => {
-                setMemberQuery(value);
-                setSearchSubmitted(false);
-              }}
-              onSubmit={submitMemberSearch}
-              placeholder={t("chat.search_member_or_email")}
-            />
-            <p className="text-caption text-muted-foreground">{t("chat.search_member_or_email_hint")}</p>
+          <WorkspaceMemberSearchField
+            id="group-member-search"
+            label={t("chat.group_members_label")}
+            query={memberQuery}
+            onQueryChange={(value) => {
+              setMemberQuery(value);
+              setSearchSubmitted(false);
+            }}
+            onSubmit={submitMemberSearch}
+            placeholder={t("chat.member_search_placeholder")}
+            hint={t("chat.search_member_or_email_hint")}
+          />
 
-            <div className="space-y-2">
-              <p className="text-label font-medium text-foreground">{t("chat.workspace_members")}</p>
-              <WorkspaceMemberPickerList
-                members={filteredMembers}
-                loading={isLoading}
-                emptyLabel={t("chat.workspace_members_empty")}
-                onPick={addMember}
-              />
-            </div>
+          <WorkspaceMemberLookupResult
+            enabled={lookupEnabled}
+            lookup={lookup}
+            onPick={addMember}
+            actionLabel={t("chat.add_to_group")}
+          />
 
-            {lookupEnabled && lookup.isFetching ? (
-              <p className="text-caption text-muted-foreground">{t("chat.searching")}</p>
-            ) : null}
-
-            {lookupEnabled && !lookup.isFetching && lookup.isFetched && !lookup.data ? (
-              <p className="text-caption text-muted-foreground">{t("chat.user_not_found")}</p>
-            ) : null}
-
-            {lookupEnabled && lookup.data ? (
-              <ExternalMemberLookupRow
-                lookup={lookup.data}
-                onPick={(contact) => addMember(contact)}
-                actionLabel={t("chat.add_to_group")}
-                hint={t("chat.external_member_found")}
-              />
-            ) : null}
-          </div>
-
-          <p className="text-caption text-muted-foreground">{t("chat.create_group_one_room_hint")}</p>
-        </div>
-
-        <DialogFooter className="border-t border-border px-5 py-3.5 sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-full"
-            disabled={creating}
-            onClick={() => handleOpenChange(false)}
-          >
-            {t("chat.cancel_group")}
-          </Button>
-          <Button type="button" className="rounded-full" disabled={!canCreate} onClick={submit}>
-            {creating ? t("chat.creating_group") : t("chat.start_group")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <WorkspaceMemberPickerList
+            members={filteredMembers}
+            loading={isLoading}
+            query={memberQuery}
+            hasOtherMembers={hasOtherMembers}
+            onPick={addMember}
+          />
+        </ChatDialogBody>
+        <ChatDialogFooter
+          onCancel={() => handleOpenChange(false)}
+          submitLabel={t("chat.start_group")}
+          submittingLabel={t("chat.creating_group")}
+          submitting={creating}
+          submitDisabled={missing > 0}
+          onSubmit={submit}
+          leading={missing > 0 ? t("chat.group_member_missing", { count: missing }) : undefined}
+        />
+      </ChatDialogContent>
     </Dialog>
   );
 }

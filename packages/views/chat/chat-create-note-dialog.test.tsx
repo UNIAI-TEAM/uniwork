@@ -55,7 +55,8 @@ describe("ChatCreateNoteDialog", () => {
     });
   });
 
-  it("disables pin checkbox when user cannot pin content", () => {
+  // Pin to top is a Switch now, the same control the poll dialog uses.
+  it("disables the pin switch and says why when the user cannot pin", () => {
     render(
       wrap(
         <ChatCreateNoteDialog
@@ -68,9 +69,8 @@ describe("ChatCreateNoteDialog", () => {
       ),
     );
 
-    expect(screen.getByRole("checkbox", { name: "Ghim lên đầu trò chuyện" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    const pin = screen.getByRole("switch", { name: "Ghim lên đầu trò chuyện" });
+    expect(pin).toHaveAttribute("aria-disabled", "true");
+    expect(pin).toHaveAccessibleDescription("Bạn không có quyền ghim nội dung lên đầu hội thoại.");
   });
 });
