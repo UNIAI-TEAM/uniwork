@@ -14,8 +14,8 @@ beforeAll(() => {
 });
 
 describe("voiceCallInitialOf", () => {
-  it("uses first letters of first and last name", () => {
-    expect(voiceCallInitialOf("Tran Hoang Long")).toBe("TL");
+  it("uses the one-letter fallback every chat avatar uses", () => {
+    expect(voiceCallInitialOf("Tran Hoang Long")).toBe("T");
   });
 
   it("falls back to first character for single token names", () => {

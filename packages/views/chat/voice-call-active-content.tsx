@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, MonitorUp, PhoneOff, Users, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, MonitorUp, PhoneOff, Video, VideoOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useCallDuration } from "./use-call-duration";
 import { useVoiceCallPanelDrag } from "./use-voice-call-panel-drag";
@@ -24,33 +25,57 @@ import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
 
 const GROUP_ALONE_TIMEOUT_MS = 60_000;
 
+/** Solid hang-up red with the on-solid glyph: the one control that ends something. */
+const HANG_UP = "border-transparent bg-destructive-solid text-on-solid hover:bg-destructive-solid hover:opacity-90";
+
+/**
+ * One call control, the same shape as the meeting room's: a fixed label (it
+ * names the device, not the next action), `aria-pressed` for its state, and
+ * the name again as a tooltip. `off` is a device the user has turned off
+ * (mic muted) and reads in the danger soft pair; `on` is a device that is
+ * live (camera, screen share) and reads as the brand wash.
+ */
 function VoiceCallRoundControl({
   ariaLabel,
   onClick,
   disabled,
-  active,
-  destructive,
+  pressed,
+  tone = "default",
   children,
 }: {
   ariaLabel: string;
   onClick: () => void;
   disabled?: boolean;
-  active?: boolean;
-  destructive?: boolean;
+  pressed?: boolean;
+  tone?: "default" | "on" | "off" | "hangup";
   children: React.ReactNode;
 }) {
   return (
-    <Button
-      type="button"
-      variant={active ? "default" : destructive ? "destructive" : "outline"}
-      size="icon-lg"
-      className={cn("size-11 rounded-full", !active && !destructive && "border-border bg-background")}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            className={cn(
+              "size-11 rounded-xl",
+              tone === "on" && "border-transparent bg-brand-subtle text-brand-subtle-foreground hover:bg-brand-subtle",
+              tone === "off" &&
+                "border-transparent bg-destructive-soft text-destructive-soft-foreground hover:bg-destructive-soft",
+              tone === "hangup" && HANG_UP,
+            )}
+            aria-label={ariaLabel}
+            aria-pressed={pressed}
+            disabled={disabled}
+            onClick={onClick}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{ariaLabel}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -100,7 +125,7 @@ function VoiceCallVideoStage({
     return (
       <div className="flex flex-col items-center gap-3 py-2 text-center">
         <Avatar className={cn("text-title", size === "fullscreen" ? "size-32" : "size-20")}>
-          <AvatarFallback className="bg-primary/10 text-primary">
+          <AvatarFallback className="bg-brand-subtle text-brand-subtle-foreground">
             {voiceCallInitialOf(peerName)}
           </AvatarFallback>
         </Avatar>
@@ -114,7 +139,7 @@ function VoiceCallVideoStage({
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-xl bg-muted ring-1 ring-border/60",
+        "relative w-full overflow-hidden rounded-xl bg-muted ring-1 ring-surface-border",
         size === "fullscreen"
           ? "aspect-video max-h-[min(70vh,720px)]"
           : "aspect-video max-h-36",
@@ -134,7 +159,7 @@ function VoiceCallVideoStage({
       {!remoteCameraEnabled && !hasScreenShare && cameraEnabled ? (
         <div className="flex size-full items-center justify-center bg-muted">
           <Avatar className="size-16 text-title">
-            <AvatarFallback className="bg-primary/10 text-primary">
+            <AvatarFallback className="bg-brand-subtle text-brand-subtle-foreground">
               {voiceCallInitialOf(peerName)}
             </AvatarFallback>
           </Avatar>
@@ -212,14 +237,46 @@ function ActiveVoiceControls({
   const leaveButton = (
     <Button
       type="button"
-      variant="destructive"
-      size="icon-sm"
-      className="shrink-0 rounded-full"
+      size="icon-lg"
+      className={cn("shrink-0 rounded-full", HANG_UP)}
       aria-label={leaveLabel}
+      title={leaveLabel}
       onClick={handleLeave}
     >
       <PhoneOff aria-hidden className="size-4" />
     </Button>
+  );
+
+  const deviceControls = (
+    <>
+      <VoiceCallRoundControl
+        ariaLabel={t("chat.voice_call_mic")}
+        pressed={!muted}
+        tone={muted ? "off" : "default"}
+        disabled={!connected}
+        onClick={toggleMute}
+      >
+        {muted ? <MicOff aria-hidden className="size-4" /> : <Mic aria-hidden className="size-4" />}
+      </VoiceCallRoundControl>
+      <VoiceCallRoundControl
+        ariaLabel={t("chat.voice_call_camera")}
+        pressed={cameraEnabled}
+        tone={cameraEnabled ? "on" : "default"}
+        disabled={!connected}
+        onClick={handleToggleCamera}
+      >
+        {cameraEnabled ? <Video aria-hidden className="size-4" /> : <VideoOff aria-hidden className="size-4" />}
+      </VoiceCallRoundControl>
+      <VoiceCallRoundControl
+        ariaLabel={t("chat.voice_call_screen_share")}
+        pressed={screenShareEnabled}
+        tone={screenShareEnabled ? "on" : "default"}
+        disabled={!connected}
+        onClick={handleToggleScreenShare}
+      >
+        <MonitorUp aria-hidden className="size-4" />
+      </VoiceCallRoundControl>
+    </>
   );
 
   const recordControl = (
@@ -237,90 +294,30 @@ function ActiveVoiceControls({
 
   if (isMultiPartyVoiceCall(callKind)) {
     return (
-      <VoiceCallControlRow>
-        <VoiceCallRoundControl
-          ariaLabel={muted ? t("chat.voice_call_unmute") : t("chat.voice_call_mute")}
-          disabled={!connected}
-          onClick={toggleMute}
-        >
-          {muted ? <MicOff aria-hidden className="size-4" /> : <Mic aria-hidden className="size-4" />}
-        </VoiceCallRoundControl>
-        <VoiceCallRoundControl
-          ariaLabel={cameraEnabled ? t("chat.voice_call_camera_off") : t("chat.voice_call_camera_on")}
-          disabled={!connected}
-          active={cameraEnabled}
-          onClick={handleToggleCamera}
-        >
-          {cameraEnabled ? (
-            <Video aria-hidden className="size-4" />
-          ) : (
-            <VideoOff aria-hidden className="size-4" />
-          )}
-        </VoiceCallRoundControl>
-        <VoiceCallRoundControl
-          ariaLabel={
-            screenShareEnabled
-              ? t("chat.voice_call_screen_share_stop")
-              : t("chat.voice_call_screen_share_start")
-          }
-          disabled={!connected}
-          active={screenShareEnabled}
-          onClick={handleToggleScreenShare}
-        >
-          <MonitorUp aria-hidden className="size-4" />
-        </VoiceCallRoundControl>
-        {recordControl}
-        <VoiceCallRoundControl ariaLabel={leaveLabel} destructive onClick={handleLeave}>
-          <PhoneOff aria-hidden className="size-4" />
-        </VoiceCallRoundControl>
-        {isCaller ? (
-          <VoiceCallRoundControl
-            ariaLabel={t("chat.voice_call_end_for_all")}
-            destructive
-            onClick={onEndForAll}
-          >
-            <Users aria-hidden className="size-4" />
+      <div className="flex flex-col items-center gap-2">
+        <VoiceCallControlRow>
+          {deviceControls}
+          {recordControl}
+          <VoiceCallRoundControl ariaLabel={leaveLabel} tone="hangup" onClick={handleLeave}>
+            <PhoneOff aria-hidden className="size-4" />
           </VoiceCallRoundControl>
+        </VoiceCallControlRow>
+        {/* Ending for everyone is rarer and heavier than leaving: a named
+            text action under the row, not a second red icon beside it. */}
+        {isCaller ? (
+          <Button type="button" variant="destructive" size="sm" onClick={onEndForAll}>
+            {t("chat.voice_call_end_for_all")}
+          </Button>
         ) : null}
-      </VoiceCallControlRow>
+      </div>
     );
   }
 
   return (
     <VoiceCallControlRow>
-      <VoiceCallRoundControl
-        ariaLabel={muted ? t("chat.voice_call_unmute") : t("chat.voice_call_mute")}
-        disabled={!connected}
-        onClick={toggleMute}
-      >
-        {muted ? <MicOff aria-hidden className="size-4" /> : <Mic aria-hidden className="size-4" />}
-      </VoiceCallRoundControl>
-      <VoiceCallRoundControl
-        ariaLabel={cameraEnabled ? t("chat.voice_call_camera_off") : t("chat.voice_call_camera_on")}
-        disabled={!connected}
-        active={cameraEnabled}
-        onClick={handleToggleCamera}
-      >
-        {cameraEnabled ? (
-          <Video aria-hidden className="size-4" />
-        ) : (
-          <VideoOff aria-hidden className="size-4" />
-        )}
-      </VoiceCallRoundControl>
-      <VoiceCallRoundControl
-        ariaLabel={
-          screenShareEnabled
-            ? t("chat.voice_call_screen_share_stop")
-            : t("chat.voice_call_screen_share_start")
-        }
-        disabled={!connected}
-        active={screenShareEnabled}
-        onClick={handleToggleScreenShare}
-      >
-        <MonitorUp aria-hidden className="size-4" />
-      </VoiceCallRoundControl>
+      {deviceControls}
       {recordControl}
-      <VoiceCallRoundControl ariaLabel={t("chat.voice_call_end")} destructive onClick={onEndForAll}>
+      <VoiceCallRoundControl ariaLabel={t("chat.voice_call_end")} tone="hangup" onClick={onEndForAll}>
         <PhoneOff aria-hidden className="size-4" />
       </VoiceCallRoundControl>
     </VoiceCallControlRow>

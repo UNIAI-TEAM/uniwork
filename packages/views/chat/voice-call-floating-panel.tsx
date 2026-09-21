@@ -6,18 +6,16 @@ import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { initialOf } from "./chat-initials";
 
 export type VoiceCallPanelMode = "expanded" | "minimized" | "fullscreen";
 
+/** The same one-letter fallback every chat avatar uses, so a person looks alike in the list and in a call. */
 export function voiceCallInitialOf(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "?";
-  const parts = trimmed.split(/\s+/);
-  if (parts.length >= 2) {
-    return `${parts[0]!.charAt(0)}${parts[parts.length - 1]!.charAt(0)}`.toUpperCase();
-  }
-  return trimmed.charAt(0).toUpperCase();
+  return initialOf(name);
 }
+
+const PEER_AVATAR_SIZE = { sm: "size-10", md: "size-18", lg: "size-24" } as const;
 
 function VoiceCallPeerAvatar({
   peerName,
@@ -28,18 +26,18 @@ function VoiceCallPeerAvatar({
   size?: "sm" | "md" | "lg";
   pulse?: boolean;
 }) {
-  const px = size === "sm" ? 40 : size === "lg" ? 96 : 72;
-
   return (
-    <div className="relative shrink-0" style={{ width: px, height: px }}>
+    <div className={cn("relative shrink-0", PEER_AVATAR_SIZE[size])}>
+      {/* The ring is the "it is ringing" signal; under reduced motion it
+          stays as a still halo instead of pulsing. */}
       {pulse ? (
         <span
-          className="absolute inset-0 animate-ping rounded-full bg-primary/15 motion-reduce:animate-none"
+          className="absolute -inset-1 rounded-full bg-brand-subtle motion-safe:animate-ping"
           aria-hidden
         />
       ) : null}
-      <Avatar className="relative size-full text-body" style={{ width: px, height: px }}>
-        <AvatarFallback className="bg-primary/10 text-primary">
+      <Avatar className={cn("relative text-body", PEER_AVATAR_SIZE[size])}>
+        <AvatarFallback className="bg-brand-subtle text-brand-subtle-foreground">
           {voiceCallInitialOf(peerName)}
         </AvatarFallback>
       </Avatar>
@@ -76,7 +74,9 @@ function VoiceCallPanelHeader({
       <VoiceCallPeerAvatar peerName={peerName} size="sm" pulse={pulse} />
       <div className="min-w-0 flex-1 pt-0.5">
         <p className="truncate text-body font-semibold text-foreground">{peerName}</p>
-        <p className="mt-0.5 truncate text-caption tabular-nums text-muted-foreground">{statusLabel}</p>
+        <p className="mt-0.5 truncate text-caption tabular-nums text-muted-foreground" aria-live="polite">
+          {statusLabel}
+        </p>
       </div>
       {actions}
     </div>
@@ -86,10 +86,6 @@ function VoiceCallPanelHeader({
 export function VoiceCallFloatingScrim({ children }: { children: ReactNode }) {
   return (
     <>
-      <div
-        className="pointer-events-none fixed inset-0 z-40 bg-background/35 backdrop-blur-[2px]"
-        aria-hidden
-      />
       <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-end p-4 sm:p-6">
         <div className="pointer-events-auto w-full max-w-[380px]">{children}</div>
       </div>
@@ -216,16 +212,19 @@ export function VoiceCallFloatingPanel({
 
   if (mode === "fullscreen") {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-background">
+      <div className="fixed inset-0 z-50 flex flex-col bg-app-shell">
         <VoiceCallPanelHeader
           peerName={peerName}
           statusLabel={statusLabel}
           pulse={pulse}
           actions={headerActions}
         />
+        {/* The same stage the meeting room uses: a rail card on the shell. */}
         {children ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6 sm:px-8">
-            <div className="flex w-full max-w-5xl flex-1 flex-col items-center justify-center">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl bg-rail px-4 py-6 ring-1 ring-surface-border sm:px-8">
+              <div className="flex w-full max-w-5xl flex-1 flex-col items-center justify-center">{children}</div>
+            </div>
           </div>
         ) : null}
         {footer ? <div className="border-t border-border px-4 py-4 sm:px-8">{footer}</div> : null}
@@ -272,12 +271,14 @@ export function VoiceCallLabeledAction({
   icon: ReactNode;
   compact?: boolean;
 }) {
+  // The -solid fills are measured under --on-solid in both themes; the plain
+  // signal colours are pastel in dark mode and fail AA under white.
   const toneClass =
     tone === "decline"
-      ? "bg-destructive text-white hover:bg-destructive/90"
+      ? "bg-destructive-solid text-on-solid hover:bg-destructive-solid hover:opacity-90"
       : tone === "accept"
-        ? "bg-success text-white hover:bg-success/90"
-        : "bg-muted text-foreground hover:bg-muted/80";
+        ? "bg-success-solid text-on-solid hover:bg-success-solid hover:opacity-90"
+        : "bg-muted text-foreground hover:bg-surface-hover";
 
   const btnSize = compact ? "size-12" : "size-14";
 

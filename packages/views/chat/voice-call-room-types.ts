@@ -4,6 +4,10 @@ export type VoiceCallParticipantTile = {
   isLocal: boolean;
   hasVideo: boolean;
   hasScreenShare: boolean;
+  /** LiveKit's active-speaker flag, refreshed on ActiveSpeakersChanged. */
+  isSpeaking?: boolean;
+  /** The participant's microphone is off (muted or not published). */
+  micMuted?: boolean;
 };
 
 export function participantScreenShareKey(identity: string): string {

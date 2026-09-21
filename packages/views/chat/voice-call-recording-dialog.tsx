@@ -1,8 +1,8 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import {
   loadChatVoiceRecordingBlob,
   resolveChatVoiceRecordingPlayback,
@@ -111,18 +111,21 @@ export function VoiceCallRecordingDialog({
           <DialogTitle>{t("chat.voice_call_recording_title")}</DialogTitle>
         </DialogHeader>
         {status === "loading" ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-            <LoaderCircle aria-hidden className="size-5 animate-spin" />
-            <span>{t("chat.voice_call_recording_loading")}</span>
+          <div aria-busy>
+            <span className="sr-only">{t("chat.voice_call_recording_loading")}</span>
+            <Skeleton className="aspect-video w-full rounded-md" />
           </div>
         ) : null}
         {status === "error" ? (
-          <p className="py-4 text-body text-destructive">{t("chat.voice_call_recording_error")}</p>
+          <p role="alert" className="rounded-md bg-destructive-soft px-3 py-2 text-body text-destructive-soft-foreground">
+            {t("chat.voice_call_recording_error")}
+          </p>
         ) : null}
         {status === "ready" && playbackUrlRef.current ? (
           /* eslint-disable-next-line jsx-a11y/media-has-caption -- recorded call playback has no caption track */
           <video
-            className="max-h-[min(70vh,720px)] w-full rounded-md bg-black object-contain"
+            // The meeting stage's dark plate letterboxes the video in both themes.
+            className="max-h-[min(70vh,720px)] w-full rounded-md bg-meeting-bar-bg object-contain"
             controls
             playsInline
             preload="metadata"
