@@ -40,7 +40,7 @@ Use that password only when building `DATABASE_URL` in the next steps (Secret `u
 
 ## 3. Namespace + pull secret
 
-Create namespace `uniwork` if it does not exist:
+Create namespace `uniwork` if it does not exist (the Helm chart does **not** own `Namespace/uniwork`; runbook pre-create or `helm --create-namespace` is authoritative):
 
 ```bash
 kubectl create namespace uniwork --dry-run=client -o yaml | kubectl apply -f -
@@ -49,8 +49,10 @@ kubectl create namespace uniwork --dry-run=client -o yaml | kubectl apply -f -
 Harbor pull secret (copy from `reap-app`, or recreate an equivalent `dockerconfigjson` for `registry-harbor.ubos.vn`):
 
 ```bash
-kubectl get secret harbor-registry -n reap-app -o yaml \
-  | sed 's/namespace: reap-app/namespace: uniwork/' \
+kubectl get secret harbor-registry -n reap-app -o json \
+  | jq 'del(.metadata.resourceVersion,.metadata.uid,.metadata.creationTimestamp,.metadata.managedFields,.metadata.annotations,.metadata.ownerReferences)
+        | .metadata.namespace="uniwork"
+        | .metadata.name="harbor-registry"' \
   | kubectl apply -f -
 ```
 
