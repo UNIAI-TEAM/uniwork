@@ -9,6 +9,7 @@ import (
 	"github.com/livekit/protocol/livekit"
 	"github.com/livekit/protocol/webhook"
 
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -84,6 +85,10 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 	payload, err := json.Marshal(mapped)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "internal", "internal error")
+		return
+	}
+	if ev.Room != nil && !meetings.IsUniWorkLiveKitRoom(ev.Room.Name) {
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 	providerKey := h.Cfg.MeetingProvider
