@@ -75,7 +75,12 @@ describe("AppSidebar", () => {
     const work = within(groupOf("Làm việc"));
     expect(work.getAllByRole("link").map((l) => l.textContent)).toEqual(["Công việc", "Việc của tôi", "Dự án"]);
     const communication = within(groupOf("Trao đổi"));
-    expect(communication.getAllByRole("link").map((l) => l.textContent)).toEqual(["Cuộc họp", "Trò chuyện", "Danh bạ"]);
+    expect(communication.getAllByRole("link").map((l) => l.textContent)).toEqual([
+      "Email Hub",
+      "Cuộc họp",
+      "Trò chuyện",
+      "Danh bạ",
+    ]);
     // Still one landmark: the labels group rows, they do not split the nav.
     expect(screen.getAllByRole("navigation")).toHaveLength(1);
   });

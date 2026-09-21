@@ -163,6 +163,52 @@ func TestRenamedChatMigrationVersions(t *testing.T) {
 	}
 }
 
+func TestRenamedEmailHubMigrationVersions(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+
+	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version = ANY($1)`,
+			[]string{"193_email_hub_accounts", "200_email_hub_accounts"})
+	})
+	if _, err := pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version = ANY($1)`,
+		[]string{"193_email_hub_accounts", "200_email_hub_accounts"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING`,
+		"193_email_hub_accounts"); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconcileRenamedMigrations(ctx, lock); err != nil {
+		t.Fatal(err)
+	}
+	var renamed bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+		"200_email_hub_accounts").Scan(&renamed); err != nil || !renamed {
+		t.Fatalf("expected 200_email_hub_accounts after rename, got renamed=%v err=%v", renamed, err)
+	}
+	var legacy bool
+	if err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+		"193_email_hub_accounts").Scan(&legacy); err != nil || legacy {
+		t.Fatalf("legacy 193_email_hub_accounts should be gone, legacy=%v err=%v", legacy, err)
+	}
+}
+
 func TestRenamedChatMigrationVersionsDropsStaleOldRow(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()

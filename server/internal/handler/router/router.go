@@ -113,6 +113,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerTasks(authed, h)
 			registerTasksSuite(authed, h)
 			registerHome(authed, h)
+			registerEmailHub(authed, h)
 			registerAudit(authed, h)
 			registerMeetings(authed, h)
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)

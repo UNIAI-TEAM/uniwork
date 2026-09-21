@@ -283,6 +283,22 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			ProjectID   string `path:"projectID" description:"ULID project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 		}{}
+	case "workspaceID,accountID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			AccountID   string `path:"accountID" description:"ULID tài khoản Email Hub" example:"01J8X4MAILACC0N1P2Q3R4S5T6"`
+		}{}
+	case "workspaceID,threadID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ThreadID    string `path:"threadID" description:"ULID email đã cache" example:"01J8X4MAILTHR0N1P2Q3R4S5T6"`
+		}{}
+	case "workspaceID,threadID,attachmentID":
+		return struct {
+			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ThreadID     string `path:"threadID" description:"ULID email đã cache" example:"01J8X4MAILTHR0N1P2Q3R4S5T6"`
+			AttachmentID string `path:"attachmentID" description:"ULID đính kèm Email Hub" example:"01J8X4ATTN1P2Q3R4S5T6U7"`
+		}{}
 	case "workspaceID,projectID,resourceID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
