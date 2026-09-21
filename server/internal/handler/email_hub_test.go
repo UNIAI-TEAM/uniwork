@@ -126,8 +126,8 @@ func TestEmailHubEndpointsWhenNotConfigured(t *testing.T) {
 		t.Fatalf("connect code: %v", out["error"])
 	}
 
-	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]string{
-		"account_id": "acc-1", "to": "a@b.co", "subject": "Hi", "body_text": "Hello",
+	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
+		"account_id": "acc-1", "to": []string{"a@b.co"}, "subject": "Hi", "body_text": "Hello",
 	})
 	if res.StatusCode != http.StatusServiceUnavailable || errorCode(out) != "email_hub_not_configured" {
 		t.Fatalf("send: %d %v", res.StatusCode, out)
