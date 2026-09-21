@@ -21,12 +21,18 @@ grep -q 'path: /healthz' "${OUT}"
 grep -q 'path: /readyz' "${OUT}"
 grep -q 'LIVEKIT_URL' "${OUT}"
 grep -q 'wss://livekit.vn247.info:7880' "${OUT}"
-grep -q 'secretName: uniwork-db' "${OUT}"
+grep -q 'name: uniwork-db' "${OUT}"
+grep -q 'name: uniwork-redis' "${OUT}"
+grep -q 'name: uniwork-app' "${OUT}"
+grep -q 'name: uniwork-livekit' "${OUT}"
+grep -q 'LIVEKIT_API_KEY' "${OUT}"
 grep -q 'allow-from-reap-edge' "${OUT}" || grep -q 'reap-edge' "${OUT}"
-if grep -q 'LoadBalancer' "${OUT}"; then
-  echo "FAIL: LoadBalancer must not appear" >&2
-  exit 1
-fi
+for forbidden in LoadBalancer NodePort; do
+  if grep -q "${forbidden}" "${OUT}"; then
+    echo "FAIL: ${forbidden} must not appear" >&2
+    exit 1
+  fi
+done
 
 if helm template uniwork "${CHART}" --set be.image.digest= --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb >/dev/null 2>"${OUT}.err"; then
   echo "FAIL: expected helm to refuse empty be.image.digest" >&2

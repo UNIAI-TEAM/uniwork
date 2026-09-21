@@ -41,7 +41,6 @@ spec:
             - configMapRef:
                 name: uniwork-be
           env:
-            # secretName: uniwork-db
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
