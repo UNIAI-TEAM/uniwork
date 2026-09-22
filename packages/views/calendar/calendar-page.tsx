@@ -53,6 +53,13 @@ export function CalendarPageView({
     setRange(rangeForMode(mode, anchorDate));
   };
 
+  /** FullCalendar fires datesSet on option churn; skip no-op range updates to avoid loops. */
+  const handleDatesSet = (next: { from: string; to: string }) => {
+    setRange((prev) =>
+      prev.from === next.from && prev.to === next.to ? prev : next,
+    );
+  };
+
   const handleEventClick = (event: CalendarEvent) => {
     if (event.kind === "task") {
       onOpenTask(event.entityId);
@@ -91,7 +98,7 @@ export function CalendarPageView({
       ) : (
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-auto py-4",
+            "flex min-h-0 flex-1 flex-col overflow-hidden py-4",
             PAGE_GUTTER,
             isPending ? "opacity-70" : undefined,
           )}
@@ -105,7 +112,7 @@ export function CalendarPageView({
             events={events}
             initialDate={initialDate}
             viewMode={viewMode}
-            onDatesSet={setRange}
+            onDatesSet={handleDatesSet}
             onEventClick={handleEventClick}
             onEventDropOrResize={applyDropPatch}
           />

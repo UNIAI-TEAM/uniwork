@@ -30,3 +30,10 @@
 .uniwork-fc .fc-daygrid-day-number {
   color: var(--muted-foreground);
 }
+
+/* Opaque sticky chrome so internal FC scroll does not bleed time slots under headers. */
+.uniwork-fc .fc-col-header-cell,
+.uniwork-fc .fc-timegrid-axis,
+.uniwork-fc .fc-scrollgrid-section-header td {
+  background-color: var(--background);
+}

@@ -17,6 +17,7 @@ type CapturedFcProps = {
   initialView?: string;
   hiddenDays?: number[];
   editable?: boolean;
+  height?: string | number;
   datesSet?: (arg: { start: Date; end: Date }) => void;
   eventClick?: (arg: { event: { id: string } }) => void;
   eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
@@ -85,6 +86,19 @@ describe("FullCalendarHost", () => {
     );
     expect(captured.initialView).toBe("timeGridWeek");
     expect(captured.hiddenDays).toEqual([0, 6]);
+  });
+
+  it("fills the host height so time grids scroll internally", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="day"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.height).toBe("100%");
   });
 
   it("resolves eventClick by id", () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
@@ -131,5 +131,33 @@ describe("CalendarPageView", () => {
       "2026-09-14",
       false,
     );
+  });
+
+  it("does not re-render when datesSet reports the same feed range", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
+
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    const onDatesSet = hostProps.current.onDatesSet as (range: {
+      from: string;
+      to: string;
+    }) => void;
+    const callsAfterMount = useCalendarEventsMock.mock.calls.length;
+
+    act(() => {
+      onDatesSet({ from: "2026-09-01", to: "2026-09-30" });
+      onDatesSet({ from: "2026-09-01", to: "2026-09-30" });
+    });
+
+    expect(useCalendarEventsMock.mock.calls.length).toBe(callsAfterMount);
   });
 });

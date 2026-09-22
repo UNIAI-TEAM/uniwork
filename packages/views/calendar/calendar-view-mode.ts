@@ -17,6 +17,9 @@ export type CalendarFeedRange = { from: string; to: string };
 /** Matches FullCalendar default week start (Sunday) for toolbar-driven fetch hints. */
 const FC_WEEK_STARTS_ON = 0 as const;
 
+const WORK_WEEK_HIDDEN_DAYS: number[] = [0, 6];
+const NO_HIDDEN_DAYS: number[] = [];
+
 export function rangeForMode(mode: CalendarViewMode, anchor: Date): CalendarFeedRange {
   switch (mode) {
     case "day": {
@@ -61,7 +64,7 @@ export function fcViewForMode(mode: CalendarViewMode): string {
 }
 
 export function fcHiddenDays(mode: CalendarViewMode): number[] {
-  return mode === "work_week" ? [0, 6] : [];
+  return mode === "work_week" ? WORK_WEEK_HIDDEN_DAYS : NO_HIDDEN_DAYS;
 }
 
 export function shiftAnchor(mode: CalendarViewMode, anchor: Date, dir: -1 | 1): Date {

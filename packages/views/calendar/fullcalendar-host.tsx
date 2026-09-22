@@ -25,6 +25,8 @@ import {
 } from "./calendar-view-mode";
 import "./fullcalendar-theme.css";
 
+const FC_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin];
+
 export function FullCalendarHost(props: {
   events: CalendarEvent[];
   initialDate: string;
@@ -88,15 +90,18 @@ export function FullCalendarHost(props: {
   const editable = props.editable !== false;
 
   return (
-    <div data-testid="calendar-grid" className={cn("uniwork-fc min-h-0 flex-1", props.className)}>
+    <div
+      data-testid="calendar-grid"
+      className={cn("uniwork-fc flex min-h-0 flex-1 flex-col", props.className)}
+    >
       <FullCalendar
         key={`${props.viewMode}-${props.initialDate}`}
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        plugins={FC_PLUGINS}
         initialView={initialView}
         initialDate={props.initialDate}
         hiddenDays={hiddenDays}
         headerToolbar={false}
-        height="auto"
+        height="100%"
         events={fcEvents}
         editable={editable}
         datesSet={handleDatesSet}
