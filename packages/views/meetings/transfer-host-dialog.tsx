@@ -5,19 +5,10 @@ import { useTranslation } from "react-i18next";
 import { useParticipants, useTransferHost } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 
 /**
@@ -61,33 +52,24 @@ export function TransferHostDialog({ workspaceId, meeting }: { workspaceId: stri
           </Button>
         </div>
       </div>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("meetings.transferConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("meetings.transferConfirm", { name: selected?.display_name ?? "" })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={transfer.isPending}
-              onClick={() =>
-                transfer.mutate(userId, {
-                  onSuccess: () => {
-                    setOpen(false);
-                    setUserId("");
-                  },
-                  onError: (err) => toastApiError(err, t("common.error")),
-                })
-              }
-            >
-              {t("meetings.confirmTransfer")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t("meetings.transferConfirmTitle")}
+        description={t("meetings.transferConfirm", { name: selected?.display_name ?? "" })}
+        confirmLabel={t("meetings.confirmTransfer")}
+        destructive={false}
+        pending={transfer.isPending}
+        onConfirm={() =>
+          transfer.mutate(userId, {
+            onSuccess: () => {
+              setOpen(false);
+              setUserId("");
+            },
+            onError: (err) => toastApiError(err, t("common.error")),
+          })
+        }
+      />
     </>
   );
 }

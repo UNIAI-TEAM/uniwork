@@ -7,6 +7,7 @@ import { inviteLinkStatus, useInviteLinks, useRevokeInviteLink } from "@uniwork/
 import type { MeetingInviteLink } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
 import { inviteLinkDisplayName, inviteLinkMetaParts } from "./invite-link-display";
@@ -62,6 +63,7 @@ export function MeetingInviteLinksSection({
   const [createOpen, setCreateOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [showAllActive, setShowAllActive] = useState(false);
+  const [revoking, setRevoking] = useState<MeetingInviteLink | null>(null);
 
   const { activeLinks, inactiveLinks } = useMemo(() => {
     const all = links ?? [];
@@ -112,8 +114,8 @@ export function MeetingInviteLinksSection({
                   key={link.id}
                   link={link}
                   language={i18n.language}
-                  revoking={revoke.isPending}
-                  onRevoke={() => revoke.mutate(link.id, { onError: (err) => toastApiError(err, t("common.error")) })}
+                  revoking={revoke.isPending && revoke.variables === link.id}
+                  onRevoke={() => setRevoking(link)}
                 />
               ))}
             </ul>
@@ -151,8 +153,8 @@ export function MeetingInviteLinksSection({
                     key={link.id}
                     link={link}
                     language={i18n.language}
-                    revoking={revoke.isPending}
-                    onRevoke={() => revoke.mutate(link.id, { onError: (err) => toastApiError(err, t("common.error")) })}
+                    revoking={revoke.isPending && revoke.variables === link.id}
+                    onRevoke={() => setRevoking(link)}
                   />
                 ))}
               </ul>
@@ -160,6 +162,22 @@ export function MeetingInviteLinksSection({
           </div>
         ) : null}
       </PanelCard>
+
+      <ConfirmDialog
+        open={revoking !== null}
+        onOpenChange={(open) => !open && setRevoking(null)}
+        title={t("meetings.revokeLinkTitle", { name: revoking ? inviteLinkDisplayName(revoking, i18n.language) : "" })}
+        description={t("meetings.revokeLinkHint")}
+        confirmLabel={t("meetings.revokeLinkConfirm")}
+        pending={revoke.isPending}
+        onConfirm={() => {
+          if (!revoking) return;
+          revoke.mutate(revoking.id, {
+            onSuccess: () => setRevoking(null),
+            onError: (err) => toastApiError(err, t("common.error")),
+          });
+        }}
+      />
 
       {canCreate ? (
         <CreateInviteLinkDialog meetingId={meetingId} open={createOpen} onOpenChange={setCreateOpen} />

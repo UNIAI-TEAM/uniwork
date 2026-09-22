@@ -8,6 +8,7 @@ import { AvatarGroup, AvatarGroupCount } from "@uniwork/ui/components/ui/avatar"
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { Notice } from "../common/notice";
 import { formatMeetingDay, formatMeetingTimes, meetingDayKey, meetingLocale } from "./meeting-datetime";
 import { formatRelativeTime, meetingDurationParts } from "./meeting-relative-time";
 import { MeetingPersonAvatar } from "./meeting-person";
@@ -151,10 +152,9 @@ export function MeetingDetailHero({
         ) : null}
 
         {!canEnter && !closed ? (
-          <p role="status" className="mt-5 flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2.5 text-body text-warning-soft-foreground">
-            <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+          <Notice tone="warning" icon={TriangleAlert} layout="inline" className="mt-5">
             {t("meetings.pastScheduledEndHint")}
-          </p>
+          </Notice>
         ) : null}
 
         {canceled ? null : (

@@ -16,18 +16,9 @@ import { paths } from "@uniwork/core/paths";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { useMembers } from "@uniwork/core/workspaces";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
 import { ApiError } from "@uniwork/core/api";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { AppLink } from "../navigation";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
@@ -191,38 +182,30 @@ export function MeetingDetailView({
           </div>
         </div>
       </div>
-      <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirm === "end" ? t("meetings.endConfirmTitle") : t("meetings.cancelConfirmTitle")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirm === "end" ? t("meetings.endConfirm") : t("meetings.cancelConfirm")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.back")}</AlertDialogCancel>
-            <AlertDialogAction
-              variant={confirm === "cancel" ? "destructive" : "default"}
-              disabled={end.isPending || cancel.isPending}
-              onClick={() => {
-                if (confirm === "end") {
-                  end.mutate(meetingId, { onError: (err) => toastApiError(err, t("common.error")) });
-                } else {
-                  cancel.mutate(meetingId, {
-                    onSuccess: onDeleted,
-                    onError: (err) => toastApiError(err, t("common.error")),
-                  });
-                }
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title={confirm === "end" ? t("meetings.endConfirmTitle") : t("meetings.cancelConfirmTitle")}
+        description={confirm === "end" ? t("meetings.endConfirm") : t("meetings.cancelConfirm")}
+        confirmLabel={confirm === "end" ? t("meetings.confirmEnd") : t("meetings.confirmCancel")}
+        pending={end.isPending || cancel.isPending}
+        onConfirm={() => {
+          // Close once the server agrees: a failed end/cancel keeps the
+          // question on screen next to its error.
+          const onError = (err: unknown) => toastApiError(err, t("common.error"));
+          if (confirm === "end") {
+            end.mutate(meetingId, { onSuccess: () => setConfirm(null), onError });
+          } else {
+            cancel.mutate(meetingId, {
+              onSuccess: () => {
                 setConfirm(null);
-              }}
-            >
-              {confirm === "end" ? t("meetings.confirmEnd") : t("meetings.confirmCancel")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                onDeleted();
+              },
+              onError,
+            });
+          }
+        }}
+      />
     </div>
   );
 }

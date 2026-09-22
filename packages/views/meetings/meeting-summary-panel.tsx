@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
 import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
 import { useMembers } from "@uniwork/core/workspaces";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { meetingLocale } from "./meeting-datetime";
 import {
@@ -89,6 +90,7 @@ export function MeetingSummaryPanel({
     [members],
   );
 
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
   const hasSource = (transcript?.length ?? 0) > 0;
@@ -96,7 +98,10 @@ export function MeetingSummaryPanel({
 
   function onGenerate() {
     generate.mutate(i18n.language.startsWith("en") ? "en" : "vi", {
-      onSuccess: () => setPicked(new Set()),
+      onSuccess: () => {
+        setPicked(new Set());
+        setConfirmRegenerate(false);
+      },
       onError: (err) => {
         const code = errorCode(err);
         toast.error(
@@ -140,7 +145,7 @@ export function MeetingSummaryPanel({
       title={t("meetings.aiSummary")}
       action={
         canHost && aiOn ? (
-          <Button type="button" size="sm" variant="brandSubtle" disabled={generate.isPending || !hasSource} onClick={onGenerate}>
+          <Button type="button" size="sm" variant="brandSubtle" disabled={generate.isPending || !hasSource} onClick={() => (summary ? setConfirmRegenerate(true) : onGenerate())}>
             <Sparkles aria-hidden />
             {generate.isPending
               ? t("meetings.summarizing")
@@ -321,6 +326,15 @@ export function MeetingSummaryPanel({
           recordingId={playbackId}
         />
       ) : null}
+      <ConfirmDialog
+        open={confirmRegenerate}
+        onOpenChange={setConfirmRegenerate}
+        title={t("meetings.regenerateSummaryTitle")}
+        description={t("meetings.regenerateSummaryHint")}
+        confirmLabel={t("meetings.regenerateSummaryConfirm")}
+        pending={generate.isPending}
+        onConfirm={onGenerate}
+      />
     </PanelCard>
   );
 }

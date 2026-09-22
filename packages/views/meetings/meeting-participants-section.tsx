@@ -10,6 +10,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
@@ -36,6 +37,7 @@ export function MeetingParticipantsSection({
   const remove = useRemoveParticipant(meeting.id);
   const [selected, setSelected] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
+  const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
   const rsvpByParticipant = new Map(invitations.map((i) => [i.participant_id, i.response_status]));
   const active = (participants ?? []).filter((p) => p.status === "ACTIVE");
   // The host reads first; everyone else keeps the server's order.
@@ -77,11 +79,14 @@ export function MeetingParticipantsSection({
             const rsvp = rsvpByParticipant.get(p.id);
             return (
               <li key={p.id} className="group flex min-w-0 items-center gap-3 px-4 py-2.5">
-                <MeetingPersonAvatar name={name} />
+                <MeetingPersonAvatar
+                  name={name}
+                  avatarUrl={(members ?? []).find((m) => m.user_id === p.user_id)?.avatar_url}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-body font-medium text-foreground">{name}</div>
                   <div className="flex items-center gap-1 text-caption text-muted-foreground">
-                    {isHost ? <Crown aria-hidden className="size-3 text-warning" /> : null}
+                    {isHost ? <Crown aria-hidden className="size-3" /> : null}
                     {isHost ? t("meetings.host") : t("meetings.attendees")}
                   </div>
                 </div>
@@ -92,10 +97,8 @@ export function MeetingParticipantsSection({
                       variant="ghost"
                       size="xs"
                       className="text-muted-foreground hover:text-destructive"
-                      disabled={remove.isPending}
-                      onClick={() =>
-                        remove.mutate(p.id, { onError: (err) => toastApiError(err, t("common.error")) })
-                      }
+                      disabled={remove.isPending && remove.variables === p.id}
+                      onClick={() => setRemoving({ id: p.id, name })}
                     >
                       <UserMinus aria-hidden />
                       {t("meetings.remove")}
@@ -140,6 +143,21 @@ export function MeetingParticipantsSection({
           </Button>
         </form>
       ) : null}
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={t("meetings.removeParticipantTitle", { name: removing?.name ?? "" })}
+        description={t("meetings.removeParticipantHint")}
+        confirmLabel={t("meetings.removeParticipantConfirm")}
+        pending={remove.isPending}
+        onConfirm={() => {
+          if (!removing) return;
+          remove.mutate(removing.id, {
+            onSuccess: () => setRemoving(null),
+            onError: (err) => toastApiError(err, t("common.error")),
+          });
+        }}
+      />
     </PanelCard>
   );
 }

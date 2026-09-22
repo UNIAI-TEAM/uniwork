@@ -160,6 +160,89 @@ describe("MeetingDetailView", () => {
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
   });
 
+  function rosterMock(overrides: (path: string, method?: string) => unknown = () => undefined) {
+    requestMock.mockImplementation((path: unknown, opts?: { method?: string }) => {
+      const p = String(path);
+      const custom = overrides(p, opts?.method);
+      if (custom !== undefined) return custom;
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      }
+      if (p.endsWith("/members")) {
+        return Promise.resolve({
+          members: [
+            { workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" },
+            { workspace_id: "w1", user_id: "u-guest", role: "member", email: "g@x.com", display_name: "Lan Anh" },
+          ],
+        });
+      }
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/participants")) {
+        return Promise.resolve({
+          participants: [
+            { id: "p-host", meeting_id: "m1", principal_type: "USER", user_id: "u-host", display_name_snapshot: "Me", role: "HOST", status: "ACTIVE" },
+            { id: "p-guest", meeting_id: "m1", principal_type: "USER", user_id: "u-guest", display_name_snapshot: "Lan Anh", role: "ATTENDEE", status: "ACTIVE" },
+          ],
+        });
+      }
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/invite-links")) {
+        return Promise.resolve({
+          invite_links: [
+            { id: "l1", meeting_id: "m1", name: "Đối tác", access_mode: "AUTO_ADMIT", expires_at: new Date(Date.now() + 86_400_000).toISOString(), used_count: 0 },
+          ],
+        });
+      }
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+  }
+
+  it("asks before removing an attendee", async () => {
+    rosterMock();
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Gỡ" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Gỡ Lan Anh khỏi cuộc họp?")).toBeInTheDocument();
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p-guest", expect.anything());
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gỡ khỏi cuộc họp" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p-guest", expect.objectContaining({ method: "DELETE" })),
+    );
+  });
+
+  it("asks before revoking a guest link", async () => {
+    rosterMock();
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thu hồi" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/^Thu hồi liên kết “Đối tác/)).toBeInTheDocument();
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/invite-links/l1/revoke", expect.anything());
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Thu hồi liên kết" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/invite-links/l1/revoke", expect.objectContaining({ method: "POST" })),
+    );
+  });
+
+  it("keeps the cancel confirmation open when cancelling fails", async () => {
+    rosterMock((p, method) =>
+      p === "/api/v1/meetings/m1/cancel" && method === "POST" ? Promise.reject(new ApiError("không huỷ được", "invalid_meeting_state", 409)) : undefined,
+    );
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Huỷ cuộc họp" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Huỷ cuộc họp|Hủy cuộc họp/ }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/cancel", expect.anything()));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  });
+
   it("hides start and join after the scheduled window ends", async () => {
     const expired = {
       ...meeting,

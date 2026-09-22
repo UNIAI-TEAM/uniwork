@@ -8,19 +8,10 @@ import {
   useEndMeeting,
   useExtendMeeting,
 } from "@uniwork/core/meetings";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toast } from "sonner";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { formatRemaining } from "./meeting-datetime";
 
@@ -155,27 +146,21 @@ export function MeetingScheduleBanner({
         ) : null}
       </div>
 
-      <AlertDialog open={endConfirmOpen} onOpenChange={setEndConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("meetings.endConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("meetings.endConfirm")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.back")}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={end.isPending}
-              onClick={() => {
-                if (!meetingId) return;
-                end.mutate(meetingId, { onError: (err) => toastApiError(err, t("common.error")) });
-                setEndConfirmOpen(false);
-              }}
-            >
-              {t("meetings.confirmEnd")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={endConfirmOpen}
+        onOpenChange={setEndConfirmOpen}
+        title={t("meetings.endConfirmTitle")}
+        description={t("meetings.endConfirm")}
+        confirmLabel={t("meetings.confirmEnd")}
+        pending={end.isPending}
+        onConfirm={() => {
+          if (!meetingId) return;
+          end.mutate(meetingId, {
+            onSuccess: () => setEndConfirmOpen(false),
+            onError: (err) => toastApiError(err, t("common.error")),
+          });
+        }}
+      />
     </div>
   );
 }

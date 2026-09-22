@@ -16,6 +16,7 @@ import {
 } from "@uniwork/ui/components/ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
@@ -71,6 +72,7 @@ export function MeetingRoomPeopleTab({
   const [search, setSearch] = useState("");
   const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [removing, setRemoving] = useState<Participant | null>(null);
 
   const hostUserId = meeting?.host_user_id;
   const excludeUserIds = [
@@ -118,6 +120,7 @@ export function MeetingRoomPeopleTab({
       ?? participantIdFromIdentity(participant.identity);
     if (!participantId || !meetingId) return;
     remove.mutate(participantId, {
+      onSuccess: () => setRemoving(null),
       onError: (err) => toastApiError(err, t("common.error")),
     });
   }
@@ -216,7 +219,7 @@ export function MeetingRoomPeopleTab({
                     pinned={pinnedIdentity === participant.identity}
                     onRemove={
                       canHost && !participant.isLocal && meetingId
-                        ? () => handleRemove(participant)
+                        ? () => setRemoving(participant)
                         : undefined
                     }
                     onRevokeSpeaking={
@@ -236,6 +239,16 @@ export function MeetingRoomPeopleTab({
           )}
         </CollapsibleContent>
       </Collapsible>
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={t("meetings.removeFromCallTitle", { name: removing ? displayName(removing) : "" })}
+        description={t("meetings.removeFromCallHint")}
+        confirmLabel={t("meetings.removeFromCall")}
+        pending={remove.isPending}
+        onConfirm={() => removing && handleRemove(removing)}
+      />
 
       {canHost && meetingId && workspaceId && !guestMode ? (
         <AddMeetingParticipantsDialog
