@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const applyMeetingBackgroundProcessor = vi.hoisted(() =>
@@ -40,9 +40,76 @@ describe("MeetingCameraPreview", () => {
     meetingBackgroundActive.mockImplementation((background: string) => background !== "none");
   });
 
-  it("shows empty preview copy when inactive", () => {
+  it("says the camera is off when inactive, not that the preview is missing", () => {
     render(<MeetingCameraPreview active={false} />);
-    expect(screen.getByText("meetings.devicePreviewEmpty")).toBeInTheDocument();
+    expect(screen.getByText("meetings.devicePreviewOff")).toBeInTheDocument();
+    expect(screen.queryByText("meetings.devicePreviewEmpty")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "common.retry" })).not.toBeInTheDocument();
+  });
+
+  it("offers a turn-on action while inactive when the caller provides one", () => {
+    const onRequestEnable = vi.fn();
+    render(<MeetingCameraPreview active={false} onRequestEnable={onRequestEnable} />);
+    fireEvent.click(screen.getByRole("button", { name: "meetings.devicePreviewTurnOn" }));
+    expect(onRequestEnable).toHaveBeenCalledOnce();
+  });
+
+  function mockMedia(getUserMedia: ReturnType<typeof vi.fn>) {
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    });
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        enumerateDevices: vi.fn().mockResolvedValue([{ kind: "videoinput", deviceId: "cam-1" }]),
+        getUserMedia,
+      },
+    });
+  }
+
+  it("tells the user another app holds the camera and retries on demand", async () => {
+    const getUserMedia = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException("busy", "NotReadableError"))
+      .mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] });
+    mockMedia(getUserMedia);
+
+    render(<MeetingCameraPreview active />);
+
+    expect(await screen.findByText("meetings.devicePreviewInUse")).toBeInTheDocument();
+    expect(screen.queryByText("meetings.devicePreviewError")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "common.retry" }));
+
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText("meetings.devicePreviewInUse")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("maps the legacy TrackStartError to the in-use state", async () => {
+    mockMedia(vi.fn().mockRejectedValue(new DOMException("busy", "TrackStartError")));
+    render(<MeetingCameraPreview active />);
+    expect(await screen.findByText("meetings.devicePreviewInUse")).toBeInTheDocument();
+  });
+
+  it("explains how to allow the camera when permission is denied, with a retry", async () => {
+    mockMedia(vi.fn().mockRejectedValue(new DOMException("no", "NotAllowedError")));
+    render(<MeetingCameraPreview active />);
+    expect(await screen.findByText("meetings.devicePreviewPermissionDismissed")).toBeInTheDocument();
+    expect(screen.getByText("meetings.devicePreviewDeniedHint")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "common.retry" })).toBeInTheDocument();
+  });
+
+  it("offers a retry when no camera is found", async () => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { enumerateDevices: vi.fn().mockResolvedValue([]), getUserMedia: vi.fn() },
+    });
+    render(<MeetingCameraPreview active />);
+    expect(await screen.findByText("meetings.devicePreviewNoCamera")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "common.retry" })).toBeInTheDocument();
   });
 
   it("uses the raw media stream path when background effects are unavailable", async () => {

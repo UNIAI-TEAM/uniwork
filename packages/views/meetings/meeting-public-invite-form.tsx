@@ -1,13 +1,14 @@
 "use client";
 
 import { Suspense, lazy, useCallback, useState } from "react";
-import { CalendarDays, Loader2, ShieldCheck, VideoOff, Zap } from "lucide-react";
+import { CalendarDays, Loader2, ShieldCheck, Video, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { InfoHint } from "@uniwork/ui/components/common/info-hint";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
+import { CameraPreviewFrame, CameraPreviewPlaceholder } from "./meeting-camera-placeholder";
 import type { CameraPreviewStatus } from "./meeting-camera-preview";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { MeetingInviteShell } from "./meeting-invite-shell";
@@ -16,28 +17,14 @@ import type { PreJoinChoice } from "./meeting-prejoin";
 
 // Camera preview pulls livekit-client (~130 KB gzip). Lazy-load it so the public
 // invite entry chunk stays under the route budget (scripts/bundle-budget.mjs).
+// The placeholder comes from its own module for the same reason, and the
+// preview only mounts once the guest turns the camera on.
 const MeetingCameraPreview = lazy(() =>
   import("./meeting-camera-preview").then((m) => ({ default: m.MeetingCameraPreview })),
 );
 
-function CameraPreviewFallback({ className }: { className?: string }) {
-  const { t } = useTranslation();
-  return (
-    <div
-      className={cn(
-        "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-meeting-stage ring-1 ring-border",
-        className,
-      )}
-    >
-      <div className="flex max-w-xs flex-col items-center gap-2 px-4 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <VideoOff aria-hidden className="size-6" />
-        </span>
-        <p className="text-body text-foreground">{t("meetings.devicePreviewEmpty")}</p>
-      </div>
-    </div>
-  );
-}
+// pb-16 keeps the placeholder text and actions clear of the overlaid mic/camera bar.
+const PREVIEW_CLASS = "aspect-video min-h-52 rounded-2xl pb-16 shadow-floating sm:min-h-60";
 
 export function MeetingPublicInviteForm({
   title,
@@ -60,7 +47,8 @@ export function MeetingPublicInviteForm({
 }) {
   const { t, i18n } = useTranslation();
   const [audio, setAudio] = useState(true);
-  const [video, setVideo] = useState(true);
+  // A guest has not agreed to anything yet: no camera until they ask for it.
+  const [video, setVideo] = useState(false);
   const emitJoin = () => onJoin({ audio, video });
   const { refresh } = useMediaDevices();
   const onPreviewStatus = useCallback(
@@ -80,13 +68,29 @@ export function MeetingPublicInviteForm({
       <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-12">
         <section aria-label={t("meetings.devicePreviewTitle")} className="min-w-0">
           <div className="relative">
-            <Suspense fallback={<CameraPreviewFallback className="aspect-video min-h-52 rounded-2xl shadow-floating sm:min-h-60" />}>
-              <MeetingCameraPreview
-                active={video}
-                className="aspect-video min-h-52 rounded-2xl shadow-floating sm:min-h-60"
-                onStatusChange={onPreviewStatus}
-              />
-            </Suspense>
+            {video ? (
+              <Suspense
+                fallback={
+                  <CameraPreviewFrame className={PREVIEW_CLASS}>
+                    <CameraPreviewPlaceholder title={t("meetings.devicePreviewStarting")} />
+                  </CameraPreviewFrame>
+                }
+              >
+                <MeetingCameraPreview active className={PREVIEW_CLASS} onStatusChange={onPreviewStatus} />
+              </Suspense>
+            ) : (
+              <CameraPreviewFrame className={PREVIEW_CLASS}>
+                <CameraPreviewPlaceholder
+                  title={t("meetings.devicePreviewOff")}
+                  action={
+                    <Button type="button" variant="outline" size="sm" onClick={() => setVideo(true)}>
+                      <Video aria-hidden />
+                      {t("meetings.devicePreviewTurnOn")}
+                    </Button>
+                  }
+                />
+              </CameraPreviewFrame>
+            )}
             {trimmedName ? (
               <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-lg bg-meeting-tile-name-bg px-3 py-1.5 text-label font-medium text-meeting-tile-name-foreground">
                 {trimmedName}

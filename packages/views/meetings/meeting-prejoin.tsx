@@ -2,17 +2,21 @@
 import { useCallback, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
-import { Select } from "@uniwork/ui/components/ui/select";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import {
   MeetingCameraPreview,
   type CameraPreviewStatus,
 } from "./meeting-camera-preview";
 import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
-import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
+import {
+  MeetingDeviceField,
+  MeetingMediaControlBar,
+  useMediaDevices,
+} from "./meeting-media-controls";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
 export interface PreJoinChoice {
@@ -22,14 +26,15 @@ export interface PreJoinChoice {
   videoDeviceId?: string;
 }
 
-type Device = { deviceId: string; label: string };
-
 export function MeetingPreJoin({
   meeting,
+  loading = false,
   onJoin,
   onLeave,
 }: {
   meeting?: Meeting;
+  /** The meeting is still being fetched: draw skeleton lines, not a fallback title. */
+  loading?: boolean;
   onJoin: (choice: PreJoinChoice) => void;
   onLeave: () => void;
 }) {
@@ -39,15 +44,16 @@ export function MeetingPreJoin({
   const [audioDeviceId, setAudioDeviceId] = useState("");
   const [videoDeviceId, setVideoDeviceId] = useState("");
   const { cameras, mics, refresh } = useMediaDevices();
+  // Same preferences MeetingCameraBackgroundSync applies in the room, so the
+  // preview shows what the others will see.
+  const background = useMeetingRoomPreferencesStore((s) => s.background);
+  const customBackgroundDataUrl = useMeetingRoomPreferencesStore((s) => s.customBackgroundDataUrl);
+  const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const onPreviewStatus = useCallback(
     (s: CameraPreviewStatus) => s === "live" && refresh(),
     [refresh],
   );
-  const deviceItems = (list: Device[]) =>
-    list.map((d) => ({
-      value: d.deviceId,
-      label: d.label || t("meetings.deviceUnnamed"),
-    }));
+  const showSkeleton = loading && !meeting;
 
   return (
     <MeetingCanvas className="overflow-y-auto">
@@ -69,6 +75,10 @@ export function MeetingPreJoin({
             deviceId={videoDeviceId || undefined}
             className="aspect-video min-h-0 rounded-xl"
             onStatusChange={onPreviewStatus}
+            onRequestEnable={() => setVideo(true)}
+            background={background}
+            customBackgroundDataUrl={customBackgroundDataUrl}
+            mirrorCamera={mirrorCamera}
           />
           <MeetingMediaControlBar
             audio={audio}
@@ -80,14 +90,22 @@ export function MeetingPreJoin({
             className="mt-3 flex justify-center gap-3"
           />
         </div>
-        <div className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-surface lg:w-80">
-          <div>
-            <p className="text-caption text-muted-foreground">
+        <div className="mx-auto flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-surface lg:mx-0 lg:w-80">
+          <div aria-busy={showSkeleton || undefined}>
+            <p className="text-overline text-muted-foreground">
               {t("meetings.prejoinTitle")}
             </p>
-            <h1 className="mt-1 text-pretty text-title font-semibold text-foreground">
-              {meeting?.title ?? t("meetings.title")}
-            </h1>
+            {showSkeleton ? (
+              <>
+                <Skeleton className="mt-2 h-6 w-4/5" />
+                <Skeleton className="mt-2 h-4 w-3/5" />
+                <span className="sr-only">{t("common.loading")}</span>
+              </>
+            ) : (
+              <h1 className="mt-1 text-pretty text-title font-semibold text-foreground">
+                {meeting?.title ?? t("meetings.title")}
+              </h1>
+            )}
             {meeting ? (
               <p className="mt-1 text-label tabular-nums text-muted-foreground">
                 {formatMeetingRange(
@@ -98,32 +116,22 @@ export function MeetingPreJoin({
               </p>
             ) : null}
           </div>
-          {mics.length > 0 ? (
-            <Field>
-              <FieldLabel htmlFor="prejoin-mic">
-                {t("meetings.deviceMic")}
-              </FieldLabel>
-              <Select
-                id="prejoin-mic"
-                value={audioDeviceId || mics[0]!.deviceId}
-                onValueChange={(v) => v && setAudioDeviceId(v)}
-                items={deviceItems(mics)}
-              />
-            </Field>
-          ) : null}
-          {cameras.length > 0 ? (
-            <Field>
-              <FieldLabel htmlFor="prejoin-camera">
-                {t("meetings.deviceCamera")}
-              </FieldLabel>
-              <Select
-                id="prejoin-camera"
-                value={videoDeviceId || cameras[0]!.deviceId}
-                onValueChange={(v) => v && setVideoDeviceId(v)}
-                items={deviceItems(cameras)}
-              />
-            </Field>
-          ) : null}
+          <MeetingDeviceField
+            id="prejoin-mic"
+            label={t("meetings.deviceMic")}
+            devices={mics}
+            value={audioDeviceId}
+            onValueChange={setAudioDeviceId}
+            emptyDescription={t("meetings.deviceMicNeedsPermission")}
+          />
+          <MeetingDeviceField
+            id="prejoin-camera"
+            label={t("meetings.deviceCamera")}
+            devices={cameras}
+            value={videoDeviceId}
+            onValueChange={setVideoDeviceId}
+            emptyDescription={t("meetings.deviceCameraNeedsPermission")}
+          />
           <Button
             type="button"
             variant="brand"

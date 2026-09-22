@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { getGuestSession } from "@uniwork/core/api/guest-session";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import type { PreJoinChoice } from "@uniwork/views/meetings/meeting-prejoin";
+import { MeetingStagePageSkeleton } from "@uniwork/views/meetings/meeting-page-skeletons";
 import { MeetingLobbyWSProvider } from "@uniwork/core/realtime";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
@@ -82,15 +83,17 @@ export default function MeetingInviteRoomPage() {
     }
   }, [session.hydrated, authStatus, ready, nav, linkId]);
 
+  // Hydrating the session (or on the way back to the invite page): hold the
+  // stage in place rather than flashing an empty screen.
   if (!ready || !session.joinBody?.secret) {
-    return null;
+    return <MeetingStagePageSkeleton />;
   }
 
   const inviteSecret = session.joinBody.secret;
 
   return (
     <MeetingLobbyWSProvider meetingId={session.meetingId}>
-      <Suspense fallback={null}>
+      <Suspense fallback={<MeetingStagePageSkeleton />}>
         <MeetingRoomView
           meetingId={session.meetingId}
           guestMode={isGuest}
