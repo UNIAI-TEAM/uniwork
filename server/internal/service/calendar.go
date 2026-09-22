@@ -119,6 +119,57 @@ func (s *CalendarService) ListEvents(ctx context.Context, workspaceID, userID st
 	return out, nil
 }
 
+// WorkspaceICS returns RFC 5545 calendar data for tasks (all-day by due date)
+// and timed meetings in [from, to] inclusive calendar days (UTC). Members only.
+func (s *CalendarService) WorkspaceICS(ctx context.Context, workspaceID, userID string, from, to time.Time) ([]byte, error) {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+		return nil, err
+	}
+	fromDay := truncateUTCDate(from)
+	toDay := truncateUTCDate(to)
+	if toDay.Before(fromDay) {
+		return nil, Invalid("to must be on or after from")
+	}
+	if fromDay.AddDate(0, 0, maxCalendarRangeDays).Before(toDay) {
+		return nil, Invalid("date range may not exceed 366 days")
+	}
+
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	fromDate := pgtype.Date{Time: fromDay, Valid: true}
+	toDate := pgtype.Date{Time: toDay, Valid: true}
+	userText := pgtype.Text{String: userID, Valid: true}
+	tasks, err := s.q.ListCalendarTasksInRange(ctx, db.ListCalendarTasksInRangeParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    workspaceID,
+		FromDate:       fromDate,
+		ToDate:         toDate,
+		Mine:           false,
+		UserID:         userText,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	fromAt := pgtype.Timestamptz{Time: fromDay, Valid: true}
+	toExclusive := pgtype.Timestamptz{Time: toDay.AddDate(0, 0, 1), Valid: true}
+	meetings, err := s.q.ListCalendarMeetingsInRange(ctx, db.ListCalendarMeetingsInRangeParams{
+		WorkspaceID: workspaceID,
+		FromAt:      fromAt,
+		ToAt:        toExclusive,
+		Mine:        false,
+		UserID:      userID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return renderWorkspaceICS(tasks, meetings, time.Now()), nil
+}
+
 // ListSidebar returns the five planner sections for the workspace calendar
 // panel. "Today" is the UTC calendar day at call time.
 func (s *CalendarService) ListSidebar(ctx context.Context, workspaceID, userID string) (CalendarSidebar, error) {

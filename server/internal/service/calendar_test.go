@@ -338,3 +338,46 @@ func TestCalendarListEventsForbiddenForNonMember(t *testing.T) {
 		t.Fatalf("non-member: %v", err)
 	}
 }
+
+func TestWorkspaceICSIncludesTaskAndMeeting(t *testing.T) {
+	f := calendarFixture(t)
+	ctx := context.Background()
+	from, to := day(2026, 9, 1), day(2026, 9, 30)
+
+	f.task(t, "Export task; A", "2026-09-15", &f.a.ID)
+	meetStart := time.Date(2026, 9, 10, 3, 0, 0, 0, time.UTC)
+	f.meeting(t, "m-export", f.a.ID, "SCHEDULED", meetStart)
+
+	out, err := f.cal.WorkspaceICS(ctx, f.w.ID, f.a.ID, from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(out)
+	for _, want := range []string{
+		"BEGIN:VCALENDAR\r\n",
+		"PRODID:-//UniWork//Calendar//VI\r\n",
+		"DTSTART;VALUE=DATE:20260915\r\n",
+		"DTEND;VALUE=DATE:20260916\r\n",
+		`SUMMARY:Export task\; A` + "\r\n",
+		"UID:meeting-m-export@uniwork\r\n",
+		"DTSTART:20260910T030000Z\r\n",
+		"DTEND:20260910T033000Z\r\n",
+		"SUMMARY:m-export\r\n",
+		"END:VCALENDAR\r\n",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in:\n%s", want, body)
+		}
+	}
+}
+
+func TestWorkspaceICSForbiddenForNonMember(t *testing.T) {
+	f := calendarFixture(t)
+	ctx := context.Background()
+	q := db.New(f.pool)
+	as := NewAuthService(f.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	outsider := registerVerified(t, q, as, "cal-ics-outsider@example.com", "Out")
+	if _, err := f.cal.WorkspaceICS(ctx, f.w.ID, outsider.ID, day(2026, 9, 1), day(2026, 9, 30)); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-member: %v", err)
+	}
+}
