@@ -6,11 +6,11 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
-import { format } from "date-fns";
 import { vi as viLocale, enUS } from "date-fns/locale";
 import { PAGE_GUTTER } from "../layout/page-header";
 import {
   type CalendarViewMode,
+  formatPeriodLabel,
   shiftAnchor,
 } from "./calendar-view-mode";
 import { CalendarExportButton } from "./calendar-export-button";
@@ -53,7 +53,7 @@ export function CalendarToolbar({
 }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "vi" ? viLocale : enUS;
-  const monthLabel = format(anchorDate, "LLLL yyyy", { locale });
+  const periodLabel = formatPeriodLabel(viewMode, anchorDate, locale);
 
   return (
     <div
@@ -90,7 +90,7 @@ export function CalendarToolbar({
         >
           {t("calendar.today")}
         </Button>
-        <span className="truncate text-body font-medium tabular-nums">{monthLabel}</span>
+        <span className="truncate text-body font-medium tabular-nums">{periodLabel}</span>
         <ToggleGroup
           value={[viewMode]}
           onValueChange={(v) => {

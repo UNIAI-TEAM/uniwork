@@ -171,7 +171,9 @@ func (s *CalendarService) WorkspaceICS(ctx context.Context, workspaceID, userID 
 }
 
 // ListSidebar returns the five planner sections for the workspace calendar
-// panel. "Today" is the UTC calendar day at call time.
+// panel. "Today" for overdue and assigned ordering is the server's local
+// wall-calendar date (time.Now in Local), not UTC truncation — so a task due
+// "today" in the server's timezone matches sidebar today_overdue boundaries.
 func (s *CalendarService) ListSidebar(ctx context.Context, workspaceID, userID string) (CalendarSidebar, error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return CalendarSidebar{}, err
@@ -181,8 +183,8 @@ func (s *CalendarService) ListSidebar(ctx context.Context, workspaceID, userID s
 		return CalendarSidebar{}, err
 	}
 
-	now := time.Now().UTC()
-	today := truncateUTCDate(now)
+	now := time.Now()
+	today := truncateLocalDate(now)
 	limit := int32(maxCalendarSidebarSection)
 	orgID := ws.OrganizationID
 	todayDate := pgtype.Date{Time: today, Valid: true}
@@ -309,6 +311,12 @@ func calendarDatePtr(d pgtype.Date) *string {
 func truncateUTCDate(t time.Time) time.Time {
 	u := t.UTC()
 	return time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// truncateLocalDate is midnight UTC on the Y-M-D of t in the process local zone.
+func truncateLocalDate(t time.Time) time.Time {
+	l := t.Local()
+	return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 func taskCalendarEvent(t db.ListCalendarTasksInRangeRow) CalendarEvent {

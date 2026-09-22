@@ -1,5 +1,12 @@
+import { enUS } from "date-fns/locale";
 import { describe, expect, it } from "vitest";
-import { fcHiddenDays, fcViewForMode, rangeForMode, shiftAnchor } from "./calendar-view-mode";
+import {
+  fcHiddenDays,
+  fcViewForMode,
+  formatPeriodLabel,
+  rangeForMode,
+  shiftAnchor,
+} from "./calendar-view-mode";
 
 describe("calendar-view-mode", () => {
   it("maps modes to FC views", () => {
@@ -23,5 +30,13 @@ describe("calendar-view-mode", () => {
     expect(rangeForMode("week", d)).toEqual({ from: "2026-09-13", to: "2026-09-19" });
     expect(rangeForMode("work_week", d)).toEqual({ from: "2026-09-13", to: "2026-09-19" });
     expect(rangeForMode("month", d)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+  });
+
+  it("formats toolbar period label by view mode", () => {
+    const anchor = new Date("2026-09-15T12:00:00Z");
+    expect(formatPeriodLabel("month", anchor, enUS)).toBe("September 2026");
+    expect(formatPeriodLabel("day", anchor, enUS)).toBe("September 15th, 2026");
+    expect(formatPeriodLabel("week", anchor, enUS)).toBe("13 – 19 September 2026");
+    expect(formatPeriodLabel("work_week", anchor, enUS)).toBe("13 – 19 September 2026");
   });
 });

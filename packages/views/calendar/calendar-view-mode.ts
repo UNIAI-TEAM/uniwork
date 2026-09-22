@@ -8,6 +8,7 @@ import {
   startOfWeek,
   subDays,
   subMonths,
+  type Locale,
 } from "date-fns";
 
 export type CalendarViewMode = "day" | "work_week" | "week" | "month";
@@ -65,6 +66,32 @@ export function fcViewForMode(mode: CalendarViewMode): string {
 
 export function fcHiddenDays(mode: CalendarViewMode): number[] {
   return mode === "work_week" ? WORK_WEEK_HIDDEN_DAYS : NO_HIDDEN_DAYS;
+}
+
+/** Toolbar center label for the visible calendar period. */
+export function formatPeriodLabel(mode: CalendarViewMode, anchor: Date, locale: Locale): string {
+  switch (mode) {
+    case "day":
+      return format(anchor, "PPP", { locale });
+    case "week":
+    case "work_week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      const end = endOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+        return `${format(start, "d", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      if (start.getFullYear() === end.getFullYear()) {
+        return `${format(start, "d MMMM", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      return `${format(start, "PPP", { locale })} – ${format(end, "PPP", { locale })}`;
+    }
+    case "month":
+      return format(anchor, "LLLL yyyy", { locale });
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
 }
 
 export function shiftAnchor(mode: CalendarViewMode, anchor: Date, dir: -1 | 1): Date {

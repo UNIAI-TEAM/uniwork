@@ -120,6 +120,18 @@ func day(y int, m time.Month, d int) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
+func TestTruncateLocalDateUsesLocalWallCalendar(t *testing.T) {
+	t.Setenv("TZ", "Asia/Ho_Chi_Minh")
+	// 21:00 UTC is already the next calendar day in UTC+7.
+	utc := time.Date(2026, 9, 21, 21, 0, 0, 0, time.UTC)
+	if got := truncateUTCDate(utc); !got.Equal(day(2026, 9, 21)) {
+		t.Fatalf("UTC truncate: got %s want 2026-09-21", got.Format(time.DateOnly))
+	}
+	if got := truncateLocalDate(utc); !got.Equal(day(2026, 9, 22)) {
+		t.Fatalf("local truncate: got %s want 2026-09-22 (today_overdue boundary)", got.Format(time.DateOnly))
+	}
+}
+
 func eventIDs(evs []CalendarEvent) string {
 	ids := make([]string, 0, len(evs))
 	for _, e := range evs {
