@@ -90,7 +90,7 @@ export function CalendarToolbar({
             const next = v[0] as CalendarViewMode | undefined;
             if (next) onViewModeChange(next);
           }}
-          aria-label={t("calendar.title")}
+          aria-label={t("calendar.view_mode")}
           spacing={0.5}
           className="shrink-0 rounded-lg bg-muted p-0.5 pointer-coarse:p-0.5"
         >

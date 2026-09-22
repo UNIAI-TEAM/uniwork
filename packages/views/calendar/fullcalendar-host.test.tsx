@@ -145,6 +145,47 @@ describe("FullCalendarHost", () => {
     expect(revert).not.toHaveBeenCalled();
   });
 
+  it("eventDrop calls onEventDropOrResize with meeting timed patch", async () => {
+    const meeting: CalendarEvent = {
+      id: "ev-m1",
+      kind: "meeting",
+      entityId: "m1",
+      title: "Sync",
+      start: "2026-09-10T09:00:00.000Z",
+      end: "2026-09-10T10:00:00.000Z",
+      allDay: false,
+    };
+    const onEventDropOrResize = vi.fn().mockResolvedValue(undefined);
+    const revert = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[meeting]}
+        initialDate="2026-09-01"
+        viewMode="day"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onEventDropOrResize={onEventDropOrResize}
+      />,
+    );
+    const newStart = new Date("2026-09-10T14:00:00.000Z");
+    const newEnd = new Date("2026-09-10T15:00:00.000Z");
+    await captured.eventDrop?.({
+      event: {
+        id: "ev-m1",
+        start: newStart,
+        end: newEnd,
+        allDay: false,
+      },
+      revert,
+    });
+    expect(onEventDropOrResize).toHaveBeenCalledWith({
+      kind: "meeting",
+      entityId: "m1",
+      body: { starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() },
+    });
+    expect(revert).not.toHaveBeenCalled();
+  });
+
   it("eventDrop reverts when patch is null (timed task)", async () => {
     const onEventDropOrResize = vi.fn();
     const revert = vi.fn();

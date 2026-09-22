@@ -113,6 +113,14 @@ describe("CalendarPageView", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Ngày" }));
+
+    expect(useCalendarEventsMock).toHaveBeenLastCalledWith(
+      "ws1",
+      "2026-09-15",
+      "2026-09-15",
+      false,
+    );
+
     useCalendarEventsMock.mockClear();
 
     fireEvent.click(screen.getByRole("button", { name: "Kỳ trước" }));

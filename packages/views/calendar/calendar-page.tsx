@@ -48,6 +48,11 @@ export function CalendarPageView({
     setRange(rangeForMode(viewMode, next));
   };
 
+  const handleViewModeChange = (mode: CalendarViewMode) => {
+    setViewMode(mode);
+    setRange(rangeForMode(mode, anchorDate));
+  };
+
   const handleEventClick = (event: CalendarEvent) => {
     if (event.kind === "task") {
       onOpenTask(event.entityId);
@@ -69,7 +74,7 @@ export function CalendarPageView({
         viewMode={viewMode}
         onAnchorDateChange={handleAnchorDateChange}
         onMineChange={setMine}
-        onViewModeChange={setViewMode}
+        onViewModeChange={handleViewModeChange}
       />
       {isError ? (
         <CollectionPageState

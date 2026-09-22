@@ -54,4 +54,50 @@ describe("useCalendarMutations", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: calendarKeys.all("ws1") }),
     );
   });
+
+  it("PATCHes meeting times and invalidates calendar", async () => {
+    requestMock.mockResolvedValue({
+      meeting: {
+        id: "m1",
+        workspace_id: "ws1",
+        title: "Sync",
+        description: "",
+        starts_at: "2026-09-10T14:00:00.000Z",
+        ends_at: "2026-09-10T15:00:00.000Z",
+        room_name: "room-m1",
+        created_by: "u1",
+      },
+    });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+
+    const { result } = renderHook(() => useCalendarMutations("ws1"), {
+      wrapper: wrapperFor(qc),
+    });
+
+    await result.current.applyDropPatch({
+      kind: "meeting",
+      entityId: "m1",
+      body: {
+        starts_at: "2026-09-10T14:00:00.000Z",
+        ends_at: "2026-09-10T15:00:00.000Z",
+      },
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/meetings/m1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: {
+          starts_at: "2026-09-10T14:00:00.000Z",
+          ends_at: "2026-09-10T15:00:00.000Z",
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: calendarKeys.all("ws1") }),
+    );
+  });
 });
