@@ -10,7 +10,7 @@ spec:
       priority: 200
       websocket: true
       match:
-        hosts: [uniwork.ubos.vn]
+        hosts: [uniwork.unicomhub.com]
         paths: [/api, /api/*]
       upstreams:
         - name: uniwork-be
@@ -18,7 +18,7 @@ spec:
       priority: 100
       websocket: true
       match:
-        hosts: [uniwork.ubos.vn]
+        hosts: [uniwork.unicomhub.com]
         paths: [/, /*]
       upstreams:
         - name: uniwork-fe
