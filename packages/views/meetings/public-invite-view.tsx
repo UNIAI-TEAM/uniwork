@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api";
 import { isJoinAdmitted, useJoinMeeting } from "@uniwork/core/meetings";
 import { getMeeting, resolveInviteLink, type JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -18,6 +19,7 @@ import { MeetingInviteShell, MeetingInviteStateCard } from "./meeting-invite-she
 import { MeetingPublicInviteForm } from "./meeting-public-invite-form";
 import {
   inviteStorageKey,
+  leaveMeetingInvite,
   writeCachedJoinDecision,
   writeGuestSession,
   writeInviteDisplayName,
@@ -28,6 +30,14 @@ import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 
 function meetingInviteLoginUrl(linkId: string): string {
   return `${paths.login()}?next=${encodeURIComponent(paths.meetingInvite(linkId))}&reason=meeting_invite`;
+}
+
+/** A refused link and an unreachable server read differently to a guest. */
+function resolveFailureState(err: unknown): "expired" | "invalid" | "error" {
+  if (!(err instanceof ApiError)) return "error";
+  if (err.code === "invite_link_expired") return "expired";
+  if (err.code === "invite_link_invalid" || err.code === "invite_link_revoked") return "invalid";
+  return "error";
 }
 
 export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; secret: string }) {
@@ -82,7 +92,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
       sessionStorage.setItem(inviteStorageKey(linkId, "title"), res.title);
       if (res.guest_session) writeGuestSession(linkId, res.guest_session);
       setState(res.expired ? "expired" : "ok");
-    });
+    }, (err: unknown) => setState(resolveFailureState(err)));
   }, [linkId, secret]);
 
   useEffect(() => {
@@ -114,7 +124,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     [isGuest, linkId, meetingId, nav, user, workspaces],
   );
 
-  const runJoin = useCallback((choice?: PreJoinChoice) => {
+  const runJoin = useCallback((choice?: PreJoinChoice, requestAgain = false) => {
     if (!meetingId || joinPending) return;
     if (isGuest && !displayName.trim()) {
       toast.error(t("meetings.publicInviteNameRequired"));
@@ -125,15 +135,11 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
       if (choice) writeInvitePreJoinChoice(linkId, choice);
     }
     mutateJoin(
-      { meetingId, ...joinBody },
+      { meetingId, ...joinBody, ...(requestAgain ? { request_again: true } : {}) },
       {
         onSuccess: (d) => {
           if (!d) {
             toast.error(t("common.error"));
-            return;
-          }
-          if (d.decision === "DENY") {
-            toast.error(t("meetings.denied"));
             return;
           }
           if (isJoinAdmitted(d)) {
@@ -142,7 +148,14 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           }
           setLobbyDecision(d.decision);
         },
-        onError: (err) => toastApiError(err, t("common.error")),
+        onError: (err) => {
+          // A declined request is a lobby state with its own way back in, not a toast.
+          if (err instanceof ApiError && err.code === "join_request_rejected") {
+            setLobbyDecision("DENY");
+            return;
+          }
+          toastApiError(err, t("common.error"));
+        },
       },
     );
   }, [displayName, enterRoom, isGuest, joinBody, joinPending, linkId, meetingId, mutateJoin, t]);
@@ -200,11 +213,12 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     return wrapLobby(
       <div className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col bg-app-shell">
         <MeetingLobby
-          meetingId={meetingId}
           title={title}
           decision={lobbyDecision}
           error={joinError}
-          onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
+          onRequestAgain={() => runJoin(undefined, true)}
+          requestingAgain={joinPending}
+          onLeave={() => leaveMeetingInvite(nav, linkId)}
         />
       </div>,
     );

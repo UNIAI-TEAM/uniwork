@@ -2,7 +2,6 @@
 import { PhoneOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
-import { useCreateJoinRequest } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -20,7 +19,13 @@ export function lobbyMessage(t: (key: string) => string, decision: string | unde
     if (error.code === "unauthorized" || error.code === "access_grant_not_found") {
       return t("meetings.loginRequired");
     }
-    if (error.code === "invite_link_invalid" || error.code === "invite_link_limit_reached") {
+    if (error.code === "join_request_rejected") return t("meetings.joinRequestRejected");
+    if (
+      error.code === "invite_link_invalid" ||
+      error.code === "invite_link_revoked" ||
+      error.code === "invite_link_expired" ||
+      error.code === "invite_link_limit_reached"
+    ) {
       return t("meetings.publicInviteInvalidLink");
     }
     return apiErrorMessage(error) ?? t("common.error");
@@ -77,21 +82,22 @@ function LobbyControlBar({
 }
 
 export function MeetingLobby({
-  meetingId,
   title,
   decision,
   error,
-  allowJoinRequest,
+  onRequestAgain,
+  requestingAgain,
   canStart,
   starting,
   onStart,
   onLeave,
 }: {
-  meetingId: string;
   title?: string;
   decision: string | undefined;
   error: unknown;
-  allowJoinRequest?: boolean;
+  /** Files a new join request after the host declined the last one. */
+  onRequestAgain?: () => void;
+  requestingAgain?: boolean;
   /** Host may start a scheduled meeting that has not begun yet. */
   canStart?: boolean;
   starting?: boolean;
@@ -99,13 +105,15 @@ export function MeetingLobby({
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
-  const request = useCreateJoinRequest(meetingId);
   const waitingApproval = decision === "WAITING_APPROVAL";
   const waitingForHost = decision === "WAITING_FOR_HOST";
   const waitingForProvider = decision === "WAITING_FOR_PROVIDER";
-  const isWaitingScreen = waitingApproval || waitingForHost || waitingForProvider;
-  const showRequest = allowJoinRequest && decision === "DENY" && !waitingApproval;
-  const showStart = Boolean(canStart && waitingForHost && onStart);
+  // A join error is final for this attempt: never keep the "page updates by
+  // itself" spinner up next to it.
+  const isWaitingScreen = !error && (waitingApproval || waitingForHost || waitingForProvider);
+  const declined = error instanceof ApiError && error.code === "join_request_rejected";
+  const showRequest = declined && Boolean(onRequestAgain);
+  const showStart = Boolean(canStart && waitingForHost && onStart && !error);
   const message = lobbyMessage(t, decision, error);
 
   if (isWaitingScreen) {
@@ -184,8 +192,8 @@ export function MeetingLobby({
           </Button>
         ) : null}
         {showRequest ? (
-          <Button size="sm" disabled={request.isPending} onClick={() => request.mutate()}>
-            {t("meetings.requestToJoin")}
+          <Button size="sm" disabled={requestingAgain} onClick={onRequestAgain}>
+            {t("meetings.requestAgain")}
           </Button>
         ) : null}
       </div>

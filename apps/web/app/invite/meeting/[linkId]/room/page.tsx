@@ -10,6 +10,7 @@ import { paths } from "@uniwork/core/paths";
 import { useNavigation } from "@uniwork/views/navigation";
 import {
   inviteStorageKey,
+  leaveMeetingInvite,
   readCachedJoinDecision,
   readGuestSession,
   readInviteJoinBody,
@@ -98,7 +99,7 @@ export default function MeetingInviteRoomPage() {
           meetingTitle={session.meetingTitle}
           initialJoinDecision={session.initialJoinDecision}
           initialChoice={session.initialChoice}
-          onLeave={() => nav.push(`${paths.meetingInvite(linkId)}?reason=left_room`)}
+          onLeave={() => leaveMeetingInvite(nav, linkId)}
         />
       </Suspense>
     </MeetingLobbyWSProvider>

@@ -13,6 +13,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
 import { MeetingProactiveTokenRefresh } from "./meeting-proactive-token-refresh";
 import { MeetingLobby } from "./meeting-lobby";
+import { MeetingMediaError } from "./meeting-media-error";
 import { MeetingPreJoin, type PreJoinChoice } from "./meeting-prejoin";
 import { useMeetingScheduleDeadline } from "./use-meeting-schedule-deadline";
 import {
@@ -99,6 +100,10 @@ export function MeetingRoomView({
     mutateJoin(joinArgs);
   }, [mutateJoin, joinArgs]);
 
+  const requestAgain = useCallback(() => {
+    mutateJoin({ ...joinArgs, request_again: true });
+  }, [mutateJoin, joinArgs]);
+
   const refreshLiveKitCredential = useCallback(async () => {
     try {
       const result = await mutateJoinAsync(joinArgs);
@@ -160,11 +165,11 @@ export function MeetingRoomView({
     return (
       <MeetingRoomShell>
         <MeetingLobby
-          meetingId={meetingId}
           title={meeting?.title ?? meetingTitle}
           decision={decision?.decision}
           error={join.error}
-          allowJoinRequest={guestMode ? undefined : meeting?.allow_join_request}
+          onRequestAgain={requestAgain}
+          requestingAgain={join.isPending}
           canStart={canHost.allowed}
           starting={start.isPending}
           onStart={handleStartMeeting}
@@ -203,32 +208,16 @@ export function MeetingRoomView({
   }
 
   if (mediaErrorKind) {
-    const replaced = mediaErrorKind === "replaced";
     return (
       <MeetingRoomShell>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="max-w-md text-pretty text-body text-foreground">
-            {t(replaced ? "meetings.sessionReplaced" : "meetings.connectionFailed")}
-          </p>
-          <p className="max-w-md text-pretty text-caption text-muted-foreground">
-            {t(replaced ? "meetings.sessionReplacedHint" : "meetings.connectionFailedHint")}
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {!replaced ? (
-              <Button
-                onClick={() => {
-                  credentialRefreshAttempts.current = 0;
-                  retryJoin();
-                }}
-              >
-                {t("common.retry")}
-              </Button>
-            ) : null}
-            <Button variant="outline" onClick={onLeave}>
-              {t("meetings.leave")}
-            </Button>
-          </div>
-        </div>
+        <MeetingMediaError
+          kind={mediaErrorKind}
+          onRetry={() => {
+            credentialRefreshAttempts.current = 0;
+            retryJoin();
+          }}
+          onLeave={onLeave}
+        />
       </MeetingRoomShell>
     );
   }

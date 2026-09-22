@@ -91,6 +91,8 @@ export interface JoinMeetingBody {
   invite_link_id?: string;
   secret?: string;
   display_name?: string;
+  /** Files a new join request after the host declined the last one. */
+  request_again?: boolean;
 }
 
 const enc = encodeURIComponent;
