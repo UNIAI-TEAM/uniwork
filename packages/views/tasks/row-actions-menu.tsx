@@ -211,7 +211,7 @@ function DeleteTaskDialog({ model }: { model: RowActionModel }) {
           <AlertDialogAction
             onClick={model.confirmDelete}
             aria-disabled={model.deleting || undefined}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            className="bg-destructive-solid text-on-solid hover:bg-destructive-solid/90"
           >
             {t("tasks.row_actions.delete_confirm")}
           </AlertDialogAction>

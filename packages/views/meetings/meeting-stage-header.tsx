@@ -152,12 +152,12 @@ export function MeetingStageHeader({
           <div className="flex flex-wrap items-center gap-1.5 sm:justify-end sm:gap-2">
             {recording ? (
               <span
-                className="inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-1 text-caption font-medium text-destructive-foreground"
+                className="inline-flex items-center gap-1 rounded-full bg-destructive-solid px-2 py-1 text-caption font-medium text-on-solid"
                 data-testid="meeting-rec-badge"
               >
                 <span
                   aria-hidden
-                  className="size-1.5 animate-pulse rounded-full motion-reduce:animate-none bg-destructive-foreground"
+                  className="size-1.5 animate-pulse rounded-full motion-reduce:animate-none bg-on-solid"
                 />
                 {t("meetings.recording")}
               </span>
@@ -168,7 +168,7 @@ export function MeetingStageHeader({
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tabular-nums shadow-sm",
                   pastScheduledEnd || urgent
-                    ? "bg-destructive text-destructive-foreground"
+                    ? "bg-destructive-solid text-on-solid"
                     : "border border-meeting-bar-border bg-background text-foreground",
                 )}
                 data-testid="meeting-remaining-time"
@@ -195,7 +195,7 @@ export function MeetingStageHeader({
               <Button
                 type="button"
                 size="sm"
-                className="h-8 !border-destructive !bg-destructive px-2.5 font-semibold !text-destructive-foreground shadow-sm hover:!bg-destructive/90 hover:!text-destructive-foreground"
+                className="h-8 !border-destructive-solid !bg-destructive-solid px-2.5 font-semibold !text-on-solid shadow-sm hover:!bg-destructive-solid/90 hover:!text-on-solid"
                 disabled={end.isPending}
                 onClick={() => setEndConfirmOpen(true)}
               >

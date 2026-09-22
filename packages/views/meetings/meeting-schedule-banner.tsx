@@ -110,7 +110,7 @@ export function MeetingScheduleBanner({
             "mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium",
             overtime
               ? "border border-warning/40 bg-warning/95 text-background"
-              : "pointer-events-none border border-destructive/40 bg-destructive/95 text-destructive-foreground",
+              : "pointer-events-none border border-destructive/40 bg-destructive-solid text-on-solid",
           )}
           data-testid="meeting-schedule-banner"
         >
