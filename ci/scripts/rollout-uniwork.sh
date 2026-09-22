@@ -18,6 +18,8 @@ esac
 
 helm upgrade --install uniwork "${ROOT}/deploy/app/uniwork" \
   --namespace uniwork --create-namespace \
+  --set-file env.beContent="${ROOT}/deploy/app/env/uniwork-be.env" \
+  --set-file env.feContent="${ROOT}/deploy/app/env/uniwork-fe.env" \
   --set be.image.tag="${IMAGE_TAG}" \
   --set be.image.digest="${BE_DIGEST}" \
   --set fe.image.tag="${IMAGE_TAG}" \

@@ -7,8 +7,13 @@ nodeSelector:
   workload: app
 tolerations: []
 
+# Non-secret KEY=value files from deploy/app/env/*.env (helm --set-file).
+env:
+  beContent: ""
+  feContent: ""
+
 public:
-  origin: https://uniwork.ubos.vn
+  origin: https://uniwork.unicomhub.com
   livekitUrl: wss://livekit.vn247.info:7880
 
 be:
@@ -36,6 +41,9 @@ be:
     app: { name: uniwork-app, key: JWT_SECRET }
     livekitKey: { name: uniwork-livekit, key: LIVEKIT_API_KEY }
     livekitSecret: { name: uniwork-livekit, key: LIVEKIT_API_SECRET }
+    # Optional — create when enabling mail / CMC S3.
+    mail: { name: uniwork-mail, key: SMTP_PASSWORD }
+    s3: { name: uniwork-s3, accessKey: AWS_ACCESS_KEY_ID, secretKey: AWS_SECRET_ACCESS_KEY }
 
 fe:
   replicaCount: 1

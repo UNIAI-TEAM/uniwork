@@ -127,9 +127,9 @@ pipeline {
                 docker build \\
                   --memory=${env.DOCKER_BUILD_MEMORY} \\
                   --memory-swap=${env.DOCKER_BUILD_MEMORY} \\
-                  --build-arg NEXT_PUBLIC_API_URL=https://uniwork.ubos.vn \\
-                  --build-arg NEXT_PUBLIC_WS_URL=wss://uniwork.ubos.vn \\
-                  --build-arg NEXT_PUBLIC_APP_URL=https://uniwork.ubos.vn \\
+                  --build-arg NEXT_PUBLIC_API_URL=https://uniwork.unicomhub.com \\
+                  --build-arg NEXT_PUBLIC_WS_URL=wss://uniwork.unicomhub.com \\
+                  --build-arg NEXT_PUBLIC_APP_URL=https://uniwork.unicomhub.com \\
                   -t ${imageName} \\
                   -f apps/web/Dockerfile .
               """
@@ -166,7 +166,7 @@ export FE_DIGEST=${feDigest}
               echo "BE_DIGEST=${beDigest}"
               echo "FE_DIGEST=${feDigest}"
             }
-            stash name: 'prod-app-rollout', includes: 'target/**,deploy/app/uniwork/**,ci/scripts/**'
+            stash name: 'prod-app-rollout', includes: 'target/**,deploy/app/uniwork/**,deploy/app/env/**,ci/scripts/**'
             sh '''
               set -e
               echo "=== 107.188 inventory (helm/kubectl are NOT used on this agent) ==="

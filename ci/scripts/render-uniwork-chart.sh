@@ -5,7 +5,12 @@ CHART="${ROOT}/deploy/app/uniwork"
 OUT="$(mktemp)"
 trap 'rm -f "${OUT}"' EXIT
 
+ENV_BE="${ROOT}/deploy/app/env/uniwork-be.env"
+ENV_FE="${ROOT}/deploy/app/env/uniwork-fe.env"
+
 helm template uniwork "${CHART}" \
+  --set-file env.beContent="${ENV_BE}" \
+  --set-file env.feContent="${ENV_FE}" \
   --set be.image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
   --set be.image.tag=test --set fe.image.tag=test \
@@ -21,11 +26,16 @@ grep -q 'path: /healthz' "${OUT}"
 grep -q 'path: /readyz' "${OUT}"
 grep -q 'LIVEKIT_URL' "${OUT}"
 grep -q 'wss://livekit.vn247.info:7880' "${OUT}"
+grep -q 'FRONTEND_ORIGIN' "${OUT}"
+grep -q 'https://uniwork.unicomhub.com' "${OUT}"
+grep -q 'STORAGE_BACKEND' "${OUT}"
+grep -q 'SMTP_HOST' "${OUT}"
 grep -q 'name: uniwork-db' "${OUT}"
 grep -q 'name: uniwork-redis' "${OUT}"
 grep -q 'name: uniwork-app' "${OUT}"
 grep -q 'name: uniwork-livekit' "${OUT}"
 grep -q 'LIVEKIT_API_KEY' "${OUT}"
+grep -q 'COREPACK_HOME' "${OUT}"
 grep -q 'allow-from-reap-edge' "${OUT}" || grep -q 'reap-edge' "${OUT}"
 for forbidden in LoadBalancer NodePort; do
   if grep -q "${forbidden}" "${OUT}"; then
@@ -34,7 +44,12 @@ for forbidden in LoadBalancer NodePort; do
   fi
 done
 
-if helm template uniwork "${CHART}" --set be.image.digest= --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb >/dev/null 2>"${OUT}.err"; then
+if helm template uniwork "${CHART}" \
+  --set-file env.beContent="${ENV_BE}" \
+  --set-file env.feContent="${ENV_FE}" \
+  --set be.image.digest= \
+  --set fe.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  >/dev/null 2>"${OUT}.err"; then
   echo "FAIL: expected helm to refuse empty be.image.digest" >&2
   exit 1
 fi

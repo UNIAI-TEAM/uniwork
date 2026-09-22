@@ -1,3 +1,4 @@
+{{- $env := .Values.env | default dict }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,6 +14,10 @@ spec:
       labels:
         app.kubernetes.io/name: uniwork-be
         reap.io/pool: pool-app
+      annotations:
+        {{- if $env.beContent }}
+        checksum/env: {{ $env.beContent | sha256sum }}
+        {{- end }}
     spec:
       serviceAccountName: uniwork
       automountServiceAccountToken: false
@@ -66,6 +71,28 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.be.secrets.livekitSecret.name }}
                   key: {{ .Values.be.secrets.livekitSecret.key }}
+            {{- with .Values.be.secrets.mail }}
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.s3 }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .accessKey }}
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .secretKey }}
+                  optional: true
+            {{- end }}
           resources:
             {{- toYaml .Values.be.resources | nindent 12 }}
           livenessProbe:
