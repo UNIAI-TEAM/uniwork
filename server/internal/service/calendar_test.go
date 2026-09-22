@@ -121,7 +121,16 @@ func day(y int, m time.Month, d int) time.Time {
 }
 
 func TestTruncateLocalDateUsesLocalWallCalendar(t *testing.T) {
-	t.Setenv("TZ", "Asia/Ho_Chi_Minh")
+	// time.Local is fixed at process start; Setenv("TZ") does not reload it on
+	// CI (UTC). Reassign Local for this case so wall-calendar math is covered.
+	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := time.Local
+	time.Local = loc
+	t.Cleanup(func() { time.Local = prev })
+
 	// 21:00 UTC is already the next calendar day in UTC+7.
 	utc := time.Date(2026, 9, 21, 21, 0, 0, 0, time.UTC)
 	if got := truncateUTCDate(utc); !got.Equal(day(2026, 9, 21)) {
