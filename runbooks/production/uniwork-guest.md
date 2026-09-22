@@ -67,12 +67,20 @@ Create Secrets in `uniwork` with **literal keys only**. Substitute generated or 
 Redis password: read from existing `reap-data` Secret `redis-cache-auth` (key as deployed today). LiveKit API credentials: copy `api-key` and `api-secret` from `reap-integrations/livekit-keys` (same pair LiveKit server uses).
 
 ```bash
-kubectl -n uniwork create secret generic uniwork-db --from-literal=DATABASE_URL='postgres://uniwork:…@reap-postgresql-pooler.reap-data.svc.cluster.local:5432/uniwork?sslmode=disable'
+kubectl -n uniwork create secret generic uniwork-db --from-literal=DATABASE_URL='postgres://uniwork:…@reap-postgresql-pooler.reap-data.svc.cluster.local:5432/uniwork?sslmode=require'
 kubectl -n uniwork create secret generic uniwork-redis --from-literal=REDIS_URL='redis://:…@redis-cache-master.reap-data.svc.cluster.local:6379/15'
 kubectl -n uniwork create secret generic uniwork-app --from-literal=JWT_SECRET='<32+ chars>'
 # copy api-key/api-secret from reap-integrations/livekit-keys into LIVEKIT_API_KEY / LIVEKIT_API_SECRET
 kubectl -n uniwork create secret generic uniwork-livekit --from-literal=LIVEKIT_API_KEY='…' --from-literal=LIVEKIT_API_SECRET='…'
+# Optional — mail password (never put in deploy/app/env/*.env)
+kubectl -n uniwork create secret generic uniwork-mail --from-literal=SMTP_PASSWORD='…'
+# Optional — CMC S3 when STORAGE_BACKEND=s3 in uniwork-be.env
+kubectl -n uniwork create secret generic uniwork-s3 \
+  --from-literal=AWS_ACCESS_KEY_ID='…' \
+  --from-literal=AWS_SECRET_ACCESS_KEY='…'
 ```
+
+Non-secret business env (origins, SMTP host/port, LiveKit URL, S3 endpoint/bucket, …) lives in `deploy/app/env/uniwork-be.env` and is applied via Helm `--set-file` (see `deploy/app/env/README.md`).
 
 If a Secret already exists, delete and recreate or use `kubectl create secret … --dry-run=client -o yaml | kubectl apply -f -` during iteration.
 
@@ -164,8 +172,8 @@ kubectl -n uniwork exec deploy/uniwork-be -- wget -qO- http://127.0.0.1:8080/rea
 Public edge (after Certificate + routes):
 
 ```bash
-curl -fsS https://uniwork.ubos.vn/ | head
-curl -fsS https://uniwork.ubos.vn/api/v1/config | head
+curl -fsS https://uniwork.unicomhub.com/ | head
+curl -fsS https://uniwork.unicomhub.com/api/v1/config | head
 ```
 
 Redis DB 15: from `redis-cache-master` in `reap-data`, `SELECT 15;` then `DBSIZE`—expect `> 0` after a successful login/session flow.
