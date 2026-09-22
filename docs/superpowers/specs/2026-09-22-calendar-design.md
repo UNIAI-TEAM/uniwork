@@ -4,7 +4,7 @@
 
 **Ngày:** 2026-09-22  
 **Roadmap:** C-02 (`docs/roadmap/FEATURE_ROADMAP.md`)  
-**Issue:** (gán `UNI-nnn` trước khi mở branch / PR)  
+**Issue:** UNI-718 (sub: UNI-719…UNI-725 = plan Lát 1 T1–T7)  
 **Baseline tham chiếu:** ClickUp Planner (`app.clickup.com/.../calendar`) — khảo sát 2026-09-22  
 **Umbrella liên quan:** meetings ICS đã ship; tasks collection surfaces (modes, không gồm calendar mode)
 

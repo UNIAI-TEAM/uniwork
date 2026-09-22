@@ -12,7 +12,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-22-calendar-design.md` §3.1 (phần đọc), §4, §8 lát 1, §10 (subset)
 
-**Issue:** Gán `UNI-nnn` trước khi `make issue-start` / PR. Commit trên branch issue để hook gắn `Refs:`.
+**Issue:** UNI-718 · sub-issues UNI-719…UNI-725 (T1–T7). Commit trên `feature/UNI-718-…` để hook gắn `Refs:`.
 
 ## Scope check
 
