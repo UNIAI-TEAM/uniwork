@@ -21,11 +21,6 @@ import {
 } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import {
-  Progress,
-  ProgressIndicator,
-  ProgressTrack,
-} from "@uniwork/ui/components/ui/progress";
 import { MeetingCopilotFooter, MeetingCopilotTasksCta } from "./meeting-copilot/meeting-copilot-footer";
 import { MeetingCopilotHeader } from "./meeting-copilot/meeting-copilot-header";
 import { MeetingActionItemRow } from "./meeting-copilot/meeting-action-item-row";
@@ -98,8 +93,6 @@ export function MeetingRoomCopilotTab({
   const activeRecording = (recordings ?? []).find((r) => r.status === "ACTIVE");
   const completedRecording = (recordings ?? []).find((r) => r.file_url);
   const recordingElapsed = useRecordingElapsed(activeRecording?.started_at);
-  const progressPct =
-    actionItems.length > 0 ? Math.round((picked.size / actionItems.length) * 100) : 0;
 
   const sectionLabel = (id: CopilotSection) => {
     switch (id) {
@@ -297,22 +290,6 @@ export function MeetingRoomCopilotTab({
               pending={createTasks.isPending}
               onClick={onCreateTasks}
             />
-            {actionItems.length > 0 ? (
-              <div className="space-y-2 border-t border-border pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-caption font-medium text-foreground">{t("meetings.progressTitle")}</h3>
-                  <span className="text-caption tabular-nums text-muted-foreground">{progressPct}%</span>
-                </div>
-                <Progress value={progressPct} className="gap-0">
-                  <ProgressTrack className="h-2 bg-muted">
-                    <ProgressIndicator className="bg-success" />
-                  </ProgressTrack>
-                </Progress>
-                <p className="text-caption text-muted-foreground">
-                  {t("meetings.progressCompleted", { done: picked.size, total: actionItems.length })}
-                </p>
-              </div>
-            ) : null}
           </section>
         ) : null}
 

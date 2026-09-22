@@ -55,7 +55,7 @@ export function MeetingNotesCard({
         copyText ? (
           <Button type="button" size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => void onCopy()}>
             <Copy aria-hidden className="size-3.5" />
-            {t("meetings.copyNotes")}
+            {t("common.copy")}
           </Button>
         ) : null
       }
