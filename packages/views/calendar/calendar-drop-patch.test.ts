@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
-import { dropToPatch } from "./calendar-drop-patch";
+import { assignDueDate, dropToPatch } from "./calendar-drop-patch";
 
 /** Local calendar midnight (all-day FC dates). */
 function localMidnight(y: number, m: number, d: number): Date {
@@ -148,6 +148,33 @@ describe("dropToPatch", () => {
         allDay: true,
       }),
     ).toBeNull();
+  });
+
+  it("assignDueDate sets due only when task is not on the feed", () => {
+    expect(
+      assignDueDate({ taskId: "t-new", dueYmd: "2026-09-15" }),
+    ).toEqual({
+      kind: "task",
+      entityId: "t-new",
+      patch: { due_date: "2026-09-15" },
+    });
+  });
+
+  it("assignDueDate preserves span length when task is on the feed", () => {
+    const event: CalendarEvent = {
+      id: "task:t2",
+      kind: "task",
+      entityId: "t2",
+      title: "Span",
+      start: "2026-09-08",
+      end: "2026-09-11",
+      allDay: true,
+    };
+    expect(assignDueDate({ taskId: "t2", dueYmd: "2026-09-17", calendarEvent: event })).toEqual({
+      kind: "task",
+      entityId: "t2",
+      patch: { start_date: "2026-09-15", due_date: "2026-09-17" },
+    });
   });
 
   it("returns null for unknown event kind", () => {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Draggable } from "@fullcalendar/interaction";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -92,7 +93,12 @@ function SidebarTaskRow({
 }) {
   const dueLabel = formatDueLabel(task.dueDate);
   return (
-    <li>
+    <li
+      data-calendar-external-task
+      data-task-id={task.id}
+      data-task-title={task.title}
+      className="fc-event cursor-grab active:cursor-grabbing"
+    >
       <button
         type="button"
         className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-body hover:bg-surface-hover"
@@ -193,9 +199,35 @@ function TaskListSection({
   onOpenTask: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const listRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    const root = listRef.current;
+    if (!root || tasks.length === 0) {
+      return;
+    }
+
+    const draggable = new Draggable(root, {
+      itemSelector: "[data-calendar-external-task]",
+      eventData(eventEl) {
+        const taskId = eventEl.getAttribute("data-task-id") ?? "";
+        const title = eventEl.getAttribute("data-task-title") ?? "";
+        return {
+          title,
+          duration: { days: 1 },
+          extendedProps: { uniworkTaskId: taskId },
+        };
+      },
+    });
+
+    return () => {
+      draggable.destroy();
+    };
+  }, [tasks]);
+
   return (
     <SidebarSection title={t(titleKey)} count={tasks.length} emptyCopy={t(emptyKey)}>
-      <ul className="space-y-0.5">
+      <ul ref={listRef} className="space-y-0.5">
         {tasks.map((task) => (
           <SidebarTaskRow key={task.id} task={task} onOpen={() => onOpenTask(task.id)} />
         ))}

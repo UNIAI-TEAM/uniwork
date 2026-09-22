@@ -40,6 +40,10 @@ export function FullCalendarHost(props: {
   onEventClick: (event: CalendarEvent) => void;
   editable?: boolean;
   onEventDropOrResize?: (patch: CalendarDropPatch) => void | Promise<void>;
+  onExternalTaskReceive?: (input: {
+    taskId: string;
+    dueDate: string;
+  }) => void | Promise<void>;
   onSlotSelect?: (slot: CalendarSlot) => void;
   className?: string;
 }) {
@@ -95,6 +99,29 @@ export function FullCalendarHost(props: {
 
   const editable = props.editable !== false;
   const slotSelectEnabled = Boolean(props.onSlotSelect);
+  const externalDropEnabled = Boolean(props.onExternalTaskReceive);
+
+  const handleEventReceive = async (info: {
+    event: {
+      start: Date | null;
+      extendedProps: Record<string, unknown>;
+    };
+    revert: () => void;
+  }) => {
+    const taskId = info.event.extendedProps.uniworkTaskId;
+    const start = info.event.start;
+    if (typeof taskId !== "string" || !taskId || !props.onExternalTaskReceive || !start) {
+      info.revert();
+      return;
+    }
+
+    const dueDate = format(start, "yyyy-MM-dd");
+    try {
+      await props.onExternalTaskReceive({ taskId, dueDate });
+    } finally {
+      info.revert();
+    }
+  };
 
   const handleDateClick = (info: DateClickArg) => {
     props.onSlotSelect?.({
@@ -127,6 +154,8 @@ export function FullCalendarHost(props: {
         height="100%"
         events={fcEvents}
         editable={editable}
+        droppable={externalDropEnabled}
+        eventReceive={externalDropEnabled ? handleEventReceive : undefined}
         datesSet={handleDatesSet}
         eventClick={handleEventClick}
         eventDrop={handleEventDropOrResize}

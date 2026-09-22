@@ -8,7 +8,8 @@ import { meetingKeys } from "@uniwork/core/meetings";
 import { useUpdateTask } from "@uniwork/core/tasks";
 import { useTranslation } from "react-i18next";
 import { toastApiError } from "../toast-api-error";
-import type { CalendarDropPatch } from "./calendar-drop-patch";
+import type { CalendarEvent } from "@uniwork/core/calendar/types";
+import { assignDueDate, type CalendarDropPatch } from "./calendar-drop-patch";
 
 export function useCalendarMutations(wsId: string) {
   const { t } = useTranslation();
@@ -51,5 +52,18 @@ export function useCalendarMutations(wsId: string) {
     }
   };
 
-  return { applyDropPatch };
+  const applyExternalTaskDue = async (input: {
+    taskId: string;
+    dueDate: string;
+    calendarEvent?: CalendarEvent;
+  }) => {
+    const patch = assignDueDate({
+      taskId: input.taskId,
+      dueYmd: input.dueDate,
+      calendarEvent: input.calendarEvent,
+    });
+    await applyDropPatch(patch);
+  };
+
+  return { applyDropPatch, applyExternalTaskDue };
 }

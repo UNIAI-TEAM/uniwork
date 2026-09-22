@@ -1,5 +1,5 @@
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
-import { format, subDays } from "date-fns";
+import { differenceInCalendarDays, format, parseISO, subDays } from "date-fns";
 
 export type CalendarDropPatch =
   | {
@@ -106,4 +106,32 @@ export function dropToPatch(input: {
   }
 
   return null;
+}
+
+/** Sidebar → grid drop: set due_date; shift start_date when task already spans days. */
+export function assignDueDate(input: {
+  taskId: string;
+  dueYmd: string;
+  calendarEvent?: CalendarEvent;
+}): Extract<CalendarDropPatch, { kind: "task" }> {
+  const { taskId, dueYmd, calendarEvent } = input;
+
+  if (!calendarEvent || calendarEvent.kind !== "task") {
+    return { kind: "task", entityId: taskId, patch: { due_date: dueYmd } };
+  }
+
+  if (isDueOnlyTask(calendarEvent)) {
+    return { kind: "task", entityId: taskId, patch: { due_date: dueYmd } };
+  }
+
+  const oldStart = calendarEvent.start.slice(0, 10);
+  const oldDue = inclusiveDueFromEvent(calendarEvent);
+  const offsetDays = differenceInCalendarDays(parseISO(oldDue), parseISO(oldStart));
+  const startDate = format(subDays(parseISO(dueYmd), offsetDays), "yyyy-MM-dd");
+
+  return {
+    kind: "task",
+    entityId: taskId,
+    patch: { start_date: startDate, due_date: dueYmd },
+  };
 }

@@ -55,6 +55,30 @@ describe("useCalendarMutations", () => {
     );
   });
 
+  it("applyExternalTaskDue PATCHes due_date from sidebar drop", async () => {
+    requestMock.mockResolvedValue({ id: "task-2", due_date: "2026-09-20" });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useCalendarMutations("ws1"), {
+      wrapper: wrapperFor(qc),
+    });
+
+    await result.current.applyExternalTaskDue({
+      taskId: "task-2",
+      dueDate: "2026-09-20",
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/task-2",
+      expect.objectContaining({
+        method: "PATCH",
+        body: { due_date: "2026-09-20" },
+      }),
+    );
+  });
+
   it("PATCHes meeting times and invalidates calendar", async () => {
     requestMock.mockResolvedValue({
       meeting: {

@@ -1,5 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+const { DraggableMock } = vi.hoisted(() => {
+  const destroy = vi.fn();
+  const DraggableMock = vi.fn(function DraggableMock() {
+    return { destroy };
+  });
+  return { DraggableMock };
+});
+
+vi.mock("@fullcalendar/interaction", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@fullcalendar/interaction")>();
+  return { ...actual, Draggable: DraggableMock };
+});
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { CalendarSidebar, EMPTY_CALENDAR_SIDEBAR } from "./calendar-sidebar";
@@ -71,6 +84,40 @@ describe("CalendarSidebar", () => {
 
     expect(onOpenTask).toHaveBeenCalledWith("task-1");
     expect(onOpenMeeting).toHaveBeenCalledWith("meet-1");
+  });
+
+  it("attaches FullCalendar Draggable to task lists only", () => {
+    DraggableMock.mockClear();
+    render(
+      wrap(
+        <CalendarSidebar
+          workspaceId="ws1"
+          sections={{
+            ...EMPTY_CALENDAR_SIDEBAR,
+            priorities: [
+              { id: "task-1", title: "Drag me", status: "open" },
+            ],
+            assigned: [{ id: "task-2", title: "Also drag", status: "open" }],
+          }}
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+          onCreateMeeting={() => {}}
+        />,
+      ),
+    );
+
+    expect(DraggableMock).toHaveBeenCalled();
+    const firstOpts = DraggableMock.mock.calls[0]?.[1] as {
+      itemSelector?: string;
+      eventData?: (el: HTMLElement) => unknown;
+    };
+    expect(firstOpts.itemSelector).toBe("[data-calendar-external-task]");
+    const li = document.querySelector("[data-task-id='task-1']") as HTMLElement;
+    expect(firstOpts.eventData?.(li)).toEqual({
+      title: "Drag me",
+      duration: { days: 1 },
+      extendedProps: { uniworkTaskId: "task-1" },
+    });
   });
 
   it("calls onCreateMeeting from the meet-with CTA", () => {

@@ -49,7 +49,7 @@ export function CalendarPageView({
   const sidebarQuery = useCalendarSidebar(workspaceId);
   const sidebarSections = sidebarQuery.data ?? EMPTY_CALENDAR_SIDEBAR;
   const events = useMemo(() => data ?? [], [data]);
-  const { applyDropPatch } = useCalendarMutations(workspaceId);
+  const { applyDropPatch, applyExternalTaskDue } = useCalendarMutations(workspaceId);
 
   const handleAnchorDateChange = (next: Date) => {
     setAnchorDate(next);
@@ -71,6 +71,13 @@ export function CalendarPageView({
   const handleSlotSelect = (slot: CalendarSlot) => {
     setSelectedSlot(slot);
     setSlotMenuOpen(true);
+  };
+
+  const handleExternalTaskReceive = async (input: { taskId: string; dueDate: string }) => {
+    const calendarEvent = events.find(
+      (ev) => ev.kind === "task" && ev.entityId === input.taskId,
+    );
+    await applyExternalTaskDue({ ...input, calendarEvent });
   };
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -139,6 +146,7 @@ export function CalendarPageView({
                 onDatesSet={handleDatesSet}
                 onEventClick={handleEventClick}
                 onEventDropOrResize={applyDropPatch}
+                onExternalTaskReceive={handleExternalTaskReceive}
                 onSlotSelect={handleSlotSelect}
               />
               <CreateFromSlot

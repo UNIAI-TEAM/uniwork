@@ -26,6 +26,11 @@ type CapturedFcProps = {
   eventResize?: (arg: DropResizeArg) => void | Promise<void>;
   dateClick?: (arg: { date: Date; allDay: boolean }) => void;
   select?: (arg: { start: Date; end: Date; allDay: boolean }) => void;
+  droppable?: boolean;
+  eventReceive?: (arg: {
+    event: { start: Date | null; extendedProps: Record<string, unknown> };
+    revert: () => void;
+  }) => void | Promise<void>;
 };
 
 let captured: CapturedFcProps = {};
@@ -283,6 +288,55 @@ describe("FullCalendarHost", () => {
     );
     expect(captured.selectable).toBe(false);
     expect(captured.dateClick).toBeUndefined();
+  });
+
+  it("enables droppable and forwards eventReceive as local due YMD", async () => {
+    const onExternalTaskReceive = vi.fn().mockResolvedValue(undefined);
+    const revert = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onExternalTaskReceive={onExternalTaskReceive}
+      />,
+    );
+    expect(captured.droppable).toBe(true);
+    await captured.eventReceive?.({
+      event: {
+        start: new Date(2026, 8, 15),
+        extendedProps: { uniworkTaskId: "task-sidebar-1" },
+      },
+      revert,
+    });
+    expect(onExternalTaskReceive).toHaveBeenCalledWith({
+      taskId: "task-sidebar-1",
+      dueDate: "2026-09-15",
+    });
+    expect(revert).toHaveBeenCalled();
+  });
+
+  it("eventReceive reverts when task id is missing", async () => {
+    const onExternalTaskReceive = vi.fn();
+    const revert = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onExternalTaskReceive={onExternalTaskReceive}
+      />,
+    );
+    await captured.eventReceive?.({
+      event: { start: new Date(2026, 8, 15), extendedProps: {} },
+      revert,
+    });
+    expect(onExternalTaskReceive).not.toHaveBeenCalled();
+    expect(revert).toHaveBeenCalled();
   });
 
   it("eventResize reverts when handler rejects", async () => {
