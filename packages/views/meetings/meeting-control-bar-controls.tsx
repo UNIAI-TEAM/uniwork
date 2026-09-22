@@ -26,6 +26,7 @@ export const MEETING_CHIP = "size-11 shrink-0 rounded-xl";
 
 export function IconControl({
   label,
+  tooltip,
   pressed,
   tone,
   onClick,
@@ -33,6 +34,8 @@ export function IconControl({
   children,
 }: {
   label: string;
+  /** What a click does next, when that is more than the name (a toggle, a shortcut). */
+  tooltip?: string;
   pressed?: boolean;
   /** `active` = a device or mode that is on; `off` = a device the viewer turned off. */
   tone?: "off" | "active";
@@ -58,7 +61,7 @@ export function IconControl({
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent side="top">{label}</TooltipContent>
+      <TooltipContent side="top">{tooltip ?? label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -231,7 +234,8 @@ export function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
           <SmilePlus aria-hidden />
         </PopoverTrigger>
       )}
-      <PopoverContent side="top" className="flex w-auto gap-1 p-1.5">
+      {/* `dark`: the popup portals to <body>, away from the dark stage it belongs to. */}
+      <PopoverContent side="top" className="dark flex w-auto gap-1 p-1.5">
         {REACTIONS.map((r) => (
           <button
             key={r}

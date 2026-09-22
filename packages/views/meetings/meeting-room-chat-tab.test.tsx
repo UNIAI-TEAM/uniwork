@@ -82,6 +82,22 @@ describe("MeetingRoomChatTab (persisted)", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không gửi được tin nhắn"));
     expect(box).toHaveValue("Xin chào");
   });
+
+  it("does not send on the Enter that ends an IME composition", async () => {
+    const post = vi.fn(() => Promise.resolve({}));
+    chatRespond(() => Promise.resolve({ messages: [] }), post);
+    render(wrapWithNav(<MeetingRoomChatTab meetingId="m1" />));
+    await screen.findByText(EMPTY);
+
+    const box = screen.getByRole("textbox", { name: "Trò chuyện" });
+    fireEvent.change(box, { target: { value: "Xin chaof" } });
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    expect(post).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(post).toHaveBeenCalledOnce());
+  });
 });
 
 function live(n: number): LiveMessage[] {

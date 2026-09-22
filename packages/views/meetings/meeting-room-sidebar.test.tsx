@@ -66,6 +66,17 @@ describe("MeetingRoomSidebar", () => {
     const panel = screen.getByRole("tabpanel");
     expect(tab).toHaveAttribute("aria-controls", panel.id);
     expect(panel).toHaveAccessibleName("Trò chuyện");
+    // Only the active panel exists; the others must not point at nothing.
+    expect(screen.getByRole("tab", { name: "Mọi người" })).not.toHaveAttribute("aria-controls");
+  });
+
+  it("counts chat messages that arrived while the chat was off screen", () => {
+    render(
+      wrapWithNav(
+        <MeetingRoomSidebar meetingId="m1" tab="participants" onTabChange={() => {}} guestMode chatUnread={3} />,
+      ),
+    );
+    expect(screen.getByLabelText("3 tin nhắn chưa đọc")).toHaveTextContent("3");
   });
 
   it("names the recordings tab for what it lists", async () => {

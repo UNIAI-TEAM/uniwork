@@ -38,6 +38,49 @@ describe("conference layout", () => {
     expect(orderTracks(tracks, []).map((t) => t.participant.identity)).toEqual(["d", "a", "b", "c", "e"]);
   });
 
+  it("keeps a speaker in place when they are already in the main area", () => {
+    const tracks = [track("a"), track("b"), track("c"), track("d")];
+    expect(orderTracks(tracks, ["c"], null, 6).map((t) => t.participant.identity)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
+  });
+
+  it("promotes a speaker who is past the main area", () => {
+    const tracks = [track("a"), track("b"), track("c"), track("d")];
+    expect(orderTracks(tracks, ["d", "b"], null, 2).map((t) => t.participant.identity)).toEqual([
+      "d",
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("does not reorder the grid while everyone fits on the stage", () => {
+    const tracks = Array.from({ length: 4 }, (_, i) => track(String(i)));
+    const stage = resolveConferenceStage(tracks, {
+      layout: "auto",
+      maxTiles: 6,
+      page: 0,
+      speakingIdentities: ["3", "2"],
+    });
+    expect(stage.primary.map((t) => t.participant.identity)).toEqual(["0", "1", "2", "3"]);
+  });
+
+  it("brings a speaker from the strip into the primary grid", () => {
+    const tracks = Array.from({ length: 9 }, (_, i) => track(String(i)));
+    const stage = resolveConferenceStage(tracks, {
+      layout: "auto",
+      maxTiles: 6,
+      page: 0,
+      speakingIdentities: ["8"],
+    });
+    expect(stage.primary[0]?.participant.identity).toBe("8");
+    expect(stage.primary.map((t) => t.participant.identity)).toContain("0");
+  });
+
   it("paginates and clamps the page", () => {
     const items = Array.from({ length: 20 }, (_, i) => i);
     expect(paginate(items, 0).items).toHaveLength(9);

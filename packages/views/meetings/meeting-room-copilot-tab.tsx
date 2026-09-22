@@ -23,7 +23,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { MeetingCopilotFooter, MeetingCopilotTasksCta } from "./meeting-copilot/meeting-copilot-footer";
 import { MeetingCopilotHeader } from "./meeting-copilot/meeting-copilot-header";
 import { MeetingActionItemRow } from "./meeting-copilot/meeting-action-item-row";
-import { MeetingNotesCard } from "./meeting-copilot/meeting-notes-card";
+import { MeetingNotesCard, MeetingSummaryAttribution } from "./meeting-copilot/meeting-notes-card";
 import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
@@ -222,7 +222,11 @@ export function MeetingRoomCopilotTab({
               className="flex shrink-0 gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (note.trim()) addNote.mutate(note, { onSuccess: () => setNote("") });
+                if (!note.trim()) return;
+                addNote.mutate(note, {
+                  onSuccess: () => setNote(""),
+                  onError: (err) => toastApiError(err, t("meetings.noteAddFailed")),
+                });
               }}
             >
               <Input
@@ -230,6 +234,7 @@ export function MeetingRoomCopilotTab({
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder={t("meetings.notesPlaceholder")}
+                aria-label={t("meetings.notesInputLabel")}
               />
               <Button type="submit" size="sm" disabled={addNote.isPending}>
                 {t("common.save")}
@@ -266,6 +271,9 @@ export function MeetingRoomCopilotTab({
         {section === "actions" ? (
           <section className="space-y-3">
             <h3 className="text-caption font-medium text-foreground">{t("meetings.actionItems")}</h3>
+            {actionItems.length > 0 && summaryUpdatedAt ? (
+              <MeetingSummaryAttribution model={summary?.model} time={summaryUpdatedAt} />
+            ) : null}
             {actionItems.length > 0 ? (
               <ul className="space-y-2">
                 {actionItems.map((it, i) => (

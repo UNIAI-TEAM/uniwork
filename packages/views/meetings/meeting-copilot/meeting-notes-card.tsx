@@ -14,6 +14,27 @@ function summaryLines(text: string): string[] {
     .filter(Boolean);
 }
 
+/** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
+export function MeetingSummaryAttribution({ model, time }: { model?: string; time: string }) {
+  const { t } = useTranslation();
+  return (
+    <p
+      className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground"
+      data-testid="meeting-summary-attribution"
+    >
+      <Badge className="h-4 gap-0.5 border-transparent bg-brand-subtle px-1.5 text-micro text-brand-subtle-foreground">
+        <Sparkles aria-hidden />
+        {t("meetings.aiLabel")}
+      </Badge>
+      <span className="min-w-0">
+        {model
+          ? t("meetings.summaryAttributionModel", { model, time })
+          : t("meetings.summaryAttribution", { time })}
+      </span>
+    </p>
+  );
+}
+
 export function MeetingNotesCard({
   summary,
   decisions,
@@ -74,21 +95,7 @@ export function MeetingNotesCard({
             ) : null}
           </div>
           {summary && summaryUpdatedAt ? (
-            // AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles).
-            <p
-              className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground"
-              data-testid="meeting-summary-attribution"
-            >
-              <Badge className="h-4 gap-0.5 border-transparent bg-brand-subtle px-1.5 text-micro text-brand-subtle-foreground">
-                <Sparkles aria-hidden />
-                {t("meetings.aiLabel")}
-              </Badge>
-              <span className="min-w-0">
-                {summaryModel
-                  ? t("meetings.summaryAttributionModel", { model: summaryModel, time: summaryUpdatedAt })
-                  : t("meetings.summaryAttribution", { time: summaryUpdatedAt })}
-              </span>
-            </p>
+            <MeetingSummaryAttribution model={summaryModel} time={summaryUpdatedAt} />
           ) : null}
           {lines.length > 0 ? (
             <p className="text-pretty text-body text-muted-foreground">{lines[0]}</p>
