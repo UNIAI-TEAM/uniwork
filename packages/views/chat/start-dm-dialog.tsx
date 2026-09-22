@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
-import { ChatDialogBody, ChatDialogContent, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
 import {
   WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
@@ -71,9 +71,9 @@ export function StartDmDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader title={t("chat.start_dm_title")} description={t("chat.start_dm_description")} />
-        <ChatDialogBody>
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("chat.start_dm_title")} description={t("chat.start_dm_description")} />
+        <FormDialogBody>
           <WorkspaceMemberSearchField
             id="start-dm-search"
             label={t("chat.member_search_label")}
@@ -107,8 +107,8 @@ export function StartDmDialog({
             }
             onPick={pickContact}
           />
-        </ChatDialogBody>
-      </ChatDialogContent>
+        </FormDialogBody>
+      </FormDialogContent>
     </Dialog>
   );
 }

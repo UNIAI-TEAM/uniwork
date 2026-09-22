@@ -15,7 +15,7 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { toastApiError } from "../toast-api-error";
-import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 
 export function ChatCreatePostDialog({
   open,
@@ -78,10 +78,10 @@ export function ChatCreatePostDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="lg">
-        <ChatDialogHeader title={t("chat.post_create_title")} description={t("chat.post_create_description")} />
+      <FormDialogContent size="lg">
+        <FormDialogHeader title={t("chat.post_create_title")} description={t("chat.post_create_description")} />
 
-        <ChatDialogBody className="space-y-5">
+        <FormDialogBody className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="post-title">{t("chat.post_title_label")}</Label>
             <Input
@@ -112,9 +112,9 @@ export function ChatCreatePostDialog({
             onCheckedChange={setPinToTop}
             disabledReason={canPinToTop ? undefined : t("chat.post_pin_forbidden")}
           />
-        </ChatDialogBody>
+        </FormDialogBody>
 
-        <ChatDialogFooter
+        <FormDialogFooter
           onCancel={() => onOpenChange(false)}
           submitLabel={t("chat.post_create_submit")}
           submittingLabel={t("chat.post_create_submitting")}
@@ -122,7 +122,7 @@ export function ChatCreatePostDialog({
           submitDisabled={!canCreate}
           onSubmit={handleCreate}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

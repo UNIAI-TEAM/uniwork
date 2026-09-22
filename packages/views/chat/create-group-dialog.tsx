@@ -7,11 +7,11 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import {
-  ChatDialogBody,
-  ChatDialogContent,
-  ChatDialogFooter,
-  ChatDialogHeader,
-} from "./chat-dialog-layout";
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberLookupResult,
@@ -102,12 +102,12 @@ export function CreateGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader
+      <FormDialogContent size="md">
+        <FormDialogHeader
           title={t("chat.create_group_title")}
           description={t("chat.create_group_description")}
         />
-        <ChatDialogBody>
+        <FormDialogBody>
           <div className="space-y-2">
             <Label htmlFor="group-name" className="text-label font-medium">
               {t("chat.group_name_label")}
@@ -159,8 +159,8 @@ export function CreateGroupDialog({
             hasOtherMembers={hasOtherMembers}
             onPick={addMember}
           />
-        </ChatDialogBody>
-        <ChatDialogFooter
+        </FormDialogBody>
+        <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
           submitLabel={t("chat.start_group")}
           submittingLabel={t("chat.creating_group")}
@@ -169,7 +169,7 @@ export function CreateGroupDialog({
           onSubmit={submit}
           leading={missing > 0 ? t("chat.group_member_missing", { count: missing }) : undefined}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

@@ -9,7 +9,7 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { toastApiError } from "../toast-api-error";
-import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 
 const MAX_NICKNAME_LENGTH = 64;
 
@@ -65,12 +65,12 @@ export function ChatSetNicknameDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader
+      <FormDialogContent size="md">
+        <FormDialogHeader
           title={t("chat.nickname_title")}
           description={t("chat.nickname_description", { name: targetLabel })}
         />
-        <ChatDialogBody className="space-y-2">
+        <FormDialogBody className="space-y-2">
           <div className="flex items-baseline justify-between gap-3">
             <Label htmlFor="chat-nickname">{t("chat.nickname_label")}</Label>
             <span id="chat-nickname-count" className="text-caption tabular-nums text-muted-foreground">
@@ -89,8 +89,8 @@ export function ChatSetNicknameDialog({
               if (event.key === "Enter") handleSave();
             }}
           />
-        </ChatDialogBody>
-        <ChatDialogFooter
+        </FormDialogBody>
+        <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
           submitLabel={t("common.save")}
           submittingLabel={t("chat.nickname_saving")}
@@ -115,7 +115,7 @@ export function ChatSetNicknameDialog({
             ) : null
           }
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

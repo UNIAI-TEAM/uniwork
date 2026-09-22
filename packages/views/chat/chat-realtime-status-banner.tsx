@@ -4,7 +4,7 @@ import { CloudOff, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useWSConnectionState } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { ChatNotice } from "./chat-notice";
+import { Notice } from "../common/notice";
 
 export function ChatRealtimeStatusBanner({
   pendingOutboxCount = 0,
@@ -23,7 +23,7 @@ export function ChatRealtimeStatusBanner({
 
   const disconnected = state === "disconnected";
   return (
-    <ChatNotice
+    <Notice
       tone={disconnected ? "warning" : "info"}
       icon={disconnected ? CloudOff : RefreshCw}
       action={
@@ -40,6 +40,6 @@ export function ChatRealtimeStatusBanner({
       {pendingOutboxCount > 0 ? (
         <p>{t("chat.send_outbox_pending", { count: pendingOutboxCount })}</p>
       ) : null}
-    </ChatNotice>
+    </Notice>
   );
 }

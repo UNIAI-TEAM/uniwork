@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useRemoveChatRoomMember, useUpdateChatRoomMember } from "@uniwork/core/chat";
 import { toastApiError } from "../toast-api-error";
-import { ChatConfirmDialog } from "./chat-dialog-layout";
+import { ConfirmDialog } from "../common/form-dialog";
 
 /**
  * Promote, demote, mute, unmute and remove for one room — the moderation the
@@ -52,7 +52,7 @@ export function useRoomMemberModeration({
     unmute: (userId) => update(userId, { send_restricted: false }),
     requestRemove: (userId, _label, confirmTitle) => setPendingRemove({ userId, title: confirmTitle }),
     confirmDialog: (
-      <ChatConfirmDialog
+      <ConfirmDialog
         open={pendingRemove != null}
         onOpenChange={(open) => {
           if (!open) setPendingRemove(null);

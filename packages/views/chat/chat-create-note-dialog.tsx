@@ -10,7 +10,7 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { toastApiError } from "../toast-api-error";
-import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 
 export function ChatCreateNoteDialog({
   open,
@@ -70,10 +70,10 @@ export function ChatCreateNoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader title={t("chat.note_create_title")} description={t("chat.note_create_description")} />
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("chat.note_create_title")} description={t("chat.note_create_description")} />
 
-        <ChatDialogBody className="space-y-5">
+        <FormDialogBody className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="note-body">{t("chat.note_body_label")}</Label>
             <Textarea
@@ -93,9 +93,9 @@ export function ChatCreateNoteDialog({
             onCheckedChange={setPinToTop}
             disabledReason={canPinToTop ? undefined : t("chat.note_pin_forbidden")}
           />
-        </ChatDialogBody>
+        </FormDialogBody>
 
-        <ChatDialogFooter
+        <FormDialogFooter
           onCancel={() => onOpenChange(false)}
           submitLabel={t("chat.note_create_submit")}
           submittingLabel={t("chat.note_create_submitting")}
@@ -103,7 +103,7 @@ export function ChatCreateNoteDialog({
           submitDisabled={!canCreate}
           onSubmit={handleCreate}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

@@ -25,7 +25,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { DateTimeField } from "../common/datetime-field";
 import { toastApiError } from "../toast-api-error";
-import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 
 const QUICK_PRESETS: ReminderQuickPreset[] = ["15m", "30m", "tomorrow_9", "custom"];
 
@@ -152,10 +152,10 @@ export function ChatCreateReminderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="lg">
-        <ChatDialogHeader title={t("chat.reminder_create_title")} description={t("chat.reminder_create_description")} />
+      <FormDialogContent size="lg">
+        <FormDialogHeader title={t("chat.reminder_create_title")} description={t("chat.reminder_create_description")} />
 
-        <ChatDialogBody className="space-y-5">
+        <FormDialogBody className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="reminder-body">{t("chat.reminder_body_label")}</Label>
             <Textarea
@@ -232,9 +232,9 @@ export function ChatCreateReminderDialog({
               items={repeatItems}
             />
           </div>
-        </ChatDialogBody>
+        </FormDialogBody>
 
-        <ChatDialogFooter
+        <FormDialogFooter
           onCancel={() => onOpenChange(false)}
           submitLabel={t("chat.reminder_create_submit")}
           submittingLabel={t("chat.reminder_create_submitting")}
@@ -242,7 +242,7 @@ export function ChatCreateReminderDialog({
           submitDisabled={!canCreate}
           onSubmit={handleCreate}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

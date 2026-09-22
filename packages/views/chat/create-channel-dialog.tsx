@@ -20,11 +20,11 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import {
-  ChatDialogBody,
-  ChatDialogContent,
-  ChatDialogFooter,
-  ChatDialogHeader,
-} from "./chat-dialog-layout";
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberPickerList,
@@ -156,12 +156,12 @@ export function CreateChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChatDialogContent size="lg">
-        <ChatDialogHeader
+      <FormDialogContent size="lg">
+        <FormDialogHeader
           title={t("chat.channel.create_title")}
           description={t("chat.channel.create_description")}
         />
-        <ChatDialogBody className="space-y-5">
+        <FormDialogBody className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="channel-name" className="text-label font-medium">
               {t("chat.channel.name_label")}
@@ -296,8 +296,8 @@ export function CreateChannelDialog({
               {error}
             </p>
           ) : null}
-        </ChatDialogBody>
-        <ChatDialogFooter
+        </FormDialogBody>
+        <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
           submitLabel={t("chat.channel.create")}
           submittingLabel={t("chat.channel.creating")}
@@ -306,7 +306,7 @@ export function CreateChannelDialog({
           onSubmit={submit}
           leading={!nameValid ? t("chat.channel.name_required") : undefined}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }
