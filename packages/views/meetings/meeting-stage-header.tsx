@@ -100,7 +100,7 @@ export function MeetingStageHeader({
   return (
     <>
       <div
-        className="relative z-20 shrink-0 border-b border-meeting-bar-border/30 bg-rail px-3 py-2 sm:px-4 sm:py-2.5"
+        className="relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5"
         data-testid="meeting-stage-header"
       >
         <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3">
@@ -108,7 +108,7 @@ export function MeetingStageHeader({
             {meetingsHref && !guestMode ? (
               <nav
                 aria-label={t("meetings.title")}
-                className="mb-0.5 truncate text-caption text-meeting-bar-foreground/70"
+                className="mb-0.5 truncate text-caption text-meeting-bar-muted-foreground"
               >
                 {workspaceLabel ? (
                   <>
@@ -132,12 +132,12 @@ export function MeetingStageHeader({
               </h1>
               {scheduleRange && meeting ? (
                 <>
-                  <span aria-hidden className="shrink-0 text-meeting-bar-foreground/35">
+                  <span aria-hidden className="shrink-0 text-meeting-bar-muted-foreground">
                     ·
                   </span>
                   <time
                     dateTime={`${meeting.starts_at}/${meeting.ends_at}`}
-                    className="min-w-0 truncate text-caption text-meeting-bar-foreground/75 tabular-nums"
+                    className="min-w-0 truncate text-caption text-meeting-bar-muted-foreground tabular-nums"
                   >
                     {scheduleRange}
                   </time>
@@ -145,7 +145,7 @@ export function MeetingStageHeader({
               ) : null}
             </div>
             {description ? (
-              <p className="mt-0.5 truncate text-caption text-meeting-bar-foreground/70">{description}</p>
+              <p className="mt-0.5 truncate text-caption text-meeting-bar-muted-foreground">{description}</p>
             ) : null}
           </div>
 
@@ -166,7 +166,7 @@ export function MeetingStageHeader({
             {remaining ? (
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tabular-nums shadow-sm",
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tabular-nums",
                   pastScheduledEnd || urgent
                     ? "bg-destructive-solid text-on-solid"
                     : "border border-meeting-bar-border bg-background text-foreground",
@@ -195,7 +195,7 @@ export function MeetingStageHeader({
               <Button
                 type="button"
                 size="sm"
-                className="h-8 !border-destructive-solid !bg-destructive-solid px-2.5 font-semibold !text-on-solid shadow-sm hover:!bg-destructive-solid/90 hover:!text-on-solid"
+                className="h-8 !border-destructive-solid !bg-destructive-solid px-2.5 font-semibold !text-on-solid hover:!bg-destructive-solid/90 hover:!text-on-solid"
                 disabled={end.isPending}
                 onClick={() => setEndConfirmOpen(true)}
               >
@@ -229,7 +229,7 @@ export function MeetingStageHeader({
                   ))}
                 </div>
                 {overflowCount > 0 ? (
-                  <span className="ml-1.5 text-caption tabular-nums text-meeting-bar-foreground/80">
+                  <span className="ml-1.5 text-caption tabular-nums text-meeting-bar-muted-foreground">
                     {t("meetings.moreParticipantsShort", { count: overflowCount })}
                   </span>
                 ) : null}

@@ -5,7 +5,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 
 /** Dark glass shell for in-room and prejoin control bars on the video rail. */
 export const MEETING_DARK_BAR =
-  "pointer-events-auto flex items-center gap-2 rounded-2xl border border-meeting-bar-border bg-meeting-bar-bg p-2 shadow-[var(--floating-shadow)] backdrop-blur-md sm:p-2.5";
+  "pointer-events-auto flex items-center gap-2 rounded-2xl border border-meeting-bar-border bg-meeting-bar-bg p-2 shadow-floating sm:p-2.5";
 
 /** Icon chip on the dark meeting control bar. */
 export const MEETING_DARK_BAR_CHIP =

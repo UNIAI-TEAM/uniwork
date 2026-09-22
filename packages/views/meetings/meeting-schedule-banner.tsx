@@ -24,10 +24,13 @@ import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
 import { formatRemaining } from "./meeting-datetime";
 
-const BANNER_ANIM_MS = 280;
+/** Matches duration-standard on the slot, so the banner unmounts after it collapses. */
+const BANNER_ANIM_MS = 200;
 
+// Host actions sit on the solid destructive bar: outlined in the bar's own
+// foreground, filled on hover.
 const hostBtn =
-  "h-8 border-background/40 bg-background/10 text-background hover:bg-background/20";
+  "h-8 border-on-solid bg-transparent text-on-solid hover:bg-on-solid hover:text-destructive-solid";
 
 /** In-room banner: last minute of the scheduled window, then overtime until the host ends. */
 export function MeetingScheduleBanner({
@@ -97,10 +100,9 @@ export function MeetingScheduleBanner({
   return (
     <div
       className={cn(
-        "grid shrink-0 motion-safe:transition-[grid-template-rows] motion-safe:ease-out motion-reduce:transition-none",
+        "grid shrink-0 motion-safe:transition-[grid-template-rows] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none",
         expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
       )}
-      style={{ transitionDuration: `${BANNER_ANIM_MS}ms` }}
       data-testid="meeting-schedule-banner-slot"
       data-expanded={expanded ? "true" : undefined}
     >
@@ -108,9 +110,8 @@ export function MeetingScheduleBanner({
         <div
           className={cn(
             "mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium",
-            overtime
-              ? "border border-warning/40 bg-warning/95 text-background"
-              : "pointer-events-none border border-destructive/40 bg-destructive-solid text-on-solid",
+            // The last minute warns; running past the window is the harder state.
+            overtime ? "bg-destructive-solid text-on-solid" : "pointer-events-none bg-warning-solid text-on-solid",
           )}
           data-testid="meeting-schedule-banner"
         >

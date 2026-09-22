@@ -59,7 +59,7 @@ export function MemberMultiPicker({
           />
         </div>
       ) : null}
-      <p className="shrink-0 text-caption font-semibold tracking-wide text-muted-foreground uppercase">
+      <p className="shrink-0 text-overline text-muted-foreground">
         {t("meetings.memberSuggestions")}
       </p>
       <ul className="min-h-0 max-h-56 min-w-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface">
@@ -74,8 +74,8 @@ export function MemberMultiPicker({
               <li key={m.user_id}>
                 <label
                   className={cn(
-                    "flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/60",
-                    checked && "bg-muted/40",
+                    "flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface-hover",
+                    checked && "bg-surface-selected",
                   )}
                 >
                   <Avatar size="sm">

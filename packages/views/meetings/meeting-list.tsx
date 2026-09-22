@@ -111,7 +111,7 @@ function MeetingDayCards({
         return (
           <li key={m.id}>
             <MeetingCardRow
-              className={cn(live && "border-brand/30 bg-brand/5")}
+              className={cn(live && "border-success-solid")}
             >
               <MeetingCardRowTime>{formatMeetingTimes(m.starts_at, m.ends_at, locale)}</MeetingCardRowTime>
               <MeetingCardRowMain>
@@ -174,7 +174,7 @@ function MeetingDayMobileList({
         const ended = m.status === "ENDED";
         return (
           <li key={m.id}>
-            <MeetingCardRow className={cn(live && "border-brand/30 bg-brand/5")}>
+            <MeetingCardRow className={cn(live && "border-success-solid")}>
               <MeetingCardRowTime>{formatMeetingTimes(m.starts_at, m.ends_at, locale)}</MeetingCardRowTime>
               <MeetingCardRowMain>
                 <AppLink
@@ -248,7 +248,7 @@ export function MeetingList({
               {formatMeetingDay(group.day, locale)}
             </h2>
             {group.day === today ? (
-              <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-caption font-medium text-brand">
+              <span className="shrink-0 rounded-full bg-brand-subtle px-2 py-0.5 text-caption font-medium text-brand-subtle-foreground">
                 {t("meetings.today")}
               </span>
             ) : null}

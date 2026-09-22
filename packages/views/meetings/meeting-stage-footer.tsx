@@ -34,7 +34,7 @@ function MeetingHandsBanner({ className }: { className?: string }) {
       role="status"
       aria-live="polite"
       className={cn(
-        "pointer-events-none flex w-fit max-w-[min(100%,48rem)] items-center gap-2 rounded-xl bg-warning/95 px-3 py-2 text-label font-medium text-background shadow-sm backdrop-blur-sm",
+        "pointer-events-none flex w-fit max-w-[min(100%,48rem)] items-center gap-2 rounded-xl bg-warning-solid px-3 py-2 text-label font-medium text-on-solid shadow-floating",
         className,
       )}
       data-testid="meeting-hands-banner"

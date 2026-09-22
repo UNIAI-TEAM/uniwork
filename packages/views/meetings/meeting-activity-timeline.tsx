@@ -46,7 +46,7 @@ export function MeetingActivityTimeline({
               <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">
                 {open ? t("meetings.hideActivity") : t("meetings.showActivity", { count: all.length })}
                 <ChevronDown
-                  className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")}
+                  className={cn("size-3.5 transition-transform duration-standard", open && "rotate-180")}
                   aria-hidden
                 />
               </Button>

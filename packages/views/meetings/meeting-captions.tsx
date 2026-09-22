@@ -147,7 +147,7 @@ export function MeetingCaptionsOverlay({
         )}
         data-testid="meeting-captions"
       >
-        <p className="rounded-xl bg-background/90 px-4 py-2 text-center text-body text-foreground ring-1 ring-border backdrop-blur-md">
+        <p className="rounded-xl bg-meeting-bar-bg px-4 py-2 text-center text-body text-meeting-bar-foreground ring-1 ring-meeting-bar-border">
           {text || t("meetings.captionsListening")}
         </p>
       </div>

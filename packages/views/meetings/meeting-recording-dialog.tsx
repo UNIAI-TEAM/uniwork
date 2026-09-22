@@ -118,7 +118,7 @@ export function MeetingRecordingDialog({
         {status === "ready" && playbackUrlRef.current ? (
           /* eslint-disable-next-line jsx-a11y/media-has-caption -- meeting recording playback has no caption track */
           <video
-            className="max-h-[min(70vh,720px)] w-full rounded-md bg-black object-contain"
+            className="max-h-[min(70vh,720px)] w-full rounded-md bg-meeting-video-bg object-contain"
             controls
             playsInline
             preload="metadata"

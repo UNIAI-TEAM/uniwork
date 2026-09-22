@@ -55,7 +55,7 @@ export function MeetingMediaToggle({
       aria-label={label}
       aria-pressed={on}
       onClick={onClick}
-      className="rounded-full shadow-sm"
+      className="rounded-full shadow-surface"
     >
       {children}
     </Button>

@@ -145,7 +145,7 @@ export function MeetingInviteLinksSection({
                 : t("meetings.showInactiveLinks", { count: inactiveLinks.length })}
             </Button>
             {showInactive ? (
-              <ul className="-mx-4 mt-1 divide-y divide-border border-y border-border bg-surface-hover/50">
+              <ul className="-mx-4 mt-1 divide-y divide-border border-y border-border bg-surface-hover">
                 {inactiveLinks.map((link) => (
                   <InviteLinkRow
                     key={link.id}

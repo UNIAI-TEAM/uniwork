@@ -25,7 +25,7 @@ function CameraPreviewFallback({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-rail ring-1 ring-border",
+        "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-meeting-stage ring-1 ring-border",
         className,
       )}
     >
@@ -80,15 +80,15 @@ export function MeetingPublicInviteForm({
       <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-12">
         <section aria-label={t("meetings.devicePreviewTitle")} className="min-w-0">
           <div className="relative">
-            <Suspense fallback={<CameraPreviewFallback className="aspect-video min-h-52 rounded-2xl shadow-[var(--floating-shadow)] sm:min-h-60" />}>
+            <Suspense fallback={<CameraPreviewFallback className="aspect-video min-h-52 rounded-2xl shadow-floating sm:min-h-60" />}>
               <MeetingCameraPreview
                 active={video}
-                className="aspect-video min-h-52 rounded-2xl shadow-[var(--floating-shadow)] sm:min-h-60"
+                className="aspect-video min-h-52 rounded-2xl shadow-floating sm:min-h-60"
                 onStatusChange={onPreviewStatus}
               />
             </Suspense>
             {trimmedName ? (
-              <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-lg bg-black/55 px-3 py-1.5 text-label font-medium text-white backdrop-blur-sm">
+              <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-lg bg-meeting-tile-name-bg px-3 py-1.5 text-label font-medium text-meeting-tile-name-foreground">
                 {trimmedName}
               </span>
             ) : null}
@@ -107,7 +107,7 @@ export function MeetingPublicInviteForm({
 
         <section className="mx-auto flex w-full max-w-md flex-col gap-5 lg:mx-0 lg:max-w-none">
           <div className="space-y-2">
-            <p className="text-caption font-medium tracking-wide text-muted-foreground uppercase">
+            <p className="text-overline text-muted-foreground">
               {t("meetings.publicInviteTitle")}
             </p>
             <h1 className="text-balance text-display-sm font-semibold tracking-tight text-foreground">{title}</h1>
@@ -120,7 +120,7 @@ export function MeetingPublicInviteForm({
             <div
               className={cn(
                 "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-caption font-medium",
-                needsApproval ? "bg-warning/10 text-warning" : "bg-success/10 text-success",
+                needsApproval ? "bg-info-soft text-info-soft-foreground" : "bg-success-soft text-success-soft-foreground",
               )}
             >
               {needsApproval ? (

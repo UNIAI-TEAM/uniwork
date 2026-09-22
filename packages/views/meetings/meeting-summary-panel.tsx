@@ -161,7 +161,7 @@ export function MeetingSummaryPanel({
             <p className="whitespace-pre-wrap text-pretty text-body-lg leading-relaxed text-foreground">{summary.summary}</p>
             {decisions.length > 0 ? (
               <div>
-                <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+                <h3 className="mb-2 text-overline text-muted-foreground">
                   {t("meetings.decisions")}
                 </h3>
                 <ul className="space-y-1.5">
@@ -176,7 +176,7 @@ export function MeetingSummaryPanel({
             ) : null}
             {actionItems.length > 0 ? (
               <div>
-                <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+                <h3 className="mb-2 text-overline text-muted-foreground">
                   {t("meetings.actionItems")}
                 </h3>
                 <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
@@ -267,10 +267,10 @@ export function MeetingSummaryPanel({
             {showTranscript
               ? t("meetings.hideTranscript")
               : t("meetings.showTranscript", { count: transcript?.length ?? 0 })}
-            <ChevronDown aria-hidden className={cn("size-3.5 transition-transform duration-200", showTranscript && "rotate-180")} />
+            <ChevronDown aria-hidden className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")} />
           </button>
           {showTranscript ? (
-            <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover/40 p-3" data-testid="meeting-transcript">
+            <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover p-3" data-testid="meeting-transcript">
               {(transcript ?? []).map((s) => (
                 <li key={s.id} className="text-body text-foreground">
                   <span className="mr-1 text-caption font-medium text-muted-foreground">{s.speaker_name || "—"}</span>
@@ -286,7 +286,7 @@ export function MeetingSummaryPanel({
 
         {(recordings ?? []).length > 0 ? (
           <div>
-            <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-2 text-overline text-muted-foreground">
               {t("meetings.recordings")}
             </h3>
             <ul className="space-y-1.5">

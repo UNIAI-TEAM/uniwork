@@ -299,7 +299,7 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
             label={t("meetings.deviceBackgroundBlur")}
             onSelect={() => selectBackground("blur")}
           >
-            <span className="flex size-full items-center justify-center bg-gradient-to-br from-muted to-rail text-muted-foreground">
+            <span className="flex size-full items-center justify-center bg-muted text-muted-foreground">
               <Droplets aria-hidden className="size-6" />
             </span>
           </BackgroundOption>

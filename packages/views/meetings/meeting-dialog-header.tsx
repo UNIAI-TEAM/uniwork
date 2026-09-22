@@ -19,7 +19,7 @@ export function MeetingDialogHeader({
   return (
     <div className={cn("flex gap-3", className)}>
       {Icon ? (
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand-subtle-foreground">
           <Icon aria-hidden className="size-5" />
         </span>
       ) : null}

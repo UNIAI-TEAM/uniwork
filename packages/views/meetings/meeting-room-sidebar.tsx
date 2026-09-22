@@ -118,7 +118,7 @@ export function MeetingRoomSidebar({
           {meetingId ? (
             <MeetingRoomFilesTab meetingId={meetingId} />
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-hover px-4 py-8 text-center">
               <p className="text-label text-muted-foreground">{t("meetings.filesEmpty")}</p>
             </div>
           )}

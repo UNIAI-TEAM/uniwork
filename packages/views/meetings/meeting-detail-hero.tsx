@@ -61,7 +61,6 @@ export function MeetingDetailHero({
   const ended = meeting.status === "ENDED";
   const canceled = meeting.status === "CANCELED";
   const closed = ended || canceled;
-  const live = inProgress && canEnter;
   const badgeStatus = displayMeetingStatus(meeting);
 
   const duration = meetingDurationParts(meeting.starts_at, meeting.ends_at);
@@ -90,14 +89,10 @@ export function MeetingDetailHero({
     <section
       aria-label={meeting.title}
       className={cn(
-        "relative overflow-hidden rounded-2xl border bg-surface shadow-[var(--surface-shadow)]",
-        live ? "border-brand/30" : "border-surface-border",
+        "relative overflow-hidden rounded-2xl border border-surface-border bg-surface shadow-surface",
         canceled && "opacity-90",
       )}
     >
-      {live ? (
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-brand/10 to-transparent" />
-      ) : null}
       <div className="relative p-5 sm:p-6 lg:p-8">
         <div className="flex flex-wrap items-center gap-2">
           <MeetingStatusBadge status={badgeStatus} />
@@ -113,7 +108,7 @@ export function MeetingDetailHero({
         <h1
           className={cn(
             "mt-3 max-w-4xl text-balance text-display-sm font-semibold tracking-tight text-foreground",
-            canceled && "line-through decoration-faint-foreground/60",
+            canceled && "line-through decoration-faint-foreground",
           )}
         >
           {meeting.title}
@@ -156,7 +151,7 @@ export function MeetingDetailHero({
         ) : null}
 
         {!canEnter && !closed ? (
-          <p role="status" className="mt-5 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2.5 text-body text-foreground dark:bg-warning/10">
+          <p role="status" className="mt-5 flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2.5 text-body text-warning-soft-foreground">
             <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
             {t("meetings.pastScheduledEndHint")}
           </p>
@@ -172,7 +167,7 @@ export function MeetingDetailHero({
                 </Button>
               ) : null}
               {closed || !canEnter ? null : (
-                <Button type="button" size="lg" variant="brand" className="px-4 shadow-[var(--surface-shadow)]" onClick={onJoin}>
+                <Button type="button" size="lg" variant="brand" className="px-4" onClick={onJoin}>
                   <Video aria-hidden />
                   {joinLabel}
                 </Button>

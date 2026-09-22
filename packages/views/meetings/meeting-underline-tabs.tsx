@@ -37,7 +37,7 @@ export function MeetingUnderlineTabs<T extends string>({
             aria-selected={active}
             aria-label={text}
             className={cn(
-              "relative min-h-10 shrink-0 border-0 bg-transparent px-2.5 py-2 text-caption font-medium leading-tight whitespace-nowrap transition-colors duration-200 pointer-coarse:min-h-11",
+              "relative min-h-10 shrink-0 border-0 bg-transparent px-2.5 py-2 text-caption font-medium leading-tight whitespace-nowrap transition-colors duration-standard pointer-coarse:min-h-11",
               active ? "text-brand" : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => onChange(tab)}

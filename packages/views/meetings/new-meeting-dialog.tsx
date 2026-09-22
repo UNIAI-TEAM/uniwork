@@ -75,7 +75,7 @@ export function NewMeetingDialog({
         render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>}
       />
       <DialogContent className="flex max-h-[min(90dvh,44rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="shrink-0 space-y-0 border-b border-border bg-muted/20 px-5 py-4">
+        <DialogHeader className="shrink-0 space-y-0 border-b border-border px-5 py-4">
           <MeetingDialogHeader icon={CalendarDays} title={t("meetings.new")} />
           <DialogTitle className="sr-only">{t("meetings.new")}</DialogTitle>
         </DialogHeader>
@@ -182,7 +182,7 @@ export function NewMeetingDialog({
               </InfoHint>
             </div>
           </FieldGroup>
-          <DialogFooter className="mx-0 mb-0 shrink-0 gap-3 rounded-none border-t border-border bg-muted/10 px-5 py-4 sm:flex-row sm:justify-end">
+          <DialogFooter className="mx-0 mb-0 shrink-0 gap-3 rounded-none border-t border-border bg-surface-hover px-5 py-4 sm:flex-row sm:justify-end">
             <DialogClose render={<Button type="button" variant="outline" className="min-w-24" />}>
               {t("common.cancel")}
             </DialogClose>

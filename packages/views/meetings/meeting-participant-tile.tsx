@@ -37,14 +37,14 @@ function hasPlayableVideo(track: TrackReferenceOrPlaceholder | undefined): boole
 function MicStatusBadge({ muted, speaking }: { muted: boolean; speaking: boolean }) {
   if (muted) {
     return (
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-destructive-solid text-on-solid">
         <MicOff aria-hidden className="size-3.5" />
       </span>
     );
   }
   if (speaking) {
     return (
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success/20 text-success">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success-solid text-on-solid">
         <Volume2 aria-hidden className="size-3.5" />
       </span>
     );
@@ -110,11 +110,11 @@ function MeetingTileHoverActions({
     >
       <div
         aria-hidden
-        className="absolute inset-0 bg-black/35 motion-reduce:transition-none motion-safe:transition-opacity"
+        className="absolute inset-0 bg-meeting-scrim motion-reduce:transition-none motion-safe:transition-opacity"
       />
       <div
         className={cn(
-          "relative flex items-center gap-0.5 rounded-full bg-meeting-bar-bg/95 p-0.5 ring-1 ring-meeting-bar-border backdrop-blur-sm",
+          "relative flex items-center gap-0.5 rounded-full bg-meeting-bar-bg p-0.5 ring-1 ring-meeting-bar-border",
           compact && "gap-0",
         )}
       >
@@ -237,7 +237,7 @@ export function MeetingParticipantTile({
         }
       }}
       className={cn(
-        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-[280ms] motion-safe:ease-out motion-reduce:transition-none",
+        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none",
         compact ? "aspect-[4/3] rounded-2xl" : "h-full rounded-3xl",
       )}
       data-hand-raised={handRaised || undefined}
@@ -310,14 +310,14 @@ export function MeetingParticipantTile({
           <MeetingPersonAvatar
             name={name}
             size={compact ? "sm" : "default"}
-            className={cn(compact ? "size-10" : "size-16", "ring-2 ring-brand/30")}
+            className={cn(compact ? "size-10" : "size-16", "ring-2 ring-meeting-bar-border")}
           />
         </div>
       )}
       {showNameLabel ? (
         <span
           className={cn(
-            "pointer-events-none absolute z-10 max-w-[calc(100%-2.5rem)] truncate rounded-full px-2.5 py-0.5 text-caption backdrop-blur-sm",
+            "pointer-events-none absolute z-10 max-w-[calc(100%-2.5rem)] truncate rounded-full px-2.5 py-0.5 text-caption",
             "bg-meeting-tile-name-bg text-meeting-tile-name-foreground",
             compact ? "bottom-1.5 left-1.5" : "bottom-2 left-2 sm:bottom-3 sm:left-3",
           )}

@@ -166,7 +166,7 @@ export function MeetingRoomPeopleTab({
         </Button>
       ) : null}
 
-      <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-muted/30">
+      <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-surface-hover">
         <InputGroupAddon align="inline-start">
           <Search aria-hidden className="size-4" />
         </InputGroupAddon>
@@ -186,12 +186,12 @@ export function MeetingRoomPeopleTab({
         </p>
       ) : null}
 
-      <p className="mb-2 shrink-0 text-caption font-semibold tracking-wide text-muted-foreground uppercase">
+      <p className="mb-2 shrink-0 text-overline text-muted-foreground">
         {t("meetings.inTheMeeting")}
       </p>
 
       <Collapsible open={contributorsOpen} onOpenChange={setContributorsOpen} className="min-h-0 flex-1">
-        <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-muted/40">
+        <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-surface-hover">
           <ChevronDown
             aria-hidden
             className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !contributorsOpen && "-rotate-90")}

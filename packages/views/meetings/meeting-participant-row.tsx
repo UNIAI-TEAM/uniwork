@@ -67,8 +67,8 @@ export function MeetingParticipantRow({
     <div
       className={cn(
         "group flex min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 transition-colors",
-        "hover:bg-muted/40",
-        pinned && "bg-surface-selected ring-1 ring-brand/20",
+        "hover:bg-surface-hover",
+        pinned && "bg-surface-selected",
       )}
     >
       <Avatar size="sm" className="shrink-0">

@@ -6,7 +6,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MEETING_DARK_BAR } from "./meeting-dark-bar";
-import { MeetingLobbyBackground } from "./meeting-lobby-background";
+import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingWaitingIllustration } from "./meeting-waiting-illustration";
 
 export function lobbyMessage(t: (key: string) => string, decision: string | undefined, error: unknown): string {
@@ -126,7 +126,7 @@ export function MeetingLobby({
     const statusTitle = waitingApproval ? t("meetings.waitingApprovalTitle") : t("meetings.prejoinTitle");
 
     return (
-      <MeetingLobbyBackground>
+      <MeetingCanvas>
         <div
           role="status"
           className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8"
@@ -140,7 +140,7 @@ export function MeetingLobby({
             </div>
             <div className="flex flex-col gap-5 text-center lg:text-left">
               <div className="space-y-2.5">
-                <p className="text-caption font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="text-overline text-muted-foreground">
                   {statusTitle}
                 </p>
                 {title ? (
@@ -149,7 +149,7 @@ export function MeetingLobby({
                   </h1>
                 ) : null}
               </div>
-              <div className="rounded-2xl border border-surface-border bg-surface-raised px-5 py-5 shadow-[var(--floating-shadow)] sm:px-6 sm:py-6">
+              <div className="rounded-2xl border border-surface-border bg-surface-raised px-5 py-5 shadow-floating sm:px-6 sm:py-6">
                 <div className="flex items-start gap-3.5 sm:items-center">
                   <Spinner className="mt-0.5 size-5 shrink-0 text-brand sm:mt-0" />
                   <div className="min-w-0 flex-1 text-left">
@@ -169,7 +169,7 @@ export function MeetingLobby({
             </Button>
           ) : null}
         </LobbyControlBar>
-      </MeetingLobbyBackground>
+      </MeetingCanvas>
     );
   }
 
@@ -178,7 +178,7 @@ export function MeetingLobby({
       role="status"
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-        showRequest || error ? "items-center justify-center gap-3 p-6 text-center" : "dark bg-rail",
+        showRequest || error ? "items-center justify-center gap-3 p-6 text-center" : "dark bg-meeting-stage",
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-6 text-center">

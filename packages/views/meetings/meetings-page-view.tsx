@@ -127,7 +127,7 @@ export function MeetingsPageView({
               workspaceId={workspaceId}
               meetings={meetings}
               onOpenRoom={onOpenRoom}
-              className={isPlaceholderData ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}
+              className={isPlaceholderData ? "opacity-60 transition-opacity duration-fast" : "transition-opacity duration-fast"}
             />
           )}
           {total > PAGE_SIZE ? (

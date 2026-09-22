@@ -24,7 +24,7 @@ import { useMeetingSignals } from "./use-meeting-signals";
 
 /** Filled destructive on the dark bar. */
 export const SOLID_DESTRUCTIVE =
-  "border-destructive !bg-destructive text-brand-foreground hover:!bg-destructive/90 focus-visible:border-destructive focus-visible:ring-destructive/30";
+  "border-destructive-solid !bg-destructive-solid text-on-solid hover:!bg-destructive-solid/90 focus-visible:border-destructive-solid focus-visible:ring-destructive/30";
 
 export function IconControl({
   label,

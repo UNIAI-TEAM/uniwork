@@ -19,7 +19,7 @@ export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
 
   if (shared.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-hover px-4 py-8 text-center">
         <p className="text-label text-muted-foreground">{t("meetings.filesEmpty")}</p>
       </div>
     );
@@ -31,7 +31,7 @@ export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
         {shared.map((r) => (
           <li
             key={r.id}
-            className="flex flex-col gap-2 rounded-xl border border-border bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-xl border border-border bg-surface-hover px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
           >
             <span className="text-caption tabular-nums text-muted-foreground">
               {r.started_at

@@ -169,11 +169,11 @@ function ConferenceStage({
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-app-shell">
       <div
         className={cn(
-          "flex min-h-0 min-w-0 flex-1 px-3 pb-3 pt-2 motion-safe:transition-[gap] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none",
+          "flex min-h-0 min-w-0 flex-1 px-3 pb-3 pt-2 motion-safe:transition-[gap] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none",
           !compact && sidebarPinned ? "gap-3" : "gap-0",
         )}
       >
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-rail ring-1 ring-surface-border transition-[flex-grow,width] duration-300 ease-out motion-reduce:transition-none">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border transition-[flex-grow,width] duration-standard ease-out motion-reduce:transition-none">
           <div className="dark flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <MeetingStageHeader
             meeting={meeting}
@@ -240,7 +240,7 @@ function ConferenceStage({
               <>
                 <div
                   className={cn(
-                    "grid min-h-0 min-w-0 flex-1 auto-rows-fr gap-2 motion-safe:transition-[grid-template-columns,gap] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none sm:gap-3",
+                    "grid min-h-0 min-w-0 flex-1 auto-rows-fr gap-2 motion-safe:transition-[grid-template-columns,gap] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none sm:gap-3",
                     stage.gridClass,
                   )}
                   data-lk-theme="default"
@@ -284,14 +284,14 @@ function ConferenceStage({
             </div>
             <div
               aria-hidden
-              className="shrink-0 motion-safe:transition-[height] motion-safe:duration-[280ms] motion-safe:ease-out motion-reduce:transition-none"
+              className="shrink-0 motion-safe:transition-[height] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none"
               style={{ height: footerReserve }}
               data-testid="meeting-stage-footer-spacer"
             />
           </div>
 
           {stage.pages > 1 ? (
-            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-full bg-background/80 p-1 ring-1 ring-border">
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-full bg-meeting-bar-bg p-1 text-meeting-bar-foreground ring-1 ring-meeting-bar-border">
               <Button
                 type="button"
                 size="icon"
@@ -323,7 +323,7 @@ function ConferenceStage({
 
           <StartMediaButton
             label={t("meetings.allowMedia")}
-            className="absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground motion-safe:transition-[bottom] motion-safe:duration-[250ms] motion-safe:ease-out motion-reduce:transition-none"
+            className="absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground motion-safe:transition-[bottom] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none"
             style={{ bottom: footerReserve + 16 }}
           />
           </div>
@@ -359,7 +359,7 @@ function ConferenceStage({
         {!compact ? (
           <div
             className={cn(
-              "hidden min-h-0 shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border motion-safe:transition-[width,opacity] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none lg:flex",
+              "hidden min-h-0 shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border motion-safe:transition-[width,opacity] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none lg:flex",
               sidebarPinned ? "w-[22rem] opacity-100 xl:w-[24rem]" : "pointer-events-none w-0 opacity-0 ring-transparent",
             )}
             aria-hidden={!sidebarPinned}

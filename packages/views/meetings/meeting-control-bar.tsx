@@ -183,7 +183,7 @@ export function MeetingControlBar({
           MEETING_DARK_BAR,
           embedded || floating
             ? "w-fit"
-            : "w-full max-w-none border-0 bg-transparent p-0 shadow-none backdrop-blur-none",
+            : "w-full max-w-none border-0 bg-transparent p-0 shadow-none",
           !embedded && floating && "max-w-3xl",
         )}
       >

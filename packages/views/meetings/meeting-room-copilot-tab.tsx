@@ -202,7 +202,7 @@ export function MeetingRoomCopilotTab({
                 (notes ?? []).map((n) => (
                   <li
                     key={n.id}
-                    className="rounded-xl border border-border bg-surface-hover/40 p-3"
+                    className="rounded-xl border border-border bg-surface-hover p-3"
                   >
                     <div className="mb-1 text-caption text-muted-foreground">
                       {n.display_name ?? n.author_id}
@@ -236,7 +236,7 @@ export function MeetingRoomCopilotTab({
           <section>
             <ol className="space-y-2">
               {(transcript ?? []).map((s) => (
-                <li key={s.id} className="rounded-lg bg-muted/30 px-2.5 py-2 text-body text-foreground">
+                <li key={s.id} className="rounded-lg bg-surface-hover px-2.5 py-2 text-body text-foreground">
                   <span className="text-caption font-medium text-brand">{s.speaker_name || "—"}</span>
                   <span className="text-muted-foreground"> · </span>
                   {s.text}
@@ -296,13 +296,13 @@ export function MeetingRoomCopilotTab({
         {activeRecording ? (
           <section className="space-y-2 border-t border-border pt-4">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-caption font-medium text-destructive">
+              <span className="inline-flex items-center gap-1 rounded-full bg-destructive-soft px-2 py-0.5 text-caption font-medium text-destructive-soft-foreground">
                 <Circle aria-hidden className="size-2 fill-current" />
                 {t("meetings.recording")}
               </span>
               <Video aria-hidden className="size-3.5 text-muted-foreground" />
             </div>
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <div className="rounded-xl border border-border bg-surface-hover p-3">
               <p className="text-body text-foreground">{t("meetings.liveRecordingRunning")}</p>
               <p className="mt-1 font-mono text-title-sm tabular-nums text-brand">{recordingElapsed}</p>
             </div>

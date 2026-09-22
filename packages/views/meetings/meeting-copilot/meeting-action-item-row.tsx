@@ -28,7 +28,7 @@ export function MeetingActionItemRow({
   assigneePreviewName?: string;
 }) {
   return (
-    <li className="flex items-start gap-2.5 rounded-xl border border-border bg-surface-hover/30 px-3 py-2.5">
+    <li className="flex items-start gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
       {selectable ? (
         <Checkbox
           className="mt-0.5"

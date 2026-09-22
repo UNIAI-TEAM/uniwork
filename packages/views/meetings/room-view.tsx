@@ -188,7 +188,7 @@ export function MeetingRoomView({
         >
           <div aria-hidden className="grid w-full max-w-md grid-cols-2 gap-3">
             {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="aspect-video rounded-2xl bg-rail" />
+              <Skeleton key={i} className="aspect-video rounded-2xl bg-meeting-stage" />
             ))}
           </div>
           {(meeting?.title ?? meetingTitle) ? (

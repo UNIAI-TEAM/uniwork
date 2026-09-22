@@ -103,7 +103,7 @@ export function MeetingEditDialog({
           }}
         >
           <div className="space-y-3">
-            <h3 className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-overline text-muted-foreground">
               {t("meetings.editSectionDetails")}
             </h3>
             <FieldGroup>
@@ -124,7 +124,7 @@ export function MeetingEditDialog({
             </p>
           ) : (
             <div className="space-y-3">
-              <h3 className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
+              <h3 className="text-overline text-muted-foreground">
                 {t("meetings.editSectionSchedule")}
               </h3>
               <FieldGroup>
@@ -155,7 +155,7 @@ export function MeetingEditDialog({
           )}
 
           <div className="space-y-3">
-            <h3 className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-overline text-muted-foreground">
               {t("meetings.editSectionAccess")}
             </h3>
             <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3">
