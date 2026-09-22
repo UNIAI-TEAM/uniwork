@@ -24,7 +24,12 @@ import {
 } from "../common/form-dialog";
 import { Notice } from "../common/notice";
 import { toastApiError } from "../toast-api-error";
-import { combineLocalIso, defaultScheduleDraft } from "./meeting-datetime";
+import {
+  combineLocalIso,
+  defaultScheduleDraft,
+  scheduleDraftFromDefaults,
+  type ScheduleDraft,
+} from "./meeting-datetime";
 import { MemberMultiPicker } from "./member-multi-picker";
 import {
   browserTimeZone,
@@ -36,22 +41,24 @@ export function NewMeetingDialog({
   workspaceId,
   onCreated,
   trigger,
+  scheduleDefaults,
 }: {
   workspaceId: string;
   onCreated?: (id: string) => void;
   trigger?: ReactElement;
+  /** Local wall date/times; same shape as `defaultScheduleDraft`. */
+  scheduleDefaults?: ScheduleDraft;
 }) {
   const { t } = useTranslation();
   const id = useId();
   const userId = useAuthStore((s) => s.user?.id);
   const create = useCreateMeeting(workspaceId);
-  const draft = defaultScheduleDraft();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [date, setDate] = useState(draft.date);
-  const [start, setStart] = useState(draft.start);
-  const [end, setEnd] = useState(draft.end);
+  const [date, setDate] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).date);
+  const [start, setStart] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).start);
+  const [end, setEnd] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).end);
   const [attendees, setAttendees] = useState<string[]>([]);
   const [allowJoin, setAllowJoin] = useState(true);
 
@@ -68,7 +75,14 @@ export function NewMeetingDialog({
 
   const changeOpen = (next: boolean) => {
     setOpen(next);
-    if (!next) reset();
+    if (next) {
+      const draft = scheduleDraftFromDefaults(scheduleDefaults);
+      setDate(draft.date);
+      setStart(draft.start);
+      setEnd(draft.end);
+    } else {
+      reset();
+    }
   };
 
   const titleMissing = !title.trim();
