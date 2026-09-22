@@ -163,13 +163,14 @@ export function CreateInviteLinkDialog({
                     autoFocus
                   />
                 </Field>
-                <Field aria-labelledby={`${id}-expiry`}>
-                  <FieldLabel id={`${id}-expiry`}>{t("meetings.linkExpiry")}</FieldLabel>
-                  <Select value={days} onValueChange={(v) => v && setDays(v)} items={expiryItems} />
+                <Field>
+                  <FieldLabel htmlFor={`${id}-expiry`}>{t("meetings.linkExpiry")}</FieldLabel>
+                  <Select id={`${id}-expiry`} value={days} onValueChange={(v) => v && setDays(v)} items={expiryItems} />
                 </Field>
-                <Field aria-labelledby={`${id}-access`}>
-                  <FieldLabel id={`${id}-access`}>{t("meetings.linkGuestAccess")}</FieldLabel>
+                <Field>
+                  <FieldLabel htmlFor={`${id}-access`}>{t("meetings.linkGuestAccess")}</FieldLabel>
                   <Select
+                    id={`${id}-access`}
                     value={mode}
                     onValueChange={(v) => v && setMode(v)}
                     items={[

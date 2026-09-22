@@ -43,7 +43,7 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   // Without ANTHROPIC_API_KEY the panel explains that AI is off (or shows the
   // empty transcript hint when the key is set): either is a valid server state.
   await expect(
-    page.getByText("Tóm tắt AI chưa được bật trên máy chủ này.").or(page.getByText(/Chưa có transcript/)).first(),
+    page.getByText("Tóm tắt AI chưa được bật trên máy chủ này.").or(page.getByText(/Chưa có bản ghi lời thoại/)).first(),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Kết thúc" }).click();

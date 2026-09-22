@@ -16,9 +16,9 @@ function cityOf(zone: string, language: string): string {
   return zone.split("/").at(-1)?.replace(/_/g, " ") ?? zone;
 }
 
-function shortOffset(zone: string): string {
+function shortOffset(zone: string, at: Date): string {
   try {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts(new Date());
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts(at);
     const value = parts.find((part) => part.type === "timeZoneName")?.value ?? "";
     // ICU 76+ prints UTC itself as "GMT".
     return value === "GMT" ? "GMT+0" : value;
@@ -30,12 +30,13 @@ function shortOffset(zone: string): string {
 /**
  * Offset first, because that is what someone acts on (is it their morning?),
  * then the city. A zone the browser rejects falls back to its city alone.
+ * `at` picks the offset in force then (a meeting after a DST switch).
  */
-export function meetingTimeZoneLabel(value: string, language: string): string {
+export function meetingTimeZoneLabel(value: string, language: string, at: Date = new Date()): string {
   const zone = value.trim();
   if (zone === "") return "";
   if (zone === "UTC" || zone === "Etc/UTC") return "UTC";
-  const offset = shortOffset(zone);
+  const offset = shortOffset(zone, Number.isNaN(at.getTime()) ? new Date() : at);
   const city = cityOf(zone, language);
   return offset ? `${offset} · ${city}` : city;
 }

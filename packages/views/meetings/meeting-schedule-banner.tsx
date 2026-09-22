@@ -75,7 +75,21 @@ export function MeetingScheduleBanner({
     setExpanded(true);
   }, [shouldShow, rendered]);
 
-  if (!rendered || !endsAt) return null;
+  if (!endsAt) return null;
+
+  // Mounted before it has anything to say: a live region inserted together
+  // with its text is not announced by every screen reader.
+  const announcement = (
+    <p role="status" className="sr-only">
+      {shouldShow
+        ? overtime
+          ? t("meetings.scheduleOvertimeAnnounce")
+          : t("meetings.scheduleEndingAnnounce")
+        : null}
+    </p>
+  );
+
+  if (!rendered) return announcement;
 
   const remaining = formatRemaining(endsAt, now);
   const showHostActions = overtime && canHost && Boolean(meetingId && workspaceId);
@@ -89,79 +103,75 @@ export function MeetingScheduleBanner({
   };
 
   return (
-    <div
-      className={cn(
-        // Opens in one step: animating the row track would reflow the video grid every frame.
-        "grid shrink-0",
-        expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-      )}
-      data-testid="meeting-schedule-banner-slot"
-      data-expanded={expanded ? "true" : undefined}
-    >
-      <div className="min-h-0 overflow-hidden">
-        <div
-          className={cn(
-            "mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium",
-            // The last minute warns; running past the window is the harder state.
-            overtime ? "bg-destructive-solid text-on-solid" : "pointer-events-none bg-warning-solid text-on-solid",
-          )}
-          data-testid="meeting-schedule-banner"
-        >
-          <Clock aria-hidden className="size-4 shrink-0" />
-          <span>
-            {overtime
-              ? t("meetings.scheduleOvertimeBanner")
-              : t("meetings.scheduleEndingBanner", { time: remaining ?? "00:00:00" })}
-          </span>
-          {showHostActions ? (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className={hostBtn}
-                disabled={extend.isPending}
-                onClick={extendWindow}
-              >
-                {t("meetings.extendFifteen")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className={hostBtn}
-                disabled={end.isPending}
-                onClick={() => setEndConfirmOpen(true)}
-              >
-                {t("meetings.end")}
-              </Button>
-            </>
-          ) : null}
+    <>
+      {announcement}
+      <div
+        className={cn(
+          // Opens in one step: animating the row track would reflow the video grid every frame.
+          "grid shrink-0",
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+        data-testid="meeting-schedule-banner-slot"
+        data-expanded={expanded ? "true" : undefined}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={cn(
+              "mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-body font-medium",
+              // The last minute warns; running past the window is the harder state.
+              overtime ? "bg-destructive-solid text-on-solid" : "pointer-events-none bg-warning-solid text-on-solid",
+            )}
+            data-testid="meeting-schedule-banner"
+          >
+            <Clock aria-hidden className="size-4 shrink-0" />
+            <span>
+              {overtime
+                ? t("meetings.scheduleOvertimeBanner")
+                : t("meetings.scheduleEndingBanner", { time: remaining ?? "00:00:00" })}
+            </span>
+            {showHostActions ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={hostBtn}
+                  disabled={extend.isPending}
+                  onClick={extendWindow}
+                >
+                  {t("meetings.extendFifteen")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={hostBtn}
+                  disabled={end.isPending}
+                  onClick={() => setEndConfirmOpen(true)}
+                >
+                  {t("meetings.end")}
+                </Button>
+              </>
+            ) : null}
+          </div>
         </div>
-        {shouldShow ? (
-          <p role="status" className="sr-only">
-            {overtime
-              ? t("meetings.scheduleOvertimeAnnounce")
-              : t("meetings.scheduleEndingAnnounce")}
-          </p>
-        ) : null}
-      </div>
 
-      <ConfirmDialog
-        open={endConfirmOpen}
-        onOpenChange={setEndConfirmOpen}
-        title={t("meetings.endConfirmTitle")}
-        description={t("meetings.endConfirm")}
-        confirmLabel={t("meetings.confirmEnd")}
-        pending={end.isPending}
-        onConfirm={() => {
-          if (!meetingId) return;
-          end.mutate(meetingId, {
-            onSuccess: () => setEndConfirmOpen(false),
-            onError: (err) => toastApiError(err, t("common.error")),
-          });
-        }}
-      />
-    </div>
+        <ConfirmDialog
+          open={endConfirmOpen}
+          onOpenChange={setEndConfirmOpen}
+          title={t("meetings.endConfirmTitle")}
+          description={t("meetings.endConfirm")}
+          confirmLabel={t("meetings.confirmEnd")}
+          pending={end.isPending}
+          onConfirm={() => {
+            if (!meetingId) return;
+            end.mutate(meetingId, {
+              onSuccess: () => setEndConfirmOpen(false),
+              onError: (err) => toastApiError(err, t("common.error")),
+            });
+          }}
+        />
+      </div>
+    </>
   );
 }

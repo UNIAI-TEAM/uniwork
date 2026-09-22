@@ -16,7 +16,7 @@ export function MeetingJoinRequestsPanel({
 }) {
   const { t } = useTranslation();
   const { data: requests } = useJoinRequests(meetingId);
-  const { approveOne, rejectOne, approving, rejecting } = useJoinRequestActions(meetingId);
+  const { approveOne, rejectOne, isApproving, isRejecting } = useJoinRequestActions(meetingId);
   const pending = (requests ?? []).filter((r) => r.status === "PENDING");
   if (pending.length === 0) return null;
 
@@ -34,8 +34,8 @@ export function MeetingJoinRequestsPanel({
           <MeetingJoinRequestRow
             request={r}
             variant="compact"
-            approving={approving}
-            rejecting={rejecting}
+            approving={isApproving(r.id)}
+            rejecting={isRejecting(r.id)}
             onApprove={() => approveOne(r.id)}
             onReject={() => rejectOne(r.id)}
           />
