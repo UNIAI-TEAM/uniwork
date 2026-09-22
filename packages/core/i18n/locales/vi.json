@@ -2086,7 +2086,20 @@
     "create_from_slot_title": "Tạo trên ô này",
     "create_from_slot_description": "Chọn nội dung muốn thêm vào lịch.",
     "create_task": "Việc mới",
-    "create_meeting": "Cuộc họp mới"
+    "create_meeting": "Cuộc họp mới",
+    "sidebar_label": "Bảng kế hoạch lịch",
+    "sidebar_loading": "Đang tải bảng kế hoạch…",
+    "sidebar_error": "Không tải được bảng kế hoạch.",
+    "sidebar_priorities": "Ưu tiên cao",
+    "sidebar_meet_with": "Hẹn gặp",
+    "sidebar_assigned": "Giao cho tôi",
+    "sidebar_today_overdue": "Hôm nay & quá hạn",
+    "sidebar_backlog": "Tồn đọng",
+    "sidebar_empty_priorities": "Không có việc ưu tiên cao đang mở.",
+    "sidebar_empty_meet_with": "Chưa có cuộc họp sắp tới.",
+    "sidebar_empty_assigned": "Không có việc nào giao cho bạn.",
+    "sidebar_empty_today_overdue": "Không có việc hôm nay hay quá hạn.",
+    "sidebar_empty_backlog": "Không có việc tồn đọng."
   },
   "chat": {
     "media_unavailable": "Không tải được {{name}}",

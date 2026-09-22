@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useCalendarEvents } from "@uniwork/core/calendar";
+import { useCalendarEvents, useCalendarSidebar } from "@uniwork/core/calendar";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -16,7 +16,9 @@ import { CalendarToolbar } from "./calendar-toolbar";
 import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
 import { useCalendarMutations } from "./calendar-mutations";
 import { CreateFromSlot } from "./create-from-slot";
+import { CalendarSidebar, EMPTY_CALENDAR_SIDEBAR } from "./calendar-sidebar";
 import { FullCalendarHost, type CalendarSlot } from "./fullcalendar-host";
+import { NewMeetingDialog } from "../meetings/new-meeting-dialog";
 
 export function CalendarPageView({
   workspaceId,
@@ -34,6 +36,7 @@ export function CalendarPageView({
   const [range, setRange] = useState(() => rangeForMode("month", new Date()));
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
+  const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
 
   const initialDate = format(anchorDate, "yyyy-MM-dd");
 
@@ -43,6 +46,8 @@ export function CalendarPageView({
     range.to,
     mine,
   );
+  const sidebarQuery = useCalendarSidebar(workspaceId);
+  const sidebarSections = sidebarQuery.data ?? EMPTY_CALENDAR_SIDEBAR;
   const events = useMemo(() => data ?? [], [data]);
   const { applyDropPatch } = useCalendarMutations(workspaceId);
 
@@ -83,56 +88,76 @@ export function CalendarPageView({
         tone={moduleTone("calendar")}
         title={t("calendar.title")}
       />
-      <CalendarToolbar
-        anchorDate={anchorDate}
-        mine={mine}
-        viewMode={viewMode}
-        onAnchorDateChange={handleAnchorDateChange}
-        onMineChange={setMine}
-        onViewModeChange={handleViewModeChange}
-      />
-      {isError ? (
-        <CollectionPageState
-          icon={Calendar}
-          tone="destructive"
-          role="alert"
-          title={t("calendar.error")}
-          actions={
-            <Button size="sm" variant="outline" onClick={() => void refetch()}>
-              {t("calendar.retry")}
-            </Button>
-          }
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <CalendarSidebar
+          workspaceId={workspaceId}
+          sections={sidebarSections}
+          isPending={sidebarQuery.isPending}
+          isError={sidebarQuery.isError}
+          onOpenTask={onOpenTask}
+          onOpenMeeting={onOpenMeeting}
+          onCreateMeeting={() => setCreateMeetingOpen(true)}
         />
-      ) : (
-        <div
-          className={cn(
-            "flex min-h-0 flex-1 flex-col overflow-hidden py-4",
-            PAGE_GUTTER,
-            isPending ? "opacity-70" : undefined,
-          )}
-          aria-busy={isPending}
-        >
-          {isPending ? (
-            <p className="sr-only">{t("calendar.loading")}</p>
-          ) : null}
-          {isPending ? <Skeleton className="mb-4 h-8 w-full max-w-md" /> : null}
-          <FullCalendarHost
-            events={events}
-            initialDate={initialDate}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <CalendarToolbar
+            anchorDate={anchorDate}
+            mine={mine}
             viewMode={viewMode}
-            onDatesSet={handleDatesSet}
-            onEventClick={handleEventClick}
-            onEventDropOrResize={applyDropPatch}
-            onSlotSelect={handleSlotSelect}
+            onAnchorDateChange={handleAnchorDateChange}
+            onMineChange={setMine}
+            onViewModeChange={handleViewModeChange}
           />
-          <CreateFromSlot
-            workspaceId={workspaceId}
-            open={slotMenuOpen}
-            onOpenChange={setSlotMenuOpen}
-            slot={selectedSlot}
-          />
+          {isError ? (
+            <CollectionPageState
+              icon={Calendar}
+              tone="destructive"
+              role="alert"
+              title={t("calendar.error")}
+              actions={
+                <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                  {t("calendar.retry")}
+                </Button>
+              }
+            />
+          ) : (
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col overflow-hidden py-4",
+                PAGE_GUTTER,
+                isPending ? "opacity-70" : undefined,
+              )}
+              aria-busy={isPending}
+            >
+              {isPending ? (
+                <p className="sr-only">{t("calendar.loading")}</p>
+              ) : null}
+              {isPending ? <Skeleton className="mb-4 h-8 w-full max-w-md" /> : null}
+              <FullCalendarHost
+                events={events}
+                initialDate={initialDate}
+                viewMode={viewMode}
+                onDatesSet={handleDatesSet}
+                onEventClick={handleEventClick}
+                onEventDropOrResize={applyDropPatch}
+                onSlotSelect={handleSlotSelect}
+              />
+              <CreateFromSlot
+                workspaceId={workspaceId}
+                open={slotMenuOpen}
+                onOpenChange={setSlotMenuOpen}
+                slot={selectedSlot}
+              />
+            </div>
+          )}
         </div>
-      )}
+      </div>
+      <NewMeetingDialog
+        workspaceId={workspaceId}
+        open={createMeetingOpen}
+        onOpenChange={setCreateMeetingOpen}
+        showTrigger={false}
+        onCreated={onOpenMeeting}
+      />
     </div>
   );
 }

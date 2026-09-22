@@ -27,6 +27,17 @@ const useCalendarEventsMock = vi.hoisted(() =>
 
 vi.mock("@uniwork/core/calendar", () => ({
   useCalendarEvents: (...args: unknown[]) => useCalendarEventsMock(...args),
+  useCalendarSidebar: () => ({
+    data: {
+      priorities: [],
+      meetWith: [],
+      assigned: [],
+      todayOverdue: [],
+      backlog: [],
+    },
+    isPending: false,
+    isError: false,
+  }),
 }));
 
 const hostProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
@@ -48,6 +59,10 @@ vi.mock("./create-from-slot", () => ({
   CreateFromSlot: () => <div data-testid="create-from-slot" />,
 }));
 
+vi.mock("../meetings/new-meeting-dialog", () => ({
+  NewMeetingDialog: () => null,
+}));
+
 describe("CalendarPageView", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -65,6 +80,7 @@ describe("CalendarPageView", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Lịch" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Bảng kế hoạch lịch")).toBeInTheDocument();
     expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     expect(hostProps.current.onEventDropOrResize).toEqual(expect.any(Function));
     expect(hostProps.current.onSlotSelect).toEqual(expect.any(Function));
