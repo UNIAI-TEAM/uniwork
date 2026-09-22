@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — Lát 2 của spec C-02 / UNI-718. Lát 1 đã ship trên cùng nhánh (`2026-09-22-calendar-slice-1-month-feed.md`). Lát 3 (panel + tạo từ ô) và Lát 4 (ICS) = plan riêng.
+> **Trạng thái:** shipped — Lát 2 của spec C-02 / UNI-718 (Week/Day + drag). Lát 1: `2026-09-22-calendar-slice-1-month-feed.md`. Lát 3 (panel + tạo từ ô) và Lát 4 (ICS) = plan riêng.
 
 **Goal:** Toolbar chọn Day / Work week / Week / Month; lưới timeGrid; kéo/resize event → PATCH task (`due_date` / span) hoặc meeting (`starts_at`/`ends_at`); prev/next theo period đang xem.
 
