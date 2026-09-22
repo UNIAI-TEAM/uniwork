@@ -206,3 +206,16 @@ func TestPublisherDeliversToChatScopeOnly(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+// A guest lobby socket only hears the meeting scope, so every signal that
+// ends a wait — admitted, rejected, the meeting closing — must be mirrored.
+func TestLobbyMirrorsEverySignalThatEndsAWait(t *testing.T) {
+	for _, typ := range []string{
+		"meeting.started", "meeting.ended", "meeting.canceled",
+		"join_request.approved", "join_request.rejected", "conference.session_ready",
+	} {
+		if _, ok := meetingLobbyEventTypes[typ]; !ok {
+			t.Errorf("%s is not mirrored to the meeting lobby scope", typ)
+		}
+	}
+}

@@ -23,6 +23,9 @@ type AdmissionContext struct {
 	DisplayName  string
 	InviteLinkID string
 	InviteSecret string
+	// RequestAgain files a new join request even though the requester's last
+	// one was rejected; automatic re-joins leave it false so a rejection sticks.
+	RequestAgain bool
 }
 
 type AdmissionDecision struct {
@@ -334,6 +337,11 @@ func (s *MeetingService) ensureJoinRequestTx(ctx context.Context, q *db.Queries,
 			return db.MeetingJoinRequest{}, err
 		}
 	}
+	if !in.RequestAgain {
+		if err := latestJoinRequestRejected(ctx, q, m.ID, in); err != nil {
+			return db.MeetingJoinRequest{}, err
+		}
+	}
 	jr, err := q.CreateJoinRequest(ctx, db.CreateJoinRequestParams{
 		ID: util.NewID(), MeetingID: m.ID, RequesterUserID: strText(in.UserID),
 		RequesterGuestID: strText(in.GuestID), DisplayNameSnapshot: in.DisplayName,
@@ -365,7 +373,36 @@ func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (
 	if meetingPastScheduledEnd(m, time.Now().UTC()) {
 		return db.MeetingJoinRequest{}, errMeetingPastScheduledEnd()
 	}
+	in.RequestAgain = true
 	return s.ensureJoinRequest(ctx, m, in)
+}
+
+// latestJoinRequestRejected refuses to re-file a request whose last answer was
+// a rejection: a lobby retry would otherwise put the requester straight back
+// in the host's queue and leave them waiting on a decision already made.
+func latestJoinRequestRejected(ctx context.Context, q *db.Queries, meetingID string, in AdmissionContext) error {
+	var (
+		last db.MeetingJoinRequest
+		err  error
+	)
+	switch {
+	case in.UserID != "":
+		last, err = q.GetLatestJoinRequestForUser(ctx, db.GetLatestJoinRequestForUserParams{MeetingID: meetingID, RequesterUserID: strText(in.UserID)})
+	case in.GuestID != "":
+		last, err = q.GetLatestJoinRequestForGuest(ctx, db.GetLatestJoinRequestForGuestParams{MeetingID: meetingID, RequesterGuestID: strText(in.GuestID)})
+	default:
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if last.Status == JoinRejected {
+		return coded(http.StatusForbidden, "join_request_rejected", "người chủ trì đã từ chối yêu cầu vào phòng")
+	}
+	return nil
 }
 
 func (s *MeetingService) ListJoinRequests(ctx context.Context, userID, meetingID string) ([]db.MeetingJoinRequest, error) {

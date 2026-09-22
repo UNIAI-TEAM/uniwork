@@ -327,6 +327,7 @@ func (h *handlers) joinMeeting(w http.ResponseWriter, r *http.Request) {
 	dec, err := h.Meetings.Join(r.Context(), service.AdmissionContext{
 		MeetingID: chi.URLParam(r, "meetingID"), UserID: userID, GuestID: guestID,
 		DisplayName: display, InviteLinkID: in.InviteLinkID, InviteSecret: in.Secret,
+		RequestAgain: in.RequestAgain,
 	})
 	if err != nil && dec.Decision == "" {
 		h.mapServiceError(w, err)
