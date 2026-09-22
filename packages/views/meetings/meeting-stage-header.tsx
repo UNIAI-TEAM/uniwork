@@ -6,7 +6,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   UserPlus,
-  Users,
 } from "lucide-react";
 import { useParticipants } from "@livekit/components-react";
 import { useTranslation } from "react-i18next";
@@ -100,7 +99,7 @@ export function MeetingStageHeader({
   return (
     <>
       <div
-        className="relative z-20 shrink-0 border-b border-meeting-bar-border/30 bg-rail px-3 py-2 sm:px-4 sm:py-2.5"
+        className="relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5"
         data-testid="meeting-stage-header"
       >
         <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3">
@@ -108,7 +107,7 @@ export function MeetingStageHeader({
             {meetingsHref && !guestMode ? (
               <nav
                 aria-label={t("meetings.title")}
-                className="mb-0.5 truncate text-caption text-meeting-bar-foreground/70"
+                className="mb-0.5 truncate text-caption text-meeting-bar-muted-foreground"
               >
                 {workspaceLabel ? (
                   <>
@@ -132,12 +131,12 @@ export function MeetingStageHeader({
               </h1>
               {scheduleRange && meeting ? (
                 <>
-                  <span aria-hidden className="shrink-0 text-meeting-bar-foreground/35">
+                  <span aria-hidden className="shrink-0 text-meeting-bar-muted-foreground">
                     ·
                   </span>
                   <time
                     dateTime={`${meeting.starts_at}/${meeting.ends_at}`}
-                    className="min-w-0 truncate text-caption text-meeting-bar-foreground/75 tabular-nums"
+                    className="min-w-0 truncate text-caption text-meeting-bar-muted-foreground tabular-nums"
                   >
                     {scheduleRange}
                   </time>
@@ -145,19 +144,19 @@ export function MeetingStageHeader({
               ) : null}
             </div>
             {description ? (
-              <p className="mt-0.5 truncate text-caption text-meeting-bar-foreground/70">{description}</p>
+              <p className="mt-0.5 truncate text-caption text-meeting-bar-muted-foreground">{description}</p>
             ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 sm:justify-end sm:gap-2">
             {recording ? (
               <span
-                className="inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-1 text-caption font-medium text-destructive-foreground"
+                className="inline-flex items-center gap-1 rounded-full bg-destructive-solid px-2 py-1 text-caption font-medium text-on-solid"
                 data-testid="meeting-rec-badge"
               >
                 <span
                   aria-hidden
-                  className="size-1.5 animate-pulse rounded-full motion-reduce:animate-none bg-destructive-foreground"
+                  className="size-1.5 rounded-full bg-on-solid"
                 />
                 {t("meetings.recording")}
               </span>
@@ -166,9 +165,9 @@ export function MeetingStageHeader({
             {remaining ? (
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tabular-nums shadow-sm",
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tabular-nums",
                   pastScheduledEnd || urgent
-                    ? "bg-destructive text-destructive-foreground"
+                    ? "bg-destructive-solid text-on-solid"
                     : "border border-meeting-bar-border bg-background text-foreground",
                 )}
                 data-testid="meeting-remaining-time"
@@ -181,9 +180,9 @@ export function MeetingStageHeader({
             {showInvite ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="meetingChip"
                 size="sm"
-                className="h-8 border-meeting-bar-border bg-meeting-bar-chip-bg px-2 text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover sm:px-2.5"
+                className="h-8 px-2 sm:px-2.5"
                 onClick={() => setInviteOpen(true)}
               >
                 <UserPlus aria-hidden className="size-4" />
@@ -194,8 +193,9 @@ export function MeetingStageHeader({
             {showHostActions && inProgress && meeting ? (
               <Button
                 type="button"
+                variant="destructiveSolid"
                 size="sm"
-                className="h-8 !border-destructive !bg-destructive px-2.5 font-semibold !text-destructive-foreground shadow-sm hover:!bg-destructive/90 hover:!text-destructive-foreground"
+                className="h-8 px-2.5 font-semibold"
                 disabled={end.isPending}
                 onClick={() => setEndConfirmOpen(true)}
               >
@@ -204,11 +204,12 @@ export function MeetingStageHeader({
             ) : null}
 
             {showHostActions && scheduled && meeting ? (
+              // Reachable at every width: a host on a phone must be able to start.
               <Button
                 type="button"
-                variant="outline"
+                variant="brand"
                 size="sm"
-                className="hidden h-8 border-meeting-bar-border bg-meeting-bar-chip-bg px-2.5 text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover sm:inline-flex"
+                className="h-8 px-2.5 font-semibold"
                 disabled={start.isPending}
                 onClick={() => start.mutate(meeting.id)}
               >
@@ -229,7 +230,7 @@ export function MeetingStageHeader({
                   ))}
                 </div>
                 {overflowCount > 0 ? (
-                  <span className="ml-1.5 text-caption tabular-nums text-meeting-bar-foreground/80">
+                  <span className="ml-1.5 text-caption tabular-nums text-meeting-bar-muted-foreground">
                     {t("meetings.moreParticipantsShort", { count: overflowCount })}
                   </span>
                 ) : null}
@@ -243,22 +244,22 @@ export function MeetingStageHeader({
             {onOpenSidebar ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="meetingChip"
                 size="icon"
-                className="size-9 border-meeting-bar-border bg-meeting-bar-chip-bg text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover lg:hidden"
-                aria-label={t("meetings.openSidebar")}
+                className="size-9 lg:hidden"
+                aria-label={t("meetings.openSidebarPanel")}
                 onClick={onOpenSidebar}
               >
-                <Users aria-hidden />
+                <PanelRightOpen aria-hidden />
               </Button>
             ) : null}
 
             {onToggleSidebar ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="meetingChip"
                 size="icon"
-                className="hidden size-9 border-meeting-bar-border bg-meeting-bar-chip-bg text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover lg:inline-flex"
+                className="hidden size-9 lg:inline-flex"
                 aria-label={sidebarOpen ? t("meetings.closeSidebar") : t("meetings.openSidebarPanel")}
                 aria-pressed={sidebarOpen}
                 onClick={onToggleSidebar}

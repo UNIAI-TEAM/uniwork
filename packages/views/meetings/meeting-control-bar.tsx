@@ -40,11 +40,11 @@ import {
   AdjustViewControl,
   DeviceSettingsControl,
   IconControl,
+  MEETING_CHIP,
   MenuControl,
   ReactionsControl,
-  SOLID_DESTRUCTIVE,
 } from "./meeting-control-bar-controls";
-import { MEETING_DARK_BAR, MEETING_DARK_BAR_CHIP } from "./meeting-dark-bar";
+import { MEETING_DARK_BAR } from "./meeting-dark-bar";
 import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
 import { MeetingRecordConfirmDialog } from "./meeting-record-confirm-dialog";
 import { useMeetingSignals } from "./use-meeting-signals";
@@ -61,8 +61,6 @@ export function MeetingControlBar({
   onToggleCaptions,
   onOpenCopilot,
   copilotActive = false,
-  floating = false,
-  embedded = false,
 }: {
   className?: string;
   onLeave: () => void;
@@ -75,9 +73,6 @@ export function MeetingControlBar({
   onToggleCaptions?: () => void;
   onOpenCopilot?: () => void;
   copilotActive?: boolean;
-  floating?: boolean;
-  /** Rendered inside MeetingStageFooter without its own footer shell. */
-  embedded?: boolean;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
@@ -95,7 +90,75 @@ export function MeetingControlBar({
   const recPending = startRec.isPending || stopRec.isPending;
   const showCaptions = captionsAvailable && Boolean(onToggleCaptions);
   const showRecord = canHost && recordingEnabled && Boolean(meetingId);
+  // A phone keeps five chips on the bar (mic, camera, AI, more, leave); the
+  // rest fold into "More" so the bar fits a 375px screen without scrolling.
   const secondaryInMenu = mobile;
+  // While recording, the control names what pressing it does next.
+  const recordLabel = recording ? t("meetings.stopRecording") : t("meetings.record");
+
+  const toggleRecording = () => {
+    if (recording) {
+      stopRec.mutate(undefined, {
+        onError: (err) => toastApiError(err, t("common.error")),
+        onSuccess: () =>
+          toast.success(t("meetings.recordingStopped"), {
+            description: t("meetings.recordingStoppedHint"),
+          }),
+      });
+      return;
+    }
+    setRecordConfirmOpen(true);
+  };
+
+  const confirmStartRecording = () => {
+    startRec.mutate(undefined, {
+      onError: (err) => toastApiError(err, t("common.error")),
+      onSuccess: () => toast.success(t("meetings.recordingStarted")),
+    });
+    setRecordConfirmOpen(false);
+  };
+
+  const shareControl = (inMenu: boolean) =>
+    inMenu ? (
+      <MenuControl
+        caption={t("meetings.share")}
+        pressed={screen.enabled}
+        disabled={screen.pending}
+        onClick={() => {
+          void screen.toggle();
+        }}
+      >
+        <MonitorUp aria-hidden />
+      </MenuControl>
+    ) : (
+      <IconControl
+        label={t("meetings.share")}
+        pressed={screen.enabled}
+        tone={screen.enabled ? "active" : undefined}
+        disabled={screen.pending}
+        onClick={() => {
+          void screen.toggle();
+        }}
+      >
+        <MonitorUp aria-hidden />
+      </IconControl>
+    );
+
+  const handControl = (inMenu: boolean) =>
+    inMenu ? (
+      <MenuControl caption={t("meetings.hand")} pressed={handRaised} onClick={toggleHand}>
+        <Hand aria-hidden />
+      </MenuControl>
+    ) : (
+      <IconControl
+        label={t("meetings.hand")}
+        pressed={handRaised}
+        tone={handRaised ? "active" : undefined}
+        onClick={toggleHand}
+      >
+        <Hand aria-hidden />
+      </IconControl>
+    );
 
   const captionsControl = (inMenu: boolean) =>
     showCaptions ? (
@@ -115,37 +178,15 @@ export function MeetingControlBar({
       )
     ) : null;
 
-  const toggleRecording = () => {
-    if (recording) {
-      stopRec.mutate(undefined, { onError: (err) => toastApiError(err, t("common.error")) });
-      return;
-    }
-    setRecordConfirmOpen(true);
-  };
-
-  const confirmStartRecording = () => {
-    startRec.mutate(undefined, {
-      onError: (err) => toastApiError(err, t("common.error")),
-      onSuccess: () => toast.success(t("meetings.recordingStarted")),
-    });
-    setRecordConfirmOpen(false);
-  };
-
   const recordControl = (inMenu: boolean) =>
     showRecord ? (
       inMenu ? (
-        <MenuControl
-          caption={t("meetings.record")}
-          pressed={recording}
-          disabled={recPending}
-          onClick={toggleRecording}
-        >
+        <MenuControl caption={recordLabel} disabled={recPending} onClick={toggleRecording}>
           {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
         </MenuControl>
       ) : (
         <IconControl
-          label={t("meetings.record")}
-          pressed={recording}
+          label={recordLabel}
           tone={recording ? "off" : undefined}
           disabled={recPending}
           onClick={toggleRecording}
@@ -157,7 +198,13 @@ export function MeetingControlBar({
 
   const moreMenu = (
     <>
-      {secondaryInMenu ? <DeviceSettingsControl inMenu /> : null}
+      {secondaryInMenu ? (
+        <>
+          {shareControl(true)}
+          {handControl(true)}
+          <DeviceSettingsControl inMenu />
+        </>
+      ) : null}
       <ReactionsControl inMenu />
       <AdjustViewControl inMenu />
       <MenuControl
@@ -176,128 +223,106 @@ export function MeetingControlBar({
     </>
   );
 
-  const bar = (
-    <TooltipProvider delay={300}>
-      <div
-        className={cn(
-          MEETING_DARK_BAR,
-          embedded || floating
-            ? "w-fit"
-            : "w-full max-w-none border-0 bg-transparent p-0 shadow-none backdrop-blur-none",
-          !embedded && floating && "max-w-3xl",
-        )}
-      >
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
-            <IconControl
-              label={t("meetings.mic")}
-              pressed={mic.enabled}
-              tone={mic.enabled ? "active" : "off"}
-              disabled={mic.pending}
-              onClick={() => {
-                void mic.toggle();
-              }}
-            >
-              {mic.enabled ? <Mic aria-hidden /> : <MicOff aria-hidden />}
-            </IconControl>
-            <IconControl
-              label={t("meetings.camera")}
-              pressed={camera.enabled}
-              tone={camera.enabled ? "active" : "off"}
-              disabled={camera.pending}
-              onClick={() => {
-                void camera.toggle();
-              }}
-            >
-              {camera.enabled ? <Video aria-hidden /> : <VideoOff aria-hidden />}
-            </IconControl>
-            <IconControl
-              label={t("meetings.share")}
-              pressed={screen.enabled}
-              tone={screen.enabled ? "active" : undefined}
-              disabled={screen.pending}
-              onClick={() => {
-                void screen.toggle();
-              }}
-            >
-              <MonitorUp aria-hidden />
-            </IconControl>
-            {!secondaryInMenu ? <DeviceSettingsControl /> : null}
-            <IconControl
-              label={t("meetings.hand")}
-              pressed={handRaised}
-              tone={handRaised ? "active" : undefined}
-              onClick={toggleHand}
-            >
-              <Hand aria-hidden />
-            </IconControl>
-            {onOpenCopilot ? (
-              <IconControl
-                label={t("meetings.aiCopilotToggle")}
-                pressed={copilotActive}
-                tone={copilotActive ? "copilot" : undefined}
-                onClick={onOpenCopilot}
-              >
-                <Sparkles aria-hidden />
-              </IconControl>
-            ) : null}
-            {!secondaryInMenu ? (
-              <>
-                {captionsControl(false)}
-                {recordControl(false)}
-              </>
-            ) : null}
-            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          type="button"
-                          size="icon-lg"
-                          variant="outline"
-                          aria-label={t("meetings.more")}
-                          className={MEETING_DARK_BAR_CHIP}
-                        />
-                      }
-                    />
-                  }
-                >
-                  <MoreHorizontal aria-hidden />
-                </TooltipTrigger>
-                <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
-              </Tooltip>
-              <PopoverContent side="top" className="flex w-56 flex-col gap-0.5 p-1.5">
-                {moreMenu}
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <span aria-hidden className="mx-0.5 h-8 w-px shrink-0 bg-meeting-bar-border" />
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-lg"
-                  onClick={() => setLeaveConfirmOpen(true)}
-                  aria-label={t("meetings.leave")}
-                  className={cn(MEETING_DARK_BAR_CHIP, SOLID_DESTRUCTIVE)}
-                />
-              }
-            >
-              <PhoneOff aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="top">{t("meetings.leave")}</TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
-  );
-
-  const dialogs = (
+  return (
     <>
+      <div className={className}>
+        <TooltipProvider delay={300}>
+          <div className={cn(MEETING_DARK_BAR, "w-fit max-w-full")}>
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
+              <IconControl
+                label={t("meetings.mic")}
+                pressed={mic.enabled}
+                tone={mic.enabled ? "active" : "off"}
+                disabled={mic.pending}
+                onClick={() => {
+                  void mic.toggle();
+                }}
+              >
+                {mic.enabled ? <Mic aria-hidden /> : <MicOff aria-hidden />}
+              </IconControl>
+              <IconControl
+                label={t("meetings.camera")}
+                pressed={camera.enabled}
+                tone={camera.enabled ? "active" : "off"}
+                disabled={camera.pending}
+                onClick={() => {
+                  void camera.toggle();
+                }}
+              >
+                {camera.enabled ? <Video aria-hidden /> : <VideoOff aria-hidden />}
+              </IconControl>
+              {!secondaryInMenu ? (
+                <>
+                  {shareControl(false)}
+                  <DeviceSettingsControl />
+                  {handControl(false)}
+                </>
+              ) : null}
+              {onOpenCopilot ? (
+                <IconControl
+                  label={t("meetings.aiCopilotToggle")}
+                  pressed={copilotActive}
+                  tone={copilotActive ? "active" : undefined}
+                  onClick={onOpenCopilot}
+                >
+                  <Sparkles aria-hidden />
+                </IconControl>
+              ) : null}
+              {!secondaryInMenu ? (
+                <>
+                  {captionsControl(false)}
+                  {recordControl(false)}
+                </>
+              ) : null}
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            type="button"
+                            size="icon-lg"
+                            variant="meetingChip"
+                            aria-label={t("meetings.more")}
+                            className={MEETING_CHIP}
+                          />
+                        }
+                      />
+                    }
+                  >
+                    <MoreHorizontal aria-hidden />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
+                </Tooltip>
+                <PopoverContent side="top" className="flex w-56 flex-col gap-0.5 p-1.5">
+                  {moreMenu}
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <span aria-hidden className="mx-0.5 h-8 w-px shrink-0 bg-meeting-bar-border" />
+
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="destructiveSolid"
+                    size="icon-lg"
+                    onClick={() => setLeaveConfirmOpen(true)}
+                    aria-label={t("meetings.leave")}
+                    className={MEETING_CHIP}
+                  />
+                }
+              >
+                <PhoneOff aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="top">{t("meetings.leave")}</TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+      </div>
       <MeetingRecordConfirmDialog
         open={recordConfirmOpen}
         pending={startRec.isPending}
@@ -312,31 +337,6 @@ export function MeetingControlBar({
           onLeave();
         }}
       />
-    </>
-  );
-
-  if (embedded) {
-    return (
-      <>
-        <div className={className}>{bar}</div>
-        {dialogs}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <footer
-        className={cn(
-          floating
-            ? "pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 sm:bottom-4"
-            : "shrink-0 bg-app-shell px-3 py-2.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] sm:px-4",
-          className,
-        )}
-      >
-        {bar}
-      </footer>
-      {dialogs}
     </>
   );
 }

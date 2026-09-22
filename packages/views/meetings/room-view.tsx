@@ -2,6 +2,7 @@
 import { LiveKitRoom } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, CalendarX2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
@@ -13,10 +14,13 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { MeetingConference } from "./meeting-conference";
 import { MeetingProactiveTokenRefresh } from "./meeting-proactive-token-refresh";
 import { MeetingLobby } from "./meeting-lobby";
+import { MeetingGateScreen } from "./meeting-gate-screen";
+import { MeetingMediaError } from "./meeting-media-error";
 import { MeetingPreJoin, type PreJoinChoice } from "./meeting-prejoin";
 import { useMeetingScheduleDeadline } from "./use-meeting-schedule-deadline";
 import {
   mediaDisconnectKind,
+  roomClosedReason,
   shouldLeaveOnDisconnect,
   shouldRefreshCredentialOnDisconnect,
   type MediaDisconnectKind,
@@ -70,7 +74,8 @@ export function MeetingRoomView({
 }) {
   const { t } = useTranslation();
   const join = useJoinMeeting();
-  const { data: meeting } = useMeeting(meetingId, { enabled: !guestMode });
+  // isLoading, not isPending: a disabled (guest) query reports pending forever.
+  const { data: meeting, isLoading: meetingLoading } = useMeeting(meetingId, { enabled: !guestMode });
   const resolvedWorkspaceId = guestMode ? (workspaceId ?? "") : (workspaceId ?? meeting?.workspace_id ?? "");
   const start = useStartMeeting(resolvedWorkspaceId);
   const { canHost } = useMeetingPermissions(guestMode ? null : (meeting ?? null), resolvedWorkspaceId);
@@ -80,6 +85,7 @@ export function MeetingRoomView({
   const admittedRef = useRef(false);
   const credentialRefreshAttempts = useRef(0);
   const [mediaErrorKind, setMediaErrorKind] = useState<MediaDisconnectKind | null>(null);
+  const [closedReason, setClosedReason] = useState<"ended" | "removed" | null>(null);
   const [choice, setChoice] = useState<PreJoinChoice | null>(() => {
     if (initialChoice) return initialChoice;
     return isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null;
@@ -97,6 +103,10 @@ export function MeetingRoomView({
   const retryJoin = useCallback(() => {
     setMediaErrorKind(null);
     mutateJoin(joinArgs);
+  }, [mutateJoin, joinArgs]);
+
+  const requestAgain = useCallback(() => {
+    mutateJoin({ ...joinArgs, request_again: true });
   }, [mutateJoin, joinArgs]);
 
   const refreshLiveKitCredential = useCallback(async () => {
@@ -147,6 +157,7 @@ export function MeetingRoomView({
       <MeetingRoomShell testId="meeting-prejoin">
         <MeetingPreJoin
           meeting={meeting ?? undefined}
+          loading={!guestMode && meetingLoading}
           onJoin={setChoice}
           onLeave={onLeave}
         />
@@ -160,11 +171,13 @@ export function MeetingRoomView({
     return (
       <MeetingRoomShell>
         <MeetingLobby
-          meetingId={meetingId}
           title={meeting?.title ?? meetingTitle}
           decision={decision?.decision}
           error={join.error}
-          allowJoinRequest={guestMode ? undefined : meeting?.allow_join_request}
+          guestMode={guestMode}
+          onRequestAgain={requestAgain}
+          requestingAgain={join.isPending}
+          onRetry={retryJoin}
           canStart={canHost.allowed}
           starting={start.isPending}
           onStart={handleStartMeeting}
@@ -183,7 +196,7 @@ export function MeetingRoomView({
         >
           <div aria-hidden className="grid w-full max-w-md grid-cols-2 gap-3">
             {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="aspect-video rounded-2xl bg-rail" />
+              <Skeleton key={i} className="aspect-video rounded-2xl bg-meeting-stage" />
             ))}
           </div>
           {(meeting?.title ?? meetingTitle) ? (
@@ -202,33 +215,39 @@ export function MeetingRoomView({
     );
   }
 
-  if (mediaErrorKind) {
-    const replaced = mediaErrorKind === "replaced";
+  if (closedReason) {
+    const removed = closedReason === "removed";
     return (
       <MeetingRoomShell>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="max-w-md text-pretty text-body text-foreground">
-            {t(replaced ? "meetings.sessionReplaced" : "meetings.connectionFailed")}
-          </p>
-          <p className="max-w-md text-pretty text-caption text-muted-foreground">
-            {t(replaced ? "meetings.sessionReplacedHint" : "meetings.connectionFailedHint")}
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {!replaced ? (
-              <Button
-                onClick={() => {
-                  credentialRefreshAttempts.current = 0;
-                  retryJoin();
-                }}
-              >
-                {t("common.retry")}
-              </Button>
-            ) : null}
+        <MeetingGateScreen
+          icon={removed ? UserX : CalendarX2}
+          tone={removed ? "destructive" : "muted"}
+          meetingTitle={meeting?.title ?? meetingTitle}
+          title={t(removed ? "meetings.removedFromMeeting" : "meetings.endedCannotJoin")}
+          actions={
             <Button variant="outline" onClick={onLeave}>
-              {t("meetings.leave")}
+              <ArrowLeft aria-hidden />
+              {guestMode ? t("common.back") : t("meetings.backToMeeting")}
             </Button>
-          </div>
-        </div>
+          }
+        />
+      </MeetingRoomShell>
+    );
+  }
+
+  if (mediaErrorKind) {
+    return (
+      <MeetingRoomShell>
+        <MeetingMediaError
+          kind={mediaErrorKind}
+          meetingTitle={meeting?.title ?? meetingTitle}
+          guestMode={guestMode}
+          onRetry={() => {
+            credentialRefreshAttempts.current = 0;
+            retryJoin();
+          }}
+          onLeave={onLeave}
+        />
       </MeetingRoomShell>
     );
   }
@@ -268,7 +287,8 @@ export function MeetingRoomView({
             return;
           }
           if (shouldLeaveOnDisconnect(reason)) {
-            onLeave();
+            // Say why before sending anyone away: the host ended the call, or removed us.
+            setClosedReason(roomClosedReason(reason) ?? "ended");
             return;
           }
           if (!admittedRef.current || !shouldRefreshCredentialOnDisconnect(reason)) {

@@ -28,6 +28,8 @@ export const MeetingNoteSchema = z.object({
   author_id: z.string(),
   body: z.string(),
   display_name: z.string().optional(),
+  avatar_url: z.string().nullish(),
+  created_at: z.string().nullish(),
 });
 export type MeetingNote = z.infer<typeof MeetingNoteSchema>;
 

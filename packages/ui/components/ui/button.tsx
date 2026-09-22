@@ -63,6 +63,22 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        // Solid signal fills for the one action that must read as final
+        // (end a meeting, leave a call) or as "go" (admit a guest). They pair
+        // the measured `*-solid` fill with `--on-solid`, so callers stop
+        // stacking `!bg-…` overrides on top of another variant. The hover
+        // deepens through an alpha of the same solid, the convention the
+        // other filled variants use.
+        destructiveSolid:
+          "border-destructive-solid bg-destructive-solid text-on-solid hover:bg-destructive-solid/90 hover:text-on-solid active:bg-destructive-solid/85 aria-expanded:bg-destructive-solid/90 aria-expanded:text-on-solid focus-visible:ring-destructive/30",
+        successSolid:
+          "border-success-solid bg-success-solid text-on-solid hover:bg-success-solid/90 hover:text-on-solid active:bg-success-solid/85 aria-expanded:bg-success-solid/90 aria-expanded:text-on-solid focus-visible:ring-success/30",
+        // A chip on the always-dark meeting stage bar. Reads the meeting-bar
+        // slots, which are dark in both themes, so the chip does not flip
+        // with the page the way `outline` does. `aria-pressed` and an open
+        // popover share the hover wash: the state is also in the icon/label.
+        meetingChip:
+          "border-meeting-bar-border bg-meeting-bar-chip-bg text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover hover:text-meeting-bar-foreground aria-expanded:bg-meeting-bar-chip-hover aria-expanded:text-meeting-bar-foreground aria-pressed:bg-meeting-bar-chip-hover data-popup-open:bg-meeting-bar-chip-hover",
       },
       size: {
         default:

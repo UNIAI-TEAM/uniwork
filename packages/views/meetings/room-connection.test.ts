@@ -24,6 +24,12 @@ describe("lobbyRetryDelayMs", () => {
 });
 
 describe("shouldTriggerLobbyJoin", () => {
+  it("wakes the lobby for every signal that ends a wait", () => {
+    for (const type of ["join_request.rejected", "meeting.ended", "meeting.canceled"]) {
+      expect(shouldTriggerLobbyJoin(type, { meeting_id: "m1" }, "m1")).toBe(true);
+    }
+  });
+
   it("matches meeting.started and join_request.approved for the same meeting", () => {
     expect(
       shouldTriggerLobbyJoin("meeting.started", { meeting_id: "m1" }, "m1"),

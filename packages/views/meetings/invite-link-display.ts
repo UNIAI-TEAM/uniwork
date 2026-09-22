@@ -34,66 +34,39 @@ function isGenericInviteLinkName(name: string): boolean {
   return trimmed.startsWith("meetings.link");
 }
 
+type InviteLinkTranslate = (key: string, options?: Record<string, unknown>) => string;
+
 /** Default label persisted on create — never store an i18n key in the database. */
-export function defaultInviteLinkLabel(iso: string, language: string): string {
-  const time = formatInviteLinkTimestamp(iso, language);
-  return language.startsWith("vi") ? `Liên kết ${time}` : `Link ${time}`;
+export function defaultInviteLinkLabel(iso: string, language: string, t: InviteLinkTranslate): string {
+  return t("meetings.linkDefaultName", { time: formatInviteLinkTimestamp(iso, language) });
 }
 
-export function inviteLinkDisplayName(link: MeetingInviteLink, language: string): string {
+export function inviteLinkDisplayName(link: MeetingInviteLink, language: string, t: InviteLinkTranslate): string {
   const code = shortInviteLinkCode(link.id);
-  const created = link.created_at ? formatInviteLinkTimestamp(link.created_at, language) : "";
   if (isGenericInviteLinkName(link.name)) {
-    const label = created ? defaultInviteLinkLabel(link.created_at!, language) : defaultInviteLinkLabel(new Date().toISOString(), language);
+    const label = defaultInviteLinkLabel(link.created_at ?? new Date().toISOString(), language, t);
     return `${label} · #${code}`;
   }
   return `${link.name.trim()} · #${code}`;
 }
 
-type InviteLinkMetaLabels = {
-  created: (time: string) => string;
-  expires: (time: string) => string;
-  uses: (used: number, max?: number) => string;
-  accessAuto: string;
-  accessApproval: string;
-};
-
-function inviteLinkMetaLabels(language: string): InviteLinkMetaLabels {
-  const isVi = language.startsWith("vi");
-  return {
-    created: (time) => (isVi ? `Tạo ${time}` : `Created ${time}`),
-    expires: (time) => (isVi ? `Hết hạn ${time}` : `Expires ${time}`),
-    uses: (used, max) =>
-      max != null
-        ? isVi
-          ? `${used}/${max} lượt`
-          : `${used}/${max} uses`
-        : isVi
-          ? `${used} lượt dùng`
-          : `${used} uses`,
-    accessAuto: isVi ? "Tự động cho phép" : "Admit automatically",
-    accessApproval: isVi ? "Cần chủ trì duyệt" : "Host must approve",
-  };
-}
-
-export function inviteLinkMetaParts(
-  link: MeetingInviteLink,
-  language: string,
-  labels: InviteLinkMetaLabels = inviteLinkMetaLabels(language),
-): string[] {
+/** Access rule, created, expires, uses — each part its own i18n sentence. */
+export function inviteLinkMetaParts(link: MeetingInviteLink, language: string, t: InviteLinkTranslate): string[] {
   const parts: string[] = [];
-  const access =
-    link.access_mode === "REQUEST_APPROVAL" ? labels.accessApproval : labels.accessAuto;
-  parts.push(access);
+  parts.push(t(link.access_mode === "REQUEST_APPROVAL" ? "meetings.linkNeedApproval" : "meetings.linkAutoAdmit"));
 
   if (link.created_at) {
     const created = formatInviteLinkTimestamp(link.created_at, language);
-    if (created) parts.push(labels.created(created));
+    if (created) parts.push(t("meetings.linkMetaCreated", { time: created }));
   }
 
   const expires = formatInviteLinkTimestamp(link.expires_at, language);
-  if (expires) parts.push(labels.expires(expires));
+  if (expires) parts.push(t("meetings.linkMetaExpires", { time: expires }));
 
-  parts.push(labels.uses(link.used_count, link.max_uses));
+  parts.push(
+    link.max_uses != null
+      ? t("meetings.linkMetaUsesLimit", { used: link.used_count, max: link.max_uses })
+      : t("meetings.linkMetaUsesCount", { count: link.used_count }),
+  );
   return parts;
 }

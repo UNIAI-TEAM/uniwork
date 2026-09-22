@@ -3,16 +3,14 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { toast } from "sonner";
-import { toastApiError } from "../toast-api-error";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 import { MemberMultiPicker } from "./member-multi-picker";
 
 export function AddMeetingParticipantsDialog({
@@ -37,23 +35,22 @@ export function AddMeetingParticipantsDialog({
     onOpenChange(next);
   };
 
+  const nothingPicked = selected.length === 0;
+
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="flex max-h-[min(90dvh,44rem)] flex-col overflow-hidden sm:max-w-md">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{t("meetings.addPeople")}</DialogTitle>
-        </DialogHeader>
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("meetings.addPeople")} />
         <form
-          className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (selected.length === 0) return;
+            if (nothingPicked) return;
             setPending(true);
             void Promise.allSettled(selected.map((userId) => inviteParticipant(meetingId, userId)))
               .then((results) => {
-                const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+                const failed = results.filter((r) => r.status === "rejected").length;
                 if (failed) {
-                  toastApiError(failed.reason, t("common.error"));
+                  toast.error(t("meetings.inviteFailedCount", { count: failed }));
                   return;
                 }
                 toast.success(t("meetings.invitedMembers", { count: selected.length }));
@@ -62,24 +59,26 @@ export function AddMeetingParticipantsDialog({
               .finally(() => setPending(false));
           }}
         >
-          <MemberMultiPicker
-            workspaceId={workspaceId}
-            value={selected}
-            onChange={setSelected}
-            excludeUserIds={excludeUserIds}
-            searchable
-            className="min-h-0 flex-1"
+          <FormDialogBody>
+            <MemberMultiPicker
+              workspaceId={workspaceId}
+              value={selected}
+              onChange={setSelected}
+              excludeUserIds={excludeUserIds}
+              searchable
+            />
+          </FormDialogBody>
+          <FormDialogFooter
+            onCancel={() => close(false)}
+            submitType="submit"
+            submitLabel={t("meetings.inviteMember")}
+            submittingLabel={t("meetings.inviting")}
+            submitting={pending}
+            submitDisabled={nothingPicked}
+            leading={nothingPicked ? t("meetings.pickPeopleToInvite") : undefined}
           />
-          <DialogFooter className="shrink-0">
-            <Button type="button" variant="outline" onClick={() => close(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || selected.length === 0}>
-              {t("meetings.inviteMember")}
-            </Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

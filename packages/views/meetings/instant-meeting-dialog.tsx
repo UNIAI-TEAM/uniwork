@@ -1,19 +1,11 @@
 "use client";
-import { useState, type ReactElement } from "react";
-import { Zap } from "lucide-react";
+import { useId, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
 import { useCreateInstantMeeting } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
-  DialogTrigger,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import {
   Field,
   FieldDescription,
@@ -22,9 +14,14 @@ import {
 } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { toast } from "sonner";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { MemberMultiPicker } from "./member-multi-picker";
-import { MeetingDialogHeader } from "./meeting-dialog-header";
 
 export function InstantMeetingDialog({
   workspaceId,
@@ -36,14 +33,23 @@ export function InstantMeetingDialog({
   trigger?: ReactElement;
 }) {
   const { t } = useTranslation();
+  const id = useId();
   const userId = useAuthStore((s) => s.user?.id);
   const instant = useCreateInstantMeeting(workspaceId);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [attendees, setAttendees] = useState<string[]>([]);
 
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      setTitle("");
+      setAttendees([]);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
         render={
           trigger ?? (
@@ -53,66 +59,66 @@ export function InstantMeetingDialog({
           )
         }
       />
-      <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto">
-        <MeetingDialogHeader icon={Zap} title={t("meetings.instant")} description={t("meetings.instantHint")} className="mb-4" />
-        <DialogTitle className="sr-only">{t("meetings.instant")}</DialogTitle>
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("meetings.instant")} />
         <form
-          className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
+            // The picks go with this start; the form clears as soon as the room opens.
+            const invitees = attendees;
             instant.mutate(title.trim() || undefined, {
               onSuccess: async (m) => {
                 if (!m) {
                   toast.error(t("common.error"));
                   return;
                 }
-                setOpen(false);
+                changeOpen(false);
                 onStarted(m.id);
-                if (attendees.length) {
+                if (invitees.length) {
                   const results = await Promise.allSettled(
-                    attendees.map((id) => inviteParticipant(m.id, id)),
+                    invitees.map((userId) => inviteParticipant(m.id, userId)),
                   );
-                  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
-                  if (failed) toastApiError(failed.reason, t("common.error"));
+                  const failed = results.filter((r) => r.status === "rejected").length;
+                  if (failed) toast.error(t("meetings.inviteFailedCount", { count: failed }));
                 }
               },
               onError: (err) => toastApiError(err, t("common.error")),
             });
           }}
         >
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="instant-title">
-                {t("meetings.instantTitle")}
-              </FieldLabel>
-              <Input
-                id="instant-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                autoFocus
-              />
-              <FieldDescription>{t("meetings.instantHint")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel>{t("meetings.attendees")}</FieldLabel>
-              <MemberMultiPicker
-                workspaceId={workspaceId}
-                value={attendees}
-                onChange={setAttendees}
-                excludeUserIds={userId ? [userId] : []}
-              />
-            </Field>
-          </FieldGroup>
-          <DialogFooter>
-            <DialogClose render={<Button type="button" variant="ghost" />}>
-              {t("common.cancel")}
-            </DialogClose>
-            <Button type="submit" disabled={instant.isPending}>
-              {t("meetings.instant")}
-            </Button>
-          </DialogFooter>
+          <FormDialogBody>
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor={`${id}-title`}>{t("meetings.instantTitle")}</FieldLabel>
+                <Input
+                  id={`${id}-title`}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  aria-describedby={`${id}-hint`}
+                  autoFocus
+                />
+                <FieldDescription id={`${id}-hint`}>{t("meetings.instantHint")}</FieldDescription>
+              </Field>
+              <Field aria-labelledby={`${id}-attendees`}>
+                <FieldLabel id={`${id}-attendees`}>{t("meetings.attendees")}</FieldLabel>
+                <MemberMultiPicker
+                  workspaceId={workspaceId}
+                  value={attendees}
+                  onChange={setAttendees}
+                  excludeUserIds={userId ? [userId] : []}
+                />
+              </Field>
+            </FieldGroup>
+          </FormDialogBody>
+          <FormDialogFooter
+            onCancel={() => changeOpen(false)}
+            submitType="submit"
+            submitLabel={t("meetings.instant")}
+            submittingLabel={t("meetings.starting")}
+            submitting={instant.isPending}
+          />
         </form>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

@@ -4,9 +4,11 @@ import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import { useMembers } from "@uniwork/core/workspaces";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
-import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
 import { PanelCard } from "../common/panel-card";
+import { moduleTone } from "../layout/module-tones";
+import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingTimeZoneLabel } from "./meeting-detail-format";
+import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -32,8 +34,12 @@ export function MeetingDetailAside({
 }) {
   const { t, i18n } = useTranslation();
   const { data: members } = useMembers(workspaceId);
-  const creator = members?.find((m) => m.user_id === meeting.created_by)?.display_name ?? meeting.created_by;
-  const timezone = meeting.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const creator =
+    members?.find((m) => m.user_id === meeting.created_by)?.display_name ?? (members ? t("meetings.formerMember") : null);
+  const timezone = meetingTimeZoneLabel(
+    meeting.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    i18n.language,
+  );
   const createdAt = meeting.created_at ? formatMeetingStart(meeting.created_at, meetingLocale(i18n.language)) : null;
   const rosterOpen = meeting.status === "SCHEDULED" || meeting.status === "IN_PROGRESS" || !meeting.status;
   const canMutateRoster = canHost && rosterOpen;
@@ -48,13 +54,15 @@ export function MeetingDetailAside({
         showTransferHost={canMutateRoster}
       />
       {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} canCreate={canMutateRoster} /> : null}
-      <PanelCard id="details-heading" icon={Info} title={t("meetings.details")}>
+      <PanelCard id="details-heading" icon={Info} iconTone={moduleTone("meetings")} title={t("meetings.details")}>
         <dl className="-my-2 divide-y divide-border">
           <DetailRow label={t("meetings.timezone")}>{timezone}</DetailRow>
-          <DetailRow label={t("meetings.meetingType")}>
-            {meeting.meeting_type === "INSTANT" ? t("meetings.typeInstant") : t("meetings.typeScheduled")}
-          </DetailRow>
-          <DetailRow label={t("meetings.createdBy")}>{creator}</DetailRow>
+          {meeting.allow_join_request !== undefined ? (
+            <DetailRow label={t("meetings.whoCanJoin")}>
+              {t(meeting.allow_join_request ? "meetings.joinRequestOpen" : "meetings.joinRequestClosed")}
+            </DetailRow>
+          ) : null}
+          {creator ? <DetailRow label={t("meetings.createdBy")}>{creator}</DetailRow> : null}
           {createdAt ? (
             <DetailRow label={t("meetings.createdAt")}>
               <span className="tabular-nums">{createdAt}</span>

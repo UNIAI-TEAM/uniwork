@@ -230,3 +230,43 @@ export function resolveConferenceStage(
     }
   }
 }
+
+/**
+ * Whether the AI copilot panel is actually on screen. Compact screens show the
+ * side panel as a Sheet, so the desktop pin (open by default) says nothing
+ * about them; wide screens have no Sheet.
+ */
+export function copilotPanelShown({
+  tab,
+  compact,
+  sheetOpen,
+  pinned,
+}: {
+  tab: string;
+  compact: boolean;
+  sheetOpen: boolean;
+  pinned: boolean;
+}): boolean {
+  return tab === "copilot" && (compact ? sheetOpen : pinned);
+}
+
+export type TileRingTone = "hand" | "speaking" | "pinned" | "idle";
+
+/**
+ * One ring per tile, by urgency: a raised hand asks for the room's attention,
+ * speaking says who to look at, pinning is only the viewer's own layout.
+ */
+export function tileRingTone({
+  handRaised,
+  speaking,
+  pinned,
+}: {
+  handRaised: boolean;
+  speaking: boolean;
+  pinned: boolean;
+}): TileRingTone {
+  if (handRaised) return "hand";
+  if (speaking) return "speaking";
+  if (pinned) return "pinned";
+  return "idle";
+}

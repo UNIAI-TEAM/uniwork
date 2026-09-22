@@ -23,8 +23,8 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 
 /*
- * One dialog anatomy for every chat flow — create a group, write a poll,
- * rename a room: a bordered header (title, one line of why), a body that
+ * One dialog anatomy for every form flow (chat, meetings, …) — create a
+ * group, schedule a meeting, rename a room: a bordered header (title, one line of why), a body that
  * scrolls on its own, and a footer with Cancel then the primary action on
  * the right. Two widths: md for a single field or a picker, lg for a form
  * with several sections.
@@ -32,7 +32,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 
 const WIDTH = { md: "sm:max-w-md", lg: "sm:max-w-lg" } as const;
 
-export function ChatDialogContent({
+export function FormDialogContent({
   size = "md",
   className,
   children,
@@ -48,7 +48,7 @@ export function ChatDialogContent({
   );
 }
 
-export function ChatDialogHeader({ title, description }: { title: ReactNode; description?: ReactNode }) {
+export function FormDialogHeader({ title, description }: { title: ReactNode; description?: ReactNode }) {
   return (
     <DialogHeader className="gap-1 border-b border-border py-3.5 pr-12 pl-5">
       <DialogTitle className="text-title-sm font-semibold text-balance">{title}</DialogTitle>
@@ -57,7 +57,7 @@ export function ChatDialogHeader({ title, description }: { title: ReactNode; des
   );
 }
 
-export function ChatDialogBody({ className, children }: { className?: string; children: ReactNode }) {
+export function FormDialogBody({ className, children }: { className?: string; children: ReactNode }) {
   return <div className={cn("max-h-[min(70vh,40rem)] space-y-4 overflow-y-auto px-5 py-4", className)}>{children}</div>;
 }
 
@@ -66,7 +66,7 @@ export function ChatDialogBody({ className, children }: { className?: string; ch
  * the "…ing" form and both buttons hold still, so a second click cannot
  * send twice.
  */
-export function ChatDialogFooter({
+export function FormDialogFooter({
   onCancel,
   cancelLabel,
   submitLabel,
@@ -115,10 +115,11 @@ export function ChatDialogFooter({
 }
 
 /**
- * The one confirmation every destructive chat action goes through — remove
- * a member, archive a channel, delete a follow-up. Never window.confirm.
+ * The one confirmation every consequential action goes through — remove a
+ * member, end a meeting, revoke a link. Never window.confirm. The caller
+ * closes it once the action settles, so `pending` shows while it runs.
  */
-export function ChatConfirmDialog({
+export function ConfirmDialog({
   open,
   onOpenChange,
   title,
@@ -126,6 +127,7 @@ export function ChatConfirmDialog({
   confirmLabel,
   onConfirm,
   pending = false,
+  destructive = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -134,6 +136,8 @@ export function ChatConfirmDialog({
   confirmLabel: string;
   onConfirm: () => void;
   pending?: boolean;
+  /** False for a consequential but non-destructive step (hand over the host role). */
+  destructive?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -145,7 +149,12 @@ export function ChatConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{t("common.cancel")}</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" disabled={pending} onClick={onConfirm}>
+          <AlertDialogAction
+            variant={destructive ? "destructive" : "default"}
+            disabled={pending}
+            aria-busy={pending || undefined}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

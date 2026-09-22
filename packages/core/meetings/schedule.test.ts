@@ -43,7 +43,8 @@ describe("meeting schedule helpers", () => {
     expect(isScheduledMeetingLive({ ends_at: endsAt, status: "IN_PROGRESS" }, inside)).toBe(true);
     expect(displayMeetingStatus({ ends_at: endsAt, status: "IN_PROGRESS" }, past)).toBe("OVERTIME");
     expect(displayMeetingStatus({ ends_at: endsAt, status: "IN_PROGRESS" }, inside)).toBe("IN_PROGRESS");
-    expect(displayMeetingStatus({ ends_at: endsAt, status: "SCHEDULED" }, past)).toBe("ENDED");
+    // A window that passed without the meeting ever starting did not "end": it did not happen.
+    expect(displayMeetingStatus({ ends_at: endsAt, status: "SCHEDULED" }, past)).toBe("MISSED");
     expect(displayMeetingStatus({ ends_at: endsAt, status: "CANCELED" }, past)).toBe("CANCELED");
   });
 });

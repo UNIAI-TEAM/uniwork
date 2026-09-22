@@ -10,11 +10,11 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import type { AssigneeRef } from "../tasks/pickers";
 import { toastApiError } from "../toast-api-error";
 import {
-  ChatDialogBody,
-  ChatDialogContent,
-  ChatDialogFooter,
-  ChatDialogHeader,
-} from "./chat-dialog-layout";
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 import {
   ChatTaskAssigneeField,
   ChatTaskDueField,
@@ -84,13 +84,13 @@ export function CreateTaskFromMessageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="lg">
-        <ChatDialogHeader
+      <FormDialogContent size="lg">
+        <FormDialogHeader
           title={t("chat.link.create_task_title")}
           description={t("chat.link.create_task_description")}
         />
 
-        <ChatDialogBody>
+        <FormDialogBody>
           <Input
             id="chat-task-title"
             aria-label={t("chat.link.title_label")}
@@ -130,9 +130,9 @@ export function CreateTaskFromMessageDialog({
               </span>
             </label>
           ) : null}
-        </ChatDialogBody>
+        </FormDialogBody>
 
-        <ChatDialogFooter
+        <FormDialogFooter
           onCancel={() => onOpenChange(false)}
           submitLabel={t("chat.link.create")}
           submittingLabel={t("chat.link.creating")}
@@ -140,7 +140,7 @@ export function CreateTaskFromMessageDialog({
           submitDisabled={!trimmed || !messageId}
           onSubmit={submit}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

@@ -7,7 +7,7 @@ import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 
 export function ChatRoomRenameDialog({
   open,
@@ -53,9 +53,9 @@ export function ChatRoomRenameDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader title={t("chat.room_rename_title")} description={t("chat.room_rename_description")} />
-        <ChatDialogBody className="space-y-2">
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("chat.room_rename_title")} description={t("chat.room_rename_description")} />
+        <FormDialogBody className="space-y-2">
           <Label htmlFor="chat-room-rename">{t("chat.room_rename_label")}</Label>
           <Input
             id="chat-room-rename"
@@ -76,8 +76,8 @@ export function ChatRoomRenameDialog({
               {error}
             </p>
           ) : null}
-        </ChatDialogBody>
-        <ChatDialogFooter
+        </FormDialogBody>
+        <FormDialogFooter
           onCancel={() => onOpenChange(false)}
           submitLabel={t("common.save")}
           submittingLabel={t("chat.room_rename_saving")}
@@ -85,7 +85,7 @@ export function ChatRoomRenameDialog({
           submitDisabled={!name.trim()}
           onSubmit={handleSave}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

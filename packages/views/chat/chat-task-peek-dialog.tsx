@@ -10,7 +10,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { toastApiError } from "../toast-api-error";
-import { ChatDialogBody, ChatDialogContent, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
 import { ChatTaskPeekFields, chatTaskTitleInput } from "./chat-task-peek-fields";
 
 /** Placeholder in the shape of the peek: a row of chips, the title, the description. */
@@ -95,11 +95,11 @@ export function ChatTaskPeekDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="lg" className="sm:max-w-2xl">
+      <FormDialogContent size="lg" className="sm:max-w-2xl">
         <div data-testid="chat-task-peek-dialog" className="contents">
-          <ChatDialogHeader title={identifier} description={t("chat.link.peek_description")} />
+          <FormDialogHeader title={identifier} description={t("chat.link.peek_description")} />
 
-          <ChatDialogBody className="max-h-[min(80vh,44rem)] pb-6">
+          <FormDialogBody className="max-h-[min(80vh,44rem)] pb-6">
             {isLoading ? <PeekSkeleton label={t("chat.link.task_loading")} /> : null}
 
             {notFound ? (
@@ -152,9 +152,9 @@ export function ChatTaskPeekDialog({
                 />
               </>
             ) : null}
-          </ChatDialogBody>
+          </FormDialogBody>
         </div>
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

@@ -40,6 +40,35 @@ describe("Button", () => {
   });
 });
 
+describe("Button solid and meeting variants", () => {
+  it("fills a destructive action with the solid signal and on-solid text", () => {
+    render(<Button variant="destructiveSolid">Kết thúc</Button>);
+    const btn = screen.getByRole("button", { name: "Kết thúc" });
+    expect(btn).toHaveClass("bg-destructive-solid", "text-on-solid", "border-destructive-solid");
+    expect(btn.className).not.toMatch(/!/);
+  });
+
+  it("fills a success action with the solid signal and on-solid text", () => {
+    render(<Button variant="successSolid">Duyệt</Button>);
+    const btn = screen.getByRole("button", { name: "Duyệt" });
+    expect(btn).toHaveClass("bg-success-solid", "text-on-solid");
+    expect(btn.className).not.toMatch(/!/);
+  });
+
+  it("paints a chip for the dark meeting bar from its own tokens", () => {
+    render(<Button variant="meetingChip">Thiết bị</Button>);
+    const btn = screen.getByRole("button", { name: "Thiết bị" });
+    expect(btn).toHaveClass(
+      "bg-meeting-bar-chip-bg",
+      "text-meeting-bar-foreground",
+      "border-meeting-bar-border",
+      "hover:bg-meeting-bar-chip-hover",
+    );
+    expect(btn).not.toHaveClass("border-input");
+    expect(btn.className).not.toMatch(/!/);
+  });
+});
+
 describe("ButtonLink", () => {
   it("stays a link: button styling without button semantics", () => {
     render(

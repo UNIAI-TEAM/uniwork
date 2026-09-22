@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
-import { Avatar, AvatarFallback } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -24,13 +23,10 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRoleChip } from "./meeting-role-chip";
+import type { MeetingParticipantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
-
-function participantInitial(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "?";
-  return trimmed.charAt(0).toLowerCase();
-}
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -44,6 +40,8 @@ export function MeetingParticipantRow({
   onRevokeSpeaking,
   onAllowSpeaking,
   pinned,
+  avatarUrl,
+  roleChip = null,
 }: {
   participant: Participant;
   subtitle?: string;
@@ -52,6 +50,10 @@ export function MeetingParticipantRow({
   onRevokeSpeaking?: () => void;
   onAllowSpeaking?: () => void;
   pinned?: boolean;
+  /** Photo for this person when the caller can resolve it (e.g. from workspace members). */
+  avatarUrl?: unknown;
+  /** Guest or agent chip beside the name; `null` for a workspace member. */
+  roleChip?: MeetingParticipantRole | null;
 }) {
   const { t } = useTranslation();
   const speaking = useIsSpeaking(participant);
@@ -67,18 +69,17 @@ export function MeetingParticipantRow({
     <div
       className={cn(
         "group flex min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 transition-colors",
-        "hover:bg-muted/40",
-        pinned && "bg-surface-selected ring-1 ring-brand/20",
+        "hover:bg-surface-hover",
+        pinned && "bg-surface-selected",
       )}
     >
-      <Avatar size="sm" className="shrink-0">
-        <AvatarFallback className="bg-muted text-caption font-medium uppercase text-muted-foreground">
-          {participantInitial(name)}
-        </AvatarFallback>
-      </Avatar>
+      <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-body text-foreground">{label}</p>
+        <p className="flex min-w-0 items-center gap-1.5 text-body text-foreground">
+          <span className="min-w-0 truncate">{label}</span>
+          {roleChip ? <MeetingRoleChip role={roleChip} /> : null}
+        </p>
         {subtitle ? (
           <p className="truncate text-caption text-muted-foreground">{subtitle}</p>
         ) : null}
@@ -87,13 +88,15 @@ export function MeetingParticipantRow({
       <div className="flex shrink-0 items-center gap-0.5">
         {micMuted ? (
           <span
+            role="img"
             className="flex size-7 items-center justify-center rounded-full text-muted-foreground"
-            aria-label={t("meetings.micOff")}
+            aria-label={t("meetings.micIsOff")}
           >
             <MicOff aria-hidden className="size-3.5" />
           </span>
         ) : speaking ? (
           <span
+            role="img"
             className="flex size-7 items-center justify-center rounded-full text-success"
             aria-label={t("meetings.speaking")}
           >
@@ -108,7 +111,7 @@ export function MeetingParticipantRow({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-7 rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                className="size-7 rounded-full opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 pointer-coarse:opacity-100"
                 aria-label={t("meetings.participantActions", { name })}
               />
             }

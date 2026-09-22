@@ -3,6 +3,7 @@ import type { TrackReferenceOrPlaceholder } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import {
   conferenceStagePage,
+  copilotPanelShown,
   filterVisibleTracks,
   orderTracks,
   paginate,
@@ -10,6 +11,7 @@ import {
   resolveConferenceStage,
   splitTracksBySource,
   tileGridClass,
+  tileRingTone,
   trackHasVideo,
   trackTileKey,
 } from "./conference-layout";
@@ -198,5 +200,39 @@ describe("conference layout", () => {
     });
     expect(stage.primary[0]?.source).toBe(Track.Source.ScreenShare);
     expect(stage.thumbnails.map((t) => t.participant.identity)).toEqual([]);
+  });
+});
+
+describe("copilotPanelShown", () => {
+  it("follows the sheet on compact screens, not the desktop pin", () => {
+    // The pin defaults to open; on a phone the panel is a Sheet, and while
+    // that Sheet is closed the AI control must not read as pressed.
+    expect(copilotPanelShown({ tab: "copilot", compact: true, sheetOpen: false, pinned: true })).toBe(false);
+    expect(copilotPanelShown({ tab: "copilot", compact: true, sheetOpen: true, pinned: false })).toBe(true);
+  });
+
+  it("follows the pinned side panel on wide screens", () => {
+    expect(copilotPanelShown({ tab: "copilot", compact: false, sheetOpen: true, pinned: false })).toBe(false);
+    expect(copilotPanelShown({ tab: "copilot", compact: false, sheetOpen: false, pinned: true })).toBe(true);
+  });
+
+  it("is off whenever another tab is showing", () => {
+    expect(copilotPanelShown({ tab: "chat", compact: false, sheetOpen: false, pinned: true })).toBe(false);
+    expect(copilotPanelShown({ tab: "chat", compact: true, sheetOpen: true, pinned: true })).toBe(false);
+  });
+});
+
+describe("tileRingTone", () => {
+  it("puts a raised hand above speaking and pinning: it asks for attention", () => {
+    expect(tileRingTone({ handRaised: true, speaking: true, pinned: true })).toBe("hand");
+  });
+
+  it("shows who is speaking, even on the pinned tile", () => {
+    expect(tileRingTone({ handRaised: false, speaking: true, pinned: true })).toBe("speaking");
+  });
+
+  it("marks a pinned tile when nothing more urgent applies, else stays idle", () => {
+    expect(tileRingTone({ handRaised: false, speaking: false, pinned: true })).toBe("pinned");
+    expect(tileRingTone({ handRaised: false, speaking: false, pinned: false })).toBe("idle");
   });
 });

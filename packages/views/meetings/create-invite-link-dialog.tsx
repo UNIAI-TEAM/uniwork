@@ -1,41 +1,35 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateInviteLink } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { InfoHint } from "@uniwork/ui/components/common/info-hint";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Dialog, DialogFooter } from "@uniwork/ui/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { toast } from "sonner";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { defaultInviteLinkLabel } from "./invite-link-display";
 
 const DEFAULT_DAYS = "7";
 const DEFAULT_MODE = "AUTO_ADMIT";
-
-function resetDraft() {
-  return {
-    name: "",
-    days: DEFAULT_DAYS,
-    mode: DEFAULT_MODE,
-    maxUses: "",
-    freshUrl: null as string | null,
-  };
-}
+const COPIED_MS = 2000;
 
 export function CreateInviteLinkDialog({
   meetingId,
@@ -47,6 +41,7 @@ export function CreateInviteLinkDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const id = useId();
   const create = useCreateInviteLink(meetingId);
   const [name, setName] = useState("");
   const [days, setDays] = useState(DEFAULT_DAYS);
@@ -54,16 +49,19 @@ export function CreateInviteLinkDialog({
   const [maxUses, setMaxUses] = useState("");
   const [freshUrl, setFreshUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
 
   const close = (next: boolean) => {
     if (!next) {
-      const draft = resetDraft();
-      setName(draft.name);
-      setDays(draft.days);
-      setMode(draft.mode);
-      setMaxUses(draft.maxUses);
-      setFreshUrl(draft.freshUrl);
+      setName("");
+      setDays(DEFAULT_DAYS);
+      setMode(DEFAULT_MODE);
+      setMaxUses("");
+      setFreshUrl(null);
       setCopied(false);
+      window.clearTimeout(copiedTimer.current);
     }
     onOpenChange(next);
   };
@@ -73,7 +71,8 @@ export function CreateInviteLinkDialog({
     if (await copyText(freshUrl)) {
       setCopied(true);
       toast.success(t("meetings.linkCopied"));
-      window.setTimeout(() => setCopied(false), 2000);
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), COPIED_MS);
       return;
     }
     toast.error(t("common.error"));
@@ -86,53 +85,46 @@ export function CreateInviteLinkDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-1.5 pr-8">
-            <DialogTitle>{t("meetings.externalGuestLinks")}</DialogTitle>
-            <InfoHint label={t("meetings.createInviteLinkDescription")}>
-              <span className="block space-y-1.5">
-                <span className="block">{t("meetings.createInviteLinkDescription")}</span>
-                <span className="block">{t("meetings.createInviteLinkGuestHint")}</span>
-              </span>
-            </InfoHint>
-          </div>
-          <DialogDescription className="sr-only">
-            {t("meetings.createInviteLinkDescription")} {t("meetings.createInviteLinkGuestHint")}
-          </DialogDescription>
-        </DialogHeader>
+      <FormDialogContent size="md">
+        <FormDialogHeader
+          title={t("meetings.externalGuestLinks")}
+          description={`${t("meetings.createInviteLinkDescription")} ${t("meetings.createInviteLinkGuestHint")}`}
+        />
 
         {freshUrl ? (
-          <div className="space-y-3">
-            <p className="text-label text-success">{t("meetings.linkCreated")}</p>
-            <p className="text-caption text-muted-foreground">{t("meetings.linkSecretOnce")}</p>
-            <div className="flex min-w-0 items-start gap-1.5 rounded-lg border border-border bg-surface-hover p-3">
-              <p className="min-w-0 flex-1 break-all text-caption text-foreground">{freshUrl}</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                onClick={() => void handleCopy()}
-                aria-label={t("meetings.copyLink")}
-              >
-                {copied ? <Check className="size-3.5 text-success" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
-              </Button>
-            </div>
-            <DialogFooter>
+          <>
+            <FormDialogBody className="space-y-3">
+              <p className="rounded-lg bg-success-soft px-3 py-2 text-label font-medium text-success-soft-foreground">
+                {t("meetings.linkCreated")}
+              </p>
+              <p className="text-caption text-muted-foreground">{t("meetings.linkSecretOnce")}</p>
+              <div className="flex min-w-0 items-start gap-2 rounded-lg border border-border bg-surface-hover p-3">
+                <p className="min-w-0 flex-1 break-all text-caption text-foreground">{freshUrl}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => void handleCopy()}
+                >
+                  {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+                  {copied ? t("common.copied") : t("common.copy")}
+                </Button>
+              </div>
+            </FormDialogBody>
+            <DialogFooter className="items-center px-5 py-3">
               <Button type="button" onClick={() => close(false)}>
                 {t("common.done")}
               </Button>
             </DialogFooter>
-          </div>
+          </>
         ) : (
           <form
-            className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
               const expires = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000).toISOString();
               const nowIso = new Date().toISOString();
-              const defaultName = defaultInviteLinkLabel(nowIso, i18n.language);
+              const defaultName = defaultInviteLinkLabel(nowIso, i18n.language, t);
               create.mutate(
                 {
                   name: name.trim() || defaultName,
@@ -143,12 +135,12 @@ export function CreateInviteLinkDialog({
                 {
                   onSuccess: (res) => {
                     const secret = res?.invite_link.secret;
-                    const id = res?.invite_link.id;
-                    if (!secret || !id) {
+                    const linkId = res?.invite_link.id;
+                    if (!secret || !linkId) {
                       close(false);
                       return;
                     }
-                    const url = `${runtimeConfig().appUrl}${paths.meetingInvite(id)}#secret=${secret}`;
+                    const url = `${runtimeConfig().appUrl}${paths.meetingInvite(linkId)}#secret=${secret}`;
                     setFreshUrl(url);
                     void copyText(url).then((ok) => {
                       if (ok) toast.success(t("meetings.linkCopied"));
@@ -159,68 +151,61 @@ export function CreateInviteLinkDialog({
               );
             }}
           >
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="link-name">{t("meetings.linkName")}</FieldLabel>
-                <Input
-                  id="link-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={defaultInviteLinkLabel(new Date().toISOString(), i18n.language)}
-                  autoFocus
-                />
-              </Field>
-              <Field>
-                <FieldLabel>{t("meetings.linkExpiry")}</FieldLabel>
-                <Select value={days} onValueChange={(v) => v && setDays(v)} items={expiryItems} />
-              </Field>
-              <Field>
-                <FieldLabel className="inline-flex items-center gap-1.5">
-                  {t("meetings.linkGuestAccess")}
-                  <InfoHint
-                    label={
-                      mode === "REQUEST_APPROVAL"
-                        ? t("meetings.linkNeedApprovalGuestHint")
-                        : t("meetings.linkAutoAdmitGuestHint")
-                    }
-                  >
+            <FormDialogBody>
+              <FieldGroup className="gap-4">
+                <Field>
+                  <FieldLabel htmlFor={`${id}-name`}>{t("meetings.linkName")}</FieldLabel>
+                  <Input
+                    id={`${id}-name`}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={defaultInviteLinkLabel(new Date().toISOString(), i18n.language, t)}
+                    autoFocus
+                  />
+                </Field>
+                <Field aria-labelledby={`${id}-expiry`}>
+                  <FieldLabel id={`${id}-expiry`}>{t("meetings.linkExpiry")}</FieldLabel>
+                  <Select value={days} onValueChange={(v) => v && setDays(v)} items={expiryItems} />
+                </Field>
+                <Field aria-labelledby={`${id}-access`}>
+                  <FieldLabel id={`${id}-access`}>{t("meetings.linkGuestAccess")}</FieldLabel>
+                  <Select
+                    value={mode}
+                    onValueChange={(v) => v && setMode(v)}
+                    items={[
+                      { value: "AUTO_ADMIT", label: t("meetings.linkAutoAdmit") },
+                      { value: "REQUEST_APPROVAL", label: t("meetings.linkNeedApproval") },
+                    ]}
+                  />
+                  <FieldDescription>
                     {mode === "REQUEST_APPROVAL"
                       ? t("meetings.linkNeedApprovalGuestHint")
                       : t("meetings.linkAutoAdmitGuestHint")}
-                  </InfoHint>
-                </FieldLabel>
-                <Select
-                  value={mode}
-                  onValueChange={(v) => v && setMode(v)}
-                  items={[
-                    { value: "AUTO_ADMIT", label: t("meetings.linkAutoAdmit") },
-                    { value: "REQUEST_APPROVAL", label: t("meetings.linkNeedApproval") },
-                  ]}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="link-max">{t("meetings.linkMaxUses")}</FieldLabel>
-                <Input
-                  id="link-max"
-                  type="number"
-                  min={1}
-                  value={maxUses}
-                  onChange={(e) => setMaxUses(e.target.value)}
-                  placeholder={t("meetings.linkUnlimited")}
-                />
-              </Field>
-            </FieldGroup>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => close(false)}>
-                {t("common.cancel")}
-              </Button>
-              <Button type="submit" disabled={create.isPending}>
-                {t("meetings.createLink")}
-              </Button>
-            </DialogFooter>
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`${id}-max`}>{t("meetings.linkMaxUses")}</FieldLabel>
+                  <Input
+                    id={`${id}-max`}
+                    type="number"
+                    min={1}
+                    value={maxUses}
+                    onChange={(e) => setMaxUses(e.target.value)}
+                    placeholder={t("meetings.linkUnlimited")}
+                  />
+                </Field>
+              </FieldGroup>
+            </FormDialogBody>
+            <FormDialogFooter
+              onCancel={() => close(false)}
+              submitType="submit"
+              submitLabel={t("meetings.createLink")}
+              submittingLabel={t("meetings.creating")}
+              submitting={create.isPending}
+            />
           </form>
         )}
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

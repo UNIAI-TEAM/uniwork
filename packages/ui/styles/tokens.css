@@ -245,11 +245,16 @@
   --menu-shadow: 0 4px 10px rgb(13 21 48 / 0.08), 0 0 1px rgb(0 0 0 / 0.27);
   --floating-shadow: 0 10px 25px rgb(18 43 165 / 0.10), 0 0 1px rgb(0 0 0 / 0.27);
 
-  /* Meeting room — video rail overlay, dark control bar, tile labels. Used
-     inside the forced-dark video subtree; values are dark-surface oriented in
-     both themes so the in-room chrome stays consistent. */
-  --meeting-rail-overlay-from: rgb(30 30 30 / 0.85);
-  --meeting-rail-overlay-to: rgb(30 30 30 / 0);
+  /* Meeting room — the video stage, its control bar and tile labels. The
+     stage is dark in BOTH themes (video reads best on near-black), so these
+     are dark-surface values in both blocks and in-room chrome never has to
+     borrow the onboarding --rail or a raw black. --meeting-video-bg letterboxes
+     a video; --meeting-scrim dims a tile under its hover controls. */
+  --meeting-stage: #1e1e1e;
+  --meeting-stage-foreground: #f8f9fa;
+  --meeting-video-bg: #0a0a0a;
+  --meeting-scrim: rgb(10 10 10 / 0.45);
+  --meeting-bar-muted-foreground: #b4b6b8;
   --meeting-bar-bg: rgb(30 30 30 / 0.92);
   --meeting-bar-border: rgb(255 255 255 / 0.12);
   --meeting-bar-foreground: #f8f9fa;
@@ -257,13 +262,6 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
   --meeting-tile-name-foreground: #f8f9fa;
-
-  /* Meeting lobby — ambient canvas behind prejoin / waiting screens. */
-  --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 16%, transparent);
-  --meeting-lobby-glow-b: color-mix(in srgb, var(--chart-2) 12%, transparent);
-  --meeting-lobby-vignette-from: color-mix(in srgb, var(--background) 45%, transparent);
-  --meeting-lobby-vignette-to: color-mix(in srgb, var(--background) 88%, transparent);
-  --meeting-lobby-grid: color-mix(in srgb, var(--border) 55%, transparent);
 }
 
 .dark {
@@ -407,8 +405,11 @@
   --menu-shadow: 0 4px 10px rgb(0 0 0 / 0.4), 0 0 1px rgb(255 255 255 / 0.12);
   --floating-shadow: 0 10px 25px rgb(0 0 0 / 0.5), 0 0 1px rgb(255 255 255 / 0.12);
 
-  --meeting-rail-overlay-from: rgb(17 17 17 / 0.9);
-  --meeting-rail-overlay-to: rgb(17 17 17 / 0);
+  --meeting-stage: #1e1e1e;
+  --meeting-stage-foreground: #f8f9fa;
+  --meeting-video-bg: #0a0a0a;
+  --meeting-scrim: rgb(10 10 10 / 0.45);
+  --meeting-bar-muted-foreground: #b4b6b8;
   --meeting-bar-bg: rgb(17 17 17 / 0.92);
   --meeting-bar-border: rgb(255 255 255 / 0.12);
   --meeting-bar-foreground: #f8f9fa;
@@ -416,12 +417,6 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
   --meeting-tile-name-foreground: #f8f9fa;
-
-  --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 22%, transparent);
-  --meeting-lobby-glow-b: color-mix(in srgb, var(--chart-2) 14%, transparent);
-  --meeting-lobby-vignette-from: color-mix(in srgb, var(--background) 35%, transparent);
-  --meeting-lobby-vignette-to: color-mix(in srgb, var(--background) 92%, transparent);
-  --meeting-lobby-grid: color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 /* Accent themes. The second theming axis: light/dark picks the palette, the
@@ -586,6 +581,11 @@ html.dark[data-accent] {
   --color-tint-teal-solid: var(--tint-teal-solid);
   --color-tint-gray-solid: var(--tint-gray-solid);
   --color-tint-red-solid: var(--tint-red-solid);
+  --color-meeting-stage: var(--meeting-stage);
+  --color-meeting-stage-foreground: var(--meeting-stage-foreground);
+  --color-meeting-video-bg: var(--meeting-video-bg);
+  --color-meeting-scrim: var(--meeting-scrim);
+  --color-meeting-bar-muted-foreground: var(--meeting-bar-muted-foreground);
   --color-meeting-bar-bg: var(--meeting-bar-bg);
   --color-meeting-bar-border: var(--meeting-bar-border);
   --color-meeting-bar-foreground: var(--meeting-bar-foreground);

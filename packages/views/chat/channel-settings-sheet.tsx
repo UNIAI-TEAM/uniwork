@@ -32,7 +32,7 @@ import {
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { ChannelSettingsMembers } from "./channel-settings-members";
 import { ChatSettingsMenuRow, ChatSettingsTitleRow } from "./chat-settings-ui";
-import { ChatConfirmDialog } from "./chat-dialog-layout";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { LeaveConversationSection } from "./leave-conversation-section";
 
@@ -324,7 +324,7 @@ export function ChannelSettingsSheet({
           </div>
         ) : null}
 
-        <ChatConfirmDialog
+        <ConfirmDialog
           open={archiveConfirmOpen}
           onOpenChange={setArchiveConfirmOpen}
           title={t("chat.channel.archive_confirm_title", { name: channel.name })}

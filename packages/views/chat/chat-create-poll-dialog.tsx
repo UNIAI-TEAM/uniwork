@@ -24,7 +24,7 @@ import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { DateTimeField } from "../common/datetime-field";
 import { toastApiError } from "../toast-api-error";
-import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 
 type PollOption = { id: number; value: string };
 
@@ -135,10 +135,10 @@ export function ChatCreatePollDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="lg">
-        <ChatDialogHeader title={t("chat.poll_create_title")} description={t("chat.poll_create_description")} />
+      <FormDialogContent size="lg">
+        <FormDialogHeader title={t("chat.poll_create_title")} description={t("chat.poll_create_description")} />
 
-        <ChatDialogBody className="space-y-5">
+        <FormDialogBody className="space-y-5">
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
               <Label htmlFor="poll-question">{t("chat.poll_question_label")}</Label>
@@ -268,9 +268,9 @@ export function ChatCreatePollDialog({
               onCheckedChange={(value) => toggleSetting("hideVoters", value)}
             />
           </FieldSet>
-        </ChatDialogBody>
+        </FormDialogBody>
 
-        <ChatDialogFooter
+        <FormDialogFooter
           onCancel={() => onOpenChange(false)}
           submitLabel={t("chat.poll_create_submit")}
           submittingLabel={t("chat.poll_create_submitting")}
@@ -278,7 +278,7 @@ export function ChatCreatePollDialog({
           submitDisabled={!canCreate || deadlineError !== null}
           onSubmit={handleCreate}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

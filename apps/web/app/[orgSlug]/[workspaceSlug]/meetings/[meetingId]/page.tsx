@@ -4,6 +4,7 @@ import { Suspense, lazy } from "react";
 import { useParams } from "next/navigation";
 import { paths } from "@uniwork/core/paths";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
+import { MeetingDetailPageSkeleton } from "@uniwork/views/meetings/meeting-page-skeletons";
 import { useNavigation } from "@uniwork/views/navigation";
 
 // Keep the detail view out of the route entry so CI stays ≤ 150 KB gzip
@@ -20,7 +21,7 @@ export default function MeetingDetailPage() {
   const { push } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<MeetingDetailPageSkeleton />}>
       <MeetingDetailView
         workspaceId={workspace.id}
         meetingId={meetingId}

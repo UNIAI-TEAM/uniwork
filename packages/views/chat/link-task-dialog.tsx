@@ -16,11 +16,11 @@ import {
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import {
-  ChatDialogBody,
-  ChatDialogContent,
-  ChatDialogFooter,
-  ChatDialogHeader,
-} from "./chat-dialog-layout";
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 
 /** Rows shown at once; past this the list asks for a narrower search. */
 const RESULT_CAP = 40;
@@ -102,13 +102,13 @@ export function LinkTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader
+      <FormDialogContent size="md">
+        <FormDialogHeader
           title={t("chat.link.link_task_title")}
           description={t("chat.link.link_task_description")}
         />
 
-        <ChatDialogBody className="space-y-3">
+        <FormDialogBody className="space-y-3">
           <Command
             shouldFilter={false}
             label={listLabel}
@@ -173,9 +173,9 @@ export function LinkTaskDialog({
               {linkError}
             </p>
           ) : null}
-        </ChatDialogBody>
+        </FormDialogBody>
 
-        <ChatDialogFooter
+        <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
           submitLabel={t("chat.link.link")}
           submittingLabel={t("chat.link.linking")}
@@ -183,7 +183,7 @@ export function LinkTaskDialog({
           submitDisabled={!selectedId || !messageId}
           onSubmit={submit}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

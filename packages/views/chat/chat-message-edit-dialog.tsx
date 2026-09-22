@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
-import { ChatDialogBody, ChatDialogContent, ChatDialogFooter, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 
 export function ChatMessageEditDialog({
@@ -31,17 +31,17 @@ export function ChatMessageEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader title={t("chat.edit_dialog_title")} description={t("chat.edit_dialog_description")} />
-        <ChatDialogBody>
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("chat.edit_dialog_title")} description={t("chat.edit_dialog_description")} />
+        <FormDialogBody>
           <Textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
             rows={4}
             aria-label={t("chat.edit_dialog_title")}
           />
-        </ChatDialogBody>
-        <ChatDialogFooter
+        </FormDialogBody>
+        <FormDialogFooter
           onCancel={() => onOpenChange(false)}
           cancelLabel={t("chat.edit_dialog_cancel")}
           submitLabel={t("chat.edit_dialog_save")}
@@ -50,7 +50,7 @@ export function ChatMessageEditDialog({
           submitDisabled={!canSave}
           onSubmit={() => onSave(body.trim())}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

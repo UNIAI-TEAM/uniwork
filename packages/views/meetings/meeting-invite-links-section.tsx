@@ -1,17 +1,19 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Link2, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { inviteLinkStatus, useInviteLinks, useRevokeInviteLink } from "@uniwork/core/meetings";
 import type { MeetingInviteLink } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
 import { inviteLinkDisplayName, inviteLinkMetaParts } from "./invite-link-display";
 import { PanelCard } from "../common/panel-card";
 import { MeetingLinkBadge } from "./meeting-status-badge";
+import { moduleTone } from "../layout/module-tones";
 
 const VISIBLE_ACTIVE_LIMIT = 3;
 
@@ -28,14 +30,14 @@ function InviteLinkRow({
 }) {
   const { t } = useTranslation();
   const status = inviteLinkStatus(link, new Date());
-  const title = inviteLinkDisplayName(link, language);
-  const meta = inviteLinkMetaParts(link, language).join(" · ");
+  const title = inviteLinkDisplayName(link, language, t);
+  const meta = inviteLinkMetaParts(link, language, t).join(" · ");
 
   return (
     <li className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-4 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="truncate text-body text-foreground">{title}</div>
-        <div className="text-caption text-muted-foreground">{meta}</div>
+        <div className="text-caption tabular-nums text-muted-foreground">{meta}</div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <MeetingLinkBadge status={status} />
@@ -62,6 +64,7 @@ export function MeetingInviteLinksSection({
   const [createOpen, setCreateOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [showAllActive, setShowAllActive] = useState(false);
+  const [revoking, setRevoking] = useState<MeetingInviteLink | null>(null);
 
   const { activeLinks, inactiveLinks } = useMemo(() => {
     const all = links ?? [];
@@ -87,14 +90,16 @@ export function MeetingInviteLinksSection({
     <>
       <PanelCard
         id="invite-links-heading"
+        icon={Link2}
+        iconTone={moduleTone("meetings")}
         title={t("meetings.externalGuestLinks")}
         description={t(
           canCreate ? "meetings.externalGuestLinksDescription" : "meetings.externalGuestLinksClosedDescription",
         )}
-        action={
+        footer={
           canCreate ? (
-            <Button type="button" size="sm" variant="outline" className="h-8 gap-1 px-2.5" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-3.5" aria-hidden />
+            <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+              <Plus aria-hidden />
               {t("meetings.newInviteLink")}
             </Button>
           ) : undefined
@@ -112,8 +117,8 @@ export function MeetingInviteLinksSection({
                   key={link.id}
                   link={link}
                   language={i18n.language}
-                  revoking={revoke.isPending}
-                  onRevoke={() => revoke.mutate(link.id, { onError: (err) => toastApiError(err, t("common.error")) })}
+                  revoking={revoke.isPending && revoke.variables === link.id}
+                  onRevoke={() => setRevoking(link)}
                 />
               ))}
             </ul>
@@ -145,14 +150,14 @@ export function MeetingInviteLinksSection({
                 : t("meetings.showInactiveLinks", { count: inactiveLinks.length })}
             </Button>
             {showInactive ? (
-              <ul className="-mx-4 mt-1 divide-y divide-border border-y border-border bg-surface-hover/50">
+              <ul className="-mx-4 mt-1 divide-y divide-border border-y border-border bg-surface-hover">
                 {inactiveLinks.map((link) => (
                   <InviteLinkRow
                     key={link.id}
                     link={link}
                     language={i18n.language}
-                    revoking={revoke.isPending}
-                    onRevoke={() => revoke.mutate(link.id, { onError: (err) => toastApiError(err, t("common.error")) })}
+                    revoking={revoke.isPending && revoke.variables === link.id}
+                    onRevoke={() => setRevoking(link)}
                   />
                 ))}
               </ul>
@@ -160,6 +165,22 @@ export function MeetingInviteLinksSection({
           </div>
         ) : null}
       </PanelCard>
+
+      <ConfirmDialog
+        open={revoking !== null}
+        onOpenChange={(open) => !open && setRevoking(null)}
+        title={t("meetings.revokeLinkTitle", { name: revoking ? inviteLinkDisplayName(revoking, i18n.language, t) : "" })}
+        description={t("meetings.revokeLinkHint")}
+        confirmLabel={t("meetings.revokeLinkConfirm")}
+        pending={revoke.isPending}
+        onConfirm={() => {
+          if (!revoking) return;
+          revoke.mutate(revoking.id, {
+            onSuccess: () => setRevoking(null),
+            onError: (err) => toastApiError(err, t("common.error")),
+          });
+        }}
+      />
 
       {canCreate ? (
         <CreateInviteLinkDialog meetingId={meetingId} open={createOpen} onOpenChange={setCreateOpen} />

@@ -70,6 +70,7 @@ type JoinMeetingSDI struct {
 	InviteLinkID string `json:"invite_link_id"`
 	Secret       string `json:"secret"`
 	DisplayName  string `json:"display_name"`
+	RequestAgain bool   `json:"request_again" description:"Gửi lại yêu cầu vào phòng sau khi bị chủ trì từ chối; bỏ trống thì lần vào lại trả join_request_rejected"`
 }
 
 type CreateJoinRequestSDI struct {

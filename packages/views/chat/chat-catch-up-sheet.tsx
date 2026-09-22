@@ -8,7 +8,7 @@ import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { ChatNotice } from "./chat-notice";
+import { Notice } from "../common/notice";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
 import { CreateTaskFromMessageDialog } from "./create-task-from-message-dialog";
 import { catchUpGeneratedAt } from "./use-chat-catch-up-ui";
@@ -123,7 +123,7 @@ export function ChatCatchUpSheet({
           </SheetHeader>
 
           {!loading && error ? (
-            <ChatNotice
+            <Notice
               tone="destructive"
               icon={AlertCircle}
               live="assertive"
@@ -137,7 +137,7 @@ export function ChatCatchUpSheet({
             >
               <p>{failedTitle}</p>
               {errorDetail ? <p className="font-normal">{errorDetail}</p> : null}
-            </ChatNotice>
+            </Notice>
           ) : null}
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">

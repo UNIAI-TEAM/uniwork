@@ -6,11 +6,11 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import {
-  ChatDialogBody,
-  ChatDialogContent,
-  ChatDialogFooter,
-  ChatDialogHeader,
-} from "./chat-dialog-layout";
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberLookupResult,
@@ -102,8 +102,8 @@ export function AddGroupMembersDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader
+      <FormDialogContent size="md">
+        <FormDialogHeader
           title={isChannel ? t("chat.channel.add_members_title") : t("chat.add_group_members_title")}
           description={
             isChannel
@@ -111,7 +111,7 @@ export function AddGroupMembersDialog({
               : t("chat.add_group_members_description", { name: group.name })
           }
         />
-        <ChatDialogBody>
+        <FormDialogBody>
           <WorkspaceMemberSearchField
             id="add-group-member-search"
             label={t("chat.group_members_label")}
@@ -152,8 +152,8 @@ export function AddGroupMembersDialog({
             }
             onPick={addMember}
           />
-        </ChatDialogBody>
-        <ChatDialogFooter
+        </FormDialogBody>
+        <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
           submitLabel={isChannel ? t("chat.channel.invite_members") : t("chat.invite_members")}
           submittingLabel={t("chat.inviting_members")}
@@ -162,7 +162,7 @@ export function AddGroupMembersDialog({
           onSubmit={() => onInvite(pendingMembers)}
           leading={pendingMembers.length === 0 ? t("chat.add_group_members_hint") : undefined}
         />
-      </ChatDialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

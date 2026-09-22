@@ -145,6 +145,7 @@ export function useJoinMeeting() {
         invite_link_id: args.invite_link_id,
         secret: args.secret,
         display_name: args.display_name,
+        ...(args.request_again ? { request_again: true } : {}),
       }),
   });
 }

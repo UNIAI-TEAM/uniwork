@@ -10,7 +10,7 @@ import {
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Progress } from "@uniwork/ui/components/ui/progress";
-import { ChatDialogBody, ChatDialogContent, ChatDialogHeader } from "./chat-dialog-layout";
+import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 
 type PollOption = { id: string; label: string; votes: number };
@@ -114,13 +114,13 @@ export function ChatPollVotersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ChatDialogContent size="md">
-        <ChatDialogHeader
+      <FormDialogContent size="md">
+        <FormDialogHeader
           title={focusedOption ? focusedOption.label : t("chat.poll_voters_title")}
           description={question}
         />
 
-        <ChatDialogBody className="space-y-3">
+        <FormDialogBody className="space-y-3">
           <p className="text-overline uppercase text-muted-foreground">
             {focusedOption
               ? t("chat.poll_voters_option_count", { count: focusedOption.votes })
@@ -139,8 +139,8 @@ export function ChatPollVotersDialog({
               />
             ))
           )}
-        </ChatDialogBody>
-      </ChatDialogContent>
+        </FormDialogBody>
+      </FormDialogContent>
     </Dialog>
   );
 }
