@@ -67,12 +67,19 @@ describe("BoardCardContent", () => {
     expect(screen.getByText("Kiểm tra luồng thanh toán và thông báo lỗi.")).toBeInTheDocument();
     expect(screen.queryByText(task.description)).toBeNull();
     expect(screen.getByText("Website bán hàng").parentElement).toHaveClass("rounded-full");
-    expect(screen.getByText("Nguyễn An")).toBeInTheDocument();
+    expect(screen.queryByText("Nguyễn An")).toBeNull();
+    expect(document.querySelector('[data-slot="avatar"]')).not.toBeNull();
     expect(screen.queryByText("2026-09-09 – 2026-09-12")).toBeNull();
     expect(screen.queryByText("2026-09-10")).toBeNull();
+    const startDate = document.querySelector('[data-slot="task-start-date"]');
+    const dueDate = document.querySelector('[data-slot="task-due-date"]');
+    expect(startDate?.textContent).not.toMatch(/2026-09-09/);
+    expect(dueDate?.textContent).not.toMatch(/2026-09-12/);
+    expect(dueDate).toHaveClass("text-destructive");
     expect(screen.getByText("2/3")).toBeInTheDocument();
     expect(document.querySelector('[data-slot="task-progress-ring"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="task-card-meta"]')).not.toHaveClass("border-t");
+    expect(document.querySelector('[data-slot="task-card"]')).toHaveClass("border-[0.5px]");
     expect(screen.queryByText("VCS")).toBeNull();
   });
 
