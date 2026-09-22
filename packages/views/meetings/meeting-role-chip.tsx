@@ -23,7 +23,7 @@ export function MeetingRoleChip({
   if (role === "agent") return <AgentBadge className={cn(CHIP, className)} />;
   return (
     <Badge variant="outline" className={cn(CHIP, className)}>
-      {t("meetings.guestBadge")}
+      {t("meetings.guest")}
     </Badge>
   );
 }

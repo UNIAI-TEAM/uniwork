@@ -194,7 +194,7 @@ describe("MeetingPublicInviteView", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Xin vào lại" }));
 
     expect(
-      await screen.findByText("Vui lòng đợi cho đến khi người chủ trì đưa bạn vào cuộc họp. Trang này sẽ tự cập nhật."),
+      await screen.findByText("Người chủ trì sẽ đưa bạn vào cuộc họp. Trang này tự cập nhật."),
     ).toBeInTheDocument();
     expect(joinBodies.at(-1)?.request_again).toBe(true);
   });

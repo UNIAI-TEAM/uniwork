@@ -87,7 +87,7 @@ describe("MeetingDetailHero", () => {
     const notice = screen.getByRole("status");
     expect(within(notice).getByText(/chưa bắt đầu/i)).toBeInTheDocument();
     expect(within(notice).getByRole("button", { name: "Sửa lịch" })).toBeInTheDocument();
-    fireEvent.click(within(notice).getByRole("button", { name: "Huỷ cuộc họp" }));
+    fireEvent.click(within(notice).getByRole("button", { name: "Hủy cuộc họp" }));
     expect(h.onCancel).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
   });
@@ -96,8 +96,8 @@ describe("MeetingDetailHero", () => {
     renderHero({ status: "CANCELED" }, { canceledAt: "2026-09-20T03:15:00Z" });
     const hero = screen.getByRole("region", { name: "Standup" });
     expect(hero.className).not.toMatch(/opacity-/);
-    expect(screen.getByText("Đã huỷ")).toHaveAttribute("data-tone", "destructive");
-    expect(screen.getByText(/^Đã huỷ lúc /)).toBeInTheDocument();
+    expect(screen.getByText("Đã hủy")).toHaveAttribute("data-tone", "destructive");
+    expect(screen.getByText(/^Đã hủy lúc /)).toBeInTheDocument();
   });
 
   it("counts waiting join requests without gluing a number onto the label", () => {

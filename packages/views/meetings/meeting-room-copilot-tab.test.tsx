@@ -64,7 +64,7 @@ describe("MeetingRoomCopilotTab honesty", () => {
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
     const attribution = await screen.findByTestId("meeting-summary-attribution");
     expect(attribution).toHaveTextContent("AI");
-    expect(attribution).toHaveTextContent(/transcript, ghi chú và chat/);
+    expect(attribution).toHaveTextContent(/transcript, ghi chú và trò chuyện/);
     expect(attribution).toHaveTextContent(/22\/09\/2026|22\/9\/2026/);
   });
 

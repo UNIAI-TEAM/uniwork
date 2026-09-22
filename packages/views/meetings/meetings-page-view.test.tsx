@@ -104,7 +104,7 @@ describe("MeetingsPageView URL state", () => {
     const adapter = nav("q=retro&page=2");
     renderPage(adapter);
     await screen.findByText("Retro");
-    fireEvent.click(screen.getByRole("button", { name: /Đã huỷ/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Đã hủy/ }));
     expect(adapter.replace).toHaveBeenLastCalledWith("/org/team/meetings?q=retro&status=CANCELED");
   });
 

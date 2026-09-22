@@ -62,10 +62,10 @@ describe("MeetingRoomSidebar", () => {
     render(
       wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />),
     );
-    const tab = screen.getByRole("tab", { name: "Chat" });
+    const tab = screen.getByRole("tab", { name: "Trò chuyện" });
     const panel = screen.getByRole("tabpanel");
     expect(tab).toHaveAttribute("aria-controls", panel.id);
-    expect(panel).toHaveAccessibleName("Chat");
+    expect(panel).toHaveAccessibleName("Trò chuyện");
   });
 
   it("names the recordings tab for what it lists", async () => {

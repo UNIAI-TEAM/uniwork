@@ -75,7 +75,7 @@ describe("MeetingRoomChatTab (persisted)", () => {
     render(wrapWithNav(<MeetingRoomChatTab meetingId="m1" />));
     await screen.findByText(EMPTY);
 
-    const box = screen.getByRole("textbox", { name: "Chat" });
+    const box = screen.getByRole("textbox", { name: "Trò chuyện" });
     fireEvent.change(box, { target: { value: "Xin chào" } });
     fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
 

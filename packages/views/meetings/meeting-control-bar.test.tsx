@@ -202,7 +202,7 @@ describe("MeetingControlBar", () => {
         <MeetingControlBar onLeave={() => {}} onOpenCopilot={onOpenCopilot} copilotActive={false} />,
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Mở panel AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mở AI Copilot" }));
     expect(onOpenCopilot).toHaveBeenCalledOnce();
   });
 

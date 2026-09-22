@@ -81,7 +81,7 @@ export function MeetingNotesCard({
             >
               <Badge className="h-4 gap-0.5 border-transparent bg-brand-subtle px-1.5 text-micro text-brand-subtle-foreground">
                 <Sparkles aria-hidden />
-                {t("meetings.aiChip")}
+                {t("meetings.aiLabel")}
               </Badge>
               <span className="min-w-0">
                 {summaryModel

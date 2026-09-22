@@ -119,7 +119,7 @@ describe("MeetingDetailView", () => {
     expect(await screen.findByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hủy cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sửa cuộc họp" })).toBeInTheDocument();
     // Nobody else is on the roster, so there is nobody to hand the host role to.
     expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
@@ -224,7 +224,7 @@ describe("MeetingDetailView", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Thu hồi" }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(/^Thu hồi liên kết “Đối tác/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/^Thu hồi liên kết "Đối tác/)).toBeInTheDocument();
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/invite-links/l1/revoke", expect.anything());
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Thu hồi liên kết" }));
@@ -239,9 +239,9 @@ describe("MeetingDetailView", () => {
     );
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Huỷ cuộc họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
     const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /Huỷ cuộc họp|Hủy cuộc họp/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /Hủy cuộc họp|Hủy cuộc họp/ }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/cancel", expect.anything()));
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
@@ -274,7 +274,7 @@ describe("MeetingDetailView", () => {
     expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
     expect(screen.getByText("Không diễn ra")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hủy cuộc họp" })).toBeInTheDocument();
   });
 
   it("shows three RSVP actions for a pending invitee", async () => {

@@ -50,7 +50,7 @@ describe("MeetingParticipantRow", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Thao tác với Guest One/i }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /Không cho phép nói \(host\)/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Tắt quyền nói/i }));
     expect(onRevokeSpeaking).toHaveBeenCalledOnce();
   });
 
