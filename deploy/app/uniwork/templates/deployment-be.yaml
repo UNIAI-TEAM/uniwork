@@ -93,6 +93,14 @@ spec:
                   key: {{ .secretKey }}
                   optional: true
             {{- end }}
+            {{- with .Values.be.secrets.google }}
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
           resources:
             {{- toYaml .Values.be.resources | nindent 12 }}
           livenessProbe:

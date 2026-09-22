@@ -78,6 +78,9 @@ kubectl -n uniwork create secret generic uniwork-mail --from-literal=SMTP_PASSWO
 kubectl -n uniwork create secret generic uniwork-s3 \
   --from-literal=AWS_ACCESS_KEY_ID='…' \
   --from-literal=AWS_SECRET_ACCESS_KEY='…'
+# Optional — Google OAuth (CLIENT_ID lives in uniwork-be.env)
+kubectl -n uniwork create secret generic uniwork-google \
+  --from-literal=GOOGLE_CLIENT_SECRET='…'
 ```
 
 Non-secret business env (origins, SMTP host/port, LiveKit URL, S3 endpoint/bucket, …) lives in `deploy/app/env/uniwork-be.env` and is applied via Helm `--set-file` (see `deploy/app/env/README.md`).

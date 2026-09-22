@@ -41,9 +41,10 @@ be:
     app: { name: uniwork-app, key: JWT_SECRET }
     livekitKey: { name: uniwork-livekit, key: LIVEKIT_API_KEY }
     livekitSecret: { name: uniwork-livekit, key: LIVEKIT_API_SECRET }
-    # Optional — create when enabling mail / CMC S3.
+    # Optional — create when enabling mail / CMC S3 / Google OAuth.
     mail: { name: uniwork-mail, key: SMTP_PASSWORD }
     s3: { name: uniwork-s3, accessKey: AWS_ACCESS_KEY_ID, secretKey: AWS_SECRET_ACCESS_KEY }
+    google: { name: uniwork-google, key: GOOGLE_CLIENT_SECRET }
 
 fe:
   replicaCount: 1
