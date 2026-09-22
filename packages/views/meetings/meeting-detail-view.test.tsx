@@ -121,7 +121,9 @@ describe("MeetingDetailView", () => {
     expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sửa cuộc họp" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Chuyển chủ trì" })).toBeInTheDocument();
+    // Nobody else is on the roster, so there is nobody to hand the host role to.
+    expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Chuyển chủ trì/ })).not.toBeInTheDocument();
   });
 
   it("says the meeting is gone instead of loading forever", async () => {
@@ -204,7 +206,8 @@ describe("MeetingDetailView", () => {
     rosterMock();
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Gỡ" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Lan Anh" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Gỡ" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("Gỡ Lan Anh khỏi cuộc họp?")).toBeInTheDocument();
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p-guest", expect.anything());
@@ -355,7 +358,7 @@ describe("MeetingDetailView", () => {
     });
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Gỡ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Thao tác với/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tạo liên kết mới" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Chuyển chủ trì" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Nhấn «Tạo liên kết mới»/)).not.toBeInTheDocument();

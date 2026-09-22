@@ -108,3 +108,60 @@ describe("MeetingSummaryPanel loading", () => {
     expect(await within(panel).findByText(/Chưa có transcript/)).toBeInTheDocument();
   });
 });
+
+describe("MeetingSummaryPanel attribution", () => {
+  it("labels the summary as AI output with its source, time and model", async () => {
+    const created = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) {
+        return Promise.resolve({ summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", model: "claude-sonnet", created_at: created } });
+      }
+      if (p.endsWith("/transcript")) {
+        return Promise.resolve({
+          segments: [
+            { id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T02:10:00Z" },
+            { id: "t2", meeting_id: "m1", text: "Hai", spoken_at: "2026-09-22T02:11:00Z" },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    const line = await screen.findByTestId("ai-attribution");
+    expect(within(line).getByText("AI")).toBeInTheDocument();
+    expect(within(line).getByText("Từ transcript 2 câu")).toBeInTheDocument();
+    expect(within(line).getByText("claude-sonnet")).toBeInTheDocument();
+    const time = within(line).getByText("2 giờ trước");
+    expect(time.tagName).toBe("TIME");
+    expect(time).toHaveAttribute("dateTime", created);
+    expect(time.getAttribute("title")).toBeTruthy();
+  });
+
+  it("lets the host summarise from notes alone", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [] });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [{ id: "n1", meeting_id: "m1", author_id: "u1", body: "Chốt lịch" }] });
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tạo tóm tắt" })).toBeEnabled());
+  });
+
+  it("says why generating is unavailable when there is neither transcript nor notes", async () => {
+    summaryRespond(() => Promise.resolve({ summary: null }));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).toBeDisabled());
+    const reason = screen.getByText("Cần transcript hoặc ghi chú để tạo tóm tắt.");
+    expect(button.getAttribute("aria-describedby")).toBe(reason.id);
+  });
+});
+

@@ -1,63 +1,35 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CalendarPlus, CheckCircle2, ChevronDown, FileAudio, ListChecks, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronDown, FileAudio, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
+import { errorCode } from "@uniwork/core/api/http";
 import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
 import { useMembers } from "@uniwork/core/workspaces";
 import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
-import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { formatRelativeTime } from "./meeting-relative-time";
 import {
   useCreateMeetingSummary,
   useCreateTasksFromSummary,
-  useMeetingCalendar,
   useMeetingCapabilities,
   useMeetingSummary,
+  useNotes,
   useRecordings,
   useTranscript,
 } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
+import type { MeetingSummary } from "@uniwork/core/types/meeting";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
-
-/** Browser download of an .ics the API already authenticated for us. */
-function downloadText(filename: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/calendar;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-export function MeetingCalendarButton({ meetingId, className }: { meetingId: string; className?: string }) {
-  const { t } = useTranslation();
-  const cal = useMeetingCalendar();
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className={className}
-      disabled={cal.isPending}
-      onClick={() =>
-        cal.mutate(meetingId, {
-          onSuccess: (ics) => downloadText(`meeting-${meetingId}.ics`, ics),
-          onError: (err) => toastApiError(err, t("common.error")),
-        })
-      }
-    >
-      <CalendarPlus aria-hidden className="size-4" />
-      {t("meetings.addToCalendar")}
-    </Button>
-  );
-}
 
 /**
  * Transcript, AI summary (host generates; everyone reads), action items →
@@ -94,6 +66,7 @@ export function MeetingSummaryPanel({
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [showTranscript, setShowTranscript] = useState(false);
+  const { data: notes } = useNotes(meetingId);
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
   const memberPreview = useMemo(
@@ -104,8 +77,12 @@ export function MeetingSummaryPanel({
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
-  const hasSource = (transcript?.length ?? 0) > 0;
+  const transcriptLines = transcript?.length ?? 0;
+  const noteCount = notes?.length ?? 0;
+  // The server summarises the transcript and the notes, so either one is enough.
+  const hasSource = transcriptLines > 0 || noteCount > 0;
   const aiOn = caps?.ai_summary === true;
+  const showGenerate = canHost && aiOn;
 
   function onGenerate() {
     generate.mutate(i18n.language.startsWith("en") ? "en" : "vi", {
@@ -115,13 +92,9 @@ export function MeetingSummaryPanel({
       },
       onError: (err) => {
         const code = errorCode(err);
-        toast.error(
-          code === "nothing_to_summarize"
-            ? t("meetings.summaryNothing")
-            : code === "ai_not_configured"
-              ? t("meetings.aiUnavailable")
-              : apiErrorMessage(err) ?? t("common.error"),
-        );
+        if (code === "nothing_to_summarize") toast.error(t("meetings.summaryNothing"));
+        else if (code === "ai_not_configured") toast.error(t("meetings.aiUnavailable"));
+        else toastApiError(err, t("common.error"));
       },
     });
   }
@@ -152,11 +125,19 @@ export function MeetingSummaryPanel({
     <PanelCard
       id="summary-heading"
       icon={Sparkles}
+      iconTone="brand"
       tone="brand"
       title={t("meetings.aiSummary")}
       action={
-        canHost && aiOn ? (
-          <Button type="button" size="sm" variant="brandSubtle" disabled={generate.isPending || !hasSource} onClick={() => (summary ? setConfirmRegenerate(true) : onGenerate())}>
+        showGenerate ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="brandSubtle"
+            disabled={generate.isPending || !hasSource}
+            aria-describedby={!hasSource && !summaryLoading ? "summary-needs-source" : undefined}
+            onClick={() => (summary ? setConfirmRegenerate(true) : onGenerate())}
+          >
             <Sparkles aria-hidden />
             {generate.isPending
               ? t("meetings.summarizing")
@@ -171,10 +152,16 @@ export function MeetingSummaryPanel({
         {!aiOn && caps ? (
           <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
         ) : null}
+        {showGenerate && !hasSource && !summaryLoading && !summaryFailed ? (
+          <p id="summary-needs-source" className="text-caption text-muted-foreground">
+            {t("meetings.summaryNeedsSource")}
+          </p>
+        ) : null}
 
         {summary ? (
           <div className="space-y-4">
-            <p className="whitespace-pre-wrap text-pretty text-body-lg leading-relaxed text-foreground">{summary.summary}</p>
+            <SummaryAttribution summary={summary} transcriptLines={transcriptLines} noteCount={noteCount} />
+            <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
             {decisions.length > 0 ? (
               <div>
                 <h3 className="mb-2 text-overline text-muted-foreground">
@@ -263,33 +250,32 @@ export function MeetingSummaryPanel({
                 ) : null}
               </div>
             ) : null}
-            {summary.model ? (
-              <p className="text-caption text-muted-foreground">{t("meetings.summaryBy", { model: summary.model })}</p>
-            ) : null}
           </div>
         ) : summaryLoading ? (
           <MeetingTextSkeleton />
         ) : summaryFailed ? (
           <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={retrySummary} />
-        ) : (
+        ) : !aiOn && caps ? null : (
           <p className="text-label text-muted-foreground">
             {hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
           </p>
         )}
 
-        <div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-label text-muted-foreground transition-colors hover:text-foreground"
-            aria-expanded={showTranscript}
-            onClick={() => setShowTranscript((v) => !v)}
-          >
-            {showTranscript
-              ? t("meetings.hideTranscript")
-              : t("meetings.showTranscript", { count: transcript?.length ?? 0 })}
-            <ChevronDown aria-hidden className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")} />
-          </button>
-          {showTranscript ? (
+        <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
+          <CollapsibleTrigger
+            render={
+              <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
+                {showTranscript
+                  ? t("meetings.hideTranscript")
+                  : t("meetings.showTranscript", { count: transcriptLines })}
+                <ChevronDown
+                  aria-hidden
+                  className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")}
+                />
+              </Button>
+            }
+          />
+          <CollapsibleContent>
             <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover p-3" data-testid="meeting-transcript">
               {(transcript ?? []).map((s) => (
                 <li key={s.id} className="text-body text-foreground">
@@ -305,8 +291,8 @@ export function MeetingSummaryPanel({
                 <li className="text-caption text-muted-foreground">{t("meetings.transcriptEmpty")}</li>
               ) : null}
             </ol>
-          ) : null}
-        </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {(recordings ?? []).length > 0 ? (
           <div>
@@ -355,5 +341,58 @@ export function MeetingSummaryPanel({
         onConfirm={onGenerate}
       />
     </PanelCard>
+  );
+}
+
+/**
+ * The AI label every generated output carries (PRODUCT.md › Agent Principles):
+ * that it is AI, what it was made from, when, and by which model.
+ */
+function SummaryAttribution({
+  summary,
+  transcriptLines,
+  noteCount,
+}: {
+  summary: MeetingSummary;
+  transcriptLines: number;
+  noteCount: number;
+}) {
+  const { t, i18n } = useTranslation();
+  const locale = meetingLocale(i18n.language);
+  const source =
+    transcriptLines > 0 && noteCount > 0
+      ? t("meetings.summarySourceBoth", { count: transcriptLines })
+      : transcriptLines > 0
+        ? t("meetings.summarySourceTranscript", { count: transcriptLines })
+        : noteCount > 0
+          ? t("meetings.summarySourceNotes")
+          : null;
+  const parts: React.ReactNode[] = [];
+  if (source) parts.push(<span key="source">{source}</span>);
+  if (summary.created_at) {
+    parts.push(
+      <time key="time" dateTime={summary.created_at} title={formatMeetingStart(summary.created_at, locale)} className="tabular-nums">
+        {formatRelativeTime(summary.created_at, locale)}
+      </time>,
+    );
+  }
+  if (summary.model) parts.push(<span key="model">{summary.model}</span>);
+
+  return (
+    <p
+      data-testid="ai-attribution"
+      className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted-foreground"
+    >
+      <Badge className="gap-1 bg-brand-subtle text-brand-subtle-foreground">
+        <Sparkles aria-hidden />
+        {t("meetings.aiLabel")}
+      </Badge>
+      {parts.map((part, i) => (
+        <span key={i} className="inline-flex items-center gap-x-1.5">
+          {i > 0 ? <span aria-hidden>·</span> : null}
+          {part}
+        </span>
+      ))}
+    </p>
   );
 }

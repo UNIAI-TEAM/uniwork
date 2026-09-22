@@ -1,24 +1,35 @@
 "use client";
 import { useState } from "react";
-import { Crown, UserMinus, UserPlus, Users } from "lucide-react";
+import { ArrowRightLeft, Crown, MoreHorizontal, UserMinus, UserPlus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
-import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
+import { useQueryClient } from "@tanstack/react-query";
+import { meetingKeys, useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
-import type { Meeting } from "@uniwork/core/types";
+import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { ConfirmDialog } from "../common/form-dialog";
-import { toastApiError } from "../toast-api-error";
 import { PanelCard } from "../common/panel-card";
+import { moduleTone } from "../layout/module-tones";
+import { toastApiError } from "../toast-api-error";
+import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingPersonAvatar } from "./meeting-person";
-import { MeetingRsvpBadge } from "./meeting-status-badge";
-import { MemberMultiPicker } from "./member-multi-picker";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
+import { MeetingRsvpBadge } from "./meeting-status-badge";
 import { TransferHostDialog } from "./transfer-host-dialog";
 
+/**
+ * Who is on the meeting. The host reads first; admin lives where it applies —
+ * "Thêm người" in the header, and per-person actions in each row's menu — so
+ * the page does not carry a permanent invite form or host picker.
+ */
 export function MeetingParticipantsSection({
   workspaceId,
   meeting,
@@ -33,6 +44,7 @@ export function MeetingParticipantsSection({
   showTransferHost?: boolean;
 }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const {
     data: participants,
     isPending: participantsPending,
@@ -41,12 +53,12 @@ export function MeetingParticipantsSection({
   } = useParticipants(meeting.id);
   const { data: members } = useMembers(workspaceId);
   const remove = useRemoveParticipant(meeting.id);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [inviting, setInviting] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
+  const [handingOver, setHandingOver] = useState<{ userId: string; name: string } | null>(null);
   const rsvpByParticipant = new Map(invitations.map((i) => [i.participant_id, i.response_status]));
+  const memberOf = (userId?: string) => (userId ? members?.find((m) => m.user_id === userId) : undefined);
   const active = (participants ?? []).filter((p) => p.status === "ACTIVE");
-  // The host reads first; everyone else keeps the server's order.
   const ordered = [...active].sort(
     (a, b) => Number(b.user_id === meeting.host_user_id) - Number(a.user_id === meeting.host_user_id),
   );
@@ -56,21 +68,34 @@ export function MeetingParticipantsSection({
     ),
   ];
   const hasCandidates = (members ?? []).some((m) => !excludeUserIds.includes(m.user_id));
+  const nameOf = (p: MeetingParticipant) =>
+    p.display_name_snapshot || memberOf(p.user_id)?.display_name || t("meetings.formerMember");
+  // Only a workspace member already on the roster can take the host role.
+  const canTakeHost = (p: MeetingParticipant) =>
+    Boolean(showTransferHost && p.principal_type === "USER" && p.user_id && p.user_id !== meeting.host_user_id);
 
   return (
     <PanelCard
       id="participants-heading"
       icon={Users}
+      iconTone={moduleTone("meetings")}
       title={t("meetings.participants")}
       action={
-        active.length > 0 ? (
-          <Badge variant="secondary" className="tabular-nums">
-            {t("meetings.peopleCount", { count: active.length })}
-          </Badge>
-        ) : null
+        <>
+          {active.length > 0 ? (
+            <Badge variant="secondary" className="tabular-nums">
+              {t("meetings.peopleCount", { count: active.length })}
+            </Badge>
+          ) : null}
+          {canManage && hasCandidates ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => setAdding(true)}>
+              <UserPlus aria-hidden />
+              {t("meetings.addPeople")}
+            </Button>
+          ) : null}
+        </>
       }
       flush
-      footer={showTransferHost ? <TransferHostDialog workspaceId={workspaceId} meeting={meeting} /> : undefined}
     >
       {participantsPending ? (
         <MeetingRowsSkeleton rows={2} className="py-1" />
@@ -89,34 +114,61 @@ export function MeetingParticipantsSection({
         <ul className="divide-y divide-border">
           {ordered.map((p) => {
             const isHost = p.user_id === meeting.host_user_id;
-            const name = p.display_name_snapshot || p.user_id || "?";
+            const name = nameOf(p);
+            const member = memberOf(p.user_id);
             const rsvp = rsvpByParticipant.get(p.id);
+            const subtitle = isHost
+              ? t("meetings.host")
+              : p.principal_type === "GUEST"
+                ? t("meetings.guest")
+                : member?.email;
+            const offerHost = canTakeHost(p);
             return (
               <li key={p.id} className="group flex min-w-0 items-center gap-3 px-4 py-2.5">
-                <MeetingPersonAvatar
-                  name={name}
-                  avatarUrl={(members ?? []).find((m) => m.user_id === p.user_id)?.avatar_url}
-                />
+                <MeetingPersonAvatar name={name} avatarUrl={member?.avatar_url} size="default" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-body font-medium text-foreground">{name}</div>
-                  <div className="flex items-center gap-1 text-caption text-muted-foreground">
-                    {isHost ? <Crown aria-hidden className="size-3" /> : null}
-                    {isHost ? t("meetings.host") : t("meetings.attendees")}
-                  </div>
+                  {subtitle ? (
+                    <div className="flex min-w-0 items-center gap-1 text-caption text-muted-foreground">
+                      {isHost ? <Crown aria-hidden className="size-3 shrink-0" /> : null}
+                      <span className="truncate">{subtitle}</span>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {rsvp ? <MeetingRsvpBadge status={rsvp} /> : null}
+                <div className="flex shrink-0 items-center gap-1">
+                  {rsvp && !isHost ? <MeetingRsvpBadge status={rsvp} /> : null}
                   {canManage && !isHost ? (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="text-muted-foreground hover:text-destructive"
-                      disabled={remove.isPending && remove.variables === p.id}
-                      onClick={() => setRemoving({ id: p.id, name })}
-                    >
-                      <UserMinus aria-hidden />
-                      {t("meetings.remove")}
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground"
+                            aria-label={t("meetings.participantActions", { name })}
+                          />
+                        }
+                      >
+                        <MoreHorizontal aria-hidden className="size-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-44">
+                        {offerHost ? (
+                          <DropdownMenuItem onClick={() => setHandingOver({ userId: p.user_id!, name })}>
+                            <ArrowRightLeft aria-hidden className="size-4" />
+                            {t("meetings.transferHostMenu")}
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled={remove.isPending && remove.variables === p.id}
+                          onClick={() => setRemoving({ id: p.id, name })}
+                        >
+                          <UserMinus aria-hidden className="size-4" />
+                          {t("meetings.remove")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   ) : null}
                 </div>
               </li>
@@ -124,39 +176,28 @@ export function MeetingParticipantsSection({
           })}
         </ul>
       )}
-      {canManage && hasCandidates ? (
-        <form
-          className="flex min-w-0 flex-col gap-2.5 border-t border-border px-4 py-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (selected.length === 0) return;
-            setInviting(true);
-            void Promise.allSettled(selected.map((userId) => inviteParticipant(meeting.id, userId)))
-              .then((results) => {
-                const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
-                if (failed) {
-                  toastApiError(failed.reason, t("common.error"));
-                  return;
-                }
-                toast.success(t("meetings.invitedMembers", { count: selected.length }));
-                setSelected([]);
-              })
-              .finally(() => setInviting(false));
+      {canManage ? (
+        <AddMeetingParticipantsDialog
+          workspaceId={workspaceId}
+          meetingId={meeting.id}
+          excludeUserIds={excludeUserIds}
+          open={adding}
+          onOpenChange={(open) => {
+            setAdding(open);
+            // The dialog invites through the endpoint directly; refresh the roster when it closes.
+            if (!open) {
+              void qc.invalidateQueries({ queryKey: meetingKeys.participants(meeting.id) });
+              void qc.invalidateQueries({ queryKey: meetingKeys.invitations(meeting.id) });
+            }
           }}
-        >
-          <MemberMultiPicker
-            workspaceId={workspaceId}
-            value={selected}
-            onChange={setSelected}
-            excludeUserIds={excludeUserIds}
-            searchable
-          />
-          <Button type="submit" size="sm" className="self-start" disabled={inviting || selected.length === 0}>
-            <UserPlus aria-hidden />
-            {t("meetings.inviteMember")}
-          </Button>
-        </form>
+        />
       ) : null}
+      <TransferHostDialog
+        workspaceId={workspaceId}
+        meetingId={meeting.id}
+        target={handingOver}
+        onClose={() => setHandingOver(null)}
+      />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}

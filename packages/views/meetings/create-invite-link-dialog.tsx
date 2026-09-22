@@ -124,7 +124,7 @@ export function CreateInviteLinkDialog({
               e.preventDefault();
               const expires = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000).toISOString();
               const nowIso = new Date().toISOString();
-              const defaultName = defaultInviteLinkLabel(nowIso, i18n.language);
+              const defaultName = defaultInviteLinkLabel(nowIso, i18n.language, t);
               create.mutate(
                 {
                   name: name.trim() || defaultName,
@@ -159,7 +159,7 @@ export function CreateInviteLinkDialog({
                     id={`${id}-name`}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={defaultInviteLinkLabel(new Date().toISOString(), i18n.language)}
+                    placeholder={defaultInviteLinkLabel(new Date().toISOString(), i18n.language, t)}
                     autoFocus
                   />
                 </Field>

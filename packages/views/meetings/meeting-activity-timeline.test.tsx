@@ -55,4 +55,27 @@ describe("MeetingActivityTimeline", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     expect(await screen.findByText(EMPTY)).toBeInTheDocument();
   });
+
+  it("reads state changes in words, hides provider noise and marks system actions", async () => {
+    activityRespond(() =>
+      Promise.resolve({
+        activity: [
+          { id: "a3", event_type: "PROVIDER_ROOM_IDLE_DESYNC", actor_id: "", from_state: "IN_PROGRESS", to_state: "IDLE", occurred_at: "2026-09-22T02:20:00Z" },
+          { id: "a2", event_type: "MEETING_ENDED", actor_id: "", from_state: "IN_PROGRESS", to_state: "ENDED", occurred_at: "2026-09-22T02:15:00Z" },
+          { id: "a1", event_type: "MEETING_STARTED", actor_id: "u1", from_state: "SCHEDULED", to_state: "IN_PROGRESS", occurred_at: "2026-09-22T02:00:00Z" },
+          { id: "a0", event_type: "PARTICIPANT_INVITED", actor_id: "u1", to_state: "01J8X4K2M0N1P2Q3R4S5T6U7V8", occurred_at: "2026-09-22T01:00:00Z" },
+        ],
+      }),
+    );
+    renderTimeline();
+
+    // One text node, so the page's lone "Đang diễn ra" badge stays unique.
+    expect(await screen.findByText("Đã lên lịch → Đang diễn ra")).toBeInTheDocument();
+    expect(screen.queryByText("Đang diễn ra", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText("Đang diễn ra → Đã kết thúc")).toBeInTheDocument();
+    expect(screen.queryByText(/SCHEDULED|IN_PROGRESS|IDLE|01J8X4/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("Hệ thống")).toBeInTheDocument();
+    expect(screen.getAllByText("Thành viên đã rời").length).toBeGreaterThan(0);
+  });
 });
