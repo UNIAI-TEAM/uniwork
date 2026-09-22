@@ -1,6 +1,6 @@
 # UniWork — Calendar hub (C-02)
 
-> **Trạng thái:** đề xuất — chờ duyệt spec trước khi `writing-plans`
+> **Trạng thái:** đã duyệt — plan Lát 1 `../plans/2026-09-22-calendar-slice-1-month-feed.md` (Lát 2–4 plan riêng)
 
 **Ngày:** 2026-09-22  
 **Roadmap:** C-02 (`docs/roadmap/FEATURE_ROADMAP.md`)  
