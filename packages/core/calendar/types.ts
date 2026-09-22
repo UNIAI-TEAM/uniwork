@@ -12,3 +12,26 @@ export type CalendarEvent = {
   priority?: string;
   projectId?: string | null;
 };
+
+export type CalendarSidebarTask = {
+  id: string;
+  title: string;
+  status: string;
+  priority?: string;
+  dueDate?: string;
+};
+
+export type CalendarSidebarMeeting = {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+};
+
+export type CalendarSidebar = {
+  priorities: CalendarSidebarTask[];
+  meetWith: CalendarSidebarMeeting[];
+  assigned: CalendarSidebarTask[];
+  todayOverdue: CalendarSidebarTask[];
+  backlog: CalendarSidebarTask[];
+};

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CalendarEvent } from "../../calendar/types";
+import type { CalendarEvent, CalendarSidebar } from "../../calendar/types";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 
@@ -41,6 +41,62 @@ const CalendarEventListSchema = z
 
 const EMPTY_EVENTS: CalendarEvent[] = [];
 
+const CalendarSidebarTaskSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+    priority: z.string().optional().nullable(),
+    due_date: z.string().optional().nullable(),
+  })
+  .transform((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    priority: t.priority ?? undefined,
+    dueDate: t.due_date ?? undefined,
+  }));
+
+const CalendarSidebarMeetingSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    starts_at: z.string(),
+    ends_at: z.string(),
+  })
+  .transform((m) => ({
+    id: m.id,
+    title: m.title,
+    startsAt: m.starts_at,
+    endsAt: m.ends_at,
+  }));
+
+const CalendarSidebarSchema = z
+  .object({
+    priorities: z.array(CalendarSidebarTaskSchema).optional(),
+    meet_with: z.array(CalendarSidebarMeetingSchema).optional(),
+    assigned: z.array(CalendarSidebarTaskSchema).optional(),
+    today_overdue: z.array(CalendarSidebarTaskSchema).optional(),
+    backlog: z.array(CalendarSidebarTaskSchema).optional(),
+  })
+  .transform(
+    (v): CalendarSidebar => ({
+      priorities: v.priorities ?? [],
+      meetWith: v.meet_with ?? [],
+      assigned: v.assigned ?? [],
+      todayOverdue: v.today_overdue ?? [],
+      backlog: v.backlog ?? [],
+    }),
+  );
+
+const EMPTY_SIDEBAR: CalendarSidebar = {
+  priorities: [],
+  meetWith: [],
+  assigned: [],
+  todayOverdue: [],
+  backlog: [],
+};
+
 export async function listCalendarEvents(
   workspaceId: string,
   params: { from: string; to: string; mine?: boolean },
@@ -50,5 +106,12 @@ export async function listCalendarEvents(
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/calendar/events?${q}`);
   return parseWithFallback<CalendarEvent[]>(raw, CalendarEventListSchema, EMPTY_EVENTS, {
     endpoint: "GET /api/v1/workspaces/{ws}/calendar/events",
+  });
+}
+
+export async function getCalendarSidebar(workspaceId: string): Promise<CalendarSidebar> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/calendar/sidebar`);
+  return parseWithFallback<CalendarSidebar>(raw, CalendarSidebarSchema, EMPTY_SIDEBAR, {
+    endpoint: "GET /api/v1/workspaces/{ws}/calendar/sidebar",
   });
 }
