@@ -73,7 +73,12 @@ describe("AppSidebar", () => {
     renderSidebar("/acme/team/tasks");
     const groupOf = (label: string) => screen.getByText(label).closest<HTMLElement>('[data-slot="sidebar-group"]')!;
     const work = within(groupOf("Làm việc"));
-    expect(work.getAllByRole("link").map((l) => l.textContent)).toEqual(["Công việc", "Việc của tôi", "Dự án"]);
+    expect(work.getAllByRole("link").map((l) => l.textContent)).toEqual([
+      "Công việc",
+      "Việc của tôi",
+      "Dự án",
+      "Lịch",
+    ]);
     const communication = within(groupOf("Trao đổi"));
     expect(communication.getAllByRole("link").map((l) => l.textContent)).toEqual([
       "Email Hub",
@@ -202,6 +207,10 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Dự án" })).toHaveAttribute(
       "href",
       "/acme/team/projects",
+    );
+    expect(screen.getByRole("link", { name: "Lịch" })).toHaveAttribute(
+      "href",
+      "/acme/team/calendar",
     );
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trò chuyện" })).toBeInTheDocument();

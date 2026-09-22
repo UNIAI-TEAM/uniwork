@@ -202,6 +202,7 @@
     "skip_to_content": "Skip to main content",
     "people": "People",
     "projects": "Projects",
+    "calendar": "Calendar",
     "squads": "Squads",
     "runtimes": "Runtimes"
   },
@@ -2068,6 +2069,17 @@
     "notesHint": "Notes are visible to every participant.",
     "peopleCount_one": "{{count}} person",
     "peopleCount_other": "{{count}} people"
+  },
+  "calendar": {
+    "title": "Calendar",
+    "today": "Today",
+    "mine": "Mine",
+    "loading": "Loading calendar…",
+    "error": "Could not load the calendar.",
+    "retry": "Retry",
+    "view_month": "Month",
+    "prev_month": "Previous month",
+    "next_month": "Next month"
   },
   "chat": {
     "media_unavailable": "Couldn't load {{name}}",

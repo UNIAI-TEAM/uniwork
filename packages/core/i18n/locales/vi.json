@@ -201,6 +201,7 @@
     "skip_to_content": "Tới nội dung chính",
     "people": "Danh bạ",
     "projects": "Dự án",
+    "calendar": "Lịch",
     "squads": "Squad",
     "runtimes": "Runtime"
   },
@@ -2067,6 +2068,17 @@
     "notesHint": "Ghi chú hiện với mọi người tham dự.",
     "peopleCount_one": "{{count}} người",
     "peopleCount_other": "{{count}} người"
+  },
+  "calendar": {
+    "title": "Lịch",
+    "today": "Hôm nay",
+    "mine": "Của tôi",
+    "loading": "Đang tải lịch…",
+    "error": "Không tải được lịch.",
+    "retry": "Thử lại",
+    "view_month": "Tháng",
+    "prev_month": "Tháng trước",
+    "next_month": "Tháng sau"
   },
   "chat": {
     "media_unavailable": "Không tải được {{name}}",
