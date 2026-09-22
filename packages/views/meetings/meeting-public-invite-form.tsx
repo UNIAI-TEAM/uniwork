@@ -1,11 +1,10 @@
 "use client";
 
-import { Suspense, lazy, useCallback, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from "react";
 import { CalendarDays, Loader2, ShieldCheck, Video, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { InfoHint } from "@uniwork/ui/components/common/info-hint";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CameraPreviewFrame, CameraPreviewPlaceholder } from "./meeting-camera-placeholder";
@@ -22,6 +21,19 @@ import type { PreJoinChoice } from "./meeting-prejoin";
 const MeetingCameraPreview = lazy(() =>
   import("./meeting-camera-preview").then((m) => ({ default: m.MeetingCameraPreview })),
 );
+
+// Device pickers use the Select primitive, which once pushed this entry chunk
+// from 52.8 to 81 KB. They only matter after the browser has named a device,
+// so they load on their own, like the preview.
+const MeetingInviteDevicePickers = lazy(() =>
+  import("./meeting-invite-device-pickers").then((m) => ({ default: m.MeetingInviteDevicePickers })),
+);
+
+// A phone opens its keyboard on focus and hides half the page; only a
+// fine pointer (mouse, trackpad) gets the name field focused on arrival.
+function prefersAutoFocus(): boolean {
+  return typeof window !== "undefined" && Boolean(window.matchMedia?.("(pointer: fine)").matches);
+}
 
 // pb-16 keeps the placeholder text and actions clear of the overlaid mic/camera bar.
 const PREVIEW_CLASS = "aspect-video min-h-52 rounded-2xl pb-16 shadow-floating sm:min-h-60";
@@ -49,18 +61,44 @@ export function MeetingPublicInviteForm({
   const [audio, setAudio] = useState(true);
   // A guest has not agreed to anything yet: no camera until they ask for it.
   const [video, setVideo] = useState(false);
-  const emitJoin = () => onJoin({ audio, video });
-  const { refresh } = useMediaDevices();
+  const [audioDeviceId, setAudioDeviceId] = useState("");
+  const [videoDeviceId, setVideoDeviceId] = useState("");
+  const [nameError, setNameError] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const nameErrorId = useId();
+  const { cameras, mics, refresh } = useMediaDevices();
   const onPreviewStatus = useCallback(
     (s: CameraPreviewStatus) => s === "live" && refresh(),
     [refresh],
   );
+  const showMicPicker = audio && mics.length > 0;
+  const showCameraPicker = video && cameras.length > 0;
+
+  useEffect(() => {
+    if (prefersAutoFocus()) nameRef.current?.focus();
+  }, []);
 
   const needsApproval = accessMode === "REQUEST_APPROVAL";
   const accessModeLabel = needsApproval ? t("meetings.linkNeedApproval") : t("meetings.linkAutoAdmit");
   const accessHint = needsApproval ? t("meetings.linkNeedApprovalGuestHint") : t("meetings.linkAutoAdmitGuestHint");
   const joinLabel = needsApproval ? t("meetings.requestToJoin") : t("meetings.publicInviteJoin");
   const trimmedName = displayName.trim();
+
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (joinPending) return;
+    if (!trimmedName) {
+      setNameError(true);
+      nameRef.current?.focus();
+      return;
+    }
+    onJoin({
+      audio,
+      video,
+      audioDeviceId: audio && audioDeviceId ? audioDeviceId : undefined,
+      videoDeviceId: video && videoDeviceId ? videoDeviceId : undefined,
+    });
+  };
   const formattedStart = formatMeetingStart(startsAt, meetingLocale(i18n.language));
 
   return (
@@ -76,7 +114,12 @@ export function MeetingPublicInviteForm({
                   </CameraPreviewFrame>
                 }
               >
-                <MeetingCameraPreview active className={PREVIEW_CLASS} onStatusChange={onPreviewStatus} />
+                <MeetingCameraPreview
+                  active
+                  deviceId={videoDeviceId || undefined}
+                  className={PREVIEW_CLASS}
+                  onStatusChange={onPreviewStatus}
+                />
               </Suspense>
             ) : (
               <CameraPreviewFrame className={PREVIEW_CLASS}>
@@ -107,9 +150,25 @@ export function MeetingPublicInviteForm({
             />
           </div>
           <p className="mt-3 text-center text-caption text-muted-foreground">{t("meetings.publicInviteDeviceHint")}</p>
+          {showMicPicker || showCameraPicker ? (
+            <Suspense fallback={null}>
+              <MeetingInviteDevicePickers
+                mics={showMicPicker ? mics : undefined}
+                cameras={showCameraPicker ? cameras : undefined}
+                audioDeviceId={audioDeviceId}
+                videoDeviceId={videoDeviceId}
+                onAudioDeviceChange={setAudioDeviceId}
+                onVideoDeviceChange={setVideoDeviceId}
+              />
+            </Suspense>
+          ) : null}
         </section>
 
-        <section className="mx-auto flex w-full max-w-md flex-col gap-5 lg:mx-0 lg:max-w-none">
+        <form
+          noValidate
+          onSubmit={submit}
+          className="mx-auto flex w-full max-w-md flex-col gap-5 lg:mx-0 lg:max-w-none"
+        >
           <div className="space-y-2">
             <p className="text-overline text-muted-foreground">
               {t("meetings.publicInviteTitle")}
@@ -133,32 +192,37 @@ export function MeetingPublicInviteForm({
                 <Zap aria-hidden className="size-3.5 shrink-0" />
               )}
               <span>{t("meetings.publicInviteAccessMode", { mode: accessModeLabel })}</span>
-              <InfoHint label={accessModeLabel}>{accessHint}</InfoHint>
             </div>
+            {/* Visible text, not a tooltip: a phone has no hover to reveal it. */}
+            <p className="text-pretty text-caption text-muted-foreground">{accessHint}</p>
           </div>
 
-          <Field>
+          <Field data-invalid={nameError || undefined}>
             <FieldLabel htmlFor="guest-display-name">{t("meetings.publicInviteDisplayName")}</FieldLabel>
             <Input
+              ref={nameRef}
               id="guest-display-name"
+              name="name"
               value={displayName}
-              onChange={(e) => onDisplayNameChange(e.target.value)}
+              onChange={(e) => {
+                onDisplayNameChange(e.target.value);
+                if (e.target.value.trim()) setNameError(false);
+              }}
               placeholder={t("meetings.publicInviteDisplayNamePlaceholder")}
               autoComplete="name"
-              autoFocus
+              required
+              aria-invalid={nameError || undefined}
+              aria-describedby={nameError ? nameErrorId : undefined}
               className="h-11"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && trimmedName && !joinPending) emitJoin();
-              }}
             />
+            {nameError ? <FieldError id={nameErrorId}>{t("meetings.publicInviteNameRequired")}</FieldError> : null}
           </Field>
 
           <Button
-            type="button"
+            type="submit"
             variant="brand"
             className="h-11 w-full text-body font-medium"
-            disabled={joinPending || !trimmedName}
-            onClick={emitJoin}
+            disabled={joinPending}
           >
             {joinPending ? (
               <>
@@ -180,7 +244,7 @@ export function MeetingPublicInviteForm({
               {t("meetings.publicInviteHaveAccount")}
             </Button>
           </p>
-        </section>
+        </form>
       </div>
     </MeetingInviteShell>
   );

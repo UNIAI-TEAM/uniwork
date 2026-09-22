@@ -34,6 +34,13 @@ export function useLobbyJoinRetry({
   const client = workspaceWS?.client ?? lobbyWS?.client ?? null;
   const attemptRef = useRef(0);
   const waiting = isLobbyWaiting(decision) && !admitted && !hasJoinError;
+  // The caller's join callback changes identity whenever a join settles; the
+  // WS effect reads it through a ref so that churn does not cancel a pending
+  // jittered retry triggered by an approval that arrived mid-join.
+  const onRetryRef = useRef(onRetry);
+  useEffect(() => {
+    onRetryRef.current = onRetry;
+  });
 
   useEffect(() => {
     if (!waiting) {
@@ -44,23 +51,32 @@ export function useLobbyJoinRetry({
   useEffect(() => {
     if (!waiting || !client) return;
 
+    // Jittered retries still pending when the lobby stops waiting (admitted,
+    // left, unmounted) must not fire a join for a screen that is gone.
+    const timers = new Set<number>();
     const onEvent = (msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
       if (!shouldTriggerLobbyJoin(msg.type, payload, meetingId)) return;
       attemptRef.current = 0;
-      window.setTimeout(onRetry, lobbyWsTriggerJitterMs());
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        onRetryRef.current();
+      }, lobbyWsTriggerJitterMs());
+      timers.add(id);
     };
 
     const offAny = client.onAny(onEvent);
     const offReconnect = client.onReconnect(() => {
       attemptRef.current = 0;
-      onRetry();
+      onRetryRef.current();
     });
     return () => {
       offAny();
       offReconnect();
+      for (const id of timers) window.clearTimeout(id);
+      timers.clear();
     };
-  }, [waiting, client, meetingId, onRetry]);
+  }, [waiting, client, meetingId]);
 
   useEffect(() => {
     if (!waiting) return;
