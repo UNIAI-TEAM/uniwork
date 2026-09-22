@@ -19,6 +19,8 @@ export const MeetingSchema = z.object({
   actual_start_at: z.string().optional(),
   actual_end_at: z.string().optional(),
   version: z.number().optional(),
+  /** List rows only: a recording with a file exists, so the row can offer a rewatch. */
+  has_playable_recording: z.boolean().optional(),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
