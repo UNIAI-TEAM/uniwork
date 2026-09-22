@@ -84,4 +84,32 @@ describe("CalendarPageView", () => {
       false,
     );
   });
+
+  it("uses a single-day feed range when prev in day view", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
+    useCalendarEventsMock.mockClear();
+
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ngày" }));
+    useCalendarEventsMock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kỳ trước" }));
+
+    expect(useCalendarEventsMock).toHaveBeenLastCalledWith(
+      "ws1",
+      "2026-09-14",
+      "2026-09-14",
+      false,
+    );
+  });
 });

@@ -8,20 +8,13 @@ import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { endOfMonth, format, startOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
-import type { CalendarViewMode } from "./calendar-view-mode";
+import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
 import { FullCalendarHost } from "./fullcalendar-host";
-
-function monthRange(date: Date) {
-  return {
-    from: format(startOfMonth(date), "yyyy-MM-dd"),
-    to: format(endOfMonth(date), "yyyy-MM-dd"),
-  };
-}
 
 export function CalendarPageView({
   workspaceId,
@@ -36,7 +29,7 @@ export function CalendarPageView({
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [mine, setMine] = useState(false);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
-  const [range, setRange] = useState(() => monthRange(new Date()));
+  const [range, setRange] = useState(() => rangeForMode("month", new Date()));
 
   const initialDate = format(anchorDate, "yyyy-MM-dd");
 
@@ -50,7 +43,7 @@ export function CalendarPageView({
 
   const handleAnchorDateChange = (next: Date) => {
     setAnchorDate(next);
-    setRange(monthRange(next));
+    setRange(rangeForMode(viewMode, next));
   };
 
   const handleEventClick = (event: CalendarEvent) => {

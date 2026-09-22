@@ -1,6 +1,48 @@
-import { addDays, addMonths, subDays, subMonths } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  startOfMonth,
+  startOfWeek,
+  subDays,
+  subMonths,
+} from "date-fns";
 
 export type CalendarViewMode = "day" | "work_week" | "week" | "month";
+
+export type CalendarFeedRange = { from: string; to: string };
+
+/** Matches FullCalendar default week start (Sunday) for toolbar-driven fetch hints. */
+const FC_WEEK_STARTS_ON = 0 as const;
+
+export function rangeForMode(mode: CalendarViewMode, anchor: Date): CalendarFeedRange {
+  switch (mode) {
+    case "day": {
+      const day = format(anchor, "yyyy-MM-dd");
+      return { from: day, to: day };
+    }
+    case "week":
+    case "work_week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      const end = endOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      return {
+        from: format(start, "yyyy-MM-dd"),
+        to: format(end, "yyyy-MM-dd"),
+      };
+    }
+    case "month":
+      return {
+        from: format(startOfMonth(anchor), "yyyy-MM-dd"),
+        to: format(endOfMonth(anchor), "yyyy-MM-dd"),
+      };
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
 
 export function fcViewForMode(mode: CalendarViewMode): string {
   switch (mode) {
