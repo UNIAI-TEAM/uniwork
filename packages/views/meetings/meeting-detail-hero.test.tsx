@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Meeting } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -12,6 +13,10 @@ beforeAll(() => {
 beforeEach(() => {
   requestMock.mockReset();
   requestMock.mockResolvedValue({});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function windowFromNow(startOffsetMs: number, durationMs = 30 * 60_000) {
@@ -107,9 +112,60 @@ describe("MeetingDetailHero", () => {
     expect(within(join).getByText("2 đang chờ")).toBeInTheDocument();
   });
 
-  it("names the host once, without a stray icon, and leaves the head count to the roster", () => {
+  it("names the host once, without a stray icon, and leaves the visible head count to the roster", () => {
     renderHero({});
     expect(screen.getAllByText("Mai Anh")).toHaveLength(1);
-    expect(screen.queryByText(/người tham dự/)).not.toBeInTheDocument();
+    // The avatar stack is decorative; only screen readers hear the count.
+    expect(screen.getByText("2 người tham dự")).toHaveClass("sr-only");
+  });
+
+  it("hides the +N overflow from screen readers and keeps the count", () => {
+    const people = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, name: `Người ${i}` }));
+    renderHero({}, { people });
+    expect(screen.getByText("6 người tham dự")).toHaveClass("sr-only");
+    expect(screen.getByText("+2").closest("[aria-hidden]")).not.toBeNull();
+  });
+
+  it("names the hero region by its heading and lets a long title wrap", () => {
+    renderHero({ title: "A".repeat(120) });
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(screen.getByRole("region", { name: "A".repeat(120) })).toHaveAttribute("aria-labelledby", heading.id);
+    expect(heading.className).toMatch(/overflow-wrap:anywhere/);
+  });
+
+  it("moves from live to overtime when the window passes, without a reload", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-22T09:00:00Z"));
+    renderHero({
+      status: "IN_PROGRESS",
+      starts_at: "2026-09-22T08:30:00Z",
+      ends_at: "2026-09-22T09:01:00Z",
+    });
+    expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
+    expect(screen.queryByText(/đã qua khung giờ/i)).not.toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(2 * 60_000);
+    });
+    expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
+    expect(screen.getByText(/đã qua khung giờ/i)).toBeInTheDocument();
+  });
+
+  it("names both clocks when the meeting was set in another zone", () => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const other = zone === "Asia/Tokyo" ? "America/New_York" : "Asia/Tokyo";
+    renderHero({ timezone: other, starts_at: "2026-09-22T00:00:00Z", ends_at: "2026-09-22T00:30:00Z" });
+    const city = other === "Asia/Tokyo" ? "Tokyo" : "New York";
+    expect(screen.getByText(new RegExp(`\\(GMT[+-]\\d+ · ${city}\\)`))).toBeInTheDocument();
+  });
+
+  it("does not repeat the clock when the meeting zone is the viewer's", () => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    renderHero({ timezone: zone });
+    expect(screen.queryByText(/\(GMT/)).not.toBeInTheDocument();
+  });
+
+  it("uses the solid destructive fill for ending an overtime meeting", () => {
+    renderHero({ status: "IN_PROGRESS", ...windowFromNow(-60 * 60_000) });
+    expect(within(screen.getByRole("status")).getByRole("button", { name: "Kết thúc họp" })).toHaveClass("bg-destructive-solid");
   });
 });

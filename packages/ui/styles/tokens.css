@@ -260,7 +260,7 @@
   --meeting-bar-foreground: #f8f9fa;
   --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
-  --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
+  --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
 }
 
@@ -415,7 +415,7 @@
   --meeting-bar-foreground: #f8f9fa;
   --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
-  --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
+  --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
 }
 

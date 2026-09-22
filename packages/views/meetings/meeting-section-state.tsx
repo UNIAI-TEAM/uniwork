@@ -12,11 +12,20 @@ import { Notice } from "../common/notice";
  * The loading wrapper every meeting section shares: announced once to screen
  * readers, busy for assistive tech, and shaped by the caller like its rows.
  */
-export function MeetingSectionLoading({ className, children }: { className?: string; children: ReactNode }) {
+export function MeetingSectionLoading({
+  className,
+  label,
+  children,
+}: {
+  className?: string;
+  /** What is loading, when "Loading…" alone would not say. */
+  label?: string;
+  children: ReactNode;
+}) {
   const { t } = useTranslation();
   return (
     <div role="status" aria-busy className={className}>
-      <span className="sr-only">{t("common.loading")}</span>
+      <span className="sr-only">{label ?? t("common.loading")}</span>
       {children}
     </div>
   );

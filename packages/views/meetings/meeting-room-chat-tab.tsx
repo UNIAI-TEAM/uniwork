@@ -102,6 +102,8 @@ function MeetingRoomChatView({
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // Enter that confirms an IME composition (Telex, VNI) is not a send.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void onSend();
@@ -200,7 +202,7 @@ function MeetingRoomChatView({
           rows={1}
           placeholder={t("meetings.chatPlaceholder")}
           aria-label={t("meetings.chat")}
-          className="field-sizing-content max-h-32 min-h-10 resize-none rounded-2xl bg-surface py-2.5 pr-11"
+          className="field-sizing-content max-h-32 min-h-10 resize-none rounded-2xl bg-surface py-2.5 pr-11 pointer-coarse:min-h-14 pointer-coarse:pr-14"
         />
         <Button
           type="submit"

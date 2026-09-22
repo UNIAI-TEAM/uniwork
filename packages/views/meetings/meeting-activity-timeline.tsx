@@ -22,7 +22,6 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMeetingActivity } from "@uniwork/core/meetings";
-import { useMembers } from "@uniwork/core/workspaces";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -35,6 +34,7 @@ import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { initials, personAvatarSrc } from "./meeting-person";
 import { formatRelativeTime } from "./meeting-relative-time";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
+import { useMemberIndex } from "./use-member-index";
 
 const VISIBLE_ACTIVITY_LIMIT = 5;
 
@@ -68,7 +68,7 @@ export function MeetingActivityTimeline({
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
   const { data: items, isPending, isError, refetch } = useMeetingActivity(meetingId);
-  const { data: members } = useMembers(workspaceId);
+  const { memberOf } = useMemberIndex(workspaceId);
   const [open, setOpen] = useState(defaultOpen);
   const [showAll, setShowAll] = useState(false);
   const all = visibleActivity(items ?? []);
@@ -113,7 +113,7 @@ export function MeetingActivityTimeline({
               <ol className="relative space-y-3.5 before:absolute before:bottom-3.5 before:left-3.5 before:top-3.5 before:w-px before:bg-border">
                 {visible.map((item) => {
                   const system = !item.actor_id;
-                  const member = system ? undefined : members?.find((m) => m.user_id === item.actor_id);
+                  const member = system ? undefined : memberOf(item.actor_id);
                   const actor = system ? t("meetings.systemActor") : member?.display_name || t("meetings.formerMember");
                   const change = activityStateChange(item);
                   const mark = KIND_MARK[activityKind(item.event_type)];

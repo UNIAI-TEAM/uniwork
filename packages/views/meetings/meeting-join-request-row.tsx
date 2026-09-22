@@ -52,10 +52,24 @@ export function MeetingJoinRequestRow({
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
         <span className="min-w-0 truncate text-body">{name}</span>
         <div className="flex shrink-0 gap-2">
-          <Button type="button" size="sm" disabled={approving} onClick={onApprove}>
+          <Button
+            type="button"
+            size="sm"
+            variant="successSolid"
+            disabled={approving}
+            aria-label={t("meetings.approveName", { name })}
+            onClick={onApprove}
+          >
             {t("meetings.approve")}
           </Button>
-          <Button type="button" size="sm" variant="outline" disabled={rejecting} onClick={onReject}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={rejecting}
+            aria-label={t("meetings.rejectName", { name })}
+            onClick={onReject}
+          >
             {t("meetings.reject")}
           </Button>
         </div>
@@ -75,6 +89,7 @@ export function MeetingJoinRequestRow({
         variant="outline"
         className={cn("h-8 shrink-0 rounded-lg px-3")}
         disabled={approving}
+        aria-label={t("meetings.approveName", { name })}
         onClick={onApprove}
       >
         {t("meetings.approve")}
@@ -94,7 +109,7 @@ export function MeetingJoinRequestRow({
           <MoreVertical aria-hidden className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem disabled={rejecting} onClick={onReject}>
+          <DropdownMenuItem disabled={rejecting} aria-label={t("meetings.rejectName", { name })} onClick={onReject}>
             {t("meetings.reject")}
           </DropdownMenuItem>
         </DropdownMenuContent>

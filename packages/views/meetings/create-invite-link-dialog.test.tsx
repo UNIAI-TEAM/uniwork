@@ -22,6 +22,12 @@ describe("CreateInviteLinkDialog", () => {
     expect(within(dialog).getByText("Khách vào phòng ngay khi cuộc họp đã bắt đầu.")).toBeInTheDocument();
   });
 
+  it("names both selects through their visible labels", () => {
+    const dialog = renderDialog();
+    expect(within(dialog).getByRole("combobox", { name: "Hạn dùng" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: "Quyền vào phòng của khách" })).toBeInTheDocument();
+  });
+
   it("shows the pending label while creating", async () => {
     requestMock.mockReturnValue(new Promise(() => {}));
     const dialog = renderDialog();

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
@@ -109,5 +109,46 @@ describe("MeetingPreJoin", () => {
     render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
     expect(await screen.findByText("Cho phép micro để chọn thiết bị")).toBeInTheDocument();
     expect(screen.getByText("Cho phép camera để chọn thiết bị")).toBeInTheDocument();
+  });
+
+  it("asks for the microphone on its own when the list is empty, then re-lists devices", async () => {
+    const stop = vi.fn();
+    let granted = false;
+    const enumerateDevices = vi.fn(() =>
+      Promise.resolve(
+        granted
+          ? [{ deviceId: "mic1", kind: "audioinput", label: "Built-in Mic" }]
+          : [{ deviceId: "", kind: "audioinput", label: "" }],
+      ),
+    );
+    const getUserMedia = vi.fn(() => {
+      granted = true;
+      return Promise.resolve({ getTracks: () => [{ stop }] });
+    });
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { enumerateDevices, getUserMedia, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+    });
+    render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Cho phép micro" }));
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledWith({ audio: true }));
+    await waitFor(() => expect(stop).toHaveBeenCalled());
+    expect(await screen.findByText("Built-in Mic")).toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "Mức âm thanh micro" })).toBeInTheDocument();
+  });
+
+  it("says how to unblock the microphone when the browser refuses", async () => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        enumerateDevices: vi.fn().mockResolvedValue([]),
+        getUserMedia: vi.fn().mockRejectedValue(new DOMException("", "NotAllowedError")),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+    render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Cho phép micro" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Trình duyệt đang chặn micro");
   });
 });

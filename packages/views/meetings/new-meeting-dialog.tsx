@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState, type ReactElement } from "react";
+import { useId, useRef, useState, type ReactElement } from "react";
 import { Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCreateMeeting } from "@uniwork/core/meetings";
@@ -9,6 +9,7 @@ import { Dialog, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@uniwork/ui/components/ui/field";
@@ -25,16 +26,19 @@ import {
 import { Notice } from "../common/notice";
 import { toastApiError } from "../toast-api-error";
 import {
-  combineLocalIso,
   defaultScheduleDraft,
   scheduleDraftFromDefaults,
+  scheduleWindowIso,
   type ScheduleDraft,
 } from "./meeting-datetime";
 import { MemberMultiPicker } from "./member-multi-picker";
+import { useNow } from "./use-now";
 import {
   browserTimeZone,
+  focusScheduleProblem,
   MeetingScheduleFields,
-  scheduleValid,
+  scheduleProblems,
+  scheduleReady,
 } from "./meeting-schedule-fields";
 
 export function NewMeetingDialog({
@@ -69,6 +73,8 @@ export function NewMeetingDialog({
   const [end, setEnd] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).end);
   const [attendees, setAttendees] = useState<string[]>([]);
   const [allowJoin, setAllowJoin] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     const next = defaultScheduleDraft();
@@ -79,6 +85,7 @@ export function NewMeetingDialog({
     setEnd(next.end);
     setAttendees([]);
     setAllowJoin(true);
+    setSubmitted(false);
   };
 
   const changeOpen = (next: boolean) => {
@@ -94,7 +101,11 @@ export function NewMeetingDialog({
   };
 
   const titleMissing = !title.trim();
-  const ready = !titleMissing && Boolean(date) && scheduleValid(start, end);
+  const nowMs = useNow();
+  const problems = scheduleProblems({ date, start, end, nowMs });
+  // The action stays enabled: a disabled button explains nothing. Submitting
+  // puts the reason on the field and moves focus there.
+  const showTitleError = titleMissing && submitted;
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
@@ -104,15 +115,28 @@ export function NewMeetingDialog({
       <FormDialogContent size="lg">
         <FormDialogHeader title={t("meetings.new")} description={t("meetings.newDescription")} />
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (!ready) return;
+            setSubmitted(true);
+            if (titleMissing) {
+              titleRef.current?.focus();
+              return;
+            }
+            // The render-time check can be a tick old: the start may have
+            // slipped into the past while the dialog sat open.
+            const atSubmit = scheduleProblems({ date, start, end, nowMs: Date.now() });
+            if (!scheduleReady(date, atSubmit)) {
+              focusScheduleProblem(id, atSubmit);
+              return;
+            }
+            const slot = scheduleWindowIso(date, start, end);
             create.mutate(
               {
                 title,
                 description,
-                starts_at: combineLocalIso(date, start),
-                ends_at: combineLocalIso(date, end),
+                starts_at: slot.starts_at,
+                ends_at: slot.ends_at,
                 timezone: browserTimeZone(),
                 allow_join_request: allowJoin,
                 attendee_user_ids: attendees,
@@ -134,15 +158,19 @@ export function NewMeetingDialog({
         >
           <FormDialogBody>
             <FieldGroup className="gap-4">
-              <Field>
+              <Field data-invalid={showTitleError || undefined}>
                 <FieldLabel htmlFor={`${id}-title`}>{t("meetings.meetingTitle")}</FieldLabel>
                 <Input
+                  ref={titleRef}
                   id={`${id}-title`}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                   autoFocus
+                  aria-invalid={showTitleError || undefined}
+                  aria-describedby={showTitleError ? `${id}-title-error` : undefined}
                 />
+                {showTitleError ? <FieldError id={`${id}-title-error`}>{t("meetings.titleRequired")}</FieldError> : null}
               </Field>
               <Field>
                 <FieldLabel htmlFor={`${id}-desc`}>{t("meetings.description")}</FieldLabel>
@@ -171,6 +199,8 @@ export function NewMeetingDialog({
                   value={attendees}
                   onChange={setAttendees}
                   excludeUserIds={userId ? [userId] : []}
+                  searchable
+                  autoFocusSearch={false}
                 />
               </Field>
               <div className="flex min-h-11 items-start justify-between gap-3">
@@ -202,8 +232,6 @@ export function NewMeetingDialog({
             submitLabel={t("meetings.createSubmit")}
             submittingLabel={t("meetings.creating")}
             submitting={create.isPending}
-            submitDisabled={!ready}
-            leading={titleMissing ? t("meetings.titleRequired") : undefined}
           />
         </form>
       </FormDialogContent>

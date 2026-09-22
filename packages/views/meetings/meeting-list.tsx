@@ -14,7 +14,8 @@ import { formatMeetingDay, formatMeetingTimes, meetingDayKey, meetingLocale } fr
 import { MeetingListRecordingButton } from "./meeting-list-recording-button";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { formatRelativeTime } from "./meeting-relative-time";
-import { MeetingStatusBadge } from "./meeting-status-badge";
+import { MEETING_STATUS_TONE, MeetingStatusBadge, ToneBadge } from "./meeting-status-badge";
+import { useNow } from "./use-now";
 
 function startMs(m: Meeting): number {
   const t = Date.parse(m.starts_at);
@@ -25,7 +26,8 @@ function startMs(m: Meeting): number {
  * Rows grouped by the viewer's calendar day, in the order a person reads a
  * calendar: today and the days ahead first, soonest first; then the days
  * already behind, most recent first. Within a day, rows run by start time
- * (id breaks a tie so a refetch never reshuffles them).
+ * (id breaks a tie so a refetch never reshuffles them). The list API's
+ * `sort=starts_at` pages in this same order, so paging never scatters a day.
  */
 export function groupMeetingsByDay(
   meetings: readonly Meeting[],
@@ -73,12 +75,22 @@ const SOON_MS = 12 * 3_600_000;
 const ROW =
   "relative flex min-h-12 items-center gap-3 px-3 py-1.5 transition-colors duration-micro hover:bg-surface-hover focus-within:bg-surface-selected";
 
-/** Upcoming rows carry the meetings identity; live and overtime are signals; what is over goes quiet. */
+/**
+ * The rail repeats the badge's signal (upcoming info, live success, overtime
+ * warning) so the two never disagree; what is over, missed or canceled goes
+ * quiet. A state is a signal, never the meetings tint.
+ */
 function railClass(display: string): string {
-  if (display === "IN_PROGRESS") return "bg-success";
-  if (display === "OVERTIME") return "bg-warning";
-  if (display === "SCHEDULED") return "bg-tint-violet-solid";
-  return "bg-border";
+  switch (MEETING_STATUS_TONE[display]) {
+    case "info":
+      return "bg-info";
+    case "success":
+      return "bg-success";
+    case "warning":
+      return "bg-warning";
+    default:
+      return "bg-border";
+  }
 }
 
 function MeetingRow({
@@ -86,19 +98,21 @@ function MeetingRow({
   host,
   href,
   locale,
+  nowMs,
   onOpenRoom,
 }: {
   meeting: Meeting;
   host: { name: string; avatarUrl?: unknown };
   href: string;
   locale: string;
+  nowMs: number;
   onOpenRoom: (id: string) => void;
 }) {
   const { t } = useTranslation();
-  const display = displayMeetingStatus(m);
-  const live = isScheduledMeetingLive(m);
-  const ended = m.status === "ENDED";
-  const untilStart = startMs(m) - Date.now();
+  const display = displayMeetingStatus(m, nowMs);
+  const live = isScheduledMeetingLive(m, nowMs);
+  const rewatch = m.status === "ENDED" && m.has_playable_recording === true;
+  const untilStart = startMs(m) - nowMs;
   const soon = display === "SCHEDULED" && untilStart > 0 && untilStart < SOON_MS;
   const instant = m.meeting_type === "INSTANT";
 
@@ -112,9 +126,11 @@ function MeetingRow({
       <span aria-hidden className={cn("w-1 self-stretch rounded-full", railClass(display))} />
       <MeetingPersonAvatar name={host.name} avatarUrl={host.avatarUrl} className="max-sm:hidden" />
       <div className="min-w-0 flex-1">
+        {/* Two lines on a phone so a long title is still readable; one from sm, where the row is wide. */}
         <AppLink
           href={href}
-          className="block truncate rounded-sm text-body font-medium text-foreground after:absolute after:inset-0"
+          title={m.title}
+          className="block rounded-sm text-body font-medium text-foreground after:absolute after:inset-0 max-sm:line-clamp-2 max-sm:break-words sm:truncate"
         >
           {m.title}
           <span className="sr-only">, {formatMeetingTimes(m.starts_at, m.ends_at, locale)}</span>
@@ -128,21 +144,21 @@ function MeetingRow({
             </>
           ) : null}
           {soon ? (
-            <span className="shrink-0 rounded-sm bg-info-soft px-1 font-medium text-info-soft-foreground">
-              {formatRelativeTime(m.starts_at, locale)}
-            </span>
+            <ToneBadge tone="info" className="shrink-0">
+              {formatRelativeTime(m.starts_at, locale, nowMs)}
+            </ToneBadge>
           ) : null}
         </p>
       </div>
       <div className="relative z-10 flex shrink-0 items-center gap-2">
         <MeetingStatusBadge status={display} className={cn(live && "max-sm:hidden")} />
-        {ended ? <MeetingListRecordingButton meetingId={m.id} enabled={ended} /> : null}
+        {rewatch ? <MeetingListRecordingButton meetingId={m.id} /> : null}
         {live ? (
           <Button
             type="button"
             size="sm"
             variant="brand"
-            className="max-sm:w-7 max-sm:px-0 pointer-coarse:h-11 pointer-coarse:max-sm:w-11"
+            className="max-sm:w-7 max-sm:px-0"
             onClick={() => onOpenRoom(m.id)}
           >
             <Video aria-hidden />
@@ -209,7 +225,8 @@ export function MeetingList({
     const member = members?.find((m) => m.user_id === id);
     return { name: member?.display_name ?? t("meetings.hostUnknown"), avatarUrl: member?.avatar_url };
   };
-  const today = meetingDayKey(new Date().toISOString());
+  const nowMs = useNow();
+  const today = meetingDayKey(new Date(nowMs).toISOString());
   const relative: Record<string, string> = {
     [today]: t("meetings.today"),
     [shiftDay(today, 1)]: t("meetings.tomorrow"),
@@ -235,7 +252,10 @@ export function MeetingList({
               ) : (
                 <span>{date}</span>
               )}
-              <span className="min-w-5 rounded-sm bg-muted px-1 text-center tabular-nums">{group.items.length}</span>
+              <span aria-hidden className="min-w-5 rounded-sm bg-muted px-1 text-center tabular-nums">
+                {group.items.length}
+              </span>
+              <span className="sr-only">{t("meetings.dayCount", { count: group.items.length })}</span>
             </h2>
             <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
               {group.items.map((m) => (
@@ -245,6 +265,7 @@ export function MeetingList({
                   host={hostOf(m.host_user_id ?? m.created_by)}
                   href={ws.meeting(m.id)}
                   locale={locale}
+                  nowMs={nowMs}
                   onOpenRoom={onOpenRoom}
                 />
               ))}

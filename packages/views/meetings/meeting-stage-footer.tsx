@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { cn } from "@uniwork/ui/lib/utils";
-import { MeetingCaptionsOverlay } from "./meeting-captions";
+import { meetingLocale } from "./meeting-datetime";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 const DOCK_HIDE_DELAY_MS = 750;
@@ -20,16 +20,21 @@ const MIN_DOCK_RESERVE_PX = 80;
 const COLLAPSED_RESERVE_MIN_PX = 8;
 
 function MeetingHandsBanner({ className }: { className?: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { hands } = useMeetingSignals();
   const participants = useParticipants();
 
   if (hands.length === 0) return null;
 
-  const names = hands.map((identity) => {
-    const participant = participants.find((p) => p.identity === identity);
-    return participant?.name || participant?.identity || identity;
-  });
+  const names = new Intl.ListFormat(meetingLocale(i18n.language), {
+    style: "long",
+    type: "conjunction",
+  }).format(
+    hands.map((identity) => {
+      const participant = participants.find((p) => p.identity === identity);
+      return participant?.name || participant?.identity || identity;
+    }),
+  );
 
   return (
     <div
@@ -43,9 +48,7 @@ function MeetingHandsBanner({ className }: { className?: string }) {
     >
       <Hand aria-hidden className="size-4 shrink-0" />
       <span className="min-w-0 truncate">
-        {t("meetings.handsRaised", { count: hands.length })}
-        {": "}
-        {names.join(", ")}
+        {t("meetings.handsRaisedNames", { count: hands.length, names })}
       </span>
     </div>
   );
@@ -65,16 +68,15 @@ function reserveTotal(contentPx: number, collapsed = false): number {
 export function MeetingStageFooter({
   stageContentRef,
   captionsOn,
-  captionsInterim,
-  captionsLastFinal,
+  captions,
   controlBar,
   className,
   onReserveHeightChange,
 }: {
   stageContentRef: RefObject<HTMLDivElement | null>;
   captionsOn: boolean;
-  captionsInterim: string;
-  captionsLastFinal: string;
+  /** The captions overlay; it keeps its own state so its updates stay local. */
+  captions?: ReactNode;
   controlBar: ReactNode;
   className?: string;
   onReserveHeightChange?: (heightPx: number) => void;
@@ -264,9 +266,7 @@ export function MeetingStageFooter({
         className="flex w-fit max-w-full flex-col items-center gap-2 sm:gap-2.5"
       >
         <MeetingHandsBanner />
-        {captionsOn ? (
-          <MeetingCaptionsOverlay interim={captionsInterim} lastFinal={captionsLastFinal} />
-        ) : null}
+        {captionsOn ? captions : null}
         <div
           ref={dockShellRef}
           // Only transform and opacity animate; the height snaps once the fade

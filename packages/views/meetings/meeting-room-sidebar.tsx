@@ -63,6 +63,7 @@ export function MeetingRoomSidebar({
   className,
   tab,
   onTabChange,
+  chatUnread = 0,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -72,6 +73,8 @@ export function MeetingRoomSidebar({
   className?: string;
   tab: MeetingSidebarTab;
   onTabChange: (tab: MeetingSidebarTab) => void;
+  /** Messages from others that arrived while the chat was off screen. */
+  chatUnread?: number;
 }) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -148,6 +151,10 @@ export function MeetingRoomSidebar({
                 aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
               >
                 {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
+              </MeetingUnderlineTabBadge>
+            ) : id === "chat" && chatUnread > 0 ? (
+              <MeetingUnderlineTabBadge aria-label={t("meetings.chatUnread", { count: chatUnread })}>
+                {chatUnread > 9 ? "9+" : chatUnread}
               </MeetingUnderlineTabBadge>
             ) : null
           }

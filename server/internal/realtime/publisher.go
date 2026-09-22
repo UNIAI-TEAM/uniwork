@@ -20,6 +20,8 @@ var meetingLobbyEventTypes = map[string]struct{}{
 	"chat.message":             {},
 	"participant.invited":      {},
 	"participant.removed":      {},
+	"recording.started":        {},
+	"recording.stopped":        {},
 	"recording.ready":          {},
 }
 

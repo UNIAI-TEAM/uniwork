@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAddNote, useNotes } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { useCoarsePointer } from "@uniwork/ui/hooks/use-pointer";
 import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
 import { toastApiError } from "../toast-api-error";
@@ -15,7 +16,9 @@ import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-stat
 
 /**
  * Shared notes: a feed of who wrote what and when, and a composer at the
- * bottom. Enter adds the note, Shift+Enter breaks the line. Once the meeting
+ * bottom. With a keyboard, Enter adds the note and Shift+Enter breaks the
+ * line; on touch, Enter is a line break (there is no Shift) and the button
+ * adds the note. Once the meeting
  * is over (`locked`) the feed stays readable and the composer goes away.
  */
 export function MeetingNotesSection({ meetingId, locked = false }: { meetingId: string; locked?: boolean }) {
@@ -24,6 +27,7 @@ export function MeetingNotesSection({ meetingId, locked = false }: { meetingId: 
   const { data: notes, isPending, isError, refetch } = useNotes(meetingId);
   const addNote = useAddNote(meetingId);
   const [note, setNote] = useState("");
+  const coarse = useCoarsePointer();
   const list = notes ?? [];
   const ready = note.trim().length > 0 && !addNote.isPending;
 
@@ -37,7 +41,7 @@ export function MeetingNotesSection({ meetingId, locked = false }: { meetingId: 
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (coarse || e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
     e.preventDefault();
     submit();
   };
@@ -55,21 +59,23 @@ export function MeetingNotesSection({ meetingId, locked = false }: { meetingId: 
           <form className="flex min-w-0 items-end gap-2" onSubmit={submit}>
             <Textarea
               rows={1}
-              className="max-h-40 min-h-9 min-w-0 flex-1 resize-none bg-surface py-1.5"
+              className="max-h-40 min-h-9 min-w-0 flex-1 resize-none bg-surface py-1.5 pointer-coarse:min-h-11"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onKeyDown={onKeyDown}
               placeholder={t("meetings.notesPlaceholder")}
               aria-label={t("meetings.addNote")}
-              aria-describedby="notes-composer-hint"
+              aria-describedby={coarse ? undefined : "notes-composer-hint"}
             />
             <Button type="submit" size="lg" className="shrink-0" disabled={!ready}>
               <Plus aria-hidden />
               {t("meetings.noteAdd")}
             </Button>
-            <span id="notes-composer-hint" className="sr-only">
-              {t("meetings.notesComposerHint")}
-            </span>
+            {coarse ? null : (
+              <span id="notes-composer-hint" className="sr-only">
+                {t("meetings.notesComposerHint")}
+              </span>
+            )}
           </form>
         )
       }

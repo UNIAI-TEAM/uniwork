@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useLocalParticipant } from "@livekit/components-react";
 import { useTranslation } from "react-i18next";
 import { useAppendTranscript } from "@uniwork/core/meetings";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -52,11 +53,15 @@ const ROUTINE_ERRORS = new Set(["no-speech", "aborted"]);
  * `onError` fires once for a failure the viewer must hear about (a blocked
  * microphone, an unsupported browser); the caller turns captions off, so the
  * overlay never sits on "listening" while nothing listens.
+ *
+ * `micOn` is the room microphone: while it is off, recognition stops and no
+ * sentence is posted — muting must mean nobody gets your words, captions included.
  */
 export function useLiveCaptions(
   meetingId: string,
   enabled: boolean,
   onError?: (code: string) => void,
+  micOn = true,
 ) {
   const { i18n } = useTranslation();
   const append = useAppendTranscript(meetingId);
@@ -66,9 +71,12 @@ export function useLiveCaptions(
   appendRef.current = append.mutate;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const micOnRef = useRef(micOn);
+  micOnRef.current = micOn;
+  const listening = enabled && micOn;
 
   useEffect(() => {
-    if (!enabled) {
+    if (!listening) {
       setInterim("");
       return;
     }
@@ -89,6 +97,8 @@ export function useLiveCaptions(
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = (e) => {
+      // A result can land between the mute and the effect cleanup.
+      if (stopped || !micOnRef.current) return;
       let partial = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
@@ -127,7 +137,7 @@ export function useLiveCaptions(
       rec.onend = null;
       rec.stop();
     };
-  }, [enabled, meetingId, i18n.language]);
+  }, [listening, meetingId, i18n.language]);
 
   return { interim, lastFinal };
 }
@@ -148,19 +158,22 @@ export function captionsErrorKey(code: string): string {
 export function MeetingCaptionsOverlay({
   interim,
   lastFinal,
+  paused = false,
   className,
 }: {
   interim: string;
   lastFinal: string;
+  /** The microphone is off, so nothing is being captioned. */
+  paused?: boolean;
   className?: string;
 }) {
   const { t } = useTranslation();
-  const text = interim || lastFinal;
+  const text = paused ? t("meetings.captionsPausedMicOff") : interim || lastFinal;
   return (
     <div className={cn("pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-captions">
       {/* Interim words change several times a second; only finished sentences reach assistive tech. */}
       <p role="status" aria-live="polite" className="sr-only">
-        {lastFinal}
+        {paused ? t("meetings.captionsPausedMicOff") : lastFinal}
       </p>
       <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 text-center ring-1 ring-meeting-bar-border">
         <p className="text-caption text-meeting-bar-muted-foreground">{t("meetings.captionsAutoLabel")}</p>
@@ -169,5 +182,32 @@ export function MeetingCaptionsOverlay({
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Owns the recognition state, so interim words (several updates a second)
+ * repaint this overlay alone rather than the whole stage.
+ */
+export function MeetingLiveCaptions({
+  meetingId,
+  enabled,
+  onError,
+  className,
+}: {
+  meetingId: string;
+  enabled: boolean;
+  onError?: (code: string) => void;
+  className?: string;
+}) {
+  const { isMicrophoneEnabled } = useLocalParticipant();
+  const { interim, lastFinal } = useLiveCaptions(meetingId, enabled, onError, isMicrophoneEnabled);
+  return (
+    <MeetingCaptionsOverlay
+      interim={interim}
+      lastFinal={lastFinal}
+      paused={!isMicrophoneEnabled}
+      className={className}
+    />
   );
 }

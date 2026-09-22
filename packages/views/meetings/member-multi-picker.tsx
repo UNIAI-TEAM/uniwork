@@ -15,6 +15,7 @@ export function MemberMultiPicker({
   onChange,
   excludeUserIds = [],
   searchable = false,
+  autoFocusSearch = true,
   className,
 }: {
   workspaceId: string;
@@ -22,6 +23,8 @@ export function MemberMultiPicker({
   onChange: (next: string[]) => void;
   excludeUserIds?: string[];
   searchable?: boolean;
+  /** Off inside a form whose first field already takes focus. */
+  autoFocusSearch?: boolean;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -41,17 +44,22 @@ export function MemberMultiPicker({
       {searchable ? (
         <div className="shrink-0 p-1">
           <Input
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("meetings.searchMembers")}
-            aria-label={t("meetings.searchMembers")}
-            autoFocus
+            aria-label={t("meetings.searchMembersLabel")}
+            autoFocus={autoFocusSearch}
           />
         </div>
       ) : null}
-      <p className="shrink-0 text-overline text-muted-foreground">
-        {t("meetings.memberListLabel")}
-      </p>
+      <div className="flex shrink-0 items-baseline justify-between gap-3">
+        <p className="text-overline text-muted-foreground">{t("meetings.memberListLabel")}</p>
+        {/* Always mounted so the first pick is announced; a search can hide picked rows, the count keeps them in view. */}
+        <p aria-live="polite" className="text-caption font-medium text-foreground tabular-nums">
+          {value.length > 0 ? t("meetings.attendeesSelected", { count: value.length }) : null}
+        </p>
+      </div>
       <ul className="min-h-0 max-h-56 min-w-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface">
         {isPending ? (
           <li>

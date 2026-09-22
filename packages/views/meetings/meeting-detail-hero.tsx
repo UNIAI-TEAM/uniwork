@@ -1,5 +1,6 @@
 "use client";
-import { Ban, CalendarClock, CalendarDays, CalendarX2, Clock, Hourglass, PhoneOff, Play, Users, Video, Zap } from "lucide-react";
+import { useId } from "react";
+import { Ban, CalendarClock, CalendarDays, CalendarX2, Clock, Globe, Hourglass, PhoneOff, Play, Users, Video, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { displayMeetingStatus } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
@@ -10,12 +11,23 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { MeetingCalendarButton } from "./meeting-calendar-button";
-import { formatMeetingDay, formatMeetingStart, formatMeetingTimes, meetingDayKey, meetingLocale } from "./meeting-datetime";
+import {
+  formatMeetingDay,
+  formatMeetingRange,
+  formatMeetingStart,
+  formatMeetingTimes,
+  meetingDayKey,
+  meetingLocale,
+  sameUtcOffset,
+} from "./meeting-datetime";
+import { meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { formatRelativeTime, meetingDurationParts } from "./meeting-relative-time";
 import { MeetingRsvpBar } from "./meeting-rsvp-bar";
+import { browserTimeZone } from "./meeting-schedule-fields";
 import { MeetingStatusBadge } from "./meeting-status-badge";
+import { useNow } from "./use-now";
 
 const AVATAR_STACK_LIMIT = 4;
 
@@ -75,7 +87,11 @@ export function MeetingDetailHero({
 }) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
-  const status = displayMeetingStatus(meeting);
+  const headingId = useId();
+  // Status and "in 5 minutes" follow the clock: Join goes away and the
+  // overtime notice appears when `ends_at` passes, without a reload.
+  const nowMs = useNow();
+  const status = displayMeetingStatus(meeting, nowMs);
   const scheduled = status === "SCHEDULED";
   const live = status === "IN_PROGRESS";
   const overtime = status === "OVERTIME";
@@ -95,11 +111,15 @@ export function MeetingDetailHero({
     : "";
 
   const relative = scheduled
-    ? t("meetings.startsRelative", { when: formatRelativeTime(meeting.starts_at, locale) })
+    ? t("meetings.startsRelative", { when: formatRelativeTime(meeting.starts_at, locale, nowMs) })
     : live || overtime
-      ? t("meetings.startedRelative", { when: formatRelativeTime(meeting.actual_start_at ?? meeting.starts_at, locale) })
+      ? t("meetings.startedRelative", {
+          when: formatRelativeTime(meeting.actual_start_at ?? meeting.starts_at, locale, nowMs),
+        })
       : ended
-        ? t("meetings.endedRelative", { when: formatRelativeTime(meeting.actual_end_at ?? meeting.ends_at, locale) })
+        ? t("meetings.endedRelative", {
+            when: formatRelativeTime(meeting.actual_end_at ?? meeting.ends_at, locale, nowMs),
+          })
         : canceled && canceledAt
           ? t("meetings.canceledAt", { time: formatMeetingStart(canceledAt, locale) })
           : null;
@@ -110,8 +130,16 @@ export function MeetingDetailHero({
   const showActions = open;
   const scheduledEnd = formatMeetingStart(meeting.ends_at, locale);
 
+  // Times read in the viewer's clock. When the meeting was set in another
+  // zone, both clocks are named so "09:00" is never ambiguous.
+  const viewerZone = browserTimeZone();
+  const startDate = new Date(meeting.starts_at);
+  const meetingZone = meeting.timezone?.trim() || "";
+  const otherZone = meetingZone !== "" && !sameUtcOffset(meetingZone, viewerZone, startDate.getTime());
+  const times = formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale);
+
   return (
-    <section aria-label={meeting.title} className="rounded-xl border border-surface-border bg-surface shadow-surface">
+    <section aria-labelledby={headingId} className="rounded-xl border border-surface-border bg-surface shadow-surface">
       <div className="p-5 lg:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <MeetingStatusBadge status={status} />
@@ -125,8 +153,9 @@ export function MeetingDetailHero({
         </div>
 
         <h1
+          id={headingId}
           className={cn(
-            "mt-3 max-w-4xl text-balance text-display-sm font-semibold text-foreground",
+            "mt-3 max-w-4xl text-balance break-words text-display-sm font-semibold text-foreground [overflow-wrap:anywhere]",
             canceled && "line-through decoration-muted-foreground",
           )}
         >
@@ -136,25 +165,41 @@ export function MeetingDetailHero({
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
           <MetaItem icon={CalendarDays}>{formatMeetingDay(meetingDayKey(meeting.starts_at), locale)}</MetaItem>
           <MetaItem icon={Clock}>
-            <span className="tabular-nums">{formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale)}</span>
-            {durationLabel ? <span className="text-faint-foreground"> · {durationLabel}</span> : null}
+            <span className="tabular-nums">
+              {otherZone
+                ? t("meetings.timesInZone", { times, zone: meetingTimeZoneLabel(viewerZone, i18n.language, startDate) })
+                : times}
+            </span>
+            {durationLabel ? <span> · {durationLabel}</span> : null}
           </MetaItem>
+          {otherZone ? (
+            <MetaItem icon={Globe}>
+              <span className="tabular-nums">
+                {t("meetings.timesInZone", {
+                  times: formatMeetingRange(meeting.starts_at, meeting.ends_at, locale, meetingZone),
+                  zone: meetingTimeZoneLabel(meetingZone, i18n.language, startDate),
+                })}
+              </span>
+            </MetaItem>
+          ) : null}
           <div className="flex min-w-0 items-center gap-2 text-body text-muted-foreground">
             <MeetingPersonAvatar name={host.name} avatarUrl={host.avatarUrl} size="sm" />
             <span className="min-w-0 truncate">
               <span className="font-medium text-foreground">{host.name}</span>
-              <span className="text-faint-foreground"> · {t("meetings.host")}</span>
+              <span> · {t("meetings.host")}</span>
             </span>
           </div>
           {people.length > 0 ? (
             <div className="flex min-w-0 items-center gap-2 text-body text-muted-foreground">
               <Users aria-hidden className="size-4 shrink-0 text-faint-foreground" />
-              <AvatarGroup>
+              {/* The faces are decorative; the count is what a screen reader hears. */}
+              <span className="sr-only">{t("meetings.participantCount", { count: people.length })}</span>
+              <AvatarGroup aria-hidden>
                 {shownPeople.map((p) => (
                   <MeetingPersonAvatar key={p.id} name={p.name} avatarUrl={p.avatarUrl} size="sm" />
                 ))}
                 {morePeople > 0 ? (
-                  <AvatarGroupCount className="size-6 text-caption">
+                  <AvatarGroupCount aria-hidden className="size-6 text-caption">
                     {t("meetings.moreParticipantsShort", { count: morePeople })}
                   </AvatarGroupCount>
                 ) : null}
@@ -182,7 +227,7 @@ export function MeetingDetailHero({
                     <CalendarClock aria-hidden />
                     {t("meetings.extendWindow")}
                   </Button>
-                  <Button type="button" size="sm" variant="destructive" onClick={onEnd}>
+                  <Button type="button" size="sm" variant="destructiveSolid" onClick={onEnd}>
                     <PhoneOff aria-hidden />
                     {t("meetings.end")}
                   </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Clock,
   PanelRightClose,
@@ -37,6 +37,65 @@ import { MeetingPersonAvatar } from "./meeting-person";
 
 const URGENT_MS = 5 * 60_000;
 const HEADER_AVATARS = 4;
+// A landscape phone (390px tall) gets one header line: breadcrumb and description go.
+const SHORT_HIDDEN = "[@media(max-height:500px)]:hidden";
+
+/**
+ * The countdown ticks on its own, so the header around it does not repaint
+ * every second. It shows seconds, so it ticks every second: a slower tick
+ * would freeze the seconds and then jump.
+ */
+function RemainingTimeChip({ endsAt }: { endsAt: string }) {
+  const { t } = useTranslation();
+  const [now, setNow] = useState(() => Date.now());
+  const msLeft = Date.parse(endsAt) - now;
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const remaining = formatRemaining(endsAt, now);
+  if (!remaining) return null;
+  const pastScheduledEnd = isPastScheduledEnd(endsAt, now);
+  const urgent = !pastScheduledEnd && msLeft <= URGENT_MS;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tabular-nums",
+        pastScheduledEnd || urgent
+          ? "bg-destructive-solid text-on-solid"
+          : "border border-meeting-bar-border bg-background text-foreground",
+      )}
+      data-testid="meeting-remaining-time"
+    >
+      <Clock aria-hidden className="size-3.5 shrink-0 opacity-90" />
+      {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : remaining}
+    </span>
+  );
+}
+
+/**
+ * Always mounted, so a screen reader hears when recording starts or stops —
+ * for everyone in the room, not only the host who pressed the button.
+ */
+function RecordingAnnouncer({ recording }: { recording: boolean }) {
+  const { t } = useTranslation();
+  const previous = useRef(recording);
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (previous.current === recording) return;
+    previous.current = recording;
+    setText(t(recording ? "meetings.recordingStarted" : "meetings.recordingStopped"));
+  }, [recording, t]);
+
+  return (
+    <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-recording-announcer">
+      {text}
+    </p>
+  );
+}
 
 export function MeetingStageHeader({
   meeting,
@@ -68,22 +127,9 @@ export function MeetingStageHeader({
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const start = useStartMeeting(workspaceId ?? "");
   const end = useEndMeeting(workspaceId ?? "");
-  const [now, setNow] = useState(() => Date.now());
   const [inviteOpen, setInviteOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
-  useEffect(() => {
-    if (!meeting?.ends_at) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [meeting?.ends_at]);
-
-  const remaining = meeting?.ends_at ? formatRemaining(meeting.ends_at, now) : null;
-  const pastScheduledEnd = Boolean(meeting?.ends_at && isPastScheduledEnd(meeting.ends_at, now));
-  const urgent =
-    Boolean(meeting?.ends_at) &&
-    !pastScheduledEnd &&
-    Date.parse(meeting!.ends_at) - now <= URGENT_MS;
   const title = meeting?.title ?? meetingTitle ?? t("meetings.title");
   const scheduleRange = meeting
     ? formatMeetingRange(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language))
@@ -99,7 +145,7 @@ export function MeetingStageHeader({
   return (
     <>
       <div
-        className="relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5"
+        className="relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5 [@media(max-height:500px)]:py-1.5"
         data-testid="meeting-stage-header"
       >
         <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3">
@@ -107,7 +153,7 @@ export function MeetingStageHeader({
             {meetingsHref && !guestMode ? (
               <nav
                 aria-label={t("meetings.title")}
-                className="mb-0.5 truncate text-caption text-meeting-bar-muted-foreground"
+                className={cn("mb-0.5 truncate text-caption text-meeting-bar-muted-foreground", SHORT_HIDDEN)}
               >
                 {workspaceLabel ? (
                   <>
@@ -125,7 +171,7 @@ export function MeetingStageHeader({
                 </AppLink>
               </nav>
             ) : null}
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0 [@media(max-height:500px)]:flex-nowrap">
               <h1 className="min-w-0 max-w-full truncate text-title-sm font-semibold text-meeting-bar-foreground">
                 {title}
               </h1>
@@ -144,11 +190,14 @@ export function MeetingStageHeader({
               ) : null}
             </div>
             {description ? (
-              <p className="mt-0.5 truncate text-caption text-meeting-bar-muted-foreground">{description}</p>
+              <p className={cn("mt-0.5 truncate text-caption text-meeting-bar-muted-foreground", SHORT_HIDDEN)}>
+                {description}
+              </p>
             ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 sm:justify-end sm:gap-2">
+            <RecordingAnnouncer recording={recording} />
             {recording ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-destructive-solid px-2 py-1 text-caption font-medium text-on-solid"
@@ -162,20 +211,7 @@ export function MeetingStageHeader({
               </span>
             ) : null}
 
-            {remaining ? (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tabular-nums",
-                  pastScheduledEnd || urgent
-                    ? "bg-destructive-solid text-on-solid"
-                    : "border border-meeting-bar-border bg-background text-foreground",
-                )}
-                data-testid="meeting-remaining-time"
-              >
-                <Clock aria-hidden className="size-3.5 shrink-0 opacity-90" />
-                {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : remaining}
-              </span>
-            ) : null}
+            {meeting?.ends_at ? <RemainingTimeChip endsAt={meeting.ends_at} /> : null}
 
             {showInvite ? (
               <Button
@@ -225,7 +261,7 @@ export function MeetingStageHeader({
                       key={p.identity}
                       name={p.name || p.identity}
                       size="sm"
-                      className="ring-2 ring-rail"
+                      className="ring-2 ring-meeting-stage"
                     />
                   ))}
                 </div>

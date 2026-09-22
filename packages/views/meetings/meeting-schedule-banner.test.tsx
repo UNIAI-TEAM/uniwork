@@ -36,8 +36,24 @@ describe("MeetingScheduleBanner", () => {
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-03T09:00:00.000Z"));
-    const { container: far } = render(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
-    expect(far).toBeEmptyDOMElement();
+    render(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
+    expect(screen.queryByTestId("meeting-schedule-banner-slot")).not.toBeInTheDocument();
+    // Only the empty live region is there, waiting.
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    vi.useRealTimers();
+  });
+
+  it("keeps the live region mounted and only changes its text when the last minute starts", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-03T09:58:30.000Z"));
+    render(<MeetingScheduleBanner endsAt="2026-09-03T10:00:00.000Z" />);
+    const region = screen.getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    act(() => {
+      vi.advanceTimersByTime(40_000);
+    });
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("Còn một phút theo lịch. Phòng không tự đóng.");
     vi.useRealTimers();
   });
 

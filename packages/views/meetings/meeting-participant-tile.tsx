@@ -1,6 +1,6 @@
 "use client";
 import type { ComponentProps, PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   isTrackReference,
   useConnectionQualityIndicator,
@@ -24,7 +24,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { tileRingTone, type TileRingTone } from "./conference-layout";
-import { useMeetingSignals } from "./use-meeting-signals";
+import { useParticipantSignal, useRequestMute } from "./use-meeting-signals";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRoleChip } from "./meeting-role-chip";
 import type { MeetingParticipantRole } from "./meeting-signals";
@@ -135,7 +135,7 @@ function MeetingTileActions({
   onPin: () => void;
 }) {
   const { t } = useTranslation();
-  const { requestMute } = useMeetingSignals();
+  const requestMute = useRequestMute();
   const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
   const showHostMute = canHost && !participant.isLocal && !micMuted;
@@ -235,21 +235,31 @@ function useTouchReveal(tileRef: RefObject<HTMLDivElement | null>, hold: boolean
   return { revealed, onTilePointerDown };
 }
 
-export function MeetingParticipantTile({
-  participant,
-  track,
-  compact = false,
-  expanded = false,
-  canHost = false,
-  roleChip = null,
-}: {
+type MeetingParticipantTileProps = {
   participant: Participant;
   track?: TrackReferenceOrPlaceholder;
   compact?: boolean;
   expanded?: boolean;
   canHost?: boolean;
   roleChip?: MeetingParticipantRole | null;
-}) {
+  /**
+   * The media track and whether it plays, read by the parent at its render.
+   * The publication object is mutated in place, so the memo compares these
+   * snapshots rather than the publication.
+   */
+  videoTrack?: unknown;
+  videoOn?: boolean;
+};
+
+function MeetingParticipantTileImpl({
+  participant,
+  track,
+  compact = false,
+  expanded = false,
+  canHost = false,
+  roleChip = null,
+  videoOn,
+}: MeetingParticipantTileProps) {
   const { t } = useTranslation();
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
@@ -258,16 +268,14 @@ export function MeetingParticipantTile({
   const pinned = pinnedIdentity === participant.identity;
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
-  const { hands, reactions } = useMeetingSignals();
-  const handRaised = hands.includes(participant.identity);
-  const reaction = reactions.filter((r) => r.identity === participant.identity).at(-1);
+  const { handRaised, reaction } = useParticipantSignal(participant.identity);
   const name = displayName(participant);
   const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
   const isScreenShare =
     track && isTrackReference(track) && track.source === Track.Source.ScreenShare;
   // Thumbnails play video too: adaptive stream subscribes them at the small
   // simulcast layer, so the avatar only stands in when the camera is off.
-  const showVideo = hasPlayableVideo(track);
+  const showVideo = videoOn ?? hasPlayableVideo(track);
   const isLocalCamera =
     participant.isLocal && track && isTrackReference(track) && track.source === Track.Source.Camera;
   const showNameLabel = !expanded || showExpandedLabels;
@@ -385,7 +393,27 @@ export function MeetingParticipantTile({
           <span className="min-w-0 truncate">{label}</span>
           {roleChip ? <MeetingRoleChip role={roleChip} /> : null}
         </span>
-      ) : null}
+      ) : (
+        // The label is hidden for a clean full view; the name still reaches assistive tech.
+        <span className="sr-only">{label}</span>
+      )}
     </div>
   );
 }
+
+/**
+ * useTracks hands out fresh track objects on every room event; compare what a
+ * tile draws, so a speaker change repaints the tiles it touches, not all.
+ */
+export const MeetingParticipantTile = memo(
+  MeetingParticipantTileImpl,
+  (a, b) =>
+    a.participant === b.participant &&
+    a.track?.source === b.track?.source &&
+    a.videoTrack === b.videoTrack &&
+    a.videoOn === b.videoOn &&
+    a.compact === b.compact &&
+    a.expanded === b.expanded &&
+    a.canHost === b.canHost &&
+    a.roleChip === b.roleChip,
+);

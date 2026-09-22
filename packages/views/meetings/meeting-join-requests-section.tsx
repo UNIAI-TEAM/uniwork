@@ -17,7 +17,7 @@ import { usePendingJoinRequests } from "./use-pending-join-requests";
 export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string }) {
   const { t } = useTranslation();
   const { pending, count } = usePendingJoinRequests(meetingId);
-  const { approveOne, rejectOne, admitAll, approving, rejecting } = useJoinRequestActions(meetingId);
+  const { approveOne, rejectOne, admitAll, approving, isApproving, isRejecting } = useJoinRequestActions(meetingId);
   const [open, setOpen] = useState(true);
 
   if (count === 0) return null;
@@ -57,8 +57,8 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
                 <MeetingJoinRequestRow
                   request={r}
                   variant="sidebar"
-                  approving={approving}
-                  rejecting={rejecting}
+                  approving={isApproving(r.id)}
+                  rejecting={isRejecting(r.id)}
                   onApprove={() => approveOne(r.id)}
                   onReject={() => rejectOne(r.id)}
                 />

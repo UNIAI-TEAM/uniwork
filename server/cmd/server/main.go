@@ -9,6 +9,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	// The runtime image (alpine, CGO off) ships no zoneinfo; LoadLocation
+	// for a viewer's zone (meetings list tz, home, digests) needs this.
+	_ "time/tzdata"
 
 	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"

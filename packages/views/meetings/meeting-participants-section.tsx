@@ -2,11 +2,9 @@
 import { useState } from "react";
 import { ArrowRightLeft, Crown, MoreHorizontal, UserMinus, UserPlus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
-import { meetingKeys, useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
+import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
-import { useMembers } from "@uniwork/core/workspaces";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -24,6 +22,7 @@ import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
 import { MeetingRsvpBadge } from "./meeting-status-badge";
 import { TransferHostDialog } from "./transfer-host-dialog";
+import { useMemberIndex } from "./use-member-index";
 
 /**
  * Who is on the meeting. The host reads first; admin lives where it applies —
@@ -44,20 +43,18 @@ export function MeetingParticipantsSection({
   showTransferHost?: boolean;
 }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const {
     data: participants,
     isPending: participantsPending,
     isError: participantsFailed,
     refetch: refetchParticipants,
   } = useParticipants(meeting.id);
-  const { data: members } = useMembers(workspaceId);
+  const { memberOf, members } = useMemberIndex(workspaceId);
   const remove = useRemoveParticipant(meeting.id);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
   const [handingOver, setHandingOver] = useState<{ userId: string; name: string } | null>(null);
   const rsvpByParticipant = new Map(invitations.map((i) => [i.participant_id, i.response_status]));
-  const memberOf = (userId?: string) => (userId ? members?.find((m) => m.user_id === userId) : undefined);
   const active = (participants ?? []).filter((p) => p.status === "ACTIVE");
   const ordered = [...active].sort(
     (a, b) => Number(b.user_id === meeting.host_user_id) - Number(a.user_id === meeting.host_user_id),
@@ -67,7 +64,7 @@ export function MeetingParticipantsSection({
       [meeting.host_user_id, ...active.map((p) => p.user_id)].filter((id): id is string => Boolean(id)),
     ),
   ];
-  const hasCandidates = (members ?? []).some((m) => !excludeUserIds.includes(m.user_id));
+  const hasCandidates = members.some((m) => !excludeUserIds.includes(m.user_id));
   const nameOf = (p: MeetingParticipant) =>
     p.display_name_snapshot || memberOf(p.user_id)?.display_name || t("meetings.formerMember");
   // Only a workspace member already on the roster can take the host role.
@@ -182,14 +179,8 @@ export function MeetingParticipantsSection({
           meetingId={meeting.id}
           excludeUserIds={excludeUserIds}
           open={adding}
-          onOpenChange={(open) => {
-            setAdding(open);
-            // The dialog invites through the endpoint directly; refresh the roster when it closes.
-            if (!open) {
-              void qc.invalidateQueries({ queryKey: meetingKeys.participants(meeting.id) });
-              void qc.invalidateQueries({ queryKey: meetingKeys.invitations(meeting.id) });
-            }
-          }}
+          // The dialog refreshes the roster itself as soon as anyone is invited.
+          onOpenChange={setAdding}
         />
       ) : null}
       <TransferHostDialog

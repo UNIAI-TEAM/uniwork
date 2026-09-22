@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Meeting, User, Workspace } from "@uniwork/core/types";
@@ -149,14 +149,34 @@ describe("MeetingList", () => {
     expect(screen.getByRole("heading", { name: /Ngày mai/ })).toBeInTheDocument();
   });
 
-  it("shows rewatch once when an ended meeting has a recording", async () => {
+  it("reads the day count in context, not as a bare number", async () => {
+    const { container } = render(shell(<MeetingList workspaceId="w1" meetings={[meetings[0]!]} onOpenRoom={() => {}} />));
+    expect(await screen.findByRole("heading", { name: /Ngày mai.*\(1 cuộc họp\)/ })).toBeInTheDocument();
+    expect(container.querySelector("h2 [aria-hidden]")).toHaveTextContent("1");
+  });
+
+  it("paints the rail with the badge's signal, never the meetings tint", () => {
+    const { container } = render(shell(<MeetingList workspaceId="w1" meetings={meetings} onOpenRoom={() => {}} />));
+    expect(container.querySelector(".bg-tint-violet-solid")).toBeNull();
+    expect(container.querySelector(".bg-info")).not.toBeNull();
+    expect(container.querySelector(".bg-success")).not.toBeNull();
+  });
+
+  it("keeps the full title reachable when it is clamped", () => {
+    render(shell(<MeetingList workspaceId="w1" meetings={[meetings[0]!]} onOpenRoom={() => {}} />));
+    expect(screen.getByRole("link", { name: /Standup/ })).toHaveAttribute("title", "Standup");
+  });
+
+  it("offers rewatch from the list flag and loads recordings only on click", async () => {
     const ended: Meeting = {
       ...meetings[0]!,
       id: "m-ended",
       title: "Cuộc họp tức thì",
       status: "ENDED",
       actual_end_at: new Date().toISOString(),
+      has_playable_recording: true,
     };
+    const plain: Meeting = { ...ended, id: "m-plain", title: "Không ghi hình", has_playable_recording: false };
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
       if (p.endsWith("/members")) return Promise.resolve(members);
@@ -167,7 +187,40 @@ describe("MeetingList", () => {
       }
       return Promise.resolve({});
     });
-    render(shell(<MeetingList workspaceId="w1" meetings={[ended]} onOpenRoom={() => {}} />));
-    expect(await screen.findAllByRole("button", { name: "Xem lại" })).toHaveLength(1);
+    render(shell(<MeetingList workspaceId="w1" meetings={[ended, plain]} onOpenRoom={() => {}} />));
+    const buttons = await screen.findAllByRole("button", { name: "Xem lại" });
+    expect(buttons).toHaveLength(1);
+    const recordingCalls = () => requestMock.mock.calls.filter((c) => String(c[0]).endsWith("/recordings"));
+    expect(recordingCalls()).toHaveLength(0);
+    fireEvent.click(buttons[0]!);
+    await vi.waitFor(() => expect(recordingCalls()).toHaveLength(1));
+    expect(String(recordingCalls()[0]![0])).toContain("/meetings/m-ended/recordings");
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("MeetingList clock", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("re-reads time-derived states as the clock moves", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-22T09:00:00"));
+    const endingSoon: Meeting = {
+      ...meetings[0]!,
+      id: "m-tick",
+      title: "Sắp hết giờ",
+      starts_at: new Date("2026-09-22T08:30:00").toISOString(),
+      ends_at: new Date("2026-09-22T09:01:00").toISOString(),
+      status: "IN_PROGRESS",
+    };
+    render(shell(<MeetingList workspaceId="w1" meetings={[endingSoon]} onOpenRoom={() => {}} />));
+    expect(screen.getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(2 * 60_000);
+    });
+    expect(screen.queryByRole("button", { name: "Vào ngay" })).not.toBeInTheDocument();
+    expect(screen.getByText("Quá giờ")).toBeInTheDocument();
   });
 });

@@ -106,6 +106,8 @@ export function InstantMeetingDialog({
                   value={attendees}
                   onChange={setAttendees}
                   excludeUserIds={userId ? [userId] : []}
+                  searchable
+                  autoFocusSearch={false}
                 />
               </Field>
             </FieldGroup>
