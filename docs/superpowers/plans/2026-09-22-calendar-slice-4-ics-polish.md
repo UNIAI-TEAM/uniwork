@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — Lát 4 cuối của spec C-02 / UNI-718. Lát 1–3 shipped trên cùng nhánh / PR #102.
+> **Trạng thái:** shipped — Lát 4 (ICS + polish) hoàn tất; C-02 v1 trên nhánh UNI-718 / PR #102.
 
 **Goal:** `GET …/workspaces/{id}/calendar.ics` (task all-day + meeting VEVENT, auth member); nút Export ICS trên toolbar; polish nhãn kỳ theo view + sidebar “today” local; verify hẹp (không `make check` trừ khi user yêu cầu).
 

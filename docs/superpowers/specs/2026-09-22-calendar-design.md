@@ -1,6 +1,6 @@
 # UniWork — Calendar hub (C-02)
 
-> **Trạng thái:** đã duyệt — Lát 1–3 shipped trên nhánh UNI-718 / PR; Lát 4 plan `../plans/2026-09-22-calendar-slice-4-ics-polish.md` (in-progress)
+> **Trạng thái:** shipped — C-02 v1 (Lát 1–4) trên nhánh UNI-718 / PR #102; plan Lát 4 `../plans/2026-09-22-calendar-slice-4-ics-polish.md`.
 
 **Ngày:** 2026-09-22  
 **Roadmap:** C-02 (`docs/roadmap/FEATURE_ROADMAP.md`)  
