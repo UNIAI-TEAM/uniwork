@@ -39,7 +39,7 @@ describe("getCalendarSidebar", () => {
   beforeEach(() => vi.mocked(request).mockReset());
 
   it("returns empty sections on malformed payload", async () => {
-    vi.mocked(request).mockResolvedValue({ nope: true });
+    vi.mocked(request).mockResolvedValue({ priorities: "not-an-array" });
     await expect(getCalendarSidebar("ws1")).resolves.toEqual({
       priorities: [],
       meetWith: [],
