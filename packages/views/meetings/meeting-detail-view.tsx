@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Ban, Pencil, PhoneOff } from "lucide-react";
+import { Ban, CalendarX2, Pencil, PhoneOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   canEnterScheduledMeeting,
@@ -26,9 +26,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
+import { ApiError } from "@uniwork/core/api";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { toastApiError } from "../toast-api-error";
+import { AppLink } from "../navigation";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
-import { CollectionPageHeaderAction } from "../layout/collection-page";
+import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
 import { MeetingDetailAside } from "./meeting-detail-aside";
@@ -52,7 +55,7 @@ export function MeetingDetailView({
   const { t } = useTranslation();
   const { workspace, user } = useWorkspace();
   useWorkspaceEvents(workspaceId);
-  const { data: meeting } = useMeeting(meetingId);
+  const { data: meeting, isError, error, isPending, refetch } = useMeeting(meetingId);
   const { data: invitations } = useInvitations(meetingId);
   const { data: participants } = useParticipants(meetingId);
   const { data: joinRequests } = useJoinRequests(meetingId);
@@ -68,6 +71,39 @@ export function MeetingDetailView({
   const myParticipant = activeParticipants.find((p) => p.user_id === user.id);
   const myInvite = (invitations ?? []).find((inv) => inv.participant_id === myParticipant?.id);
   const pendingJoins = (joinRequests ?? []).filter((r) => r.status === "PENDING").length;
+
+  // A missing meeting (or one this viewer may not see) and a failed load read
+  // differently: one sends you back to the list, the other offers a retry.
+  const missing = (!isPending && !isError && !meeting) ||
+    (error instanceof ApiError && (error.status === 404 || error.status === 403));
+  if (missing || isError) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <BreadcrumbHeader
+          segments={[{ href: meetingsHref, label: t("meetings.title") }]}
+          leaf={t(missing ? "meetings.notFound" : "meetings.loadFailed")}
+        />
+        <CollectionPageState
+          icon={CalendarX2}
+          tone={missing ? "muted" : "destructive"}
+          role={missing ? undefined : "alert"}
+          title={t(missing ? "meetings.notFound" : "meetings.loadFailed")}
+          description={missing ? t("meetings.notFoundHint") : undefined}
+          actions={
+            missing ? (
+              <AppLink href={meetingsHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                {t("meetings.backToList")}
+              </AppLink>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                {t("common.retry")}
+              </Button>
+            )
+          }
+        />
+      </div>
+    );
+  }
 
   if (!meeting) {
     return (

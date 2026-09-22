@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -121,6 +122,42 @@ describe("MeetingDetailView", () => {
     expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sửa cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chuyển chủ trì" })).toBeInTheDocument();
+  });
+
+  it("says the meeting is gone instead of loading forever", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      if (String(path) === "/api/v1/meetings/m1") {
+        return Promise.reject(new ApiError("không tìm thấy", "not_found", 404));
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    expect(await screen.findByRole("heading", { name: "Không tìm thấy cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Về danh sách cuộc họp" })).toHaveAttribute("href", "/org/team/meetings");
+    expect(screen.queryByText("Đang tải…")).not.toBeInTheDocument();
+  });
+
+  it("offers a retry when the meeting could not be loaded", async () => {
+    let calls = 0;
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p === "/api/v1/meetings/m1") {
+        calls += 1;
+        return calls === 1 ? Promise.reject(new TypeError("Failed to fetch")) : Promise.resolve({ meeting });
+      }
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+
+    expect(await screen.findByRole("heading", { name: "Chưa tải được cuộc họp" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
   });
 
   it("hides start and join after the scheduled window ends", async () => {
