@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Trạng thái:** in-progress — Lát 3 của spec C-02 / UNI-718. Lát 1–2 shipped trên cùng nhánh / PR. Lát 4 (ICS) = plan riêng.
+> **Trạng thái:** shipped — Lát 3 của spec C-02 / UNI-718. Lát 1–2 shipped trên cùng nhánh / PR. Lát 4 (ICS) = plan riêng.
 
 **Goal:** Panel trái 5 section (map A); kéo task từ panel lên ngày để gán `due_date`; click/select ô trống → tạo task hoặc meeting với ngày/giờ prefill.
 
@@ -273,9 +273,9 @@ cd server && go test ./internal/service/ -run Calendar -count=1
 
 **Không** `make check`.
 
-- [ ] **Step 1: Fix failures**
+- [x] **Step 1: Fix failures**
 
-- [ ] **Step 2: Commit** nếu còn diff docs/tests
+- [x] **Step 2: Commit** nếu còn diff docs/tests
 
 ```bash
 git commit -m "$(cat <<'EOF'
