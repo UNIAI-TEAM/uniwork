@@ -13,6 +13,7 @@ import { CollectionPageHeader, CollectionPageState } from "../layout/collection-
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
+import type { CalendarViewMode } from "./calendar-view-mode";
 import { FullCalendarHost } from "./fullcalendar-host";
 
 function monthRange(date: Date) {
@@ -34,10 +35,10 @@ export function CalendarPageView({
   const { t } = useTranslation();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [mine, setMine] = useState(false);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [range, setRange] = useState(() => monthRange(new Date()));
 
   const initialDate = format(anchorDate, "yyyy-MM-dd");
-  const monthKey = format(anchorDate, "yyyy-MM");
 
   const { data, isError, isPending, refetch } = useCalendarEvents(
     workspaceId,
@@ -70,8 +71,10 @@ export function CalendarPageView({
       <CalendarToolbar
         anchorDate={anchorDate}
         mine={mine}
+        viewMode={viewMode}
         onAnchorDateChange={handleAnchorDateChange}
         onMineChange={setMine}
+        onViewModeChange={setViewMode}
       />
       {isError ? (
         <CollectionPageState
@@ -99,9 +102,9 @@ export function CalendarPageView({
           ) : null}
           {isPending ? <Skeleton className="mb-4 h-8 w-full max-w-md" /> : null}
           <FullCalendarHost
-            key={monthKey}
             events={events}
             initialDate={initialDate}
+            viewMode={viewMode}
             onDatesSet={setRange}
             onEventClick={handleEventClick}
           />

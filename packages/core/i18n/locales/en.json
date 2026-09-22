@@ -2077,9 +2077,12 @@
     "loading": "Loading calendar…",
     "error": "Could not load the calendar.",
     "retry": "Retry",
+    "view_day": "Day",
+    "view_work_week": "Work week",
+    "view_week": "Week",
     "view_month": "Month",
-    "prev_month": "Previous month",
-    "next_month": "Next month"
+    "prev_period": "Previous period",
+    "next_period": "Next period"
   },
   "chat": {
     "media_unavailable": "Couldn't load {{name}}",

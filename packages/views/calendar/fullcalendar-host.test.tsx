@@ -4,6 +4,8 @@ import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { FullCalendarHost } from "./fullcalendar-host";
 
 type CapturedFcProps = {
+  initialView?: string;
+  hiddenDays?: number[];
   datesSet?: (arg: { start: Date; end: Date }) => void;
   eventClick?: (arg: { event: { id: string } }) => void;
 };
@@ -18,6 +20,14 @@ vi.mock("@fullcalendar/react", () => ({
 }));
 
 vi.mock("@fullcalendar/daygrid", () => ({
+  default: {},
+}));
+
+vi.mock("@fullcalendar/timegrid", () => ({
+  default: {},
+}));
+
+vi.mock("@fullcalendar/interaction", () => ({
   default: {},
 }));
 
@@ -37,6 +47,7 @@ describe("FullCalendarHost", () => {
       <FullCalendarHost
         events={[sample]}
         initialDate="2026-09-01"
+        viewMode="month"
         onDatesSet={onDatesSet}
         onEventClick={vi.fn()}
       />,
@@ -49,12 +60,27 @@ describe("FullCalendarHost", () => {
     expect(onDatesSet).toHaveBeenCalledWith({ from: "2026-09-01", to: "2026-09-29" });
   });
 
+  it("passes FC view and hiddenDays from viewMode", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="work_week"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.initialView).toBe("timeGridWeek");
+    expect(captured.hiddenDays).toEqual([0, 6]);
+  });
+
   it("resolves eventClick by id", () => {
     const onEventClick = vi.fn();
     render(
       <FullCalendarHost
         events={[sample]}
         initialDate="2026-09-01"
+        viewMode="month"
         onDatesSet={vi.fn()}
         onEventClick={onEventClick}
       />,

@@ -75,7 +75,7 @@ describe("CalendarPageView", () => {
       false,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Tháng trước" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kỳ trước" }));
 
     expect(useCalendarEventsMock).toHaveBeenLastCalledWith(
       "ws1",

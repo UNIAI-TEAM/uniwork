@@ -2,17 +2,25 @@
 
 import type { EventClickArg, DatesSetArg } from "@fullcalendar/core";
 import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
+import timeGridPlugin from "@fullcalendar/timegrid";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { addDays, format } from "date-fns";
 import { useMemo } from "react";
 import { toFcEvent } from "./calendar-fc-map";
+import {
+  type CalendarViewMode,
+  fcHiddenDays,
+  fcViewForMode,
+} from "./calendar-view-mode";
 import "./fullcalendar-theme.css";
 
 export function FullCalendarHost(props: {
   events: CalendarEvent[];
   initialDate: string;
+  viewMode: CalendarViewMode;
   onDatesSet: (range: { from: string; to: string }) => void;
   onEventClick: (event: CalendarEvent) => void;
   className?: string;
@@ -22,6 +30,8 @@ export function FullCalendarHost(props: {
     [props.events],
   );
   const fcEvents = useMemo(() => props.events.map(toFcEvent), [props.events]);
+  const initialView = fcViewForMode(props.viewMode);
+  const hiddenDays = fcHiddenDays(props.viewMode);
 
   const handleDatesSet = (arg: DatesSetArg) => {
     props.onDatesSet({
@@ -41,9 +51,11 @@ export function FullCalendarHost(props: {
   return (
     <div data-testid="calendar-grid" className={cn("uniwork-fc min-h-0 flex-1", props.className)}>
       <FullCalendar
-        plugins={[dayGridPlugin]}
-        initialView="dayGridMonth"
+        key={`${props.viewMode}-${props.initialDate}`}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        initialView={initialView}
         initialDate={props.initialDate}
+        hiddenDays={hiddenDays}
         headerToolbar={false}
         height="auto"
         events={fcEvents}
