@@ -1,32 +1,32 @@
 /* FullCalendar chrome bridged to UniWork semantic tokens (light + dark via :root / .dark). */
 .uniwork-fc {
-  --fc-page-bg-color: hsl(var(--background));
-  --fc-neutral-bg-color: hsl(var(--muted));
-  --fc-neutral-text-color: hsl(var(--muted-foreground));
-  --fc-border-color: hsl(var(--border));
-  --fc-button-text-color: hsl(var(--primary-foreground));
-  --fc-button-bg-color: hsl(var(--primary));
-  --fc-button-border-color: hsl(var(--primary));
-  --fc-button-hover-bg-color: hsl(var(--primary));
-  --fc-button-hover-border-color: hsl(var(--primary));
-  --fc-button-active-bg-color: hsl(var(--primary));
-  --fc-button-active-border-color: hsl(var(--primary));
-  --fc-event-bg-color: hsl(var(--primary));
-  --fc-event-border-color: hsl(var(--primary));
-  --fc-event-text-color: hsl(var(--primary-foreground));
-  --fc-more-link-bg-color: hsl(var(--muted));
-  --fc-more-link-text-color: hsl(var(--foreground));
-  --fc-now-indicator-color: hsl(var(--destructive));
-  --fc-today-bg-color: hsl(var(--brand-subtle));
-  --fc-highlight-color: hsl(var(--accent));
+  --fc-page-bg-color: var(--background);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-border-color: var(--border);
+  --fc-button-text-color: var(--primary-foreground);
+  --fc-button-bg-color: var(--primary);
+  --fc-button-border-color: var(--primary);
+  --fc-button-hover-bg-color: var(--primary);
+  --fc-button-hover-border-color: var(--primary);
+  --fc-button-active-bg-color: var(--primary);
+  --fc-button-active-border-color: var(--primary);
+  --fc-event-bg-color: var(--primary);
+  --fc-event-border-color: var(--primary);
+  --fc-event-text-color: var(--primary-foreground);
+  --fc-more-link-bg-color: var(--muted);
+  --fc-more-link-text-color: var(--foreground);
+  --fc-now-indicator-color: var(--destructive);
+  --fc-today-bg-color: var(--brand-subtle);
+  --fc-highlight-color: var(--accent);
 }
 
 .uniwork-fc .fc {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: var(--text-body);
 }
 
 .uniwork-fc .fc-col-header-cell-cushion,
 .uniwork-fc .fc-daygrid-day-number {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
