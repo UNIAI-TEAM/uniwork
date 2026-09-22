@@ -1,15 +1,15 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   RoomAudioRenderer,
   StartMediaButton,
-  useConnectionState,
+  useParticipants as useLiveKitParticipants,
   useSpeakingParticipants,
   useTracks,
+  type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import { ConnectionState, Track } from "livekit-client";
-import { toast } from "sonner";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Track } from "livekit-client";
+import { CaptionsOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
@@ -25,45 +25,121 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { useIsCompact } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
+import { Notice } from "../common/notice";
 import {
+  copilotPanelShown,
   resolveConferenceStage,
   trackTileKey,
 } from "./conference-layout";
 import {
+  captionsErrorKey,
   captionsSupported,
   useLiveCaptions,
 } from "./meeting-captions";
+import { MeetingConnectionNotice } from "./meeting-connection-notice";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { MeetingStageHeader } from "./meeting-stage-header";
-import { MeetingRoomSidebar, type MeetingSidebarTab } from "./meeting-room-sidebar";
+import {
+  MeetingRoomSidebar,
+  MeetingSidebarDock,
+  type MeetingSidebarTab,
+} from "./meeting-room-sidebar";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
-import { muteRequesterIdentities } from "./meeting-signals";
-import { MeetingSignalsProvider } from "./use-meeting-signals";
+import {
+  guestIdentities,
+  muteRequesterIdentities,
+  participantRole,
+  reactionLabelKey,
+} from "./meeting-signals";
+import { MeetingSignalsProvider, useMeetingSignals } from "./use-meeting-signals";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
 
-const CONNECTION_TOAST_ID = "meeting-connection";
-
-function ConnectionNotice() {
+/** The "+N" tile at the end of a strip; its count is read out as words. */
+function OverflowTile({ count, className }: { count: number; className?: string }) {
   const { t } = useTranslation();
-  const state = useConnectionState();
-  useEffect(() => {
-    if (state === ConnectionState.Reconnecting) {
-      toast.loading(t("meetings.reconnecting"), { id: CONNECTION_TOAST_ID });
-    } else {
-      toast.dismiss(CONNECTION_TOAST_ID);
-    }
-  }, [state, t]);
-  useEffect(
-    () => () => {
-      toast.dismiss(CONNECTION_TOAST_ID);
-    },
-    [],
+  return (
+    <div
+      className={cn(
+        "flex aspect-[4/3] shrink-0 items-center justify-center rounded-xl bg-muted text-caption font-medium text-muted-foreground ring-1 ring-surface-border",
+        className,
+      )}
+    >
+      <span aria-hidden>{t("meetings.moreParticipantsShort", { count })}</span>
+      <span className="sr-only">{t("meetings.moreParticipantsLabel", { count })}</span>
+    </div>
   );
-  return null;
+}
+
+/** Page switcher for a room with more people than tiles; sits in the tile area, not over the header. */
+function StagePager({
+  page,
+  pages,
+  onPage,
+}: {
+  page: number;
+  pages: number;
+  onPage: (page: number) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <nav
+      aria-label={t("meetings.pageOf", { page: page + 1, pages })}
+      className="flex shrink-0 items-center justify-center"
+    >
+      <div className="flex items-center gap-1 rounded-full bg-meeting-bar-bg p-1 text-meeting-bar-foreground ring-1 ring-meeting-bar-border">
+        <Button
+          type="button"
+          size="icon"
+          variant="meetingChip"
+          className="size-7 rounded-full border-transparent"
+          aria-label={t("meetings.prevPage")}
+          disabled={page === 0}
+          onClick={() => onPage(page - 1)}
+        >
+          <ChevronLeft aria-hidden className="size-4" />
+        </Button>
+        <span aria-hidden className="px-1 text-caption tabular-nums">
+          {page + 1}/{pages}
+        </span>
+        <Button
+          type="button"
+          size="icon"
+          variant="meetingChip"
+          className="size-7 rounded-full border-transparent"
+          aria-label={t("meetings.nextPage")}
+          disabled={page >= pages - 1}
+          onClick={() => onPage(page + 1)}
+        >
+          <ChevronRight aria-hidden className="size-4" />
+        </Button>
+      </div>
+    </nav>
+  );
+}
+
+/** Reactions pop on a tile for sighted viewers; this says them once, politely, for everyone else. */
+function ReactionAnnouncer() {
+  const { t } = useTranslation();
+  const { reactions, localIdentity } = useMeetingSignals();
+  const participants = useLiveKitParticipants();
+  const latest = reactions.at(-1);
+  let text = "";
+  if (latest) {
+    const person = participants.find((p) => p.identity === latest.identity);
+    const name =
+      latest.identity === localIdentity ? t("meetings.you") : person?.name || person?.identity || latest.identity;
+    const key = reactionLabelKey(latest.value);
+    text = t("meetings.reactionAnnounce", { name, reaction: key ? t(key) : latest.value });
+  }
+  return (
+    <p role="status" aria-live="polite" className="sr-only">
+      {text}
+    </p>
+  );
 }
 
 export function MeetingConference(props: {
@@ -82,9 +158,10 @@ export function MeetingConference(props: {
     () => muteRequesterIdentities(props.meeting?.host_user_id, apiParticipants ?? []),
     [apiParticipants, props.meeting?.host_user_id],
   );
+  const guests = useMemo(() => guestIdentities(apiParticipants ?? []), [apiParticipants]);
   return (
     <MeetingSignalsProvider canHost={canHost.allowed} hostIdentities={hostIdentities}>
-      <ConferenceStage {...props} />
+      <ConferenceStage {...props} guests={guests} />
     </MeetingSignalsProvider>
   );
 }
@@ -97,6 +174,7 @@ function ConferenceStage({
   meetingsHref,
   workspaceLabel,
   guestMode,
+  guests,
   onLeave,
 }: {
   meetingId?: string;
@@ -106,6 +184,7 @@ function ConferenceStage({
   meetingsHref?: string;
   workspaceLabel?: string;
   guestMode?: boolean;
+  guests: ReadonlySet<string>;
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
@@ -115,10 +194,15 @@ function ConferenceStage({
   const [sidebarTab, setSidebarTab] = useState<MeetingSidebarTab>(guestMode ? "chat" : "copilot");
   const [page, setPage] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(false);
+  const [captionsError, setCaptionsError] = useState<string | null>(null);
   const [footerReserve, setFooterReserve] = useState(96);
   const stageContentRef = useRef<HTMLDivElement>(null);
   const handleFooterReserveChange = useCallback((heightPx: number) => {
     setFooterReserve((prev) => (prev === heightPx ? prev : heightPx));
+  }, []);
+  const handleCaptionsError = useCallback((code: string) => {
+    setCaptionsError(code);
+    setCaptionsOn(false);
   }, []);
   const resolvedMeetingId = meetingId ?? meeting?.id ?? "";
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
@@ -128,6 +212,7 @@ function ConferenceStage({
   const captions = useLiveCaptions(
     resolvedMeetingId,
     captionsOn && !!resolvedMeetingId && caps?.server_stt !== true,
+    handleCaptionsError,
   );
   const speaking = useSpeakingParticipants();
   const viewLayout = useMeetingRoomPreferencesStore((s) => s.viewLayout);
@@ -151,181 +236,149 @@ function ConferenceStage({
     hideWithoutVideo: hideTilesWithoutVideo,
     speakingIdentities: speaking.map((p) => p.identity),
   });
+  // A page that no longer exists (people left) clamps to the last one.
+  if (stage.page !== page) setPage(stage.page);
 
-  useEffect(() => {
-    if (stage.page !== page) setPage(stage.page);
-  }, [stage.page, page]);
-
-  const openJoinRequests = () => {
-    setSidebarTab("participants");
-    if (compact) {
-      setSidebarSheetOpen(true);
-    } else {
-      setSidebarPinned(true);
-    }
+  const openSidebarTab = (tab: MeetingSidebarTab) => {
+    setSidebarTab(tab);
+    if (compact) setSidebarSheetOpen(true);
+    else setSidebarPinned(true);
   };
+
+  const tile = (track: TrackReferenceOrPlaceholder, opts: { compact?: boolean; expanded?: boolean }) => (
+    <MeetingParticipantTile
+      key={trackTileKey(track)}
+      participant={track.participant}
+      track={track}
+      compact={opts.compact}
+      expanded={opts.expanded}
+      canHost={canHost.allowed}
+      roleChip={participantRole(track.participant, guests)}
+    />
+  );
+
+  const sidebar = (
+    <MeetingRoomSidebar
+      meetingId={resolvedMeetingId || undefined}
+      meeting={meeting}
+      workspaceId={workspaceId}
+      canHost={canHost.allowed}
+      guestMode={guestMode}
+      tab={sidebarTab}
+      onTabChange={setSidebarTab}
+      className="h-full w-full"
+    />
+  );
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-app-shell">
       <div
         className={cn(
-          "flex min-h-0 min-w-0 flex-1 px-3 pb-3 pt-2 motion-safe:transition-[gap] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none",
+          "flex min-h-0 min-w-0 flex-1 px-3 pb-3 pt-2",
           !compact && sidebarPinned ? "gap-3" : "gap-0",
         )}
       >
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border transition-[flex-grow,width] duration-standard ease-out motion-reduce:transition-none">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border">
           <div className="dark flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <MeetingStageHeader
-            meeting={meeting}
-            meetingTitle={meetingTitle}
-            workspaceId={workspaceId}
-            meetingsHref={meetingsHref}
-            workspaceLabel={workspaceLabel}
-            guestMode={guestMode}
-            recording={recording}
-            sidebarOpen={sidebarPinned}
-            onToggleSidebar={compact ? undefined : () => setSidebarPinned((v) => !v)}
-            onOpenSidebar={compact ? () => setSidebarSheetOpen(true) : undefined}
-            onOpenPeople={openJoinRequests}
-          />
-          <div
-            ref={stageContentRef}
-            className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-2 sm:px-4 sm:pb-2"
-            data-testid="meeting-stage-content"
-          >
-            <MeetingScheduleBanner
-              endsAt={meeting?.ends_at}
-              canHost={canHost.allowed && !guestMode}
-              meetingId={meeting?.id ?? meetingId}
+            <MeetingStageHeader
+              meeting={meeting}
+              meetingTitle={meetingTitle}
               workspaceId={workspaceId}
+              meetingsHref={meetingsHref}
+              workspaceLabel={workspaceLabel}
+              guestMode={guestMode}
+              recording={recording}
+              sidebarOpen={sidebarPinned}
+              onToggleSidebar={compact ? undefined : () => setSidebarPinned((v) => !v)}
+              onOpenSidebar={compact ? () => setSidebarSheetOpen(true) : undefined}
+              onOpenPeople={() => openSidebarTab("participants")}
             />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-            {stage.layoutMode === "sidebar" ? (
-              <div className="flex min-h-0 min-w-0 flex-1 gap-2 sm:gap-3">
-                <div className="min-h-0 min-w-0 flex-1" data-lk-theme="default">
-                  {stage.primary.map((track) => (
-                    <MeetingParticipantTile
-                      key={trackTileKey(track)}
-                      participant={track.participant}
-                      track={track}
-                      expanded
-                      canHost={canHost.allowed}
-                    />
-                  ))}
-                </div>
-                {stage.thumbnails.length > 0 || stage.overflow > 0 ? (
-                  <div className="flex w-24 shrink-0 flex-col gap-2 overflow-y-auto sm:w-28">
-                    {stage.thumbnails.map((track) => (
-                      <div key={trackTileKey(track)} className="aspect-[4/3] shrink-0">
-                        <MeetingParticipantTile
-                          participant={track.participant}
-                          track={track}
-                          compact
-                          canHost={canHost.allowed}
-                        />
-                      </div>
-                    ))}
-                    {stage.overflow > 0 ? (
-                      <div
-                        className="flex aspect-[4/3] shrink-0 items-center justify-center rounded-xl bg-muted text-caption font-medium text-muted-foreground ring-1 ring-surface-border"
-                        aria-label={t("meetings.moreParticipants", { count: stage.overflow })}
-                      >
-                        {t("meetings.moreParticipantsShort", { count: stage.overflow })}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <>
-                <div
-                  className={cn(
-                    "grid min-h-0 min-w-0 flex-1 auto-rows-fr gap-2 motion-safe:transition-[grid-template-columns,gap] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none sm:gap-3",
-                    stage.gridClass,
-                  )}
-                  data-lk-theme="default"
-                  data-testid="meeting-grid"
-                >
-                  {stage.primary.map((track) => (
-                    <MeetingParticipantTile
-                      key={trackTileKey(track)}
-                      participant={track.participant}
-                      track={track}
-                      expanded={stage.layoutMode === "spotlight" || stage.primary.length === 1}
-                      canHost={canHost.allowed}
-                    />
-                  ))}
-                </div>
-
-                {stage.thumbnails.length > 0 || stage.overflow > 0 ? (
-                  <div className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1">
-                    {stage.thumbnails.map((track) => (
-                      <div key={trackTileKey(track)} className="w-24 shrink-0 sm:w-28">
-                        <MeetingParticipantTile
-                          participant={track.participant}
-                          track={track}
-                          compact
-                          canHost={canHost.allowed}
-                        />
-                      </div>
-                    ))}
-                    {stage.overflow > 0 ? (
-                      <div
-                        className="flex aspect-[4/3] w-24 shrink-0 items-center justify-center rounded-xl bg-muted text-caption font-medium text-muted-foreground ring-1 ring-surface-border sm:w-28"
-                        aria-label={t("meetings.moreParticipants", { count: stage.overflow })}
-                      >
-                        {t("meetings.moreParticipantsShort", { count: stage.overflow })}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </>
-            )}
-            </div>
             <div
-              aria-hidden
-              className="shrink-0 motion-safe:transition-[height] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none"
-              style={{ height: footerReserve }}
-              data-testid="meeting-stage-footer-spacer"
-            />
-          </div>
+              ref={stageContentRef}
+              className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-2 sm:px-4 sm:pb-2"
+              data-testid="meeting-stage-content"
+            >
+              <MeetingConnectionNotice />
+              {captionsError ? (
+                <Notice
+                  tone="destructive"
+                  icon={CaptionsOff}
+                  layout="inline"
+                  className="mb-2 shrink-0"
+                  action={
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setCaptionsError(null)}>
+                      {t("common.close")}
+                    </Button>
+                  }
+                >
+                  {t(captionsErrorKey(captionsError))}
+                </Notice>
+              ) : null}
+              <MeetingScheduleBanner
+                endsAt={meeting?.ends_at}
+                canHost={canHost.allowed && !guestMode}
+                meetingId={meeting?.id ?? meetingId}
+                workspaceId={workspaceId}
+              />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+                {stage.layoutMode === "sidebar" ? (
+                  <div className="flex min-h-0 min-w-0 flex-1 gap-2 sm:gap-3">
+                    <div className="min-h-0 min-w-0 flex-1" data-lk-theme="default">
+                      {stage.primary.map((track) => tile(track, { expanded: true }))}
+                    </div>
+                    {stage.thumbnails.length > 0 || stage.overflow > 0 ? (
+                      <div className="flex w-24 shrink-0 flex-col gap-2 overflow-y-auto sm:w-28">
+                        {stage.thumbnails.map((track) => (
+                          <div key={trackTileKey(track)} className="aspect-[4/3] shrink-0">
+                            {tile(track, { compact: true })}
+                          </div>
+                        ))}
+                        {stage.overflow > 0 ? <OverflowTile count={stage.overflow} /> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className={cn("grid min-h-0 min-w-0 flex-1 auto-rows-fr gap-2 sm:gap-3", stage.gridClass)}
+                      data-lk-theme="default"
+                      data-testid="meeting-grid"
+                    >
+                      {stage.primary.map((track) =>
+                        tile(track, {
+                          expanded: stage.layoutMode === "spotlight" || stage.primary.length === 1,
+                        }),
+                      )}
+                    </div>
 
-          {stage.pages > 1 ? (
-            <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-full bg-meeting-bar-bg p-1 text-meeting-bar-foreground ring-1 ring-meeting-bar-border">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7 rounded-full"
-                aria-label={t("meetings.prevPage")}
-                disabled={stage.page === 0}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft aria-hidden className="size-4" />
-              </Button>
-              <span className="px-1 text-caption tabular-nums text-foreground">
-                {stage.page + 1}/{stage.pages}
-              </span>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7 rounded-full"
-                aria-label={t("meetings.nextPage")}
-                disabled={stage.page >= stage.pages - 1}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                <ChevronRight aria-hidden className="size-4" />
-              </Button>
+                    {stage.thumbnails.length > 0 || stage.overflow > 0 ? (
+                      <div className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1">
+                        {stage.thumbnails.map((track) => (
+                          <div key={trackTileKey(track)} className="w-24 shrink-0 sm:w-28">
+                            {tile(track, { compact: true })}
+                          </div>
+                        ))}
+                        {stage.overflow > 0 ? <OverflowTile count={stage.overflow} className="w-24 sm:w-28" /> : null}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+                {stage.pages > 1 ? <StagePager page={stage.page} pages={stage.pages} onPage={setPage} /> : null}
+              </div>
+              {/* Room for the floating footer; sized in one step, never animated, so tiles reflow once. */}
+              <div
+                aria-hidden
+                className="shrink-0"
+                style={{ height: footerReserve }}
+                data-testid="meeting-stage-footer-spacer"
+              />
             </div>
-          ) : null}
 
-
-          <StartMediaButton
-            label={t("meetings.allowMedia")}
-            className="absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground motion-safe:transition-[bottom] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none"
-            style={{ bottom: footerReserve + 16 }}
-          />
+            <StartMediaButton
+              label={t("meetings.allowMedia")}
+              className="absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground"
+              style={{ bottom: footerReserve + 16 }}
+            />
           </div>
 
           <MeetingStageFooter
@@ -336,7 +389,6 @@ function ConferenceStage({
             onReserveHeightChange={handleFooterReserveChange}
             controlBar={
               <MeetingControlBar
-                embedded
                 onLeave={onLeave}
                 meetingId={resolvedMeetingId || undefined}
                 canHost={canHost.allowed}
@@ -344,39 +396,29 @@ function ConferenceStage({
                 recording={recording}
                 captionsAvailable={caps?.server_stt !== true && captionsSupported()}
                 captionsOn={captionsOn}
-                onToggleCaptions={() => setCaptionsOn((v) => !v)}
-                onOpenCopilot={() => {
-                  setSidebarTab("copilot");
-                  if (compact) setSidebarSheetOpen(true);
-                  else setSidebarPinned(true);
+                onToggleCaptions={() => {
+                  setCaptionsError(null);
+                  setCaptionsOn((v) => !v);
                 }}
-                copilotActive={sidebarTab === "copilot" && (sidebarPinned || sidebarSheetOpen)}
+                onOpenCopilot={() => openSidebarTab("copilot")}
+                copilotActive={copilotPanelShown({
+                  tab: sidebarTab,
+                  compact,
+                  sheetOpen: sidebarSheetOpen,
+                  pinned: sidebarPinned,
+                })}
               />
             }
           />
         </div>
 
         {!compact ? (
-          <div
-            className={cn(
-              "hidden min-h-0 shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border motion-safe:transition-[width,opacity] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none lg:flex",
-              sidebarPinned ? "w-[22rem] opacity-100 xl:w-[24rem]" : "pointer-events-none w-0 opacity-0 ring-transparent",
-            )}
-            aria-hidden={!sidebarPinned}
+          <MeetingSidebarDock
+            open={sidebarPinned}
+            className="min-h-0 w-[22rem] shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border xl:w-[24rem]"
           >
-            <div className="h-full w-[22rem] shrink-0 xl:w-[24rem]">
-              <MeetingRoomSidebar
-                meetingId={resolvedMeetingId || undefined}
-                meeting={meeting}
-                workspaceId={workspaceId}
-                canHost={canHost.allowed}
-                guestMode={guestMode}
-                tab={sidebarTab}
-                onTabChange={setSidebarTab}
-                className="h-full w-full"
-              />
-            </div>
-          </div>
+            {sidebar}
+          </MeetingSidebarDock>
         ) : null}
       </div>
 
@@ -386,26 +428,15 @@ function ConferenceStage({
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
           <SheetContent side="right" className="w-[min(100%,22rem)] p-0" showCloseButton>
             <SheetHeader className="sr-only">
-              <SheetTitle>{t("meetings.openSidebar")}</SheetTitle>
+              <SheetTitle>{t("meetings.roomPanel")}</SheetTitle>
             </SheetHeader>
-            {sidebarSheetOpen ? (
-              <MeetingRoomSidebar
-                meetingId={resolvedMeetingId || undefined}
-                meeting={meeting}
-                workspaceId={workspaceId}
-                canHost={canHost.allowed}
-                guestMode={guestMode}
-                tab={sidebarTab}
-                onTabChange={setSidebarTab}
-                className="h-full w-full"
-              />
-            ) : null}
+            {sidebarSheetOpen ? sidebar : null}
           </SheetContent>
         </Sheet>
       ) : null}
 
       <RoomAudioRenderer />
-      <ConnectionNotice />
+      <ReactionAnnouncer />
     </div>
   );
 }

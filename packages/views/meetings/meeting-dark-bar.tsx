@@ -2,6 +2,5 @@
 export const MEETING_DARK_BAR =
   "pointer-events-auto flex items-center gap-2 rounded-2xl border border-meeting-bar-border bg-meeting-bar-bg p-2 shadow-floating sm:p-2.5";
 
-/** Icon chip on the dark meeting control bar. */
-export const MEETING_DARK_BAR_CHIP =
-  "size-11 shrink-0 rounded-xl border-meeting-bar-border !bg-meeting-bar-chip-bg !text-meeting-bar-foreground hover:!bg-meeting-bar-chip-hover hover:!text-meeting-bar-foreground [&_svg]:!text-meeting-bar-foreground";
+// Chips on the bar use `<Button variant="meetingChip">` (packages/ui button.tsx),
+// which replaced the `!important` class stack that used to live here.

@@ -81,4 +81,16 @@ describe("MeetingParticipantRow", () => {
     expect(trigger.className).toMatch(/pointer-coarse:opacity-100/);
     expect(trigger.className).toMatch(/focus-visible:opacity-100/);
   });
+
+  it("marks a guest and an agent with a role chip beside the name", () => {
+    const { rerender } = render(<MeetingParticipantRow participant={fakeParticipant()} roleChip="guest" />);
+    expect(screen.getByText("Khách")).toBeInTheDocument();
+
+    rerender(<MeetingParticipantRow participant={fakeParticipant({ name: "Trợ lý ghi chép" })} roleChip="agent" />);
+    expect(screen.getByText("Agent")).toBeInTheDocument();
+    expect(screen.queryByText("Khách")).not.toBeInTheDocument();
+
+    rerender(<MeetingParticipantRow participant={fakeParticipant()} />);
+    expect(screen.queryByText("Agent")).not.toBeInTheDocument();
+  });
 });

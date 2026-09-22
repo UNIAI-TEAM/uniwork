@@ -6,7 +6,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   UserPlus,
-  Users,
 } from "lucide-react";
 import { useParticipants } from "@livekit/components-react";
 import { useTranslation } from "react-i18next";
@@ -157,7 +156,7 @@ export function MeetingStageHeader({
               >
                 <span
                   aria-hidden
-                  className="size-1.5 animate-pulse rounded-full motion-reduce:animate-none bg-on-solid"
+                  className="size-1.5 rounded-full bg-on-solid"
                 />
                 {t("meetings.recording")}
               </span>
@@ -181,9 +180,9 @@ export function MeetingStageHeader({
             {showInvite ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="meetingChip"
                 size="sm"
-                className="h-8 border-meeting-bar-border bg-meeting-bar-chip-bg px-2 text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover sm:px-2.5"
+                className="h-8 px-2 sm:px-2.5"
                 onClick={() => setInviteOpen(true)}
               >
                 <UserPlus aria-hidden className="size-4" />
@@ -194,8 +193,9 @@ export function MeetingStageHeader({
             {showHostActions && inProgress && meeting ? (
               <Button
                 type="button"
+                variant="destructiveSolid"
                 size="sm"
-                className="h-8 !border-destructive-solid !bg-destructive-solid px-2.5 font-semibold !text-on-solid hover:!bg-destructive-solid/90 hover:!text-on-solid"
+                className="h-8 px-2.5 font-semibold"
                 disabled={end.isPending}
                 onClick={() => setEndConfirmOpen(true)}
               >
@@ -204,11 +204,12 @@ export function MeetingStageHeader({
             ) : null}
 
             {showHostActions && scheduled && meeting ? (
+              // Reachable at every width: a host on a phone must be able to start.
               <Button
                 type="button"
-                variant="outline"
+                variant="brand"
                 size="sm"
-                className="hidden h-8 border-meeting-bar-border bg-meeting-bar-chip-bg px-2.5 text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover sm:inline-flex"
+                className="h-8 px-2.5 font-semibold"
                 disabled={start.isPending}
                 onClick={() => start.mutate(meeting.id)}
               >
@@ -243,22 +244,22 @@ export function MeetingStageHeader({
             {onOpenSidebar ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="meetingChip"
                 size="icon"
-                className="size-9 border-meeting-bar-border bg-meeting-bar-chip-bg text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover lg:hidden"
-                aria-label={t("meetings.openSidebar")}
+                className="size-9 lg:hidden"
+                aria-label={t("meetings.openSidebarPanel")}
                 onClick={onOpenSidebar}
               >
-                <Users aria-hidden />
+                <PanelRightOpen aria-hidden />
               </Button>
             ) : null}
 
             {onToggleSidebar ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="meetingChip"
                 size="icon"
-                className="hidden size-9 border-meeting-bar-border bg-meeting-bar-chip-bg text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover lg:inline-flex"
+                className="hidden size-9 lg:inline-flex"
                 aria-label={sidebarOpen ? t("meetings.closeSidebar") : t("meetings.openSidebarPanel")}
                 aria-pressed={sidebarOpen}
                 onClick={onToggleSidebar}

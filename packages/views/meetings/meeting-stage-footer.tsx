@@ -11,7 +11,9 @@ import { useMeetingSignals } from "./use-meeting-signals";
 
 const DOCK_HIDE_DELAY_MS = 750;
 const DOCK_INTERACTION_GRACE_MS = 2800;
-const DOCK_ANIM_MS = 280;
+// Matches `duration-standard` on the dock: collapse the dock's height only
+// after it has faded, so the stage below reflows once instead of every frame.
+const DOCK_FADE_MS = 200;
 const FOOTER_EDGE_PAD_PX = 12;
 const DOCK_RESERVE_BUFFER_PX = 8;
 const MIN_DOCK_RESERVE_PX = 80;
@@ -207,6 +209,16 @@ export function MeetingStageFooter({
   const dockHidden = autoHide && !revealed;
   const dockHiddenRef = useRef(dockHidden);
   dockHiddenRef.current = dockHidden;
+  const [dockCollapsed, setDockCollapsed] = useState(dockHidden);
+
+  useEffect(() => {
+    if (!dockHidden) {
+      setDockCollapsed(false);
+      return;
+    }
+    const id = setTimeout(() => setDockCollapsed(true), DOCK_FADE_MS);
+    return () => clearTimeout(id);
+  }, [dockHidden]);
 
   // Derive reserve from intrinsic sizes (scrollHeight + siblings), not live stack height during animation.
   useEffect(() => {
@@ -253,17 +265,18 @@ export function MeetingStageFooter({
       >
         <MeetingHandsBanner />
         {captionsOn ? (
-          <MeetingCaptionsOverlay interim={captionsInterim} lastFinal={captionsLastFinal} embedded />
+          <MeetingCaptionsOverlay interim={captionsInterim} lastFinal={captionsLastFinal} />
         ) : null}
         <div
           ref={dockShellRef}
+          // Only transform and opacity animate; the height snaps once the fade
+          // is over. The collapsed dock stays focusable (no display:none) so a
+          // keyboard user tabbing in brings it back via onFocusCapture.
           className={cn(
-            "pointer-events-auto w-fit max-w-full origin-bottom transition-[max-height,transform,opacity,margin] ease-out motion-reduce:transition-none",
-            dockHidden
-              ? "pointer-events-none max-h-0 translate-y-2 scale-95 opacity-0"
-              : "max-h-24 translate-y-0 scale-100 opacity-100",
+            "pointer-events-auto w-fit max-w-full origin-bottom transition-[transform,opacity] duration-standard ease-out motion-reduce:transition-none",
+            dockHidden ? "pointer-events-none translate-y-2 opacity-0" : "translate-y-0 opacity-100",
+            dockCollapsed && "max-h-0",
           )}
-          style={{ transitionDuration: `${DOCK_ANIM_MS}ms` }}
           data-testid="meeting-control-dock"
         >
           {controlBar}

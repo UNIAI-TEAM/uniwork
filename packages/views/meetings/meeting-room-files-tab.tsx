@@ -9,6 +9,10 @@ import { meetingLocale } from "./meeting-datetime";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 
+/**
+ * The meeting's recordings. It lists only what the server records today;
+ * shared files are not a thing a meeting has yet, so the tab does not promise them.
+ */
 export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
   const { t, i18n } = useTranslation();
   const { data: recordings, isPending, isError, refetch } = useRecordings(meetingId);
@@ -32,13 +36,13 @@ export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
   }
 
   if (isError) {
-    return <MeetingSectionError message={t("meetings.filesLoadFailed")} onRetry={() => void refetch()} />;
+    return <MeetingSectionError message={t("meetings.recordingsLoadFailed")} onRetry={() => void refetch()} />;
   }
 
   if (shared.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-hover px-4 py-8 text-center">
-        <p className="text-label text-muted-foreground">{t("meetings.filesEmpty")}</p>
+        <p className="text-label text-pretty text-muted-foreground">{t("meetings.recordingsEmpty")}</p>
       </div>
     );
   }

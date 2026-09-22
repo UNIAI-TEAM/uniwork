@@ -1,6 +1,5 @@
 "use client";
-import { Circle, Video } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
@@ -32,29 +31,6 @@ import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from ".
 type CopilotSection = "notes" | "transcript" | "insights" | "actions";
 
 const SECTIONS: CopilotSection[] = ["notes", "transcript", "insights", "actions"];
-
-function useRecordingElapsed(startedAt: string | undefined): string {
-  const [elapsed, setElapsed] = useState("00:00:00");
-
-  useEffect(() => {
-    if (!startedAt) return;
-    const start = new Date(startedAt).getTime();
-    const tick = () => {
-      const total = Math.max(0, Math.floor((Date.now() - start) / 1000));
-      const h = Math.floor(total / 3600);
-      const m = Math.floor((total % 3600) / 60);
-      const s = total % 60;
-      setElapsed(
-        [h, m, s].map((part) => String(part).padStart(2, "0")).join(":"),
-      );
-    };
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [startedAt]);
-
-  return elapsed;
-}
 
 export function MeetingRoomCopilotTab({
   workspaceId,
@@ -104,9 +80,11 @@ export function MeetingRoomCopilotTab({
   const decisions = summary?.decisions ?? [];
   const hasSource = (transcript?.length ?? 0) > 0 || (notes?.length ?? 0) > 0 || (chat?.length ?? 0) > 0;
   const aiOn = caps?.ai_summary === true;
-  const activeRecording = (recordings ?? []).find((r) => r.status === "ACTIVE");
+  // The live recording state is the stage header's REC badge; this panel
+  // only offers a finished recording to play back.
   const completedRecording = (recordings ?? []).find((r) => r.file_url);
-  const recordingElapsed = useRecordingElapsed(activeRecording?.started_at);
+  const panelBaseId = useId();
+  const sectionPanelId = (id: CopilotSection) => `${panelBaseId}-section-${id}`;
 
   const sectionLabel = (id: CopilotSection) => {
     switch (id) {
@@ -159,8 +137,12 @@ export function MeetingRoomCopilotTab({
     return previewId ? members?.find((m) => m.user_id === previewId)?.display_name : undefined;
   }
 
+  // Date and time: a summary made yesterday must not read as made today.
   const summaryUpdatedAt = summary?.created_at
-    ? new Date(summary.created_at).toLocaleTimeString(meetingLocale(i18n.language), {
+    ? new Date(summary.created_at).toLocaleString(meetingLocale(i18n.language), {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
@@ -187,10 +169,16 @@ export function MeetingRoomCopilotTab({
         value={section}
         onChange={setSection}
         label={sectionLabel}
+        panelId={sectionPanelId}
         className="mb-2"
       />
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
+      <div
+        role="tabpanel"
+        id={sectionPanelId(section)}
+        aria-label={sectionLabel(section)}
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5"
+      >
         {section === "insights" && !summary && insightsLoading ? (
           <MeetingTextSkeleton className="rounded-xl border border-border p-4" />
         ) : section === "insights" && !summary && insightsFailed ? (
@@ -200,6 +188,7 @@ export function MeetingRoomCopilotTab({
             summary={summary?.summary}
             decisions={decisions}
             summaryUpdatedAt={summaryUpdatedAt}
+            summaryModel={summary?.model}
             summarizing={generate.isPending}
             emptyHint={hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
           />
@@ -315,22 +304,6 @@ export function MeetingRoomCopilotTab({
               pending={createTasks.isPending}
               onClick={onCreateTasks}
             />
-          </section>
-        ) : null}
-
-        {activeRecording ? (
-          <section className="space-y-2 border-t border-border pt-4">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-destructive-soft px-2 py-0.5 text-caption font-medium text-destructive-soft-foreground">
-                <Circle aria-hidden className="size-2 fill-current" />
-                {t("meetings.recording")}
-              </span>
-              <Video aria-hidden className="size-3.5 text-muted-foreground" />
-            </div>
-            <div className="rounded-xl border border-border bg-surface-hover p-3">
-              <p className="text-body text-foreground">{t("meetings.liveRecordingRunning")}</p>
-              <p className="mt-1 font-mono text-title-sm tabular-nums text-brand">{recordingElapsed}</p>
-            </div>
           </section>
         ) : null}
 

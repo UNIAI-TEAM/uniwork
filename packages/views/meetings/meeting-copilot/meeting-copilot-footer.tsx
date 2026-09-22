@@ -1,45 +1,27 @@
 "use client";
 
-import { Send, Sparkles } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Input } from "@uniwork/ui/components/ui/input";
 
+/**
+ * Q&A over the meeting is on the roadmap, not in the product: one locked row
+ * with the "coming soon" label, no input that looks usable (PRODUCT.md,
+ * Operating Context).
+ */
 export function MeetingCopilotFooter() {
   const { t } = useTranslation();
 
   return (
-    <div className="mt-3 shrink-0 rounded-xl border border-border bg-surface-hover p-3">
-      <p className="flex items-center gap-1.5 text-label font-medium text-foreground">
-        <Sparkles aria-hidden className="size-3.5 text-brand" />
-        {t("meetings.askAiCopilot")}
-      </p>
-      <form
-        className="relative mt-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-        }}
-      >
-        <Input
-          disabled
-          placeholder={t("meetings.askAiCopilotPlaceholder")}
-          className="bg-background pr-10 dark:bg-background"
-          aria-describedby="copilot-soon-hint"
-        />
-        <Button
-          type="submit"
-          size="icon-sm"
-          variant="ghost"
-          disabled
-          className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
-          aria-label={t("meetings.send")}
-        >
-          <Send aria-hidden className="size-4" />
-        </Button>
-      </form>
-      <p id="copilot-soon-hint" className="mt-1.5 text-caption text-muted-foreground">
-        {t("meetings.askAiCopilotSoon")}
-      </p>
+    <div
+      className="mt-3 flex shrink-0 items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-label text-muted-foreground"
+      data-testid="meeting-copilot-ask-locked"
+    >
+      <Lock aria-hidden className="size-3.5 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{t("meetings.askAboutMeeting")}</span>
+      <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro font-semibold text-muted-foreground">
+        {t("meetings.comingSoon")}
+      </span>
     </div>
   );
 }

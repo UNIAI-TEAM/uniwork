@@ -19,7 +19,7 @@ function recordingsRespond(recordings: () => Promise<unknown>) {
   );
 }
 
-const EMPTY = "Tệp được chia sẻ sẽ hiện ở đây.";
+const EMPTY = /Chưa có bản ghi/;
 
 describe("MeetingRoomFilesTab", () => {
   it("shows a loading skeleton, not the empty copy, while files load", () => {
@@ -41,7 +41,7 @@ describe("MeetingRoomFilesTab", () => {
     recordingsRespond(() => Promise.reject(new ApiError("boom", "internal", 500)));
     render(wrapWithNav(<MeetingRoomFilesTab meetingId="m1" />));
 
-    expect(await screen.findByText("Không tải được tệp của cuộc họp.")).toBeInTheDocument();
+    expect(await screen.findByText("Không tải được bản ghi của cuộc họp.")).toBeInTheDocument();
     expect(screen.queryByText(EMPTY)).not.toBeInTheDocument();
 
     recordingsRespond(() => Promise.resolve({ recordings: [] }));

@@ -91,7 +91,8 @@ export function MeetingScheduleBanner({
   return (
     <div
       className={cn(
-        "grid shrink-0 motion-safe:transition-[grid-template-rows] motion-safe:duration-standard motion-safe:ease-out motion-reduce:transition-none",
+        // Opens in one step: animating the row track would reflow the video grid every frame.
+        "grid shrink-0",
         expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
       )}
       data-testid="meeting-schedule-banner-slot"

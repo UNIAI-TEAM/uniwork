@@ -6,7 +6,12 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
 
-type LiveMessage = { id: string; message: string; timestamp: number; from: { identity: string; name: string } };
+type LiveMessage = {
+  id: string;
+  message: string;
+  timestamp: number;
+  from: { identity: string; name: string; isLocal?: boolean };
+};
 let liveMessages: LiveMessage[] = [];
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -135,5 +140,20 @@ describe("MeetingRoomChatTab auto-scroll", () => {
       rerender(wrapWithNav(<MeetingRoomChatTab />));
     });
     expect(list.scrollTop).toBe(1200);
+  });
+});
+
+describe("MeetingRoomChatTab bubbles", () => {
+  it("paints bubbles like the chat module: a brand wash for mine, muted for theirs", () => {
+    liveMessages = [
+      { id: "a", message: "Chào cả nhà", timestamp: 1_000, from: { identity: "u-other", name: "Lan" } },
+      { id: "b", message: "Chào Lan", timestamp: 2_000, from: { identity: "u-me", name: "Tôi", isLocal: true } },
+    ];
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    const theirs = screen.getByText("Chào cả nhà");
+    const mine = screen.getByText("Chào Lan");
+    expect(mine).toHaveClass("bg-brand-subtle");
+    expect(mine).not.toHaveClass("bg-brand");
+    expect(theirs).toHaveClass("bg-muted");
   });
 });

@@ -51,6 +51,47 @@ describe("MeetingRoomCopilotTab", () => {
   });
 });
 
+describe("MeetingRoomCopilotTab honesty", () => {
+  it("shows the unshipped Q&A as one locked row, not a usable-looking input", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    await screen.findByRole("button", { name: "Sao chép" });
+    expect(screen.getByText("Hỏi đáp về cuộc họp")).toBeInTheDocument();
+    expect(screen.getByText("Sắp có")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Hỏi bất cứ điều gì/)).not.toBeInTheDocument();
+  });
+
+  it("labels the summary as AI output with its sources and a dated time", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    const attribution = await screen.findByTestId("meeting-summary-attribution");
+    expect(attribution).toHaveTextContent("AI");
+    expect(attribution).toHaveTextContent(/transcript, ghi chú và chat/);
+    expect(attribution).toHaveTextContent(/22\/09\/2026|22\/9\/2026/);
+  });
+
+  it("leaves the recording state to the stage header badge", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/summary")) return Promise.resolve({ summary });
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/recordings"))
+        return Promise.resolve({
+          recordings: [{ id: "r1", meeting_id: "m1", status: "ACTIVE", started_at: "2026-09-22T07:00:00Z" }],
+        });
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    await screen.findByRole("button", { name: "Sao chép" });
+    expect(screen.queryByText("Đang ghi hình trực tiếp")).not.toBeInTheDocument();
+  });
+
+  it("wires each section tab to its panel", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
+    const tab = await screen.findByRole("tab", { name: "Tổng quan" });
+    const panel = screen.getByRole("tabpanel");
+    expect(tab).toHaveAttribute("aria-controls", panel.id);
+  });
+});
+
 type Respond = () => Promise<unknown>;
 const pending: Respond = () => new Promise(() => {});
 const failed: Respond = () => Promise.reject(new ApiError("boom", "internal", 500));

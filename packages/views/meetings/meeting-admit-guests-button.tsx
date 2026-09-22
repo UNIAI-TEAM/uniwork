@@ -48,11 +48,9 @@ export function MeetingAdmitGuestsButton({
             <Button
               type="button"
               size="sm"
+              variant="successSolid"
               aria-label={label}
-              className={cn(
-                "h-8 gap-1.5 rounded-full px-3 !border-transparent !bg-success-solid !text-on-solid hover:!bg-success-solid/90 focus-visible:ring-success/40",
-                className,
-              )}
+              className={cn("h-8 gap-1.5 rounded-full px-3", className)}
               onClick={onOpenPeople}
             />
           }

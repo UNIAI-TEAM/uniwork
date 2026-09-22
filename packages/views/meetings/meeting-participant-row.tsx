@@ -24,6 +24,8 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRoleChip } from "./meeting-role-chip";
+import type { MeetingParticipantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 function displayName(participant: Participant): string {
@@ -39,6 +41,7 @@ export function MeetingParticipantRow({
   onAllowSpeaking,
   pinned,
   avatarUrl,
+  roleChip = null,
 }: {
   participant: Participant;
   subtitle?: string;
@@ -49,6 +52,8 @@ export function MeetingParticipantRow({
   pinned?: boolean;
   /** Photo for this person when the caller can resolve it (e.g. from workspace members). */
   avatarUrl?: unknown;
+  /** Guest or agent chip beside the name; `null` for a workspace member. */
+  roleChip?: MeetingParticipantRole | null;
 }) {
   const { t } = useTranslation();
   const speaking = useIsSpeaking(participant);
@@ -71,7 +76,10 @@ export function MeetingParticipantRow({
       <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-body text-foreground">{label}</p>
+        <p className="flex min-w-0 items-center gap-1.5 text-body text-foreground">
+          <span className="min-w-0 truncate">{label}</span>
+          {roleChip ? <MeetingRoleChip role={roleChip} /> : null}
+        </p>
         {subtitle ? (
           <p className="truncate text-caption text-muted-foreground">{subtitle}</p>
         ) : null}
