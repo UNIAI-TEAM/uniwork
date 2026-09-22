@@ -44,6 +44,10 @@ vi.mock("./calendar-mutations", () => ({
   }),
 }));
 
+vi.mock("./create-from-slot", () => ({
+  CreateFromSlot: () => <div data-testid="create-from-slot" />,
+}));
+
 describe("CalendarPageView", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -63,6 +67,8 @@ describe("CalendarPageView", () => {
     expect(screen.getByRole("heading", { name: "Lịch" })).toBeInTheDocument();
     expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     expect(hostProps.current.onEventDropOrResize).toEqual(expect.any(Function));
+    expect(hostProps.current.onSlotSelect).toEqual(expect.any(Function));
+    expect(screen.getByTestId("create-from-slot")).toBeInTheDocument();
   });
 
   it("updates the events query range when the toolbar changes month", () => {

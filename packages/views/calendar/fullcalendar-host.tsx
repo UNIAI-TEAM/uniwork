@@ -1,10 +1,12 @@
 "use client";
 
 import type {
+  DateClickArg,
   DatesSetArg,
   EventClickArg,
   EventDropArg,
   EventResizeDoneArg,
+  SelectArg,
 } from "@fullcalendar/core";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -23,7 +25,10 @@ import {
   fcHiddenDays,
   fcViewForMode,
 } from "./calendar-view-mode";
+import type { CalendarSlot } from "./slot-prefill";
 import "./fullcalendar-theme.css";
+
+export type { CalendarSlot };
 
 const FC_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin];
 
@@ -35,6 +40,7 @@ export function FullCalendarHost(props: {
   onEventClick: (event: CalendarEvent) => void;
   editable?: boolean;
   onEventDropOrResize?: (patch: CalendarDropPatch) => void | Promise<void>;
+  onSlotSelect?: (slot: CalendarSlot) => void;
   className?: string;
 }) {
   const eventsById = useMemo(
@@ -88,6 +94,23 @@ export function FullCalendarHost(props: {
   };
 
   const editable = props.editable !== false;
+  const slotSelectEnabled = Boolean(props.onSlotSelect);
+
+  const handleDateClick = (info: DateClickArg) => {
+    props.onSlotSelect?.({
+      start: info.date,
+      end: null,
+      allDay: info.allDay,
+    });
+  };
+
+  const handleSelect = (info: SelectArg) => {
+    props.onSlotSelect?.({
+      start: info.start,
+      end: info.end,
+      allDay: info.allDay,
+    });
+  };
 
   return (
     <div
@@ -108,6 +131,10 @@ export function FullCalendarHost(props: {
         eventClick={handleEventClick}
         eventDrop={handleEventDropOrResize}
         eventResize={handleEventDropOrResize}
+        selectable={slotSelectEnabled}
+        selectMirror={slotSelectEnabled}
+        dateClick={slotSelectEnabled ? handleDateClick : undefined}
+        select={slotSelectEnabled ? handleSelect : undefined}
       />
     </div>
   );

@@ -15,7 +15,8 @@ import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
 import { useCalendarMutations } from "./calendar-mutations";
-import { FullCalendarHost } from "./fullcalendar-host";
+import { CreateFromSlot } from "./create-from-slot";
+import { FullCalendarHost, type CalendarSlot } from "./fullcalendar-host";
 
 export function CalendarPageView({
   workspaceId,
@@ -31,6 +32,8 @@ export function CalendarPageView({
   const [mine, setMine] = useState(false);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [range, setRange] = useState(() => rangeForMode("month", new Date()));
+  const [slotMenuOpen, setSlotMenuOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
 
   const initialDate = format(anchorDate, "yyyy-MM-dd");
 
@@ -58,6 +61,11 @@ export function CalendarPageView({
     setRange((prev) =>
       prev.from === next.from && prev.to === next.to ? prev : next,
     );
+  };
+
+  const handleSlotSelect = (slot: CalendarSlot) => {
+    setSelectedSlot(slot);
+    setSlotMenuOpen(true);
   };
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -115,6 +123,13 @@ export function CalendarPageView({
             onDatesSet={handleDatesSet}
             onEventClick={handleEventClick}
             onEventDropOrResize={applyDropPatch}
+            onSlotSelect={handleSlotSelect}
+          />
+          <CreateFromSlot
+            workspaceId={workspaceId}
+            open={slotMenuOpen}
+            onOpenChange={setSlotMenuOpen}
+            slot={selectedSlot}
           />
         </div>
       )}

@@ -42,18 +42,26 @@ export function NewMeetingDialog({
   onCreated,
   trigger,
   scheduleDefaults,
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
 }: {
   workspaceId: string;
   onCreated?: (id: string) => void;
   trigger?: ReactElement;
   /** Local wall date/times; same shape as `defaultScheduleDraft`. */
   scheduleDefaults?: ScheduleDraft;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 }) {
   const { t } = useTranslation();
   const id = useId();
   const userId = useAuthStore((s) => s.user?.id);
   const create = useCreateMeeting(workspaceId);
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).date);
@@ -90,7 +98,9 @@ export function NewMeetingDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>} />
+      {showTrigger ? (
+        <DialogTrigger render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>} />
+      ) : null}
       <FormDialogContent size="lg">
         <FormDialogHeader title={t("meetings.new")} description={t("meetings.newDescription")} />
         <form

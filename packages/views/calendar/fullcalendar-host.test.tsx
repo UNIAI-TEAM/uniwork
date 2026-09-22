@@ -17,11 +17,15 @@ type CapturedFcProps = {
   initialView?: string;
   hiddenDays?: number[];
   editable?: boolean;
+  selectable?: boolean;
+  selectMirror?: boolean;
   height?: string | number;
   datesSet?: (arg: { start: Date; end: Date }) => void;
   eventClick?: (arg: { event: { id: string } }) => void;
   eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
   eventResize?: (arg: DropResizeArg) => void | Promise<void>;
+  dateClick?: (arg: { date: Date; allDay: boolean }) => void;
+  select?: (arg: { start: Date; end: Date; allDay: boolean }) => void;
 };
 
 let captured: CapturedFcProps = {};
@@ -224,6 +228,61 @@ describe("FullCalendarHost", () => {
     });
     expect(onEventDropOrResize).not.toHaveBeenCalled();
     expect(revert).toHaveBeenCalled();
+  });
+
+  it("enables selectable and forwards dateClick to onSlotSelect", () => {
+    const onSlotSelect = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onSlotSelect={onSlotSelect}
+      />,
+    );
+    expect(captured.selectable).toBe(true);
+    expect(captured.selectMirror).toBe(true);
+    const start = new Date("2026-09-10T00:00:00");
+    captured.dateClick?.({ date: start, allDay: true });
+    expect(onSlotSelect).toHaveBeenCalledWith({
+      start,
+      end: null,
+      allDay: true,
+    });
+  });
+
+  it("forwards select range to onSlotSelect", () => {
+    const onSlotSelect = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onSlotSelect={onSlotSelect}
+      />,
+    );
+    const start = new Date("2026-09-10T00:00:00");
+    const end = new Date("2026-09-13T00:00:00");
+    captured.select?.({ start, end, allDay: true });
+    expect(onSlotSelect).toHaveBeenCalledWith({ start, end, allDay: true });
+  });
+
+  it("does not enable selectable without onSlotSelect", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.selectable).toBe(false);
+    expect(captured.dateClick).toBeUndefined();
   });
 
   it("eventResize reverts when handler rejects", async () => {

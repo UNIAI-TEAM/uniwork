@@ -2083,7 +2083,11 @@
     "view_month": "Month",
     "view_mode": "View mode",
     "prev_period": "Previous period",
-    "next_period": "Next period"
+    "next_period": "Next period",
+    "create_from_slot_title": "Create on this slot",
+    "create_from_slot_description": "Choose what to add to the calendar.",
+    "create_task": "New task",
+    "create_meeting": "New meeting"
   },
   "chat": {
     "media_unavailable": "Couldn't load {{name}}",
