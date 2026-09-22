@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Field, FieldDescription, FieldLabel, FieldTitle } from "@uniwork/ui/components/ui/field";
 import { Select } from "@uniwork/ui/components/ui/select";
@@ -19,6 +20,8 @@ export function MeetingDeviceField({
   value,
   onValueChange,
   emptyDescription,
+  emptyAction,
+  children,
 }: {
   id: string;
   label: string;
@@ -26,6 +29,10 @@ export function MeetingDeviceField({
   value: string;
   onValueChange: (deviceId: string) => void;
   emptyDescription: string;
+  /** The step that fills the list (asking for permission), shown while it is empty. */
+  emptyAction?: ReactNode;
+  /** Extra detail under the picker (an input-level meter). */
+  children?: ReactNode;
 }) {
   const { t } = useTranslation();
   if (devices.length === 0) {
@@ -33,6 +40,7 @@ export function MeetingDeviceField({
       <Field>
         <FieldTitle>{label}</FieldTitle>
         <FieldDescription className="text-caption">{emptyDescription}</FieldDescription>
+        {emptyAction}
       </Field>
     );
   }
@@ -48,6 +56,7 @@ export function MeetingDeviceField({
           label: d.label || t("meetings.deviceUnnamed"),
         }))}
       />
+      {children}
     </Field>
   );
 }

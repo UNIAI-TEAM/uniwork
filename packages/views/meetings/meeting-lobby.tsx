@@ -176,7 +176,7 @@ export function MeetingLobby({
           <div className="flex flex-wrap items-center justify-center gap-2">
             {showStart ? (
               <Button type="button" disabled={starting} aria-busy={starting || undefined} onClick={onStart}>
-                {starting ? <Spinner className="size-4" /> : null}
+                {starting ? <Spinner className="size-4 motion-reduce:animate-none" /> : null}
                 {t("meetings.start")}
               </Button>
             ) : null}

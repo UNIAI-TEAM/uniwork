@@ -3,13 +3,13 @@ import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
-import { useMembers } from "@uniwork/core/workspaces";
 import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
+import { useMemberIndex } from "./use-member-index";
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -20,8 +20,15 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-/** Facts that rarely change: who is in, how guests get in, and the record. */
-export function MeetingDetailAside({
+function rosterOpen(meeting: Meeting): boolean {
+  return meeting.status === "SCHEDULED" || meeting.status === "IN_PROGRESS" || !meeting.status;
+}
+
+/**
+ * Who is in. Rendered apart from the rest of the aside so small screens can
+ * show it right under the hero, before summary and notes.
+ */
+export function MeetingDetailRoster({
   workspaceId,
   meeting,
   invitations,
@@ -32,28 +39,43 @@ export function MeetingDetailAside({
   invitations: MeetingInvitation[];
   canHost: boolean;
 }) {
+  const canMutateRoster = canHost && rosterOpen(meeting);
+  return (
+    <MeetingParticipantsSection
+      workspaceId={workspaceId}
+      meeting={meeting}
+      invitations={invitations}
+      canManage={canMutateRoster}
+      showTransferHost={canMutateRoster}
+    />
+  );
+}
+
+/** Facts that rarely change: how guests get in, and the record. */
+export function MeetingDetailAside({
+  workspaceId,
+  meeting,
+  canHost,
+}: {
+  workspaceId: string;
+  meeting: Meeting;
+  canHost: boolean;
+}) {
   const { t, i18n } = useTranslation();
-  const { data: members } = useMembers(workspaceId);
-  const creator =
-    members?.find((m) => m.user_id === meeting.created_by)?.display_name ?? (members ? t("meetings.formerMember") : null);
+  const { memberOf, loaded } = useMemberIndex(workspaceId);
+  const creator = memberOf(meeting.created_by)?.display_name ?? (loaded ? t("meetings.formerMember") : null);
   const timezone = meetingTimeZoneLabel(
     meeting.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
     i18n.language,
+    new Date(meeting.starts_at),
   );
   const createdAt = meeting.created_at ? formatMeetingStart(meeting.created_at, meetingLocale(i18n.language)) : null;
-  const rosterOpen = meeting.status === "SCHEDULED" || meeting.status === "IN_PROGRESS" || !meeting.status;
-  const canMutateRoster = canHost && rosterOpen;
+  const open = rosterOpen(meeting);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <MeetingParticipantsSection
-        workspaceId={workspaceId}
-        meeting={meeting}
-        invitations={invitations}
-        canManage={canMutateRoster}
-        showTransferHost={canMutateRoster}
-      />
-      {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} canCreate={canMutateRoster} /> : null}
+      {/* Once the meeting is over its links read as closed: nothing to revoke or create. */}
+      {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} canCreate={open} /> : null}
       <PanelCard id="details-heading" icon={Info} iconTone={moduleTone("meetings")} title={t("meetings.details")}>
         <dl className="-my-2 divide-y divide-border">
           <DetailRow label={t("meetings.timezone")}>{timezone}</DetailRow>

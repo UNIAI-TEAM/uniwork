@@ -14,6 +14,7 @@ import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingDeviceField } from "./meeting-device-field";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
+import { MeetingMicLevel, MeetingMicPermissionAction } from "./meeting-room-mic-check";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
 export interface PreJoinChoice {
@@ -120,7 +121,10 @@ export function MeetingPreJoin({
             value={audioDeviceId}
             onValueChange={setAudioDeviceId}
             emptyDescription={t("meetings.deviceMicNeedsPermission")}
-          />
+            emptyAction={<MeetingMicPermissionAction onGranted={refresh} />}
+          >
+            {audio ? <MeetingMicLevel deviceId={audioDeviceId || mics[0]?.deviceId} className="mt-1" /> : null}
+          </MeetingDeviceField>
           <MeetingDeviceField
             id="prejoin-camera"
             label={t("meetings.deviceCamera")}

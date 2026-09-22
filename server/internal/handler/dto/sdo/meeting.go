@@ -5,8 +5,15 @@ type MeetingSDO struct {
 }
 
 type MeetingListSDO struct {
-	Meetings []MeetingDTO `json:"meetings"`
-	Total    int64        `json:"total" example:"12"`
+	Meetings []MeetingListItemDTO `json:"meetings"`
+	Total    int64                `json:"total" example:"12"`
+}
+
+// MeetingListItemDTO is a list row: the meeting plus what the row needs to
+// draw without a request of its own.
+type MeetingListItemDTO struct {
+	MeetingDTO
+	HasPlayableRecording bool `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
 }
 
 type MeetingDTO struct {
@@ -119,8 +126,10 @@ type PublicInviteLinkSDO struct {
 	Title        string `json:"title"`
 	StartsAt     string `json:"starts_at"`
 	AccessMode   string `json:"access_mode"`
-	Expired      bool   `json:"expired"`
+	Expired      bool   `json:"expired" description:"Liên kết đã bị thu hồi hoặc hết hạn; giữ cho client cũ, client mới đọc link_state"`
 	GuestSession string `json:"guest_session,omitempty"`
+	LinkState    string `json:"link_state" description:"Trạng thái liên kết: active, expired, revoked hoặc exhausted (hết lượt, chỉ với AUTO_ADMIT)" example:"active"`
+	MeetingState string `json:"meeting_state" description:"Cuộc họp còn vào được không: open, ended, canceled hoặc past_scheduled_end" example:"open"`
 }
 
 type JoinRequestDTO struct {

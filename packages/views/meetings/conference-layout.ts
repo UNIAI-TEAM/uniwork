@@ -94,24 +94,33 @@ export function trackTileKey(track: TrackReferenceOrPlaceholder): string {
 }
 
 /**
- * Stage order: screen shares first, then whoever is speaking (most recent
- * first), then everyone else in their existing order. Stable for equal
- * ranks so tiles do not jump around while people talk.
+ * Stage order: the pinned tile, then screen shares, then everyone in their
+ * existing order. A speaker moves up only from a place the viewer cannot see
+ * well — past `stableSlots` (off the page, or down in the thumbnail strip);
+ * someone already in the main area stays put, so tiles do not jump while
+ * people talk. `stableSlots = 0` promotes every speaker.
  */
 export function orderTracks(
   tracks: readonly TrackReferenceOrPlaceholder[],
   speakingIdentities: readonly string[],
   pinnedIdentity?: string | null,
+  stableSlots = 0,
 ): TrackReferenceOrPlaceholder[] {
-  const rank = (t: TrackReferenceOrPlaceholder): number => {
+  const baseRank = (t: TrackReferenceOrPlaceholder): number => {
     if (pinnedIdentity && t.participant.identity === pinnedIdentity) return -1;
     if (t.source === Track.Source.ScreenShare) return 0;
-    const i = speakingIdentities.indexOf(t.participant.identity);
-    return i === -1 ? 1_000_000 : 1 + i;
+    return 1_000_000;
   };
-  return tracks
-    .map((t, i) => ({ t, i, r: rank(t) }))
-    .sort((a, b) => a.r - b.r || a.i - b.i)
+  const base = tracks
+    .map((t, i) => ({ t, i, r: baseRank(t) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i);
+  return base
+    .map((x, pos) => {
+      if (x.r !== 1_000_000 || pos < stableSlots) return { ...x, pos };
+      const i = speakingIdentities.indexOf(x.t.participant.identity);
+      return { ...x, pos, r: i === -1 ? x.r : 1 + i };
+    })
+    .sort((a, b) => a.r - b.r || a.pos - b.pos)
     .map((x) => x.t);
 }
 
@@ -172,11 +181,19 @@ export function resolveConferenceStage(
   const { screenShares, cameras } = splitTracksBySource(visible);
 
   if (screenShares.length > 0) {
-    const orderedCameras = orderTracks(cameras, speakingIdentities, pinnedIdentity);
+    // The first strip page is what the viewer sees next to the share.
+    const stripSlots = Math.max(0, THUMBNAIL_STRIP_TILES - (screenShares.length - 1));
+    const orderedCameras = orderTracks(cameras, speakingIdentities, pinnedIdentity, stripSlots);
     return resolvePresentationStage(screenShares, orderedCameras, page);
   }
 
-  const ordered = orderTracks(visible, speakingIdentities, pinnedIdentity);
+  const mainSlots =
+    layout === "spotlight" || layout === "sidebar"
+      ? 1
+      : layout === "tiled"
+        ? maxTiles
+        : Math.min(maxTiles, PRIMARY_GRID_TILES);
+  const ordered = orderTracks(visible, speakingIdentities, pinnedIdentity, mainSlots);
 
   switch (layout) {
     case "spotlight": {

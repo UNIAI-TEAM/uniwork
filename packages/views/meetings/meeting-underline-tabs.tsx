@@ -17,7 +17,10 @@ export function MeetingUnderlineTabs<T extends string>({
   onChange: (tab: T) => void;
   label: (tab: T) => string;
   badge?: (tab: T) => ReactNode;
-  /** DOM id of the panel each tab controls; wires `aria-controls` when given. */
+  /**
+   * DOM id of the panel a tab controls; wires `aria-controls` on the active
+   * tab only, since only its panel is rendered.
+   */
   panelId?: (tab: T) => string;
   className?: string;
 }) {
@@ -75,7 +78,7 @@ export function MeetingUnderlineTabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={active}
-            aria-controls={panelId?.(tab)}
+            aria-controls={active ? panelId?.(tab) : undefined}
             tabIndex={active ? 0 : -1}
             className={cn(
               "relative min-h-10 shrink-0 rounded-md border-0 bg-transparent outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50 px-2.5 py-2 text-caption font-medium leading-tight whitespace-nowrap transition-colors duration-standard pointer-coarse:min-h-11",

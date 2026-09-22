@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
+import { toast } from "sonner";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -304,6 +305,38 @@ describe("MeetingDetailView", () => {
     expect(await screen.findByRole("button", { name: "Tham dự" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chưa chắc" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Từ chối" })).toBeInTheDocument();
+  });
+
+  it("shows the page skeleton, not a blank body, while the meeting loads", () => {
+    requestMock.mockReturnValue(new Promise(() => {}));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Đang tải…");
+  });
+
+  it("confirms a cancel with a toast before leaving", async () => {
+    const success = vi.spyOn(toast, "success");
+    const onDeleted = vi.fn();
+    rosterMock((p, method) => (p === "/api/v1/meetings/m1/cancel" && method === "POST" ? Promise.resolve({}) : undefined));
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={onDeleted} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Hủy cuộc họp/ }));
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+    expect(success).toHaveBeenCalledWith("Đã hủy cuộc họp");
+    success.mockRestore();
+  });
+
+  it("lists who is in ahead of notes in reading order, for small screens", async () => {
+    rosterMock();
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const roster = await screen.findByRole("heading", { name: /Người tham dự/ });
+    const notes = screen.getByRole("heading", { name: "Ghi chú" });
+    const rosterSlot = roster.closest(".order-2");
+    const notesSlot = notes.closest(".order-3");
+    expect(rosterSlot).not.toBeNull();
+    expect(notesSlot).not.toBeNull();
   });
 
   it("hides roster and invite-link mutations after the meeting has ended", async () => {

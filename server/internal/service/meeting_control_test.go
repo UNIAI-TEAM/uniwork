@@ -353,11 +353,11 @@ func TestInviteLinkHashAndRevoke(t *testing.T) {
 			t.Fatal("secret in audit")
 		}
 	}
-	v, err := s.ResolveInviteLink(ctx, created.Link.ID, created.RawSecret)
+	v, err := s.ResolveInviteLink(ctx, created.Link.ID, created.RawSecret, AdmissionContext{})
 	if err != nil || v.Expired {
 		t.Fatalf("resolve %v %+v", err, v)
 	}
-	if _, err := s.ResolveInviteLink(ctx, created.Link.ID, "wrong"); err == nil {
+	if _, err := s.ResolveInviteLink(ctx, created.Link.ID, "wrong", AdmissionContext{}); err == nil {
 		t.Fatal("wrong secret")
 	}
 	if err := s.RevokeInviteLink(ctx, ua.ID, m.ID, created.Link.ID); err != nil {

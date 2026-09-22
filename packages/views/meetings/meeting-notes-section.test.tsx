@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -11,6 +11,10 @@ beforeAll(() => {
 
 beforeEach(() => {
   requestMock.mockReset();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 function notesRespond(notes: () => Promise<unknown>) {
@@ -70,6 +74,29 @@ describe("MeetingNotesSection", () => {
     fireEvent.keyDown(box, { key: "Enter", shiftKey: true });
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/notes", expect.objectContaining({ method: "POST" }));
     fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/notes", expect.objectContaining({ method: "POST" })),
+    );
+  });
+
+  it("on touch, Enter breaks the line and only the button adds the note", async () => {
+    const real = window.matchMedia.bind(window);
+    vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
+      query === "(pointer: coarse)" ? ({ ...real(query), matches: true } as MediaQueryList) : real(query),
+    );
+    requestMock.mockImplementation((path: unknown, opts?: { method?: string }) => {
+      if (String(path).endsWith("/notes") && opts?.method === "POST") return Promise.resolve({ note: {} });
+      if (String(path).endsWith("/notes")) return Promise.resolve({ notes: [] });
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingNotesSection meetingId="m1" />));
+
+    const box = await screen.findByRole("textbox", { name: "Thêm ghi chú" });
+    await waitFor(() => expect(box).not.toHaveAttribute("aria-describedby"));
+    fireEvent.change(box, { target: { value: "Dòng một" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/notes", expect.objectContaining({ method: "POST" }));
+    fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/notes", expect.objectContaining({ method: "POST" })),
     );

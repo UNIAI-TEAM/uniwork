@@ -59,6 +59,9 @@ export function MeetingFilters({
   onQuery: (q: string) => void;
 }) {
   const { t } = useTranslation();
+  // The statistics count the whole workspace; beside a search they would
+  // promise rows the search does not return.
+  const showCounts = !query.trim();
   const label = (value: string) => {
     if (!value) return t("meetings.filterAll");
     if (value === "SCHEDULED") return t("meetings.filter_SCHEDULED");
@@ -83,10 +86,11 @@ export function MeetingFilters({
         }}
         aria-label={t("meetings.status")}
         spacing={1}
-        className="-mx-1 w-full min-w-0 overflow-x-auto px-1 py-1 [scrollbar-width:none] lg:w-auto"
+        // Wraps rather than scrolls: a clipped chip row gives no cue that more chips exist.
+        className="-mx-1 w-full min-w-0 flex-wrap px-1 py-1 lg:w-auto"
       >
         {MEETING_FILTERS.map((value) => {
-          const count = countFor(stats, value);
+          const count = showCounts ? countFor(stats, value) : undefined;
           return (
             <ToggleGroupItem key={value || ALL} value={value || ALL} className={CHIP}>
               {label(value)}

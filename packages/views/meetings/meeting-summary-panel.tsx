@@ -1,11 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, FileAudio, ListChecks, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronDown, FileAudio, History, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api/http";
 import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
-import { useMembers } from "@uniwork/core/workspaces";
 import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
@@ -20,7 +19,7 @@ import {
   useTranscript,
 } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
-import type { MeetingSummary } from "@uniwork/core/types/meeting";
+import type { MeetingNote, MeetingSummary, MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -30,6 +29,36 @@ import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
+import { useMemberIndex } from "./use-member-index";
+
+const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
+
+/**
+ * What the summary can truthfully say about its inputs. The server keeps no
+ * snapshot of what it read, so the kind is judged from what existed when it
+ * was generated (by timestamp), and anything newer marks the summary stale.
+ */
+export function summarySourceFacts(
+  generatedAt: string | undefined,
+  transcript: MeetingTranscriptSegment[],
+  notes: MeetingNote[],
+): { kind: "both" | "transcript" | "notes" | null; stale: boolean } {
+  const at = generatedAt ? Date.parse(generatedAt) : Number.NaN;
+  if (!Number.isFinite(at)) return { kind: null, stale: false };
+  const before = (iso?: string | null) => {
+    const ms = iso ? Date.parse(iso) : Number.NaN;
+    return Number.isFinite(ms) && ms <= at;
+  };
+  const after = (iso?: string | null) => {
+    const ms = iso ? Date.parse(iso) : Number.NaN;
+    return Number.isFinite(ms) && ms > at;
+  };
+  const hadTranscript = transcript.some((s) => before(s.spoken_at));
+  const hadNotes = notes.some((n) => before(n.created_at));
+  const kind = hadTranscript && hadNotes ? "both" : hadTranscript ? "transcript" : hadNotes ? "notes" : null;
+  const stale = transcript.some((s) => after(s.spoken_at)) || notes.some((n) => after(n.created_at));
+  return { kind, stale };
+}
 
 /**
  * Transcript, AI summary (host generates; everyone reads), action items →
@@ -62,7 +91,7 @@ export function MeetingSummaryPanel({
   const { data: recordings } = useRecordings(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
   const createTasks = useCreateTasksFromSummary(workspaceId, meetingId);
-  const { data: members } = useMembers(workspaceId);
+  const { memberOf, members } = useMemberIndex(workspaceId);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [showTranscript, setShowTranscript] = useState(false);
@@ -70,7 +99,7 @@ export function MeetingSummaryPanel({
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
   const memberPreview = useMemo(
-    () => (members ?? []).map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
+    () => members.map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
     [members],
   );
 
@@ -114,11 +143,8 @@ export function MeetingSummaryPanel({
 
   function assigneeLabel(index: number, owner?: string) {
     const override = assigneeOverrides[index];
-    if (override) {
-      return members?.find((m) => m.user_id === override)?.display_name;
-    }
-    const previewId = previewAssigneeId(owner, memberPreview);
-    return previewId ? members?.find((m) => m.user_id === previewId)?.display_name : undefined;
+    if (override) return memberOf(override)?.display_name;
+    return memberOf(previewAssigneeId(owner, memberPreview))?.display_name;
   }
 
   return (
@@ -160,7 +186,7 @@ export function MeetingSummaryPanel({
 
         {summary ? (
           <div className="space-y-4">
-            <SummaryAttribution summary={summary} transcriptLines={transcriptLines} noteCount={noteCount} />
+            <SummaryAttribution summary={summary} transcript={transcript ?? []} notes={notes ?? []} />
             <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
             {decisions.length > 0 ? (
               <div>
@@ -216,7 +242,9 @@ export function MeetingSummaryPanel({
                           ) : null}
                           {canHost && assigneeLabel(i, it.owner) ? (
                             <span className="ml-1.5 text-caption text-brand">
-                              → {assigneeLabel(i, it.owner)}
+                              <span aria-hidden>→ </span>
+                              <span className="sr-only">{t("meetings.assignedTo")} </span>
+                              {assigneeLabel(i, it.owner)}
                             </span>
                           ) : null}
                         </span>
@@ -304,17 +332,15 @@ export function MeetingSummaryPanel({
                 <li key={r.id} className="flex items-center gap-2 text-body text-foreground">
                   <FileAudio aria-hidden className="size-4 shrink-0 text-faint-foreground" />
                   <span className="text-caption tabular-nums text-muted-foreground">
-                    {r.started_at
-                      ? new Date(r.started_at).toLocaleString(meetingLocale(i18n.language), { dateStyle: "short", timeStyle: "short" })
-                      : null}
+                    {r.started_at ? formatMeetingStart(r.started_at, meetingLocale(i18n.language)) : null}
                   </span>
                   {r.file_url ? (
                     <Button type="button" size="sm" variant="link" className="h-auto px-0" onClick={() => setPlaybackId(r.id)}>
                       {t("meetings.recording_play")}
                     </Button>
-                  ) : (
-                    <span className="text-caption text-muted-foreground">{t(`meetings.recordingStatus.${r.status}`, { defaultValue: r.status })}</span>
-                  )}
+                  ) : RECORDING_STATUSES.has(r.status) ? (
+                    <span className="text-caption text-muted-foreground">{t(`meetings.recordingStatus.${r.status}`)}</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -350,21 +376,22 @@ export function MeetingSummaryPanel({
  */
 function SummaryAttribution({
   summary,
-  transcriptLines,
-  noteCount,
+  transcript,
+  notes,
 }: {
   summary: MeetingSummary;
-  transcriptLines: number;
-  noteCount: number;
+  transcript: MeetingTranscriptSegment[];
+  notes: MeetingNote[];
 }) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
+  const facts = summarySourceFacts(summary.created_at, transcript, notes);
   const source =
-    transcriptLines > 0 && noteCount > 0
-      ? t("meetings.summarySourceBoth", { count: transcriptLines })
-      : transcriptLines > 0
-        ? t("meetings.summarySourceTranscript", { count: transcriptLines })
-        : noteCount > 0
+    facts.kind === "both"
+      ? t("meetings.summarySourceKindBoth")
+      : facts.kind === "transcript"
+        ? t("meetings.summarySourceKindTranscript")
+        : facts.kind === "notes"
           ? t("meetings.summarySourceNotes")
           : null;
   const parts: React.ReactNode[] = [];
@@ -379,20 +406,28 @@ function SummaryAttribution({
   if (summary.model) parts.push(<span key="model">{summary.model}</span>);
 
   return (
-    <p
-      data-testid="ai-attribution"
-      className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted-foreground"
-    >
-      <Badge className="gap-1 bg-brand-subtle text-brand-subtle-foreground">
-        <Sparkles aria-hidden />
-        {t("meetings.aiLabel")}
-      </Badge>
-      {parts.map((part, i) => (
-        <span key={i} className="inline-flex items-center gap-x-1.5">
-          {i > 0 ? <span aria-hidden>·</span> : null}
-          {part}
-        </span>
-      ))}
-    </p>
+    <div className="space-y-1">
+      <p
+        data-testid="ai-attribution"
+        className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted-foreground"
+      >
+        <Badge className="gap-1 bg-brand-subtle text-brand-subtle-foreground">
+          <Sparkles aria-hidden />
+          {t("meetings.aiLabel")}
+        </Badge>
+        {parts.map((part, i) => (
+          <span key={i} className="inline-flex items-center gap-x-1.5">
+            {i > 0 ? <span aria-hidden>·</span> : null}
+            {part}
+          </span>
+        ))}
+      </p>
+      {facts.stale ? (
+        <p data-testid="ai-summary-stale" className="flex items-center gap-1.5 text-caption text-muted-foreground">
+          <History aria-hidden className="size-3.5 shrink-0" />
+          {t("meetings.summaryStale")}
+        </p>
+      ) : null}
+    </div>
   );
 }

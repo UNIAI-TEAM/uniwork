@@ -20,30 +20,43 @@ describe("useMeetingScheduleDeadline", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-03T10:00:01.000Z"));
     toast.info.mockClear();
-    const onLeave = vi.fn();
+    const onClosed = vi.fn();
     renderHook(() =>
       useMeetingScheduleDeadline({
         endsAt: "2026-09-03T10:00:00.000Z",
         status: "IN_PROGRESS",
         admitted: true,
-        onLeave,
+        onClosed,
       }),
     );
-    expect(onLeave).not.toHaveBeenCalled();
+    expect(onClosed).not.toHaveBeenCalled();
     expect(toast.info).toHaveBeenCalled();
     vi.useRealTimers();
   });
 
-  it("leaves only after the meeting is actually ended", () => {
-    const onLeave = vi.fn();
+  it("closes the room with a reason, not a silent leave, once the meeting has ended", () => {
+    const onClosed = vi.fn();
     renderHook(() =>
       useMeetingScheduleDeadline({
         endsAt: "2026-09-03T10:00:00.000Z",
         status: "ENDED",
         admitted: true,
-        onLeave,
+        onClosed,
       }),
     );
-    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(onClosed).toHaveBeenCalledTimes(1);
+    expect(onClosed).toHaveBeenCalledWith("ended");
+  });
+
+  it("closes a canceled meeting even without a scheduled end", () => {
+    const onClosed = vi.fn();
+    renderHook(() => useMeetingScheduleDeadline({ status: "CANCELED", admitted: true, onClosed }));
+    expect(onClosed).toHaveBeenCalledWith("canceled");
+  });
+
+  it("does nothing before the viewer is admitted", () => {
+    const onClosed = vi.fn();
+    renderHook(() => useMeetingScheduleDeadline({ status: "ENDED", admitted: false, onClosed }));
+    expect(onClosed).not.toHaveBeenCalled();
   });
 });

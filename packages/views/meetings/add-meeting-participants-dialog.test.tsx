@@ -15,6 +15,7 @@ const members = [
 beforeEach(() => {
   requestMock.mockReset();
   vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.success).mockClear();
 });
 
 function renderDialog() {
@@ -46,7 +47,7 @@ describe("AddMeetingParticipantsDialog", () => {
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "Đang mời…" })).toBeDisabled());
   });
 
-  it("names how many invitations did not go out", async () => {
+  it("keeps only the people who failed, names them, and refreshes the roster at once", async () => {
     requestMock.mockImplementation((_p: unknown, init?: { method?: string; body?: { user_id?: string } }) => {
       if (init?.method === "POST") {
         return init.body?.user_id === "u-b"
@@ -55,12 +56,29 @@ describe("AddMeetingParticipantsDialog", () => {
       }
       return Promise.resolve({ members });
     });
-    const dialog = renderDialog();
+    const onOpenChange = vi.fn();
+    render(
+      wrapWithNav(
+        <AddMeetingParticipantsDialog workspaceId="w1" meetingId="m1" excludeUserIds={[]} open onOpenChange={onOpenChange} />,
+      ),
+    );
+    const dialog = screen.getByRole("dialog");
     fireEvent.click(await within(dialog).findByText("An"));
     fireEvent.click(within(dialog).getByText("Bình"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Mời thành viên" }));
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Chưa mời được 1 người. Mời lại trong trang cuộc họp."),
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Chưa mời được: Bình. Thử lại.");
+    expect(toast.success).toHaveBeenCalledWith("Đã mời 1 thành viên");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    // Retrying sends only the one who failed.
+    requestMock.mockClear();
+    requestMock.mockImplementation((_p: unknown, init?: { method?: string }) =>
+      init?.method === "POST" ? Promise.resolve({ participant: null }) : Promise.resolve({ members }),
     );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Mời thành viên" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    const posts = requestMock.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect((posts[0]![1] as { body: { user_id: string } }).body.user_id).toBe("u-b");
   });
 });

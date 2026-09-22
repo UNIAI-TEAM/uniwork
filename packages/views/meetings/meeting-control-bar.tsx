@@ -47,6 +47,7 @@ import {
 import { MEETING_DARK_BAR } from "./meeting-dark-bar";
 import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
 import { MeetingRecordConfirmDialog } from "./meeting-record-confirm-dialog";
+import { roomShortcutLabel, useRoomMediaShortcuts } from "./meeting-room-shortcuts";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 export function MeetingControlBar({
@@ -59,7 +60,7 @@ export function MeetingControlBar({
   captionsOn = false,
   captionsAvailable = false,
   onToggleCaptions,
-  onOpenCopilot,
+  onToggleCopilot,
   copilotActive = false,
 }: {
   className?: string;
@@ -71,7 +72,8 @@ export function MeetingControlBar({
   captionsOn?: boolean;
   captionsAvailable?: boolean;
   onToggleCaptions?: () => void;
-  onOpenCopilot?: () => void;
+  /** Opens the AI Copilot panel, or closes it when it is the one on screen. */
+  onToggleCopilot?: () => void;
   copilotActive?: boolean;
 }) {
   const { t } = useTranslation();
@@ -85,6 +87,22 @@ export function MeetingControlBar({
   const camera = useTrackToggle({ source: Track.Source.Camera });
   const screen = useTrackToggle({ source: Track.Source.ScreenShare });
   const { handRaised, toggleHand } = useMeetingSignals();
+  useRoomMediaShortcuts({
+    onToggleMic: () => {
+      if (!mic.pending) void mic.toggle();
+    },
+    onToggleCamera: () => {
+      if (!camera.pending) void camera.toggle();
+    },
+  });
+  const micTooltip = t("meetings.shortcutHint", {
+    action: mic.enabled ? t("meetings.micOff") : t("meetings.micOn"),
+    keys: roomShortcutLabel("D"),
+  });
+  const cameraTooltip = t("meetings.shortcutHint", {
+    action: camera.enabled ? t("meetings.cameraOff") : t("meetings.cameraOn"),
+    keys: roomShortcutLabel("E"),
+  });
   const startRec = useStartRecording(meetingId ?? "");
   const stopRec = useStopRecording(meetingId ?? "");
   const recPending = startRec.isPending || stopRec.isPending;
@@ -231,6 +249,7 @@ export function MeetingControlBar({
             <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
               <IconControl
                 label={t("meetings.mic")}
+                tooltip={micTooltip}
                 pressed={mic.enabled}
                 tone={mic.enabled ? "active" : "off"}
                 disabled={mic.pending}
@@ -242,6 +261,7 @@ export function MeetingControlBar({
               </IconControl>
               <IconControl
                 label={t("meetings.camera")}
+                tooltip={cameraTooltip}
                 pressed={camera.enabled}
                 tone={camera.enabled ? "active" : "off"}
                 disabled={camera.pending}
@@ -258,12 +278,13 @@ export function MeetingControlBar({
                   {handControl(false)}
                 </>
               ) : null}
-              {onOpenCopilot ? (
+              {onToggleCopilot ? (
                 <IconControl
-                  label={t("meetings.aiCopilotToggle")}
+                  label={t("meetings.aiCopilot")}
+                  tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
                   pressed={copilotActive}
                   tone={copilotActive ? "active" : undefined}
-                  onClick={onOpenCopilot}
+                  onClick={onToggleCopilot}
                 >
                   <Sparkles aria-hidden />
                 </IconControl>
@@ -295,7 +316,8 @@ export function MeetingControlBar({
                   </TooltipTrigger>
                   <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
                 </Tooltip>
-                <PopoverContent side="top" className="flex w-56 flex-col gap-0.5 p-1.5">
+                {/* `dark`, like the admit-guests card: the popup portals out of the dark stage. */}
+                <PopoverContent side="top" className="dark flex w-56 flex-col gap-0.5 p-1.5">
                   {moreMenu}
                 </PopoverContent>
               </Popover>

@@ -1,9 +1,10 @@
 "use client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  isTrackReference,
   RoomAudioRenderer,
   StartMediaButton,
-  useParticipants as useLiveKitParticipants,
+  useIsRecording,
   useSpeakingParticipants,
   useTracks,
   type TrackReferenceOrPlaceholder,
@@ -34,7 +35,7 @@ import {
 import {
   captionsErrorKey,
   captionsSupported,
-  useLiveCaptions,
+  MeetingLiveCaptions,
 } from "./meeting-captions";
 import { MeetingConnectionNotice } from "./meeting-connection-notice";
 import { MeetingControlBar } from "./meeting-control-bar";
@@ -47,14 +48,15 @@ import {
   MeetingSidebarDock,
   type MeetingSidebarTab,
 } from "./meeting-room-sidebar";
-import { MeetingScheduleBanner } from "./meeting-schedule-banner";
 import {
-  guestIdentities,
-  muteRequesterIdentities,
-  participantRole,
-  reactionLabelKey,
-} from "./meeting-signals";
-import { MeetingSignalsProvider, useMeetingSignals } from "./use-meeting-signals";
+  ChatMessageAnnouncer,
+  ParticipantPresenceAnnouncer,
+  ReactionAnnouncer,
+  useMeetingChatUnread,
+} from "./meeting-room-announcers";
+import { MeetingScheduleBanner } from "./meeting-schedule-banner";
+import { guestIdentities, muteRequesterIdentities, participantRole } from "./meeting-signals";
+import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
 
@@ -121,27 +123,6 @@ function StagePager({
   );
 }
 
-/** Reactions pop on a tile for sighted viewers; this says them once, politely, for everyone else. */
-function ReactionAnnouncer() {
-  const { t } = useTranslation();
-  const { reactions, localIdentity } = useMeetingSignals();
-  const participants = useLiveKitParticipants();
-  const latest = reactions.at(-1);
-  let text = "";
-  if (latest) {
-    const person = participants.find((p) => p.identity === latest.identity);
-    const name =
-      latest.identity === localIdentity ? t("meetings.you") : person?.name || person?.identity || latest.identity;
-    const key = reactionLabelKey(latest.value);
-    text = t("meetings.reactionAnnounce", { name, reaction: key ? t(key) : latest.value });
-  }
-  return (
-    <p role="status" aria-live="polite" className="sr-only">
-      {text}
-    </p>
-  );
-}
-
 export function MeetingConference(props: {
   meetingId?: string;
   meeting?: Meeting;
@@ -151,6 +132,8 @@ export function MeetingConference(props: {
   workspaceLabel?: string;
   guestMode?: boolean;
   onLeave: () => void;
+  /** Device trouble (a blocked mic, a busy camera) shown on the stage, above the tiles. */
+  deviceNotice?: ReactNode;
 }) {
   const { canHost } = useMeetingPermissions(props.meeting ?? null, props.workspaceId ?? "");
   const { data: apiParticipants } = useParticipants(props.meetingId ?? props.meeting?.id ?? "");
@@ -176,6 +159,7 @@ function ConferenceStage({
   guestMode,
   guests,
   onLeave,
+  deviceNotice,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -186,6 +170,7 @@ function ConferenceStage({
   guestMode?: boolean;
   guests: ReadonlySet<string>;
   onLeave: () => void;
+  deviceNotice?: ReactNode;
 }) {
   const { t } = useTranslation();
   const compact = useIsCompact();
@@ -208,12 +193,10 @@ function ConferenceStage({
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: recordings } = useRecordings(resolvedMeetingId);
-  const recording = (recordings ?? []).some((r) => r.status === "ACTIVE");
-  const captions = useLiveCaptions(
-    resolvedMeetingId,
-    captionsOn && !!resolvedMeetingId && caps?.server_stt !== true,
-    handleCaptionsError,
-  );
+  // LiveKit tells every participant, guests included; the query covers the
+  // moments before the egress reports in.
+  const roomRecording = useIsRecording();
+  const recording = roomRecording || (recordings ?? []).some((r) => r.status === "ACTIVE");
   const speaking = useSpeakingParticipants();
   const viewLayout = useMeetingRoomPreferencesStore((s) => s.viewLayout);
   const maxTiles = useMeetingRoomPreferencesStore((s) => s.maxTiles);
@@ -244,18 +227,40 @@ function ConferenceStage({
     if (compact) setSidebarSheetOpen(true);
     else setSidebarPinned(true);
   };
+  const panelShown = compact ? sidebarSheetOpen : sidebarPinned;
+  const copilotActive = copilotPanelShown({
+    tab: sidebarTab,
+    compact,
+    sheetOpen: sidebarSheetOpen,
+    pinned: sidebarPinned,
+  });
+  const toggleCopilot = () => {
+    if (!copilotActive) {
+      openSidebarTab("copilot");
+      return;
+    }
+    if (compact) setSidebarSheetOpen(false);
+    else setSidebarPinned(false);
+  };
+  const chatVisible = sidebarTab === "chat" && panelShown;
+  const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
 
-  const tile = (track: TrackReferenceOrPlaceholder, opts: { compact?: boolean; expanded?: boolean }) => (
-    <MeetingParticipantTile
-      key={trackTileKey(track)}
-      participant={track.participant}
-      track={track}
-      compact={opts.compact}
-      expanded={opts.expanded}
-      canHost={canHost.allowed}
-      roleChip={participantRole(track.participant, guests)}
-    />
-  );
+  const tile = (track: TrackReferenceOrPlaceholder, opts: { compact?: boolean; expanded?: boolean }) => {
+    const publication = isTrackReference(track) ? track.publication : undefined;
+    return (
+      <MeetingParticipantTile
+        key={trackTileKey(track)}
+        participant={track.participant}
+        track={track}
+        videoTrack={publication?.track}
+        videoOn={Boolean(publication?.track) && !publication?.isMuted}
+        compact={opts.compact}
+        expanded={opts.expanded}
+        canHost={canHost.allowed}
+        roleChip={participantRole(track.participant, guests)}
+      />
+    );
+  };
 
   const sidebar = (
     <MeetingRoomSidebar
@@ -266,6 +271,7 @@ function ConferenceStage({
       guestMode={guestMode}
       tab={sidebarTab}
       onTabChange={setSidebarTab}
+      chatUnread={chatUnread.unread}
       className="h-full w-full"
     />
   );
@@ -299,6 +305,7 @@ function ConferenceStage({
               data-testid="meeting-stage-content"
             >
               <MeetingConnectionNotice />
+              {deviceNotice}
               {captionsError ? (
                 <Notice
                   tone="destructive"
@@ -384,8 +391,13 @@ function ConferenceStage({
           <MeetingStageFooter
             stageContentRef={stageContentRef}
             captionsOn={captionsOn}
-            captionsInterim={captions.interim}
-            captionsLastFinal={captions.lastFinal}
+            captions={
+              <MeetingLiveCaptions
+                meetingId={resolvedMeetingId}
+                enabled={captionsOn && !!resolvedMeetingId && caps?.server_stt !== true}
+                onError={handleCaptionsError}
+              />
+            }
             onReserveHeightChange={handleFooterReserveChange}
             controlBar={
               <MeetingControlBar
@@ -400,13 +412,8 @@ function ConferenceStage({
                   setCaptionsError(null);
                   setCaptionsOn((v) => !v);
                 }}
-                onOpenCopilot={() => openSidebarTab("copilot")}
-                copilotActive={copilotPanelShown({
-                  tab: sidebarTab,
-                  compact,
-                  sheetOpen: sidebarSheetOpen,
-                  pinned: sidebarPinned,
-                })}
+                onToggleCopilot={toggleCopilot}
+                copilotActive={copilotActive}
               />
             }
           />
@@ -437,6 +444,8 @@ function ConferenceStage({
 
       <RoomAudioRenderer />
       <ReactionAnnouncer />
+      <ParticipantPresenceAnnouncer />
+      <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
     </div>
   );
 }

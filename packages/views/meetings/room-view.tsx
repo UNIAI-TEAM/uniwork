@@ -17,6 +17,13 @@ import { MeetingLobby } from "./meeting-lobby";
 import { MeetingGateScreen } from "./meeting-gate-screen";
 import { MeetingMediaError } from "./meeting-media-error";
 import { MeetingPreJoin, type PreJoinChoice } from "./meeting-prejoin";
+import {
+  isMediaDeviceError,
+  MeetingRoomDeviceNotice,
+  roomDeviceFailure,
+  type RoomDeviceFailures,
+  type RoomDeviceKind,
+} from "./meeting-room-device-notice";
 import { useMeetingScheduleDeadline } from "./use-meeting-schedule-deadline";
 import {
   mediaDisconnectKind,
@@ -85,7 +92,16 @@ export function MeetingRoomView({
   const admittedRef = useRef(false);
   const credentialRefreshAttempts = useRef(0);
   const [mediaErrorKind, setMediaErrorKind] = useState<MediaDisconnectKind | null>(null);
-  const [closedReason, setClosedReason] = useState<"ended" | "removed" | null>(null);
+  const [closedReason, setClosedReason] = useState<"ended" | "canceled" | "removed" | null>(null);
+  const [deviceFailures, setDeviceFailures] = useState<RoomDeviceFailures>({});
+  const clearDeviceFailure = useCallback((kind: RoomDeviceKind) => {
+    setDeviceFailures((prev) => {
+      if (!prev[kind]) return prev;
+      const next = { ...prev };
+      delete next[kind];
+      return next;
+    });
+  }, []);
   const [choice, setChoice] = useState<PreJoinChoice | null>(() => {
     if (initialChoice) return initialChoice;
     return isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null;
@@ -149,7 +165,7 @@ export function MeetingRoomView({
     endsAt: meeting?.ends_at,
     status: meeting?.status,
     admitted,
-    onLeave,
+    onClosed: setClosedReason,
   });
 
   if (!choice) {
@@ -223,7 +239,13 @@ export function MeetingRoomView({
           icon={removed ? UserX : CalendarX2}
           tone={removed ? "destructive" : "muted"}
           meetingTitle={meeting?.title ?? meetingTitle}
-          title={t(removed ? "meetings.removedFromMeeting" : "meetings.endedCannotJoin")}
+          title={t(
+            removed
+              ? "meetings.removedFromMeeting"
+              : closedReason === "canceled"
+                ? "meetings.canceledCannotJoin"
+                : "meetings.endedCannotJoin",
+          )}
           actions={
             <Button variant="outline" onClick={onLeave}>
               <ArrowLeft aria-hidden />
@@ -277,8 +299,16 @@ export function MeetingRoomView({
           adaptiveStream: true,
           dynacast: true,
         }}
-        onError={() => {
+        onError={(error) => {
+          // A microphone or camera that will not start is not a lost room:
+          // onMediaDeviceFailure keeps the viewer in with that track off.
+          if (isMediaDeviceError(error)) return;
           setMediaErrorKind((kind) => kind ?? "connection");
+        }}
+        onMediaDeviceFailure={(failure, kind) => {
+          // No kind: a cancelled screen-share picker, which needs no notice.
+          if (kind !== "audioinput" && kind !== "videoinput") return;
+          setDeviceFailures((prev) => ({ ...prev, [kind]: roomDeviceFailure(failure) }));
         }}
         onDisconnected={(reason) => {
           const kind = mediaDisconnectKind(reason);
@@ -316,6 +346,13 @@ export function MeetingRoomView({
           workspaceLabel={guestMode ? undefined : workspaceLabel}
           guestMode={guestMode}
           onLeave={onLeave}
+          deviceNotice={
+            <MeetingRoomDeviceNotice
+              failures={deviceFailures}
+              deviceIds={{ audioinput: choice.audioDeviceId, videoinput: choice.videoDeviceId }}
+              onResolved={clearDeviceFailure}
+            />
+          }
         />
       </LiveKitRoom>
     </MeetingRoomShell>

@@ -9,11 +9,16 @@ let mobile = false;
 let handRaised = false;
 const startRecording = vi.fn();
 const stopRecording = vi.fn();
+const toggles = vi.hoisted(() => ({ microphone: vi.fn(), camera: vi.fn(), screen_share: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@uniwork/ui/hooks/use-mobile", () => ({ useIsMobile: () => mobile, useIsCompact: () => mobile }));
 vi.mock("@livekit/components-react", () => ({
-  useTrackToggle: () => ({ enabled: true, pending: false, toggle: vi.fn() }),
+  useTrackToggle: ({ source }: { source: keyof typeof toggles }) => ({
+    enabled: true,
+    pending: false,
+    toggle: toggles[source],
+  }),
 }));
 vi.mock("@uniwork/core/meetings", () => ({
   useStartRecording: () => ({ mutate: startRecording, isPending: false }),
@@ -193,17 +198,47 @@ describe("MeetingControlBar", () => {
     expect(screen.getByRole("button", { name: "Ghi hình" })).toBeInTheDocument();
   });
 
-  it("opens AI copilot panel when the sparkles control is pressed", () => {
+  it("toggles the AI copilot panel: one name, state in aria-pressed", () => {
     mobile = false;
     handRaised = false;
-    const onOpenCopilot = vi.fn();
-    render(
+    const onToggleCopilot = vi.fn();
+    const { rerender } = render(
       wrapWithNav(
-        <MeetingControlBar onLeave={() => {}} onOpenCopilot={onOpenCopilot} copilotActive={false} />,
+        <MeetingControlBar onLeave={() => {}} onToggleCopilot={onToggleCopilot} copilotActive={false} />,
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Mở AI Copilot" }));
-    expect(onOpenCopilot).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "AI Copilot", pressed: false }));
+    expect(onToggleCopilot).toHaveBeenCalledOnce();
+    rerender(
+      wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={onToggleCopilot} copilotActive />),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "AI Copilot", pressed: true }));
+    expect(onToggleCopilot).toHaveBeenCalledTimes(2);
+  });
+
+  it("toggles mic with Ctrl+D and camera with Ctrl+E, but not while typing", () => {
+    mobile = false;
+    handRaised = false;
+    toggles.microphone.mockClear();
+    toggles.camera.mockClear();
+    render(
+      wrapWithNav(
+        <>
+          <MeetingControlBar onLeave={() => {}} />
+          <input aria-label="draft" />
+        </>,
+      ),
+    );
+    const mic = fireEvent.keyDown(window, { key: "d", ctrlKey: true });
+    expect(mic).toBe(false);
+    expect(toggles.microphone).toHaveBeenCalledOnce();
+    fireEvent.keyDown(window, { key: "e", metaKey: true });
+    expect(toggles.camera).toHaveBeenCalledOnce();
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "draft" }), { key: "d", ctrlKey: true });
+    expect(toggles.microphone).toHaveBeenCalledOnce();
+    fireEvent.keyDown(window, { key: "d" });
+    expect(toggles.microphone).toHaveBeenCalledOnce();
   });
 
   it("asks before leaving the room", () => {

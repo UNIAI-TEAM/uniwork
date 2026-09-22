@@ -12,7 +12,16 @@ RETURNING *;
 SELECT * FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC;
 
 -- name: ListMeetingsByWorkspaceFiltered :many
-SELECT * FROM meetings
+-- sort = 'starts_at' is the list screen's calendar order: meetings on
+-- the viewer's today (the today param, a day in the tz zone) and after come first, soonest
+-- first; earlier days follow, most recent day first, each day by start time.
+-- The id tiebreak keeps LIMIT/OFFSET pages stable across equal start times.
+SELECT sqlc.embed(meetings),
+  EXISTS (
+    SELECT 1 FROM meeting_recordings r
+    WHERE r.meeting_id = meetings.id AND r.file_url IS NOT NULL AND r.file_url <> ''
+  )::boolean AS has_playable_recording
+FROM meetings
 WHERE workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('meeting_type')::text IS NULL OR meeting_type = sqlc.narg('meeting_type'))
@@ -23,6 +32,12 @@ WHERE workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('to_at')::timestamptz IS NULL OR starts_at <= sqlc.narg('to_at'))
 ORDER BY
   CASE WHEN sqlc.arg('sort') = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  CASE WHEN sqlc.arg('sort') = 'starts_at'
+    THEN (starts_at AT TIME ZONE sqlc.arg('tz')::text)::date < sqlc.arg('today')::date END ASC,
+  CASE WHEN sqlc.arg('sort') = 'starts_at' AND (starts_at AT TIME ZONE sqlc.arg('tz')::text)::date < sqlc.arg('today')::date
+    THEN (starts_at AT TIME ZONE sqlc.arg('tz')::text)::date END DESC NULLS LAST,
+  CASE WHEN sqlc.arg('sort') = 'starts_at' THEN starts_at END ASC,
+  CASE WHEN sqlc.arg('sort') = 'starts_at' THEN id END ASC,
   created_at DESC,
   id DESC
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');

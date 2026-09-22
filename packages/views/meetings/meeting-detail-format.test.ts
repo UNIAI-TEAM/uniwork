@@ -13,4 +13,9 @@ describe("meetingTimeZoneLabel", () => {
     expect(meetingTimeZoneLabel("Mars/Olympus_Mons", "vi")).toBe("Olympus Mons");
     expect(meetingTimeZoneLabel("", "vi")).toBe("");
   });
+
+  it("reads the offset in force at a given instant", () => {
+    expect(meetingTimeZoneLabel("America/New_York", "en", new Date("2026-01-15T12:00:00Z"))).toBe("GMT-5 · New York");
+    expect(meetingTimeZoneLabel("America/New_York", "en", new Date("2026-07-15T12:00:00Z"))).toBe("GMT-4 · New York");
+  });
 });
