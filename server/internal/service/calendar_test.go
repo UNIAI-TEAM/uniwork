@@ -86,6 +86,16 @@ func (f calendarFix) meeting(t *testing.T, id, host, status string, starts time.
 		VALUES ($1, $2, $1, $3, $4, $1, $5, $5, $6)`, id, f.w.ID, starts, starts.Add(30*time.Minute), host, status)
 }
 
+func (f calendarFix) participant(t *testing.T, meetingID, userID string, removed bool) {
+	t.Helper()
+	var removedAt any
+	if removed {
+		removedAt = time.Now()
+	}
+	f.exec(t, `INSERT INTO meeting_participants (id, meeting_id, principal_type, user_id, added_by, removed_at)
+		VALUES ($1, $2, 'USER', $3, $3, $4)`, meetingID+"-"+userID, meetingID, userID, removedAt)
+}
+
 func day(y int, m time.Month, d int) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
@@ -177,6 +187,14 @@ func TestCalendarListEventsMineFilter(t *testing.T) {
 	mine := f.task(t, "mine", "2026-09-15", &f.a.ID)
 	theirs := f.task(t, "theirs", "2026-09-16", &f.b.ID)
 
+	meetStart := time.Date(2026, 9, 10, 3, 0, 0, 0, time.UTC)
+	f.meeting(t, "m-host", f.a.ID, "SCHEDULED", meetStart)
+	f.meeting(t, "m-participant", f.b.ID, "SCHEDULED", meetStart.Add(24*time.Hour))
+	f.participant(t, "m-participant", f.a.ID, false)
+	f.meeting(t, "m-other", f.b.ID, "SCHEDULED", meetStart.Add(48*time.Hour))
+	f.meeting(t, "m-removed", f.b.ID, "SCHEDULED", meetStart.Add(72*time.Hour))
+	f.participant(t, "m-removed", f.a.ID, true)
+
 	got, err := f.cal.ListEvents(ctx, f.w.ID, f.a.ID, from, to, true)
 	if err != nil {
 		t.Fatal(err)
@@ -187,6 +205,18 @@ func TestCalendarListEventsMineFilter(t *testing.T) {
 	}
 	if strings.Contains(ids, theirs) {
 		t.Fatalf("theirs visible under mine: %s", ids)
+	}
+	if !strings.Contains(ids, "meeting:m-host") {
+		t.Fatalf("missing hosted meeting under mine: %s", ids)
+	}
+	if !strings.Contains(ids, "meeting:m-participant") {
+		t.Fatalf("missing participant meeting under mine: %s", ids)
+	}
+	if strings.Contains(ids, "meeting:m-other") {
+		t.Fatalf("unrelated meeting visible under mine: %s", ids)
+	}
+	if strings.Contains(ids, "meeting:m-removed") {
+		t.Fatalf("removed participant meeting visible under mine: %s", ids)
 	}
 }
 
