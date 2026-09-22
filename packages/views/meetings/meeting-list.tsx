@@ -122,7 +122,7 @@ function MeetingDayCards({
                   {m.title}
                 </AppLink>
                 <div className="mt-1 flex items-center gap-2">
-                  <MeetingPersonAvatar name={host} size="sm" className="size-6" />
+                  <MeetingPersonAvatar name={host} size="sm" />
                   <span className="truncate text-caption text-muted-foreground">{host}</span>
                 </div>
               </MeetingCardRowMain>

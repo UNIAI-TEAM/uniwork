@@ -67,7 +67,12 @@ export function MeetingActivityTimeline({
                   const actor = nameOf(item.actor_id);
                   return (
                     <li key={item.id} className="relative flex min-w-0 items-start gap-3">
-                      <MeetingPersonAvatar name={actor} size="sm" className="relative ring-4 ring-surface" />
+                      <MeetingPersonAvatar
+                        name={actor}
+                        avatarUrl={members?.find((m) => m.user_id === item.actor_id)?.avatar_url}
+                        size="sm"
+                        className="relative ring-4 ring-surface"
+                      />
                       <div className="min-w-0 flex-1 pt-0.5">
                         <p className="text-body text-foreground">
                           <span className="font-medium">{actor}</span> {t(activityLabelKey(item.event_type))}

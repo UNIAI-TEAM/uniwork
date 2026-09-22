@@ -309,8 +309,8 @@ export function MeetingParticipantTile({
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <MeetingPersonAvatar
             name={name}
-            size={compact ? "sm" : "default"}
-            className={cn(compact ? "size-10" : "size-16", "ring-2 ring-meeting-bar-border")}
+            size={compact ? "lg" : "xl"}
+            className="ring-2 ring-meeting-bar-border"
           />
         </div>
       )}

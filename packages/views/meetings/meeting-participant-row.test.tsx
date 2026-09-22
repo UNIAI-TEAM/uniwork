@@ -10,9 +10,11 @@ beforeAll(() => {
   initI18n();
 });
 
+const livekit = vi.hoisted(() => ({ muted: false }));
+
 vi.mock("@livekit/components-react", () => ({
   useIsSpeaking: () => false,
-  useIsMuted: () => false,
+  useIsMuted: () => livekit.muted,
 }));
 
 vi.mock("./use-meeting-signals", () => ({
@@ -50,5 +52,33 @@ describe("MeetingParticipantRow", () => {
     fireEvent.click(screen.getByRole("button", { name: /Thao tác với Guest One/i }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Không cho phép nói \(host\)/i }));
     expect(onRevokeSpeaking).toHaveBeenCalledOnce();
+  });
+
+  it("renders uppercase initials, or the photo when an avatar URL is known", () => {
+    const { container, rerender } = render(<MeetingParticipantRow participant={fakeParticipant()} />);
+    expect(screen.getByText("GO")).toBeInTheDocument();
+    expect(container.querySelector("img")).toBeNull();
+
+    rerender(
+      <MeetingParticipantRow participant={fakeParticipant()} avatarUrl="https://cdn.test/guest.png" />,
+    );
+    expect(container.querySelector("img")).toHaveAttribute("src", "https://cdn.test/guest.png");
+  });
+
+  it("describes a muted mic as a state, not an action", () => {
+    livekit.muted = true;
+    try {
+      render(<MeetingParticipantRow participant={fakeParticipant()} />);
+      expect(screen.getByRole("img", { name: "Mic đang tắt" })).toBeInTheDocument();
+    } finally {
+      livekit.muted = false;
+    }
+  });
+
+  it("keeps the actions button visible on touch screens and when focused", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} />);
+    const trigger = screen.getByRole("button", { name: /Thao tác với Guest One/i });
+    expect(trigger.className).toMatch(/pointer-coarse:opacity-100/);
+    expect(trigger.className).toMatch(/focus-visible:opacity-100/);
   });
 });

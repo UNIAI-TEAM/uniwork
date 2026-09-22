@@ -51,7 +51,7 @@ export function MeetingActionItemRow({
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5">
         {owner && !selectable ? (
-          <MeetingPersonAvatar name={owner} size="sm" className="size-7" />
+          <MeetingPersonAvatar name={owner} size="sm" />
         ) : null}
         {assigneePreviewName && selectable ? (
           <span className="text-caption text-muted-foreground">{assigneePreviewName}</span>
