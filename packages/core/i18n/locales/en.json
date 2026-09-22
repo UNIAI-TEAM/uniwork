@@ -2100,7 +2100,8 @@
     "sidebar_empty_meet_with": "No upcoming meetings.",
     "sidebar_empty_assigned": "Nothing assigned to you.",
     "sidebar_empty_today_overdue": "Nothing due today or overdue.",
-    "sidebar_empty_backlog": "No backlog tasks."
+    "sidebar_empty_backlog": "No backlog tasks.",
+    "sidebar_task_drag_handle": "Drag {{title}} onto the calendar"
   },
   "chat": {
     "media_unavailable": "Couldn't load {{name}}",

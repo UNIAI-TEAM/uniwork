@@ -98,6 +98,14 @@ describe("CalendarSidebar", () => {
               { id: "task-1", title: "Drag me", status: "open" },
             ],
             assigned: [{ id: "task-2", title: "Also drag", status: "open" }],
+            meetWith: [
+              {
+                id: "meet-1",
+                title: "Not draggable",
+                startsAt: "2026-09-10T09:00:00+07:00",
+                endsAt: "2026-09-10T09:30:00+07:00",
+              },
+            ],
           }}
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
@@ -112,12 +120,18 @@ describe("CalendarSidebar", () => {
       eventData?: (el: HTMLElement) => unknown;
     };
     expect(firstOpts.itemSelector).toBe("[data-calendar-external-task]");
-    const li = document.querySelector("[data-task-id='task-1']") as HTMLElement;
-    expect(firstOpts.eventData?.(li)).toEqual({
+    const handle = document.querySelector(
+      "[data-calendar-external-task][data-task-id='task-1']",
+    ) as HTMLElement;
+    expect(handle.tagName).toBe("SPAN");
+    expect(firstOpts.eventData?.(handle)).toEqual({
       title: "Drag me",
       duration: { days: 1 },
       extendedProps: { uniworkTaskId: "task-1" },
     });
+    expect(
+      document.querySelector("[data-calendar-external-task][data-task-id='meet-1']"),
+    ).toBeNull();
   });
 
   it("calls onCreateMeeting from the meet-with CTA", () => {

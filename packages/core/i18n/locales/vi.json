@@ -2099,7 +2099,8 @@
     "sidebar_empty_meet_with": "Chưa có cuộc họp sắp tới.",
     "sidebar_empty_assigned": "Không có việc nào giao cho bạn.",
     "sidebar_empty_today_overdue": "Không có việc hôm nay hay quá hạn.",
-    "sidebar_empty_backlog": "Không có việc tồn đọng."
+    "sidebar_empty_backlog": "Không có việc tồn đọng.",
+    "sidebar_task_drag_handle": "Kéo {{title}} vào lịch"
   },
   "chat": {
     "media_unavailable": "Không tải được {{name}}",

@@ -2,7 +2,7 @@
 
 import { Draggable } from "@fullcalendar/interaction";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, GripVertical, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
   CalendarSidebar,
@@ -91,17 +91,22 @@ function SidebarTaskRow({
   task: CalendarSidebarTask;
   onOpen: () => void;
 }) {
+  const { t } = useTranslation();
   const dueLabel = formatDueLabel(task.dueDate);
   return (
-    <li
-      data-calendar-external-task
-      data-task-id={task.id}
-      data-task-title={task.title}
-      className="fc-event cursor-grab active:cursor-grabbing"
-    >
+    <li className="flex min-w-0 items-stretch rounded-md hover:bg-surface-hover">
+      <span
+        data-calendar-external-task
+        data-task-id={task.id}
+        data-task-title={task.title}
+        aria-label={t("calendar.sidebar_task_drag_handle", { title: task.title })}
+        className="fc-event flex shrink-0 cursor-grab items-center px-1 py-1.5 text-muted-foreground active:cursor-grabbing [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:justify-center"
+      >
+        <GripVertical className="size-3.5" aria-hidden />
+      </span>
       <button
         type="button"
-        className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-body hover:bg-surface-hover"
+        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 text-left text-body"
         onClick={onOpen}
       >
         <span className="min-w-0 flex-1 truncate text-foreground">{task.title}</span>
