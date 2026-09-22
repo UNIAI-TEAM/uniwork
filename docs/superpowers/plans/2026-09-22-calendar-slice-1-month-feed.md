@@ -732,7 +732,7 @@ EOF
 
 - [ ] **Step 1: Identify event names** already handled for tasks/meetings; add calendar key invalidation beside them (do not invent new WS payloads).
 
-- [ ] **Step 2: Test + implement**
+- [ ] **Step 2: Test + implement** — verify: `cd packages/core && NODE_OPTIONS="--no-experimental-webstorage" pnpm exec vitest run realtime/should-invalidate-calendar.test.ts realtime/use-realtime-sync.test.tsx`
 
 - [ ] **Step 3: Manual smoke** (human or agent with app up): `make start`, open `/…/calendar`, create a dated task elsewhere, refresh/see event, toggle Của tôi, click through to detail.
 

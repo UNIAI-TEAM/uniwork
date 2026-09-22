@@ -4,6 +4,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
+import { calendarKeys } from "../calendar/keys";
 import { agentKeys } from "../agents/hooks";
 import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
@@ -25,6 +26,7 @@ import {
   shouldInvalidateMeetingDetail,
   TRANSCRIPT_INVALIDATE_MS,
 } from "./invalidate-scheduler";
+import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
 
 /**
  * Central WS → cache sync for one workspace.
@@ -43,6 +45,17 @@ import {
  * detail entry was patched the frame skips the detail key; list roots and
  * every other key still invalidate, so row order and placement come from the API.
  */
+function calendarKeyForFrame(
+  wsId: string,
+  type: WSEventType,
+  payload: Record<string, string>,
+): readonly unknown[] | null {
+  if (!shouldInvalidateCalendar(type)) return null;
+  const frameWs = payload.workspace_id;
+  if (frameWs && frameWs !== wsId) return null;
+  return calendarKeys.all(frameWs ?? wsId);
+}
+
 function keysFor(
   wsId: string,
   type: WSEventType,
@@ -51,6 +64,10 @@ function keysFor(
 ) {
   const keys: readonly unknown[][] = [];
   const push = (k: readonly unknown[]) => (keys as unknown[][]).push([...k]);
+  const pushCalendar = () => {
+    const cal = calendarKeyForFrame(wsId, type, payload);
+    if (cal) push(cal);
+  };
 
   const workMgmt = planCacheUpdate(wsId, { type, payload });
   if (workMgmt.keys.length > 0) {
@@ -82,6 +99,7 @@ function keysFor(
     if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
       push(homeKeys.summary(wsId));
     }
+    pushCalendar();
     return keys;
   }
 
@@ -151,6 +169,7 @@ function keysFor(
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
       }
+      pushCalendar();
       break;
     }
     case "participant.invited":
@@ -324,6 +343,7 @@ function allWorkspaceKeys(wsId: string) {
     chatKeys.threadMessagesRoot(wsId),
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),
+    calendarKeys.all(wsId),
     meetingKeys.joinRequestsRoot,
     notificationKeys.lists(),
     notificationKeys.unreadCount(),
