@@ -10,7 +10,10 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-const maxCalendarRangeDays = 366
+const (
+	maxCalendarRangeDays      = 366
+	maxCalendarSidebarSection = 25
+)
 
 // CalendarService reads the workspace calendar feed: tasks with a due date and
 // non-canceled meetings overlapping an inclusive [from, to] day range.
@@ -26,6 +29,25 @@ func NewCalendarService(q *db.Queries, ws *WorkspaceService) *CalendarService {
 // CalendarEvent is one grid item for the month hub. IDs are "task:{id}" or
 // "meeting:{id}". All-day task ends are exclusive (due + 1 day), matching
 // packages/core/calendar/normalize.
+// CalendarSidebar is one read of the calendar left panel (map A).
+type CalendarSidebar struct {
+	Priorities   []CalendarSidebarTask
+	MeetWith     []CalendarSidebarMeeting
+	Assigned     []CalendarSidebarTask
+	TodayOverdue []CalendarSidebarTask
+	Backlog      []CalendarSidebarTask
+}
+
+type CalendarSidebarTask struct {
+	ID, Title, Status string
+	Priority, DueDate *string
+}
+
+type CalendarSidebarMeeting struct {
+	ID, Title        string
+	StartsAt, EndsAt string
+}
+
 type CalendarEvent struct {
 	ID        string
 	Kind      string
@@ -95,6 +117,142 @@ func (s *CalendarService) ListEvents(ctx context.Context, workspaceID, userID st
 		out = append(out, meetingCalendarEvent(m))
 	}
 	return out, nil
+}
+
+// ListSidebar returns the five planner sections for the workspace calendar
+// panel. "Today" is the UTC calendar day at call time.
+func (s *CalendarService) ListSidebar(ctx context.Context, workspaceID, userID string) (CalendarSidebar, error) {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+		return CalendarSidebar{}, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return CalendarSidebar{}, err
+	}
+
+	now := time.Now().UTC()
+	today := truncateUTCDate(now)
+	limit := int32(maxCalendarSidebarSection)
+	orgID := ws.OrganizationID
+	todayDate := pgtype.Date{Time: today, Valid: true}
+	fromAt := pgtype.Timestamptz{Time: now, Valid: true}
+	userText := pgtype.Text{String: userID, Valid: true}
+
+	priorities, err := s.q.ListCalendarSidebarPriorities(ctx, db.ListCalendarSidebarPrioritiesParams{
+		OrganizationID: orgID,
+		WorkspaceID:    workspaceID,
+		LimitN:         limit,
+	})
+	if err != nil {
+		return CalendarSidebar{}, err
+	}
+	meetWith, err := s.q.ListCalendarSidebarMeetWith(ctx, db.ListCalendarSidebarMeetWithParams{
+		WorkspaceID: workspaceID,
+		FromAt:      fromAt,
+		LimitN:      limit,
+	})
+	if err != nil {
+		return CalendarSidebar{}, err
+	}
+	assigned, err := s.q.ListCalendarSidebarAssigned(ctx, db.ListCalendarSidebarAssignedParams{
+		OrganizationID: orgID,
+		WorkspaceID:    workspaceID,
+		UserID:         userText,
+		Today:          todayDate,
+		LimitN:         limit,
+	})
+	if err != nil {
+		return CalendarSidebar{}, err
+	}
+	todayOverdue, err := s.q.ListCalendarSidebarTodayOverdue(ctx, db.ListCalendarSidebarTodayOverdueParams{
+		OrganizationID: orgID,
+		WorkspaceID:    workspaceID,
+		Today:          todayDate,
+		LimitN:         limit,
+	})
+	if err != nil {
+		return CalendarSidebar{}, err
+	}
+	backlog, err := s.q.ListCalendarSidebarBacklog(ctx, db.ListCalendarSidebarBacklogParams{
+		OrganizationID: orgID,
+		WorkspaceID:    workspaceID,
+		LimitN:         limit,
+	})
+	if err != nil {
+		return CalendarSidebar{}, err
+	}
+
+	out := CalendarSidebar{
+		Priorities:   mapCalendarSidebarTasks(priorities),
+		MeetWith:     mapCalendarSidebarMeetings(meetWith),
+		Assigned:     mapCalendarSidebarAssignedTasks(assigned),
+		TodayOverdue: mapCalendarSidebarTodayOverdueTasks(todayOverdue),
+		Backlog:      mapCalendarSidebarBacklogTasks(backlog),
+	}
+	return out, nil
+}
+
+func mapCalendarSidebarTasks(rows []db.ListCalendarSidebarPrioritiesRow) []CalendarSidebarTask {
+	out := make([]CalendarSidebarTask, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, calendarSidebarTask(r.ID, r.Title, r.Status, r.Priority, r.DueDate))
+	}
+	return out
+}
+
+func mapCalendarSidebarAssignedTasks(rows []db.ListCalendarSidebarAssignedRow) []CalendarSidebarTask {
+	out := make([]CalendarSidebarTask, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, calendarSidebarTask(r.ID, r.Title, r.Status, r.Priority, r.DueDate))
+	}
+	return out
+}
+
+func mapCalendarSidebarTodayOverdueTasks(rows []db.ListCalendarSidebarTodayOverdueRow) []CalendarSidebarTask {
+	out := make([]CalendarSidebarTask, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, calendarSidebarTask(r.ID, r.Title, r.Status, r.Priority, r.DueDate))
+	}
+	return out
+}
+
+func mapCalendarSidebarBacklogTasks(rows []db.ListCalendarSidebarBacklogRow) []CalendarSidebarTask {
+	out := make([]CalendarSidebarTask, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, calendarSidebarTask(r.ID, r.Title, r.Status, r.Priority, r.DueDate))
+	}
+	return out
+}
+
+func calendarSidebarTask(id, title, status, priority string, due pgtype.Date) CalendarSidebarTask {
+	return CalendarSidebarTask{
+		ID:       id,
+		Title:    title,
+		Status:   status,
+		Priority: calendarStrPtr(priority),
+		DueDate:  calendarDatePtr(due),
+	}
+}
+
+func mapCalendarSidebarMeetings(rows []db.ListCalendarSidebarMeetWithRow) []CalendarSidebarMeeting {
+	out := make([]CalendarSidebarMeeting, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, CalendarSidebarMeeting{
+			ID:       m.ID,
+			Title:    m.Title,
+			StartsAt: m.StartsAt.Time.UTC().Format(time.RFC3339),
+			EndsAt:   m.EndsAt.Time.UTC().Format(time.RFC3339),
+		})
+	}
+	return out
+}
+
+func calendarDatePtr(d pgtype.Date) *string {
+	if !d.Valid {
+		return nil
+	}
+	s := d.Time.Format(time.DateOnly)
+	return &s
 }
 
 func truncateUTCDate(t time.Time) time.Time {

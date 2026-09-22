@@ -143,10 +143,11 @@ type Routes struct {
 	GetTaskViewPreference http.HandlerFunc
 	PutTaskViewPreference http.HandlerFunc
 
-	GetHomeSummary     http.HandlerFunc
-	GetHomePreference  http.HandlerFunc
-	PutHomePreference  http.HandlerFunc
-	ListCalendarEvents http.HandlerFunc
+	GetHomeSummary      http.HandlerFunc
+	GetHomePreference   http.HandlerFunc
+	PutHomePreference   http.HandlerFunc
+	ListCalendarEvents  http.HandlerFunc
+	ListCalendarSidebar http.HandlerFunc
 
 	ListEmailHubAccounts          http.HandlerFunc
 	ConnectEmailHubAccount        http.HandlerFunc

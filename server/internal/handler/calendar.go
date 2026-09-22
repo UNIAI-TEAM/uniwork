@@ -59,6 +59,53 @@ func (h *handlers) listCalendarEvents(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, out)
 }
 
+func (h *handlers) listCalendarSidebar(w http.ResponseWriter, r *http.Request) {
+	sidebar, err := h.Calendar.ListSidebar(
+		r.Context(),
+		chi.URLParam(r, "workspaceID"),
+		middleware.UserID(r.Context()),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, toCalendarSidebarSDO(sidebar))
+}
+
+func toCalendarSidebarSDO(s service.CalendarSidebar) sdo.CalendarSidebarSDO {
+	out := sdo.CalendarSidebarSDO{
+		Priorities:   make([]sdo.CalendarSidebarTaskSDO, 0, len(s.Priorities)),
+		MeetWith:     make([]sdo.CalendarSidebarMeetingSDO, 0, len(s.MeetWith)),
+		Assigned:     make([]sdo.CalendarSidebarTaskSDO, 0, len(s.Assigned)),
+		TodayOverdue: make([]sdo.CalendarSidebarTaskSDO, 0, len(s.TodayOverdue)),
+		Backlog:      make([]sdo.CalendarSidebarTaskSDO, 0, len(s.Backlog)),
+	}
+	for _, t := range s.Priorities {
+		out.Priorities = append(out.Priorities, toCalendarSidebarTaskSDO(t))
+	}
+	for _, m := range s.MeetWith {
+		out.MeetWith = append(out.MeetWith, sdo.CalendarSidebarMeetingSDO{
+			ID: m.ID, Title: m.Title, StartsAt: m.StartsAt, EndsAt: m.EndsAt,
+		})
+	}
+	for _, t := range s.Assigned {
+		out.Assigned = append(out.Assigned, toCalendarSidebarTaskSDO(t))
+	}
+	for _, t := range s.TodayOverdue {
+		out.TodayOverdue = append(out.TodayOverdue, toCalendarSidebarTaskSDO(t))
+	}
+	for _, t := range s.Backlog {
+		out.Backlog = append(out.Backlog, toCalendarSidebarTaskSDO(t))
+	}
+	return out
+}
+
+func toCalendarSidebarTaskSDO(t service.CalendarSidebarTask) sdo.CalendarSidebarTaskSDO {
+	return sdo.CalendarSidebarTaskSDO{
+		ID: t.ID, Title: t.Title, Status: t.Status, Priority: t.Priority, DueDate: t.DueDate,
+	}
+}
+
 func toCalendarEventSDO(e service.CalendarEvent) sdo.CalendarEventSDO {
 	return sdo.CalendarEventSDO{
 		ID:        e.ID,

@@ -78,6 +78,292 @@ func (q *Queries) ListCalendarMeetingsInRange(ctx context.Context, arg ListCalen
 	return items, nil
 }
 
+const listCalendarSidebarAssigned = `-- name: ListCalendarSidebarAssigned :many
+SELECT t.id, t.title, t.status, t.priority, t.due_date
+FROM tasks t
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND t.assignee_kind = 'human'
+  AND t.assignee_id = $3
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+ORDER BY
+  CASE
+    WHEN t.due_date IS NULL THEN 3
+    WHEN t.due_date < $4::date THEN 0
+    WHEN t.due_date = $4::date THEN 1
+    ELSE 2
+  END,
+  t.due_date NULLS LAST,
+  CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
+  t.created_at,
+  t.id
+LIMIT $5
+`
+
+type ListCalendarSidebarAssignedParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	UserID         pgtype.Text `json:"user_id"`
+	Today          pgtype.Date `json:"today"`
+	LimitN         int32       `json:"limit_n"`
+}
+
+type ListCalendarSidebarAssignedRow struct {
+	ID       string      `json:"id"`
+	Title    string      `json:"title"`
+	Status   string      `json:"status"`
+	Priority string      `json:"priority"`
+	DueDate  pgtype.Date `json:"due_date"`
+}
+
+func (q *Queries) ListCalendarSidebarAssigned(ctx context.Context, arg ListCalendarSidebarAssignedParams) ([]ListCalendarSidebarAssignedRow, error) {
+	rows, err := q.db.Query(ctx, listCalendarSidebarAssigned,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.Today,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCalendarSidebarAssignedRow{}
+	for rows.Next() {
+		var i ListCalendarSidebarAssignedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.DueDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCalendarSidebarBacklog = `-- name: ListCalendarSidebarBacklog :many
+SELECT t.id, t.title, t.status, t.priority, t.due_date
+FROM tasks t
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND (t.status = 'backlog' OR ts.category = 'backlog')
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+ORDER BY t.created_at, t.id
+LIMIT $3
+`
+
+type ListCalendarSidebarBacklogParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	LimitN         int32  `json:"limit_n"`
+}
+
+type ListCalendarSidebarBacklogRow struct {
+	ID       string      `json:"id"`
+	Title    string      `json:"title"`
+	Status   string      `json:"status"`
+	Priority string      `json:"priority"`
+	DueDate  pgtype.Date `json:"due_date"`
+}
+
+func (q *Queries) ListCalendarSidebarBacklog(ctx context.Context, arg ListCalendarSidebarBacklogParams) ([]ListCalendarSidebarBacklogRow, error) {
+	rows, err := q.db.Query(ctx, listCalendarSidebarBacklog, arg.OrganizationID, arg.WorkspaceID, arg.LimitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCalendarSidebarBacklogRow{}
+	for rows.Next() {
+		var i ListCalendarSidebarBacklogRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.DueDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCalendarSidebarMeetWith = `-- name: ListCalendarSidebarMeetWith :many
+SELECT m.id, m.title, m.starts_at, m.ends_at
+FROM meetings m
+WHERE m.workspace_id = $1
+  AND m.status <> 'CANCELED'
+  AND m.starts_at >= $2::timestamptz
+ORDER BY m.starts_at ASC, m.id
+LIMIT $3
+`
+
+type ListCalendarSidebarMeetWithParams struct {
+	WorkspaceID string             `json:"workspace_id"`
+	FromAt      pgtype.Timestamptz `json:"from_at"`
+	LimitN      int32              `json:"limit_n"`
+}
+
+type ListCalendarSidebarMeetWithRow struct {
+	ID       string             `json:"id"`
+	Title    string             `json:"title"`
+	StartsAt pgtype.Timestamptz `json:"starts_at"`
+	EndsAt   pgtype.Timestamptz `json:"ends_at"`
+}
+
+func (q *Queries) ListCalendarSidebarMeetWith(ctx context.Context, arg ListCalendarSidebarMeetWithParams) ([]ListCalendarSidebarMeetWithRow, error) {
+	rows, err := q.db.Query(ctx, listCalendarSidebarMeetWith, arg.WorkspaceID, arg.FromAt, arg.LimitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCalendarSidebarMeetWithRow{}
+	for rows.Next() {
+		var i ListCalendarSidebarMeetWithRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.StartsAt,
+			&i.EndsAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCalendarSidebarPriorities = `-- name: ListCalendarSidebarPriorities :many
+SELECT t.id, t.title, t.status, t.priority, t.due_date
+FROM tasks t
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND t.priority IN ('urgent', 'high')
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+ORDER BY
+  CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,
+  t.due_date NULLS LAST,
+  t.created_at,
+  t.id
+LIMIT $3
+`
+
+type ListCalendarSidebarPrioritiesParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	LimitN         int32  `json:"limit_n"`
+}
+
+type ListCalendarSidebarPrioritiesRow struct {
+	ID       string      `json:"id"`
+	Title    string      `json:"title"`
+	Status   string      `json:"status"`
+	Priority string      `json:"priority"`
+	DueDate  pgtype.Date `json:"due_date"`
+}
+
+func (q *Queries) ListCalendarSidebarPriorities(ctx context.Context, arg ListCalendarSidebarPrioritiesParams) ([]ListCalendarSidebarPrioritiesRow, error) {
+	rows, err := q.db.Query(ctx, listCalendarSidebarPriorities, arg.OrganizationID, arg.WorkspaceID, arg.LimitN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCalendarSidebarPrioritiesRow{}
+	for rows.Next() {
+		var i ListCalendarSidebarPrioritiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.DueDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCalendarSidebarTodayOverdue = `-- name: ListCalendarSidebarTodayOverdue :many
+SELECT t.id, t.title, t.status, t.priority, t.due_date
+FROM tasks t
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE t.organization_id = $1
+  AND t.workspace_id = $2
+  AND t.due_date IS NOT NULL
+  AND t.due_date <= $3::date
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+ORDER BY t.due_date, t.created_at, t.id
+LIMIT $4
+`
+
+type ListCalendarSidebarTodayOverdueParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Today          pgtype.Date `json:"today"`
+	LimitN         int32       `json:"limit_n"`
+}
+
+type ListCalendarSidebarTodayOverdueRow struct {
+	ID       string      `json:"id"`
+	Title    string      `json:"title"`
+	Status   string      `json:"status"`
+	Priority string      `json:"priority"`
+	DueDate  pgtype.Date `json:"due_date"`
+}
+
+func (q *Queries) ListCalendarSidebarTodayOverdue(ctx context.Context, arg ListCalendarSidebarTodayOverdueParams) ([]ListCalendarSidebarTodayOverdueRow, error) {
+	rows, err := q.db.Query(ctx, listCalendarSidebarTodayOverdue,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Today,
+		arg.LimitN,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCalendarSidebarTodayOverdueRow{}
+	for rows.Next() {
+		var i ListCalendarSidebarTodayOverdueRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.DueDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCalendarTasksInRange = `-- name: ListCalendarTasksInRange :many
 SELECT id, title, status, priority, project_id, start_date, due_date, assignee_id, assignee_kind
 FROM tasks

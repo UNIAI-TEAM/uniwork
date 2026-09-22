@@ -69,15 +69,35 @@ func (f calendarFix) exec(t *testing.T, sql string, args ...any) {
 
 func (f calendarFix) task(t *testing.T, title, due string, assignee *string) string {
 	t.Helper()
-	in := CreateTaskInput{Title: title, DueDate: &due}
-	if assignee != nil {
-		in.AssigneeID = assignee
+	return f.taskWith(context.Background(), t, CreateTaskInput{Title: title, DueDate: &due, AssigneeID: assignee})
+}
+
+func (f calendarFix) taskWith(ctx context.Context, t *testing.T, in CreateTaskInput) string {
+	t.Helper()
+	if in.Title == "" {
+		t.Fatal("title required")
 	}
-	task, err := f.tasks.Create(context.Background(), Human(f.a.ID), f.w.ID, in)
+	task, err := f.tasks.Create(ctx, Human(f.a.ID), f.w.ID, in)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return task.ID
+}
+
+func sidebarTaskIDs(tasks []CalendarSidebarTask) string {
+	ids := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, t.ID)
+	}
+	return strings.Join(ids, ",")
+}
+
+func sidebarMeetingIDs(meetings []CalendarSidebarMeeting) string {
+	ids := make([]string, 0, len(meetings))
+	for _, m := range meetings {
+		ids = append(ids, m.ID)
+	}
+	return strings.Join(ids, ",")
 }
 
 func (f calendarFix) meeting(t *testing.T, id, host, status string, starts time.Time) {
@@ -230,6 +250,81 @@ func TestCalendarListEventsRejectsBadRange(t *testing.T) {
 	}
 	if _, err := f.cal.ListEvents(ctx, f.w.ID, f.a.ID, day(2026, 1, 1), day(2027, 1, 3), false); !errors.As(err, &ve) {
 		t.Fatalf("span > 366: %v", err)
+	}
+}
+
+func TestCalendarListSidebarSections(t *testing.T) {
+	f := calendarFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	yesterday := now.AddDate(0, 0, -1).Format(time.DateOnly)
+	tomorrow := now.AddDate(0, 0, 1).Format(time.DateOnly)
+
+	urgentID := f.taskWith(ctx, t, CreateTaskInput{Title: "urgent-open", Priority: "urgent", DueDate: &tomorrow})
+	f.taskWith(ctx, t, CreateTaskInput{Title: "medium-open", Priority: "medium", DueDate: &tomorrow})
+	doneHigh := f.taskWith(ctx, t, CreateTaskInput{Title: "high-done", Priority: "high", DueDate: &tomorrow, Status: "done"})
+
+	mineAssigned := f.task(t, "mine-assigned", tomorrow, &f.a.ID)
+	f.task(t, "theirs-assigned", tomorrow, &f.b.ID)
+
+	overdueID := f.taskWith(ctx, t, CreateTaskInput{Title: "overdue", DueDate: &yesterday})
+	f.taskWith(ctx, t, CreateTaskInput{Title: "due-later", DueDate: &tomorrow})
+
+	backlogID := f.taskWith(ctx, t, CreateTaskInput{Title: "in-backlog", Status: "backlog"})
+	f.exec(t, `UPDATE tasks SET status = 'done' WHERE id = $1`, doneHigh)
+
+	futureStart := now.Add(2 * time.Hour)
+	pastStart := now.Add(-2 * time.Hour)
+	f.meeting(t, "m-upcoming", f.a.ID, "SCHEDULED", futureStart)
+	f.meeting(t, "m-past", f.a.ID, "SCHEDULED", pastStart)
+	f.meeting(t, "m-canceled", f.a.ID, "CANCELED", futureStart.Add(time.Hour))
+
+	got, err := f.cal.ListSidebar(ctx, f.w.ID, f.a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prio := sidebarTaskIDs(got.Priorities)
+	if !strings.Contains(prio, urgentID) || strings.Contains(prio, doneHigh) {
+		t.Fatalf("priorities: want urgent open only, got %s", prio)
+	}
+	if strings.Contains(prio, "medium") {
+		t.Fatalf("non-priority task in priorities: %s", prio)
+	}
+
+	assigned := sidebarTaskIDs(got.Assigned)
+	if !strings.Contains(assigned, mineAssigned) || strings.Contains(assigned, "theirs") {
+		t.Fatalf("assigned: %s", assigned)
+	}
+
+	overdue := sidebarTaskIDs(got.TodayOverdue)
+	if !strings.Contains(overdue, overdueID) {
+		t.Fatalf("today_overdue missing overdue: %s", overdue)
+	}
+	if strings.Contains(overdue, "due-later") {
+		t.Fatalf("future due in today_overdue: %s", overdue)
+	}
+	backlog := sidebarTaskIDs(got.Backlog)
+	if !strings.Contains(backlog, backlogID) {
+		t.Fatalf("backlog: %s", backlog)
+	}
+
+	meet := sidebarMeetingIDs(got.MeetWith)
+	if !strings.Contains(meet, "m-upcoming") {
+		t.Fatalf("meet_with missing upcoming: %s", meet)
+	}
+	if strings.Contains(meet, "m-past") || strings.Contains(meet, "m-canceled") {
+		t.Fatalf("meet_with must exclude past/canceled: %s", meet)
+	}
+}
+
+func TestCalendarListSidebarForbiddenForNonMember(t *testing.T) {
+	f := calendarFixture(t)
+	ctx := context.Background()
+	q := db.New(f.pool)
+	as := NewAuthService(f.pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	outsider := registerVerified(t, q, as, "cal-sidebar-outsider@example.com", "Out")
+	if _, err := f.cal.ListSidebar(ctx, f.w.ID, outsider.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-member: %v", err)
 	}
 }
 
