@@ -82,6 +82,42 @@ describe("MeetingFilters", () => {
   });
 });
 
+describe("MeetingFilters while searching", () => {
+  it("hides the chip counts, which count the whole workspace and not the search", () => {
+    render(
+      <MeetingFilters
+        status=""
+        query="retro"
+        stats={{ total: 10, scheduled: 3, in_progress: 2, ended: 4, canceled: 1 }}
+        onStatus={() => {}}
+        onQuery={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Đã kết thúc" })).toBeInTheDocument();
+    expect(screen.queryByText("4")).not.toBeInTheDocument();
+  });
+
+  it("counts again once the search is only whitespace", () => {
+    render(
+      <MeetingFilters
+        status=""
+        query="  "
+        stats={{ total: 10, scheduled: 3, in_progress: 2, ended: 4, canceled: 1 }}
+        onStatus={() => {}}
+        onQuery={() => {}}
+      />,
+    );
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+
+  it("wraps the chips on a narrow screen instead of scrolling them out of sight", () => {
+    render(<MeetingFilters status="" query="" stats={null} onStatus={() => {}} onQuery={() => {}} />);
+    const group = screen.getByRole("group", { name: "Trạng thái" });
+    expect(group).toHaveClass("flex-wrap");
+    expect(group).not.toHaveClass("overflow-x-auto");
+  });
+});
+
 describe("chip and badge agreement", () => {
   // The server filters by stored status; the row badge shows the status as the
   // viewer's clock sees it. Every badge a chip's rows can carry must be one the

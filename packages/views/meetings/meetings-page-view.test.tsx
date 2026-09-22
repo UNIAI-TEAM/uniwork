@@ -124,6 +124,26 @@ describe("MeetingsPageView URL state", () => {
     await waitFor(() => expect(adapter.replace).toHaveBeenLastCalledWith("/org/team/meetings?status=ENDED&q=plan"));
   });
 
+  it("asks the server for the calendar order the list draws, in the viewer's zone", async () => {
+    renderPage(nav(""));
+    await screen.findByText("Retro");
+    expect(listCalls()[0]).toContain("sort=starts_at");
+    expect(listCalls()[0]).toContain(`tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`);
+  });
+
+  it("moves a page past the end back to the last page", async () => {
+    const adapter = nav("status=ENDED&page=9");
+    renderPage(adapter);
+    await waitFor(() => expect(adapter.replace).toHaveBeenLastCalledWith("/org/team/meetings?status=ENDED&page=3"));
+  });
+
+  it("leaves an in-range page alone", async () => {
+    const adapter = nav("page=3");
+    renderPage(adapter);
+    await screen.findByText("Retro");
+    expect(adapter.replace).not.toHaveBeenCalled();
+  });
+
   it("ignores a status the list does not know", async () => {
     renderPage(nav("status=BOGUS"));
     await screen.findByText("Retro");
@@ -136,8 +156,23 @@ describe("MeetingsPageView error", () => {
     requestMock.mockImplementation((path: unknown) =>
       String(path).includes("/meetings?") ? Promise.reject(new Error("boom")) : Promise.resolve({}),
     );
-    renderPage(nav(""));
+    renderPage(nav("q=retro"));
     expect(await screen.findByText("Chưa tải được danh sách cuộc họp")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    // The search and chips stay, so the viewer can change what failed without retyping it.
+    expect(screen.getByRole("searchbox")).toHaveValue("retro");
+    expect(screen.getByRole("group", { name: "Trạng thái" })).toBeInTheDocument();
+  });
+
+  it("shows the error, not the empty workspace, when the list answer is malformed", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("/meetings?")) return Promise.resolve({ meetings: [{ id: "m1" }] });
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+    renderPage(nav(""));
+    expect(await screen.findByText("Chưa tải được danh sách cuộc họp")).toBeInTheDocument();
+    expect(screen.queryByText("Chưa có cuộc họp nào")).not.toBeInTheDocument();
   });
 });

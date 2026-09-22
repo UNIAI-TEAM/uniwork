@@ -29,16 +29,42 @@ function openDialog() {
 }
 
 describe("NewMeetingDialog", () => {
-  it("names the primary action and says why it waits for a title", () => {
+  it("keeps the primary action enabled and puts the title error under the title on submit", () => {
     requestMock.mockResolvedValue({ members: [] });
     const dialog = openDialog();
     const submit = within(dialog).getByRole("button", { name: "Tạo cuộc họp" });
-    expect(submit).toBeDisabled();
-    expect(within(dialog).getByText("Nhập tiêu đề để tiếp tục")).toBeInTheDocument();
-
-    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp tuần" } });
+    const input = within(dialog).getByLabelText("Tiêu đề");
     expect(submit).toBeEnabled();
+    expect(input).not.toHaveAttribute("aria-invalid");
     expect(within(dialog).queryByText("Nhập tiêu đề để tiếp tục")).not.toBeInTheDocument();
+
+    fireEvent.click(submit);
+    const error = within(dialog).getByText("Nhập tiêu đề để tiếp tục");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.getAttribute("aria-describedby")).toContain(error.id);
+    expect(input).toHaveFocus();
+    expect(requestMock.mock.calls.some((c) => (c[1] as { method?: string } | undefined)?.method === "POST")).toBe(false);
+
+    fireEvent.change(input, { target: { value: "Họp tuần" } });
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(within(dialog).queryByText("Nhập tiêu đề để tiếp tục")).not.toBeInTheDocument();
+  });
+
+  it("lets the attendee list be searched and says how many are picked", async () => {
+    requestMock.mockResolvedValue({
+      members: [
+        { workspace_id: "w1", user_id: "u-a", role: "member", email: "an@x.com", display_name: "An" },
+        { workspace_id: "w1", user_id: "u-b", role: "member", email: "binh@x.com", display_name: "Bình" },
+      ],
+    });
+    const dialog = openDialog();
+    const search = within(dialog).getByRole("searchbox", { name: "Tìm thành viên" });
+    expect(within(dialog).getByLabelText("Tiêu đề")).toHaveFocus();
+    fireEvent.click(await within(dialog).findByRole("checkbox", { name: /An/ }));
+    expect(within(dialog).getByText("Đã chọn 1 người")).toHaveAttribute("aria-live", "polite");
+    fireEvent.change(search, { target: { value: "bình" } });
+    expect(within(dialog).queryByRole("checkbox", { name: /An/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Đã chọn 1 người")).toBeInTheDocument();
   });
 
   it("shows the host and guest-link notes as text, not behind a tooltip", () => {

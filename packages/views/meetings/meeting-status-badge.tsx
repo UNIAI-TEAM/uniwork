@@ -41,7 +41,7 @@ const LINK_TONE: Record<"active" | "expired" | "revoked" | "limit_reached", Meet
   limit_reached: "warning",
 };
 
-function ToneBadge({ tone, className, children }: { tone: MeetingTone; className?: string; children: React.ReactNode }) {
+export function ToneBadge({ tone, className, children }: { tone: MeetingTone; className?: string; children: React.ReactNode }) {
   return (
     <Badge data-tone={tone} className={cn(MEETING_TONE_BADGE[tone], className)}>
       {children}

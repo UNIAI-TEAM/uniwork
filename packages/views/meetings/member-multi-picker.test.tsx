@@ -52,4 +52,30 @@ describe("MemberMultiPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     expect(await screen.findByText(EMPTY)).toBeInTheDocument();
   });
+
+  it("says how many people are picked, in a polite live region", async () => {
+    membersRespond(() =>
+      Promise.resolve({
+        members: [
+          { workspace_id: "w1", user_id: "u-a", role: "member", email: "an@x.com", display_name: "An" },
+          { workspace_id: "w1", user_id: "u-b", role: "member", email: "binh@x.com", display_name: "Bình" },
+        ],
+      }),
+    );
+    const { rerender } = render(wrapWithNav(<MemberMultiPicker workspaceId="w1" value={[]} onChange={() => {}} />));
+    await screen.findByText("An");
+    expect(screen.queryByText(/Đã chọn/)).not.toBeInTheDocument();
+    rerender(wrapWithNav(<MemberMultiPicker workspaceId="w1" value={["u-a", "u-b"]} onChange={() => {}} />));
+    expect(screen.getByText("Đã chọn 2 người")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("does not steal focus from the dialog's first field when asked not to", async () => {
+    membersRespond(() => Promise.resolve({ members: [] }));
+    render(
+      wrapWithNav(
+        <MemberMultiPicker workspaceId="w1" value={[]} onChange={() => {}} searchable autoFocusSearch={false} />,
+      ),
+    );
+    expect(screen.getByRole("searchbox", { name: "Tìm thành viên" })).not.toHaveFocus();
+  });
 });
