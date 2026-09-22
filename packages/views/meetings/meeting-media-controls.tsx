@@ -4,11 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Mic, MicOff, Video, VideoOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Field, FieldDescription, FieldLabel, FieldTitle } from "@uniwork/ui/components/ui/field";
-import { Select } from "@uniwork/ui/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 
-type Device = { deviceId: string; label: string };
+export type MediaDevice = { deviceId: string; label: string };
 
 /**
  * Camera/mic inventory without a LiveKit room. Labels appear once a
@@ -16,8 +14,8 @@ type Device = { deviceId: string; label: string };
  * since not every browser fires `devicechange` for it.
  */
 export function useMediaDevices(): {
-  cameras: Device[];
-  mics: Device[];
+  cameras: MediaDevice[];
+  mics: MediaDevice[];
   refresh: () => void;
 } {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
@@ -32,56 +30,11 @@ export function useMediaDevices(): {
     md.addEventListener?.("devicechange", refresh);
     return () => md.removeEventListener?.("devicechange", refresh);
   }, [refresh]);
-  const pick = (kind: MediaDeviceKind): Device[] =>
+  const pick = (kind: MediaDeviceKind): MediaDevice[] =>
     devices
       .filter((d) => d.kind === kind && d.deviceId)
       .map((d) => ({ deviceId: d.deviceId, label: d.label }));
   return { cameras: pick("videoinput"), mics: pick("audioinput"), refresh };
-}
-
-/**
- * Device picker for prejoin screens. Before the browser grants access every
- * device comes back with an empty id, so the list is empty — the field stays
- * and says why instead of vanishing.
- */
-export function MeetingDeviceField({
-  id,
-  label,
-  devices,
-  value,
-  onValueChange,
-  emptyDescription,
-}: {
-  id: string;
-  label: string;
-  devices: Device[];
-  value: string;
-  onValueChange: (deviceId: string) => void;
-  emptyDescription: string;
-}) {
-  const { t } = useTranslation();
-  if (devices.length === 0) {
-    return (
-      <Field>
-        <FieldTitle>{label}</FieldTitle>
-        <FieldDescription className="text-caption">{emptyDescription}</FieldDescription>
-      </Field>
-    );
-  }
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select
-        id={id}
-        value={value || devices[0]!.deviceId}
-        onValueChange={(v) => v && onValueChange(v)}
-        items={devices.map((d) => ({
-          value: d.deviceId,
-          label: d.label || t("meetings.deviceUnnamed"),
-        }))}
-      />
-    </Field>
-  );
 }
 
 /**

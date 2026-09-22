@@ -12,11 +12,8 @@ import {
 } from "./meeting-camera-preview";
 import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
-import {
-  MeetingDeviceField,
-  MeetingMediaControlBar,
-  useMediaDevices,
-} from "./meeting-media-controls";
+import { MeetingDeviceField } from "./meeting-device-field";
+import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
 export interface PreJoinChoice {
