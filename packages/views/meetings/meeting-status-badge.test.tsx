@@ -63,3 +63,40 @@ describe("MeetingLinkBadge", () => {
     expect(screen.getByText("Đã đạt giới hạn")).toBeInTheDocument();
   });
 });
+
+describe("status tones", () => {
+  // Live, overtime and cancelled are states, so they wear signal colours;
+  // PRODUCT.md keeps the meetings violet for identity only.
+  it("gives every meeting status one signal tone", () => {
+    const tones: Record<string, string> = {};
+    for (const status of ["SCHEDULED", "IN_PROGRESS", "OVERTIME", "ENDED", "CANCELED"]) {
+      const { container, unmount } = render(<MeetingStatusBadge status={status} />);
+      tones[status] = container.querySelector("[data-tone]")?.getAttribute("data-tone") ?? "";
+      unmount();
+    }
+    expect(tones).toEqual({
+      SCHEDULED: "info",
+      IN_PROGRESS: "success",
+      OVERTIME: "warning",
+      ENDED: "muted",
+      CANCELED: "destructive",
+    });
+  });
+
+  it("marks RSVP and link states with the same signal set", () => {
+    const tone = (ui: React.ReactElement) => {
+      const { container, unmount } = render(ui);
+      const value = container.querySelector("[data-tone]")?.getAttribute("data-tone");
+      unmount();
+      return value;
+    };
+    expect(tone(<MeetingRsvpBadge status="ACCEPTED" />)).toBe("success");
+    expect(tone(<MeetingRsvpBadge status="TENTATIVE" />)).toBe("warning");
+    expect(tone(<MeetingRsvpBadge status="DECLINED" />)).toBe("destructive");
+    expect(tone(<MeetingRsvpBadge status="PENDING" />)).toBe("muted");
+    expect(tone(<MeetingLinkBadge status="active" />)).toBe("success");
+    expect(tone(<MeetingLinkBadge status="limit_reached" />)).toBe("warning");
+    expect(tone(<MeetingLinkBadge status="revoked" />)).toBe("destructive");
+    expect(tone(<MeetingLinkBadge status="expired" />)).toBe("muted");
+  });
+});
