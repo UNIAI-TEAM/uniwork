@@ -270,7 +270,7 @@ describe("MeetingDetailView", () => {
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
-    expect(screen.getByText("Đã kết thúc")).toBeInTheDocument();
+    expect(screen.getByText("Không diễn ra")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Huỷ cuộc họp" })).toBeInTheDocument();
   });
 

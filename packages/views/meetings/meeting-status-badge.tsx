@@ -22,6 +22,7 @@ export const MEETING_STATUS_TONE: Record<string, MeetingTone> = {
   SCHEDULED: "info",
   IN_PROGRESS: "success",
   OVERTIME: "warning",
+  MISSED: "muted",
   ENDED: "muted",
   CANCELED: "destructive",
 };

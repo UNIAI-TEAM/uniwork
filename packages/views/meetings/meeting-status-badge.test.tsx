@@ -18,6 +18,9 @@ describe("MeetingStatusBadge", () => {
     rerender(<MeetingStatusBadge status="OVERTIME" />);
     expect(screen.getByText("Quá giờ")).toBeInTheDocument();
 
+    rerender(<MeetingStatusBadge status="MISSED" />);
+    expect(screen.getByText("Không diễn ra")).toBeInTheDocument();
+
     rerender(<MeetingStatusBadge status="ENDED" />);
     expect(screen.getByText("Đã kết thúc")).toBeInTheDocument();
 
@@ -69,7 +72,7 @@ describe("status tones", () => {
   // PRODUCT.md keeps the meetings violet for identity only.
   it("gives every meeting status one signal tone", () => {
     const tones: Record<string, string> = {};
-    for (const status of ["SCHEDULED", "IN_PROGRESS", "OVERTIME", "ENDED", "CANCELED"]) {
+    for (const status of ["SCHEDULED", "IN_PROGRESS", "OVERTIME", "MISSED", "ENDED", "CANCELED"]) {
       const { container, unmount } = render(<MeetingStatusBadge status={status} />);
       tones[status] = container.querySelector("[data-tone]")?.getAttribute("data-tone") ?? "";
       unmount();
@@ -78,6 +81,7 @@ describe("status tones", () => {
       SCHEDULED: "info",
       IN_PROGRESS: "success",
       OVERTIME: "warning",
+      MISSED: "muted",
       ENDED: "muted",
       CANCELED: "destructive",
     });
