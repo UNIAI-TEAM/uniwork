@@ -6,7 +6,8 @@ metadata:
 spec:
   scheme: http
   passHost: pass
-  timeout: { connect: 5s, read: 60s, send: 60s }
+  # WebSocket (/api/v1/ws) stays open; 60s read idle kills hub ping/pong (~54s).
+  timeout: { connect: 5s, read: 3600s, send: 3600s }
   externalNodes:
     - type: Domain
       name: uniwork-be.uniwork.svc.cluster.local
@@ -21,7 +22,7 @@ metadata:
 spec:
   scheme: http
   passHost: pass
-  timeout: { connect: 5s, read: 60s, send: 60s }
+  timeout: { connect: 5s, read: 3600s, send: 3600s }
   externalNodes:
     - type: Domain
       name: uniwork-fe.uniwork.svc.cluster.local
