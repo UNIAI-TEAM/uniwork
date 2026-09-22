@@ -3,11 +3,24 @@ import { describe, expect, it, vi } from "vitest";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { FullCalendarHost } from "./fullcalendar-host";
 
+type DropResizeArg = {
+  event: {
+    id: string;
+    start: Date | null;
+    end: Date | null;
+    allDay: boolean;
+  };
+  revert: () => void;
+};
+
 type CapturedFcProps = {
   initialView?: string;
   hiddenDays?: number[];
+  editable?: boolean;
   datesSet?: (arg: { start: Date; end: Date }) => void;
   eventClick?: (arg: { event: { id: string } }) => void;
+  eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
+  eventResize?: (arg: DropResizeArg) => void | Promise<void>;
 };
 
 let captured: CapturedFcProps = {};
@@ -87,5 +100,99 @@ describe("FullCalendarHost", () => {
     );
     captured.eventClick?.({ event: { id: "ev-1" } });
     expect(onEventClick).toHaveBeenCalledWith(sample);
+  });
+
+  it("defaults editable to true on FullCalendar", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.editable).toBe(true);
+  });
+
+  it("eventDrop calls onEventDropOrResize with task due patch", async () => {
+    const onEventDropOrResize = vi.fn().mockResolvedValue(undefined);
+    const revert = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onEventDropOrResize={onEventDropOrResize}
+      />,
+    );
+    await captured.eventDrop?.({
+      event: {
+        id: "ev-1",
+        start: new Date("2026-09-11T00:00:00.000Z"),
+        end: new Date("2026-09-12T00:00:00.000Z"),
+        allDay: true,
+      },
+      revert,
+    });
+    expect(onEventDropOrResize).toHaveBeenCalledWith({
+      kind: "task",
+      entityId: "task-1",
+      patch: { due_date: "2026-09-11" },
+    });
+    expect(revert).not.toHaveBeenCalled();
+  });
+
+  it("eventDrop reverts when patch is null (timed task)", async () => {
+    const onEventDropOrResize = vi.fn();
+    const revert = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onEventDropOrResize={onEventDropOrResize}
+      />,
+    );
+    await captured.eventDrop?.({
+      event: {
+        id: "ev-1",
+        start: new Date("2026-09-11T12:00:00.000Z"),
+        end: new Date("2026-09-11T13:00:00.000Z"),
+        allDay: false,
+      },
+      revert,
+    });
+    expect(onEventDropOrResize).not.toHaveBeenCalled();
+    expect(revert).toHaveBeenCalled();
+  });
+
+  it("eventResize reverts when handler rejects", async () => {
+    const onEventDropOrResize = vi.fn().mockRejectedValue(new Error("patch failed"));
+    const revert = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onEventDropOrResize={onEventDropOrResize}
+      />,
+    );
+    await captured.eventResize?.({
+      event: {
+        id: "ev-1",
+        start: new Date("2026-09-11T00:00:00.000Z"),
+        end: new Date("2026-09-12T00:00:00.000Z"),
+        allDay: true,
+      },
+      revert,
+    });
+    expect(revert).toHaveBeenCalled();
   });
 });

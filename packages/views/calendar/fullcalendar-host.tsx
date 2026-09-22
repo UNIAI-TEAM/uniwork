@@ -1,6 +1,11 @@
 "use client";
 
-import type { EventClickArg, DatesSetArg } from "@fullcalendar/core";
+import type {
+  DatesSetArg,
+  EventClickArg,
+  EventDropArg,
+  EventResizeDoneArg,
+} from "@fullcalendar/core";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
@@ -9,7 +14,10 @@ import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { addDays, format } from "date-fns";
 import { useMemo } from "react";
+import { dropToPatch, type CalendarDropPatch } from "./calendar-drop-patch";
 import { toFcEvent } from "./calendar-fc-map";
+
+export type { CalendarDropPatch };
 import {
   type CalendarViewMode,
   fcHiddenDays,
@@ -23,6 +31,8 @@ export function FullCalendarHost(props: {
   viewMode: CalendarViewMode;
   onDatesSet: (range: { from: string; to: string }) => void;
   onEventClick: (event: CalendarEvent) => void;
+  editable?: boolean;
+  onEventDropOrResize?: (patch: CalendarDropPatch) => void | Promise<void>;
   className?: string;
 }) {
   const eventsById = useMemo(
@@ -48,6 +58,35 @@ export function FullCalendarHost(props: {
     }
   };
 
+  const handleEventDropOrResize = async (info: EventDropArg | EventResizeDoneArg) => {
+    const id = info.event.id;
+    const match = eventsById.get(id);
+    const start = info.event.start;
+    if (!match || !props.onEventDropOrResize || !start) {
+      info.revert();
+      return;
+    }
+
+    const patch = dropToPatch({
+      event: match,
+      start,
+      end: info.event.end,
+      allDay: info.event.allDay,
+    });
+    if (!patch) {
+      info.revert();
+      return;
+    }
+
+    try {
+      await props.onEventDropOrResize(patch);
+    } catch {
+      info.revert();
+    }
+  };
+
+  const editable = props.editable !== false;
+
   return (
     <div data-testid="calendar-grid" className={cn("uniwork-fc min-h-0 flex-1", props.className)}>
       <FullCalendar
@@ -59,8 +98,11 @@ export function FullCalendarHost(props: {
         headerToolbar={false}
         height="auto"
         events={fcEvents}
+        editable={editable}
         datesSet={handleDatesSet}
         eventClick={handleEventClick}
+        eventDrop={handleEventDropOrResize}
+        eventResize={handleEventDropOrResize}
       />
     </div>
   );

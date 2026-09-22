@@ -29,8 +29,19 @@ vi.mock("@uniwork/core/calendar", () => ({
   useCalendarEvents: (...args: unknown[]) => useCalendarEventsMock(...args),
 }));
 
+const hostProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+
 vi.mock("./fullcalendar-host", () => ({
-  FullCalendarHost: () => <div data-testid="calendar-grid" />,
+  FullCalendarHost: (props: Record<string, unknown>) => {
+    hostProps.current = props;
+    return <div data-testid="calendar-grid" />;
+  },
+}));
+
+vi.mock("./calendar-mutations", () => ({
+  useCalendarMutations: () => ({
+    applyDropPatch: vi.fn(),
+  }),
 }));
 
 describe("CalendarPageView", () => {
@@ -51,6 +62,7 @@ describe("CalendarPageView", () => {
 
     expect(screen.getByRole("heading", { name: "Lịch" })).toBeInTheDocument();
     expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+    expect(hostProps.current.onEventDropOrResize).toEqual(expect.any(Function));
   });
 
   it("updates the events query range when the toolbar changes month", () => {

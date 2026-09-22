@@ -14,6 +14,7 @@ import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
+import { useCalendarMutations } from "./calendar-mutations";
 import { FullCalendarHost } from "./fullcalendar-host";
 
 export function CalendarPageView({
@@ -40,6 +41,7 @@ export function CalendarPageView({
     mine,
   );
   const events = useMemo(() => data ?? [], [data]);
+  const { applyDropPatch } = useCalendarMutations(workspaceId);
 
   const handleAnchorDateChange = (next: Date) => {
     setAnchorDate(next);
@@ -100,6 +102,7 @@ export function CalendarPageView({
             viewMode={viewMode}
             onDatesSet={setRange}
             onEventClick={handleEventClick}
+            onEventDropOrResize={applyDropPatch}
           />
         </div>
       )}
