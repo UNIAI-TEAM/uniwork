@@ -109,3 +109,48 @@ func TestSortExprFallbackIsAscending(t *testing.T) {
 		t.Fatalf("fallback sort not ascending: %s", sql)
 	}
 }
+
+func TestGroupPredicateBranchesAndFacetReject(t *testing.T) {
+	q := baseQuery()
+	cases := []struct {
+		name string
+		g    GroupPredicate
+		want string
+	}{
+		{name: "status", g: GroupPredicate{Kind: GroupKindStatus, Value: "todo"}, want: "t.status = $"},
+		{name: "priority", g: GroupPredicate{Kind: GroupKindPriority, Value: "high"}, want: "t.priority = $"},
+		{name: "assignee none", g: GroupPredicate{Kind: GroupKindAssignee, None: true}, want: "t.assignee_id IS NULL"},
+		{name: "assignee", g: GroupPredicate{Kind: GroupKindAssignee, Value: "u1", ActorKind: "human"}, want: "t.assignee_id = $"},
+		{name: "project none", g: GroupPredicate{Kind: GroupKindProject, None: true}, want: "t.project_id IS NULL"},
+		{name: "project", g: GroupPredicate{Kind: GroupKindProject, Value: "p1"}, want: "t.project_id = $"},
+		{name: "property none select", g: GroupPredicate{Kind: GroupKindProperty, None: true}, want: "NULLIF(t.properties->>"},
+		{name: "property value", g: GroupPredicate{Kind: GroupKindProperty, Value: "a"}, want: "t.properties->>"},
+		{name: "unknown", g: GroupPredicate{Kind: GroupKind("nope")}, want: "FALSE"},
+	}
+	q.Group = Group{Kind: GroupKindProperty, Property: &PropertyRef{ID: "p1", Type: "select"}}
+	for _, tc := range cases {
+		sql, _ := BuildRows(RowsRequest{Query: q, Group: &tc.g, Limit: 5})
+		if !strings.Contains(sql, tc.want) {
+			t.Fatalf("%s: missing %q in %s", tc.name, tc.want, sql)
+		}
+	}
+	q.Group = Group{Kind: GroupKindProperty, Property: &PropertyRef{ID: "c1", Type: "checkbox"}}
+	cbNone := GroupPredicate{Kind: GroupKindProperty, None: true}
+	sql, _ := BuildRows(RowsRequest{Query: q, Group: &cbNone, Limit: 5})
+	if !strings.Contains(sql, "jsonb_typeof") {
+		t.Fatalf("checkbox none: %s", sql)
+	}
+	cb := GroupPredicate{Kind: GroupKindProperty, Value: "true"}
+	sql, _ = BuildRows(RowsRequest{Query: q, Group: &cb, Limit: 5})
+	if !strings.Contains(sql, "to_jsonb") {
+		t.Fatalf("checkbox value: %s", sql)
+	}
+	q.Group = Group{Kind: GroupKindProperty}
+	sql, _ = BuildRows(RowsRequest{Query: q, Group: &GroupPredicate{Kind: GroupKindProperty, Value: "x"}, Limit: 5})
+	if !strings.Contains(sql, "FALSE") {
+		t.Fatalf("nil property ref: %s", sql)
+	}
+	if _, err := Facet(t.Context(), nil, q, "not-a-facet"); err == nil || !strings.Contains(err.Error(), "unsupported facet") {
+		t.Fatalf("facet reject: %v", err)
+	}
+}

@@ -44,7 +44,7 @@ const task: Task = {
 };
 
 describe("BoardCardContent", () => {
-  it("renders Multica-parity card hierarchy without raw markdown or an always-on footer", () => {
+  it("renders card hierarchy without raw markdown or an always-on footer", () => {
     const store = getTaskSurfaceViewStore("board-card-rich-properties");
 
     render(
@@ -142,7 +142,7 @@ describe("Kanban three-dot button and the priority label", () => {
 
 describe("Kanban column chrome", () => {
   it("uses a quiet heading and a subtle status background", () => {
-    const store = getTaskSurfaceViewStore("board-column-multica-chrome");
+    const store = getTaskSurfaceViewStore("board-column-quiet-chrome");
     const { container } = render(
       wrap(
         <ViewStoreProvider store={store}>

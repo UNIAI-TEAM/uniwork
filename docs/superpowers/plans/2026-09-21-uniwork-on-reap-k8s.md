@@ -1,5 +1,7 @@
 # UniWork guest on REAP k8s Implementation Plan
 
+> **Trạng thái:** in-progress
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deploy UniWork BE+FE as a temporary guest on `reap-eng-prod-k8s` (namespace `uniwork`, public `https://uniwork.ubos.vn`) with shared Postgres/Redis/LiveKit and isolated webhooks.
