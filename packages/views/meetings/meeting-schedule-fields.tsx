@@ -40,7 +40,9 @@ export function MeetingScheduleFields({
   onDate,
   onStart,
   onEnd,
+  minDate = meetingDayKey(new Date().toISOString()),
 }: {
+  /** Unique per form (useId): the date input and the two time labels hang off it. */
   idPrefix: string;
   date: string;
   start: string;
@@ -48,6 +50,8 @@ export function MeetingScheduleFields({
   onDate: (v: string) => void;
   onStart: (v: string) => void;
   onEnd: (v: string) => void;
+  /** Earliest pickable day; null for no floor (editing a meeting already dated). */
+  minDate?: string | null;
 }) {
   const { t } = useTranslation();
   const invalid = !scheduleValid(start, end);
@@ -66,14 +70,14 @@ export function MeetingScheduleFields({
         </FieldLabel>
         <DateField
           id={`${idPrefix}-date`}
-          min={meetingDayKey(new Date().toISOString())}
+          min={minDate ?? undefined}
           value={date}
           onChange={onDate}
         />
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field className="min-w-0">
-          <FieldLabel>{t("meetings.startsAt")}</FieldLabel>
+        <Field className="min-w-0" aria-labelledby={`${idPrefix}-start-label`}>
+          <FieldLabel id={`${idPrefix}-start-label`}>{t("meetings.startsAt")}</FieldLabel>
           <TimeInput
             className="w-full max-w-full"
             value={start}
@@ -82,8 +86,12 @@ export function MeetingScheduleFields({
             minuteLabel={t("meetings.startMinute")}
           />
         </Field>
-        <Field className="min-w-0" data-invalid={invalid || undefined}>
-          <FieldLabel>{t("meetings.endsAt")}</FieldLabel>
+        <Field
+          className="min-w-0"
+          aria-labelledby={`${idPrefix}-end-label`}
+          data-invalid={invalid || undefined}
+        >
+          <FieldLabel id={`${idPrefix}-end-label`}>{t("meetings.endsAt")}</FieldLabel>
           <TimeInput
             className="w-full max-w-full"
             value={end}

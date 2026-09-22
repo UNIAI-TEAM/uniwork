@@ -1,29 +1,36 @@
 "use client";
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useId, useState, type ReactElement } from "react";
+import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUpdateMeeting } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Dialog, DialogTrigger } from "@uniwork/ui/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@uniwork/ui/components/ui/dialog";
-import { InfoHint } from "@uniwork/ui/components/common/info-hint";
-import { Field, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
-import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { toast } from "sonner";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
+import { Notice } from "../common/notice";
 import { toastApiError } from "../toast-api-error";
-import { DateField } from "../common/date-field";
 import { combineLocalIso, MEETING_TIMEZONES, splitIsoLocal } from "./meeting-datetime";
+import {
+  browserTimeZone,
+  MeetingScheduleFields,
+  scheduleValid,
+} from "./meeting-schedule-fields";
 
 function meetingDraft(meeting: Meeting) {
   const initial = splitIsoLocal(meeting.starts_at);
@@ -34,7 +41,7 @@ function meetingDraft(meeting: Meeting) {
     date: initial.date,
     start: initial.time,
     end: initialEnd.time,
-    timezone: meeting.timezone || "Asia/Ho_Chi_Minh",
+    timezone: meeting.timezone || browserTimeZone(),
     allowJoin: meeting.allow_join_request !== false,
   };
 }
@@ -49,41 +56,36 @@ export function MeetingEditDialog({
   trigger?: ReactElement;
 }) {
   const { t } = useTranslation();
+  const id = useId();
   const update = useUpdateMeeting(workspaceId, meeting.id);
   const inProgress = meeting.status === "IN_PROGRESS";
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState(meeting.title);
-  const [description, setDescription] = useState(meeting.description);
-  const [date, setDate] = useState(() => splitIsoLocal(meeting.starts_at).date);
-  const [start, setStart] = useState(() => splitIsoLocal(meeting.starts_at).time);
-  const [end, setEnd] = useState(() => splitIsoLocal(meeting.ends_at).time);
-  const [timezone, setTimezone] = useState(meeting.timezone || "Asia/Ho_Chi_Minh");
-  const [allowJoin, setAllowJoin] = useState(meeting.allow_join_request !== false);
+  const [draft, setDraft] = useState(() => meetingDraft(meeting));
+  const { title, description, date, start, end, timezone, allowJoin } = draft;
+  const set = <K extends keyof typeof draft>(key: K) => (value: (typeof draft)[K]) =>
+    setDraft((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
-    if (!open) return;
-    const draft = meetingDraft(meeting);
-    setTitle(draft.title);
-    setDescription(draft.description);
-    setDate(draft.date);
-    setStart(draft.start);
-    setEnd(draft.end);
-    setTimezone(draft.timezone);
-    setAllowJoin(draft.allowJoin);
+    if (open) setDraft(meetingDraft(meeting));
   }, [open, meeting]);
+
+  const titleMissing = !title.trim();
+  const scheduleReady = inProgress || (Boolean(date) && scheduleValid(start, end));
+  const ready = !titleMissing && scheduleReady;
+  // The record may carry a zone the short list does not; keep it pickable.
+  const zones: string[] = MEETING_TIMEZONES.includes(timezone as (typeof MEETING_TIMEZONES)[number])
+    ? [...MEETING_TIMEZONES]
+    : [timezone, ...MEETING_TIMEZONES];
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={trigger ?? <Button size="sm" variant="outline">{t("meetings.edit")}</Button>} />
-      <DialogContent className="max-h-[min(90dvh,44rem)] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t("meetings.edit")}</DialogTitle>
-          <DialogDescription>{t("meetings.editDescription")}</DialogDescription>
-        </DialogHeader>
+      <FormDialogContent size="lg">
+        <FormDialogHeader title={t("meetings.edit")} description={t("meetings.editDescription")} />
         <form
-          className="space-y-5"
           onSubmit={(e) => {
             e.preventDefault();
+            if (!ready) return;
             update.mutate(
               {
                 title,
@@ -95,98 +97,108 @@ export function MeetingEditDialog({
               {
                 onSuccess: () => {
                   setOpen(false);
-                  toast.success(t("meetings.saveChanges"));
+                  toast.success(t("meetings.changesSaved"));
                 },
                 onError: (err) => toastApiError(err, t("common.error")),
               },
             );
           }}
         >
-          <div className="space-y-3">
-            <h3 className="text-overline text-muted-foreground">
-              {t("meetings.editSectionDetails")}
-            </h3>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="edit-title">{t("meetings.meetingTitle")}</FieldLabel>
-                <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="edit-desc">{t("meetings.description")}</FieldLabel>
-                <Textarea id="edit-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-              </Field>
-            </FieldGroup>
-          </div>
-
-          {inProgress ? (
-            <p className="rounded-lg border border-border bg-surface-hover px-3 py-2 text-label text-muted-foreground">
-              {t("meetings.editScheduleLocked")}
-            </p>
-          ) : (
-            <div className="space-y-3">
-              <h3 className="text-overline text-muted-foreground">
-                {t("meetings.editSectionSchedule")}
+          <FormDialogBody className="space-y-5">
+            <section className="space-y-3" aria-labelledby={`${id}-details`}>
+              <h3 id={`${id}-details`} className="text-overline text-muted-foreground">
+                {t("meetings.editSectionDetails")}
               </h3>
-              <FieldGroup>
+              <FieldGroup className="gap-4">
                 <Field>
-                  <FieldLabel htmlFor="edit-date">{t("meetings.date")}</FieldLabel>
-                  <DateField id="edit-date" value={date} onChange={setDate} />
+                  <FieldLabel htmlFor={`${id}-title`}>{t("meetings.meetingTitle")}</FieldLabel>
+                  <Input
+                    id={`${id}-title`}
+                    value={title}
+                    onChange={(e) => set("title")(e.target.value)}
+                    required
+                  />
                 </Field>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel>{t("meetings.startsAt")}</FieldLabel>
-                    <TimeInput value={start} onChange={setStart} hourLabel={t("meetings.startsAt")} minuteLabel={t("meetings.startsAt")} />
-                  </Field>
-                  <Field>
-                    <FieldLabel>{t("meetings.endsAt")}</FieldLabel>
-                    <TimeInput value={end} onChange={setEnd} hourLabel={t("meetings.endsAt")} minuteLabel={t("meetings.endsAt")} />
-                  </Field>
-                </div>
                 <Field>
-                  <FieldLabel>{t("meetings.timezone")}</FieldLabel>
-                  <Select
-                    value={timezone}
-                    onValueChange={(v) => v && setTimezone(v)}
-                    items={MEETING_TIMEZONES.map((tz) => ({ value: tz, label: tz }))}
+                  <FieldLabel htmlFor={`${id}-desc`}>{t("meetings.description")}</FieldLabel>
+                  <Textarea
+                    id={`${id}-desc`}
+                    value={description}
+                    onChange={(e) => set("description")(e.target.value)}
+                    rows={3}
                   />
                 </Field>
               </FieldGroup>
-            </div>
-          )}
+            </section>
 
-          <div className="space-y-3">
-            <h3 className="text-overline text-muted-foreground">
-              {t("meetings.editSectionAccess")}
-            </h3>
-            <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="text-pretty text-body text-foreground">{t("meetings.allowJoinRequest")}</span>
-                <InfoHint label={t("meetings.allowJoinRequestHint")}>
-                  {t("meetings.allowJoinRequestHint")}
-                </InfoHint>
+            {inProgress ? (
+              <Notice tone="muted" icon={Lock} layout="inline" live="off">
+                {t("meetings.editScheduleLocked")}
+              </Notice>
+            ) : (
+              <section className="space-y-3" aria-labelledby={`${id}-schedule`}>
+                <h3 id={`${id}-schedule`} className="text-overline text-muted-foreground">
+                  {t("meetings.editSectionSchedule")}
+                </h3>
+                <FieldGroup className="gap-4">
+                  <MeetingScheduleFields
+                    idPrefix={id}
+                    date={date}
+                    start={start}
+                    end={end}
+                    onDate={set("date")}
+                    onStart={set("start")}
+                    onEnd={set("end")}
+                    minDate={null}
+                  />
+                  <Field aria-labelledby={`${id}-tz-label`}>
+                    <FieldLabel id={`${id}-tz-label`}>{t("meetings.timezone")}</FieldLabel>
+                    <Select
+                      value={timezone}
+                      onValueChange={(v) => v && set("timezone")(v)}
+                      items={zones.map((tz) => ({ value: tz, label: tz }))}
+                    />
+                  </Field>
+                </FieldGroup>
+              </section>
+            )}
+
+            <section className="space-y-3" aria-labelledby={`${id}-access`}>
+              <h3 id={`${id}-access`} className="text-overline text-muted-foreground">
+                {t("meetings.editSectionAccess")}
+              </h3>
+              <div className="flex min-h-11 items-start justify-between gap-3">
+                <div className="min-w-0 space-y-0.5">
+                  <FieldLabel id={`${id}-allow-join-label`} htmlFor={`${id}-allow-join`}>
+                    {t("meetings.allowJoinRequest")}
+                  </FieldLabel>
+                  <FieldDescription id={`${id}-allow-join-hint`}>
+                    {t("meetings.allowJoinRequestHint")}
+                  </FieldDescription>
+                </div>
+                <Switch
+                  id={`${id}-allow-join`}
+                  aria-labelledby={`${id}-allow-join-label`}
+                  aria-describedby={`${id}-allow-join-hint`}
+                  className="mt-0.5 shrink-0"
+                  checked={allowJoin}
+                  onCheckedChange={set("allowJoin")}
+                />
               </div>
-              <Switch className="shrink-0" checked={allowJoin} onCheckedChange={setAllowJoin} />
-            </label>
-            <div className="flex items-center gap-1.5">
-              <span className="text-caption text-muted-foreground">
-                {t("meetings.externalGuestLinks")}
-              </span>
-              <InfoHint label={t("meetings.externalGuestLinkWhere")}>
-                {t("meetings.externalGuestLinkWhere")}
-              </InfoHint>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={update.isPending || !date}>
-              {t("meetings.saveChanges")}
-            </Button>
-          </DialogFooter>
+              <FieldDescription>{t("meetings.externalGuestLinkWhere")}</FieldDescription>
+            </section>
+          </FormDialogBody>
+          <FormDialogFooter
+            onCancel={() => setOpen(false)}
+            submitType="submit"
+            submitLabel={t("meetings.saveChanges")}
+            submittingLabel={t("meetings.saving")}
+            submitting={update.isPending}
+            submitDisabled={!ready}
+            leading={titleMissing ? t("meetings.titleRequired") : undefined}
+          />
         </form>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

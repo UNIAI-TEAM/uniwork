@@ -22,7 +22,7 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   // Header action and the empty-state CTA share the label; either opens the dialog.
   await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
   await page.getByLabel("Tiêu đề").fill("Họp AI e2e");
-  await page.getByRole("button", { name: "Tạo", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Tạo cuộc họp", exact: true }).click();
   // Creating navigates to the detail page. 15s: under `next dev` the first
   // visit compiles /meetings/[meetingId], which alone can take longer than
   // the 5s default.
