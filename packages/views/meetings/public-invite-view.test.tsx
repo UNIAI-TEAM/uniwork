@@ -100,10 +100,10 @@ describe("MeetingPublicInviteView", () => {
     await waitFor(() => {
       expect(adapter.push).toHaveBeenCalledWith(paths.meetingInviteRoom("link-1"));
     });
-    expect(sessionStorage.getItem("uw.meeting-invite.link-1.preJoinChoice")).toContain('"video":true');
+    expect(sessionStorage.getItem("uw.meeting-invite.link-1.preJoinChoice")).toContain('"video":false');
   });
 
-  it("stores camera-off when the guest turns the camera off before joining", async () => {
+  it("stores camera-on when the guest turns the camera on before joining", async () => {
     const adapter = fakeNav();
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
       if (path === "/api/v1/public/meeting-invite-links/resolve" && opts?.method === "POST") {
@@ -131,7 +131,9 @@ describe("MeetingPublicInviteView", () => {
 
     const nameInput = await screen.findByLabelText("Tên hiển thị");
     fireEvent.change(nameInput, { target: { value: "Khách A" } });
-    fireEvent.click(screen.getByRole("button", { name: "Camera", pressed: true }));
+    expect(screen.getByRole("button", { name: "Camera", pressed: false })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bật camera để xem trước" }));
+    expect(screen.getByRole("button", { name: "Camera", pressed: true })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Vào cuộc họp" }));
 
     await waitFor(() => {
@@ -139,7 +141,7 @@ describe("MeetingPublicInviteView", () => {
     });
     expect(JSON.parse(sessionStorage.getItem("uw.meeting-invite.link-1.preJoinChoice") ?? "{}")).toEqual({
       audio: true,
-      video: false,
+      video: true,
     });
   });
 
@@ -220,7 +222,7 @@ describe("MeetingPublicInviteView", () => {
 
     fireEvent.change(await screen.findByLabelText("Tên hiển thị"), { target: { value: "Khách A" } });
     fireEvent.click(screen.getByRole("button", { name: "Xin vào phòng" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Rời phòng" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Quay lại" }));
 
     expect(adapter.replace).toHaveBeenCalledWith(`${paths.meetingInvite("link-1")}?reason=left_room`);
     expect(adapter.push).not.toHaveBeenCalled();

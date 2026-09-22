@@ -1,6 +1,8 @@
 "use client";
+import { ArrowLeft, MonitorSmartphone, WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { MeetingGateScreen } from "./meeting-gate-screen";
 import type { MediaDisconnectKind } from "./room-disconnect";
 
 /**
@@ -10,29 +12,42 @@ import type { MediaDisconnectKind } from "./room-disconnect";
  */
 export function MeetingMediaError({
   kind,
+  meetingTitle,
+  guestMode = false,
   onRetry,
   onLeave,
 }: {
   kind: MediaDisconnectKind;
+  meetingTitle?: string;
+  guestMode?: boolean;
   onRetry: () => void;
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
   const replaced = kind === "replaced";
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-      <p className="max-w-md text-pretty text-body text-foreground">
-        {t(replaced ? "meetings.sessionReplaced" : "meetings.connectionFailed")}
-      </p>
-      <p className="max-w-md text-pretty text-caption text-muted-foreground">
-        {t(replaced ? "meetings.sessionReplacedHint" : "meetings.connectionFailedHint")}
-      </p>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button onClick={onRetry}>{t(replaced ? "meetings.sessionReplacedUseHere" : "common.retry")}</Button>
-        <Button variant="outline" onClick={onLeave}>
-          {t("meetings.leave")}
-        </Button>
-      </div>
-    </div>
+    <MeetingGateScreen
+      icon={replaced ? MonitorSmartphone : WifiOff}
+      tone={replaced ? "info" : "destructive"}
+      alert={!replaced}
+      meetingTitle={meetingTitle}
+      title={t(replaced ? "meetings.sessionReplaced" : "meetings.connectionFailed")}
+      description={t(
+        replaced
+          ? guestMode
+            ? "meetings.sessionReplacedGuestHint"
+            : "meetings.sessionReplacedHint"
+          : "meetings.connectionFailedHint",
+      )}
+      actions={
+        <>
+          <Button onClick={onRetry}>{t(replaced ? "meetings.sessionReplacedUseHere" : "common.retry")}</Button>
+          <Button variant="outline" onClick={onLeave}>
+            <ArrowLeft aria-hidden />
+            {t("meetings.leave")}
+          </Button>
+        </>
+      }
+    />
   );
 }

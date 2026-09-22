@@ -89,7 +89,7 @@ describe("MeetingLobby", () => {
     expect(screen.getByText("Standup")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Bắt đầu" }));
     expect(onStart).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Rời phòng" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
     expect(onLeave).toHaveBeenCalledOnce();
   });
 
@@ -166,5 +166,54 @@ describe("MeetingLobby", () => {
       ),
     );
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
+  it("gives an ended meeting a way back instead of a hang-up button", () => {
+    const onLeave = vi.fn();
+    render(
+      wrapWithNav(
+        <MeetingLobby title="Standup" decision={undefined} error={new ApiError("x", "meeting_ended", 403)} onLeave={onLeave} />,
+      ),
+    );
+
+    expect(screen.getByRole("heading", { name: "Cuộc họp đã kết thúc" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rời phòng" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
+    expect(onLeave).toHaveBeenCalledOnce();
+  });
+
+  it("offers a retry for a join that failed for an unknown reason", () => {
+    const onRetry = vi.fn();
+    render(
+      wrapWithNav(
+        <MeetingLobby decision={undefined} error={new ApiError("lỗi nội bộ", "internal", 500)} onRetry={onRetry} onLeave={() => {}} />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("never shows a guest infrastructure names or raw server text", () => {
+    const { rerender } = render(
+      wrapWithNav(
+        <MeetingLobby guestMode decision={undefined} error={new ApiError("x", "livekit_not_configured", 503)} onLeave={() => {}} />,
+      ),
+    );
+    expect(screen.queryByText(/LiveKit/)).not.toBeInTheDocument();
+    expect(screen.getByText("Phòng họp chưa sẵn sàng. Thử lại sau ít phút.")).toBeInTheDocument();
+
+    rerender(
+      wrapWithNav(
+        <MeetingLobby guestMode decision={undefined} error={new ApiError("pq: deadlock detected", "internal", 500)} onLeave={() => {}} />,
+      ),
+    );
+    expect(screen.queryByText(/deadlock/)).not.toBeInTheDocument();
+  });
+
+  it("names the host wait for what it is", () => {
+    render(wrapWithNav(<MeetingLobby decision="WAITING_FOR_HOST" error={undefined} onLeave={() => {}} />));
+    expect(screen.getByText("Đang chờ người chủ trì")).toBeInTheDocument();
+    expect(screen.queryByText("Sẵn sàng vào họp")).not.toBeInTheDocument();
   });
 });

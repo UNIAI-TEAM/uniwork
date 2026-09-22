@@ -216,8 +216,10 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           title={title}
           decision={lobbyDecision}
           error={joinError}
+          guestMode={isGuest}
           onRequestAgain={() => runJoin(undefined, true)}
           requestingAgain={joinPending}
+          onRetry={() => runJoin()}
           onLeave={() => leaveMeetingInvite(nav, linkId)}
         />
       </div>,

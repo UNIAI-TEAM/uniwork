@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api/http";
@@ -420,7 +420,7 @@ describe("MeetingRoomView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await waitFor(() => expect(screen.getByText("Đang chờ người chủ trì bắt đầu cuộc họp")).toBeInTheDocument());
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Rời phòng" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
   });
 
   it("mounts LiveKit only after ADMIT with token and url", async () => {
@@ -478,8 +478,26 @@ describe("MeetingRoomView", () => {
     render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={onLeave} />));
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
-    lastDisconnected?.(DisconnectReason.ROOM_CLOSED);
+    act(() => lastDisconnected?.(DisconnectReason.ROOM_CLOSED));
+    // The room says why it closed before sending anyone away.
+    expect(await screen.findByRole("heading", { name: "Cuộc họp đã kết thúc" })).toBeInTheDocument();
+    expect(onLeave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Về trang cuộc họp" }));
     expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells a removed participant they were removed", async () => {
+    requestMock.mockResolvedValue({
+      decision: "ADMIT",
+      participant_token: "tok",
+      server_url: "wss://lk.test",
+      meeting_status: "IN_PROGRESS",
+    });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
+    await screen.findByTestId("livekit-room");
+    act(() => lastDisconnected?.(DisconnectReason.PARTICIPANT_REMOVED));
+    expect(await screen.findByRole("heading", { name: "Người chủ trì đã mời bạn ra khỏi cuộc họp" })).toBeInTheDocument();
   });
 
   it("uses the guest prejoin choice when already admitted", async () => {
