@@ -205,6 +205,7 @@ func New(d Deps) http.Handler {
 		PutHomePreference:             h.putHomePreference,
 		ListCalendarEvents:            h.listCalendarEvents,
 		ListCalendarSidebar:           h.listCalendarSidebar,
+		WorkspaceCalendar:             h.workspaceCalendar,
 		ListEmailHubAccounts:          h.listEmailHubAccounts,
 		ConnectEmailHubAccount:        h.connectEmailHubAccount,
 		DisconnectEmailHubAccount:     h.disconnectEmailHubAccount,

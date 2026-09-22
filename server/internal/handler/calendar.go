@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -57,6 +58,49 @@ func (h *handlers) listCalendarEvents(w http.ResponseWriter, r *http.Request) {
 		out.Events = append(out.Events, toCalendarEventSDO(e))
 	}
 	respondJSON(w, http.StatusOK, out)
+}
+
+func (h *handlers) workspaceCalendar(w http.ResponseWriter, r *http.Request) {
+	wsID := chi.URLParam(r, "workspaceID")
+	userID := middleware.UserID(r.Context())
+	q := r.URL.Query()
+	fromRaw := strings.TrimSpace(q.Get("from"))
+	toRaw := strings.TrimSpace(q.Get("to"))
+
+	var fromDay, toDay time.Time
+	switch {
+	case fromRaw == "" && toRaw == "":
+		today := time.Now().UTC().Truncate(24 * time.Hour)
+		fromDay = today.AddDate(0, 0, -30)
+		toDay = today.AddDate(0, 0, 90)
+	case fromRaw != "" && toRaw != "":
+		fromDate, err := util.ParseCalendarDate(fromRaw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "from must be YYYY-MM-DD")
+			return
+		}
+		toDate, err := util.ParseCalendarDate(toRaw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "to must be YYYY-MM-DD")
+			return
+		}
+		fromDay = fromDate.Time
+		toDay = toDate.Time
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", "from and to must both be set or both omitted")
+		return
+	}
+
+	ics, err := h.Calendar.WorkspaceICS(r.Context(), wsID, userID, fromDay, toDay)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="uniwork-calendar.ics"`)
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(ics)
 }
 
 func (h *handlers) listCalendarSidebar(w http.ResponseWriter, r *http.Request) {

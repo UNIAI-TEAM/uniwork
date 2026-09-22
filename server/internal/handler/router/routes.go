@@ -148,6 +148,7 @@ type Routes struct {
 	PutHomePreference   http.HandlerFunc
 	ListCalendarEvents  http.HandlerFunc
 	ListCalendarSidebar http.HandlerFunc
+	WorkspaceCalendar   http.HandlerFunc
 
 	ListEmailHubAccounts          http.HandlerFunc
 	ConnectEmailHubAccount        http.HandlerFunc

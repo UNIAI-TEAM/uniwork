@@ -8,6 +8,7 @@ import (
 //
 //	GET /api/v1/workspaces/{workspaceID}/calendar/events
 //	GET /api/v1/workspaces/{workspaceID}/calendar/sidebar
+//	GET /api/v1/workspaces/{workspaceID}/calendar.ics
 func registerCalendar(r api, h Routes) {
 	r.Get("/workspaces/{workspaceID}/calendar/events", h.ListCalendarEvents, apiOp{
 		summary:     "List calendar events in a date range",
@@ -21,6 +22,12 @@ func registerCalendar(r api, h Routes) {
 		description: "Một payload cho priorities, meet_with, assigned, today_overdue, backlog (tối đa 25 mỗi section). Task mở theo category status; meeting sắp tới không CANCELED.",
 		tags:        []string{"calendar"},
 		sdo:         sdo.CalendarSidebarSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/calendar.ics", h.WorkspaceCalendar, apiOp{
+		summary:     "iCalendar export for workspace tasks and meetings",
+		description: "RFC 5545 calendar with all-day task due dates and timed meetings. Optional from/to (YYYY-MM-DD); default window is 30 days before through 90 days after today (UTC).",
+		tags:        []string{"calendar"},
 		auth:        true,
 	})
 }
