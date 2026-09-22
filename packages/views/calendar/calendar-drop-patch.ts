@@ -1,4 +1,5 @@
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
+import { format, subDays } from "date-fns";
 
 export type CalendarDropPatch =
   | {
@@ -9,21 +10,19 @@ export type CalendarDropPatch =
   | { kind: "meeting"; entityId: string; body: { starts_at: string; ends_at: string } };
 
 function ymdFromDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return format(d, "yyyy-MM-dd");
 }
 
 /** FC all-day `end` is exclusive; task due_date is the last inclusive day. */
 function inclusiveEndFromExclusiveEnd(end: Date): string {
-  const [y, m, day] = ymdFromDate(end).split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, day - 1));
-  return dt.toISOString().slice(0, 10);
+  return format(subDays(end, 1), "yyyy-MM-dd");
 }
 
 function inclusiveDueFromEvent(event: CalendarEvent): string {
   if (event.end) {
-    const [y, m, day] = event.end.split("-").map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, day - 1));
-    return dt.toISOString().slice(0, 10);
+    const exclusiveEndYmd = event.end.slice(0, 10);
+    const [y, m, day] = exclusiveEndYmd.split("-").map(Number);
+    return format(subDays(new Date(y, m - 1, day), 1), "yyyy-MM-dd");
   }
   return event.start.slice(0, 10);
 }
@@ -46,6 +45,13 @@ function mapTaskAllDay(
   const dueDate = inclusiveEndFromExclusiveEnd(end);
 
   if (isDueOnlyTask(event)) {
+    if (startDate !== dueDate) {
+      return {
+        kind: "task",
+        entityId: event.entityId,
+        patch: { start_date: startDate, due_date: dueDate },
+      };
+    }
     return {
       kind: "task",
       entityId: event.entityId,

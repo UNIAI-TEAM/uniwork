@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { dropToPatch } from "./calendar-drop-patch";
 
+/** Local calendar midnight (all-day FC dates). */
+function localMidnight(y: number, m: number, d: number): Date {
+  return new Date(y, m - 1, d);
+}
+
 describe("dropToPatch", () => {
   it("maps task due-only move one day forward", () => {
     const event: CalendarEvent = {
@@ -16,14 +21,38 @@ describe("dropToPatch", () => {
     expect(
       dropToPatch({
         event,
-        start: new Date("2026-09-11T00:00:00.000Z"),
-        end: new Date("2026-09-12T00:00:00.000Z"),
+        start: localMidnight(2026, 9, 11),
+        end: localMidnight(2026, 9, 12),
         allDay: true,
       }),
     ).toEqual({
       kind: "task",
       entityId: "t1",
       patch: { due_date: "2026-09-11" },
+    });
+  });
+
+  it("maps due-only task resized to multi-day span with start_date and due_date", () => {
+    const event: CalendarEvent = {
+      id: "task:t1b",
+      kind: "task",
+      entityId: "t1b",
+      title: "Due only",
+      start: "2026-09-10",
+      end: "2026-09-11",
+      allDay: true,
+    };
+    expect(
+      dropToPatch({
+        event,
+        start: localMidnight(2026, 9, 10),
+        end: localMidnight(2026, 9, 13),
+        allDay: true,
+      }),
+    ).toEqual({
+      kind: "task",
+      entityId: "t1b",
+      patch: { start_date: "2026-09-10", due_date: "2026-09-12" },
     });
   });
 
@@ -40,8 +69,8 @@ describe("dropToPatch", () => {
     expect(
       dropToPatch({
         event,
-        start: new Date("2026-09-15T00:00:00.000Z"),
-        end: new Date("2026-09-18T00:00:00.000Z"),
+        start: localMidnight(2026, 9, 15),
+        end: localMidnight(2026, 9, 18),
         allDay: true,
       }),
     ).toEqual({
@@ -64,8 +93,8 @@ describe("dropToPatch", () => {
     expect(
       dropToPatch({
         event,
-        start: new Date("2026-09-08T00:00:00.000Z"),
-        end: new Date("2026-09-13T00:00:00.000Z"),
+        start: localMidnight(2026, 9, 8),
+        end: localMidnight(2026, 9, 13),
         allDay: true,
       }),
     ).toEqual({
@@ -133,8 +162,8 @@ describe("dropToPatch", () => {
     expect(
       dropToPatch({
         event,
-        start: new Date("2026-09-11T00:00:00.000Z"),
-        end: new Date("2026-09-12T00:00:00.000Z"),
+        start: localMidnight(2026, 9, 11),
+        end: localMidnight(2026, 9, 12),
         allDay: true,
       }),
     ).toBeNull();
