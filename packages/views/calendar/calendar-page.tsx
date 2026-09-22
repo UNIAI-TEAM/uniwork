@@ -47,6 +47,11 @@ export function CalendarPageView({
   );
   const events = useMemo(() => data ?? [], [data]);
 
+  const handleAnchorDateChange = (next: Date) => {
+    setAnchorDate(next);
+    setRange(monthRange(next));
+  };
+
   const handleEventClick = (event: CalendarEvent) => {
     if (event.kind === "task") {
       onOpenTask(event.entityId);
@@ -65,7 +70,7 @@ export function CalendarPageView({
       <CalendarToolbar
         anchorDate={anchorDate}
         mine={mine}
-        onAnchorDateChange={setAnchorDate}
+        onAnchorDateChange={handleAnchorDateChange}
         onMineChange={setMine}
       />
       {isError ? (

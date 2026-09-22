@@ -182,6 +182,7 @@ function keysFor(
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
       }
+      pushCalendar();
       break;
     }
     case "join_request.created":

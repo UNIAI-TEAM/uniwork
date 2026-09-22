@@ -261,6 +261,16 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
   });
 
+  it("invalidates calendar queries on participant.invited", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "participant.invited", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
+  });
+
   it("skips calendar invalidation when frame workspace_id mismatches hook wsId", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

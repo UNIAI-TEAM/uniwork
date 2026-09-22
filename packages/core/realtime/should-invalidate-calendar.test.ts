@@ -14,6 +14,12 @@ describe("shouldInvalidateCalendar", () => {
     expect(shouldInvalidateCalendar("meeting.canceled")).toBe(true);
   });
 
+  it("includes participant and invitation events", () => {
+    expect(shouldInvalidateCalendar("participant.invited")).toBe(true);
+    expect(shouldInvalidateCalendar("participant.removed")).toBe(true);
+    expect(shouldInvalidateCalendar("invitation.responded")).toBe(true);
+  });
+
   it("excludes comment and chat events", () => {
     expect(shouldInvalidateCalendar("task.comment_added")).toBe(false);
     expect(shouldInvalidateCalendar("chat.message.created")).toBe(false);

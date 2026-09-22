@@ -12,6 +12,9 @@ const CALENDAR_INVALIDATE_EVENTS = new Set<WSEventType>([
   "meeting.ended",
   "meeting.canceled",
   "host.transferred",
+  "participant.invited",
+  "participant.removed",
+  "invitation.responded",
 ]);
 
 export function shouldInvalidateCalendar(eventName: WSEventType): boolean {
