@@ -33,6 +33,27 @@ export function StatusPill({ status, label, className }: { status: string; label
   );
 }
 
+export function StatusHeading({
+  status,
+  label,
+  count,
+}: {
+  status: string;
+  label: string;
+  count: number;
+}) {
+  const cfg = STATUS_CONFIG[status as TaskStatus];
+  return (
+    <div data-slot="status-heading" className="flex min-w-0 items-center gap-2">
+      <span className="inline-flex min-w-0 items-center gap-1.5 text-caption font-semibold">
+        <StatusIcon status={status} className={cn("size-3", cfg?.iconColor)} />
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="shrink-0 text-caption tabular-nums text-muted-foreground">{count}</span>
+    </div>
+  );
+}
+
 /** Priority as a filled flag in its tint; label is aria-only unless `withLabel`. */
 export function PriorityFlag({
   priority,

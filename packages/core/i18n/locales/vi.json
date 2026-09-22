@@ -1166,7 +1166,8 @@
       "labels_unavailable": "Danh sách task chưa trả về quan hệ nhãn."
     },
     "card": {
-      "child_progress": "Tiến độ sub-task"
+      "child_progress": "Tiến độ sub-task",
+      "updated_ago": "Cập nhật {{time}}"
     },
     "list": {
       "select_status": "Chọn tất cả task trong {{status}}",

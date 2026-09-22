@@ -1167,7 +1167,8 @@
       "labels_unavailable": "The task list does not return label relations yet."
     },
     "card": {
-      "child_progress": "Sub-task progress"
+      "child_progress": "Sub-task progress",
+      "updated_ago": "Updated {{time}}"
     },
     "list": {
       "select_status": "Select all tasks in {{status}}",
