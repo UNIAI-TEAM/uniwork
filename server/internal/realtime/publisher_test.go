@@ -219,3 +219,13 @@ func TestLobbyMirrorsEverySignalThatEndsAWait(t *testing.T) {
 		}
 	}
 }
+
+// Guests have no workspace socket, so the REC badge in their room only moves
+// if recording start/stop reach the meeting scope.
+func TestLobbyMirrorsRecordingState(t *testing.T) {
+	for _, typ := range []string{"recording.started", "recording.stopped", "recording.ready"} {
+		if _, ok := meetingLobbyEventTypes[typ]; !ok {
+			t.Errorf("%s is not mirrored to the meeting lobby scope", typ)
+		}
+	}
+}
