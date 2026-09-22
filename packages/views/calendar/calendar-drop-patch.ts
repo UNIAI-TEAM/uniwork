@@ -21,7 +21,10 @@ function inclusiveEndFromExclusiveEnd(end: Date): string {
 function inclusiveDueFromEvent(event: CalendarEvent): string {
   if (event.end) {
     const exclusiveEndYmd = event.end.slice(0, 10);
-    const [y, m, day] = exclusiveEndYmd.split("-").map(Number);
+    const parts = exclusiveEndYmd.split("-").map(Number);
+    const y = parts[0] ?? 0;
+    const m = parts[1] ?? 1;
+    const day = parts[2] ?? 1;
     return format(subDays(new Date(y, m - 1, day), 1), "yyyy-MM-dd");
   }
   return event.start.slice(0, 10);

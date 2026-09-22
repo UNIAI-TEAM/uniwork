@@ -2,7 +2,10 @@ import type { CalendarEvent } from "./types";
 
 /** FullCalendar all-day events use an exclusive `end` (day after last inclusive day). */
 function addOneCalendarDay(ymd: string): string {
-  const [y, m, d] = ymd.split("-").map(Number);
+  const parts = ymd.split("-").map(Number);
+  const y = parts[0] ?? 0;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
   const dt = new Date(Date.UTC(y, m - 1, d + 1));
   return dt.toISOString().slice(0, 10);
 }

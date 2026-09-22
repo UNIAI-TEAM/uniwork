@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 const { DraggableMock } = vi.hoisted(() => {
   const destroy = vi.fn();
-  const DraggableMock = vi.fn(function DraggableMock() {
+  const DraggableMock = vi.fn(function DraggableMock(
+    _el: HTMLElement,
+    _opts?: {
+      itemSelector?: string;
+      eventData?: (el: HTMLElement) => unknown;
+    },
+  ) {
     return { destroy };
   });
   return { DraggableMock };

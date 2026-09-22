@@ -1,15 +1,16 @@
 "use client";
 
 import type {
-  DateClickArg,
+  DateSelectArg,
   DatesSetArg,
   EventClickArg,
   EventDropArg,
-  EventResizeDoneArg,
-  SelectArg,
 } from "@fullcalendar/core";
 import dayGridPlugin from "@fullcalendar/daygrid";
-import interactionPlugin from "@fullcalendar/interaction";
+import interactionPlugin, {
+  type DateClickArg,
+  type EventResizeDoneArg,
+} from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
@@ -131,7 +132,7 @@ export function FullCalendarHost(props: {
     });
   };
 
-  const handleSelect = (info: SelectArg) => {
+  const handleSelect = (info: DateSelectArg) => {
     props.onSlotSelect?.({
       start: info.start,
       end: info.end,

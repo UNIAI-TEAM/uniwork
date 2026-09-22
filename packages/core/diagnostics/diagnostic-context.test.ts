@@ -39,6 +39,9 @@ describe("bucketDiagnosticPath", () => {
     expect(bucketDiagnosticPath("/acme/team/projects")).toBe(
       "/:org/:slug/projects",
     );
+    expect(bucketDiagnosticPath("/acme/team/calendar")).toBe(
+      "/:org/:slug/calendar",
+    );
   });
 
   it("templates every workspace detail route", () => {

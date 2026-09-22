@@ -17,7 +17,7 @@ const taskEvent: CalendarEvent = {
 };
 
 const useCalendarEventsMock = vi.hoisted(() =>
-  vi.fn(() => ({
+  vi.fn((..._args: unknown[]) => ({
     data: [taskEvent],
     isError: false,
     isPending: false,
@@ -26,7 +26,7 @@ const useCalendarEventsMock = vi.hoisted(() =>
 );
 
 vi.mock("@uniwork/core/calendar", () => ({
-  useCalendarEvents: (...args: unknown[]) => useCalendarEventsMock(...args),
+  useCalendarEvents: useCalendarEventsMock,
   useCalendarSidebar: () => ({
     data: {
       priorities: [],

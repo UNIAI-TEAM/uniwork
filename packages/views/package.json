@@ -38,7 +38,7 @@
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",
     "./common/*": "./common/*.tsx",
-    "./calendar/*": "./calendar/*"
+    "./calendar/*": "./calendar/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "catalog:",
