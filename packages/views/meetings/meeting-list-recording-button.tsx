@@ -10,11 +10,9 @@ import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 export function MeetingListRecordingButton({
   meetingId,
   enabled,
-  compact = false,
 }: {
   meetingId: string;
   enabled: boolean;
-  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const { data: recordings } = useRecordings(meetingId, enabled);
@@ -29,12 +27,12 @@ export function MeetingListRecordingButton({
         type="button"
         size="sm"
         variant="secondary"
-        aria-label={t("meetings.recording_rewatch")}
-        className={compact ? "size-11 px-0 sm:h-8 sm:w-auto sm:px-2.5" : "h-8 px-2.5"}
+        // Icon-only on a phone, labelled from sm; the text stays for assistive tech either way.
+        className="max-sm:w-7 max-sm:px-0 pointer-coarse:h-11 pointer-coarse:max-sm:w-11"
         onClick={() => setOpen(true)}
       >
-        <Play aria-hidden className={compact ? "size-4 sm:size-3.5" : "size-3.5"} />
-        <span className={compact ? "hidden sm:inline" : undefined}>{t("meetings.recording_rewatch")}</span>
+        <Play aria-hidden />
+        <span className="max-sm:sr-only">{t("meetings.recording_rewatch")}</span>
       </Button>
       <MeetingRecordingDialog
         open={open}

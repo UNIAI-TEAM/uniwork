@@ -67,6 +67,19 @@ function shell(ui: React.ReactElement) {
   );
 }
 
+const members = {
+  members: [
+    {
+      workspace_id: "w1",
+      user_id: "u-host",
+      role: "owner",
+      email: "me@x.com",
+      display_name: "Me",
+      avatar_url: "https://cdn.test/me.png",
+    },
+  ],
+};
+
 beforeAll(() => {
   initI18n();
 });
@@ -75,30 +88,41 @@ beforeEach(() => {
   requestMock.mockReset();
   setSessionUser(me);
   requestMock.mockImplementation((path: unknown) => {
-    if (String(path).endsWith("/members")) {
-      return Promise.resolve({
-        members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }],
-      });
-    }
+    if (String(path).endsWith("/members")) return Promise.resolve(members);
     return Promise.resolve({});
   });
 });
 
 describe("MeetingList", () => {
-  it("renders grouped rows with host names and join actions", async () => {
+  it("renders each meeting once, as one row with its host and the join action", async () => {
     render(shell(<MeetingList workspaceId="w1" meetings={meetings} onOpenRoom={() => {}} />));
 
-    expect(await screen.findAllByText("Standup")).not.toHaveLength(0);
-    expect(screen.getAllByText("Retro").length).toBeGreaterThan(0);
-    expect(await screen.findAllByText("Me")).toHaveLength(4);
+    expect(await screen.findAllByText("Me")).toHaveLength(2);
+    expect(screen.getAllByText("Standup")).toHaveLength(1);
+    expect(screen.getAllByText("Retro")).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: /Retro/ })).toHaveLength(1);
 
     const rows = screen.getAllByRole("listitem");
-    expect(rows.length).toBeGreaterThanOrEqual(2);
+    expect(rows).toHaveLength(2);
     const retroRow = rows.find((row) => within(row).queryByText("Retro"));
     expect(within(retroRow!).getByRole("button", { name: "Vào ngay" })).toBeInTheDocument();
   });
 
-  it("hides join and shows ended when the scheduled window is over", async () => {
+  it("shows the host's photo when the member has one", async () => {
+    const { container } = render(shell(<MeetingList workspaceId="w1" meetings={[meetings[0]!]} onOpenRoom={() => {}} />));
+    await screen.findByText("Me");
+    expect(container.querySelector('img[src="https://cdn.test/me.png"]')).not.toBeNull();
+  });
+
+  it("says how soon an upcoming meeting starts and marks an instant one", async () => {
+    const soon: Meeting = { ...meetings[0]!, id: "m-soon", title: "Sắp họp", ...windowFromNow(15 * 60_000 + 20_000) };
+    const instant: Meeting = { ...meetings[1]!, id: "m-inst", title: "Họp gấp", meeting_type: "INSTANT" };
+    render(shell(<MeetingList workspaceId="w1" meetings={[soon, instant]} onOpenRoom={() => {}} />));
+    expect(await screen.findByText(/^sau 15 phút/)).toBeInTheDocument();
+    expect(screen.getByText("Họp tức thì")).toBeInTheDocument();
+  });
+
+  it("hides join and shows overtime when the scheduled window is over", async () => {
     const overtime: Meeting = {
       ...meetings[1]!,
       id: "m-over",
@@ -107,24 +131,25 @@ describe("MeetingList", () => {
       status: "IN_PROGRESS",
     };
     render(shell(<MeetingList workspaceId="w1" meetings={[overtime]} onOpenRoom={() => {}} />));
-    expect(await screen.findAllByText("Overtime standup")).not.toHaveLength(0);
+    expect(await screen.findByText("Overtime standup")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vào ngay" })).not.toBeInTheDocument();
-    expect(screen.getAllByText("Quá giờ").length).toBeGreaterThan(0);
+    expect(screen.getByText("Quá giờ")).toBeInTheDocument();
   });
 
-  it("marks today's meetings in the day heading", async () => {
+  it("names the day relative to today, with a count", async () => {
     const today = new Date();
     const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const todayMeeting: Meeting = {
       ...meetings[0]!,
-      starts_at: `${day}T02:00:00Z`,
-      ends_at: `${day}T02:30:00Z`,
+      starts_at: new Date(`${day}T09:00:00`).toISOString(),
+      ends_at: new Date(`${day}T09:30:00`).toISOString(),
     };
-    render(shell(<MeetingList workspaceId="w1" meetings={[todayMeeting]} onOpenRoom={() => {}} />));
-    expect(await screen.findByText("Hôm nay")).toBeInTheDocument();
+    render(shell(<MeetingList workspaceId="w1" meetings={[todayMeeting, meetings[0]!]} onOpenRoom={() => {}} />));
+    expect(await screen.findByRole("heading", { name: /Hôm nay/ })).toHaveTextContent("1");
+    expect(screen.getByRole("heading", { name: /Ngày mai/ })).toBeInTheDocument();
   });
 
-  it("shows rewatch when an ended meeting has a recording", async () => {
+  it("shows rewatch once when an ended meeting has a recording", async () => {
     const ended: Meeting = {
       ...meetings[0]!,
       id: "m-ended",
@@ -134,11 +159,7 @@ describe("MeetingList", () => {
     };
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
-      if (p.endsWith("/members")) {
-        return Promise.resolve({
-          members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }],
-        });
-      }
+      if (p.endsWith("/members")) return Promise.resolve(members);
       if (p.endsWith("/recordings")) {
         return Promise.resolve({
           recordings: [{ id: "rec1", meeting_id: "m-ended", status: "COMPLETE", file_url: "https://x/rec.mp4" }],
@@ -147,7 +168,6 @@ describe("MeetingList", () => {
       return Promise.resolve({});
     });
     render(shell(<MeetingList workspaceId="w1" meetings={[ended]} onOpenRoom={() => {}} />));
-    expect(await screen.findAllByText("Cuộc họp tức thì")).not.toHaveLength(0);
-    expect(await screen.findAllByRole("button", { name: "Xem lại" })).not.toHaveLength(0);
+    expect(await screen.findAllByRole("button", { name: "Xem lại" })).toHaveLength(1);
   });
 });
