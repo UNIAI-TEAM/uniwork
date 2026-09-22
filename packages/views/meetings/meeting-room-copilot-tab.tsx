@@ -27,6 +27,7 @@ import { MeetingActionItemRow } from "./meeting-copilot/meeting-action-item-row"
 import { MeetingNotesCard } from "./meeting-copilot/meeting-notes-card";
 import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
+import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
 
 type CopilotSection = "notes" | "transcript" | "insights" | "actions";
 
@@ -67,10 +68,23 @@ export function MeetingRoomCopilotTab({
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
-  const { data: summary, isLoading: summaryLoading } = useMeetingSummary(meetingId);
-  const { data: transcript } = useTranscript(meetingId);
-  const { data: chat } = useMeetingChat(meetingId);
-  const { data: notes } = useNotes(meetingId);
+  const summaryQuery = useMeetingSummary(meetingId);
+  const transcriptQuery = useTranscript(meetingId);
+  const chatQuery = useMeetingChat(meetingId);
+  const notesQuery = useNotes(meetingId);
+  const summary = summaryQuery.data;
+  const transcript = transcriptQuery.data;
+  const chat = chatQuery.data;
+  const notes = notesQuery.data;
+  const transcriptFailed = transcriptQuery.isError && !transcript;
+  const notesFailed = notesQuery.isError && !notes;
+  // The overview's empty copy reads every source, so it waits for all of them.
+  const sources = [summaryQuery, transcriptQuery, chatQuery, notesQuery];
+  const insightsLoading = sources.some((q) => q.isPending);
+  const insightsFailed = sources.some((q) => q.isError && !q.data);
+  const retryInsights = () => {
+    for (const q of sources) if (q.isError) void q.refetch();
+  };
   const { data: members } = useMembers(workspaceId ?? "");
   const { data: recordings } = useRecordings(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
@@ -177,26 +191,29 @@ export function MeetingRoomCopilotTab({
       />
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
-        {section === "insights" ? (
+        {section === "insights" && !summary && insightsLoading ? (
+          <MeetingTextSkeleton className="rounded-xl border border-border p-4" />
+        ) : section === "insights" && !summary && insightsFailed ? (
+          <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={retryInsights} />
+        ) : section === "insights" ? (
           <MeetingNotesCard
             summary={summary?.summary}
             decisions={decisions}
             summaryUpdatedAt={summaryUpdatedAt}
             summarizing={generate.isPending}
-            emptyHint={
-              summaryLoading
-                ? t("common.loading")
-                : hasSource
-                  ? t("meetings.summaryEmpty")
-                  : t("meetings.transcriptEmpty")
-            }
+            emptyHint={hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
           />
         ) : null}
 
         {section === "notes" ? (
           <section className="flex min-h-0 flex-col gap-3">
+            {notesQuery.isPending ? (
+              <MeetingRowsSkeleton rows={2} rowClassName="px-0" />
+            ) : notesFailed ? (
+              <MeetingSectionError message={t("meetings.notesLoadFailed")} onRetry={() => void notesQuery.refetch()} />
+            ) : null}
             <ul className="min-h-0 space-y-2">
-              {(notes ?? []).length === 0 ? (
+              {notesQuery.isPending || notesFailed ? null : (notes ?? []).length === 0 ? (
                 <li className="text-label text-muted-foreground">{t("meetings.notesEmpty")}</li>
               ) : (
                 (notes ?? []).map((n) => (
@@ -234,6 +251,14 @@ export function MeetingRoomCopilotTab({
 
         {section === "transcript" ? (
           <section>
+            {transcriptQuery.isPending ? (
+              <MeetingTextSkeleton />
+            ) : transcriptFailed ? (
+              <MeetingSectionError
+                message={t("meetings.transcriptLoadFailed")}
+                onRetry={() => void transcriptQuery.refetch()}
+              />
+            ) : null}
             <ol className="space-y-2">
               {(transcript ?? []).map((s) => (
                 <li key={s.id} className="rounded-lg bg-surface-hover px-2.5 py-2 text-body text-foreground">
@@ -242,7 +267,7 @@ export function MeetingRoomCopilotTab({
                   {s.text}
                 </li>
               ))}
-              {(transcript ?? []).length === 0 ? (
+              {(transcript ?? []).length === 0 && !transcriptQuery.isPending && !transcriptFailed ? (
                 <li className="text-label text-muted-foreground">{t("meetings.transcriptEmpty")}</li>
               ) : null}
             </ol>

@@ -7,11 +7,12 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
 
 /** Shared notes: a feed of who wrote what, and a composer at the bottom. */
 export function MeetingNotesSection({ meetingId }: { meetingId: string }) {
   const { t } = useTranslation();
-  const { data: notes } = useNotes(meetingId);
+  const { data: notes, isPending, isError, refetch } = useNotes(meetingId);
   const addNote = useAddNote(meetingId);
   const [note, setNote] = useState("");
   const list = notes ?? [];
@@ -45,7 +46,15 @@ export function MeetingNotesSection({ meetingId }: { meetingId: string }) {
         </form>
       }
     >
-      {list.length === 0 ? (
+      {isPending ? (
+        <MeetingRowsSkeleton rows={2} className="py-1" />
+      ) : isError ? (
+        <MeetingSectionError
+          className="m-4"
+          message={t("meetings.notesLoadFailed")}
+          onRetry={() => void refetch()}
+        />
+      ) : list.length === 0 ? (
         <p className="px-4 py-6 text-center text-label text-muted-foreground">{t("meetings.notesEmpty")}</p>
       ) : (
         <ul className="divide-y divide-border">

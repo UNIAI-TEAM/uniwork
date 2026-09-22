@@ -4,17 +4,35 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRecordings } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
+import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 
 export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
   const { t, i18n } = useTranslation();
-  const { data: recordings, isLoading } = useRecordings(meetingId);
+  const { data: recordings, isPending, isError, refetch } = useRecordings(meetingId);
   const shared = (recordings ?? []).filter((r) => r.file_url);
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
-  if (isLoading) {
-    return <p className="text-label text-muted-foreground">{t("common.loading")}</p>;
+  if (isPending) {
+    return (
+      <MeetingSectionLoading className="space-y-2">
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between gap-2 rounded-xl border border-border bg-surface-hover px-3 py-2.5"
+          >
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-20 rounded-lg" />
+          </div>
+        ))}
+      </MeetingSectionLoading>
+    );
+  }
+
+  if (isError) {
+    return <MeetingSectionError message={t("meetings.filesLoadFailed")} onRetry={() => void refetch()} />;
   }
 
   if (shared.length === 0) {

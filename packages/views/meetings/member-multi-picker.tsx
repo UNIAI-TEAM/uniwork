@@ -7,6 +7,7 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
 
 export function MemberMultiPicker({
   workspaceId,
@@ -24,7 +25,7 @@ export function MemberMultiPicker({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const { data: members } = useMembers(workspaceId);
+  const { data: members, isPending, isError, refetch } = useMembers(workspaceId);
   const [search, setSearch] = useState("");
   const options = (members ?? []).filter((m) => !excludeUserIds.includes(m.user_id));
   const needle = search.trim().toLowerCase();
@@ -52,7 +53,15 @@ export function MemberMultiPicker({
         {t("meetings.memberListLabel")}
       </p>
       <ul className="min-h-0 max-h-56 min-w-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-surface">
-        {filtered.length === 0 ? (
+        {isPending ? (
+          <li>
+            <MeetingRowsSkeleton rowClassName="min-h-11 px-3 py-2" />
+          </li>
+        ) : isError ? (
+          <li className="p-2">
+            <MeetingSectionError message={t("meetings.membersLoadFailed")} onRetry={() => void refetch()} />
+          </li>
+        ) : filtered.length === 0 ? (
           <li className="px-3 py-4 text-center text-label text-muted-foreground">
             {needle ? t("meetings.noPeopleMatch") : t("meetings.noOtherMembers")}
           </li>

@@ -25,6 +25,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
+import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
 
 /** Browser download of an .ics the API already authenticated for us. */
 function downloadText(filename: string, text: string) {
@@ -74,8 +75,18 @@ export function MeetingSummaryPanel({
   const { t, i18n } = useTranslation();
   const meetingId = meeting.id;
   const { data: caps } = useMeetingCapabilities(workspaceId);
-  const { data: summary, isLoading: summaryLoading } = useMeetingSummary(meetingId);
-  const { data: transcript } = useTranscript(meetingId);
+  const summaryQuery = useMeetingSummary(meetingId);
+  const transcriptQuery = useTranscript(meetingId);
+  const summary = summaryQuery.data;
+  const transcript = transcriptQuery.data;
+  // The empty copy depends on both (no summary → "no transcript yet" or
+  // "no summary yet"), so neither is claimed until both have answered.
+  const summaryLoading = summaryQuery.isPending || transcriptQuery.isPending;
+  const summaryFailed = (summaryQuery.isError && !summary) || (transcriptQuery.isError && !transcript);
+  const retrySummary = () => {
+    if (summaryQuery.isError) void summaryQuery.refetch();
+    if (transcriptQuery.isError) void transcriptQuery.refetch();
+  };
   const { data: recordings } = useRecordings(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
   const createTasks = useCreateTasksFromSummary(workspaceId, meetingId);
@@ -256,7 +267,11 @@ export function MeetingSummaryPanel({
               <p className="text-caption text-muted-foreground">{t("meetings.summaryBy", { model: summary.model })}</p>
             ) : null}
           </div>
-        ) : summaryLoading ? null : (
+        ) : summaryLoading ? (
+          <MeetingTextSkeleton />
+        ) : summaryFailed ? (
+          <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={retrySummary} />
+        ) : (
           <p className="text-label text-muted-foreground">
             {hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
           </p>
@@ -282,7 +297,11 @@ export function MeetingSummaryPanel({
                   {s.text}
                 </li>
               ))}
-              {(transcript ?? []).length === 0 ? (
+              {transcriptQuery.isPending ? (
+                <li>
+                  <MeetingTextSkeleton />
+                </li>
+              ) : (transcript ?? []).length === 0 && !transcriptQuery.isError ? (
                 <li className="text-caption text-muted-foreground">{t("meetings.transcriptEmpty")}</li>
               ) : null}
             </ol>

@@ -2,10 +2,14 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useMeetingChat } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
+import { toastApiError } from "../toast-api-error";
 import { groupChatMessages, type MeetingChatItem } from "./meeting-chat";
+import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 import { useEphemeralMeetingRoomChat } from "./use-ephemeral-meeting-room-chat";
 import { usePersistedMeetingRoomChat } from "./use-persisted-meeting-room-chat";
 
@@ -21,26 +25,56 @@ function formatChatTime(timestamp: number, locale: string): string {
   }
 }
 
+/** How close to the bottom (px) still counts as "reading the latest". */
+const STICK_THRESHOLD = 48;
+
+/* Alternating sides so the loading shape reads as a conversation. */
+const BUBBLES: Array<{ own: boolean; size: string }> = [
+  { own: false, size: "h-9 w-40" },
+  { own: true, size: "h-9 w-32" },
+  { own: false, size: "h-14 w-48" },
+];
+
+function MeetingRoomChatSkeleton() {
+  return (
+    <MeetingSectionLoading className="space-y-4">
+      {BUBBLES.map((b, i) => (
+        <div key={i} className={cn("flex flex-col gap-1.5", b.own ? "items-end" : "items-start")}>
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className={cn("max-w-[85%] rounded-2xl", b.size)} />
+        </div>
+      ))}
+    </MeetingSectionLoading>
+  );
+}
+
+type ChatLoadState = { loading: boolean; failed: boolean; retry: () => void };
+
 function MeetingRoomChatView({
   items,
   send,
   isSending,
+  load,
 }: {
   items: MeetingChatItem[];
   send: (message: string) => Promise<void>;
   isSending: boolean;
+  load?: ChatLoadState;
 }) {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
   const sendLock = useRef(false);
+  // Follow new messages only while the reader is at the bottom; someone who
+  // scrolled up to read history keeps their place.
+  const stickToBottom = useRef(true);
 
   const groups = groupChatMessages(items);
   const lastIncoming = [...items].reverse().find((m) => !m.isLocal);
 
   useEffect(() => {
     const list = listRef.current;
-    if (!list) return;
+    if (!list || !stickToBottom.current) return;
     list.scrollTop = list.scrollHeight;
   }, [items.length, groups.length]);
 
@@ -52,6 +86,9 @@ function MeetingRoomChatView({
     try {
       await send(body);
       setDraft("");
+      stickToBottom.current = true;
+    } catch (err) {
+      toastApiError(err, t("common.error"));
     } finally {
       sendLock.current = false;
     }
@@ -72,8 +109,20 @@ function MeetingRoomChatView({
       <ol
         ref={listRef}
         className="min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;
+        }}
       >
-        {groups.length === 0 ? (
+        {load?.loading ? (
+          <li>
+            <MeetingRoomChatSkeleton />
+          </li>
+        ) : load?.failed ? (
+          <li>
+            <MeetingSectionError message={t("meetings.chatLoadFailed")} onRetry={load.retry} />
+          </li>
+        ) : groups.length === 0 ? (
           <li className="text-caption text-muted-foreground">{t("meetings.chatEmpty")}</li>
         ) : (
           groups.map((group) => (
@@ -153,7 +202,14 @@ function MeetingRoomChatView({
 
 function PersistedMeetingRoomChatTab({ meetingId }: { meetingId: string }) {
   const chat = usePersistedMeetingRoomChat(meetingId);
-  return <MeetingRoomChatView {...chat} />;
+  // Same query key as the hook above, so this only reads its status.
+  const { data, isPending, isError, refetch } = useMeetingChat(meetingId);
+  const load: ChatLoadState = {
+    loading: isPending,
+    failed: isError && !data,
+    retry: () => void refetch(),
+  };
+  return <MeetingRoomChatView {...chat} load={load} />;
 }
 
 function EphemeralMeetingRoomChatTab() {

@@ -11,6 +11,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { meetingLocale } from "./meeting-datetime";
+import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
 
 const VISIBLE_ACTIVITY_LIMIT = 5;
 
@@ -24,7 +25,7 @@ export function MeetingActivityTimeline({
   defaultOpen?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const { data: items } = useMeetingActivity(meetingId);
+  const { data: items, isPending, isError, refetch } = useMeetingActivity(meetingId);
   const { data: members } = useMembers(workspaceId);
   const [open, setOpen] = useState(defaultOpen);
   const [showAll, setShowAll] = useState(false);
@@ -55,7 +56,15 @@ export function MeetingActivityTimeline({
         }
       >
         <CollapsibleContent>
-          {all.length === 0 ? (
+          {isPending ? (
+            <MeetingRowsSkeleton className="py-1.5" rowClassName="py-2" />
+          ) : isError ? (
+            <MeetingSectionError
+              className="m-4"
+              message={t("meetings.activityLoadFailed")}
+              onRetry={() => void refetch()}
+            />
+          ) : all.length === 0 ? (
             <p className="px-4 py-6 text-center text-label text-muted-foreground">{t("meetings.activityEmpty")}</p>
           ) : (
             <div className="px-4 py-4">

@@ -16,6 +16,7 @@ import { PanelCard } from "../common/panel-card";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRsvpBadge } from "./meeting-status-badge";
 import { MemberMultiPicker } from "./member-multi-picker";
+import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
 import { TransferHostDialog } from "./transfer-host-dialog";
 
 export function MeetingParticipantsSection({
@@ -32,7 +33,12 @@ export function MeetingParticipantsSection({
   showTransferHost?: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: participants } = useParticipants(meeting.id);
+  const {
+    data: participants,
+    isPending: participantsPending,
+    isError: participantsFailed,
+    refetch: refetchParticipants,
+  } = useParticipants(meeting.id);
   const { data: members } = useMembers(workspaceId);
   const remove = useRemoveParticipant(meeting.id);
   const [selected, setSelected] = useState<string[]>([]);
@@ -66,7 +72,15 @@ export function MeetingParticipantsSection({
       flush
       footer={showTransferHost ? <TransferHostDialog workspaceId={workspaceId} meeting={meeting} /> : undefined}
     >
-      {ordered.length === 0 ? (
+      {participantsPending ? (
+        <MeetingRowsSkeleton rows={2} className="py-1" />
+      ) : participantsFailed ? (
+        <MeetingSectionError
+          className="m-4"
+          message={t("meetings.participantsLoadFailed")}
+          onRetry={() => void refetchParticipants()}
+        />
+      ) : ordered.length === 0 ? (
         <div className="px-4 py-6 text-center">
           <p className="text-label text-foreground">{t("meetings.noParticipantsYet")}</p>
           <p className="mt-1 text-caption text-muted-foreground">{t("meetings.noParticipantsHint")}</p>

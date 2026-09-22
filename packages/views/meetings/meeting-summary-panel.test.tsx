@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Meeting } from "@uniwork/core/types/meeting";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -48,5 +49,62 @@ describe("MeetingSummaryPanel", () => {
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/summary", expect.objectContaining({ method: "POST" })),
     );
+  });
+});
+
+function summaryRespond(summary: () => Promise<unknown>, transcript: () => Promise<unknown> = () => Promise.resolve({ segments: [] })) {
+  requestMock.mockImplementation((path: unknown) => {
+    const p = String(path);
+    if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+    if (p.endsWith("/summary")) return summary();
+    if (p.endsWith("/transcript")) return transcript();
+    if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+    if (p.endsWith("/recordings")) return Promise.resolve({ recordings: [] });
+    return Promise.resolve({});
+  });
+}
+
+describe("MeetingSummaryPanel loading", () => {
+  it("holds the panel's shape with a skeleton while the summary loads", () => {
+    summaryRespond(() => new Promise(() => {}));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    const panel = screen.getByTestId("meeting-summary-panel");
+    expect(within(panel).getByRole("status")).toHaveTextContent("Đang tải…");
+    expect(within(panel).queryByText(/Chưa có transcript/)).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/Chưa có tóm tắt/)).not.toBeInTheDocument();
+  });
+
+  it("does not claim there is no transcript while the transcript is still loading", async () => {
+    summaryRespond(() => Promise.resolve({ summary: null }), () => new Promise(() => {}));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    const panel = screen.getByTestId("meeting-summary-panel");
+    expect(within(panel).queryByText(/Chưa có transcript/)).not.toBeInTheDocument();
+  });
+
+  it("says there is no transcript yet once both have arrived empty", async () => {
+    summaryRespond(() => Promise.resolve({ summary: null }));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    const panel = screen.getByTestId("meeting-summary-panel");
+    expect(await within(panel).findByText(/Chưa có transcript/)).toBeInTheDocument();
+    expect(within(panel).queryByText("Đang tải…")).not.toBeInTheDocument();
+  });
+
+  it("offers a retry instead of the empty copy when the summary fails", async () => {
+    summaryRespond(() => Promise.reject(new ApiError("boom", "internal", 500)));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    const panel = screen.getByTestId("meeting-summary-panel");
+    expect(await within(panel).findByText("Không tải được tóm tắt.")).toBeInTheDocument();
+    expect(within(panel).queryByText(/Chưa có transcript/)).not.toBeInTheDocument();
+
+    summaryRespond(() => Promise.resolve({ summary: null }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Thử lại" }));
+    expect(await within(panel).findByText(/Chưa có transcript/)).toBeInTheDocument();
   });
 });
