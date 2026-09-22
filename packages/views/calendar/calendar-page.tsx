@@ -110,6 +110,9 @@ export function CalendarPageView({
             anchorDate={anchorDate}
             mine={mine}
             viewMode={viewMode}
+            workspaceId={workspaceId}
+            exportFrom={range.from}
+            exportTo={range.to}
             onAnchorDateChange={handleAnchorDateChange}
             onMineChange={setMine}
             onViewModeChange={handleViewModeChange}

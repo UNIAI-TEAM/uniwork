@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCalendarSidebar, listCalendarEvents } from "./calendar";
+import { fetchWorkspaceCalendarIcs, getCalendarSidebar, listCalendarEvents } from "./calendar";
 
-vi.mock("../http", () => ({
-  request: vi.fn(),
-}));
+vi.mock("../http", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../http")>();
+  return {
+    ...actual,
+    request: vi.fn(),
+    requestText: vi.fn(),
+  };
+});
 
-import { request } from "../http";
+import { request, requestText } from "../http";
 
 describe("listCalendarEvents", () => {
   beforeEach(() => vi.mocked(request).mockReset());
@@ -75,5 +80,32 @@ describe("getCalendarSidebar", () => {
     const sidebar = await getCalendarSidebar("ws1");
     expect(sidebar.priorities[0]?.dueDate).toBe("2026-09-15");
     expect(sidebar.meetWith[0]?.startsAt).toBe("2026-09-10T03:00:00Z");
+  });
+});
+
+describe("fetchWorkspaceCalendarIcs", () => {
+  beforeEach(() => vi.mocked(requestText).mockReset());
+
+  it("returns raw ICS text with optional range query", async () => {
+    vi.mocked(requestText).mockResolvedValue("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n");
+    const text = await fetchWorkspaceCalendarIcs("ws1", {
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
+    expect(text).toContain("BEGIN:VCALENDAR");
+    expect(vi.mocked(requestText).mock.calls[0]?.[0]).toBe(
+      "/api/v1/workspaces/ws1/calendar.ics?from=2026-09-01&to=2026-09-30",
+    );
+  });
+
+  it("rejects empty or non-calendar bodies", async () => {
+    vi.mocked(requestText).mockResolvedValue("");
+    await expect(fetchWorkspaceCalendarIcs("ws1")).rejects.toMatchObject({
+      message: "Invalid calendar export",
+    });
+    vi.mocked(requestText).mockResolvedValue("not ics");
+    await expect(fetchWorkspaceCalendarIcs("ws1")).rejects.toMatchObject({
+      message: "Invalid calendar export",
+    });
   });
 });

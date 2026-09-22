@@ -13,6 +13,7 @@ import {
   type CalendarViewMode,
   shiftAnchor,
 } from "./calendar-view-mode";
+import { CalendarExportButton } from "./calendar-export-button";
 
 const VIEW_MODES: CalendarViewMode[] = ["day", "work_week", "week", "month"];
 
@@ -31,6 +32,9 @@ export function CalendarToolbar({
   anchorDate,
   mine,
   viewMode,
+  workspaceId,
+  exportFrom,
+  exportTo,
   onAnchorDateChange,
   onMineChange,
   onViewModeChange,
@@ -39,6 +43,9 @@ export function CalendarToolbar({
   anchorDate: Date;
   mine: boolean;
   viewMode: CalendarViewMode;
+  workspaceId: string;
+  exportFrom?: string;
+  exportTo?: string;
   onAnchorDateChange: (next: Date) => void;
   onMineChange: (next: boolean) => void;
   onViewModeChange: (mode: CalendarViewMode) => void;
@@ -101,10 +108,13 @@ export function CalendarToolbar({
           ))}
         </ToggleGroup>
       </div>
-      <label className="flex cursor-pointer items-center gap-2">
-        <Switch checked={mine} onCheckedChange={onMineChange} aria-label={t("calendar.mine")} />
-        <span className="text-body text-foreground">{t("calendar.mine")}</span>
-      </label>
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <CalendarExportButton workspaceId={workspaceId} from={exportFrom} to={exportTo} />
+        <label className="flex cursor-pointer items-center gap-2">
+          <Switch checked={mine} onCheckedChange={onMineChange} aria-label={t("calendar.mine")} />
+          <span className="text-body text-foreground">{t("calendar.mine")}</span>
+        </label>
+      </div>
     </div>
   );
 }

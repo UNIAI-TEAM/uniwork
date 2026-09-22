@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { CalendarEvent, CalendarSidebar } from "../../calendar/types";
-import { request } from "../http";
+import { ApiError, request, requestText } from "../http";
 import { parseWithFallback } from "../schema";
 
 const enc = encodeURIComponent;
@@ -115,3 +115,24 @@ export async function getCalendarSidebar(workspaceId: string): Promise<CalendarS
     endpoint: "GET /api/v1/workspaces/{ws}/calendar/sidebar",
   });
 }
+
+const WORKSPACE_ICS_FILENAME = "uniwork-calendar.ics";
+
+/** Fetches workspace iCalendar text; caller saves it as a download. */
+export async function fetchWorkspaceCalendarIcs(
+  workspaceId: string,
+  opts?: { from?: string; to?: string },
+): Promise<string> {
+  const q = new URLSearchParams();
+  if (opts?.from) q.set("from", opts.from);
+  if (opts?.to) q.set("to", opts.to);
+  const query = q.toString();
+  const path = `/api/v1/workspaces/${enc(workspaceId)}/calendar.ics${query ? `?${query}` : ""}`;
+  const text = await requestText(path);
+  if (!text.trim() || !text.includes("BEGIN:VCALENDAR")) {
+    throw new ApiError("Invalid calendar export", "internal", 502);
+  }
+  return text;
+}
+
+export { WORKSPACE_ICS_FILENAME };
