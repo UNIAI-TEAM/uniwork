@@ -121,4 +121,63 @@ describe("DepartmentsTab", () => {
     expect(screen.getByText("Chưa có phòng cấp cao nhất nào, nên phòng này sẽ ở cấp cao nhất.")).toBeInTheDocument();
     expect(screen.getByLabelText("Thuộc phòng")).toHaveTextContent("Cấp cao nhất (không thuộc phòng nào)");
   });
+
+  it("does not save when the keyboard moves from the field to “Hủy”, and returns focus to “Đổi tên”", async () => {
+    mockApi("admin", tree);
+    renderTab();
+    const row = (await screen.findByText("Kỹ thuật")).closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Đổi tên" }));
+    const input = within(row).getByRole("textbox", { name: "Tên mới cho Kỹ thuật" });
+    fireEvent.change(input, { target: { value: "Bỏ đi" } });
+    const cancel = within(row).getByRole("button", { name: "Hủy" });
+    // Tab: focus lands on "Hủy", the field blurs with it as relatedTarget.
+    fireEvent.blur(input, { relatedTarget: cancel });
+    cancel.focus();
+    fireEvent.click(cancel);
+    expect(within(row).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(writes()).toHaveLength(0);
+    await waitFor(() => expect(within(row).getByRole("button", { name: "Đổi tên" })).toHaveFocus());
+  });
+
+  it("still saves when the field loses focus to something outside the row", async () => {
+    mockApi("admin", tree);
+    renderTab();
+    const row = (await screen.findByText("Kinh doanh")).closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Đổi tên" }));
+    const input = within(row).getByRole("textbox", { name: "Tên mới cho Kinh doanh" });
+    fireEvent.change(input, { target: { value: "Bán hàng" } });
+    fireEvent.blur(input, { relatedTarget: null });
+    await waitFor(() => expect(writes()).toHaveLength(1));
+  });
+
+  it("says the list failed to load, with a retry, instead of the empty state", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/members/me")) return Promise.resolve({ role: "admin" });
+      if (path.includes("/departments")) return Promise.reject(new Error("boom"));
+      return Promise.resolve({});
+    });
+    renderTab();
+    expect(await screen.findByText("Không tải được danh sách phòng ban.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(screen.queryByText(/Chưa có phòng ban nào/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a department whose parent is not in the list, and counts it", async () => {
+    mockApi("admin", [...tree, { id: "d9", name: "Mồ côi", parent_id: "gone", member_count: 1 }]);
+    renderTab();
+    expect(await screen.findByText("Mồ côi")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "4 phòng ban" })).toBeInTheDocument();
+  });
+
+  it("explains an empty name instead of silently refusing to add", async () => {
+    mockApi("admin", tree);
+    renderTab();
+    await screen.findByText("Kỹ thuật");
+    fireEvent.click(screen.getByRole("button", { name: "Thêm phòng ban" }));
+    const name = screen.getByLabelText("Tên phòng ban");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAccessibleDescription("Nhập tên phòng ban.");
+    expect(writes()).toHaveLength(0);
+    expect(screen.getByLabelText("Mã (không bắt buộc)")).toBeInTheDocument();
+  });
 });

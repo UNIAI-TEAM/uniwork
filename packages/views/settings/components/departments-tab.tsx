@@ -1,7 +1,7 @@
 "use client";
 
 import { Building2, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useArchiveDepartment,
@@ -24,7 +24,9 @@ import {
   SettingsCard,
   SettingsCardBody,
   SettingsEmpty,
+  SettingsFieldError,
   SettingsList,
+  SettingsLoadError,
   SettingsSection,
   SettingsSkeletonRows,
   SettingsTab,
@@ -42,7 +44,7 @@ export function DepartmentsTab() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
   const orgSlug = workspace.organization_slug;
-  const { data: departments, isLoading } = useDepartments(orgSlug);
+  const { data: departments, isLoading, isError, refetch } = useDepartments(orgSlug);
   const { canManageDepartments } = usePeoplePermissions(orgSlug);
   const canManage = canManageDepartments.allowed;
   const create = useCreateDepartment(orgSlug);
@@ -51,22 +53,30 @@ export function DepartmentsTab() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [parentId, setParentId] = useState(TOP_LEVEL);
+  const [nameMissing, setNameMissing] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  // The target outlives the dialog's open state, so the title keeps the name
+  // while the dialog animates out.
   const [archiving, setArchiving] = useState<Department | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
-  const all = departments ?? [];
-  const roots = all.filter((d) => !d.parent_id);
-  const ordered = orderTree(all);
-  const childCount = (id: string) => all.filter((d) => d.parent_id === id).length;
-  const ready = name.trim().length > 0 && !create.isPending;
+  const { ordered, roots, children, nested } = useMemo(() => orderTree(departments ?? []), [departments]);
+  const childCount = (id: string) => children.get(id) ?? 0;
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!ready) return;
+    if (create.isPending) return;
+    if (!name.trim()) {
+      setNameMissing(true);
+      nameRef.current?.focus();
+      return;
+    }
     create.mutate(
       { name: name.trim(), code: code.trim(), parent_id: parentId === TOP_LEVEL ? "" : parentId },
       {
         onSuccess: () => {
           setName("");
+          setNameMissing(false);
           setCode("");
           setParentId(TOP_LEVEL);
           toast.success(t("departments.created"));
@@ -92,7 +102,7 @@ export function DepartmentsTab() {
     archive.mutate(archiving.id, {
       onSuccess: () => {
         toast.success(t("departments.archived"));
-        setArchiving(null);
+        setArchiveOpen(false);
       },
       onError: (err) => toastApiError(err, t("common.error")),
     });
@@ -100,9 +110,15 @@ export function DepartmentsTab() {
 
   return (
     <SettingsTab title={t("settings.page.tabs.departments")} description={t("departments.description")}>
-      <SettingsSection title={isLoading || ordered.length === 0 ? null : t("departments.count", { count: ordered.length })}>
+      <SettingsSection
+        title={isLoading || isError || ordered.length === 0 ? null : t("departments.count", { count: ordered.length })}
+      >
         {isLoading ? (
           <SettingsSkeletonRows rows={3} />
+        ) : isError ? (
+          <SettingsCard>
+            <SettingsLoadError onRetry={() => void refetch()}>{t("departments.load_error")}</SettingsLoadError>
+          </SettingsCard>
         ) : ordered.length === 0 ? (
           <SettingsCard>
             <SettingsEmpty icon={<Building2 />}>
@@ -116,10 +132,13 @@ export function DepartmentsTab() {
                 key={department.id}
                 department={department}
                 childCount={childCount(department.id)}
+                nested={nested.has(department.id)}
                 canManage={canManage}
                 onRename={rename}
                 onArchive={(d) => {
-                  if (childCount(d.id) === 0) setArchiving(d);
+                  if (childCount(d.id) > 0) return;
+                  setArchiving(d);
+                  setArchiveOpen(true);
                 }}
               />
             ))}
@@ -131,21 +150,34 @@ export function DepartmentsTab() {
         <SettingsSection title={t("departments.add_title")}>
           <SettingsCard>
             <SettingsCardBody>
+              {/* Name and code share a row; the parent picker takes the full
+                  width with its hint, and the button closes the form on its
+                  own row, so nothing needs an offset to line up. */}
               <form
                 onSubmit={submit}
+                noValidate
                 className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-start"
               >
                 <Field>
                   <FieldLabel htmlFor="department-name">{t("departments.name")}</FieldLabel>
                   <Input
+                    ref={nameRef}
                     id="department-name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (e.target.value.trim()) setNameMissing(false);
+                    }}
                     readOnly={create.isPending}
+                    aria-invalid={nameMissing || undefined}
+                    aria-describedby={nameMissing ? "department-name-error" : undefined}
                   />
+                  {nameMissing ? (
+                    <SettingsFieldError id="department-name-error">{t("departments.name_required")}</SettingsFieldError>
+                  ) : null}
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="department-code">{t("departments.code")}</FieldLabel>
+                  <FieldLabel htmlFor="department-code">{t("departments.code_optional")}</FieldLabel>
                   <Input
                     id="department-code"
                     value={code}
@@ -153,7 +185,7 @@ export function DepartmentsTab() {
                     readOnly={create.isPending}
                   />
                 </Field>
-                <Field>
+                <Field className="sm:col-span-2">
                   <FieldLabel htmlFor="department-parent">{t("departments.parent")}</FieldLabel>
                   <Select
                     id="department-parent"
@@ -170,12 +202,11 @@ export function DepartmentsTab() {
                     {roots.length === 0 ? t("departments.parent_hint_empty") : t("departments.parent_hint")}
                   </FieldDescription>
                 </Field>
-                {/* The label row's height, so the button lines up with the parent picker. */}
-                <div className="sm:pt-6">
+                <div className="flex sm:col-span-2 sm:justify-end">
                   <Button
                     type="submit"
-                    className="w-full"
-                    aria-disabled={!ready || undefined}
+                    className="w-full sm:w-auto"
+                    aria-disabled={create.isPending || undefined}
                     aria-busy={create.isPending || undefined}
                   >
                     <Plus aria-hidden="true" className="size-3.5" />
@@ -189,9 +220,9 @@ export function DepartmentsTab() {
       ) : null}
 
       <ConfirmDialog
-        open={archiving !== null}
+        open={archiveOpen}
         onOpenChange={(open) => {
-          if (!open && !archive.isPending) setArchiving(null);
+          if (!open && !archive.isPending) setArchiveOpen(false);
         }}
         title={t("departments.archive_title", { name: archiving?.name })}
         description={
@@ -207,8 +238,46 @@ export function DepartmentsTab() {
   );
 }
 
-/** Roots in server order, each followed by its children. */
-function orderTree(departments: Department[]): Department[] {
-  const roots = departments.filter((d) => !d.parent_id);
-  return roots.flatMap((root) => [root, ...departments.filter((d) => d.parent_id === root.id)]);
+/**
+ * Roots in server order, each followed by its children, in one pass. A
+ * department whose parent is not in the list (archived, or not visible to
+ * this reader) is appended at the top level rather than dropped, so every
+ * department the server returned is drawn and counted.
+ */
+function orderTree(departments: Department[]): {
+  ordered: Department[];
+  roots: Department[];
+  children: Map<string, number>;
+  /** Drawn indented under the parent right above it. */
+  nested: Set<string>;
+} {
+  const ids = new Set(departments.map((d) => d.id));
+  const byParent = new Map<string, Department[]>();
+  const roots: Department[] = [];
+  const orphans: Department[] = [];
+  for (const d of departments) {
+    if (!d.parent_id) roots.push(d);
+    else if (!ids.has(d.parent_id)) orphans.push(d);
+    else {
+      const siblings = byParent.get(d.parent_id);
+      if (siblings) siblings.push(d);
+      else byParent.set(d.parent_id, [d]);
+    }
+  }
+  const ordered: Department[] = [];
+  const nested = new Set<string>();
+  for (const root of roots) {
+    ordered.push(root);
+    for (const child of byParent.get(root.id) ?? []) {
+      ordered.push(child);
+      nested.add(child.id);
+    }
+  }
+  ordered.push(...orphans);
+  // A child of a child (deeper than the two levels the server allows) would
+  // otherwise vanish too; keep it rather than hide data.
+  const placed = new Set(ordered.map((d) => d.id));
+  for (const d of departments) if (!placed.has(d.id)) ordered.push(d);
+  const children = new Map([...byParent].map(([id, list]) => [id, list.length]));
+  return { ordered, roots, children, nested };
 }

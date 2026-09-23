@@ -1,7 +1,7 @@
 "use client";
 
 import { Archive, Building2, CornerDownRight, Pencil } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { Department } from "@uniwork/core/types/people";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
@@ -13,17 +13,22 @@ import { SettingsListItem } from "./settings-layout";
  * One department. Renaming is an explicit mode — "Đổi tên" turns the name
  * into a field; Enter or leaving the field saves, Esc puts the old name back
  * — so a stray click can never rename anything. The row stays in edit mode
- * when the save fails, with the draft intact.
+ * when the save fails, with the draft intact. Leaving the field for the row's
+ * own "Hủy" / "Lưu" (by Tab or by mouse) does not save: those buttons decide.
+ * When editing ends and focus has nowhere to go, it returns to "Đổi tên".
  */
 export function DepartmentRow({
   department,
   childCount,
+  nested = Boolean(department.parent_id),
   canManage,
   onRename,
   onArchive,
 }: {
   department: Department;
   childCount: number;
+  /** Indented as a sub-department. Defaults to having a parent. */
+  nested?: boolean;
   canManage: boolean;
   onRename: (department: Department, name: string) => Promise<boolean>;
   onArchive: (department: Department) => void;
@@ -37,11 +42,23 @@ export function DepartmentRow({
   const savingRef = useRef(false);
   const skipBlurRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const isChild = Boolean(department.parent_id);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const renameRef = useRef<HTMLButtonElement>(null);
+  const wasEditingRef = useRef(false);
+  const isChild = nested;
   const hintId = `department-${department.id}-hint`;
 
   useEffect(() => {
     if (editing) inputRef.current?.select();
+    // The field that held focus is gone after Enter, Esc, "Hủy" or "Lưu";
+    // hand focus back to the button that opened it. A blur-save caused by
+    // the reader moving elsewhere leaves focus where they put it.
+    else if (wasEditingRef.current) {
+      const active = document.activeElement;
+      if (!active || active === document.body) renameRef.current?.focus();
+    }
+    wasEditingRef.current = editing;
   }, [editing]);
 
   const startEditing = () => {
@@ -82,11 +99,14 @@ export function DepartmentRow({
     }
   };
 
-  const onBlur = () => {
+  const onBlur = (event: FocusEvent<HTMLInputElement>) => {
     if (skipBlurRef.current) {
       skipBlurRef.current = false;
       return;
     }
+    // Tabbing onto "Hủy" must not save the rename it is about to cancel.
+    const next = event.relatedTarget;
+    if (next && (next === cancelRef.current || next === saveRef.current)) return;
     void commit();
   };
 
@@ -140,6 +160,7 @@ export function DepartmentRow({
           // field first, which would save before "Hủy" could cancel.
           <>
             <Button
+              ref={cancelRef}
               type="button"
               variant="ghost"
               size="sm"
@@ -150,6 +171,7 @@ export function DepartmentRow({
               {t("common.cancel")}
             </Button>
             <Button
+              ref={saveRef}
               type="button"
               size="sm"
               onMouseDown={(e) => e.preventDefault()}
@@ -162,7 +184,7 @@ export function DepartmentRow({
           </>
         ) : (
           <>
-            <Button type="button" variant="ghost" size="sm" onClick={startEditing}>
+            <Button ref={renameRef} type="button" variant="ghost" size="sm" onClick={startEditing}>
               <Pencil aria-hidden className="size-3.5" />
               {t("departments.rename")}
             </Button>

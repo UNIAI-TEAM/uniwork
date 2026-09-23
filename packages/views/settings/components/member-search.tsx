@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@uniwork/ui/components/ui/input";
 
 /** Diacritics and case folded, so "nguyen van an" finds "Nguyễn Văn Ân". */
-function fold(text: string): string {
+export function fold(text: string): string {
   return text
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
@@ -20,6 +20,20 @@ export function matchesMember(query: string, member: { display_name: string; ema
   const q = fold(query);
   if (!q) return true;
   return fold(member.display_name).includes(q) || fold(member.email).includes(q);
+}
+
+/**
+ * Name and email folded once, for a list that is filtered on every keystroke:
+ * build it with `useMemo` over the loaded members, then match with
+ * `matchesFolded`, so only the query is folded per keystroke.
+ */
+export function foldMember(member: { display_name: string; email: string }): string {
+  return `${fold(member.display_name)}\n${fold(member.email)}`;
+}
+
+/** `query` already folded by `fold`; an empty one matches everybody. */
+export function matchesFolded(foldedQuery: string, folded: string): boolean {
+  return !foldedQuery || folded.includes(foldedQuery);
 }
 
 export function MemberSearch({ value, onChange }: { value: string; onChange: (next: string) => void }) {

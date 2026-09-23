@@ -14,12 +14,12 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
-import { InviteForm, type InviteRole } from "./invite-form";
+import { InviteForm, type InviteRole, type InviteSendResult } from "./invite-form";
 import {
   SettingsBadge,
-  SettingsCardBody,
   SettingsList,
   SettingsListItem,
+  SettingsLoadError,
   SettingsSection,
   SettingsSkeletonRows,
 } from "./settings-layout";
@@ -39,18 +39,22 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
   const { t, i18n } = useTranslation();
   const invite = useInviteToOrganization(orgSlug);
   const revoke = useRevokeOrgInvitation(orgSlug);
-  const { data, isLoading } = useOrgInvitations(orgSlug);
-  const [skipped, setSkipped] = useState<string[]>([]);
+  const { data, isLoading, isError, refetch } = useOrgInvitations(orgSlug);
+  // The target outlives the dialog's open state, so the title keeps the
+  // address while the dialog animates out.
   const [revoking, setRevoking] = useState<OrgInvitation | null>(null);
+  const [revokeOpen, setRevokeOpen] = useState(false);
   const pending = data?.invitations ?? [];
   const now = Date.now();
 
-  const send = async (emails: string[], role: InviteRole) => {
+  const send = async (emails: string[], role: InviteRole): Promise<InviteSendResult> => {
     try {
       const result = await invite.mutateAsync({ emails, orgRole: role });
-      setSkipped(result?.skipped ?? []);
-      toast.success(t("org.invitations.sent", { count: result?.invitations.length ?? 0 }));
-      return true;
+      const count = result?.invitations.length ?? 0;
+      // Every address skipped is not a success: no green toast for "sent 0".
+      if (count === 0) toast.warning(t("org.invitations.none_sent"));
+      else toast.success(t("org.invitations.sent", { count }));
+      return { skipped: result?.skipped ?? [] };
     } catch (err) {
       toastApiError(err, t("common.error"));
       return false;
@@ -62,7 +66,7 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
     revoke.mutate(revoking.id, {
       onSuccess: () => {
         toast.success(t("org.invitations.revoked"));
-        setRevoking(null);
+        setRevokeOpen(false);
       },
       onError: (err) => toastApiError(err, t("common.error")),
     });
@@ -77,17 +81,19 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
           roleLabel={t("org.invitations.role")}
           pending={invite.isPending}
           onSend={send}
-        >
-          {skipped.length > 0 ? (
-            <SettingsCardBody className="text-caption text-muted-foreground">
-              {t("workspace.inviteSkipped", { list: skipped.join(", ") })}
-            </SettingsCardBody>
-          ) : null}
-        </InviteForm>
+        />
       </SettingsSection>
 
       {isLoading ? (
         <SettingsSkeletonRows rows={2} withAvatar />
+      ) : isError ? (
+        <SettingsSection title={t("org.invitations.pending_title")}>
+          <SettingsList aria-label={t("org.invitations.pending_title")}>
+            <li>
+              <SettingsLoadError onRetry={() => void refetch()}>{t("org.invitations.load_error")}</SettingsLoadError>
+            </li>
+          </SettingsList>
+        </SettingsSection>
       ) : pending.length > 0 ? (
         <SettingsSection title={t("org.invitations.pending_title")} description={t("org.invitations.pending_description")}>
           <SettingsList aria-label={t("org.invitations.pending_title")}>
@@ -96,14 +102,23 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
               const expired = !Number.isNaN(expiresAt) && expiresAt < now;
               const sent = formatDay(inv.created_at, i18n.language);
               const expires = formatDay(inv.expires_at, i18n.language);
-              const meta = [
+              const parts = [
                 t(`people.role_${inv.org_role}`, { defaultValue: inv.org_role }),
                 sent ? t("org.invitations.sent_on", { date: sent }) : "",
                 expires && !expired ? t("org.invitations.expires_on", { date: expires }) : "",
                 inv.invited_by_name ? t("org.invitations.invited_by", { name: inv.invited_by_name }) : "",
-              ]
-                .filter(Boolean)
-                .join(" · ");
+              ].filter(Boolean);
+              // Each fact keeps its words together and the line wraps between
+              // them, so a phone shows two lines instead of an ellipsis.
+              const meta = (
+                <span className="flex flex-wrap gap-x-1 whitespace-normal">
+                  {parts.map((part, i) => (
+                    <span key={part} className="[overflow-wrap:anywhere]">
+                      {i > 0 ? `· ${part}` : part}
+                    </span>
+                  ))}
+                </span>
+              );
               return (
                 <SettingsListItem
                   key={inv.id}
@@ -112,7 +127,15 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
                   badge={expired ? <SettingsBadge tone="warning">{t("org.invitations.expired")}</SettingsBadge> : null}
                   meta={meta}
                   actions={
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setRevoking(inv)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setRevoking(inv);
+                        setRevokeOpen(true);
+                      }}
+                    >
                       {t("org.invitations.revoke")}
                     </Button>
                   }
@@ -124,9 +147,9 @@ export function OrgInvitationsSection({ orgSlug }: { orgSlug: string }) {
       ) : null}
 
       <ConfirmDialog
-        open={revoking !== null}
+        open={revokeOpen}
         onOpenChange={(open) => {
-          if (!open && !revoke.isPending) setRevoking(null);
+          if (!open && !revoke.isPending) setRevokeOpen(false);
         }}
         title={t("org.invitations.revoke_title", { email: revoking?.email })}
         description={t("org.invitations.revoke_body")}

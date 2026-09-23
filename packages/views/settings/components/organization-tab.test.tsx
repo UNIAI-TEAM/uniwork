@@ -154,4 +154,69 @@ describe("OrganizationTab", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Thu hồi" }));
     await waitFor(() => expect(calls("DELETE")).toEqual(["/api/v1/orgs/acme/invitations/i1"]));
   });
+
+  it("says the member list failed to load, with a retry, instead of an empty search result", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/members/me")) return Promise.resolve({ role: "owner" });
+      if (path.includes("/members?")) return Promise.reject(new Error("boom"));
+      if (path.endsWith("/invitations")) return Promise.reject(new Error("boom"));
+      return Promise.resolve({});
+    });
+    renderTab();
+    expect(await screen.findByText("Không tải được danh sách thành viên.")).toBeInTheDocument();
+    expect(await screen.findByText("Không tải được danh sách lời mời.")).toBeInTheDocument();
+    expect(screen.queryByText(/Không có thành viên nào khớp/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Thử lại" }).length).toBeGreaterThan(0);
+  });
+
+  it("shows why the owner's own row cannot change, and keeps deactivate visible but inert", async () => {
+    mockApi("owner");
+    renderTab();
+    const row = (await screen.findByText("Đỗ Thị Hà", { selector: "li *" })).closest("li")!;
+    const deactivate = within(row).getByRole("button", { name: "Vô hiệu hóa" });
+    await waitFor(() => expect(deactivate).toHaveAttribute("aria-disabled", "true"));
+    expect(deactivate).toHaveAccessibleDescription("Bạn không thực hiện được thao tác này với chính mình.");
+  });
+
+  it("reads further member pages before claiming there is nobody to transfer ownership to", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/members/me")) return Promise.resolve({ role: "owner" });
+      if (path.includes("status=active") && path.includes("cursor=p2")) {
+        return Promise.resolve({ members: [members[1]] });
+      }
+      if (path.includes("status=active")) return Promise.resolve({ members: [members[0]], next_cursor: "p2" });
+      if (path.includes("/members?")) return Promise.resolve({ members });
+      if (path.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      return Promise.resolve({});
+    });
+    renderTab();
+    await waitFor(() =>
+      expect(requestMock.mock.calls.map(([p]) => String(p))).toContain("/api/v1/orgs/acme/members?status=active&cursor=p2"),
+    );
+    const transfer = await screen.findByRole("button", { name: "Chuyển quyền" });
+    expect(transfer).not.toHaveAttribute("aria-disabled");
+    expect(screen.queryByText("Chưa có thành viên nào đang hoạt động để nhận quyền.")).not.toBeInTheDocument();
+  });
+
+  it("keeps skipped addresses in the field and does not celebrate when nothing was sent", async () => {
+    requestMock.mockImplementation((path: string, init?: Init) => {
+      if (path.endsWith("/members/me")) return Promise.resolve({ role: "owner" });
+      if (path.includes("/members?")) return Promise.resolve({ members });
+      if (path.endsWith("/invitations") && init?.method === "POST") {
+        return Promise.resolve({ invitations: [], skipped: ["an@acme.vn"] });
+      }
+      if (path.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      return Promise.resolve({});
+    });
+    renderTab();
+    const field = await screen.findByLabelText("Email đồng nghiệp");
+    fireEvent.change(field, { target: { value: "an@acme.vn" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi lời mời" }));
+    await waitFor(() => expect(calls("POST")).toEqual(["/api/v1/orgs/acme/invitations"]));
+    const notice = await screen.findByText(/Bỏ qua \(đã là thành viên hoặc không hợp lệ\): an@acme\.vn/);
+    expect(notice).toHaveAttribute("role", "status");
+    // The chip is still there to fix or remove.
+    expect(document.querySelector('[data-slot="email-chips"]')).toHaveTextContent("an@acme.vn");
+  });
 });

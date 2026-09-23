@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLeaveOrganization, useOrgMembers } from "@uniwork/core/organizations";
+import { useLeaveOrganization } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -15,7 +15,7 @@ import { OrgInvitationsSection } from "./org-invitations-section";
 import { OrgMembersSection } from "./org-members-section";
 import { decisionReason } from "./permission-reason";
 import { SettingsDangerZone, SettingsRow, SettingsTab } from "./settings-layout";
-import { TransferOwnershipDialog } from "./transfer-ownership-dialog";
+import { TransferOwnershipDialog, useTransferCandidates } from "./transfer-ownership-dialog";
 
 /**
  * Organization membership, as opposed to workspace membership: who belongs to
@@ -28,19 +28,10 @@ export function OrganizationTab() {
   const navigation = useOptionalNavigation();
   const orgSlug = workspace.organization_slug;
   const organizationName = workspace.organization_name;
-  // Same query key as the member list, so this reads the cache it fills.
-  const { data } = useOrgMembers(orgSlug, "all");
   const { canLeave, canManageMembers, canTransferOwnership } = usePeoplePermissions(orgSlug);
   const leave = useLeaveOrganization(orgSlug);
-  const [transferOpen, setTransferOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
-  // The owner cannot hand the organization to themselves or to somebody who
-  // has been switched off.
-  const transferCandidates = (data?.pages ?? [])
-    .flatMap((p) => p.members)
-    .filter((m) => !m.deactivated_at && m.role !== "owner");
   const leaveReason = decisionReason(t, canLeave, "leave");
-  const canTransferNow = transferCandidates.length > 0;
 
   const confirmLeave = () => {
     if (!canLeave.allowed || leave.isPending) return;
@@ -62,30 +53,7 @@ export function OrganizationTab() {
 
       <SettingsDangerZone title={t("org.danger.title")} description={t("org.danger.description")}>
         {canTransferOwnership.allowed ? (
-          <SettingsRow
-            label={t("org.transfer.title")}
-            description={
-              <>
-                {t("org.transfer.description")}
-                {canTransferNow ? null : (
-                  <span id="org-transfer-reason" className="mt-1 block text-foreground">
-                    {t("org.transfer.no_candidate")}
-                  </span>
-                )}
-              </>
-            }
-            size="none"
-          >
-            <Button
-              type="button"
-              variant="outline"
-              aria-disabled={!canTransferNow || undefined}
-              aria-describedby={canTransferNow ? undefined : "org-transfer-reason"}
-              onClick={() => setTransferOpen(true)}
-            >
-              {t("org.transfer.action")}
-            </Button>
-          </SettingsRow>
+          <TransferOwnershipRow orgSlug={orgSlug} organizationName={organizationName} />
         ) : null}
         <SettingsRow
           label={t("org.leave.title")}
@@ -113,15 +81,6 @@ export function OrganizationTab() {
         </SettingsRow>
       </SettingsDangerZone>
 
-      {canTransferOwnership.allowed ? (
-        <TransferOwnershipDialog
-          orgSlug={orgSlug}
-          organizationName={organizationName}
-          candidates={transferCandidates}
-          open={transferOpen}
-          onOpenChange={setTransferOpen}
-        />
-      ) : null}
       <ConfirmDialog
         open={leaveOpen}
         onOpenChange={(open) => {
@@ -134,5 +93,53 @@ export function OrganizationTab() {
         pending={leave.isPending}
       />
     </SettingsTab>
+  );
+}
+
+/**
+ * Mounted only for the owner, so a plain member never reads the member pages
+ * this needs. "No candidate" is said only once every page has been read.
+ */
+function TransferOwnershipRow({ orgSlug, organizationName }: { orgSlug: string; organizationName: string }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const { candidates, none, loading, isError, retry } = useTransferCandidates(orgSlug, open);
+  return (
+    <>
+      <SettingsRow
+        label={t("org.transfer.title")}
+        description={
+          <>
+            {t("org.transfer.description")}
+            {none ? (
+              <span id="org-transfer-reason" className="mt-1 block text-foreground">
+                {t("org.transfer.no_candidate")}
+              </span>
+            ) : null}
+          </>
+        }
+        size="none"
+      >
+        <Button
+          type="button"
+          variant="outline"
+          aria-disabled={none || undefined}
+          aria-describedby={none ? "org-transfer-reason" : undefined}
+          onClick={() => setOpen(true)}
+        >
+          {t("org.transfer.action")}
+        </Button>
+      </SettingsRow>
+      <TransferOwnershipDialog
+        orgSlug={orgSlug}
+        organizationName={organizationName}
+        candidates={candidates}
+        loadingCandidates={loading}
+        candidatesError={isError}
+        onRetryCandidates={retry}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   );
 }
