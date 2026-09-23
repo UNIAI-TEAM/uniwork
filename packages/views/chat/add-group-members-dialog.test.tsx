@@ -13,6 +13,18 @@ vi.mock("@uniwork/core/chat", async (orig) => ({
   }),
 }));
 
+// The dialog now lists workspace members (shared picker) instead of a separate
+// "quick pick from contacts" list, so the member comes from useMembers.
+vi.mock("@uniwork/core/workspaces", () => ({
+  useMembers: () => ({
+    data: [
+      { workspace_id: "ws1", user_id: "u2", role: "member", email: "binh@example.com", display_name: "Binh" },
+      { workspace_id: "ws1", user_id: "u3", role: "member", email: "an@example.com", display_name: "An" },
+    ],
+    isLoading: false,
+  }),
+}));
+
 const group = {
   id: "g1",
   name: "Design",
@@ -52,5 +64,25 @@ describe("AddGroupMembersDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /Binh/ }));
     fireEvent.click(screen.getByRole("button", { name: "Mời vào nhóm" }));
     expect(onInvite).toHaveBeenCalledWith([contact]);
+  });
+
+  it("hides people already in the group and says why the invite is disabled", () => {
+    render(
+      wrap(
+        <AddGroupMembersDialog
+          open
+          onOpenChange={vi.fn()}
+          workspaceId="ws1"
+          group={group}
+          currentUserId="self"
+          contacts={[]}
+          onInvite={vi.fn()}
+        />,
+      ),
+    );
+
+    expect(screen.queryByRole("button", { name: /An/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mời vào nhóm" })).toBeDisabled();
+    expect(screen.getByText("Chọn ít nhất một người để mời.")).toBeInTheDocument();
   });
 });

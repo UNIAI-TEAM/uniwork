@@ -424,7 +424,12 @@ func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID strin
 }
 
 const listMeetingsByWorkspaceFiltered = `-- name: ListMeetingsByWorkspaceFiltered :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind FROM meetings
+SELECT meetings.id, meetings.workspace_id, meetings.title, meetings.description, meetings.starts_at, meetings.ends_at, meetings.room_name, meetings.created_by, meetings.created_at, meetings.updated_at, meetings.status, meetings.meeting_type, meetings.host_user_id, meetings.actual_start_at, meetings.actual_end_at, meetings.timezone, meetings.allow_join_request, meetings.preferred_provider_key, meetings.version, meetings.updated_by, meetings.canceled_by, meetings.canceled_at, meetings.cancel_reason, meetings.project_id, meetings.created_by_kind,
+  EXISTS (
+    SELECT 1 FROM meeting_recordings r
+    WHERE r.meeting_id = meetings.id AND r.file_url IS NOT NULL AND r.file_url <> ''
+  )::boolean AS has_playable_recording
+FROM meetings
 WHERE workspace_id = $1
   AND ($2::text IS NULL OR status = $2)
   AND ($3::text IS NULL OR meeting_type = $3)
@@ -435,9 +440,15 @@ WHERE workspace_id = $1
   AND ($8::timestamptz IS NULL OR starts_at <= $8)
 ORDER BY
   CASE WHEN $9 = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  CASE WHEN $9 = 'starts_at'
+    THEN (starts_at AT TIME ZONE $10::text)::date < $11::date END ASC,
+  CASE WHEN $9 = 'starts_at' AND (starts_at AT TIME ZONE $10::text)::date < $11::date
+    THEN (starts_at AT TIME ZONE $10::text)::date END DESC NULLS LAST,
+  CASE WHEN $9 = 'starts_at' THEN starts_at END ASC,
+  CASE WHEN $9 = 'starts_at' THEN id END ASC,
   created_at DESC,
   id DESC
-LIMIT $11 OFFSET $10
+LIMIT $13 OFFSET $12
 `
 
 type ListMeetingsByWorkspaceFilteredParams struct {
@@ -450,11 +461,22 @@ type ListMeetingsByWorkspaceFilteredParams struct {
 	FromAt      pgtype.Timestamptz `json:"from_at"`
 	ToAt        pgtype.Timestamptz `json:"to_at"`
 	Sort        interface{}        `json:"sort"`
+	Tz          string             `json:"tz"`
+	Today       pgtype.Date        `json:"today"`
 	OffsetN     int32              `json:"offset_n"`
 	LimitN      int32              `json:"limit_n"`
 }
 
-func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListMeetingsByWorkspaceFilteredParams) ([]Meeting, error) {
+type ListMeetingsByWorkspaceFilteredRow struct {
+	Meeting              Meeting `json:"meeting"`
+	HasPlayableRecording bool    `json:"has_playable_recording"`
+}
+
+// sort = 'starts_at' is the list screen's calendar order: meetings on
+// the viewer's today (the today param, a day in the tz zone) and after come first, soonest
+// first; earlier days follow, most recent day first, each day by start time.
+// The id tiebreak keeps LIMIT/OFFSET pages stable across equal start times.
+func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListMeetingsByWorkspaceFilteredParams) ([]ListMeetingsByWorkspaceFilteredRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingsByWorkspaceFiltered,
 		arg.WorkspaceID,
 		arg.Status,
@@ -465,6 +487,8 @@ func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListM
 		arg.FromAt,
 		arg.ToAt,
 		arg.Sort,
+		arg.Tz,
+		arg.Today,
 		arg.OffsetN,
 		arg.LimitN,
 	)
@@ -472,35 +496,36 @@ func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListM
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Meeting{}
+	items := []ListMeetingsByWorkspaceFilteredRow{}
 	for rows.Next() {
-		var i Meeting
+		var i ListMeetingsByWorkspaceFilteredRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Description,
-			&i.StartsAt,
-			&i.EndsAt,
-			&i.RoomName,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Status,
-			&i.MeetingType,
-			&i.HostUserID,
-			&i.ActualStartAt,
-			&i.ActualEndAt,
-			&i.Timezone,
-			&i.AllowJoinRequest,
-			&i.PreferredProviderKey,
-			&i.Version,
-			&i.UpdatedBy,
-			&i.CanceledBy,
-			&i.CanceledAt,
-			&i.CancelReason,
-			&i.ProjectID,
-			&i.CreatedByKind,
+			&i.Meeting.ID,
+			&i.Meeting.WorkspaceID,
+			&i.Meeting.Title,
+			&i.Meeting.Description,
+			&i.Meeting.StartsAt,
+			&i.Meeting.EndsAt,
+			&i.Meeting.RoomName,
+			&i.Meeting.CreatedBy,
+			&i.Meeting.CreatedAt,
+			&i.Meeting.UpdatedAt,
+			&i.Meeting.Status,
+			&i.Meeting.MeetingType,
+			&i.Meeting.HostUserID,
+			&i.Meeting.ActualStartAt,
+			&i.Meeting.ActualEndAt,
+			&i.Meeting.Timezone,
+			&i.Meeting.AllowJoinRequest,
+			&i.Meeting.PreferredProviderKey,
+			&i.Meeting.Version,
+			&i.Meeting.UpdatedBy,
+			&i.Meeting.CanceledBy,
+			&i.Meeting.CanceledAt,
+			&i.Meeting.CancelReason,
+			&i.Meeting.ProjectID,
+			&i.Meeting.CreatedByKind,
+			&i.HasPlayableRecording,
 		); err != nil {
 			return nil, err
 		}

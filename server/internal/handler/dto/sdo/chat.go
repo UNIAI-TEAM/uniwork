@@ -148,6 +148,7 @@ type ChatMessageDTO struct {
 	Pinned            bool                 `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
 	MentionedUserIDs  []string             `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
 	Reactions         map[string]int       `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
+	MyReactions       []string             `json:"my_reactions,omitempty" description:"Emojis the caller reacted with" example:"[\"👍\"]"`
 	VoiceCall         *VoiceCallLogDTO     `json:"voice_call,omitempty" description:"Voice call log metadata when kind is voice_call_log"`
 	VoiceCallSummary  *VoiceCallSummaryDTO `json:"voice_call_summary,omitempty" description:"AI call summary metadata when kind is text"`
 	Voice             *VoiceMessageDTO     `json:"voice,omitempty" description:"Voice recording metadata when kind is voice"`
@@ -290,7 +291,8 @@ type ChatMessageLinkDTO struct {
 	CreatedAt  string `json:"created_at" description:"RFC3339 timestamp" example:"2026-09-10T10:00:00Z"`
 }
 
-// ChatMessageLinkListSDO is GET .../chat/messages/{messageID}/links.
+// ChatMessageLinkListSDO is GET .../chat/messages/{messageID}/links and
+// GET .../chat/rooms/{roomID}/message-links.
 type ChatMessageLinkListSDO struct {
 	Links []ChatMessageLinkDTO `json:"links"`
 }

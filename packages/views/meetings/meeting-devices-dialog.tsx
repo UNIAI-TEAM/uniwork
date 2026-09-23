@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useMediaDeviceSelect, useRoomContext } from "@livekit/components-react";
+import { useLocalParticipant, useMediaDeviceSelect, useRoomContext } from "@livekit/components-react";
 import {
   Ban,
   Check,
@@ -29,6 +29,7 @@ import {
   Field,
   FieldContent,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@uniwork/ui/components/ui/field";
@@ -38,7 +39,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingCameraPreview } from "./meeting-camera-preview";
 
 const ACCEPTED_BACKGROUND_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-const MAX_BACKGROUND_BYTES = 5 * 1024 * 1024;
+const MAX_BACKGROUND_MB = 5;
+const MAX_BACKGROUND_BYTES = MAX_BACKGROUND_MB * 1024 * 1024;
 
 function DeviceSelectField({
   id,
@@ -140,6 +142,10 @@ function BackgroundOption({
 function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
   const { t } = useTranslation();
   const room = useRoomContext();
+  const { isCameraEnabled } = useLocalParticipant();
+  // Opening settings must not switch on a camera the viewer turned off.
+  const [previewOn, setPreviewOn] = useState(isCameraEnabled);
+  const [uploadError, setUploadError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
@@ -186,10 +192,9 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
 
   const onUploadBackground = (file: File | undefined) => {
     if (!file) return;
-    if (!ACCEPTED_BACKGROUND_TYPES.includes(file.type as (typeof ACCEPTED_BACKGROUND_TYPES)[number])) {
-      return;
-    }
-    if (file.size > MAX_BACKGROUND_BYTES) return;
+    const accepted = ACCEPTED_BACKGROUND_TYPES.includes(file.type as (typeof ACCEPTED_BACKGROUND_TYPES)[number]);
+    setUploadError(!accepted || file.size > MAX_BACKGROUND_BYTES);
+    if (!accepted || file.size > MAX_BACKGROUND_BYTES) return;
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : null;
@@ -207,7 +212,8 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
           <h3 className="text-label text-foreground">{t("meetings.devicePreviewTitle")}</h3>
           <MeetingCameraPreview
             deviceId={cameras.activeDeviceId}
-            active
+            active={previewOn}
+            onRequestEnable={() => setPreviewOn(true)}
             background={background}
             customBackgroundDataUrl={customBackgroundDataUrl}
             mirrorCamera={mirrorCamera}
@@ -299,7 +305,7 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
             label={t("meetings.deviceBackgroundBlur")}
             onSelect={() => selectBackground("blur")}
           >
-            <span className="flex size-full items-center justify-center bg-gradient-to-br from-muted to-rail text-muted-foreground">
+            <span className="flex size-full items-center justify-center bg-muted text-muted-foreground">
               <Droplets aria-hidden className="size-6" />
             </span>
           </BackgroundOption>
@@ -344,6 +350,8 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
           ref={fileInputRef}
           type="file"
           aria-label={t("meetings.deviceBackgroundUpload")}
+          aria-invalid={uploadError || undefined}
+          aria-describedby={uploadError ? "room-background-upload-error" : undefined}
           accept={ACCEPTED_BACKGROUND_TYPES.join(",")}
           className="sr-only"
           onChange={(event) => {
@@ -351,6 +359,11 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
             event.target.value = "";
           }}
         />
+        {uploadError ? (
+          <FieldError id="room-background-upload-error">
+            {t("meetings.deviceBackgroundInvalid", { size: MAX_BACKGROUND_MB })}
+          </FieldError>
+        ) : null}
       </section>
     </div>
   );

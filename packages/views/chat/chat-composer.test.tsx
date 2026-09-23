@@ -41,7 +41,7 @@ describe("ChatComposer", () => {
     );
 
     expect(screen.getByLabelText("Đính kèm")).toBeInTheDocument();
-    expect(screen.getByLabelText("Tin nhắn thoại")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ghi âm tin nhắn thoại")).toBeInTheDocument();
     expect(screen.queryByLabelText("Thêm")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Đính kèm"));
@@ -181,7 +181,7 @@ describe("ChatComposer", () => {
       ),
     );
 
-    fireEvent.click(screen.getByLabelText("Tin nhắn thoại"));
+    fireEvent.click(screen.getByLabelText("Ghi âm tin nhắn thoại"));
     expect(await screen.findByRole("button", { name: "Hủy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gửi" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
@@ -208,7 +208,38 @@ describe("ChatComposer", () => {
     fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
       clipboardData: { files: [file] },
     });
+    // A pasted file waits in the composer until the message is sent.
+    expect(onSendFile).not.toHaveBeenCalled();
+    expect(screen.getByText("shot.png")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
     expect(onSendFile).toHaveBeenCalledWith(file);
+    expect(screen.queryByText("shot.png")).not.toBeInTheDocument();
+  });
+
+  it("lets a staged file be removed before sending", () => {
+    const onSendFile = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={onSendFile}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    const file = new File(["pdf"], "bao-cao.pdf", { type: "application/pdf" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gỡ bao-cao.pdf" }));
+    expect(screen.queryByText("bao-cao.pdf")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Gửi" })).not.toBeInTheDocument();
+    expect(onSendFile).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported paste types", () => {

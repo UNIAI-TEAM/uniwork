@@ -74,7 +74,7 @@ export function DepartmentsTab() {
       <SettingsSection title={t("departments.title")} description={t("departments.description")}>
         {isLoading ? (
           <div className="flex justify-center py-8">
-            <Spinner />
+            <Spinner label={t("common.loading")} />
           </div>
         ) : ordered.length === 0 ? (
           <p className="text-body text-muted-foreground">{t("departments.empty")}</p>

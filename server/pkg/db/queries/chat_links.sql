@@ -23,15 +23,21 @@ SELECT * FROM chat_message_links
 WHERE message_id = $1 AND workspace_id = $2
 ORDER BY created_at ASC;
 
--- name: ListChatMessageLinksByMessages :many
+-- name: ListChatMessageLinksByRoomMessages :many
+-- One room's timeline asks for the links of every message it shows at once,
+-- instead of one request per message. The room is the only scope: DM and
+-- group rooms are org-level and their links carry the creator's workspace, so
+-- a viewer arriving from another workspace must still see them.
 SELECT * FROM chat_message_links
-WHERE workspace_id = $1
+WHERE room_id = $1
   AND message_id = ANY(sqlc.arg(message_ids)::text[])
 ORDER BY created_at ASC;
 
--- name: DeleteChatMessageLink :execrows
+-- name: DeleteChatMessageLink :one
+-- Scoped by room, not workspace, for the same reason as the room batch above.
 DELETE FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2 AND message_id = $3;
+WHERE id = $1 AND room_id = $2 AND message_id = $3
+RETURNING target_id;
 
 -- name: CreateChatThreadTaskLink :one
 INSERT INTO chat_thread_task_links (

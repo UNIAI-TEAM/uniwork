@@ -58,7 +58,7 @@ describe("ChatMessageRow", () => {
 
     expect(screen.getByText("My reply")).toBeInTheDocument();
     expect(screen.getByText("Earlier message")).toBeInTheDocument();
-    expect(screen.getByLabelText("Đã xem")).toBeInTheDocument();
+    expect(screen.getByText("Đã xem")).toBeInTheDocument();
   });
 
   it("shows delivery status for pending messages", () => {
@@ -94,7 +94,7 @@ describe("ChatMessageRow", () => {
       ),
     );
 
-    fireEvent.click(screen.getByLabelText("Thêm cảm xúc"));
+    fireEvent.click(screen.getByLabelText("Thả 👍"));
     fireEvent.click(screen.getByLabelText("Trả lời"));
     expect(onReact).toHaveBeenCalledWith(row);
     expect(onReply).toHaveBeenCalledWith(row);

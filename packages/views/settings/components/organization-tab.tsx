@@ -96,7 +96,7 @@ export function OrganizationTab() {
       >
         {isLoading ? (
           <div className="flex justify-center py-8">
-            <Spinner />
+            <Spinner label={t("common.loading")} />
           </div>
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border bg-surface">

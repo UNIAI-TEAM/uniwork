@@ -145,7 +145,7 @@ function WaitingGuestsPreview({
     <Button
       type="button"
       variant="ghost"
-      className={cn(previewClassName, "h-auto whitespace-normal font-normal hover:bg-muted/80")}
+      className={cn(previewClassName, "h-auto whitespace-normal font-normal hover:bg-surface-hover")}
       onClick={onViewAll}
     >
       {preview}

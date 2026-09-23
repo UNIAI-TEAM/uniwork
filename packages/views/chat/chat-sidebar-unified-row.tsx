@@ -1,96 +1,148 @@
 "use client";
 
 import { Hash, Home, Lock, Users } from "lucide-react";
+import { memo, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
-import { usePresenceStore } from "@uniwork/core/chat/presence-store";
-import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
+import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presence-store";
+import { initialOf } from "./chat-initials";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
+import { ChatRoomMark } from "./chat-room-mark";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
-import { SidebarNavItem } from "./chat-sidebar-rows";
+import { SidebarNavItem, type SidebarPreviewOptions } from "./chat-sidebar-rows";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import type { UnifiedSidebarEntry } from "./chat-sidebar-unified";
 
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
+/** Labels every row's preview line shares; the sidebar builds this once. */
+export type SidebarRowLabels = Omit<SidebarPreviewOptions, "isGroup" | "nicknamesByUserId" | "currentUserId">;
+
+/**
+ * A DM row's avatar subscribes to one boolean — this person's presence —
+ * rather than the whole presence map, so a colleague coming online repaints
+ * their own row and nothing else.
+ */
+function DmPresenceAvatar({ userId, label }: { userId: string; label: string }) {
+  const online = usePresenceStore((state) => selectIsUserOnline(state, userId));
+  return <ChatPresenceAvatar name={label} initials={initialOf(label)} size="lg" online={online} />;
 }
 
-/** Renders one flat conversation row for the unified sidebar list. */
-export function ChatSidebarUnifiedRow({
+/** The room a sidebar entry opens; null for a DM whose room does not exist yet. */
+export function sidebarEntryRoomId(entry: UnifiedSidebarEntry): string | null {
+  switch (entry.kind) {
+    case "workspace":
+      return entry.roomId;
+    case "channel":
+      return entry.channel.id;
+    case "group":
+      return entry.group.room_id;
+    case "dm":
+      return entry.contact.dm_room_id ?? null;
+  }
+}
+
+export function isSidebarEntryActive(entry: UnifiedSidebarEntry, target: ChatSidebarTarget): boolean {
+  switch (entry.kind) {
+    case "workspace":
+      return target.kind === "workspace";
+    case "channel":
+      return target.kind === "channel" && target.channel.id === entry.channel.id;
+    case "group":
+      return target.kind === "group" && target.group.id === entry.group.id;
+    case "dm":
+      return target.kind === "dm" && target.contact.user_id === entry.contact.user_id;
+  }
+}
+
+/**
+ * Renders one flat conversation row for the unified sidebar list. Every prop
+ * is either a primitive for this row or a reference the sidebar keeps stable,
+ * so typing in the composer or an unread bump elsewhere skips this row.
+ */
+export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   entry,
-  target,
+  active,
   onTargetChange,
   workspaceTitle,
-  workspaceRoomId,
   contacts,
   currentUserId,
   nicknamesByUserId,
-  roomPreviewsByRoomId,
-  unreadByRoomId,
-  mentionUnreadByRoomId,
+  preview,
+  unread,
+  mentionUnread,
   unreadBadgesReady,
-  isRoomPinned,
-  isRoomNotificationsMuted,
-  youLabel,
-  voiceCallPreviewLabel,
-  voiceMessagePreviewLabel,
-  fileMessagePreviewLabel,
-  yesterdayLabel,
+  pinned,
+  notificationsMuted,
+  labels,
+  rowIndex,
+  tabIndex,
+  onRowFocus,
 }: {
   entry: UnifiedSidebarEntry;
-  target: ChatSidebarTarget;
+  active: boolean;
   onTargetChange: (target: ChatSidebarTarget) => void;
   workspaceTitle: string;
-  workspaceRoomId: string | null;
   contacts: ChatContact[];
   currentUserId: string;
   nicknamesByUserId: Record<string, string>;
-  roomPreviewsByRoomId: Record<string, ChatRoomPreview>;
-  unreadByRoomId: Record<string, number>;
-  mentionUnreadByRoomId: Record<string, number>;
+  preview: ChatRoomPreview | undefined;
+  unread: number;
+  mentionUnread: number;
   unreadBadgesReady: boolean;
-  isRoomPinned: (roomId: string | null | undefined) => boolean;
-  isRoomNotificationsMuted: (roomId: string | null | undefined) => boolean;
-  youLabel: string;
-  voiceCallPreviewLabel: string;
-  voiceMessagePreviewLabel: string;
-  fileMessagePreviewLabel: string;
-  yesterdayLabel: string;
+  pinned: boolean;
+  notificationsMuted: boolean;
+  labels: SidebarRowLabels;
+  rowIndex: number;
+  tabIndex: number;
+  onRowFocus: (rowIndex: number) => void;
 }) {
-  const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
-  const previewOpts = {
-    currentUserId,
-    youLabel,
-    voiceCallLabel: voiceCallPreviewLabel,
-    voiceMessageLabel: voiceMessagePreviewLabel,
-    fileMessageLabel: fileMessagePreviewLabel,
-    yesterdayLabel,
-    nicknamesByUserId,
+  const { t } = useTranslation();
+  const isGroup = entry.kind !== "dm";
+  const previewOptions = useMemo(
+    (): SidebarPreviewOptions => ({ ...labels, currentUserId, nicknamesByUserId, isGroup }),
+    [labels, currentUserId, nicknamesByUserId, isGroup],
+  );
+  const roomId = sidebarEntryRoomId(entry);
+  const onClick = useCallback(() => {
+    switch (entry.kind) {
+      case "workspace":
+        onTargetChange({ kind: "workspace" });
+        return;
+      case "channel":
+        onTargetChange({ kind: "channel", channel: entry.channel });
+        return;
+      case "group":
+        onTargetChange({ kind: "group", group: entry.group });
+        return;
+      case "dm":
+        onTargetChange({ kind: "dm", contact: entry.contact });
+    }
+  }, [entry, onTargetChange]);
+
+  const shared = {
+    active,
+    onClick,
+    rowIndex,
+    tabIndex,
+    onRowFocus,
+    preview,
+    roomId,
+    previewOptions,
+    unread,
+    mentionUnread,
+    unreadBadgesReady,
+    pinned,
+    notificationsMuted,
   };
 
   if (entry.kind === "workspace") {
     return (
       <SidebarNavItem
-        active={target.kind === "workspace"}
-        onClick={() => onTargetChange({ kind: "workspace" })}
-        avatar={
-          <span
-            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-            aria-hidden
-          >
-            <Home className="size-4" />
-          </span>
-        }
+        {...shared}
+        avatar={<ChatRoomMark icon={Home} active={active} />}
         title={workspaceTitle}
-        preview={workspaceRoomId ? roomPreviewsByRoomId[workspaceRoomId] : undefined}
-        roomId={workspaceRoomId}
+        fallbackSubtitle={t("chat.workspace_room_subtitle")}
         contacts={contacts}
-        previewOptions={{ ...previewOpts, isGroup: true }}
-        unread={workspaceRoomId ? (unreadByRoomId[workspaceRoomId] ?? 0) : 0}
-        mentionUnread={workspaceRoomId ? (mentionUnreadByRoomId[workspaceRoomId] ?? 0) : 0}
-        unreadBadgesReady={unreadBadgesReady}
-        pinned={isRoomPinned(workspaceRoomId)}
-        notificationsMuted={isRoomNotificationsMuted(workspaceRoomId)}
       />
     );
   }
@@ -100,84 +152,31 @@ export function ChatSidebarUnifiedRow({
     const privateChannel = channel.visibility === "private";
     return (
       <SidebarNavItem
-        active={target.kind === "channel" && target.channel.id === channel.id}
-        onClick={() => onTargetChange({ kind: "channel", channel })}
-        avatar={
-          <span
-            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-            aria-hidden
-          >
-            {privateChannel ? <Lock className="size-4" /> : <Hash className="size-4" />}
-          </span>
-        }
+        {...shared}
+        avatar={<ChatRoomMark icon={privateChannel ? Lock : Hash} active={active} />}
         title={privateChannel ? channel.name : `#${channel.name}`}
-        preview={roomPreviewsByRoomId[channel.id]}
-        roomId={channel.id}
-        contacts={[]}
-        previewOptions={{ ...previewOpts, isGroup: true }}
-        unread={unreadByRoomId[channel.id] ?? 0}
-        mentionUnread={mentionUnreadByRoomId[channel.id] ?? 0}
-        unreadBadgesReady={unreadBadgesReady}
-        pinned={isRoomPinned(channel.id)}
-        notificationsMuted={isRoomNotificationsMuted(channel.id)}
       />
     );
   }
 
   if (entry.kind === "group") {
-    const group = entry.group;
     return (
       <SidebarNavItem
-        active={target.kind === "group" && target.group.id === group.id}
-        onClick={() => onTargetChange({ kind: "group", group })}
-        avatar={
-          <span
-            className="flex size-9 shrink-0 items-center justify-center text-muted-foreground"
-            aria-hidden
-          >
-            <Users className="size-4" />
-          </span>
-        }
-        title={group.name}
-        preview={roomPreviewsByRoomId[group.room_id]}
-        roomId={group.room_id}
+        {...shared}
+        avatar={<ChatRoomMark icon={Users} active={active} />}
+        title={entry.group.name}
         contacts={contacts}
-        previewOptions={{ ...previewOpts, isGroup: true }}
-        unread={unreadByRoomId[group.room_id] ?? 0}
-        mentionUnread={mentionUnreadByRoomId[group.room_id] ?? 0}
-        unreadBadgesReady={unreadBadgesReady}
-        pinned={isRoomPinned(group.room_id)}
-        notificationsMuted={isRoomNotificationsMuted(group.room_id)}
       />
     );
   }
 
-  const contact = entry.contact;
-  const label = displayLabelForChatContact(contact, nicknamesByUserId);
-  const dmRoomId = contact.dm_room_id ?? null;
-  const online = Boolean(onlineUserIds[normalizeTypingUserId(contact.user_id)]);
+  const label = displayLabelForChatContact(entry.contact, nicknamesByUserId);
   return (
     <SidebarNavItem
-      active={target.kind === "dm" && target.contact.user_id === contact.user_id}
-      onClick={() => onTargetChange({ kind: "dm", contact })}
-      avatar={
-        <ChatPresenceAvatar
-          name={label}
-          initials={initialOf(label)}
-          size="sm"
-          online={online}
-        />
-      }
+      {...shared}
+      avatar={<DmPresenceAvatar userId={entry.contact.user_id} label={label} />}
       title={label}
-      preview={dmRoomId ? roomPreviewsByRoomId[dmRoomId] : undefined}
-      roomId={dmRoomId}
       contacts={contacts}
-      previewOptions={{ ...previewOpts, isGroup: false }}
-      unread={dmRoomId ? (unreadByRoomId[dmRoomId] ?? 0) : 0}
-      mentionUnread={dmRoomId ? (mentionUnreadByRoomId[dmRoomId] ?? 0) : 0}
-      unreadBadgesReady={unreadBadgesReady}
-      pinned={isRoomPinned(dmRoomId)}
-      notificationsMuted={isRoomNotificationsMuted(dmRoomId)}
     />
   );
-}
+});

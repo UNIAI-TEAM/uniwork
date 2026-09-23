@@ -32,7 +32,8 @@ describe("VoiceCallLogRow", () => {
         />,
       ),
     );
-    expect(screen.getByText(/Cuộc gọi thoại · 2:05/)).toBeInTheDocument();
+    // The log does not know whether it was a video call, so it says "Cuộc gọi".
+    expect(screen.getByText(/^Cuộc gọi · 2:05/)).toBeInTheDocument();
   });
 
   it("shows participant names on completed calls", () => {
@@ -57,7 +58,9 @@ describe("VoiceCallLogRow", () => {
         />,
       ),
     );
-    expect(screen.getByText(/Cuộc gọi thoại · 2:05 · Alice, Bạn/)).toBeInTheDocument();
+    const label = screen.getByText(/Cuộc gọi · 2:05 · Alice, Bạn/);
+    // A long list truncates; the full line stays available on hover.
+    expect(label).toHaveAttribute("title", "Cuộc gọi · 2:05 · Alice, Bạn");
   });
 
   it("shows missed label for unanswered incoming calls", () => {
@@ -86,5 +89,22 @@ describe("VoiceCallLogRow", () => {
       ),
     );
     expect(screen.getByText("Đã hủy cuộc gọi")).toBeInTheDocument();
+  });
+
+  it("says the recording failed instead of showing nothing", () => {
+    render(
+      wrap(
+        <VoiceCallLogRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={{
+            ...voiceMessage("completed"),
+            voiceCall: { outcome: "completed", duration_seconds: 60, caller_id: "peer", recording_status: "FAILED" },
+          }}
+          currentUserId="me"
+        />,
+      ),
+    );
+    expect(screen.getByText("Ghi âm thất bại")).toBeInTheDocument();
   });
 });

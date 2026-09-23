@@ -12,15 +12,18 @@ vi.mock("./voice-call-pre-connect", () => ({
   PreConnectFloatingCall: ({
     peerName,
     statusLabel,
+    notice,
     children,
   }: {
     peerName: string;
     statusLabel: string;
+    notice?: React.ReactNode;
     children: React.ReactNode;
   }) => (
     <div data-testid="preconnect">
       <span>{peerName}</span>
       <span>{statusLabel}</span>
+      {notice}
       {children}
     </div>
   ),
@@ -42,6 +45,8 @@ const handlers = {
   onDisconnected: vi.fn(),
   onEndForAll: vi.fn(),
   onConnected: vi.fn(),
+  onRetryEnded: vi.fn(),
+  onDismissEnded: vi.fn(),
 };
 
 const overlayProps = { workspaceId: "ws1", ...handlers };
@@ -134,10 +139,49 @@ describe("VoiceCallOverlay", () => {
     expect(await screen.findByTestId("active-session")).toBeInTheDocument();
   });
 
-  it("returns null while idle", () => {
-    const { container } = render(
-      wrap(<VoiceCallOverlay state={{ status: "idle" }} {...overlayProps} />),
+  it("renders no panel while idle, only the empty announcer", () => {
+    render(wrap(<VoiceCallOverlay state={{ status: "idle" }} {...overlayProps} />));
+    expect(screen.queryByTestId("preconnect")).not.toBeInTheDocument();
+    expect(screen.getByTestId("voice-call-ended-announcer")).toBeEmptyDOMElement();
+  });
+
+  it("says why a call ended and offers to call back", () => {
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{
+            status: "ended",
+            reason: "no_answer",
+            callId: "c1",
+            roomId: "r1",
+            peerName: "Long",
+            callKind: "dm",
+            outgoing: true,
+          }}
+          {...overlayProps}
+        />,
+      ),
     );
-    expect(container).toBeEmptyDOMElement();
+
+    expect(screen.getByTestId("voice-call-ended-announcer")).toHaveTextContent("Không ai nghe máy");
+    fireEvent.click(screen.getByLabelText("Gọi lại"));
+    expect(handlers.onRetryEnded).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByLabelText("Đóng"));
+    expect(handlers.onDismissEnded).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the blocked device on an incoming call and lets the viewer retry answering", () => {
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{ status: "incoming", callId: "c1", roomId: "r1", peerName: "Long", callKind: "dm" }}
+          incomingDeviceError={{ kind: "audioinput", failure: "in_use" }}
+          {...overlayProps}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Micro đang được ứng dụng khác dùng.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Thử lại")).toBeInTheDocument();
   });
 });

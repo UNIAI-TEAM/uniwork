@@ -15,6 +15,10 @@ const UNPARSEABLE_LOG_MAX_CHARS = 200;
 // expose a visible disconnected state or manual retry action.
 const RECONNECT_BASE_DELAY_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
+// Edge/LB idle cuts (~50s observed on uniwork.unicomhub.com) drop quiet
+// sockets even when APISIX/read timeouts are long. Application ping keeps
+// data frames flowing; the server answers with {"type":"pong"}.
+const APP_PING_INTERVAL_MS = 25_000;
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected";
 
@@ -45,6 +49,7 @@ export class WSClient {
   private identity: WSClientIdentity | undefined;
   private handlers = new Map<WSEventType, Set<EventHandler>>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempt = 0;
   private hasConnectedBefore = false;
   /** Set after auth_ack; cleared when the socket closes. Used by lobby join fallback. */
@@ -172,6 +177,7 @@ export class WSClient {
 
     this.ws.onclose = () => {
       this.authenticated = false;
+      this.stopAppPing();
       this.setConnectionState("disconnected");
       this.scheduleReconnect();
     };
@@ -212,6 +218,7 @@ export class WSClient {
     this.logger.info("connected");
     const recoveredConnection = this.hasConnectedBefore || this.reconnectAttempt > 0;
     this.reconnectAttempt = 0;
+    this.startAppPing();
     if (recoveredConnection) {
       for (const cb of this.onReconnectCallbacks) {
         try {
@@ -230,11 +237,28 @@ export class WSClient {
     }
   }
 
+  private startAppPing() {
+    this.stopAppPing();
+    this.pingTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, APP_PING_INTERVAL_MS);
+  }
+
+  private stopAppPing() {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+  }
+
   disconnect() {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.stopAppPing();
     if (this.ws) {
       // Remove handlers before close to prevent onclose from scheduling a reconnect
       this.ws.onclose = null;

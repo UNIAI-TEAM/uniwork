@@ -105,6 +105,7 @@ const (
 	ActionChatChannelUpdated    = "chat.channel.updated"
 	ActionChatChannelArchived   = "chat.channel.archived"
 	ActionChatMessageLinked     = "chat.message.linked"
+	ActionChatMessageUnlinked   = "chat.message.unlinked"
 	ActionChatThreadTaskLinked  = "chat.thread.task_linked"
 	ActionChatFollowUpCreated   = "chat.follow_up.created"
 	ActionChatFollowUpUpdated   = "chat.follow_up.updated"

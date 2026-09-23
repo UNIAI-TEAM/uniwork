@@ -41,7 +41,7 @@ export function MeetingInviteStateCard({
 }) {
   return (
     <MeetingInviteShell>
-      <div className="mx-auto flex w-full max-w-md flex-col gap-3 rounded-2xl border border-surface-border bg-surface p-6 shadow-[var(--floating-shadow)] sm:p-8">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-3 rounded-2xl border border-surface-border bg-surface p-6 shadow-floating sm:p-8">
         <h1 className="text-balance text-display-sm font-semibold tracking-tight text-foreground">{title}</h1>
         {description ? <p className="text-pretty text-body text-muted-foreground">{description}</p> : null}
         {children}

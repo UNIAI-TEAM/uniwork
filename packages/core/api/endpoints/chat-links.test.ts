@@ -5,6 +5,7 @@ import {
   createTaskFromChatMessage,
   deleteChatMessageLink,
   listChatMessageLinks,
+  listChatRoomMessageLinks,
   syncChatThreadTask,
   unsyncChatThreadTask,
 } from "./chat-links";
@@ -30,6 +31,19 @@ describe("chat link endpoints", () => {
   it("listChatMessageLinks degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ links: "nope" }));
     await expect(listChatMessageLinks("w1", "m1")).resolves.toEqual([]);
+  });
+
+  it("listChatRoomMessageLinks degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ links: [{ id: 1 }] }));
+    await expect(listChatRoomMessageLinks("w1", "r1", ["m1", "m2"])).resolves.toEqual([]);
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain(
+      "/chat/rooms/r1/message-links?message_ids=m1%2Cm2",
+    );
+  });
+
+  it("listChatRoomMessageLinks skips the request when there is nothing to ask", async () => {
+    await expect(listChatRoomMessageLinks("w1", "r1", [])).resolves.toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("createChatMessageLink degrades on malformed response", async () => {

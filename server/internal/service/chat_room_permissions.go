@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -16,6 +17,9 @@ type ChatRoomMemberPermissions struct {
 	AllowCreatePolls   bool `json:"allow_create_polls"`
 	AllowSendMessages  bool `json:"allow_send_messages"`
 }
+
+// chatRoomNameMaxRunes caps a renamed group or workspace room, the same as a channel name.
+const chatRoomNameMaxRunes = 80
 
 func defaultChatRoomMemberPermissions() ChatRoomMemberPermissions {
 	return ChatRoomMemberPermissions{
@@ -100,6 +104,9 @@ func (s *ChatService) UpdateChatRoomSettings(
 		name := strings.TrimSpace(*in.Name)
 		if name == "" {
 			return ChatRoomMemberPermissions{}, Invalid("tên phòng không được để trống")
+		}
+		if utf8.RuneCountInString(name) > chatRoomNameMaxRunes {
+			return ChatRoomMemberPermissions{}, Invalid("tên phòng tối đa 80 ký tự")
 		}
 		if !isModerator {
 			if err := s.memberCanPerformRoomAction(ctx, actorID, roomID, room, func(p ChatRoomMemberPermissions) bool {

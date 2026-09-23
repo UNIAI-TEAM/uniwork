@@ -109,16 +109,42 @@ func (s *MeetingService) RevokeInviteLink(ctx context.Context, userID, meetingID
 	return nil
 }
 
+// Link states a public invite page can be in. "exhausted" only applies to
+// AUTO_ADMIT links, the only mode that spends a use (evaluateInviteLink).
+const (
+	InviteLinkActive    = "active"
+	InviteLinkExpired   = "expired"
+	InviteLinkRevoked   = "revoked"
+	InviteLinkExhausted = "exhausted"
+)
+
+// Meeting states as the public invite page sees them: whether a join can
+// still succeed, mirroring the refusals at the top of Evaluate.
+const (
+	InviteMeetingOpen             = "open"
+	InviteMeetingEnded            = "ended"
+	InviteMeetingCanceled         = "canceled"
+	InviteMeetingPastScheduledEnd = "past_scheduled_end"
+)
+
 type PublicInviteView struct {
 	LinkID     string
 	MeetingID  string
 	Title      string
 	StartsAt   time.Time
 	AccessMode string
-	Expired    bool
+	// Expired keeps its original meaning (revoked or past expiry) for clients
+	// that predate LinkState.
+	Expired      bool
+	LinkState    string
+	MeetingState string
 }
 
-func (s *MeetingService) ResolveInviteLink(ctx context.Context, linkID, secret string) (PublicInviteView, error) {
+// ResolveInviteLink describes a link to the page that opened it, including
+// why a join would be refused, so the page can say so before anyone types a
+// name. viewer carries the caller's user or guest id: a person already let in
+// through the link is not locked out when its uses run out.
+func (s *MeetingService) ResolveInviteLink(ctx context.Context, linkID, secret string, viewer AdmissionContext) (PublicInviteView, error) {
 	link, err := s.q.GetInviteLink(ctx, linkID)
 	if err != nil {
 		return PublicInviteView{}, coded(http.StatusNotFound, "invite_link_invalid", "liên kết không hợp lệ")
@@ -131,11 +157,43 @@ func (s *MeetingService) ResolveInviteLink(ctx context.Context, linkID, secret s
 	if err != nil {
 		return PublicInviteView{}, coded(http.StatusNotFound, "invite_link_invalid", "liên kết không hợp lệ")
 	}
-	expired := link.RevokedAt.Valid || !link.ExpiresAt.Time.After(time.Now())
+	now := time.Now()
+	expired := link.RevokedAt.Valid || !link.ExpiresAt.Time.After(now)
 	return PublicInviteView{
 		LinkID: link.ID, MeetingID: m.ID, Title: m.Title, StartsAt: m.StartsAt.Time,
 		AccessMode: link.AccessMode, Expired: expired,
+		LinkState:    s.inviteLinkState(ctx, link, m.ID, viewer, now),
+		MeetingState: inviteMeetingState(m, now.UTC()),
 	}, nil
+}
+
+func (s *MeetingService) inviteLinkState(ctx context.Context, link db.MeetingInviteLink, meetingID string, viewer AdmissionContext, now time.Time) string {
+	switch {
+	case link.RevokedAt.Valid:
+		return InviteLinkRevoked
+	case !link.ExpiresAt.Time.After(now):
+		return InviteLinkExpired
+	case link.AccessMode == LinkAutoAdmit && link.MaxUses.Valid && link.UsedCount >= link.MaxUses.Int32:
+		if p, err := s.lookupPrincipal(ctx, meetingID, viewer); err == nil && p.Status != ParticipantRemoved {
+			return InviteLinkActive
+		}
+		return InviteLinkExhausted
+	default:
+		return InviteLinkActive
+	}
+}
+
+func inviteMeetingState(m db.Meeting, now time.Time) string {
+	switch {
+	case m.Status == MeetingEnded:
+		return InviteMeetingEnded
+	case m.Status == MeetingCanceled:
+		return InviteMeetingCanceled
+	case meetingPastScheduledEnd(m, now):
+		return InviteMeetingPastScheduledEnd
+	default:
+		return InviteMeetingOpen
+	}
 }
 
 func (s *MeetingService) verifyInviteLink(ctx context.Context, q *db.Queries, linkID, secret string) (db.MeetingInviteLink, error) {

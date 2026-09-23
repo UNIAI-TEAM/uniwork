@@ -192,6 +192,29 @@ describe("chat endpoints", () => {
     expect(messages[0]?.id).toBe("m1");
   });
 
+  it("listChatRoomMessages reads my_reactions and degrades a drifted value to none", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      body: "hi",
+      created_at: "2026-09-05T00:00:00Z",
+      reactions: { "👍": 2 },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          { ...base, id: "m1", my_reactions: ["👍"] },
+          { ...base, id: "m2", my_reactions: "👍" },
+          { ...base, id: "m3" },
+        ],
+      }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1");
+    expect(messages.map((m) => m.my_reactions)).toEqual([["👍"], undefined, undefined]);
+  });
+
   it("listChatRoomMessages sends mark_read=0 when mark_read is false", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [] }));
     await listChatRoomMessages("ws1", "room1", { mark_read: false, limit: 20 });

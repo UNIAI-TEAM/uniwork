@@ -46,11 +46,12 @@ const EMPTY_CONFIG = {
 } as const;
 
 export function ViewRefreshIndicator({ active }: { active: boolean }) {
+  const { t } = useTranslation();
   return (
     <span className="flex w-4 shrink-0 items-center justify-center">
       {active ? (
         <span className="animate-in fade-in fill-mode-backwards [animation-delay:300ms]">
-          <Spinner className="size-3.5 text-muted-foreground" />
+          <Spinner className="size-3.5 text-muted-foreground" label={t("common.loading")} />
         </span>
       ) : null}
     </span>

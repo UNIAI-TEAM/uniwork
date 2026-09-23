@@ -143,9 +143,12 @@ type Routes struct {
 	GetTaskViewPreference http.HandlerFunc
 	PutTaskViewPreference http.HandlerFunc
 
-	GetHomeSummary    http.HandlerFunc
-	GetHomePreference http.HandlerFunc
-	PutHomePreference http.HandlerFunc
+	GetHomeSummary      http.HandlerFunc
+	GetHomePreference   http.HandlerFunc
+	PutHomePreference   http.HandlerFunc
+	ListCalendarEvents  http.HandlerFunc
+	ListCalendarSidebar http.HandlerFunc
+	WorkspaceCalendar   http.HandlerFunc
 
 	ListEmailHubAccounts          http.HandlerFunc
 	ConnectEmailHubAccount        http.HandlerFunc
@@ -330,6 +333,7 @@ type Routes struct {
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
 	ListChatMessageLinks             http.HandlerFunc
+	ListChatRoomMessageLinks         http.HandlerFunc
 	DeleteChatMessageLink            http.HandlerFunc
 	SyncChatThreadTask               http.HandlerFunc
 	UnsyncChatThreadTask             http.HandlerFunc

@@ -8,6 +8,7 @@ import {
 } from "@uniwork/core/chat/room-preferences-store";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import { compareRoomPreviewRecency } from "./chat-sidebar-preview";
+import { foldedIncludes } from "./chat-search-fold";
 
 export type ChatSidebarKindFilter = "all" | "workspace" | "channel" | "group" | "dm";
 
@@ -17,15 +18,18 @@ export type UnifiedSidebarEntry =
   | { key: string; kind: "group"; group: GroupChat; sortRoomId: string }
   | { key: string; kind: "dm"; contact: ChatContact; sortRoomId: string };
 
+/**
+ * The kinds a reader filters by. The workspace room is not one of them: it is
+ * a single room that "All" always lists, so a filter for it only ever showed
+ * one row and pushed the control onto a second line.
+ */
 export function chatSidebarFilterOptions(workHubEnabled: boolean): ChatSidebarKindFilter[] {
-  return workHubEnabled
-    ? ["all", "dm", "group", "channel", "workspace"]
-    : ["all", "dm", "group", "workspace"];
+  return workHubEnabled ? ["all", "dm", "group", "channel"] : ["all", "dm", "group"];
 }
 
+/** Accent-insensitive: "tuan" finds "Tuấn", "thiet ke" finds "Thiết kế". */
 function matchesText(text: string, filter: string): boolean {
-  if (!filter) return true;
-  return text.toLowerCase().includes(filter);
+  return foldedIncludes(text, filter);
 }
 
 /** Flat conversation list sorted like Zalo/Messages (pin → recent). */

@@ -665,6 +665,7 @@ func chatMessageRowFromMessageFields(
 		Body: body, Kind: kind,
 		CreatedAt:        createdAt.Time,
 		Reactions:        reactionCountsFromMetadata(metadata),
+		MyReactions:      myReactionsFromMetadata(metadata, viewerID),
 		Pinned:           pinFromMetadata(metadata),
 		MentionedUserIDs: mentionedUserIDsFromMetadata(metadata),
 		VoiceCall:        voiceCallLogFromMetadata(kind, metadata),

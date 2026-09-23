@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { MicOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@uniwork/ui/components/ui/avatar";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -22,17 +23,23 @@ export function groupParticipantGridClass(
 }
 
 /** Fixed-size filmstrip tile while someone is presenting their screen. */
-export const voiceCallParticipantStripTileClass =
-  "h-[4.75rem] w-[6.75rem] shrink-0 sm:h-24 sm:w-32";
+export const voiceCallParticipantStripTileClass = "aspect-video w-28 shrink-0 sm:w-32";
+
+/* The name plate over video: the meeting room's tile tokens (a dark plate
+   that reads on any frame), caption size, no blur. */
+export const VOICE_CALL_NAME_PLATE =
+  "absolute bottom-1 left-1 flex max-w-[calc(100%-0.5rem)] items-center gap-1 truncate rounded-md bg-meeting-tile-name-bg px-1.5 py-0.5 text-caption font-medium text-meeting-tile-name-foreground";
 
 function VoiceCallParticipantVideoTile({
   tile,
   label,
+  micOffLabel,
   bindParticipantVideo,
   layout = "grid",
 }: {
   tile: VoiceCallParticipantTile;
   label: string;
+  micOffLabel: string;
   bindParticipantVideo: (identity: string, el: HTMLVideoElement | null) => void;
   layout?: "grid" | "strip";
 }) {
@@ -46,9 +53,12 @@ function VoiceCallParticipantVideoTile({
   return (
     <div
       className={cn(
-        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60",
+        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 transition-shadow duration-(--duration-fast)",
+        // Speaking is live state: the brand ring, the same cue the meeting tiles give.
+        tile.isSpeaking ? "ring-2 ring-brand" : "ring-surface-border",
         layout === "grid" ? "aspect-video" : "size-full",
       )}
+      data-speaking={tile.isSpeaking ? "true" : undefined}
     >
       {tile.hasVideo ? (
         /* eslint-disable-next-line jsx-a11y/media-has-caption -- LiveKit realtime video has no caption track */
@@ -62,14 +72,20 @@ function VoiceCallParticipantVideoTile({
       ) : (
         <div className="flex size-full items-center justify-center bg-muted">
           <Avatar className={cn("text-body", layout === "strip" ? "size-10 sm:size-12" : "size-12 sm:size-14")}>
-            <AvatarFallback className="bg-primary/10 text-primary">
+            <AvatarFallback className="bg-brand-subtle text-brand-subtle-foreground">
               {voiceCallInitialOf(label)}
             </AvatarFallback>
           </Avatar>
         </div>
       )}
-      <span className="absolute inset-x-1 bottom-1 truncate rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-foreground backdrop-blur-sm">
-        {label}
+      <span className={VOICE_CALL_NAME_PLATE}>
+        {tile.micMuted ? (
+          <>
+            <MicOff className="size-3 shrink-0" aria-hidden />
+            <span className="sr-only">{micOffLabel}: </span>
+          </>
+        ) : null}
+        <span className="truncate">{label}</span>
       </span>
     </div>
   );
@@ -96,15 +112,13 @@ function VoiceCallScreenShareTile({
   return (
     <div
       className={cn(
-        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60",
+        "relative min-h-0 overflow-hidden rounded-lg bg-muted ring-1 ring-surface-border",
         presentation ? "min-h-0 flex-1" : "aspect-video",
       )}
     >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- LiveKit realtime video has no caption track */}
       <video ref={bindScreenShare} autoPlay playsInline className="size-full object-contain" />
-      <span className="absolute inset-x-1 bottom-1 truncate rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-foreground backdrop-blur-sm">
-        {label}
-      </span>
+      <span className={VOICE_CALL_NAME_PLATE}>{label}</span>
     </div>
   );
 }
@@ -133,13 +147,11 @@ export function VoiceCallGroupVideoStage({
     return (
       <div
         className={cn(
-          "flex w-full items-center justify-center rounded-xl bg-muted ring-1 ring-border/60",
+          "flex w-full items-center justify-center rounded-xl bg-muted ring-1 ring-surface-border",
           size === "fullscreen" ? "aspect-video max-h-[min(70vh,720px)]" : "aspect-video max-h-36",
         )}
       >
-        <Avatar className="size-16 text-title">
-          <AvatarFallback className="bg-primary/10 text-primary">?</AvatarFallback>
-        </Avatar>
+        <p className="text-caption text-muted-foreground">{t("chat.voice_call_waiting_participants")}</p>
       </div>
     );
   }
@@ -151,7 +163,7 @@ export function VoiceCallGroupVideoStage({
     return (
       <div
         className={cn(
-          "flex w-full min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-background p-2 ring-1 ring-border/60",
+          "flex w-full min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-background p-2 ring-1 ring-surface-border",
           size === "fullscreen" ? "h-full max-h-[min(70vh,720px)] flex-1" : "max-h-64",
         )}
       >
@@ -167,14 +179,16 @@ export function VoiceCallGroupVideoStage({
           ))}
         </div>
         <div
+          role="list"
           className="flex shrink-0 gap-2 overflow-x-auto pb-0.5 pt-1"
           aria-label={t("chat.voice_call_participant_strip")}
         >
           {tiles.map((tile) => (
-            <div key={tile.identity} className={voiceCallParticipantStripTileClass}>
+            <div key={tile.identity} role="listitem" className={voiceCallParticipantStripTileClass}>
               <VoiceCallParticipantVideoTile
                 tile={tile}
                 label={participantLabel(tile)}
+                micOffLabel={t("chat.voice_call_mic_off")}
                 bindParticipantVideo={bindParticipantVideo}
                 layout="strip"
               />
@@ -185,21 +199,29 @@ export function VoiceCallGroupVideoStage({
     );
   }
 
+  // More people than the frame holds: the grid scrolls instead of cutting
+  // tiles off, so nobody in the call silently disappears from view.
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-2 overflow-hidden rounded-xl bg-background p-2 ring-1 ring-border/60",
+        "flex w-full flex-col gap-2 overflow-hidden rounded-xl bg-background p-2 ring-1 ring-surface-border",
         size === "fullscreen" ? "max-h-[min(70vh,720px)]" : "max-h-64",
       )}
     >
-      <div className={cn("grid min-h-0 flex-1 gap-2 auto-rows-fr", gridClass)}>
+      <div
+        role="list"
+        aria-label={t("chat.voice_call_participant_grid")}
+        className={cn("grid min-h-0 flex-1 gap-2 overflow-y-auto", gridClass)}
+      >
         {tiles.map((tile) => (
-          <VoiceCallParticipantVideoTile
-            key={tile.identity}
-            tile={tile}
-            label={participantLabel(tile)}
-            bindParticipantVideo={bindParticipantVideo}
-          />
+          <div key={tile.identity} role="listitem" className="min-w-0">
+            <VoiceCallParticipantVideoTile
+              tile={tile}
+              label={participantLabel(tile)}
+              micOffLabel={t("chat.voice_call_mic_off")}
+              bindParticipantVideo={bindParticipantVideo}
+            />
+          </div>
         ))}
       </div>
     </div>

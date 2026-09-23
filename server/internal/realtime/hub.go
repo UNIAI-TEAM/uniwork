@@ -922,6 +922,10 @@ func (c *Client) readPump() {
 			}
 			break
 		}
+		// Any inbound data frame renews the deadline. Proxies that drop
+		// WebSocket control ping/pong still pass application frames, and
+		// clients send {"type":"ping"} as a keepalive through idle LBs.
+		c.conn.SetReadDeadline(time.Now().Add(pongWait))
 		c.handleFrame(raw)
 	}
 }
@@ -1054,8 +1058,12 @@ func (c *Client) sendJSON(v any) {
 
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
+	// Application keepalive beats edge/LB idle cuts (~50s) that ignore
+	// WebSocket control frames. Interval stays under the observed cut.
+	appKeepalive := time.NewTicker(25 * time.Second)
 	defer func() {
 		ticker.Stop()
+		appKeepalive.Stop()
 		c.conn.Close()
 	}()
 
@@ -1069,6 +1077,11 @@ func (c *Client) writePump() {
 			}
 			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				slog.Warn("websocket write error", "error", err, "user_id", c.userID, "workspace_id", c.workspaceID)
+				return
+			}
+		case <-appKeepalive.C:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ping"}`)); err != nil {
 				return
 			}
 		case <-ticker.C:

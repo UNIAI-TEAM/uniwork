@@ -1,0 +1,113 @@
+{{- $env := .Values.env | default dict }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uniwork-be
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.be.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-be
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: uniwork-be
+        reap.io/pool: pool-app
+      annotations:
+        {{- if $env.beContent }}
+        checksum/env: {{ $env.beContent | sha256sum }}
+        {{- end }}
+    spec:
+      serviceAccountName: uniwork
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.be.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.be.securityContext.runAsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      containers:
+        - name: uniwork-be
+          image: {{ include "uniwork.image" .Values.be.image | quote }}
+          imagePullPolicy: {{ .Values.be.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.be.port }}
+          envFrom:
+            - configMapRef:
+                name: uniwork-be
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.database.name }}
+                  key: {{ .Values.be.secrets.database.key }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.redis.name }}
+                  key: {{ .Values.be.secrets.redis.key }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.app.name }}
+                  key: {{ .Values.be.secrets.app.key }}
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.livekitKey.name }}
+                  key: {{ .Values.be.secrets.livekitKey.key }}
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.be.secrets.livekitSecret.name }}
+                  key: {{ .Values.be.secrets.livekitSecret.key }}
+            {{- with .Values.be.secrets.mail }}
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.s3 }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .accessKey }}
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .secretKey }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.google }}
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.be.resources | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5

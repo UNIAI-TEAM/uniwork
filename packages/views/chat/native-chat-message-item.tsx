@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { memo } from "react";
+import { latestSeenOwnMessageIndex } from "@uniwork/core/chat/read-receipt-utils";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
-import { shouldShowReadReceipt } from "@uniwork/core/chat/read-receipt-utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageRow } from "./chat-message-row";
 import { ChatFileMessageRow } from "./chat-file-message-row";
@@ -14,12 +14,15 @@ import { ChatVoiceMessageRow } from "./chat-voice-message-row";
 import { VoiceCallLogRow } from "./voice-call-log-row";
 import { VoiceCallSummaryRow } from "./voice-call-summary-row";
 import type { NameContextEntry } from "./native-chat-message-mapping";
-import { senderLabelFor } from "./native-chat-message-mapping";
 import { messageGrouping } from "./native-chat-message-grouping";
+import { messageDayKey } from "./chat-message-time";
+import { ChatDaySeparator } from "./chat-day-separator";
 
 export type NativeChatMessageActions = {
   onReply: (message: ChatMessage | null) => void;
   onReact: (message: ChatMessage) => void;
+  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
   onThread?: (message: ChatMessage) => void;
   onEdit: (message: ChatMessage) => void;
   onPin: (message: ChatMessage) => void;
@@ -30,10 +33,8 @@ export type NativeChatMessageActions = {
   onFollowUp?: (message: ChatMessage) => void;
 };
 
-export function renderNativeChatMessage(input: {
-  messages: ChatMessage[];
-  index: number;
-  messagesById: Map<string, ChatMessage>;
+/** What every row in one room shares; built once per change, not per row. */
+export type NativeChatMessageContext = {
   workspaceId: string;
   roomId: string;
   currentUserId: string;
@@ -41,78 +42,91 @@ export function renderNativeChatMessage(input: {
   nameContext: NameContextEntry[];
   showSenderName: boolean;
   canPinMessages: boolean;
-  highlightMessageId: string | null;
-  workHubEnabled?: boolean;
-  peerLastReadAt?: string | null;
+  workHubEnabled: boolean;
   actions: NativeChatMessageActions;
-}): ReactNode {
-  const {
-    messages,
-    index,
-    messagesById,
-    workspaceId,
-    roomId,
-    currentUserId,
-    youLabel,
-    nameContext,
-    showSenderName,
-    canPinMessages,
-    highlightMessageId,
-    workHubEnabled = false,
-    peerLastReadAt = null,
-    actions,
-  } = input;
-  const message = messages[index];
-  if (!message) return null;
+};
+
+/** Per-row flags, worked out once for the whole timeline. */
+export type NativeChatRowLayout = {
+  opensDay: boolean;
+  compactTop: boolean;
+  showAvatar: boolean;
+  lastOfRun: boolean;
+  showReadReceipt: boolean;
+  senderLabel: string;
+  replyTarget: ChatMessage | undefined;
+};
+
+/**
+ * Grouping, day breaks, sender names and the one read receipt for a whole
+ * timeline in a single pass. Each of these used to be worked out inside
+ * every row's render — the read receipt by scanning to the end of the list —
+ * so a long room did quadratic work on every keystroke-driven re-render.
+ */
+export function layoutNativeChatMessages(
+  messages: ChatMessage[],
+  input: { currentUserId: string; youLabel: string; nameContext: NameContextEntry[]; peerLastReadAt: string | null },
+): NativeChatRowLayout[] {
+  const names = new Map(input.nameContext.map((entry) => [entry.user_id, entry.display_name?.trim() ?? ""]));
+  const byId = new Map(messages.map((message) => [message.id, message]));
+  const receiptIndex = latestSeenOwnMessageIndex(messages, input.currentUserId, input.peerLastReadAt);
+  const grouping = messages.map((_, index) => messageGrouping(messages, index));
+  return messages.map((message, index) => {
+    const previous = messages[index - 1];
+    const next = grouping[index + 1];
+    return {
+      opensDay: !previous || messageDayKey(previous.ts) !== messageDayKey(message.ts),
+      compactTop: grouping[index]?.compactTop ?? false,
+      showAvatar: grouping[index]?.showAvatar ?? true,
+      lastOfRun: !next || !next.compactTop,
+      showReadReceipt: index === receiptIndex,
+      senderLabel:
+        message.sender === input.currentUserId ? input.youLabel : names.get(message.sender) || message.sender,
+      // The message this row points back to: its reply parent, or — for an
+      // AI call summary — the call's log row.
+      replyTarget: message.replyToEventId
+        ? byId.get(message.replyToEventId)
+        : message.voiceCallSummary
+          ? byId.get(message.voiceCallSummary.call_log_message_id)
+          : undefined,
+    };
+  });
+}
+
+function MessageBody({
+  message,
+  layout,
+  context,
+  highlighted,
+}: {
+  message: ChatMessage;
+  layout: NativeChatRowLayout;
+  context: NativeChatMessageContext;
+  highlighted: boolean;
+}) {
+  const { workspaceId, roomId, currentUserId, youLabel, nameContext, showSenderName, canPinMessages, workHubEnabled, actions } =
+    context;
+  const { compactTop, showAvatar, senderLabel } = layout;
+  const isOwn = message.sender === currentUserId;
+  const cardProps = { senderLabel, senderId: message.sender, isOwn, ts: message.ts, showSenderName, compactTop };
 
   if (message.kind === "reminder" && message.reminder) {
-    const { compactTop } = messageGrouping(messages, index);
-    return (
-      <ChatReminderMessageRow
-        key={message.id}
-        reminder={message.reminder}
-        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-        showSenderName={showSenderName}
-        compactTop={compactTop}
-      />
-    );
+    return <ChatReminderMessageRow reminder={message.reminder} {...cardProps} />;
   }
   if (message.kind === "note" && message.note) {
-    const { compactTop } = messageGrouping(messages, index);
-    return (
-      <ChatNoteMessageRow
-        key={message.id}
-        note={message.note}
-        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-        showSenderName={showSenderName}
-        compactTop={compactTop}
-      />
-    );
+    return <ChatNoteMessageRow note={message.note} {...cardProps} />;
   }
   if (message.kind === "post" && message.post) {
-    const { compactTop } = messageGrouping(messages, index);
-    return (
-      <ChatPostMessageRow
-        key={message.id}
-        post={message.post}
-        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-        showSenderName={showSenderName}
-        compactTop={compactTop}
-      />
-    );
+    return <ChatPostMessageRow post={message.post} {...cardProps} />;
   }
   if (message.kind === "poll" && message.poll) {
-    const { compactTop } = messageGrouping(messages, index);
     return (
       <ChatPollMessageRow
-        key={message.id}
         messageId={message.id}
         workspaceId={workspaceId}
         roomId={roomId}
         poll={message.poll}
-        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-        showSenderName={showSenderName}
-        compactTop={compactTop}
+        {...cardProps}
         nameContext={nameContext}
         currentUserId={currentUserId}
         youLabel={youLabel}
@@ -120,115 +134,111 @@ export function renderNativeChatMessage(input: {
     );
   }
   if (message.kind === "voice_call_log" || message.voiceCall) {
-    return (
-      <VoiceCallLogRow
-        key={message.id}
-        workspaceId={workspaceId}
-        roomId={roomId}
-        message={message}
-        currentUserId={currentUserId}
-      />
-    );
+    return <VoiceCallLogRow workspaceId={workspaceId} roomId={roomId} message={message} currentUserId={currentUserId} />;
   }
   if (message.voiceCallSummary) {
-    const { compactTop } = messageGrouping(messages, index);
     return (
       <VoiceCallSummaryRow
-        key={message.id}
         workspaceId={workspaceId}
         message={message}
-        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
+        senderLabel={senderLabel}
         showSenderName={showSenderName}
         compactTop={compactTop}
-      />
-    );
-  }
-  if (message.kind === "voice" && message.voice) {
-    const isOwn = message.sender === currentUserId;
-    const { compactTop, showAvatar } = messageGrouping(messages, index);
-    return (
-      <ChatVoiceMessageRow
-        key={message.id}
-        workspaceId={workspaceId}
-        roomId={roomId}
-        message={message}
-        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
         isOwn={isOwn}
-        showSenderName={showSenderName}
-        compactTop={compactTop}
-        showAvatar={showAvatar}
-      />
-    );
-  }
-  if (message.kind === "file" && message.file) {
-    const isOwn = message.sender === currentUserId;
-    const { compactTop, showAvatar } = messageGrouping(messages, index);
-    const replyTarget = message.replyToEventId
-      ? messagesById.get(message.replyToEventId)
-      : undefined;
-    return (
-      <ChatFileMessageRow
-        key={message.id}
-        workspaceId={workspaceId}
-        roomId={roomId}
-        message={message}
-        senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-        isOwn={isOwn}
-        showSenderName={showSenderName}
-        compactTop={compactTop}
-        showAvatar={showAvatar}
-        replyToMessage={replyTarget}
-        onReply={actions.onReply}
-        onReact={actions.onReact}
-        onThread={actions.onThread}
-        onPin={canPinMessages ? actions.onPin : undefined}
-        onCopy={actions.onCopy}
-        onDelete={actions.onDelete}
-        onCreateTask={workHubEnabled ? actions.onCreateTask : undefined}
-        onLinkTask={workHubEnabled ? actions.onLinkTask : undefined}
-        onFollowUp={workHubEnabled ? actions.onFollowUp : undefined}
-        workHubEnabled={workHubEnabled}
+        callLog={layout.replyTarget}
+        onJumpToMessage={actions.onJumpToMessage}
       />
     );
   }
 
-  const isOwn = message.sender === currentUserId;
   const isPending = Boolean(message.deliveryStatus) || isPendingChatMessageId(message.id);
-  const replyTarget = message.replyToEventId
-    ? messagesById.get(message.replyToEventId)
-    : undefined;
-  const { compactTop, showAvatar } = messageGrouping(messages, index);
+  const live = !isPending;
+  const common = {
+    workspaceId,
+    roomId,
+    message,
+    senderLabel,
+    isOwn,
+    showSenderName,
+    compactTop,
+    showAvatar,
+    onReply: live ? actions.onReply : undefined,
+    onReact: live ? actions.onReact : undefined,
+    onToggleReaction: live ? actions.onToggleReaction : undefined,
+    onThread: live ? actions.onThread : undefined,
+    onPin: live && canPinMessages ? actions.onPin : undefined,
+    onCopy: live ? actions.onCopy : undefined,
+    onDelete: live ? actions.onDelete : undefined,
+    onCreateTask: live && workHubEnabled ? actions.onCreateTask : undefined,
+    onLinkTask: live && workHubEnabled ? actions.onLinkTask : undefined,
+    onFollowUp: live && workHubEnabled ? actions.onFollowUp : undefined,
+    workHubEnabled,
+  };
+
+  if (message.kind === "voice" && message.voice) {
+    return <ChatVoiceMessageRow {...common} />;
+  }
+  if (message.kind === "file" && message.file) {
+    return <ChatFileMessageRow {...common} replyToMessage={layout.replyTarget} onJumpToMessage={actions.onJumpToMessage} />;
+  }
   return (
     <ChatMessageRow
-      key={message.id}
-      message={message}
-      isOwn={isOwn}
-      showReadReceipt={shouldShowReadReceipt({
-        messages,
-        index,
-        currentUserId,
-        peerLastReadAt,
-      })}
-      senderLabel={senderLabelFor(message, currentUserId, youLabel, nameContext)}
-      replyToMessage={replyTarget}
-      workspaceId={workspaceId}
-      roomId={roomId}
-      onReply={isPending ? undefined : actions.onReply}
-      onReact={isPending ? undefined : actions.onReact}
-      onThread={isPending ? undefined : actions.onThread}
-      onEdit={isPending ? undefined : actions.onEdit}
-      onPin={isPending || !canPinMessages ? undefined : actions.onPin}
-      onCopy={isPending ? undefined : actions.onCopy}
-      onDelete={isPending ? undefined : actions.onDelete}
-      onCreateTask={isPending || !workHubEnabled ? undefined : actions.onCreateTask}
-      onLinkTask={isPending || !workHubEnabled ? undefined : actions.onLinkTask}
-      onFollowUp={isPending || !workHubEnabled ? undefined : actions.onFollowUp}
-      workHubEnabled={workHubEnabled}
-      showSenderName={showSenderName}
-      compactTop={compactTop}
+      {...common}
+      showReadReceipt={layout.showReadReceipt}
+      replyToMessage={layout.replyTarget}
+      onJumpToMessage={actions.onJumpToMessage}
+      onEdit={live ? actions.onEdit : undefined}
       nameContext={nameContext}
-      showAvatar={showAvatar}
-      highlighted={message.id === highlightMessageId}
+      lastOfRun={layout.lastOfRun}
+      highlighted={highlighted}
     />
+  );
+}
+
+/**
+ * One timeline row, preceded by a day separator when it opens a new calendar
+ * day. The separator lives inside the row so the virtual list still measures
+ * one element per message. Memoised: a row re-renders when its own message,
+ * layout or highlight changes, not whenever the timeline does.
+ */
+export const NativeChatMessageItem = memo(function NativeChatMessageItem({
+  message,
+  layout,
+  context,
+  highlighted,
+}: {
+  message: ChatMessage;
+  layout: NativeChatRowLayout;
+  context: NativeChatMessageContext;
+  highlighted: boolean;
+}) {
+  const body = <MessageBody message={message} layout={layout} context={context} highlighted={highlighted} />;
+  if (!layout.opensDay) return body;
+  return (
+    <div>
+      <ChatDaySeparator ts={message.ts} />
+      {body}
+    </div>
+  );
+},
+sameRow);
+
+function sameRow(
+  prev: { message: ChatMessage; layout: NativeChatRowLayout; context: NativeChatMessageContext; highlighted: boolean },
+  next: { message: ChatMessage; layout: NativeChatRowLayout; context: NativeChatMessageContext; highlighted: boolean },
+): boolean {
+  if (prev.message !== next.message || prev.context !== next.context || prev.highlighted !== next.highlighted) {
+    return false;
+  }
+  const a = prev.layout;
+  const b = next.layout;
+  return (
+    a.opensDay === b.opensDay &&
+    a.compactTop === b.compactTop &&
+    a.showAvatar === b.showAvatar &&
+    a.lastOfRun === b.lastOfRun &&
+    a.showReadReceipt === b.showReadReceipt &&
+    a.senderLabel === b.senderLabel &&
+    a.replyTarget === b.replyTarget
   );
 }

@@ -201,6 +201,41 @@ func TestParseSummaryJSONTolerant(t *testing.T) {
 	}
 }
 
+func TestParseCatchUpJSON(t *testing.T) {
+	pack := []Source{{ID: "S1"}, {ID: "S2"}}
+	in := "```json\n{\"summary\":\"Brief\",\"highlights\":null,\"action_items\":[{\"title\":\"Do it\",\"source_id\":\"S1\"},{\"title\":\"\",\"source_id\":\"S1\"},{\"title\":\"Drop id\",\"source_id\":\"S9\"}]}\n```"
+	out, err := ParseCatchUpJSON(in, pack)
+	if err != nil || out.Summary != "Brief" || out.Highlights == nil || len(out.ActionItems) != 2 {
+		t.Fatalf("%+v %v", out, err)
+	}
+	if out.ActionItems[0].SourceID != "S1" || out.ActionItems[1].SourceID != "" {
+		t.Fatalf("source filter %+v", out.ActionItems)
+	}
+	if _, err := ParseCatchUpJSON("no json", pack); !errors.Is(err, ErrOutputInvalid) {
+		t.Fatalf("%v", err)
+	}
+	if _, err := ParseCatchUpJSON(`{"summary":""}`, pack); !errors.Is(err, ErrOutputInvalid) {
+		t.Fatalf("%v", err)
+	}
+	if _, err := ParseCatchUpJSON(`{"summary":"x",`, pack); !errors.Is(err, ErrOutputInvalid) {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestAIErrorMethods(t *testing.T) {
+	wrapped := ErrQuotaExceeded.wrap(errors.New("db"))
+	var ae *Error
+	if !errors.As(wrapped, &ae) || ae.Error() == "" || ae.Unwrap() == nil {
+		t.Fatalf("%v", wrapped)
+	}
+	plain := &Error{Code: "x", Msg: "m"}
+	if plain.Error() != "x: m" || plain.Unwrap() != nil {
+		t.Fatalf("%v", plain)
+	}
+	if !errors.Is(wrapped, ErrQuotaExceeded) || errors.Is(wrapped, ErrDisabled) {
+		t.Fatal("Is by code")
+	}
+}
 func TestAskUniToolRegistryHelpers(t *testing.T) {
 	r := Registry{{Name: "a", Kind: ToolRead}, {Name: "b", Kind: ToolWrite}}
 	if r.MutationCount() != 1 || len(r.Names()) != 2 {

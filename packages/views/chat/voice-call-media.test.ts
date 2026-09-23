@@ -1,31 +1,53 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
+import { deviceFailureFromError, prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
+
+function domError(name: string): Error {
+  const err = new Error(name);
+  err.name = name;
+  return err;
+}
+
+describe("deviceFailureFromError", () => {
+  it("sorts getUserMedia rejections like the meeting room does", () => {
+    expect(deviceFailureFromError(domError("NotAllowedError"))).toBe("denied");
+    expect(deviceFailureFromError(domError("NotReadableError"))).toBe("in_use");
+    expect(deviceFailureFromError(domError("NotFoundError"))).toBe("missing");
+    expect(deviceFailureFromError(new Error("boom"))).toBe("other");
+    expect(deviceFailureFromError(undefined)).toBe("other");
+  });
+});
 
 describe("prepareVoiceCapture", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("returns false when getUserMedia is unavailable", async () => {
+  it("reports an unavailable microphone when getUserMedia is missing", async () => {
     vi.stubGlobal("navigator", { mediaDevices: undefined });
-    await expect(prepareVoiceCapture()).resolves.toBe(false);
+    await expect(prepareVoiceCapture()).resolves.toEqual({
+      ok: false,
+      device: { kind: "audioinput", failure: "other" },
+    });
   });
 
-  it("stops tracks and returns true when mic access succeeds", async () => {
+  it("stops tracks and succeeds when mic access works", async () => {
     const stop = vi.fn();
     const getUserMedia = vi.fn().mockResolvedValue({ getTracks: () => [{ stop }] });
     vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
 
-    await expect(prepareVoiceCapture()).resolves.toBe(true);
+    await expect(prepareVoiceCapture()).resolves.toEqual({ ok: true });
     expect(getUserMedia).toHaveBeenCalledWith({ audio: true });
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
-  it("returns false when mic access is denied", async () => {
-    const getUserMedia = vi.fn().mockRejectedValue(new Error("denied"));
+  it("says the microphone is in use rather than 'permission needed'", async () => {
+    const getUserMedia = vi.fn().mockRejectedValue(domError("NotReadableError"));
     vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
 
-    await expect(prepareVoiceCapture()).resolves.toBe(false);
+    await expect(prepareVoiceCapture()).resolves.toEqual({
+      ok: false,
+      device: { kind: "audioinput", failure: "in_use" },
+    });
   });
 });
 
@@ -34,13 +56,26 @@ describe("prepareVideoCapture", () => {
     vi.unstubAllGlobals();
   });
 
-  it("stops tracks and returns true when camera access succeeds", async () => {
+  it("stops tracks and succeeds when camera access works", async () => {
     const stop = vi.fn();
     const getUserMedia = vi.fn().mockResolvedValue({ getTracks: () => [{ stop }, { stop }] });
     vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
 
-    await expect(prepareVideoCapture()).resolves.toBe(true);
+    await expect(prepareVideoCapture()).resolves.toEqual({ ok: true });
     expect(getUserMedia).toHaveBeenCalledWith({ audio: true, video: true });
     expect(stop).toHaveBeenCalledTimes(2);
+  });
+
+  it("blames the camera when the microphone alone still works", async () => {
+    const getUserMedia = vi
+      .fn()
+      .mockRejectedValueOnce(domError("NotFoundError"))
+      .mockResolvedValueOnce({ getTracks: () => [] });
+    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+
+    await expect(prepareVideoCapture()).resolves.toEqual({
+      ok: false,
+      device: { kind: "videoinput", failure: "missing" },
+    });
   });
 });

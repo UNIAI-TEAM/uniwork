@@ -176,23 +176,24 @@ func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateM
 	return i, err
 }
 
-const deleteChatMessageLink = `-- name: DeleteChatMessageLink :execrows
+const deleteChatMessageLink = `-- name: DeleteChatMessageLink :one
 DELETE FROM chat_message_links
-WHERE id = $1 AND workspace_id = $2 AND message_id = $3
+WHERE id = $1 AND room_id = $2 AND message_id = $3
+RETURNING target_id
 `
 
 type DeleteChatMessageLinkParams struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
-	MessageID   string `json:"message_id"`
+	ID        string `json:"id"`
+	RoomID    string `json:"room_id"`
+	MessageID string `json:"message_id"`
 }
 
-func (q *Queries) DeleteChatMessageLink(ctx context.Context, arg DeleteChatMessageLinkParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteChatMessageLink, arg.ID, arg.WorkspaceID, arg.MessageID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// Scoped by room, not workspace, for the same reason as the room batch above.
+func (q *Queries) DeleteChatMessageLink(ctx context.Context, arg DeleteChatMessageLinkParams) (string, error) {
+	row := q.db.QueryRow(ctx, deleteChatMessageLink, arg.ID, arg.RoomID, arg.MessageID)
+	var target_id string
+	err := row.Scan(&target_id)
+	return target_id, err
 }
 
 const deleteChatThreadTaskLinkByThread = `-- name: DeleteChatThreadTaskLinkByThread :execrows
@@ -393,20 +394,24 @@ func (q *Queries) ListChatMessageLinksByMessage(ctx context.Context, arg ListCha
 	return items, nil
 }
 
-const listChatMessageLinksByMessages = `-- name: ListChatMessageLinksByMessages :many
+const listChatMessageLinksByRoomMessages = `-- name: ListChatMessageLinksByRoomMessages :many
 SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
-WHERE workspace_id = $1
+WHERE room_id = $1
   AND message_id = ANY($2::text[])
 ORDER BY created_at ASC
 `
 
-type ListChatMessageLinksByMessagesParams struct {
-	WorkspaceID string   `json:"workspace_id"`
-	MessageIds  []string `json:"message_ids"`
+type ListChatMessageLinksByRoomMessagesParams struct {
+	RoomID     string   `json:"room_id"`
+	MessageIds []string `json:"message_ids"`
 }
 
-func (q *Queries) ListChatMessageLinksByMessages(ctx context.Context, arg ListChatMessageLinksByMessagesParams) ([]ChatMessageLink, error) {
-	rows, err := q.db.Query(ctx, listChatMessageLinksByMessages, arg.WorkspaceID, arg.MessageIds)
+// One room's timeline asks for the links of every message it shows at once,
+// instead of one request per message. The room is the only scope: DM and
+// group rooms are org-level and their links carry the creator's workspace, so
+// a viewer arriving from another workspace must still see them.
+func (q *Queries) ListChatMessageLinksByRoomMessages(ctx context.Context, arg ListChatMessageLinksByRoomMessagesParams) ([]ChatMessageLink, error) {
+	rows, err := q.db.Query(ctx, listChatMessageLinksByRoomMessages, arg.RoomID, arg.MessageIds)
 	if err != nil {
 		return nil, err
 	}

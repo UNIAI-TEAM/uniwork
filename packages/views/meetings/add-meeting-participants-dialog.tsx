@@ -1,19 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { inviteParticipant } from "@uniwork/core/api/endpoints/meetings";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { meetingKeys } from "@uniwork/core/meetings";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { toast } from "sonner";
-import { toastApiError } from "../toast-api-error";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
+import { Notice } from "../common/notice";
 import { MemberMultiPicker } from "./member-multi-picker";
+import { useMemberIndex } from "./use-member-index";
 
 export function AddMeetingParticipantsDialog({
   workspaceId,
@@ -29,57 +32,79 @@ export function AddMeetingParticipantsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { memberOf } = useMemberIndex(workspaceId);
   const [selected, setSelected] = useState<string[]>([]);
+  const [failedIds, setFailedIds] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
 
   const close = (next: boolean) => {
-    if (!next) setSelected([]);
+    if (!next) {
+      setSelected([]);
+      setFailedIds([]);
+    }
     onOpenChange(next);
   };
+  const failedNames = failedIds.map((userId) => memberOf(userId)?.display_name || t("meetings.formerMember"));
+
+  const nothingPicked = selected.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="flex max-h-[min(90dvh,44rem)] flex-col overflow-hidden sm:max-w-md">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{t("meetings.addPeople")}</DialogTitle>
-        </DialogHeader>
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("meetings.addPeople")} />
         <form
-          className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (selected.length === 0) return;
+            if (nothingPicked) return;
             setPending(true);
-            void Promise.allSettled(selected.map((userId) => inviteParticipant(meetingId, userId)))
+            const batch = [...selected];
+            void Promise.allSettled(batch.map((userId) => inviteParticipant(meetingId, userId)))
               .then((results) => {
-                const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
-                if (failed) {
-                  toastApiError(failed.reason, t("common.error"));
+                const failed = batch.filter((_, i) => results[i]?.status === "rejected");
+                const invited = batch.length - failed.length;
+                // Whoever made it in shows on the roster now, not when the dialog closes.
+                if (invited > 0) {
+                  void qc.invalidateQueries({ queryKey: meetingKeys.participants(meetingId) });
+                  void qc.invalidateQueries({ queryKey: meetingKeys.invitations(meetingId) });
+                  toast.success(t("meetings.invitedMembers", { count: invited }));
+                }
+                if (failed.length > 0) {
+                  // Keep only the people still to invite, so a retry does not re-send the rest.
+                  setSelected(failed);
+                  setFailedIds(failed);
                   return;
                 }
-                toast.success(t("meetings.invitedMembers", { count: selected.length }));
                 close(false);
               })
               .finally(() => setPending(false));
           }}
         >
-          <MemberMultiPicker
-            workspaceId={workspaceId}
-            value={selected}
-            onChange={setSelected}
-            excludeUserIds={excludeUserIds}
-            searchable
-            className="min-h-0 flex-1"
+          <FormDialogBody className="space-y-3">
+            {failedIds.length > 0 ? (
+              <Notice tone="destructive" icon={AlertCircle} layout="inline" live="assertive">
+                {t("meetings.inviteFailedNames", { names: failedNames.join(", ") })}
+              </Notice>
+            ) : null}
+            <MemberMultiPicker
+              workspaceId={workspaceId}
+              value={selected}
+              onChange={setSelected}
+              excludeUserIds={excludeUserIds}
+              searchable
+            />
+          </FormDialogBody>
+          <FormDialogFooter
+            onCancel={() => close(false)}
+            submitType="submit"
+            submitLabel={t("meetings.inviteMember")}
+            submittingLabel={t("meetings.inviting")}
+            submitting={pending}
+            submitDisabled={nothingPicked}
+            leading={nothingPicked ? t("meetings.pickPeopleToInvite") : undefined}
           />
-          <DialogFooter className="shrink-0">
-            <Button type="button" variant="outline" onClick={() => close(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={pending || selected.length === 0}>
-              {t("meetings.inviteMember")}
-            </Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

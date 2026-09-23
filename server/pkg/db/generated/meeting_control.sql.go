@@ -821,6 +821,70 @@ func (q *Queries) GetJoinRequest(ctx context.Context, id string) (MeetingJoinReq
 	return i, err
 }
 
+const getLatestJoinRequestForGuest = `-- name: GetLatestJoinRequestForGuest :one
+SELECT id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_guest_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLatestJoinRequestForGuestParams struct {
+	MeetingID        string      `json:"meeting_id"`
+	RequesterGuestID pgtype.Text `json:"requester_guest_id"`
+}
+
+func (q *Queries) GetLatestJoinRequestForGuest(ctx context.Context, arg GetLatestJoinRequestForGuestParams) (MeetingJoinRequest, error) {
+	row := q.db.QueryRow(ctx, getLatestJoinRequestForGuest, arg.MeetingID, arg.RequesterGuestID)
+	var i MeetingJoinRequest
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.RequesterUserID,
+		&i.RequesterGuestID,
+		&i.DisplayNameSnapshot,
+		&i.InviteLinkID,
+		&i.Status,
+		&i.RequestedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.DecisionReason,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const getLatestJoinRequestForUser = `-- name: GetLatestJoinRequestForUser :one
+SELECT id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_user_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLatestJoinRequestForUserParams struct {
+	MeetingID       string      `json:"meeting_id"`
+	RequesterUserID pgtype.Text `json:"requester_user_id"`
+}
+
+func (q *Queries) GetLatestJoinRequestForUser(ctx context.Context, arg GetLatestJoinRequestForUserParams) (MeetingJoinRequest, error) {
+	row := q.db.QueryRow(ctx, getLatestJoinRequestForUser, arg.MeetingID, arg.RequesterUserID)
+	var i MeetingJoinRequest
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.RequesterUserID,
+		&i.RequesterGuestID,
+		&i.DisplayNameSnapshot,
+		&i.InviteLinkID,
+		&i.Status,
+		&i.RequestedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.DecisionReason,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const getMeetingGuest = `-- name: GetMeetingGuest :one
 SELECT id, created_at FROM meeting_guests WHERE id = $1
 `

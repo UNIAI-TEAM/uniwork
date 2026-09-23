@@ -27,8 +27,9 @@ describe("groupParticipantGridClass", () => {
 
 describe("voiceCallParticipantStripTileClass", () => {
   it("keeps strip tiles wide enough for faces while screen sharing", () => {
-    expect(voiceCallParticipantStripTileClass).toMatch(/h-\[/);
-    expect(voiceCallParticipantStripTileClass).toMatch(/w-\[/);
+    // A fixed width with a video aspect gives every strip tile the same face-sized frame.
+    expect(voiceCallParticipantStripTileClass).toMatch(/\bw-\d+\b/);
+    expect(voiceCallParticipantStripTileClass).toContain("aspect-video");
     expect(voiceCallParticipantStripTileClass).toContain("shrink-0");
   });
 });

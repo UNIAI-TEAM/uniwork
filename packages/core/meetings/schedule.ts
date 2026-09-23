@@ -34,7 +34,8 @@ export function isScheduledMeetingLive(
 /**
  * Status the list and detail badge should show. IN_PROGRESS past ends_at is
  * overtime (join closed, host may extend or end). A scheduled window that
- * never started reads as ENDED.
+ * passed without the meeting ever starting is MISSED — it did not end, it did
+ * not happen, and the host still has to reschedule or cancel it.
  */
 export function displayMeetingStatus(
   meeting: { ends_at: string; status?: string },
@@ -43,5 +44,5 @@ export function displayMeetingStatus(
   const status = meeting.status || "SCHEDULED";
   if (status === "ENDED" || status === "CANCELED") return status;
   if (!isPastScheduledEnd(meeting.ends_at, nowMs)) return status;
-  return status === "IN_PROGRESS" ? "OVERTIME" : "ENDED";
+  return status === "IN_PROGRESS" ? "OVERTIME" : "MISSED";
 }

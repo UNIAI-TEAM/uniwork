@@ -28,6 +28,13 @@ export function shouldLeaveOnDisconnect(reason?: DisconnectReason): boolean {
   }
 }
 
+/** Why the conference closed around us, when it did: ended for everyone, or us removed. */
+export function roomClosedReason(reason?: DisconnectReason): "ended" | "removed" | null {
+  if (reason === DisconnectReason.PARTICIPANT_REMOVED) return "removed";
+  if (reason === DisconnectReason.ROOM_DELETED || reason === DisconnectReason.ROOM_CLOSED) return "ended";
+  return null;
+}
+
 /** Re-fetch a LiveKit credential only after an unexpected disconnect that a new token may fix. */
 export function shouldRefreshCredentialOnDisconnect(reason?: DisconnectReason): boolean {
   if (shouldLeaveOnDisconnect(reason)) return false;

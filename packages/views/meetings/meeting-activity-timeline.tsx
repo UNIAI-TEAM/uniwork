@@ -1,18 +1,60 @@
 "use client";
 
-import { ChevronDown, History } from "lucide-react";
+import {
+  Ban,
+  CalendarPlus,
+  ChevronDown,
+  CircleDot,
+  Crown,
+  History,
+  Link2,
+  ListChecks,
+  Pencil,
+  Play,
+  Square,
+  UserMinus,
+  UserPlus,
+  DoorOpen,
+  CalendarCheck,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { activityLabelKey, useMeetingActivity } from "@uniwork/core/meetings";
-import { useMembers } from "@uniwork/core/workspaces";
+import { useMeetingActivity } from "@uniwork/core/meetings";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
-import { MeetingPersonAvatar } from "./meeting-person";
-import { meetingLocale } from "./meeting-datetime";
+import { moduleTone } from "../layout/module-tones";
+import { activityKind, activityLabel, activityStateChange, visibleActivity, type ActivityKind } from "./meeting-activity-display";
+import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { initials, personAvatarSrc } from "./meeting-person";
+import { formatRelativeTime } from "./meeting-relative-time";
+import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
+import { useMemberIndex } from "./use-member-index";
 
 const VISIBLE_ACTIVITY_LIMIT = 5;
+
+/** Rail mark per kind: the glyph says what happened, the signal says how it went. */
+const KIND_MARK: Record<ActivityKind, { icon: LucideIcon; tone: IconTileTone }> = {
+  created: { icon: CalendarPlus, tone: "muted" },
+  started: { icon: Play, tone: "success" },
+  ended: { icon: Square, tone: "muted" },
+  canceled: { icon: Ban, tone: "destructive" },
+  updated: { icon: Pencil, tone: "muted" },
+  host: { icon: Crown, tone: "muted" },
+  invited: { icon: UserPlus, tone: "muted" },
+  removed: { icon: UserMinus, tone: "muted" },
+  rsvp: { icon: CalendarCheck, tone: "muted" },
+  join: { icon: DoorOpen, tone: "muted" },
+  link: { icon: Link2, tone: "muted" },
+  ai: { icon: Sparkles, tone: "brand" },
+  recording: { icon: CircleDot, tone: "muted" },
+  other: { icon: ListChecks, tone: "muted" },
+};
 
 export function MeetingActivityTimeline({
   workspaceId,
@@ -24,12 +66,12 @@ export function MeetingActivityTimeline({
   defaultOpen?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const { data: items } = useMeetingActivity(meetingId);
-  const { data: members } = useMembers(workspaceId);
+  const locale = meetingLocale(i18n.language);
+  const { data: items, isPending, isError, refetch } = useMeetingActivity(meetingId);
+  const { memberOf } = useMemberIndex(workspaceId);
   const [open, setOpen] = useState(defaultOpen);
   const [showAll, setShowAll] = useState(false);
-  const nameOf = (id: string) => members?.find((m) => m.user_id === id)?.display_name ?? id;
-  const all = items ?? [];
+  const all = visibleActivity(items ?? []);
   const visible = showAll ? all : all.slice(0, VISIBLE_ACTIVITY_LIMIT);
   const hiddenCount = Math.max(0, all.length - VISIBLE_ACTIVITY_LIMIT);
 
@@ -38,6 +80,7 @@ export function MeetingActivityTimeline({
       <PanelCard
         id="activity-heading"
         icon={History}
+        iconTone={moduleTone("meetings")}
         title={t("meetings.activity")}
         flush
         action={
@@ -46,7 +89,7 @@ export function MeetingActivityTimeline({
               <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">
                 {open ? t("meetings.hideActivity") : t("meetings.showActivity", { count: all.length })}
                 <ChevronDown
-                  className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")}
+                  className={cn("size-3.5 transition-transform duration-standard", open && "rotate-180")}
                   aria-hidden
                 />
               </Button>
@@ -55,35 +98,53 @@ export function MeetingActivityTimeline({
         }
       >
         <CollapsibleContent>
-          {all.length === 0 ? (
+          {isPending ? (
+            <MeetingRowsSkeleton className="py-1.5" rowClassName="py-2" />
+          ) : isError ? (
+            <MeetingSectionError
+              className="m-4"
+              message={t("meetings.activityLoadFailed")}
+              onRetry={() => void refetch()}
+            />
+          ) : all.length === 0 ? (
             <p className="px-4 py-6 text-center text-label text-muted-foreground">{t("meetings.activityEmpty")}</p>
           ) : (
             <div className="px-4 py-4">
-              <ol className="relative space-y-4 before:absolute before:bottom-3 before:left-3 before:top-3 before:w-px before:bg-border">
+              <ol className="relative space-y-3.5 before:absolute before:bottom-3.5 before:left-3.5 before:top-3.5 before:w-px before:bg-border">
                 {visible.map((item) => {
-                  const from = item.from_state;
-                  const to = item.to_state;
-                  const showStates = Boolean(from && to && !from.startsWith("01") && !to.startsWith("01"));
-                  const actor = nameOf(item.actor_id);
+                  const system = !item.actor_id;
+                  const member = system ? undefined : memberOf(item.actor_id);
+                  const actor = system ? t("meetings.systemActor") : member?.display_name || t("meetings.formerMember");
+                  const change = activityStateChange(item);
+                  const mark = KIND_MARK[activityKind(item.event_type)];
                   return (
                     <li key={item.id} className="relative flex min-w-0 items-start gap-3">
-                      <MeetingPersonAvatar name={actor} size="sm" className="relative ring-4 ring-surface" />
+                      <IconTile
+                        icon={mark.icon}
+                        size="sm"
+                        shape="circle"
+                        tone={mark.tone}
+                        className="relative ring-4 ring-surface"
+                      />
                       <div className="min-w-0 flex-1 pt-0.5">
-                        <p className="text-body text-foreground">
-                          <span className="font-medium">{actor}</span> {t(activityLabelKey(item.event_type))}
-                        </p>
-                        <p className="mt-0.5 flex flex-wrap gap-x-2 text-caption tabular-nums text-muted-foreground">
-                          <span>
-                            {new Date(item.occurred_at).toLocaleString(meetingLocale(i18n.language), {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })}
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-body text-foreground">
+                          <span aria-hidden className="inline-flex">
+                            <ActorAvatar
+                              name={actor}
+                              initials={initials(actor)}
+                              avatarUrl={personAvatarSrc(member?.avatar_url)}
+                              isSystem={system}
+                              size="sm"
+                            />
                           </span>
-                          {showStates ? (
-                            <span>
-                              {from} → {to}
-                            </span>
-                          ) : null}
+                          <span className="font-medium">{actor}</span>
+                          <span>{t(activityLabel(item.event_type))}</span>
+                        </div>
+                        <p className="mt-0.5 flex flex-wrap gap-x-2 text-caption tabular-nums text-muted-foreground">
+                          <time dateTime={item.occurred_at} title={formatMeetingStart(item.occurred_at, locale)}>
+                            {formatRelativeTime(item.occurred_at, locale)}
+                          </time>
+                          {change ? <span>{`${t(change.fromKey)} → ${t(change.toKey)}`}</span> : null}
                         </p>
                       </div>
                     </li>

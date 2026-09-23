@@ -7,7 +7,21 @@ export interface NameContextEntry {
   display_name: string;
 }
 
+// React Query keeps an unchanged record the same object across refetches
+// (structural sharing), so mapping through this cache gives an unchanged
+// message the same object too: rows can memoise on it, and an attachment
+// preview keyed on it does not reload when the timeline rebuilds.
+const mapped = new WeakMap<ChatMessageRecord, ChatMessage>();
+
 export function toChatMessage(record: ChatMessageRecord): ChatMessage {
+  const cached = mapped.get(record);
+  if (cached) return cached;
+  const message = mapRecord(record);
+  mapped.set(record, message);
+  return message;
+}
+
+function mapRecord(record: ChatMessageRecord): ChatMessage {
   return {
     id: record.id,
     sender: record.sender_id,
@@ -23,6 +37,7 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
     pinned: record.pinned,
     mentionedUserIds: record.mentioned_user_ids,
     reactions: record.reactions ?? {},
+    myReactions: record.my_reactions,
     voiceCall: record.voice_call
       ? {
           outcome: record.voice_call.outcome,

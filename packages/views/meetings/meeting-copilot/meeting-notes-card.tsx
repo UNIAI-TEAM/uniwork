@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { PanelCard } from "../../common/panel-card";
 
@@ -13,16 +14,41 @@ function summaryLines(text: string): string[] {
     .filter(Boolean);
 }
 
+/** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
+export function MeetingSummaryAttribution({ model, time }: { model?: string; time: string }) {
+  const { t } = useTranslation();
+  return (
+    <p
+      className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground"
+      data-testid="meeting-summary-attribution"
+    >
+      <Badge className="h-4 gap-0.5 border-transparent bg-brand-subtle px-1.5 text-micro text-brand-subtle-foreground">
+        <Sparkles aria-hidden />
+        {t("meetings.aiLabel")}
+      </Badge>
+      <span className="min-w-0">
+        {model
+          ? t("meetings.summaryAttributionModel", { model, time })
+          : t("meetings.summaryAttribution", { time })}
+      </span>
+    </p>
+  );
+}
+
 export function MeetingNotesCard({
   summary,
   decisions,
   summaryUpdatedAt,
+  summaryModel,
   summarizing,
   emptyHint,
 }: {
   summary?: string;
   decisions: readonly string[];
+  /** When the summary was generated, already formatted with date and time. */
   summaryUpdatedAt?: string | null;
+  /** The model that wrote it, when the server says. */
+  summaryModel?: string;
   summarizing?: boolean;
   emptyHint: string;
 }) {
@@ -55,7 +81,7 @@ export function MeetingNotesCard({
         copyText ? (
           <Button type="button" size="sm" variant="ghost" className="h-8 gap-1.5 px-2" onClick={() => void onCopy()}>
             <Copy aria-hidden className="size-3.5" />
-            {t("meetings.copyNotes")}
+            {t("common.copy")}
           </Button>
         ) : null
       }
@@ -65,13 +91,12 @@ export function MeetingNotesCard({
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-caption font-medium text-foreground">{t("meetings.summaryTab")}</h3>
             {summarizing ? (
-              <span className="text-caption text-success">{t("meetings.summarizing")}</span>
-            ) : summaryUpdatedAt ? (
-              <span className="text-caption text-muted-foreground">
-                {t("meetings.summaryUpdated", { time: summaryUpdatedAt })}
-              </span>
+              <span className="text-caption text-muted-foreground">{t("meetings.summarizing")}</span>
             ) : null}
           </div>
+          {summary && summaryUpdatedAt ? (
+            <MeetingSummaryAttribution model={summaryModel} time={summaryUpdatedAt} />
+          ) : null}
           {lines.length > 0 ? (
             <p className="text-pretty text-body text-muted-foreground">{lines[0]}</p>
           ) : (

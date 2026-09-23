@@ -6,7 +6,9 @@ import {
   forgetIdentity,
   initialSignalsState,
   REACTION_TTL_MS,
+  guestIdentities,
   muteRequesterIdentities,
+  participantRole,
   reduceSignal,
   shouldHonorMuteRequest,
 } from "./meeting-signals";
@@ -69,5 +71,24 @@ describe("meeting signals", () => {
     ]);
     expect(shouldHonorMuteRequest("uw_participant_p-host", ["uw_participant_p-host"])).toBe(true);
     expect(shouldHonorMuteRequest("uw_participant_p-guest", ["uw_participant_p-host"])).toBe(false);
+  });
+});
+
+describe("participant roles", () => {
+  const api = [
+    { id: "p1", principal_type: "USER", user_id: "u1", role: "HOST", status: "ACTIVE" },
+    { id: "p2", principal_type: "GUEST", guest_id: "g1", role: "PARTICIPANT", status: "ACTIVE" },
+    { id: "p3", principal_type: "guest", guest_id: "g2", role: "PARTICIPANT", status: "ACTIVE" },
+  ];
+
+  it("maps guest participants to their LiveKit identities", () => {
+    expect([...guestIdentities(api)].sort()).toEqual(["uw_participant_p2", "uw_participant_p3"]);
+  });
+
+  it("names agents from the LiveKit participant kind and guests from the meeting record", () => {
+    const guests = guestIdentities(api);
+    expect(participantRole({ identity: "agent-stt", isAgent: true }, guests)).toBe("agent");
+    expect(participantRole({ identity: "uw_participant_p2", isAgent: false }, guests)).toBe("guest");
+    expect(participantRole({ identity: "uw_participant_p1", isAgent: false }, guests)).toBeNull();
   });
 });

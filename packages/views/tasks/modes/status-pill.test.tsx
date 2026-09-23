@@ -22,11 +22,11 @@ describe("StatusPill", () => {
 });
 
 describe("StatusIcon", () => {
-  it("ports the progress-ring geometry and category colour", () => {
+  it("ports the progress-ring geometry and semantic category colour", () => {
     const { container } = render(<StatusIcon status="blocked" />);
     const icon = container.querySelector('[data-slot="status-icon"]');
     expect(icon).toHaveAttribute("viewBox", "0 0 14 14");
-    expect(icon).toHaveClass("text-tint-red-foreground");
+    expect(icon).toHaveClass("text-destructive");
     expect(icon?.querySelector('circle[r="6"]')).not.toBeNull();
     expect(icon?.querySelector("line")).not.toBeNull();
   });

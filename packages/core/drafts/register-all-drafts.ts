@@ -10,6 +10,7 @@
  * ONE LINE PER DRAFT STORE. Adding a draft store without adding its import
  * here is the rediscovery this module exists to prevent.
  */
+import "../chat/composer-draft-store";
 import "../tasks/stores/comment-draft-store";
 import "../tasks/stores/create-task-draft-store";
 import "../tasks/stores/recent-tasks-store";

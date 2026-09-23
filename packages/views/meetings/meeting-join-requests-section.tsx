@@ -17,7 +17,7 @@ import { usePendingJoinRequests } from "./use-pending-join-requests";
 export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string }) {
   const { t } = useTranslation();
   const { pending, count } = usePendingJoinRequests(meetingId);
-  const { approveOne, rejectOne, admitAll, approving, rejecting } = useJoinRequestActions(meetingId);
+  const { approveOne, rejectOne, admitAll, approving, isApproving, isRejecting } = useJoinRequestActions(meetingId);
   const [open, setOpen] = useState(true);
 
   if (count === 0) return null;
@@ -26,7 +26,7 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
     <section className="mb-4 shrink-0" aria-labelledby="waiting-admission-heading">
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="mb-2 flex items-center gap-2">
-          <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted/40">
+          <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-surface-hover">
             <ChevronDown
               aria-hidden
               className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")}
@@ -57,8 +57,8 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
                 <MeetingJoinRequestRow
                   request={r}
                   variant="sidebar"
-                  approving={approving}
-                  rejecting={rejecting}
+                  approving={isApproving(r.id)}
+                  rejecting={isRejecting(r.id)}
                   onApprove={() => approveOne(r.id)}
                   onReject={() => rejectOne(r.id)}
                 />

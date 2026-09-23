@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterWorkspaceMembers,
   findWorkspaceMemberByEmail,
+  memberPickerEmptyReason,
   memberToChatContact,
   shouldLookupEmailOutsideWorkspace,
 } from "./workspace-member-picker-utils";
@@ -54,5 +55,13 @@ describe("workspace-member-picker-utils", () => {
     expect(
       shouldLookupEmailOutsideWorkspace("other@example.com", members, true),
     ).toBe(true);
+  });
+});
+
+describe("memberPickerEmptyReason", () => {
+  it("only blames the query when one was typed", () => {
+    expect(memberPickerEmptyReason({ query: " lan ", hasOtherMembers: true })).toBe("no_match");
+    expect(memberPickerEmptyReason({ query: "", hasOtherMembers: false })).toBe("no_other_members");
+    expect(memberPickerEmptyReason({ query: "  ", hasOtherMembers: true })).toBe("all_picked");
   });
 });

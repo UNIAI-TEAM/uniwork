@@ -1,0 +1,70 @@
+namespace: uniwork
+
+imagePullSecrets:
+  - name: harbor-registry
+
+nodeSelector:
+  workload: app
+tolerations: []
+
+# Non-secret KEY=value files from deploy/app/env/*.env (helm --set-file).
+env:
+  beContent: ""
+  feContent: ""
+
+public:
+  origin: https://uniwork.unicomhub.com
+  livekitUrl: wss://livekit.vn247.info:7880
+
+be:
+  replicaCount: 1
+  image:
+    registry: registry-harbor.ubos.vn/uniwork
+    repository: uniwork-be
+    tag: pending
+    digest: ""
+    requireDigest: true
+    pullPolicy: IfNotPresent
+  port: 8080
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    capabilities: { drop: ["ALL"] }
+  secrets:
+    database: { name: uniwork-db, key: DATABASE_URL }
+    redis: { name: uniwork-redis, key: REDIS_URL }
+    app: { name: uniwork-app, key: JWT_SECRET }
+    livekitKey: { name: uniwork-livekit, key: LIVEKIT_API_KEY }
+    livekitSecret: { name: uniwork-livekit, key: LIVEKIT_API_SECRET }
+    # Optional — create when enabling mail / CMC S3 / Google OAuth.
+    mail: { name: uniwork-mail, key: SMTP_PASSWORD }
+    s3: { name: uniwork-s3, accessKey: AWS_ACCESS_KEY_ID, secretKey: AWS_SECRET_ACCESS_KEY }
+    google: { name: uniwork-google, key: GOOGLE_CLIENT_SECRET }
+
+fe:
+  replicaCount: 1
+  image:
+    registry: registry-harbor.ubos.vn/uniwork
+    repository: uniwork-fe
+    tag: pending
+    digest: ""
+    requireDigest: true
+    pullPolicy: IfNotPresent
+  port: 3000
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    allowPrivilegeEscalation: false
+    capabilities: { drop: ["ALL"] }
+
+networkPolicy:
+  livekitTunnelCidr: "10.244.217.192/32"

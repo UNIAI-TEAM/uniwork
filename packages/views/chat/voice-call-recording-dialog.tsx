@@ -1,8 +1,9 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import {
   loadChatVoiceRecordingBlob,
   resolveChatVoiceRecordingPlayback,
@@ -39,6 +40,8 @@ export function VoiceCallRecordingDialog({
     voiceRecordingPlaybackCacheKey(workspaceId, roomId, recordingId),
   );
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  // Bumped by "Thử lại": re-runs the load without closing the dialog.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     cacheKeyRef.current = voiceRecordingPlaybackCacheKey(workspaceId, roomId, recordingId);
@@ -83,7 +86,13 @@ export function VoiceCallRecordingDialog({
       cancelled = true;
       controller.abort();
     };
-  }, [open, workspaceId, roomId, recordingId]);
+  }, [open, workspaceId, roomId, recordingId, attempt]);
+
+  const retry = () => {
+    releaseVoiceRecordingPlayback(cacheKeyRef.current);
+    playbackUrlRef.current = null;
+    setAttempt((n) => n + 1);
+  };
 
   const handleVideoError = () => {
     const cacheKey = cacheKeyRef.current;
@@ -106,23 +115,32 @@ export function VoiceCallRecordingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-3xl" closeLabel={t("common.close")}>
         <DialogHeader>
           <DialogTitle>{t("chat.voice_call_recording_title")}</DialogTitle>
         </DialogHeader>
         {status === "loading" ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-            <LoaderCircle aria-hidden className="size-5 animate-spin" />
-            <span>{t("chat.voice_call_recording_loading")}</span>
+          <div aria-busy>
+            <span className="sr-only">{t("chat.voice_call_recording_loading")}</span>
+            <Skeleton className="aspect-video w-full rounded-md" />
           </div>
         ) : null}
         {status === "error" ? (
-          <p className="py-4 text-body text-destructive">{t("chat.voice_call_recording_error")}</p>
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-3 rounded-md bg-destructive-soft px-3 py-2 text-body text-destructive-soft-foreground"
+          >
+            <span className="min-w-0 flex-1">{t("chat.voice_call_recording_error")}</span>
+            <Button type="button" size="sm" variant="outline" onClick={retry}>
+              {t("common.retry")}
+            </Button>
+          </div>
         ) : null}
         {status === "ready" && playbackUrlRef.current ? (
           /* eslint-disable-next-line jsx-a11y/media-has-caption -- recorded call playback has no caption track */
           <video
-            className="max-h-[min(70vh,720px)] w-full rounded-md bg-black object-contain"
+            // The meeting stage's dark plate letterboxes the video in both themes.
+            className="max-h-[min(70vh,720px)] w-full rounded-md bg-meeting-bar-bg object-contain"
             controls
             playsInline
             preload="metadata"

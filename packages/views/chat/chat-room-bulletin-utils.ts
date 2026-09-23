@@ -67,3 +67,19 @@ export function bulletinMessagePreview(
   if (text.length === 0) return "…";
   return [...text].length > 120 ? `${[...text].slice(0, 120).join("")}…` : text;
 }
+
+/** "14:05" today, "12 thg 9, 14:05" otherwise — in the app locale, not the browser's. */
+export function formatBulletinTime(iso: string, locale: string, now: Date = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleString(locale, {
+    day: "numeric",
+    month: "short",
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

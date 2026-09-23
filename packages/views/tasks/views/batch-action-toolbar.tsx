@@ -221,7 +221,7 @@ export function BatchActionToolbar({
             <AlertDialogAction
               onClick={() => void handleBatchDelete()}
               aria-disabled={deleting || undefined}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive-solid text-on-solid hover:bg-destructive-solid/90"
               data-testid="batch-delete-confirm"
             >
               {t("tasks.batch.delete")}

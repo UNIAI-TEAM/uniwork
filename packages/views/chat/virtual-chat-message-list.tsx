@@ -18,6 +18,8 @@ interface VirtualChatMessageListProps {
   /** When true, onScroll must not clear stick-to-bottom (panel reads this). */
   programmaticScrollRef: RefObject<boolean>;
   highlightMessageId?: string | null;
+  /** Called once the highlighted row has been scrolled into view (focus it there). */
+  onHighlightShown?: (messageId: string) => void;
   header?: ReactNode;
   empty?: ReactNode;
   renderMessage: (index: number) => ReactNode;
@@ -81,6 +83,7 @@ export function VirtualChatMessageList({
   stickToBottomRef,
   programmaticScrollRef,
   highlightMessageId,
+  onHighlightShown,
   header,
   empty,
   renderMessage,
@@ -128,15 +131,28 @@ export function VirtualChatMessageList({
     return () => observer.disconnect();
   }, [scrollRef, stickToBottomRef, programmaticScrollRef, messages.length]);
 
+  // Scroll to a highlighted message once per highlight: when it is set, or
+  // when the page holding it arrives. New messages landing during the flash
+  // must not pull the reader back to it.
+  const scrolledHighlightRef = useRef<string | null>(null);
+  const onHighlightShownRef = useRef(onHighlightShown);
+  onHighlightShownRef.current = onHighlightShown;
   useEffect(() => {
-    if (!highlightMessageId) return;
+    if (!highlightMessageId) {
+      scrolledHighlightRef.current = null;
+      return;
+    }
+    if (scrolledHighlightRef.current === highlightMessageId) return;
     const index = messages.findIndex((message) => message.id === highlightMessageId);
     if (index < 0) return;
+    scrolledHighlightRef.current = highlightMessageId;
     programmaticScrollRef.current = true;
     stickToBottomRef.current = false;
     virtualizer.scrollToIndex(index, { align: "center" });
     requestAnimationFrame(() => {
       programmaticScrollRef.current = false;
+      // The row is mounted once the virtualizer has scrolled to it.
+      requestAnimationFrame(() => onHighlightShownRef.current?.(highlightMessageId));
     });
   }, [highlightMessageId, messages, programmaticScrollRef, stickToBottomRef, virtualizer]);
 

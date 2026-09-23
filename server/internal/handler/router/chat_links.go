@@ -34,6 +34,13 @@ func registerChatLinks(r api, h Routes, flagMW, chatWriteLimit func(http.Handler
 			sdo:         sdo.ChatMessageLinkListSDO{},
 			auth:        true,
 		})
+		lk.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/message-links", h.ListChatRoomMessageLinks, apiOp{
+			summary:     "List links of many chat messages",
+			description: "Danh sách liên kết của nhiều tin nhắn trong một phòng (message_ids=a,b,…; tối đa 200).",
+			tags:        []string{"chat"},
+			sdo:         sdo.ChatMessageLinkListSDO{},
+			auth:        true,
+		})
 		lk.With(chatWriteLimit).Delete("/workspaces/{workspaceID}/chat/messages/{messageID}/links/{linkID}", h.DeleteChatMessageLink, apiOp{
 			summary:     "Unlink chat message",
 			description: "Gỡ một liên kết khỏi tin nhắn.",

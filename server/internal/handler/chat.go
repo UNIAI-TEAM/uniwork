@@ -42,6 +42,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if len(m.Reactions) > 0 {
 		out.Reactions = m.Reactions
 	}
+	if len(m.MyReactions) > 0 {
+		out.MyReactions = m.MyReactions
+	}
 	if len(m.MentionedUserIDs) > 0 {
 		out.MentionedUserIDs = m.MentionedUserIDs
 	}

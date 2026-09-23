@@ -39,6 +39,7 @@ type Deps struct {
 	Onboarding    *service.OnboardingService
 	Tasks         *service.TaskService
 	Home          *service.HomeService
+	Calendar      *service.CalendarService
 	EmailHub      *service.EmailHubService
 	Agents        *service.AgentService
 	Actors        *service.ActorService
@@ -202,6 +203,9 @@ func New(d Deps) http.Handler {
 		GetHomeSummary:                h.getHomeSummary,
 		GetHomePreference:             h.getHomePreference,
 		PutHomePreference:             h.putHomePreference,
+		ListCalendarEvents:            h.listCalendarEvents,
+		ListCalendarSidebar:           h.listCalendarSidebar,
+		WorkspaceCalendar:             h.workspaceCalendar,
 		ListEmailHubAccounts:          h.listEmailHubAccounts,
 		ConnectEmailHubAccount:        h.connectEmailHubAccount,
 		DisconnectEmailHubAccount:     h.disconnectEmailHubAccount,
@@ -420,6 +424,7 @@ func New(d Deps) http.Handler {
 		CreateTaskFromChatMessage:        h.createTaskFromChatMessage,
 		CreateChatMessageLink:            h.createChatMessageLink,
 		ListChatMessageLinks:             h.listChatMessageLinks,
+		ListChatRoomMessageLinks:         h.listChatRoomMessageLinks,
 		DeleteChatMessageLink:            h.deleteChatMessageLink,
 		SyncChatThreadTask:               h.syncChatThreadTask,
 		UnsyncChatThreadTask:             h.unsyncChatThreadTask,
