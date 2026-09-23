@@ -89,6 +89,8 @@ describe("CalendarPageView", () => {
     expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     expect(hostProps.current.onEventDropOrResize).toEqual(expect.any(Function));
     expect(hostProps.current.onSlotSelect).toEqual(expect.any(Function));
+    expect(hostProps.current.language).toBe("vi");
+    expect(hostProps.current.viewerTimeZone).toEqual(expect.any(String));
     expect(screen.getByTestId("create-from-slot")).toBeInTheDocument();
   });
 

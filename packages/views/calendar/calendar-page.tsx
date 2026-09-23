@@ -29,7 +29,7 @@ export function CalendarPageView({
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [mine, setMine] = useState(false);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
@@ -37,6 +37,10 @@ export function CalendarPageView({
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const viewerTimeZone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    [],
+  );
 
   const initialDate = format(anchorDate, "yyyy-MM-dd");
 
@@ -147,6 +151,8 @@ export function CalendarPageView({
                 events={events}
                 initialDate={initialDate}
                 viewMode={viewMode}
+                language={i18n.resolvedLanguage ?? i18n.language}
+                viewerTimeZone={viewerTimeZone}
                 onDatesSet={handleDatesSet}
                 onEventClick={handleEventClick}
                 onEventDropOrResize={applyDropPatch}
