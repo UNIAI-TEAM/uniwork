@@ -41,8 +41,13 @@ export function FormDialogContent({
   className?: string;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
-    <DialogContent className={cn("gap-0 overflow-hidden p-0", WIDTH[size], className)} showCloseButton>
+    <DialogContent
+      className={cn("gap-0 overflow-hidden p-0", WIDTH[size], className)}
+      showCloseButton
+      closeLabel={t("common.close")}
+    >
       {children}
     </DialogContent>
   );
