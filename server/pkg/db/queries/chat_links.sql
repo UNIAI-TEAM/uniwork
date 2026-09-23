@@ -23,9 +23,12 @@ SELECT * FROM chat_message_links
 WHERE message_id = $1 AND workspace_id = $2
 ORDER BY created_at ASC;
 
--- name: ListChatMessageLinksByMessages :many
+-- name: ListChatMessageLinksByRoomMessages :many
+-- One room's timeline asks for the links of every message it shows at once,
+-- instead of one request per message.
 SELECT * FROM chat_message_links
-WHERE workspace_id = $1
+WHERE room_id = $1
+  AND workspace_id = $2
   AND message_id = ANY(sqlc.arg(message_ids)::text[])
 ORDER BY created_at ASC;
 

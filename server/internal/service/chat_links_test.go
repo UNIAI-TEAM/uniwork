@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -126,5 +127,95 @@ func TestSyncThreadTask(t *testing.T) {
 	}
 	if err := s.UnsyncThreadTask(ctx, ua.ID, w.ID, root.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestListRoomMessageLinksBatchesOneRoom(t *testing.T) {
+	s, _, _, ua, ub, w, pool := chatFixtureWithPool(t)
+	q := db.New(pool)
+	tasks := NewTaskService(pool, q, s.ws, newMemStorage())
+	s.SetTasks(tasks)
+	ctx := context.Background()
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "two"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlinked, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "three"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range []ChatMessageRow{first, second} {
+		if _, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, msg.ID, CreateTaskFromMessageInput{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID,
+		[]string{first.ID, second.ID, unlinked.ID, first.ID, " "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(links) != 2 || links[0].MessageID == links[1].MessageID {
+		t.Fatalf("want one link per linked message, got %+v", links)
+	}
+
+	empty, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, nil)
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("no ids: err=%v links=%+v", err, empty)
+	}
+
+	tooMany := make([]string, maxRoomMessageLinkIDs+1)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("id-%d", i)
+	}
+	if _, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, room.RoomID, tooMany); err == nil {
+		t.Fatal("over the cap must be refused")
+	}
+
+	// Someone outside the workspace learns nothing about the room's links.
+	if _, err := s.ListRoomMessageLinks(ctx, ub.ID, w.ID, room.RoomID, []string{first.ID}); err == nil {
+		t.Fatal("non-member must be refused")
+	}
+}
+
+func TestReactionOnFileMessageReportsMine(t *testing.T) {
+	s, _, _, ua, _, w, _ := chatFixtureWithPool(t)
+	ctx := context.Background()
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "react"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := s.ToggleChatMessageReaction(ctx, ua.ID, w.ID, room.RoomID, msg.ID, "👍")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(row.MyReactions) != 1 || row.MyReactions[0] != "👍" || row.Reactions["👍"] != 1 {
+		t.Fatalf("mine=%v counts=%v", row.MyReactions, row.Reactions)
+	}
+	list, err := s.ListRoomMessages(ctx, ua.ID, w.ID, room.RoomID, ListChatMessagesInput{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range list {
+		if m.ID == msg.ID {
+			found = len(m.MyReactions) == 1
+		}
+	}
+	if !found {
+		t.Fatal("list must carry my_reactions for the viewer")
 	}
 }

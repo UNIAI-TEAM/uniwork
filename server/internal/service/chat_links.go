@@ -260,15 +260,74 @@ func (s *ChatService) ListChatMessageLinks(
 	return out, nil
 }
 
-// UnlinkChatMessage removes a link from a message.
+// maxRoomMessageLinkIDs caps one batch: a timeline page is 50 messages and the
+// client keeps a few pages in memory, so 200 covers it with room to spare.
+const maxRoomMessageLinkIDs = 200
+
+// ListRoomMessageLinks returns the links of many messages in one room, so a
+// timeline asks once instead of once per message. Ids outside the room simply
+// have no rows; the room gate is the only visibility check needed.
+func (s *ChatService) ListRoomMessageLinks(
+	ctx context.Context, userID, workspaceID, roomID string, messageIDs []string,
+) ([]ChatMessageLinkRow, error) {
+	if _, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID); err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(messageIDs))
+	ids := make([]string, 0, len(messageIDs))
+	for _, id := range messageIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) > maxRoomMessageLinkIDs {
+		return nil, Invalid(fmt.Sprintf("tối đa %d tin nhắn mỗi lần", maxRoomMessageLinkIDs))
+	}
+	if len(ids) == 0 {
+		return []ChatMessageLinkRow{}, nil
+	}
+	rows, err := s.q.ListChatMessageLinksByRoomMessages(ctx, db.ListChatMessageLinksByRoomMessagesParams{
+		RoomID: roomID, WorkspaceID: workspaceID, MessageIds: ids,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ChatMessageLinkRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, chatMessageLinkRow(row))
+	}
+	return out, nil
+}
+
+// UnlinkChatMessage removes a link from a message. Reading a room is enough to
+// see its links, but taking one away changes what everyone sees, so it needs
+// the same standing as writing in the room: an active member who may send.
 func (s *ChatService) UnlinkChatMessage(
 	ctx context.Context, userID, workspaceID, messageID, linkID string,
 ) error {
-	_, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
+	room, msg, err := s.loadMessageForLink(ctx, userID, workspaceID, messageID)
 	if err != nil {
 		return err
 	}
-	n, err := s.q.DeleteChatMessageLink(ctx, db.DeleteChatMessageLinkParams{
+	if _, err := s.authorizeRoom(ctx, userID, workspaceID, room.ID); err != nil {
+		return err
+	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	n, err := q.DeleteChatMessageLink(ctx, db.DeleteChatMessageLinkParams{
 		ID: linkID, WorkspaceID: workspaceID, MessageID: msg.ID,
 	})
 	if err != nil {
@@ -277,7 +336,15 @@ func (s *ChatService) UnlinkChatMessage(
 	if n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: roomOrganizationID(room), WorkspaceID: roomAnchorWorkspaceID(room),
+		Actor: Human(userID), Action: audit.ActionChatMessageUnlinked,
+		ResourceType: "chat_message", ResourceID: msg.ID,
+		Metadata: map[string]any{"link_id": linkID},
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *ChatService) insertMessageLink(

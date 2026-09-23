@@ -393,20 +393,24 @@ func (q *Queries) ListChatMessageLinksByMessage(ctx context.Context, arg ListCha
 	return items, nil
 }
 
-const listChatMessageLinksByMessages = `-- name: ListChatMessageLinksByMessages :many
+const listChatMessageLinksByRoomMessages = `-- name: ListChatMessageLinksByRoomMessages :many
 SELECT id, organization_id, workspace_id, room_id, message_id, target_type, target_id, relation, created_by, created_by_kind, created_at FROM chat_message_links
-WHERE workspace_id = $1
-  AND message_id = ANY($2::text[])
+WHERE room_id = $1
+  AND workspace_id = $2
+  AND message_id = ANY($3::text[])
 ORDER BY created_at ASC
 `
 
-type ListChatMessageLinksByMessagesParams struct {
+type ListChatMessageLinksByRoomMessagesParams struct {
+	RoomID      string   `json:"room_id"`
 	WorkspaceID string   `json:"workspace_id"`
 	MessageIds  []string `json:"message_ids"`
 }
 
-func (q *Queries) ListChatMessageLinksByMessages(ctx context.Context, arg ListChatMessageLinksByMessagesParams) ([]ChatMessageLink, error) {
-	rows, err := q.db.Query(ctx, listChatMessageLinksByMessages, arg.WorkspaceID, arg.MessageIds)
+// One room's timeline asks for the links of every message it shows at once,
+// instead of one request per message.
+func (q *Queries) ListChatMessageLinksByRoomMessages(ctx context.Context, arg ListChatMessageLinksByRoomMessagesParams) ([]ChatMessageLink, error) {
+	rows, err := q.db.Query(ctx, listChatMessageLinksByRoomMessages, arg.RoomID, arg.WorkspaceID, arg.MessageIds)
 	if err != nil {
 		return nil, err
 	}
