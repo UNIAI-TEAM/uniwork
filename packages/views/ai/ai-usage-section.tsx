@@ -1,11 +1,18 @@
 "use client";
 
+import { AlertCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiUsage } from "@uniwork/core/ai";
 import type { AiUsageRow } from "@uniwork/core/types";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@uniwork/ui/components/ui/table";
-import { SettingsCard, SettingsSection } from "../settings/components/settings-layout";
+import { Notice } from "../common/notice";
+import {
+  SettingsCard,
+  SettingsCardBody,
+  SettingsEmpty,
+  SettingsSection,
+  SettingsSkeletonRows,
+} from "../settings/components/settings-layout";
 
 const WINDOW_DAYS = 30;
 
@@ -77,28 +84,49 @@ function usd(micros: number, locale: string): string {
   return (micros / 1_000_000).toLocaleString(locale, { style: "currency", currency: "USD", maximumFractionDigits: 4 });
 }
 
-export function AiUsageSection({ workspaceId }: { workspaceId: string }) {
+/**
+ * The last 30 days of AI calls made from this workspace. `aiEnabled` is the
+ * deployment's answer: while AI is off an empty history is not an invitation
+ * to try Hỏi UNI, so the section says nothing rather than suggest it.
+ */
+export function AiUsageSection({ workspaceId, aiEnabled }: { workspaceId: string; aiEnabled: boolean }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.ai" });
   const locale = i18n.language;
   const to = new Date();
   const from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate() - (WINDOW_DAYS - 1)));
   const usage = useAiUsage(workspaceId, isoDay(from), undefined);
+  const title = t("window", { days: WINDOW_DAYS });
 
-  if (usage.isLoading) return <Skeleton className="h-48 w-full" />;
+  if (usage.isLoading) {
+    return (
+      <SettingsSection title={title}>
+        <SettingsSkeletonRows rows={2} />
+      </SettingsSection>
+    );
+  }
   if (usage.isError) {
     return (
-      <p role="alert" className="text-body text-destructive">
-        {t("error_title")}
-      </p>
+      <SettingsSection title={title}>
+        <Notice tone="destructive" icon={AlertCircle} layout="inline" live="assertive">
+          {t("error_title")}
+        </Notice>
+      </SettingsSection>
     );
   }
   const rows = usage.data?.rows ?? [];
   if (rows.length === 0) {
+    if (!aiEnabled) return null;
     return (
-      <div role="status" className="rounded-lg border border-dashed border-border p-6 text-center">
-        <p className="text-body font-medium">{t("empty_title")}</p>
-        <p className="mt-1 text-caption text-muted-foreground">{t("empty_description")}</p>
-      </div>
+      <SettingsSection title={title}>
+        <SettingsCard>
+          <div role="status">
+            <SettingsEmpty icon={<Sparkles aria-hidden />}>
+              <span className="block font-medium text-foreground">{t("empty_title")}</span>
+              <span className="block text-caption">{t("empty_description")}</span>
+            </SettingsEmpty>
+          </div>
+        </SettingsCard>
+      </SettingsSection>
     );
   }
   const totals = rows.reduce(
@@ -119,51 +147,56 @@ export function AiUsageSection({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="space-y-6">
-      <SettingsSection title={t("window", { days: WINDOW_DAYS })}>
+      <SettingsSection title={title}>
         <SettingsCard>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-body sm:grid-cols-4">
-            {(
-              [
-                ["calls", totals.calls.toLocaleString(locale)],
-                ["input", totals.input.toLocaleString(locale)],
-                ["output", totals.output.toLocaleString(locale)],
-                ["cost", usd(totals.cost, locale)],
-              ] as const
-            ).map(([k, v]) => (
-              <div key={k}>
-                <dt className="text-caption text-muted-foreground">{t(`totals.${k}`)}</dt>
-                <dd className="tabular-nums">{v}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="mt-4">
-            <Sparkline points={points} label={t("sparkline_label")} locale={locale} />
-          </div>
+          <SettingsCardBody>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-body sm:grid-cols-4">
+              {(
+                [
+                  ["calls", totals.calls.toLocaleString(locale)],
+                  ["input", totals.input.toLocaleString(locale)],
+                  ["output", totals.output.toLocaleString(locale)],
+                  ["cost", usd(totals.cost, locale)],
+                ] as const
+              ).map(([k, v]) => (
+                <div key={k}>
+                  <dt className="text-caption text-muted-foreground">{t(`totals.${k}`)}</dt>
+                  <dd className="tabular-nums">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-4">
+              <Sparkline points={points} label={t("sparkline_label")} locale={locale} />
+            </div>
+          </SettingsCardBody>
         </SettingsCard>
       </SettingsSection>
       <SettingsSection title={t("by_capability")}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("columns.capability")}</TableHead>
-              <TableHead>{t("columns.actor")}</TableHead>
-              <TableHead className="text-right">{t("columns.calls")}</TableHead>
-              <TableHead className="text-right">{t("columns.tokens")}</TableHead>
-              <TableHead className="text-right">{t("columns.cost")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[...grouped.values()].map((r) => (
-              <TableRow key={`${r.capability}|${r.actor_kind}`}>
-                <TableCell>{t(`capability.${r.capability}`, { defaultValue: r.capability })}</TableCell>
-                <TableCell>{t(`actor.${r.actor_kind}`, { defaultValue: r.actor_kind })}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.calls.toLocaleString(locale)}</TableCell>
-                <TableCell className="text-right tabular-nums">{(r.input_tokens + r.output_tokens).toLocaleString(locale)}</TableCell>
-                <TableCell className="text-right tabular-nums">{usd(r.cost_micros, locale)}</TableCell>
+        <SettingsCard>
+          {/* Cells keep the card's 16px inset so the table lines up with the rows above. */}
+          <Table className="[&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("columns.capability")}</TableHead>
+                <TableHead>{t("columns.actor")}</TableHead>
+                <TableHead className="text-right">{t("columns.calls")}</TableHead>
+                <TableHead className="text-right">{t("columns.tokens")}</TableHead>
+                <TableHead className="text-right">{t("columns.cost")}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {[...grouped.values()].map((r) => (
+                <TableRow key={`${r.capability}|${r.actor_kind}`}>
+                  <TableCell>{t(`capability.${r.capability}`, { defaultValue: r.capability })}</TableCell>
+                  <TableCell>{t(`actor.${r.actor_kind}`, { defaultValue: r.actor_kind })}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.calls.toLocaleString(locale)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{(r.input_tokens + r.output_tokens).toLocaleString(locale)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{usd(r.cost_micros, locale)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </SettingsCard>
       </SettingsSection>
     </div>
   );

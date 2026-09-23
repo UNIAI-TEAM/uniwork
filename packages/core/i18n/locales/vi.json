@@ -364,8 +364,28 @@
       "organization_hint": "Thành viên tổ chức, phòng ban và thanh toán quản lý ở cấp tổ chức."
     },
     "integrations": {
-      "emptyTitle": "Chưa có tích hợp",
-      "emptyDescription": "Kết nối công cụ bên ngoài sẽ có ở đây khi UniWork sẵn sàng."
+      "description": "Nối UniWork với công cụ bạn đang dùng. Chỉ liệt kê những gì dùng được hôm nay và những gì đã có trong lộ trình.",
+      "available": "Dùng được",
+      "planned": "Trong lộ trình",
+      "planned_description": "Đã có trong lộ trình sản phẩm, chưa dùng được.",
+      "coming_soon": "Sắp có",
+      "email_hub": {
+        "title": "Email Hub",
+        "meta": "Hộp thư Gmail, Outlook, Yahoo qua mật khẩu ứng dụng · mỗi người tự kết nối",
+        "connected_one": "Bạn đã kết nối {{count}} hộp thư",
+        "connected_other": "Bạn đã kết nối {{count}} hộp thư",
+        "not_connected": "Bạn chưa kết nối",
+        "open": "Mở Email Hub",
+        "connect": "Kết nối hộp thư"
+      },
+      "mail_oauth": {
+        "title": "Gmail và Microsoft 365",
+        "meta": "Đăng nhập bằng tài khoản Google hoặc Microsoft, gắn thread email vào việc và dự án"
+      },
+      "webhooks": {
+        "title": "Webhook",
+        "meta": "Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi"
+      }
     },
     "billing": {
       "title": "Thanh toán",
@@ -388,8 +408,6 @@
         "none": "không kỳ hạn"
       },
       "period_end": "Hết kỳ",
-      "cancel_at": "Ngừng vào",
-      "cancel_at_hint": "Gói vẫn hiệu lực đến ngày này. Đổi ý thì khôi phục trước đó.",
       "plans": "Các gói",
       "plans_description": "So sánh rồi chọn. Gói miễn phí áp dụng ngay sau khi xác nhận; gói trả phí mở trang thanh toán.",
       "plan_current": "Gói hiện tại",
@@ -401,7 +419,6 @@
       "confirm_change_title": "Đổi sang gói {{name}}?",
       "confirm_change_description": "Hạn mức mới áp dụng ngay. Nếu tổ chức đang dùng vượt hạn mức của gói mới, hệ thống sẽ từ chối và giữ nguyên gói hiện tại.",
       "confirm_change_action": "Đổi gói",
-      "confirm_back": "Quay lại",
       "cancel_section": "Ngừng gói",
       "cancel_description": "Gói dừng vào cuối kỳ hiện tại; dữ liệu giữ nguyên, chỉ thao tác tạo mới bị hạn chế theo gói mặc định.",
       "cancel": "Ngừng gói cuối kỳ",
@@ -412,10 +429,8 @@
       "canceled": "Đã đặt lịch ngừng gói",
       "resumed": "Đã khôi phục gói",
       "owner_only": "Chỉ chủ sở hữu tổ chức đổi được gói.",
-      "usage": "Hạn mức và tính năng",
-      "usage_description": "Mức đang dùng trong kỳ này. Chạm hạn mức thì thao tác tạo mới bị từ chối; cột phải cho biết còn bao nhiêu.",
       "usage_of": "{{used}} / {{limit}} {{unit}}",
-      "usage_unbounded": "{{used}} {{unit}} · không giới hạn",
+      "usage_unbounded": "{{used}} {{unit}} · Không giới hạn",
       "usage_remaining": "Còn {{n}}",
       "usage_full": "Đã hết",
       "unlimited": "không giới hạn",
@@ -423,11 +438,18 @@
       "flag_off": "Tắt",
       "no_entitlements": "Gói này chưa khai báo tính năng nào",
       "units": {
-        "members": "thành viên",
-        "workspaces": "workspace",
-        "minutes": "phút",
-        "tokens": "token",
-        "bytes": "byte"
+        "members_one": "thành viên",
+        "members_other": "thành viên",
+        "workspaces_one": "workspace",
+        "workspaces_other": "workspace",
+        "tasks_one": "việc",
+        "tasks_other": "việc",
+        "minutes_one": "phút",
+        "minutes_other": "phút",
+        "tokens_one": "token",
+        "tokens_other": "token",
+        "bytes_one": "byte",
+        "bytes_other": "byte"
       },
       "status": {
         "trialing": "Dùng thử",
@@ -435,6 +457,27 @@
         "past_due": "Quá hạn thanh toán",
         "suspended": "Tạm ngưng",
         "canceled": "Đã hủy"
+      },
+      "usage_quotas": "Hạn mức",
+      "usage_quotas_description": "Mức đang dùng trong kỳ hiện tại. Chạm hạn mức thì thao tác tạo mới bị từ chối.",
+      "usage_features": "Tính năng trong gói",
+      "usage_features_description": "Bật hoặc tắt theo gói, không tính lượng dùng.",
+      "not_in_plan": "Không có trong gói",
+      "cancel_notice": "Gói ngừng vào {{date}}. Tổ chức vẫn dùng đầy đủ gói đến ngày đó; khôi phục trước ngày này nếu đổi ý.",
+      "checkout_notice": "Trang thanh toán đã sẵn sàng, mở trong thẻ mới.",
+      "cancel_label": "Ngừng vào cuối kỳ",
+      "cancel_hint": "Khôi phục được bất cứ lúc nào trước ngày ngừng.",
+      "cancel_open": "Ngừng gói",
+      "features": {
+        "members_max": "Thành viên tổ chức",
+        "workspaces_max": "Workspace",
+        "tasks_max": "Số việc",
+        "meeting_participant_minutes": "Phút tham dự họp",
+        "meeting_recording": "Ghi hình cuộc họp",
+        "meeting_ai_summary": "Tóm tắt họp bằng AI",
+        "ai_tokens": "Token AI",
+        "storage_bytes": "Dung lượng lưu trữ",
+        "sso_oidc": "Đăng nhập SSO (OIDC)"
       }
     },
     "audit": {
@@ -599,10 +642,7 @@
     },
     "ai": {
       "title": "AI",
-      "description": "Lượt gọi AI của workspace này.",
-      "disabled": "AI chưa được cấu hình trên server.",
-      "quota_line": "Tổ chức đã dùng {{used}} / {{limit}} token trong tháng.",
-      "quota_unbounded": "Tổ chức đã dùng {{used}} token trong tháng.",
+      "description": "Lượt gọi AI từ workspace này trong 30 ngày qua, và hạn mức token AI của cả tổ chức.",
       "forbidden_title": "Chỉ owner/admin workspace xem được",
       "forbidden_description": "Số liệu AI thuộc về quản trị workspace.",
       "error_title": "Không tải được số liệu AI.",
@@ -640,7 +680,14 @@
         "agent": "Agent",
         "system": "Hệ thống"
       },
-      "tokens_by_day": "Token theo ngày"
+      "tokens_by_day": "Token theo ngày",
+      "quota_title": "Hạn mức của tổ chức",
+      "quota_description": "Dùng chung cho mọi workspace trong tổ chức, tính trong kỳ hiện tại của gói.",
+      "quota_label": "Token AI",
+      "disabled_title": "AI chưa được bật cho tổ chức này",
+      "disabled_description": "Hỏi UNI và tóm tắt họp cần kết nối một nhà cung cấp AI. Việc kết nối do người vận hành UniWork của tổ chức thực hiện, không bật được trong cài đặt workspace.",
+      "capabilities_error": "Không tải được trạng thái AI.",
+      "retry": "Thử lại"
     },
     "shortcuts": {
       "title": "Phím tắt",

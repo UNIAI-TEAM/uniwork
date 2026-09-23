@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, CreditCard, ExternalLink, ShieldAlert } from "lucide-react";
+import { AlertCircle, CalendarClock, CreditCard, ExternalLink, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import {
@@ -14,40 +14,41 @@ import {
   useSubscription,
 } from "@uniwork/core/billing";
 import { useBillingPermissions } from "@uniwork/core/permissions";
-import type { Entitlement, Plan, Subscription } from "@uniwork/core/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
-import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import type { Plan, Subscription } from "@uniwork/core/types";
+import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { cn } from "@uniwork/ui/lib/utils";
+import { ConfirmDialog } from "../../common/form-dialog";
+import { Notice } from "../../common/notice";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useWorkspace } from "../../layout/workspace-context";
+import { BillingUsage } from "./billing-usage";
 import { formatPrice, isPaid, PlanCards } from "./plan-cards";
-import { SettingsCard, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
+import {
+  SettingsBadge,
+  type SettingsBadgeTone,
+  SettingsCard,
+  SettingsDangerZone,
+  SettingsRow,
+  SettingsSection,
+  SettingsSkeletonRows,
+  SettingsTab,
+  SettingsValue,
+} from "./settings-layout";
 
-/** past_due / suspended / canceled read as warnings; the rest are neutral. */
-function statusTone(status: Subscription["status"]): "secondary" | "destructive" | "outline" {
+/** Signal tone per status; a status this client does not know stays quiet. */
+function statusTone(status: Subscription["status"]): SettingsBadgeTone {
   switch (status) {
     case "active":
+      return "success";
     case "trialing":
-      return "secondary";
+      return "info";
     case "past_due":
-      return "outline";
+      return "warning";
     case "suspended":
     case "canceled":
       return "destructive";
     default:
-      return "outline";
+      return "muted";
   }
 }
 
@@ -55,61 +56,6 @@ function formatDate(iso: string | undefined, locale: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(locale);
-}
-
-/** Bar colour follows the same thresholds the server notifies at (80 %, 100 %). */
-function barTone(percent: number): string {
-  if (percent >= 100) return "bg-destructive";
-  if (percent >= 80) return "bg-warning";
-  return "bg-primary";
-}
-
-function UsageRow({ entitlement, locale }: { entitlement: Entitlement; locale: string }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "settings.billing" });
-  const { quota_limit: limit, current_usage: used, enabled, kind, name, unit } = entitlement;
-  const unitLabel = unit ? t(`units.${unit}`, { defaultValue: unit }) : "";
-  if (kind !== "quota") {
-    return (
-      <SettingsRow label={name} size="none">
-        <Badge variant={enabled ? "secondary" : "outline"}>{enabled ? t("flag_on") : t("flag_off")}</Badge>
-      </SettingsRow>
-    );
-  }
-  const usedText = used.toLocaleString(locale);
-  const bounded = limit !== null && limit > 0;
-  const percent = bounded ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  const remaining = bounded ? Math.max(0, limit - used) : 0;
-  return (
-    <SettingsRow label={name} size="none" align="start">
-      <div className="flex w-full flex-col gap-1.5 sm:w-64">
-        <span className="flex items-baseline justify-between gap-2 text-caption">
-          <span className="tabular-nums">
-            {bounded
-              ? t("usage_of", { used: usedText, limit: limit.toLocaleString(locale), unit: unitLabel })
-              : t("usage_unbounded", { used: usedText, unit: unitLabel })}
-          </span>
-          {bounded ? (
-            <span className={cn("tabular-nums", percent >= 100 ? "text-destructive" : percent >= 80 ? "text-warning" : "text-muted-foreground")}>
-              {percent >= 100 ? t("usage_full") : t("usage_remaining", { n: remaining.toLocaleString(locale) })}
-            </span>
-          ) : null}
-        </span>
-        {bounded ? (
-          // Plain bar: the registry Progress cannot recolour its indicator.
-          <div
-            role="progressbar"
-            aria-label={name}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent}
-            className="h-1.5 w-full overflow-hidden rounded-full bg-muted-foreground/40"
-          >
-            <div className={cn("h-full rounded-full transition-all", barTone(percent))} style={{ width: `${percent}%` }} />
-          </div>
-        ) : null}
-      </div>
-    </SettingsRow>
-  );
 }
 
 export function BillingTab() {
@@ -123,14 +69,15 @@ export function BillingTab() {
   const cancel = useCancelSubscription(orgId);
   const resume = useResumeSubscription(orgId);
   const checkout = useCreateCheckout(orgId);
-  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [pendingCode, setPendingCode] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
 
-  if (permissionsLoading) {
+  if (permissionsLoading || (canView.allowed && subscription.isLoading)) {
     return (
       <SettingsTab title={t("title")} description={t("description")}>
-        <Skeleton className="h-64 w-full" />
+        <SettingsSkeletonRows rows={3} />
+        <SettingsSkeletonRows rows={2} />
       </SettingsTab>
     );
   }
@@ -143,13 +90,6 @@ export function BillingTab() {
           description={t("forbidden_description")}
           role="status"
         />
-      </SettingsTab>
-    );
-  }
-  if (subscription.isLoading) {
-    return (
-      <SettingsTab title={t("title")} description={t("description")}>
-        <Skeleton className="h-64 w-full" />
       </SettingsTab>
     );
   }
@@ -177,8 +117,6 @@ export function BillingTab() {
   const locale = i18n.language;
   const busy = changePlan.isPending || cancel.isPending || resume.isPending || checkout.isPending;
   const currentPlan = plans.data?.find((p) => p.code === sub.plan_code);
-  // The server says which features something actually reads or writes.
-  const visible = view.entitlements.filter((e) => e.metered);
   const fail = (err: unknown) => toast.error(apiErrorMessage(err) ?? t("error_title"));
 
   const choose = async (plan: Plan) => {
@@ -203,58 +141,66 @@ export function BillingTab() {
     }
   };
 
+  const confirmCancel = () => {
+    cancel.mutateAsync(undefined).then(
+      () => {
+        setConfirmingCancel(false);
+        toast.success(t("canceled"));
+      },
+      (err: unknown) => {
+        setConfirmingCancel(false);
+        fail(err);
+      },
+    );
+  };
+
   return (
     <SettingsTab title={t("title")} description={t("description")}>
       <SettingsSection title={t("current_plan")}>
         <SettingsCard>
           <SettingsRow label={t("plan")} size="none">
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 sm:justify-end">
               <span className="font-medium">{sub.plan_name}</span>
-              <Badge variant={statusTone(sub.status)}>{t(`status.${sub.status}`, { defaultValue: sub.status })}</Badge>
+              <SettingsBadge tone={statusTone(sub.status)}>{t(`status.${sub.status}`, { defaultValue: sub.status })}</SettingsBadge>
             </span>
           </SettingsRow>
           <SettingsRow label={t("price")} size="none">
-            <span className="tabular-nums">{currentPlan ? formatPrice(currentPlan, locale, t) : t("price_unknown")}</span>
+            <SettingsValue className="tabular-nums">{currentPlan ? formatPrice(currentPlan, locale, t) : t("price_unknown")}</SettingsValue>
           </SettingsRow>
           {sub.current_period_end ? (
             <SettingsRow label={t("period_end")} size="none">
-              <span>{formatDate(sub.current_period_end, locale)}</span>
-            </SettingsRow>
-          ) : null}
-          {sub.cancel_at ? (
-            <SettingsRow label={t("cancel_at")} description={t("cancel_at_hint")} size="none">
-              <span className="flex flex-wrap items-center gap-2">
-                <span>{formatDate(sub.cancel_at, locale)}</span>
-                {canManage.allowed ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    aria-busy={resume.isPending}
-                    onClick={() => resume.mutateAsync(undefined).then(() => toast.success(t("resumed")), fail)}
-                  >
-                    {resume.isPending ? <Spinner aria-hidden aria-label={undefined} role="presentation" /> : null}
-                    {t("resume")}
-                  </Button>
-                ) : null}
-              </span>
+              <SettingsValue className="tabular-nums">{formatDate(sub.current_period_end, locale)}</SettingsValue>
             </SettingsRow>
           ) : null}
         </SettingsCard>
+        {sub.cancel_at ? (
+          <Notice
+            tone="warning"
+            icon={CalendarClock}
+            layout="inline"
+            live="off"
+            action={
+              canManage.allowed ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  aria-busy={resume.isPending}
+                  onClick={() => resume.mutateAsync(undefined).then(() => toast.success(t("resumed")), fail)}
+                >
+                  {resume.isPending ? <Spinner aria-hidden aria-label={undefined} role="presentation" /> : null}
+                  {t("resume")}
+                </Button>
+              ) : null
+            }
+          >
+            {t("cancel_notice", { date: formatDate(sub.cancel_at, locale) })}
+          </Notice>
+        ) : null}
       </SettingsSection>
 
-      <SettingsSection title={t("usage")} description={t("usage_description")}>
-        {visible.length === 0 ? (
-          <CollectionPageState icon={CreditCard} title={t("no_entitlements")} role="status" />
-        ) : (
-          <SettingsCard>
-            {visible.map((e) => (
-              <UsageRow key={e.feature_key} entitlement={e} locale={locale} />
-            ))}
-          </SettingsCard>
-        )}
-      </SettingsSection>
+      <BillingUsage entitlements={view.entitlements} />
 
       <SettingsSection
         title={t("plans")}
@@ -262,9 +208,24 @@ export function BillingTab() {
       >
         {canManage.allowed ? (
           plans.isLoading ? (
-            <Skeleton className="h-40 w-full" />
+            <SettingsSkeletonRows rows={2} />
           ) : (
             <>
+              {checkoutUrl ? (
+                <Notice
+                  tone="info"
+                  icon={CreditCard}
+                  layout="inline"
+                  action={
+                    <ButtonLink href={checkoutUrl} target="_blank" rel="noopener noreferrer" size="sm">
+                      {t("open_checkout")}
+                      <ExternalLink aria-hidden />
+                    </ButtonLink>
+                  }
+                >
+                  {t("checkout_notice")}
+                </Notice>
+              ) : null}
               <PlanCards
                 plans={plans.data ?? []}
                 currentCode={sub.plan_code}
@@ -273,58 +234,36 @@ export function BillingTab() {
                 pendingCode={pendingCode}
                 onChoose={(plan) => void choose(plan)}
               />
-              {checkoutUrl ? (
-                <p className="text-caption text-muted-foreground">
-                  <a
-                    href={checkoutUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-4"
-                  >
-                    {t("open_checkout")}
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                  </a>
-                </p>
-              ) : null}
             </>
           )
         ) : null}
       </SettingsSection>
 
       {canManage.allowed && !sub.cancel_at ? (
-        <SettingsSection title={t("cancel_section")} description={t("cancel_description")}>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            aria-busy={cancel.isPending}
-            onClick={() => setConfirmCancel(true)}
-          >
-            {cancel.isPending ? <Spinner aria-hidden aria-label={undefined} role="presentation" /> : null}
-            {t("cancel")}
-          </Button>
-          <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t("confirm_cancel_title")}</AlertDialogTitle>
-                <AlertDialogDescription>{t("confirm_cancel_description")}</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={busy}>{t("confirm_back")}</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  disabled={busy}
-                  onClick={() => {
-                    setConfirmCancel(false);
-                    cancel.mutateAsync(undefined).then(() => toast.success(t("canceled")), fail);
-                  }}
-                >
-                  {t("cancel")}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </SettingsSection>
+        <SettingsDangerZone title={t("cancel_section")} description={t("cancel_description")}>
+          <SettingsRow label={t("cancel_label")} description={t("cancel_hint")} size="none">
+            <div className="flex justify-start sm:justify-end">
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={busy}
+                aria-busy={cancel.isPending}
+                onClick={() => setConfirmingCancel(true)}
+              >
+                {t("cancel_open")}
+              </Button>
+            </div>
+          </SettingsRow>
+          <ConfirmDialog
+            open={confirmingCancel}
+            onOpenChange={(open) => !cancel.isPending && setConfirmingCancel(open)}
+            title={t("confirm_cancel_title")}
+            description={t("confirm_cancel_description")}
+            confirmLabel={t("cancel")}
+            pending={cancel.isPending}
+            onConfirm={confirmCancel}
+          />
+        </SettingsDangerZone>
       ) : null}
     </SettingsTab>
   );

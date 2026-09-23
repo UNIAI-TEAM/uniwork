@@ -4,21 +4,13 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import type { Entitlement, Plan } from "@uniwork/core/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@uniwork/ui/components/ui/card";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ConfirmDialog } from "../../common/form-dialog";
+import { featureLabel } from "./billing-usage";
+import { SettingsBadge } from "./settings-layout";
 
 /** A paid plan needs the provider's checkout; a free one changes in place. */
 export function isPaid(plan: Plan): boolean {
@@ -39,24 +31,31 @@ export function formatPrice(plan: Plan, locale: string, t: (k: string, o?: Recor
 }
 
 /** The quota keys worth a line on a plan card, in this order. Flags follow. */
-const HEADLINE_QUOTAS = ["members.max", "workspaces.max", "meeting.participant_minutes"];
+const HEADLINE_QUOTAS = ["members.max", "workspaces.max", "tasks.max", "meeting.participant_minutes"];
 
-function planLines(plan: Plan, names: Map<string, Entitlement>, locale: string, t: (k: string, o?: Record<string, unknown>) => string): string[] {
+function planLines(plan: Plan, known: Map<string, Entitlement>, locale: string, t: (k: string, o?: Record<string, unknown>) => string): string[] {
   const byKey = new Map(plan.features.map((f) => [f.feature_key, f]));
   const lines: string[] = [];
   for (const key of HEADLINE_QUOTAS) {
     const f = byKey.get(key);
-    const e = names.get(key);
+    const e = known.get(key);
     if (!f || !e || !f.enabled) continue;
     const limit = f.quota_limit === null ? t("unlimited") : f.quota_limit.toLocaleString(locale);
-    lines.push(t("plan_line_quota", { name: e.name, limit }));
+    lines.push(t("plan_line_quota", { name: featureLabel(t, key, e.name), limit }));
   }
   for (const f of plan.features) {
-    const e = names.get(f.feature_key);
-    if (!e || e.kind !== "flag" || !f.enabled || !names.has(f.feature_key)) continue;
-    lines.push(e.name);
+    const e = known.get(f.feature_key);
+    if (!e || e.kind !== "flag" || !f.enabled) continue;
+    lines.push(featureLabel(t, f.feature_key, e.name));
   }
   return lines;
+}
+
+/** Columns follow the plan count so a lone plan never leaves half a row empty. */
+function gridColumns(count: number): string {
+  if (count <= 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-1 sm:grid-cols-2";
+  return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
 }
 
 export interface PlanCardsProps {
@@ -77,36 +76,42 @@ export interface PlanCardsProps {
 export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode, onChoose }: PlanCardsProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.billing" });
   const [pending, setPending] = useState<Plan | null>(null);
-  const names = new Map(entitlements.map((e) => [e.feature_key, e]));
+  const known = new Map(entitlements.map((e) => [e.feature_key, e]));
   const locale = i18n.language;
+  const single = plans.length <= 1;
+  // Side by side, a description of one or two lines would push one card's
+  // feature list below its neighbour's; reserve the same room on every card.
+  const describes = !single && plans.some((p) => p.description);
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3", gridColumns(plans.length))}>
         {plans.map((plan) => {
           const current = plan.code === currentCode;
           const paid = isPaid(plan);
           return (
             <Card
               key={plan.id}
-              className={cn("gap-3 py-4", current && "border-primary ring-1 ring-primary/30")}
+              className={cn("h-full gap-3 shadow-none", current && "border-brand ring-1 ring-brand")}
               data-testid={`plan-card-${plan.code}`}
             >
-              <CardHeader className="px-4">
-                <CardTitle className="flex items-center justify-between gap-2 text-body">
-                  <span>{plan.name}</span>
-                  {current ? <Badge variant="secondary">{t("plan_current")}</Badge> : null}
+              <CardHeader className="gap-1.5 px-4">
+                <CardTitle className="flex min-h-6 items-center justify-between gap-2 text-body font-semibold">
+                  <span className="truncate">{plan.name}</span>
+                  {current ? <SettingsBadge tone="brand">{t("plan_current")}</SettingsBadge> : null}
                 </CardTitle>
                 <p className="text-title font-semibold tabular-nums">{formatPrice(plan, locale, t)}</p>
-                {plan.description ? (
-                  <p className="text-caption text-muted-foreground">{plan.description}</p>
+                {describes || plan.description ? (
+                  <p className={cn("text-caption text-pretty text-muted-foreground", describes && "line-clamp-2 min-h-10")}>
+                    {plan.description}
+                  </p>
                 ) : null}
               </CardHeader>
-              <CardContent className="px-4">
-                <ul className="flex flex-col gap-1.5 text-caption">
-                  {planLines(plan, names, locale, t).map((line) => (
+              <CardContent className="flex-1 px-4">
+                <ul className={cn("grid gap-1.5 text-caption", single && "sm:grid-cols-2 sm:gap-x-6")}>
+                  {planLines(plan, known, locale, t).map((line) => (
                     <li key={line} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
+                      <Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
                       <span>{line}</span>
                     </li>
                   ))}
@@ -114,8 +119,9 @@ export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode,
               </CardContent>
               {current ? null : (
                 // The current plan is already marked in the header; a second
-                // "current plan" control would only repeat it.
-                <CardFooter className="px-4">
+                // "current plan" control would only repeat it. The footer sits
+                // at the card's bottom so buttons line up across the row.
+                <CardFooter className="mt-auto px-4">
                   <Button
                     type="button"
                     variant={paid ? "default" : "secondary"}
@@ -134,26 +140,19 @@ export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode,
         })}
       </div>
 
-      <AlertDialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirm_change_title", { name: pending?.name ?? "" })}</AlertDialogTitle>
-            <AlertDialogDescription>{t("confirm_change_description")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>{t("confirm_back")}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={busy}
-              onClick={() => {
-                if (pending) onChoose(pending);
-                setPending(null);
-              }}
-            >
-              {t("confirm_change_action")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={pending !== null}
+        onOpenChange={(open) => !open && setPending(null)}
+        title={t("confirm_change_title", { name: pending?.name ?? "" })}
+        description={t("confirm_change_description")}
+        confirmLabel={t("confirm_change_action")}
+        destructive={false}
+        pending={busy}
+        onConfirm={() => {
+          if (pending) onChoose(pending);
+          setPending(null);
+        }}
+      />
     </>
   );
 }
