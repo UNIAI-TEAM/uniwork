@@ -13,14 +13,32 @@ export function messageDayKey(ts: number): number {
   return startOfDay(new Date(ts));
 }
 
+// A timeline formats hundreds of times per render; building an Intl
+// formatter is the expensive part, so keep one per locale and shape.
+const timeFormatters = new Map<string, Intl.DateTimeFormat>();
+const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function cachedFormatter(
+  cache: Map<string, Intl.DateTimeFormat>,
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  let formatter = cache.get(locale);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    cache.set(locale, formatter);
+  }
+  return formatter;
+}
+
 /** "14:05" — the time printed on a message. */
 export function formatMessageTime(ts: number, locale: string): string {
-  return new Date(ts).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return cachedFormatter(timeFormatters, locale, { hour: "2-digit", minute: "2-digit" }).format(ts);
 }
 
 /** Full date and time for the tooltip on a message's time. */
 export function formatMessageDateTime(ts: number, locale: string): string {
-  return new Date(ts).toLocaleString(locale, { dateStyle: "full", timeStyle: "short" });
+  return cachedFormatter(dateTimeFormatters, locale, { dateStyle: "full", timeStyle: "short" }).format(ts);
 }
 
 /**

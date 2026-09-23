@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Check, CircleAlert } from "lucide-react";
+import { memo } from "react";
+import { Bell, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -9,9 +10,9 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatMessageBody } from "./chat-message-body";
 import { isChatMediaMessageBody } from "./chat-expression-utils";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
-import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
+import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
+import { formatMessageDateTime } from "./chat-message-time";
 import { ChatReplyQuote } from "./chat-reply-quote";
-import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
 import { MessageTaskCard } from "./message-task-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
@@ -55,118 +56,34 @@ export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority
   );
 }
 
-/** Reaction chips: each one toggles that emoji for me. */
-export function ChatReactionChips({
+/** "3 phản hồi" under a thread root: opens the thread. */
+export function ChatThreadRepliesLink({
   message,
   isOwn,
-  onToggleReaction,
+  onThread,
 }: {
   message: ChatMessage;
   isOwn: boolean;
-  onToggleReaction?: (message: ChatMessage, emoji: string) => void;
+  onThread?: (message: ChatMessage) => void;
 }) {
   const { t } = useTranslation();
-  const entries = Object.entries(message.reactions);
-  if (entries.length === 0) return null;
+  if (!((message.replyCount ?? 0) > 0 && onThread && !message.threadRootId)) return null;
   return (
-    <div className={cn("flex flex-wrap gap-1", isOwn && "justify-end")}>
-      {entries.map(([emoji, count]) => (
-        <button
-          key={emoji}
-          type="button"
-          disabled={!onToggleReaction}
-          aria-label={t("chat.reaction_toggle_aria", { emoji, count })}
-          onClick={() => onToggleReaction?.(message, emoji)}
-          // The chip stays 24px to the eye; on touch an invisible ::after
-          // extends the target to 44px so a thumb lands on it.
-          className="relative inline-flex h-6 items-center gap-1 rounded-full border border-border bg-surface px-2 text-caption transition-colors duration-(--duration-fast) hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:content-['']"
-        >
-          <span aria-hidden>{emoji}</span>
-          {count > 1 ? <span className="font-medium text-muted-foreground tabular-nums">{count}</span> : null}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Time, edited mark, delivery state and read receipt — the one line of meta a
- * message carries. Shown on the last message of a run (and always while a
- * message is on its way); the others keep the full time in their tooltip.
- */
-export function ChatMessageMeta({
-  message,
-  isOwn,
-  showTime,
-  showReadReceipt = false,
-}: {
-  message: ChatMessage;
-  isOwn: boolean;
-  showTime: boolean;
-  showReadReceipt?: boolean;
-}) {
-  const { t, i18n } = useTranslation();
-  const pending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
-  // Mid-run messages hide their time from the eye (the run's last one shows
-  // it) but never from a screen reader: it hears every message's time.
-  if (!showTime && !pending && !message.editedAt && !showReadReceipt) {
-    return (
-      <time dateTime={new Date(message.ts).toISOString()} className="sr-only">
-        {formatMessageDateTime(message.ts, i18n.language)}
-      </time>
-    );
-  }
-  return (
-    <p
-      className={cn(
-        "mt-0.5 flex items-center gap-1 text-micro text-muted-foreground tabular-nums",
-        isOwn ? "justify-end" : "justify-start",
-      )}
+    <Button
+      type="button"
+      variant="link"
+      size="xs"
+      className={cn("h-auto px-1 py-0.5 text-brand-subtle-foreground", isOwn && "self-end")}
+      onClick={() => onThread(message)}
     >
-      {pending ? (
-        <span>{message.deliveryStatus === "queued" ? t("chat.message_queued") : t("chat.message_sending")}</span>
-      ) : showTime ? (
-        <time dateTime={new Date(message.ts).toISOString()}>{formatMessageTime(message.ts, i18n.language)}</time>
-      ) : null}
-      {message.editedAt ? <span>· {t("chat.edited_label")}</span> : null}
-      {showReadReceipt ? (
-        <span className="inline-flex items-center gap-0.5 text-brand-subtle-foreground">
-          <Check className="size-3" aria-hidden />
-          <span className="sr-only sm:not-sr-only">{t("chat.read_receipt")}</span>
-        </span>
-      ) : null}
-    </p>
+      {message.threadUnread
+        ? t("chat.thread_replies_unread", { count: message.replyCount })
+        : t("chat.thread_replies", { count: message.replyCount })}
+    </Button>
   );
 }
 
-export function ChatMessageRow({
-  message,
-  senderLabel,
-  isOwn,
-  showReadReceipt,
-  replyToMessage,
-  workspaceId,
-  roomId,
-  onReply,
-  onReact,
-  onToggleReaction,
-  onJumpToMessage,
-  onThread,
-  onEdit,
-  onPin,
-  onCopy,
-  onDelete,
-  onCreateTask,
-  onLinkTask,
-  onFollowUp,
-  workHubEnabled = false,
-  showSenderName = false,
-  compactTop = false,
-  showAvatar = true,
-  lastOfRun = true,
-  highlighted = false,
-  nameContext = [],
-}: {
+type ChatMessageRowProps = {
   message: ChatMessage;
   senderLabel: string;
   isOwn: boolean;
@@ -194,8 +111,39 @@ export function ChatMessageRow({
   lastOfRun?: boolean;
   highlighted?: boolean;
   nameContext?: ChatNameContextEntry[];
-}) {
-  const { t, i18n } = useTranslation();
+};
+
+const EMPTY_NAME_CONTEXT: ChatNameContextEntry[] = [];
+
+function ChatMessageRowImpl({
+  message,
+  senderLabel,
+  isOwn,
+  showReadReceipt,
+  replyToMessage,
+  workspaceId,
+  roomId,
+  onReply,
+  onReact,
+  onToggleReaction,
+  onJumpToMessage,
+  onThread,
+  onEdit,
+  onPin,
+  onCopy,
+  onDelete,
+  onCreateTask,
+  onLinkTask,
+  onFollowUp,
+  workHubEnabled = false,
+  showSenderName = false,
+  compactTop = false,
+  showAvatar = true,
+  lastOfRun = true,
+  highlighted = false,
+  nameContext = EMPTY_NAME_CONTEXT,
+}: ChatMessageRowProps) {
+  const { i18n } = useTranslation();
   const reveal = useMessageActionsReveal();
   const nameClass = senderNameClass(message.sender, isOwn);
   const isPending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
@@ -206,16 +154,19 @@ export function ChatMessageRow({
   return (
     <article
       id={`chat-msg-${message.id}`}
+      aria-labelledby={chatMessageLabelId(message.id)}
+      // Focus lands here after a delete or a jump, never by Tab.
+      tabIndex={-1}
       className={cn(
-        "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard)",
+        "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
         compactTop ? "mt-0.5" : "mt-3",
         isOwn ? "justify-end" : "justify-start gap-2",
         highlighted && "bg-brand-subtle ring-2 ring-brand",
-        isPending && "opacity-70",
       )}
     >
+      <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       {!isOwn ? (
-        <div className={INCOMING_AVATAR_SLOT_CLASS}>
+        <div className={INCOMING_AVATAR_SLOT_CLASS} aria-hidden>
           {showAvatar ? (
             <ActorAvatar name={senderLabel} initials={initialOf(senderLabel)} size="lg" className="shrink-0" />
           ) : null}
@@ -232,27 +183,10 @@ export function ChatMessageRow({
           isOwn ? "items-end" : "items-start",
         )}
       >
-        {!isPending ? (
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onThread={onThread}
-            onEdit={onEdit}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={workHubEnabled ? onCreateTask : undefined}
-            onLinkTask={workHubEnabled ? onLinkTask : undefined}
-            onFollowUp={workHubEnabled ? onFollowUp : undefined}
-            canEdit={canEdit}
-            forceOpen={reveal.open}
-          />
-        ) : null}
-
         {!isOwn && showSenderName && showAvatar ? (
-          <p className={cn("px-1 text-caption font-semibold", nameClass)}>{senderLabel}</p>
+          <p className={cn("px-1 text-caption font-semibold", nameClass)} aria-hidden>
+            {senderLabel}
+          </p>
         ) : null}
 
         <ChatPriorityFlag priority={message.priority} />
@@ -289,19 +223,7 @@ export function ChatMessageRow({
 
         <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
 
-        {(message.replyCount ?? 0) > 0 && onThread && !message.threadRootId ? (
-          <Button
-            type="button"
-            variant="link"
-            size="xs"
-            className={cn("h-auto px-1 py-0.5 text-brand-subtle-foreground", isOwn && "self-end")}
-            onClick={() => onThread(message)}
-          >
-            {message.threadUnread
-              ? t("chat.thread_replies_unread", { count: message.replyCount })
-              : t("chat.thread_replies", { count: message.replyCount })}
-          </Button>
-        ) : null}
+        <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
 
         {workHubEnabled && workspaceId && !isPending ? (
           <MessageTaskCard
@@ -310,9 +232,31 @@ export function ChatMessageRow({
             className={cn(isOwn && "items-end self-end")}
           />
         ) : null}
+
+        {/* After the content in reading order (it is positioned over the
+            bubble's edge), so a screen reader meets the message first. */}
+        {!isPending ? (
+          <ChatMessageHoverActions
+            message={message}
+            isOwn={isOwn}
+            onReply={onReply}
+            onReact={onReact}
+            onThread={onThread}
+            onEdit={onEdit}
+            onPin={onPin}
+            onCopy={onCopy}
+            onDelete={onDelete}
+            onCreateTask={workHubEnabled ? onCreateTask : undefined}
+            onLinkTask={workHubEnabled ? onLinkTask : undefined}
+            onFollowUp={workHubEnabled ? onFollowUp : undefined}
+            canEdit={canEdit}
+            forceOpen={reveal.open}
+          />
+        ) : null}
       </div>
     </article>
   );
 }
 
-export { DEFAULT_QUICK_REACTION };
+/** One text message. Memoised: the timeline re-renders often, a row rarely changes. */
+export const ChatMessageRow = memo(ChatMessageRowImpl);

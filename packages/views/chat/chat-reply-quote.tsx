@@ -1,55 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { FileText, ImageIcon, Reply, X } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useTranslation } from "react-i18next";
-import { loadChatFileBlob } from "@uniwork/core/api/endpoints/chat";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { useChatFileObjectUrl } from "./use-chat-file-object-url";
 
 function isImageFileMessage(message: ChatMessage): boolean {
   return message.kind === "file" && Boolean(message.file?.content_type?.startsWith("image/"));
 }
 
-function useChatImagePreviewUrl(
-  workspaceId: string,
-  roomId: string,
-  message: ChatMessage | null | undefined,
-): string | null {
-  const [url, setUrl] = useState<string | null>(null);
-  const urlRef = useRef<string | null>(null);
-  const enabled = Boolean(message && isImageFileMessage(message));
-
-  useEffect(() => {
-    if (!enabled || !message) {
-      setUrl(null);
-      return;
-    }
-    let cancelled = false;
-    void loadChatFileBlob(workspaceId, roomId, message.id)
-      .then((blob) => {
-        if (cancelled) return;
-        const next = URL.createObjectURL(blob);
-        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-        urlRef.current = next;
-        setUrl(next);
-      })
-      .catch(() => {
-        if (!cancelled) setUrl(null);
-      });
-    return () => {
-      cancelled = true;
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-        urlRef.current = null;
-      }
-    };
-  }, [enabled, message, message?.id, roomId, workspaceId]);
-
-  return url;
+/**
+ * The quote's thumbnail. There is no thumbnail endpoint, so this is the full
+ * image — but read from the same cache the file row fills, so quoting an
+ * image already on screen costs no second download.
+ */
+function useQuotedImageUrl(workspaceId: string, roomId: string, message: ChatMessage): string | null {
+  return useChatFileObjectUrl(workspaceId, roomId, message.id, isImageFileMessage(message)).url;
 }
 
 export function replyPreviewLabel(
@@ -82,7 +52,7 @@ export function ChatReplyQuote({
   onJump?: (messageId: string) => void;
 }) {
   const { t } = useTranslation();
-  const previewUrl = useChatImagePreviewUrl(workspaceId, roomId, message);
+  const previewUrl = useQuotedImageUrl(workspaceId, roomId, message);
   const isImage = isImageFileMessage(message);
   const label = replyPreviewLabel(message, {
     voice: t("chat.voice_message"),

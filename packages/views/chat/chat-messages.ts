@@ -13,6 +13,8 @@ export interface ChatMessage {
   pinned?: boolean;
   mentionedUserIds?: string[];
   reactions: Record<string, number>;
+  /** Emojis I reacted with (server `my_reactions`). */
+  myReactions?: string[];
   voiceCall?: {
     outcome: string;
     duration_seconds?: number;

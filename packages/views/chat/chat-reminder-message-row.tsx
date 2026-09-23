@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
-  formatReminderTime,
   isSameCalendarDay,
   isTomorrow,
   type ReminderRepeat,
 } from "@uniwork/core/chat/reminder-utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard, ChatCardStatus } from "./chat-card";
+import { formatMessageTime } from "./chat-message-time";
+
+/** setTimeout cannot wait longer than about 24.8 days. */
+const MAX_TIMER_MS = 2_147_000_000;
 
 type ReminderPayload = NonNullable<ChatMessage["reminder"]>;
 
@@ -36,13 +39,27 @@ export function ChatReminderMessageRow({
   compactTop?: boolean;
 }) {
   const { t, i18n } = useTranslation();
+  const remindAtMs = Date.parse(reminder.remindAt);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // The card turns "due" at its time while it is on screen, not only when
+  // the timeline happens to re-render.
+  useEffect(() => {
+    if (!Number.isFinite(remindAtMs) || nowMs >= remindAtMs) return;
+    const wait = remindAtMs - Date.now();
+    if (wait <= 0) {
+      setNowMs(Date.now());
+      return;
+    }
+    const timer = window.setTimeout(() => setNowMs(Date.now()), Math.min(wait + 50, MAX_TIMER_MS));
+    return () => window.clearTimeout(timer);
+  }, [remindAtMs, nowMs]);
 
   const scheduleLabel = useMemo(() => {
-    const remindAt = Date.parse(reminder.remindAt);
-    if (!Number.isFinite(remindAt)) return "";
-    const date = new Date(remindAt);
-    const now = new Date();
-    const time = formatReminderTime(date);
+    if (!Number.isFinite(remindAtMs)) return "";
+    const date = new Date(remindAtMs);
+    const now = new Date(nowMs);
+    const time = formatMessageTime(remindAtMs, i18n.language);
     if (isSameCalendarDay(now, date)) {
       return t("chat.reminder_schedule_today", { time });
     }
@@ -52,9 +69,9 @@ export function ChatReminderMessageRow({
     return t("chat.reminder_schedule_date", {
       date: date.toLocaleString(i18n.language, { dateStyle: "medium", timeStyle: "short" }),
     });
-  }, [reminder.remindAt, t, i18n.language]);
+  }, [remindAtMs, nowMs, t, i18n.language]);
 
-  const isDue = Date.parse(reminder.remindAt) <= Date.now();
+  const isDue = Number.isFinite(remindAtMs) && remindAtMs <= nowMs;
 
   // A reminder that has fired keeps its full contrast — it is still the
   // record of what was asked — and says so with a pill instead of fading.

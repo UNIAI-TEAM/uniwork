@@ -27,6 +27,7 @@ export function ChatConversationToolbar({
   videoCallAriaLabel,
   onVideoCall,
   videoCallDisabled,
+  onSearch,
 }: {
   avatar: ReactNode;
   title: string;
@@ -48,6 +49,7 @@ export function ChatConversationToolbar({
   videoCallAriaLabel?: string;
   onVideoCall?: () => void;
   videoCallDisabled?: boolean;
+  onSearch?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -75,6 +77,8 @@ export function ChatConversationToolbar({
       videoCallAriaLabel={videoCallAriaLabel}
       onVideoCall={onVideoCall}
       videoCallDisabled={videoCallDisabled}
+      searchAriaLabel={t("chat.message_list.search_open")}
+      onSearch={onSearch}
     />
   );
 }
@@ -95,6 +99,7 @@ export function GroupChatToolbar({
   voiceCallDisabled,
   onVideoCall,
   videoCallDisabled,
+  onSearch,
 }: {
   /** Users for a group; Hash or Lock for a channel. */
   icon?: LucideIcon;
@@ -112,6 +117,7 @@ export function GroupChatToolbar({
   voiceCallDisabled?: boolean;
   onVideoCall?: () => void;
   videoCallDisabled?: boolean;
+  onSearch?: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -137,6 +143,7 @@ export function GroupChatToolbar({
       videoCallAriaLabel={t("chat.video_call_start")}
       onVideoCall={onVideoCall}
       videoCallDisabled={videoCallDisabled}
+      onSearch={onSearch}
     />
   );
 }

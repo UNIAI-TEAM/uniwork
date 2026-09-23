@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
   Bookmark,
   Copy,
@@ -126,10 +126,16 @@ export function ChatMessageHoverActions({
     buttons.forEach((button, i) => button.setAttribute("tabindex", i === next ? "0" : "-1"));
     buttons[next]?.focus();
   };
-  const onFocusCapture = () => {
-    const buttons = Array.from(barRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
-    if (buttons.some((button) => button.getAttribute("tabindex") === "0")) return;
-    buttons.forEach((button, i) => button.setAttribute("tabindex", i === 0 ? "0" : "-1"));
+  // Buttons render with tabindex="0" themselves, so "is any at 0" cannot tell
+  // an untouched bar from a roving one; the bar marks itself once set up.
+  const onFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
+    const bar = barRef.current;
+    if (!bar || bar.dataset.roving === "on") return;
+    const buttons = Array.from(bar.querySelectorAll<HTMLButtonElement>("button"));
+    const target: EventTarget = event.target;
+    const current = buttons.findIndex((button) => button === target);
+    buttons.forEach((button, i) => button.setAttribute("tabindex", i === Math.max(current, 0) ? "0" : "-1"));
+    bar.dataset.roving = "on";
   };
 
   return (

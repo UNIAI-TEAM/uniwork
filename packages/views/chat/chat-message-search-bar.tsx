@@ -9,6 +9,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { describeChatMediaBody } from "./chat-expression-utils";
+import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { foldVi } from "./chat-search-fold";
 import { cn } from "@uniwork/ui/lib/utils";
 
 type NameContextEntry = {
@@ -27,16 +29,30 @@ function senderLabelFor(
   return match?.display_name?.trim() || message.sender_display_name?.trim() || message.sender_id;
 }
 
-function highlightSnippet(body: string, query: string): ReactNode {
-  const trimmed = query.trim();
-  if (!trimmed) return body;
-  const lowerBody = body.toLowerCase();
-  const lowerQuery = trimmed.toLowerCase();
-  const index = lowerBody.indexOf(lowerQuery);
-  if (index < 0) return body;
-  const before = body.slice(0, index);
-  const match = body.slice(index, index + trimmed.length);
-  const after = body.slice(index + trimmed.length);
+/**
+ * The snippet with the match marked. The body is shown the way a person
+ * reads it (mentions as @names, not markup), and matched accent-insensitively
+ * — "tuan" marks "Tuấn" — by folding each character and keeping where it came
+ * from, so the mark lands on the original letters.
+ */
+function highlightSnippet(rawBody: string, query: string): ReactNode {
+  const body = deserializeMessageBodyToComposerDraft(rawBody);
+  const folded = foldVi(query.trim());
+  if (!folded) return body;
+  let hay = "";
+  const origin: number[] = [];
+  for (let i = 0; i < body.length; i += 1) {
+    const piece = foldVi(body[i] ?? "");
+    for (let j = 0; j < piece.length; j += 1) origin.push(i);
+    hay += piece;
+  }
+  const at = hay.indexOf(folded);
+  if (at < 0) return body;
+  const start = origin[at] ?? 0;
+  const end = (origin[at + folded.length - 1] ?? start) + 1;
+  const before = body.slice(0, start);
+  const match = body.slice(start, end);
+  const after = body.slice(end);
   return (
     <>
       {before}
@@ -78,12 +94,25 @@ export function ChatMessageSearchBar({
   const listId = useId();
   const mediaLabels = { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") };
   const inputRef = useRef<HTMLInputElement>(null);
+  // Where focus was when search opened (the ⌘F target or the header button):
+  // closing without a jump puts it back there. A jump hands focus to the
+  // message instead.
+  const openerRef = useRef<HTMLElement | null>(
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
+  const jumpedRef = useRef(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
+    const opener = openerRef.current;
     inputRef.current?.focus();
+    return () => {
+      if (!jumpedRef.current && opener?.isConnected) {
+        window.requestAnimationFrame(() => opener.focus());
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -119,11 +148,22 @@ export function ChatMessageSearchBar({
     });
   };
 
-  const jumpToSelected = () => {
-    if (!selected) return;
-    onJumpToMessage(selected.id);
+  const jumpTo = (messageId: string) => {
+    jumpedRef.current = true;
+    onJumpToMessage(messageId);
     onClose();
   };
+
+  const jumpToSelected = () => {
+    if (!selected) return;
+    jumpTo(selected.id);
+  };
+
+  // Arrow keys move the active option from the field; keep it in view.
+  useEffect(() => {
+    if (!selected) return;
+    document.getElementById(`${listId}-${selected.id}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [listId, selected]);
 
   return (
     <div className="border-b border-border bg-surface">
@@ -163,6 +203,8 @@ export function ChatMessageSearchBar({
                 return;
               }
               if (event.key === "Enter") {
+                // Enter that only commits a Vietnamese IME syllable is not a jump.
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                 event.preventDefault();
                 jumpToSelected();
               }
@@ -216,14 +258,22 @@ export function ChatMessageSearchBar({
               ))}
             </div>
           ) : textResults.length === 0 ? (
-            <p className="py-1 text-caption text-muted-foreground">{t("chat.search_messages_no_results")}</p>
+            <p className="py-1 text-caption text-muted-foreground" role="status">
+              {t("chat.search_messages_no_results")}
+            </p>
           ) : (
             <>
-              <p className="mb-1.5 text-caption text-muted-foreground tabular-nums" aria-live="polite">
+              {/* The position is for the eye; a screen reader already hears
+                  the active option through aria-activedescendant, and hears
+                  the total once, when the results change. */}
+              <p className="mb-1.5 text-caption text-muted-foreground tabular-nums" aria-hidden>
                 {t("chat.search_results_count", {
                   current: selectedIndex + 1,
                   total: textResults.length,
                 })}
+              </p>
+              <p className="sr-only" role="status">
+                {t("chat.message_list.search_results_total", { count: textResults.length })}
               </p>
               {/* Focus stays in the search field; arrows move the active option
                   (aria-activedescendant), Enter or a click jumps to it. */}
@@ -232,8 +282,7 @@ export function ChatMessageSearchBar({
                   const label = senderLabelFor(message, currentUserId, youLabel, nameContext);
                   const jump = () => {
                     setSelectedIndex(index);
-                    onJumpToMessage(message.id);
-                    onClose();
+                    jumpTo(message.id);
                   };
                   return (
                     <li

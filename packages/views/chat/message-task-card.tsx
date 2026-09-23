@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ListTodo, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useChatMessageLinks, useUnlinkChatMessage } from "@uniwork/core/chat";
+import { useUnlinkChatMessage } from "@uniwork/core/chat";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useTask } from "@uniwork/core/tasks";
 import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
@@ -12,7 +12,10 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { moduleTone } from "../layout/module-tones";
 import { StatusIcon } from "../tasks/icons/status-icon";
+import { ConfirmDialog } from "../common/form-dialog";
 import { ChatTaskPeekDialog } from "./chat-task-peek-dialog";
+import { toastChatError } from "./chat-error-message";
+import { useChatMessageLinksFor } from "./chat-message-links-context";
 
 function MessageTaskLinkRow({
   workspaceId,
@@ -31,6 +34,7 @@ function MessageTaskLinkRow({
   const { data: task } = useTask(taskId);
   const unlink = useUnlinkChatMessage(workspaceId);
   const [peekOpen, setPeekOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const title = task?.title ?? t("chat.link.task_loading");
   const identifier = task?.identifier || task?.id.slice(0, 8);
   const openLabel = t("chat.link.open_task", { identifier, title });
@@ -71,16 +75,31 @@ function MessageTaskLinkRow({
             variant="ghost"
             size="icon-sm"
             className="shrink-0 text-muted-foreground hover:text-foreground"
-            aria-label={t("chat.link.unlink")}
+            aria-label={t("chat.message_list.unlink_named", { identifier: identifier ?? "", title })}
             disabled={unlink.isPending}
-            onClick={() => {
-              void unlink.mutateAsync({ messageId, linkId });
-            }}
+            onClick={() => setConfirmOpen(true)}
           >
             <X className="size-3.5" aria-hidden />
           </Button>
         ) : null}
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t("chat.message_list.unlink_confirm_title")}
+        description={t("chat.message_list.unlink_confirm_description", { title })}
+        confirmLabel={t("chat.link.unlink")}
+        pending={unlink.isPending}
+        onConfirm={() => {
+          void unlink
+            .mutateAsync({ messageId, linkId })
+            .then(() => setConfirmOpen(false))
+            .catch((err: unknown) => {
+              setConfirmOpen(false);
+              toastChatError(err, t, t("chat.message_list.unlink_failed"));
+            });
+        }}
+      />
       <ChatTaskPeekDialog
         open={peekOpen}
         onOpenChange={setPeekOpen}
@@ -95,19 +114,15 @@ function MessageTaskLinkRow({
 export function MessageTaskCard({
   workspaceId,
   messageId,
-  enabled = true,
-  canUnlink = true,
   className,
 }: {
   workspaceId: string;
   messageId: string;
-  enabled?: boolean;
-  canUnlink?: boolean;
   className?: string;
 }) {
-  const { data: links = [] } = useChatMessageLinks(workspaceId, messageId, enabled && !!messageId);
+  const { links, canUnlink } = useChatMessageLinksFor(messageId);
   const taskLinks = taskLinksOf(links);
-  if (!enabled || taskLinks.length === 0) return null;
+  if (taskLinks.length === 0) return null;
 
   return (
     <div className={cn("mt-2 flex w-full flex-col gap-1.5", className)} data-testid="message-task-card">

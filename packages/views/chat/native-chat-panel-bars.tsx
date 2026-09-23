@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, X } from "lucide-react";
+import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -49,10 +49,26 @@ export function ChatJumpToLatestButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+/**
+ * Asks for older history without scrolling to the top — for a keyboard, a
+ * switch or a screen reader, where "scroll up to load" never fires.
+ */
+export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex justify-center pb-2">
+      <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onClick}>
+        <ArrowUp aria-hidden />
+        {t("chat.message_list.load_older")}
+      </Button>
+    </div>
+  );
+}
+
 /** Older history arrives in the message's own shape. */
 export function ChatOlderMessagesSkeleton({ label }: { label: string }) {
   return (
-    <div className="pb-3" aria-busy>
+    <div className="pb-3" role="status" aria-busy>
       <span className="sr-only">{label}</span>
       <div className="flex items-start gap-2">
         <Skeleton className="size-8 shrink-0 rounded-full" />
