@@ -16,12 +16,14 @@ const taskEvent: CalendarEvent = {
   allDay: true,
 };
 
+const calendarEventsRefetch = vi.hoisted(() => vi.fn());
 const useCalendarEventsMock = vi.hoisted(() =>
   vi.fn((..._args: unknown[]) => ({
     data: [taskEvent],
     isError: false,
     isPending: false,
-    refetch: vi.fn(),
+    isRefetching: false,
+    refetch: calendarEventsRefetch,
   })),
 );
 
@@ -35,6 +37,7 @@ const calendarSidebarQuery = vi.hoisted(() => ({
   },
   isPending: false,
   isError: false,
+  isRefetching: false,
   refetch: vi.fn(),
 }));
 
@@ -70,6 +73,7 @@ describe("CalendarPageView", () => {
   afterEach(() => {
     vi.useRealTimers();
     calendarSidebarQuery.isError = false;
+    calendarEventsRefetch.mockClear();
     calendarSidebarQuery.refetch.mockClear();
   });
 
@@ -108,6 +112,23 @@ describe("CalendarPageView", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(calendarSidebarQuery.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes the events and sidebar queries together", () => {
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Làm mới lịch" }));
+
+    expect(calendarEventsRefetch).toHaveBeenCalledTimes(1);
     expect(calendarSidebarQuery.refetch).toHaveBeenCalledTimes(1);
   });
 

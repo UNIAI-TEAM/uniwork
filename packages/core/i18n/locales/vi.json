@@ -2414,6 +2414,8 @@
     "loading": "Đang tải lịch…",
     "error": "Không tải được lịch.",
     "retry": "Thử lại",
+    "refresh": "Làm mới lịch",
+    "refreshing": "Đang làm mới lịch…",
     "view_day": "Ngày",
     "view_work_week": "Tuần làm việc",
     "view_week": "Tuần",
