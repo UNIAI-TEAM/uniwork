@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { FullCalendarHost } from "./fullcalendar-host";
@@ -20,6 +20,8 @@ type CapturedFcProps = {
   locale?: { code?: string };
   timeZone?: string;
   nowIndicator?: boolean;
+  dayMaxEventRows?: boolean | number;
+  allDayText?: string;
   editable?: boolean;
   selectable?: boolean;
   selectMirror?: boolean;
@@ -130,6 +132,33 @@ describe("FullCalendarHost", () => {
     expect(captured.locale?.code).toBe("en-gb");
     expect(captured.nowIndicator).toBe(false);
     expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
+  });
+
+  it("collapses and expands all-day events in time-grid views", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        language="vi"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    const expand = screen.getByRole("button", {
+      name: "Mở rộng sự kiện cả ngày",
+    });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    expect(captured.dayMaxEventRows).toBe(1);
+    expect(captured.allDayText).toBe("");
+
+    fireEvent.click(expand);
+
+    expect(
+      screen.getByRole("button", { name: "Thu gọn sự kiện cả ngày" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(captured.dayMaxEventRows).toBe(false);
   });
 
   it("fills the host height so time grids scroll internally", () => {
