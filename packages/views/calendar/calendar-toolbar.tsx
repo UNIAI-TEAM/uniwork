@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
@@ -36,8 +36,10 @@ export function CalendarToolbar({
   workspaceId,
   exportFrom,
   exportTo,
+  isRefreshing,
   onAnchorDateChange,
   onMineChange,
+  onRefresh,
   onViewModeChange,
   className,
 }: {
@@ -47,8 +49,10 @@ export function CalendarToolbar({
   workspaceId: string;
   exportFrom?: string;
   exportTo?: string;
+  isRefreshing: boolean;
   onAnchorDateChange: (next: Date) => void;
   onMineChange: (next: boolean) => void;
+  onRefresh: () => void;
   onViewModeChange: (mode: CalendarViewMode) => void;
   className?: string;
 }) {
@@ -114,6 +118,20 @@ export function CalendarToolbar({
         </ToggleGroup>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="outline"
+          aria-label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}
+          aria-busy={isRefreshing || undefined}
+          aria-disabled={isRefreshing}
+          onClick={onRefresh}
+        >
+          <RotateCw
+            aria-hidden
+            className={cn("size-4", isRefreshing ? "motion-safe:animate-spin" : undefined)}
+          />
+        </Button>
         <CalendarExportButton workspaceId={workspaceId} from={exportFrom} to={exportTo} />
         <label className="flex cursor-pointer items-center gap-2">
           <Switch checked={mine} onCheckedChange={onMineChange} aria-label={t("calendar.mine")} />

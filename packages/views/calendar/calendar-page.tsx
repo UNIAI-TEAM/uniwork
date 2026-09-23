@@ -44,7 +44,7 @@ export function CalendarPageView({
 
   const initialDate = format(anchorDate, "yyyy-MM-dd");
 
-  const { data, isError, isPending, refetch } = useCalendarEvents(
+  const { data, isError, isPending, isRefetching, refetch } = useCalendarEvents(
     workspaceId,
     range.from,
     range.to,
@@ -119,8 +119,12 @@ export function CalendarPageView({
             workspaceId={workspaceId}
             exportFrom={range.from}
             exportTo={range.to}
+            isRefreshing={isRefetching || sidebarQuery.isRefetching}
             onAnchorDateChange={handleAnchorDateChange}
             onMineChange={setMine}
+            onRefresh={() => {
+              void Promise.all([refetch(), sidebarQuery.refetch()]);
+            }}
             onViewModeChange={handleViewModeChange}
           />
           {isError ? (
