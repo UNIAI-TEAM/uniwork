@@ -135,8 +135,9 @@ describe("CalendarSidebar", () => {
     ).toHaveTextContent("Thứ 5, 10 thg 9 · 09:00");
   });
 
-  it("attaches FullCalendar Draggable to task lists only", () => {
+  it("makes draggable tasks a single keyboard-accessible control", () => {
     DraggableMock.mockClear();
+    const onOpenTask = vi.fn();
     render(
       wrap(
         <CalendarSidebar
@@ -157,7 +158,7 @@ describe("CalendarSidebar", () => {
             ],
           }}
           onRetry={() => {}}
-          onOpenTask={() => {}}
+          onOpenTask={onOpenTask}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
         />,
@@ -173,12 +174,15 @@ describe("CalendarSidebar", () => {
     const handle = document.querySelector(
       "[data-calendar-external-task][data-task-id='task-1']",
     ) as HTMLElement;
-    expect(handle.tagName).toBe("SPAN");
+    expect(handle.tagName).toBe("BUTTON");
+    expect(handle).toHaveAccessibleName("Mở Drag me để đặt ngày");
     expect(firstOpts.eventData?.(handle)).toEqual({
       title: "Drag me",
       duration: { days: 1 },
       extendedProps: { uniworkTaskId: "task-1" },
     });
+    fireEvent.click(handle);
+    expect(onOpenTask).toHaveBeenCalledWith("task-1");
     expect(
       document.querySelector("[data-calendar-external-task][data-task-id='meet-1']"),
     ).toBeNull();

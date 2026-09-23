@@ -120,21 +120,23 @@ function SidebarTaskRow({
   const { t, i18n } = useTranslation();
   const dueLabel = formatDueLabel(task.dueDate, i18n.resolvedLanguage ?? i18n.language);
   return (
-    <li className="flex min-w-0 items-stretch rounded-md hover:bg-surface-hover">
-      <span
+    <li className="min-w-0 rounded-md">
+      <button
+        type="button"
         data-calendar-external-task
         data-task-id={task.id}
         data-task-title={task.title}
-        aria-label={t("calendar.sidebar_task_drag_handle", { title: task.title })}
-        className="fc-event flex shrink-0 cursor-grab items-center px-1 py-1.5 text-muted-foreground active:cursor-grabbing [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:justify-center"
-      >
-        <GripVertical className="size-3.5" aria-hidden />
-      </span>
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 text-left text-body"
+        aria-label={t("calendar.sidebar_task_open_to_schedule", {
+          title: task.title,
+        })}
+        title={t("calendar.sidebar_task_drag_handle", { title: task.title })}
+        className="fc-event flex min-h-8 w-full min-w-0 cursor-grab items-center rounded-md px-1 py-1.5 text-left text-body hover:bg-surface-hover active:cursor-grabbing [@media(pointer:coarse)]:min-h-11"
         onClick={onOpen}
       >
+        <GripVertical
+          className="mr-1 size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
         <span className="min-w-0 flex-1 truncate text-foreground">{task.title}</span>
         <span className="flex shrink-0 items-center gap-1.5">
           {task.priority ? (

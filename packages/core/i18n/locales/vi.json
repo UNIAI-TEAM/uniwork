@@ -2192,6 +2192,7 @@
     "sidebar_empty_today_overdue": "Không có việc hôm nay hay quá hạn.",
     "sidebar_empty_backlog": "Không có việc tồn đọng.",
     "sidebar_task_drag_handle": "Kéo {{title}} vào lịch",
+    "sidebar_task_open_to_schedule": "Mở {{title}} để đặt ngày",
     "export_ics": "Xuất ICS",
     "export_ics_error": "Không xuất được lịch."
   },
