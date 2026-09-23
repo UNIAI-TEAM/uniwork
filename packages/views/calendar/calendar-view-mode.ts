@@ -15,8 +15,8 @@ export type CalendarViewMode = "day" | "work_week" | "week" | "month";
 
 export type CalendarFeedRange = { from: string; to: string };
 
-/** Matches FullCalendar default week start (Sunday) for toolbar-driven fetch hints. */
-const FC_WEEK_STARTS_ON = 0 as const;
+/** Vietnamese teams and the planner grid use Monday as the first day of the week. */
+const FC_WEEK_STARTS_ON = 1 as const;
 
 const WORK_WEEK_HIDDEN_DAYS: number[] = [0, 6];
 const NO_HIDDEN_DAYS: number[] = [];
@@ -27,13 +27,19 @@ export function rangeForMode(mode: CalendarViewMode, anchor: Date): CalendarFeed
       const day = format(anchor, "yyyy-MM-dd");
       return { from: day, to: day };
     }
-    case "week":
-    case "work_week": {
+    case "week": {
       const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
       const end = endOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
       return {
         from: format(start, "yyyy-MM-dd"),
         to: format(end, "yyyy-MM-dd"),
+      };
+    }
+    case "work_week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      return {
+        from: format(start, "yyyy-MM-dd"),
+        to: format(addDays(start, 4), "yyyy-MM-dd"),
       };
     }
     case "month":
@@ -73,10 +79,20 @@ export function formatPeriodLabel(mode: CalendarViewMode, anchor: Date, locale: 
   switch (mode) {
     case "day":
       return format(anchor, "PPP", { locale });
-    case "week":
-    case "work_week": {
+    case "week": {
       const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
       const end = endOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+        return `${format(start, "d", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      if (start.getFullYear() === end.getFullYear()) {
+        return `${format(start, "d MMMM", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      return `${format(start, "PPP", { locale })} – ${format(end, "PPP", { locale })}`;
+    }
+    case "work_week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      const end = addDays(start, 4);
       if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
         return `${format(start, "d", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
       }
